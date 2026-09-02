@@ -12,7 +12,6 @@ One workflow. Same issues, same reviews, same history.
 ![Version](https://img.shields.io/badge/version-0.9.4-1a1a1d?style=flat-square)
 ![Self-hostable](https://img.shields.io/badge/self--hostable-docker%20compose-1a1a1d?style=flat-square)
 
-[berry.pm](https://berry.pm)
 
 </div>
 
@@ -128,5 +127,7 @@ Crafted by [Laravel42](https://laravel42.com/).
 <div align="center">
 
 # Coming soon anytime Q4 &mdash; 2026
+
+
 
 </div>
