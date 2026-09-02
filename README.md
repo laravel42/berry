@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://berry.om/og.png" alt="Berry — A team you can spin up" width="880">
+<img src="https://berry.pm/og.png" alt="Berry — A team you can spin up" width="880">
 
 <br><br>
 
