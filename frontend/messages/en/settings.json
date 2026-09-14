@@ -1,0 +1,23 @@
+{
+   "header": {
+      "title": "Settings"
+   },
+   "preferences": {
+      "title": "Preferences",
+      "general": "General",
+      "name": "Full name",
+      "namePlaceholder": "Your name",
+      "language": "Language",
+      "languageDescription": "The language Berry's interface is shown in. Saved to your account.",
+      "timezone": "Time zone",
+      "timezoneDescription": "Dates and times across Berry are shown in this zone.",
+      "timezoneSearch": "Search time zones…",
+      "timezoneEmpty": "No time zone matches.",
+      "interface": "Interface",
+      "sidebar": "App sidebar",
+      "sidebarDescription": "Pin, hide and reorder rail items. Stored in this browser.",
+      "customize": "Customize",
+      "reduceMotion": "Reduce motion",
+      "reduceMotionDescription": "Turn off the animations Berry uses to show work moving."
+   }
+}

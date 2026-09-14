@@ -1,0 +1,679 @@
+@import 'tailwindcss';
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+   --font-sans: var(--font-jetbrains-mono);
+   --font-mono: var(--font-jetbrains-mono);
+   --font-display: var(--font-dm-serif);
+   --font-weight-normal: 300;
+   /* The body size. 13px with 1.2 line spacing, per the house style; every
+      other step below keeps its own measure. */
+   --text-xs: 0.8125rem;
+   --text-xs--line-height: 1.2;
+   --text-sm: 0.8125rem;
+   --text-sm--line-height: 1.25rem;
+   --text-base: 0.875rem;
+   --text-base--line-height: 1.25rem;
+   --text-lg: 1rem;
+   --text-lg--line-height: 1.5rem;
+   --text-xl: 1.125rem;
+   --text-xl--line-height: 1.5rem;
+   --text-2xl: 1.25rem;
+   --text-2xl--line-height: 1.625rem;
+   --text-3xl: 1.5rem;
+   --text-3xl--line-height: 1.75rem;
+   --text-4xl: 1.75rem;
+   --text-4xl--line-height: 2rem;
+}
+
+:root {
+   color-scheme: light;
+
+   --brand-void: #18181b;
+   --brand-base: #1a1a1d;
+   --brand-ember: #1c1811;
+   --brand-thicket: #151917;
+   --brand-deep: #121820;
+   --brand-ripe: oklch(70% 0.13 85);
+   --brand-chalk: #f8f8f4;
+   --brand-ash: #a8a6a6;
+   --brand-slate: #6a6767;
+   --brand-hairline: #26262b;
+   --brand-berry: #c74a5e;
+   --brand-amber: #d9a441;
+   --brand-verdant: #4f9f7a;
+   --brand-azure: #5a92c9;
+
+   /* --- Application shell (Berry Prototype.dc.html) -------------------------
+      The shell is dark in both themes. It is chrome, not content: the tab
+      strip and rail frame the workspace the way a browser frames a page, and
+      inverting them with the content theme would make the frame compete with
+      what sits inside it. Values come from the prototype verbatim so the
+      implementation and the design file cannot drift apart silently. */
+   /* Inverted against the prototype on purpose: the rail and the tab strip
+      take the darker value and the content canvas the lighter one, so the
+      workspace reads as lit and its chrome recedes. */
+   --shell-rail: #111113;
+   --shell-canvas: #18181b;
+   --shell-surface: #1a1a1d;
+   --shell-hover: #222226;
+   --shell-line: #26262b;
+   --shell-line-strong: #3a3a40;
+   --shell-text: #f0edea;
+   --shell-text-muted: #a8a6ac;
+   --shell-text-dim: #6b6a70;
+   --shell-text-faint: #4a4a50;
+   --shell-accent: var(--brand-berry);
+
+   /* Detail drawers never exceed this, regardless of viewport. Past roughly
+      this width a drawer stops reading as a panel over the workspace and
+      starts reading as a page that replaced it, which loses the sense of the
+      list still being there behind it. Single source of truth: drawers read
+      this token rather than each passing their own number. */
+   --drawer-max-width: 1024px;
+
+   --background: #f4f2ec;
+   --foreground: var(--brand-void);
+   /* Default placeholder colour; see the unlayered input rules below. */
+   --placeholder-default: color-mix(in oklab, var(--foreground) 40%, transparent);
+   --container: #fdfcf8;
+   --card: #fdfcf8;
+   --card-foreground: var(--brand-void);
+   --popover: #ffffff;
+   --popover-foreground: var(--brand-void);
+   --primary: var(--brand-berry);
+   --primary-foreground: #ffffff;
+   --secondary: #e9e6de;
+   --secondary-foreground: var(--brand-void);
+   --muted: #ece9e2;
+   --muted-foreground: #5d5a5a;
+   --subtle-foreground: var(--brand-slate);
+   --accent: #e7e4dc;
+   --accent-foreground: var(--brand-void);
+   --destructive: oklch(0.54 0.17 28);
+   --destructive-foreground: #ffffff;
+   --border: #d7d4cc;
+   --input: #cac6bd;
+   --ring: var(--brand-azure);
+   --status-success: #347b5a;
+   --status-warning: #9b6715;
+   --status-danger: oklch(0.54 0.17 28);
+   --status-info: #397caf;
+   --status-neutral: var(--brand-slate);
+   --actor-human: #9b6715;
+   --actor-agent: #397caf;
+   --review-pending: #9b6715;
+   --review-approved: #347b5a;
+   --review-changes: oklch(0.54 0.17 28);
+   --chart-1: var(--brand-berry);
+   --chart-2: var(--brand-azure);
+   --chart-3: var(--brand-verdant);
+   --chart-4: var(--brand-amber);
+   --chart-5: var(--brand-slate);
+   --radius: 0.625rem;
+   /* Flat and theme-independent, like the shell: the board's cards are dark in
+      both themes, and the column previously resolved 80% zinc over the page,
+      which put mid-grey behind dark cards in light mode. Stated once here with
+      no `.dark` counterpart, so the two cannot drift. */
+   --board-column-body: #19191d;
+   /* Edge of a card sitting in a board column: the column lifted a step, so it
+      reads as a seam rather than a line of its own. White goes last on
+      purpose -- where `color-mix` is unsupported the declaration degrades to
+      its first colour, and an edge that matches the column disappears, where
+      one that fell back to white would blaze. */
+   --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
+   /* Circle board column header neutral tint (~6% zinc on container). */
+   --board-column-header-neutral: color-mix(in oklab, var(--color-zinc-500) 6%, var(--container));
+   --sidebar: var(--brand-base);
+   --sidebar-foreground: var(--brand-chalk);
+   --sidebar-primary: var(--brand-berry);
+   --sidebar-primary-foreground: #ffffff;
+   --sidebar-accent: #252529;
+   --sidebar-accent-foreground: var(--brand-chalk);
+   --sidebar-border: var(--brand-hairline);
+   --sidebar-ring: var(--brand-azure);
+}
+
+.dark {
+   color-scheme: dark;
+
+   --background: var(--brand-void);
+   --foreground: var(--brand-chalk);
+   --container: var(--brand-base);
+   --card: var(--brand-base);
+   --card-foreground: var(--brand-chalk);
+   --popover: #1e1e21;
+   --popover-foreground: var(--brand-chalk);
+   --primary: var(--brand-berry);
+   --primary-foreground: #ffffff;
+   --secondary: var(--brand-hairline);
+   --secondary-foreground: var(--brand-chalk);
+   --muted: #202024;
+   --muted-foreground: var(--brand-ash);
+   --subtle-foreground: var(--brand-ash);
+   --accent: #252529;
+   --accent-foreground: var(--brand-chalk);
+   --destructive: oklch(0.62 0.16 28);
+   --destructive-foreground: var(--brand-chalk);
+   --border: var(--brand-hairline);
+   --input: #35353b;
+   --ring: var(--brand-azure);
+   --status-success: var(--brand-verdant);
+   --status-warning: var(--brand-amber);
+   --status-danger: oklch(0.68 0.15 28);
+   --status-info: var(--brand-azure);
+   --status-neutral: var(--brand-slate);
+   --actor-human: var(--brand-amber);
+   --actor-agent: var(--brand-azure);
+   --review-pending: var(--brand-amber);
+   --review-approved: var(--brand-verdant);
+   --review-changes: oklch(0.68 0.15 28);
+   --board-column-header-neutral: color-mix(in oklab, var(--color-zinc-400) 8%, var(--container));
+   --sidebar: var(--brand-base);
+   --sidebar-foreground: var(--brand-chalk);
+   --sidebar-primary: var(--brand-berry);
+   --sidebar-primary-foreground: #ffffff;
+   --sidebar-accent: #252529;
+   --sidebar-accent-foreground: var(--brand-chalk);
+   --sidebar-border: var(--brand-hairline);
+   --sidebar-ring: var(--brand-azure);
+}
+
+@theme inline {
+   --color-background: var(--background);
+   --color-foreground: var(--foreground);
+   --color-card: var(--card);
+   --color-card-foreground: var(--card-foreground);
+   --color-popover: var(--popover);
+   --color-popover-foreground: var(--popover-foreground);
+   --color-primary: var(--primary);
+   --color-primary-foreground: var(--primary-foreground);
+   --color-secondary: var(--secondary);
+   --color-secondary-foreground: var(--secondary-foreground);
+   --color-muted: var(--muted);
+   --color-muted-foreground: var(--muted-foreground);
+   --color-accent: var(--accent);
+   --color-accent-foreground: var(--accent-foreground);
+   --color-destructive: var(--destructive);
+   --color-destructive-foreground: var(--destructive-foreground);
+   --color-border: var(--border);
+   --color-input: var(--input);
+   --color-ring: var(--ring);
+   --color-chart-1: var(--chart-1);
+   --color-chart-2: var(--chart-2);
+   --color-chart-3: var(--chart-3);
+   --color-chart-4: var(--chart-4);
+   --color-chart-5: var(--chart-5);
+   --color-void: var(--brand-void);
+   --color-base: var(--brand-base);
+   --color-ember: var(--brand-ember);
+   --color-thicket: var(--brand-thicket);
+   --color-deep: var(--brand-deep);
+   --color-ripe: var(--brand-ripe);
+   --color-chalk: var(--brand-chalk);
+   --color-ash: var(--brand-ash);
+   --color-slate: var(--brand-slate);
+   --color-hairline: var(--brand-hairline);
+   --color-berry: var(--brand-berry);
+   --color-amber: var(--brand-amber);
+   --color-verdant: var(--brand-verdant);
+   --color-azure: var(--brand-azure);
+   --color-subtle-foreground: var(--subtle-foreground);
+   --color-status-success: var(--status-success);
+   --color-status-warning: var(--status-warning);
+   --color-status-danger: var(--status-danger);
+   --color-status-info: var(--status-info);
+   --color-status-neutral: var(--status-neutral);
+   --color-actor-human: var(--actor-human);
+   --color-actor-agent: var(--actor-agent);
+   --color-review-pending: var(--review-pending);
+   --color-review-approved: var(--review-approved);
+   --color-review-changes: var(--review-changes);
+   --radius-sm: calc(var(--radius) - 4px);
+   --radius-md: calc(var(--radius) - 2px);
+   --radius-lg: var(--radius);
+   --radius-xl: calc(var(--radius) + 4px);
+   --color-sidebar: var(--sidebar);
+   --color-sidebar-foreground: var(--sidebar-foreground);
+   --color-sidebar-primary: var(--sidebar-primary);
+   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+   --color-sidebar-accent: var(--sidebar-accent);
+   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+   --color-sidebar-border: var(--sidebar-border);
+   --color-sidebar-ring: var(--sidebar-ring);
+   --color-container: var(--container);
+   --color-board-column-body: var(--board-column-body);
+   --color-board-column-header-neutral: var(--board-column-header-neutral);
+}
+
+@layer base {
+   * {
+      @apply border-border outline-ring/50;
+   }
+
+   /* --- Type scale ---------------------------------------------------------
+      The element decides its size; a utility class never does. h1–h4 step
+      down through the named scale and everything else — h5 and h6 included —
+      sits at text-xs. Because these live in the base layer, any `text-*`
+      utility in a component would silently win, so components are barred from
+      carrying one at all (`no-restricted-syntax` in eslint.config.mjs). That
+      lint rule is what keeps this block the single source of truth rather
+      than merely the default. */
+   body {
+      @apply bg-background text-foreground font-sans text-xs;
+      --font-sans: var(--font-jetbrains-mono);
+      --font-mono: var(--font-jetbrains-mono);
+      --font-display: var(--font-dm-serif);
+      /* 400, not the 300 that `font-normal` resolves to: this weight used to
+         ride along with `.text-xs` (below) on the elements that opted into the
+         small size. Now that text-xs is the body default, the weight it was
+         paired with has to move with it or every label in the app thins out. */
+      font-weight: 400;
+      min-height: 100svh;
+   }
+
+   /* Written against the tokens rather than with `@apply`, because `text-base`
+      is not a font size in this project: the palette below defines
+      `--color-base`, and a colour of that name beats the size of the same name
+      when Tailwind resolves `text-*`. `@apply text-base` compiles to
+      `color: var(--brand-base)`. Reading the tokens directly sidesteps the
+      collision here and keeps all four rules in one shape. */
+   h1 {
+      font-size: var(--text-xl);
+      line-height: var(--text-xl--line-height);
+   }
+
+   h2 {
+      font-size: var(--text-lg);
+      line-height: var(--text-lg--line-height);
+   }
+
+   h3 {
+      font-size: var(--text-base);
+      line-height: var(--text-base--line-height);
+   }
+
+   h4 {
+      font-size: var(--text-sm);
+      line-height: var(--text-sm--line-height);
+   }
+
+   /* Form fields standing in for headings: the title field of a create
+      dialog is the h1 of the thing being made and its other fields sit one
+      step down, but an <input> cannot be an <h1>. The attribute borrows the
+      size so the scale still has one home. */
+   [data-heading='h1'] {
+      font-size: var(--text-xl);
+      line-height: var(--text-xl--line-height);
+   }
+
+   [data-heading='h2'] {
+      font-size: var(--text-lg);
+      line-height: var(--text-lg--line-height);
+   }
+
+   [data-heading='h3'] {
+      font-size: var(--text-base);
+      line-height: var(--text-base--line-height);
+   }
+
+   /* Page display titles (task title, and the rare overview emphasis). */
+   [data-heading='display'] {
+      font-size: var(--text-3xl);
+      line-height: var(--text-3xl--line-height);
+   }
+
+   /* The one size set outside the scale above. The wordmark is a logo lockup,
+      not running text: the word is drawn to sit against the mark beside it, so
+      it has to scale with the mark and not with the surrounding UI. Kept here
+      rather than inline in the component so the exception stays visible next
+      to the rule it departs from. */
+   [data-wordmark='sm'] {
+      font-size: var(--text-base);
+   }
+
+   [data-wordmark='md'] {
+      font-size: var(--text-2xl);
+   }
+
+   [data-wordmark='lg'] {
+      font-size: var(--text-4xl);
+   }
+
+   /* Keep the already-compacted sidebar menu on the previous type scale. */
+   [data-slot='sidebar'] {
+      --text-xs: 0.75rem;
+      --text-xs--line-height: 1rem;
+      --text-sm: 0.9375rem;
+      --text-sm--line-height: 1.625rem;
+      --text-base: 1rem;
+      --text-base--line-height: 1.5rem;
+      --text-lg: 1.125rem;
+      --text-lg--line-height: 1.75rem;
+      --text-xl: 1.25rem;
+      --text-xl--line-height: 1.75rem;
+      --text-2xl: 1.5rem;
+      --text-2xl--line-height: 2rem;
+      --text-3xl: 1.875rem;
+      --text-3xl--line-height: 2.25rem;
+      --text-4xl: 2.25rem;
+      --text-4xl--line-height: 2.5rem;
+   }
+
+   /* Rail nav items are how you get around the app, so they sit a step above
+      the text-xs default rather than reading as captions beside their icons.
+      Marked with `data-shell-nav` in shell-rail.tsx and shell-rail-settings.tsx
+      -- the rail is hand-built markup with no shared nav primitive to hang this
+      off, and a structural selector would break the first time a list is
+      rewrapped. Note this is the sidebar in the app: `[data-slot='sidebar']`
+      above belongs to the shadcn sidebar, which the shell does not render, so
+      its overrides do not reach here.
+
+      14px, a step above the 13px body: `--text-sm` now matches the body size
+      exactly, so it no longer sets the rail apart. Line spacing stays at the
+      1.2 the body uses.
+
+      The items size to their content (`py-1.5`, no fixed height), so the type
+      just makes the rail taller. Section headings stay at the default -- they
+      label the groups, they are not destinations. */
+   [data-shell-nav] {
+      font-size: var(--text-base);
+      line-height: 1.2;
+   }
+
+   /* Tab titles match the rail's items. The strip and the rail are one piece
+      of chrome, and a tab that read smaller than the menu beside it would
+      look like a caption rather than a place you can go back to. The strip is
+      a fixed 34px, which 14px at 1.2 still clears. */
+   .tabstrip [role='tab'] {
+      font-size: var(--text-base);
+      line-height: 1.2;
+   }
+
+   :where(.text-xs) {
+      font-weight: 400;
+   }
+
+   ::selection {
+      color: #ffffff;
+      background: var(--brand-berry);
+   }
+
+   :where(
+      input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+      textarea
+   ):is(:autofill, :-webkit-autofill, :-webkit-autofill:hover, :-webkit-autofill:focus) {
+      -webkit-text-fill-color: var(--foreground);
+      caret-color: var(--foreground);
+      transition: background-color 9999s ease-out 0s;
+      box-shadow: 0 0 0 1000px var(--background) inset;
+   }
+
+   :where(
+      a[href],
+      button:not(:disabled),
+      summary,
+      label[for],
+      select:not(:disabled),
+      input[type='button']:not(:disabled),
+      input[type='submit']:not(:disabled),
+      input[type='reset']:not(:disabled),
+      input[type='checkbox']:not(:disabled),
+      input[type='radio']:not(:disabled),
+      [role='button']:not([aria-disabled='true']),
+      [role='link'],
+      [role='menuitem']:not([aria-disabled='true']),
+      [role='option']:not([aria-disabled='true']),
+      [role='tab']:not([aria-disabled='true']),
+      [role='switch']:not([aria-disabled='true']),
+      [role='checkbox']:not([aria-disabled='true']),
+      [role='radio']:not([aria-disabled='true'])
+   ) {
+      cursor: pointer;
+   }
+}
+
+/*
+ * Unlayered so typed text stays --foreground. Layered placeholder utilities
+ * also set -webkit-text-fill-color on the control, which WebKit then uses
+ * for the caret value on transparent fields.
+ *
+ * Being unlayered, these beat every text-* utility on a control, which is
+ * wrong for a field living on the always-dark shell (chat) where --foreground
+ * follows the page theme. Such a field opts out by setting --input-color and
+ * --placeholder-color on itself; the defaults keep the page behaviour.
+ *
+ * The default mix lives in --placeholder-default rather than inline: the CSS
+ * minifier adds a plain-colour fallback beside any color-mix() it sees, and
+ * because var() declarations cannot be rejected at parse time that fallback
+ * out-cascades the mix in every browser, leaving placeholders at 100%.
+ */
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+textarea,
+select {
+   color: var(--input-color, var(--foreground));
+   caret-color: var(--input-color, var(--foreground));
+   -webkit-text-fill-color: var(--input-color, var(--foreground));
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='range']):not(
+      [type='file']
+   )::placeholder,
+textarea::placeholder {
+   color: var(--placeholder-color, var(--placeholder-default));
+   -webkit-text-fill-color: var(--placeholder-color, var(--placeholder-default));
+}
+
+input::-webkit-search-cancel-button {
+   -webkit-appearance: none;
+   appearance: none;
+   height: 16px;
+   width: 16px;
+   background-color: var(--muted-foreground);
+   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/></svg>")
+      center / 16px 16px no-repeat;
+   mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M18 6 6 18M6 6l12 12' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'/></svg>")
+      center / 16px 16px no-repeat;
+   cursor: pointer;
+}
+
+input[type='search'] {
+   font-size: 16px !important;
+}
+
+@media (max-width: 767px) {
+   :where(
+      input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+      textarea,
+      select
+   ) {
+      font-size: 16px !important;
+   }
+}
+
+@keyframes berry-working {
+   0%,
+   100% {
+      opacity: 0.35;
+      transform: scale(0.82);
+   }
+
+   45% {
+      opacity: 1;
+      transform: scale(1);
+   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+   *,
+   *::before,
+   *::after {
+      scroll-behavior: auto !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+   }
+}
+
+/* The tab strip scrolls horizontally without advertising a scrollbar, matching
+   the prototype. `scrollbar-width` covers Firefox; the pseudo-element covers
+   WebKit. */
+.tabstrip {
+   scrollbar-width: none;
+}
+.tabstrip::-webkit-scrollbar {
+   display: none;
+}
+
+/* Kanban columns (and other scroll regions) keep overflow without a visible
+   scrollbar. Firefox via scrollbar-width; WebKit via the pseudo-element. */
+.no-scrollbar {
+   scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+   display: none;
+}
+
+/* Pending-reply pulse, from the prototype's `berrypulse`. Honoured only when
+   the viewer has not asked for reduced motion. */
+@keyframes berrypulse {
+   0%,
+   100% {
+      opacity: 1;
+   }
+   50% {
+      opacity: 0.45;
+   }
+}
+
+@keyframes ai-border-flow {
+   0% {
+      background-position: 0% 50%;
+   }
+
+   100% {
+      background-position: 300% 50%;
+   }
+}
+
+.ai-animated-border {
+   display: inline-flex;
+   padding: 1px;
+   border-radius: calc(var(--radius-md) + 1px);
+   background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #34d399, #fbbf24, #f472b6);
+   background-size: 300% 100%;
+   animation: ai-border-flow 4s linear infinite;
+}
+
+.ai-prompt-pill {
+   display: inline-flex;
+   width: 100%;
+   max-width: 36rem;
+   padding: 1px;
+   border-radius: 9999px;
+   background: linear-gradient(90deg, #c4b5fd, #a78bfa, #93c5fd, #c4b5fd);
+   background-size: 300% 100%;
+   animation: ai-border-flow 4s linear infinite;
+   box-shadow: 0 0 0 1px color-mix(in oklab, #a78bfa 25%, transparent),
+      0 10px 30px color-mix(in oklab, #a78bfa 18%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+   .ai-animated-border,
+   .ai-prompt-pill {
+      animation: none;
+      background-position: 50% 50%;
+   }
+}
+
+.tiptap-ai-editor .ProseMirror {
+   min-height: 6rem;
+   outline: none;
+   color: var(--foreground);
+   -webkit-text-fill-color: var(--foreground);
+   white-space: pre-wrap;
+}
+
+.tiptap-ai-editor .ProseMirror p + p {
+   margin-top: 0.75rem;
+}
+
+.tiptap-ai-editor .ProseMirror h1,
+.tiptap-ai-editor .ProseMirror h2,
+.tiptap-ai-editor .ProseMirror h3 {
+   font-weight: 500;
+   line-height: 1.3;
+}
+
+.tiptap-ai-editor .ProseMirror h1 {
+   font-size: 1.25rem;
+   margin-top: 0.75rem;
+}
+
+.tiptap-ai-editor .ProseMirror h2 {
+   font-size: 1.125rem;
+   margin-top: 0.75rem;
+}
+
+.tiptap-ai-editor .ProseMirror h3 {
+   font-size: 1rem;
+   margin-top: 0.5rem;
+}
+
+.tiptap-ai-editor .ProseMirror ul,
+.tiptap-ai-editor .ProseMirror ol {
+   margin: 0.5rem 0;
+   padding-left: 1.25rem;
+}
+
+.tiptap-ai-editor .ProseMirror ul {
+   list-style: disc;
+}
+
+.tiptap-ai-editor .ProseMirror ol {
+   list-style: decimal;
+}
+
+.tiptap-ai-editor .ProseMirror code {
+   border-radius: 0.25rem;
+   background: color-mix(in oklab, var(--muted) 80%, transparent);
+   padding: 0.1rem 0.3rem;
+   font-size: 0.9em;
+}
+
+.tiptap-ai-editor .ProseMirror pre {
+   margin: 0.75rem 0;
+   overflow-x: auto;
+   border-radius: 0.375rem;
+   background: color-mix(in oklab, var(--muted) 80%, transparent);
+   padding: 0.75rem 1rem;
+}
+
+.tiptap-ai-editor .ProseMirror pre code {
+   background: transparent;
+   padding: 0;
+}
+
+.tiptap-ai-editor .ProseMirror blockquote {
+   margin: 0.75rem 0;
+   border-left: 2px solid var(--border);
+   padding-left: 0.75rem;
+   color: var(--muted-foreground);
+}
+
+.tiptap-ai-editor .ProseMirror a {
+   color: var(--primary);
+   text-decoration: underline;
+   text-underline-offset: 2px;
+}
+
+.tiptap-ai-editor .ProseMirror p.is-editor-empty:first-child::before {
+   color: var(--placeholder-default);
+   content: attr(data-placeholder);
+   float: left;
+   height: 0;
+   pointer-events: none;
+}

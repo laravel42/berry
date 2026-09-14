@@ -1,0 +1,14 @@
+{
+   "header": {
+      "title": "Tasks",
+      "description": "Work starts here. Assign to a human or an agent, then track it through review.",
+      "insights": "Insights",
+      "breakdown": "Breakdown",
+      "create": "Create task"
+   },
+   "tabs": {
+      "all": "All",
+      "members": "Members",
+      "agent": "Agent"
+   }
+}

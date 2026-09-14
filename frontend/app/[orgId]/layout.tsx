@@ -1,0 +1,38 @@
+import { FloatingChat } from '@/components/common/chat/floating-chat';
+import { BerryShell } from '@/components/layout/shell/berry-shell';
+import { WorkspaceAccess } from '@/components/common/workspace-access';
+
+/**
+ * Workspace layout: the shell frames every workspace route.
+ *
+ * The shell owns the rail, the tab strip, and the scrolling canvas, so pages
+ * below it render content only. `MainLayout` therefore no longer draws a
+ * sidebar of its own — two sidebars is what you get if both keep their chrome.
+ *
+ * Kept synchronous on purpose. Awaiting `params` here makes the layout async,
+ * which breaks page-data collection for the intercepting routes in the
+ * `@drawer` slot (issues, agents, skills, and the rest); the shell reads the
+ * workspace id from `useParams` instead.
+ */
+export default function OrgLayout({
+   children,
+   drawer,
+}: {
+   children: React.ReactNode;
+   drawer: React.ReactNode;
+}) {
+   return (
+      <BerryShell>
+         {/* An address this account cannot open never reaches the pages
+             below, and never says which of the two reasons it is. */}
+         <WorkspaceAccess>
+            {children}
+            {drawer}
+         </WorkspaceAccess>
+         {/* Chat from anywhere except the chat page, which is this window's
+             full-size counterpart. Outside the access gate on purpose: it is
+             shell, not a page, and it hides itself when there is no workspace. */}
+         <FloatingChat />
+      </BerryShell>
+   );
+}

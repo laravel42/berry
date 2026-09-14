@@ -1,0 +1,19 @@
+node_modules/
+dist/
+
+# environment
+.env
+.env.*
+!.env.example
+.vscode/
+# agent scratch workspaces (large, machine-local)
+.tmp-agents/
+.tmp-pr/
+.impeccable/
+.DS_Store
+# agent worktrees (large, machine-local) and per-tool mirrors of .agents/skills
+.claude/worktrees/
+.claude/skills/
+.kiro/skills/
+.hermes/
+.qwen/

@@ -1,0 +1,651 @@
+import type { User } from '@/data/users';
+import { useEffect, useState } from 'react';
+import { z } from 'zod';
+import { apiBlob, apiFetch, BerryApiError } from './api';
+import { connectionSchema } from './api-schemas';
+import { toUiUser } from './catalog';
+import { roleContractSchema } from './organization';
+
+const agentSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   description: z.string().nullish(),
+   avatarUrl: z.string().nullable(),
+   status: z.string(),
+   capabilities: z.array(z.string()),
+   /** System prompt applied to every task this agent runs. Markdown. */
+   instructions: z.string().nullish(),
+   modelProvider: z.string().nullish(),
+   modelName: z.string().nullish(),
+   /**
+    * What this agent may do. Absence is denial, so an empty list is an agent
+    * that can be assigned work and cannot act on it.
+    */
+   permissions: z.array(z.string()).default([]),
+   labels: z.array(z.string()).default([]),
+   /** Names only: env values are sealed on the server and never sent back. */
+   envNames: z.array(z.string()).default([]),
+   access: z.object({ assign: z.string(), mention: z.string() }).optional(),
+   /** A seeded role such as 'guide'. */
+   systemRole: z.string().nullish(),
+   /** The member who authored it; absent for agents a workspace seeded itself. */
+   ownerId: z.string().nullish(),
+   /** Up to three openers a new chat with this agent offers. */
+   conversationStarters: z.array(z.string()).default([]),
+   /** Tasks it may run at once; null leaves the ceiling to the dispatcher. */
+   maxConcurrency: z.number().nullish(),
+   archivedAt: z.string().nullish(),
+   createdAt: z.string(),
+   updatedAt: z.string(),
+   /** The default-organization role this agent fills, or null for a plain agent. */
+   roleKey: z.string().nullish(),
+   department: z.string().nullish(),
+   autonomyLevel: z.number().nullish(),
+   /** Its stored contract no longer matches Berry's shipped version. */
+   customized: z.boolean().default(false),
+   /** The role contract document; null when `roleKey` is set but the stored contract no longer validates. */
+   contract: roleContractSchema.nullish(),
+});
+
+const agentConnectionSchema = connectionSchema(agentSchema);
+
+export type Agent = z.infer<typeof agentSchema>;
+
+const PREFERRED_AGENT_NAMES = ['berry-prototype', 'hello-world', 'assistant', 'coder'];
+
+export interface AgentStatusDisplay {
+   label: string;
+   tone: 'online' | 'busy' | 'offline' | 'unknown';
+}
+
+/** Map gateway AgentStatus to list UI copy. */
+export function agentStatusDisplay(status: string): AgentStatusDisplay {
+   switch (status) {
+      case 'available':
+         return { label: 'Online', tone: 'online' };
+      case 'busy':
+         return { label: 'Busy', tone: 'busy' };
+      case 'offline':
+         return { label: 'Offline', tone: 'offline' };
+      default:
+         return { label: 'Unknown', tone: 'unknown' };
+   }
+}
+
+export interface AgentModelDisplay {
+   /** Bare model name for a cell, or a dash when none is assigned. */
+   label: string;
+   /** Provider-qualified full id for a tooltip; absent when nothing is assigned. */
+   title?: string;
+}
+
+/**
+ * Bare model name for a list cell.
+ *
+ * - OpenRouter-style: `minimax/minimax-m2.7:free` → `minimax-m2.7`
+ * - Bedrock inference profile: `us.anthropic.claude-opus-5` → `claude-opus-5`
+ * - Dated Bedrock id: `…claude-haiku-4-5-20251001-v1:0` → `claude-haiku-4-5`
+ *
+ * Geography, provider family, path vendors, pricing tiers and the snapshot
+ * date/revision after the release are how the model is bought, not what it
+ * is. The full id stays in the tooltip.
+ */
+export function bareModelName(modelId: string): string {
+   let name = modelId;
+
+   if (name.includes('/')) {
+      name = name.slice(name.lastIndexOf('/') + 1);
+   } else {
+      // Bedrock: {geography}.{family}.{model…}
+      const bedrock = name.match(/^(?:us|eu|apac|global)\.[a-z0-9-]+\.(.+)$/i);
+      if (bedrock?.[1]) name = bedrock[1];
+   }
+
+   const tier = name.indexOf(':');
+   if (tier > 0) name = name.slice(0, tier);
+
+   // Drop Bedrock snapshot date + revision after the release number.
+   return name.replace(/-\d{8}(?:-v\d+)?$/i, '');
+}
+
+/**
+ * The LLM an agent runs on, for list and summary cells.
+ *
+ * The label is the bare name; provider and full id go into the title so a
+ * hover still attributes the model. Berry's built-in orchestrator has no
+ * runtime model, which is what the dash means.
+ */
+export function agentModelDisplay(
+   agent: Pick<Agent, 'modelProvider' | 'modelName'>
+): AgentModelDisplay {
+   const model = agent.modelName?.trim();
+   if (!model) return { label: '—' };
+   const provider = agent.modelProvider?.trim();
+   return {
+      label: bareModelName(model) || model,
+      title: provider ? `${provider} · ${model}` : model,
+   };
+}
+
+/** Load workspace agents. */
+export async function loadWorkspaceAgents(): Promise<Agent[]> {
+   const collected: Agent[] = [];
+   let after: string | undefined;
+   for (let page = 0; page < 20; page += 1) {
+      const params = new URLSearchParams({ first: '100' });
+      if (after) params.set('after', after);
+      const json: unknown = await apiFetch(`/api/v1/agents?${params.toString()}`);
+      const parsed = agentConnectionSchema.safeParse(json);
+      if (!parsed.success) {
+         throw new Error('Agent list was not recognized');
+      }
+      collected.push(...parsed.data.nodes);
+      const { hasNextPage, endCursor } = parsed.data.pageInfo;
+      if (!hasNextPage || !endCursor || parsed.data.nodes.length === 0) {
+         break;
+      }
+      after = endCursor;
+   }
+   return collected;
+}
+
+export async function getWorkspaceAgent(agentId: string): Promise<Agent> {
+   const json: unknown = await apiFetch(`/api/v1/agents/${encodeURIComponent(agentId)}`);
+   const parsed = agentSchema.safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Agent response was not recognized');
+   }
+   return parsed.data;
+}
+
+/**
+ * Write the agent configuration Berry authors.
+ *
+ * A resolved promise means the server accepted and stored the change. An
+ * omitted field is left unchanged; an empty string clears it.
+ */
+const modelSchema = z.object({
+   id: z.string(),
+   displayName: z.string(),
+   provider: z.string(),
+   tier: z.string(),
+   contextWindow: z.number(),
+   inputCostPerM: z.number(),
+   outputCostPerM: z.number(),
+   supportsTools: z.boolean(),
+   supportsVision: z.boolean(),
+});
+
+export type AgentModel = z.infer<typeof modelSchema>;
+
+/**
+ * Models this runtime can actually serve.
+ *
+ * The server filters to available ones, so anything listed here has a
+ * configured provider behind it — a model that would fail on the agent's next
+ * task is never offered.
+ */
+export async function listAgentModels(): Promise<AgentModel[]> {
+   const json: unknown = await apiFetch('/api/v1/agents/models');
+   const parsed = z.object({ nodes: z.array(modelSchema) }).safeParse(json);
+   if (!parsed.success) throw new Error('Model list was not recognized');
+   return parsed.data.nodes;
+}
+
+/**
+ * `$3`, `$1.25`, `$0.021` — what a million tokens costs.
+ *
+ * Three significant figures rather than a fixed number of decimals, because
+ * these prices span four orders of magnitude: the catalog quotes Sonnet at $3
+ * and Ling at $0.021, and any single decimal count is either noise at the top
+ * ($3.00) or a lie at the bottom ($0.02, and $0.00 for anything cheaper).
+ * Trailing zeros are dropped so the common whole-dollar prices stay short.
+ */
+export function modelPrice(perMillion: number): string {
+   if (!Number.isFinite(perMillion) || perMillion < 0) return '—';
+   if (perMillion === 0) return '$0';
+   // Above $100 a cent is not information, and toPrecision would switch to
+   // exponential notation at four digits anyway.
+   if (perMillion >= 100) return `$${Math.round(perMillion)}`;
+   const figures = perMillion.toPrecision(3);
+   // Trailing zeros only ever follow a decimal point. Stripping them from a
+   // whole number turns $100 into $1.
+   const trimmed = figures.includes('.') ? figures.replace(/0+$/, '').replace(/\.$/, '') : figures;
+   return `$${trimmed}`;
+}
+
+export interface AgentPriceDisplay {
+   /** `$3 / $15`, `Free`, or a dash when the price is not known. */
+   label: string;
+   /** What the two numbers mean; absent when there is nothing to explain. */
+   title?: string;
+}
+
+/**
+ * What the agent's assigned model costs, input then output.
+ *
+ * Priced from the catalog rather than from the agent, because that is where
+ * price lives: an agent stores which model it runs on, and what that model
+ * costs is the provider's business and changes without the agent changing.
+ *
+ * A dash covers two different unknowns — no model assigned, and a model the
+ * catalog no longer offers — and says the same thing about both, which is that
+ * Berry cannot quote a price. Distinguishing them in a table cell would be
+ * detail nobody is reading the column for.
+ */
+export function agentPriceDisplay(
+   agent: Pick<Agent, 'modelProvider' | 'modelName'>,
+   prices: Map<string, AgentModel>
+): AgentPriceDisplay {
+   const provider = agent.modelProvider?.trim();
+   const model = agent.modelName?.trim();
+   if (!provider || !model) return { label: '—' };
+   const entry = prices.get(`${provider}/${model}`);
+   if (!entry) return { label: '—' };
+   if (entry.inputCostPerM === 0 && entry.outputCostPerM === 0) {
+      return { label: 'Free', title: `${entry.displayName} costs nothing to run` };
+   }
+   return {
+      label: `${modelPrice(entry.inputCostPerM)} / ${modelPrice(entry.outputCostPerM)}`,
+      title: `${entry.displayName}: ${modelPrice(entry.inputCostPerM)} in, ${modelPrice(
+         entry.outputCostPerM
+      )} out, per million tokens`,
+   };
+}
+
+/** Key a catalog model the way an agent stores its pairing. */
+export function modelKey(model: Pick<AgentModel, 'provider' | 'id'>): string {
+   return `${model.provider}/${model.id}`;
+}
+
+/**
+ * The same key read off an agent, or null when it runs on no named model.
+ *
+ * Filtering a list by model needs one string per agent that matches the one
+ * the catalogue uses, and an agent with only half a pairing has nothing to
+ * match — the two fields are set together or not at all.
+ */
+export function modelPairKey(agent: Pick<Agent, 'modelProvider' | 'modelName'>): string | null {
+   const provider = agent.modelProvider?.trim();
+   const model = agent.modelName?.trim();
+   return provider && model ? `${provider}/${model}` : null;
+}
+
+/** Cross-region routing prefixes Bedrock puts on a profile id. */
+const ROUTING_PREFIXES = ['us-gov', 'us', 'eu', 'apac', 'apne', 'global'];
+
+/**
+ * The vendor that makes a model, derived from its Bedrock id.
+ *
+ * Every catalog row is served by the same provider (`bedrock`), so grouping on
+ * `provider` yields one bucket. The useful axis is the vendor, which Bedrock
+ * encodes as the id segment after the routing prefix:
+ * `us.anthropic.claude-…` → `anthropic`, `qwen.qwen3-32b-v1:0` → `qwen`. An id
+ * that does not match this shape falls back to its provider.
+ */
+export function modelVendor(model: Pick<AgentModel, 'id' | 'provider'>): string {
+   const segments = model.id.split('.');
+   if (segments.length >= 2) {
+      const first = segments[0]!.toLowerCase();
+      // A leading routing prefix (`us.`, `global.`) is not the vendor; the
+      // vendor is the segment after it.
+      const vendor = ROUTING_PREFIXES.includes(first) ? segments[1] : segments[0];
+      if (vendor) return vendor.toLowerCase();
+   }
+   return model.provider;
+}
+
+export async function updateAgentConfig(
+   agentId: string,
+   config: {
+      name?: string;
+      instructions?: string;
+      description?: string;
+      /** Both together, or both null to run on no named model at all. */
+      provider?: string | null;
+      model?: string | null;
+      skills?: string[];
+      /** Replaces every starter; an empty list clears them. */
+      starters?: string[];
+      /** Null clears the ceiling; omitting it leaves the stored one alone. */
+      maxConcurrency?: number | null;
+   }
+): Promise<Agent> {
+   const json: unknown = await apiFetch(`/api/v1/agents/${encodeURIComponent(agentId)}/config`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(config),
+   });
+   const parsed = agentSchema.safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Agent response was not recognized');
+   }
+   return parsed.data;
+}
+
+export function agentToUser(agent: Agent): User {
+   return toUiUser({
+      id: agent.id,
+      name: agent.name,
+      avatarUrl: agent.avatarUrl,
+      type: 'agent',
+   });
+}
+
+/** Prefer the prototype OpenRouter agent, then other ready runtimes. */
+export function pickRunnableAgent(agents: Agent[]): Agent | undefined {
+   for (const name of PREFERRED_AGENT_NAMES) {
+      const match = agents.find(
+         (agent) => agent.name === name && agent.status !== 'offline' && agent.status !== 'unknown'
+      );
+      if (match) return match;
+   }
+   return (
+      agents.find((agent) => agent.status === 'available') ??
+      agents.find((agent) => agent.status !== 'offline') ??
+      agents[0]
+   );
+}
+
+/**
+ * What an agent may do, in the order a person reads them.
+ *
+ * `merge_without_approval` is last and separate on purpose: it is the one
+ * that makes the human review gate advisory, and it is not a default.
+ */
+export const AGENT_PERMISSIONS = [
+   {
+      key: 'read_repository',
+      label: 'Read the repository',
+      description: 'Clone it and read its files.',
+   },
+   {
+      key: 'create_branches',
+      label: 'Create branches',
+      description: 'Push a branch named for the task.',
+   },
+   {
+      key: 'run_commands',
+      label: 'Run commands',
+      description: 'Run builds and tests in an isolated workspace.',
+   },
+   {
+      key: 'open_pull_requests',
+      label: 'Open pull requests',
+      description: 'Open a pull request for a person to review.',
+   },
+   {
+      key: 'merge_without_approval',
+      label: 'Merge without approval',
+      description: 'Merge its own work with no human review. Off by default.',
+      dangerous: true,
+   },
+] as const;
+
+/** Replaces the whole set; every enforcement point reads it as a set. */
+export async function setAgentPermissions(agentId: string, permissions: string[]): Promise<Agent> {
+   const json: unknown = await apiFetch(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/permissions`,
+      { method: 'PUT', body: JSON.stringify({ permissions }) }
+   );
+   const parsed = agentSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Agent response was not recognized');
+   return parsed.data;
+}
+
+// ------------------------------------------------------------ agent layer
+
+const runNodeSchema = z.object({
+   id: z.string(),
+   status: z.string(),
+   issueId: z.string().nullish(),
+   /** What the run says it did, when it said anything. */
+   summary: z.string().nullish(),
+   /**
+    * Why it stopped, for a run that failed.
+    *
+    * Carried so the activity list can say what went wrong in a sentence
+    * instead of printing the word "failed" and leaving the reader to open
+    * the run ledger to find out which kind of failure it was.
+    */
+   failure: z.object({ code: z.string(), message: z.string(), retryable: z.boolean() }).nullish(),
+   createdAt: z.string(),
+   startedAt: z.string().nullish(),
+   completedAt: z.string().nullish(),
+});
+export type AgentTask = z.infer<typeof runNodeSchema>;
+
+/** How long a task took, or null while it has not started or finished. */
+export function agentTaskDurationMs(task: AgentTask): number | null {
+   if (!task.startedAt) return null;
+   const end = task.completedAt ?? new Date().toISOString();
+   return Math.max(0, new Date(end).getTime() - new Date(task.startedAt).getTime());
+}
+
+const parseAgent = (json: unknown): Agent => {
+   const parsed = agentSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Agent response was not recognized');
+   return parsed.data;
+};
+const agentPath = (id: string, rest = '') => `/api/v1/agents/${encodeURIComponent(id)}${rest}`;
+
+export async function loadArchivedAgents(): Promise<Agent[]> {
+   const json: unknown = await apiFetch('/api/v1/agents?archived=true&first=100');
+   const parsed = agentConnectionSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Agent list was not recognized');
+   return parsed.data.nodes;
+}
+
+export const restoreAgent = async (id: string) =>
+   parseAgent(await apiFetch(agentPath(id, '/restore'), { method: 'POST', body: '{}' }));
+
+export const copyAgent = async (id: string) =>
+   parseAgent(
+      await apiFetch(agentPath(id, '/copy'), {
+         method: 'POST',
+         headers: { 'idempotency-key': crypto.randomUUID() },
+         body: '{}',
+      })
+   );
+
+export async function archiveAgent(id: string): Promise<void> {
+   await apiFetch(agentPath(id), { method: 'DELETE' });
+}
+
+export async function cancelAgentTasks(id: string): Promise<number> {
+   const json: unknown = await apiFetch(agentPath(id, '/cancel-tasks'), {
+      method: 'POST',
+      body: '{}',
+   });
+   return z.object({ cancelled: z.number() }).parse(json).cancelled;
+}
+
+export async function listAgentTasks(id: string, after?: string) {
+   const query = `/tasks?first=50${after ? `&after=${encodeURIComponent(after)}` : ''}`;
+   const json: unknown = await apiFetch(agentPath(id, query));
+   return connectionSchema(runNodeSchema).parse(json);
+}
+
+export const setAgentLabels = async (id: string, labels: string[]) =>
+   parseAgent(
+      await apiFetch(agentPath(id, '/labels'), { method: 'PUT', body: JSON.stringify({ labels }) })
+   );
+
+/** Replaces every variable; the response carries names only. */
+export async function setAgentEnv(id: string, env: Record<string, string>): Promise<string[]> {
+   const json: unknown = await apiFetch(agentPath(id, '/env'), {
+      method: 'PUT',
+      body: JSON.stringify({ env }),
+   });
+   return z.object({ envNames: z.array(z.string()) }).parse(json).envNames;
+}
+
+export const uploadAgentAvatar = async (id: string, file: File) =>
+   parseAgent(
+      await apiFetch(agentPath(id, '/avatar'), {
+         method: 'PUT',
+         headers: { 'content-type': file.type },
+         body: file,
+      })
+   );
+
+export const agentAccessSchema = z.object({
+   assign: z.enum(['everyone', 'admins', 'listed']),
+   mention: z.enum(['everyone', 'admins', 'listed']),
+   members: z.array(z.string()),
+});
+export type AgentAccess = z.infer<typeof agentAccessSchema>;
+
+export const getAgentAccess = async (id: string) =>
+   agentAccessSchema.parse(await apiFetch(agentPath(id, '/access')));
+
+export const setAgentAccess = async (id: string, access: AgentAccess) =>
+   parseAgent(
+      await apiFetch(agentPath(id, '/permissions'), {
+         method: 'PUT',
+         body: JSON.stringify({ access }),
+      })
+   );
+
+/** The workspace's guide agent, or null when it has none (archived, say). */
+export async function getGuideAgent(): Promise<Agent | null> {
+   try {
+      return parseAgent(await apiFetch('/api/v1/agents/guide'));
+   } catch (error) {
+      if (error instanceof BerryApiError && error.status === 404) return null;
+      throw error;
+   }
+}
+
+const avatarCache = new Map<string, Promise<string>>();
+
+/**
+ * A usable `src` for an agent avatar.
+ *
+ * An external `https://` URL is used as is. An avatar Berry serves lives behind
+ * the API's bearer authentication, which an `<img>` cannot send, so it is
+ * fetched once through the API client and shown from a blob URL. The `?v=` in
+ * the path changes on every upload, so the cache never serves a stale picture.
+ */
+export function useAgentAvatarSrc(avatarUrl: string | null | undefined): string | null {
+   const external = avatarUrl && /^https?:\/\//.test(avatarUrl) ? avatarUrl : null;
+   const [src, setSrc] = useState<string | null>(external);
+
+   useEffect(() => {
+      if (!avatarUrl) {
+         setSrc(null);
+         return;
+      }
+      if (/^https?:\/\//.test(avatarUrl)) {
+         setSrc(avatarUrl);
+         return;
+      }
+      if (!avatarUrl.startsWith('/api/v1/agents/')) {
+         setSrc(null);
+         return;
+      }
+      let cancelled = false;
+      let pending = avatarCache.get(avatarUrl);
+      if (!pending) {
+         pending = apiBlob(avatarUrl, { headers: { accept: 'image/*' } }).then((blob) =>
+            URL.createObjectURL(blob)
+         );
+         avatarCache.set(avatarUrl, pending);
+         pending.catch(() => avatarCache.delete(avatarUrl));
+      }
+      pending.then(
+         (url) => {
+            if (!cancelled) setSrc(url);
+         },
+         () => {
+            if (!cancelled) setSrc(null);
+         }
+      );
+      return () => {
+         cancelled = true;
+      };
+   }, [avatarUrl]);
+
+   return src;
+}
+
+// ------------------------------------------------------- roster and secrets
+
+const rosterNodeSchema = z.object({
+   agentId: z.string(),
+   ownerId: z.string().nullable(),
+   ownerName: z.string().nullable(),
+   runtimeId: z.string().nullable(),
+   runtimeName: z.string().nullable(),
+   runtimeStatus: z.string().nullable(),
+   running: z.number(),
+   queued: z.number(),
+   totalRuns: z.number(),
+   lastActiveAt: z.string().nullable(),
+   activity: z.array(z.object({ day: z.string(), runs: z.number(), failed: z.number() })),
+});
+
+/** What the list draws per row beyond the agent itself. */
+export type AgentRoster = z.infer<typeof rosterNodeSchema>;
+
+/**
+ * Owner, runtime, load and recent activity for every agent, keyed by agent id.
+ *
+ * A map rather than a list: every caller looks an agent up by id, and the row
+ * order is the list's own decision, not the server's.
+ */
+export async function loadAgentRoster(days = 7): Promise<Map<string, AgentRoster>> {
+   const json: unknown = await apiFetch(`/api/v1/agents/roster?days=${days}`);
+   const parsed = z.object({ nodes: z.array(rosterNodeSchema) }).safeParse(json);
+   if (!parsed.success) throw new Error('Agent roster was not recognized');
+   return new Map(parsed.data.nodes.map((node) => [node.agentId, node]));
+}
+
+/** A row of the environment history: who, what, and which variables. */
+export const envAuditEntrySchema = z.object({
+   id: z.string(),
+   actorId: z.string().nullable(),
+   actorName: z.string().nullable(),
+   action: z.enum(['reveal', 'update']),
+   envNames: z.array(z.string()),
+   occurredAt: z.string(),
+});
+export type AgentEnvAuditEntry = z.infer<typeof envAuditEntrySchema>;
+
+/**
+ * Opens an agent's environment for editing.
+ *
+ * Deliberately not part of loading the settings tab: the server records every
+ * call, so asking for the values has to be something a person did, not
+ * something a page did on their behalf.
+ */
+export async function revealAgentEnv(id: string): Promise<Record<string, string>> {
+   const json: unknown = await apiFetch(agentPath(id, '/env/reveal'), {
+      method: 'POST',
+      body: '{}',
+   });
+   return z.object({ env: z.record(z.string()) }).parse(json).env;
+}
+
+export async function listAgentEnvAudit(id: string): Promise<AgentEnvAuditEntry[]> {
+   const json: unknown = await apiFetch(agentPath(id, '/env/audit'));
+   return z.object({ nodes: z.array(envAuditEntrySchema) }).parse(json).nodes;
+}
+
+/** Creates an agent by hand. Idempotent per call, so a retried click makes one agent. */
+export async function createAgent(input: {
+   name: string;
+   description?: string;
+   instructions?: string;
+   provider?: string;
+   model?: string;
+   skills?: string[];
+}): Promise<Agent> {
+   return parseAgent(
+      await apiFetch('/api/v1/agents', {
+         method: 'POST',
+         headers: { 'idempotency-key': crypto.randomUUID() },
+         body: JSON.stringify(input),
+      })
+   );
+}

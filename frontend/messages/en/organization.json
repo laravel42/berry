@@ -1,0 +1,70 @@
+{
+   "roleTab": {
+      "notARole": "This agent is not part of the organization. Its permissions are set in Settings → Agents.",
+      "mission": "Mission",
+      "responsibilities": "Responsibilities",
+      "inputs": "Works from",
+      "outputs": "Produces",
+      "delegatesTo": "Hands work to",
+      "receivesFrom": "Receives work from",
+      "escalation": "Escalates",
+      "reviews": "Reviewed by",
+      "reviewDomains": "Reviews",
+      "never": "Never",
+      "autonomy": "Autonomy level {level}",
+      "discovery": "Weekly discovery",
+      "customized": "Customized — this role no longer matches Berry's version.",
+      "reset": "Reset to Berry's version",
+      "resetDone": "Role reset",
+      "contractInvalid": "This role's stored contract is no longer valid.",
+      "contractInvalidHint": "Reset it to Berry's version to restore its mission, permissions and delegation.",
+      "adminOnly": "Only workspace owners and admins can reset a role."
+   },
+   "levels": {
+      "1": "Advisory — analyzes and recommends",
+      "2": "Contributor — creates specifications, proposals and tasks",
+      "3": "Executor — changes code and opens pull requests",
+      "4": "Autonomous — finds, executes and submits work for review",
+      "5": "Authority — approves or rejects work in its domain"
+   },
+   "departments": {
+      "operations": "Operations",
+      "product": "Product",
+      "engineering": "Engineering",
+      "quality-security": "Quality & Security",
+      "platform": "Platform",
+      "growth-insight": "Growth & Insight",
+      "leadership": "Leadership"
+   },
+   "settings": {
+      "title": "Organization",
+      "description": "The roles your agents fill, what each may do, and the work they look for on their own.",
+      "discovery": "Work discovery",
+      "discoveryHint": "Each role inspects the workspace once a week and proposes work with evidence.",
+      "workflows": "Workflows",
+      "paused": "Paused",
+      "active": "Active",
+      "contractInvalid": "Contract invalid",
+      "reset": "Reset",
+      "adminOnly": "Only workspace owners and admins can change this."
+   },
+   "proposals": {
+      "title": "Proposals",
+      "empty": {
+         "mark": "No proposals",
+         "title": "No proposals yet.",
+         "body": "Discovery autopilots file evidence-backed work here when role agents inspect the workspace.",
+         "cta": "go to autopilots"
+      },
+      "evidence": "Evidence",
+      "impact": "Impact",
+      "action": "Proposed action",
+      "effort": "Effort {effort}",
+      "owner": "Owner: {role}",
+      "reviewers": "Reviewers: {roles}",
+      "accept": "Accept",
+      "reject": "Reject",
+      "decided": "Decision recorded",
+      "adminOnly": "Only workspace owners and admins can accept or reject a proposal."
+   }
+}

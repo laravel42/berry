@@ -1,0 +1,73 @@
+# What the server serves, and what it does not
+
+The authoritative list is always `src/index.ts` — the composition root
+registers exactly the mounts below. This file is a reader's index to it. If
+the two ever disagree, `src/index.ts` is right and this file is stale;
+regenerate the served list from the mount prefixes with:
+
+```bash
+grep -rhoE "prefix: '/[^']+'" src/mounts/*.ts src/runtime/agent-tools/mount.ts | sort -u
+# /api/auth comes from mounts/better-auth.ts (prefix: AUTH_BASE_PATH)
+```
+
+For how the server is laid out, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+For the same list grouped by area with reference notes, see
+[`ROUTING.md`](./ROUTING.md).
+
+## Served
+
+Every prefix `src/index.ts` registers today:
+
+```
+/api/auth             (Better Auth: GitHub sign-in, callback, session, sign-out)
+/api/v1/agent-tools   (task-token auth only: the runtime calling Berry's tools)
+/api/v1/agent-builder /api/v1/agents        /api/v1/approvals     /api/v1/artifacts
+/api/v1/attachments   /api/v1/auth          /api/v1/autopilots    /api/v1/boards
+/api/v1/catalogs      /api/v1/comments      /api/v1/config        /api/v1/conversations
+/api/v1/dashboard     /api/v1/editor        /api/v1/events        /api/v1/github
+/api/v1/goals         /api/v1/inbox         /api/v1/integrations  /api/v1/invitations
+/api/v1/issues        /api/v1/join-links    /api/v1/mcp-servers   /api/v1/me
+/api/v1/organization  /api/v1/pins          /api/v1/plans         /api/v1/plugins
+/api/v1/projects      /api/v1/reviews       /api/v1/runs          /api/v1/runtimes
+/api/v1/search        /api/v1/skills        /api/v1/tokens        /api/v1/usage
+/api/v1/views         /api/v1/webhooks      /api/v1/work-proposals /api/v1/workspaces
+/api/webhooks/autopilots/:token   (public: signed autopilot webhook deliveries)
+/health  /metrics  /ready  /readyz
+/v1                   (public API: personal and plugin tokens only)
+```
+
+`/api/auth` is Better Auth's own route set (GitHub sign-in, callback, session,
+sign-out), outside `/api/v1` because its shapes are the library's.
+
+If a prefix in this block stops answering, that is a bug, not a scope
+decision.
+
+## Not served
+
+These have no mount and answer 404. They are product areas the server does
+not implement, not routes that broke.
+
+| Section | API prefixes | Note |
+| --- | --- | --- |
+| Automations | `/api/v1/workflows`, `/api/v1/workflow-runs`, `/api/v1/hooks` | No mount. |
+| Meetings | — | No section or prefix exists. |
+| Analytics | — | No dedicated prefix exists. Usage and dashboard cover related ground (`/api/v1/usage`, `/api/v1/dashboard`). |
+
+## Deferred routes inside served mounts
+
+A mount answering does not mean every route under its prefix does.
+
+| Route | Why it is not registered |
+| --- | --- |
+| `POST /api/v1/projects/:id/generated-issues` | Decomposed a project with an agent. Planning a project now produces the same tasks through a plan, which also produces the goal that groups them, so the route and its frontend button were retired. |
+| `POST /api/v1/agents/:id/ask` | A chat completion passed straight through to an agent. Nothing in the product calls it. |
+
+## What stays entangled across scope lines
+
+Excluding a section does not excuse the rest from knowing about it:
+
+- **`/api/v1/events`** is the shared realtime stream. It replays
+  `outbox_events` from Postgres, so it carries any feature's events without
+  depending on that feature's code being present.
+- **`issue.activeRunId`** is a plain column read on the issue resource; none
+  of the run machinery is needed to return it.
