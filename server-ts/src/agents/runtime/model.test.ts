@@ -54,3 +54,17 @@ test('explicit credentials are handed to the client, not the default chain', asy
    const resolved = await client.config.credentials();
    assert.equal(resolved.accessKeyId, 'AKIAEXAMPLE');
 });
+
+/**
+ * Prompt caching is on, because the expensive half of a chat request never
+ * changes: about 6,200 input tokens of tool schemas and instructions, re-sent
+ * on every iteration of the agent loop. `auto` is what keeps that safe on a
+ * model that cannot cache — the SDK warns and sends the request uncached.
+ */
+test('a Bedrock model caches the part of the prompt that does not change', () => {
+   const config = bedrockModel({
+      model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      region: 'us-east-1',
+   }).getConfig();
+   assert.deepEqual(config.cacheConfig, { strategy: 'auto' });
+});

@@ -92,5 +92,20 @@ export function bedrockModel(spec: ModelSpec): BedrockModel {
       maxTokens: maxTokensFor(spec.model, spec.maxTokens ?? DEFAULT_MAX_TOKENS),
       ...(spec.temperature === undefined ? {} : { temperature: spec.temperature }),
       ...(spec.stream === undefined ? {} : { stream: spec.stream }),
+      // Prompt caching, on the part of the request that does not change.
+      //
+      // Measured on real chat runs: about 6,200 input tokens per model call
+      // before the person's message is even counted — the tool schemas and the
+      // agent's instructions — and the agent loop re-sends all of it on every
+      // iteration, so a reply that called two tools paid it three times. The
+      // system prompt and tool config are byte-identical across those calls and
+      // across the messages of a session, which is exactly what a cache point
+      // is for: prefill becomes a cache read, which is faster and cheaper.
+      //
+      // `auto` caches only for a model the SDK knows supports it (it matches
+      // 'anthropic'/'claude' in the id, which the default inference profile
+      // carries) and warns rather than failing on one that does not, so a
+      // deployment on Nova or Llama is unaffected.
+      cacheConfig: { strategy: 'auto' },
    });
 }
