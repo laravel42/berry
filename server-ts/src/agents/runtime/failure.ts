@@ -46,13 +46,17 @@ export function httpStatus(error: unknown): number | null {
  *
  * Deliberately narrow. A retryable failure invites another paid run, and an
  * agent's tools have side effects, so anything not clearly transient is final.
+ * A 5xx alone is not enough: only a known transient name, a gateway status
+ * (502/503/504), or a throttle (429/ModelThrottledError) retries — a bare
+ * 500/InternalServerException with an unknown name is final, so it does not
+ * burn paid model retries.
  */
 export function isTransient(error: unknown): boolean {
    if (error instanceof ModelThrottledError) return true;
    const name = (error as { name?: unknown })?.name;
    if (typeof name === 'string' && TRANSIENT_NAMES.has(name)) return true;
    const status = httpStatus(error);
-   if (status === 429 || (status !== null && status >= 500)) return true;
+   if (status === 429 || status === 502 || status === 503 || status === 504) return true;
    // The SDK wraps a provider error; the name is on the one underneath.
    const cause = (error as { cause?: unknown })?.cause;
    return cause !== undefined && cause !== error && isTransient(cause);
@@ -70,6 +74,21 @@ export function isTransient(error: unknown): boolean {
 const BLOCKED = /content filter|content filtering|guardrail|blocked by/i;
 
 export function isContentBlocked(error: unknown): boolean {
+   if (typeof error === 'object' && error !== null) {
+      // Bedrock/Strands signal the block structurally as well as in prose; the
+      // text is only a fallback for shapes that carry neither field.
+      const source = error as {
+         name?: unknown;
+         stopReason?: unknown;
+         stop_reason?: unknown;
+         'amazon-bedrock-guardrailAction'?: unknown;
+      };
+      const name = source.name;
+      if (typeof name === 'string' && (name === 'GuardrailInterventionError' || /guardrail/i.test(name))) return true;
+      const stop = source.stopReason ?? source.stop_reason;
+      if (stop === 'guardrail_intervened') return true;
+      if (source['amazon-bedrock-guardrailAction'] === 'INTERVENED') return true;
+   }
    const message = (error as { message?: unknown })?.message;
    if (typeof message === 'string' && BLOCKED.test(message)) return true;
    const cause = (error as { cause?: unknown })?.cause;

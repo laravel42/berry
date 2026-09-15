@@ -75,6 +75,32 @@ test("a provider's content filter is a named, final failure that tells a person 
    assert.equal(classify(new Error('model call failed', { cause: blocked })).code, 'CONTENT_BLOCKED');
 });
 
+test('a guardrail block is read structurally, not just from prose', () => {
+   // Bedrock/Strands name the error and set a stop reason; neither carries the
+   // filter words the regex looks for, so the structure has to be enough.
+   const named = new Error('the model call failed');
+   named.name = 'GuardrailInterventionError';
+   assert.equal(classify(named).code, 'CONTENT_BLOCKED');
+   assert.equal(classify(named).retryable, false);
+
+   const stopped = Object.assign(new Error('the model call failed'), { stopReason: 'guardrail_intervened' });
+   assert.equal(classify(stopped).code, 'CONTENT_BLOCKED');
+   assert.equal(classify(stopped).retryable, false);
+});
+
+test('only genuinely transient 5xx retries; a bare 500 is final', () => {
+   const gateway = Object.assign(new Error('unavailable'), { $metadata: { httpStatusCode: 503 } });
+   assert.equal(isTransient(gateway), true);
+   // A bare 500 with an unknown name is final: retrying it burns paid runs.
+   const internal = Object.assign(new Error('boom'), { name: 'MysteryError', $metadata: { httpStatusCode: 500 } });
+   assert.equal(isTransient(internal), false);
+   // It is still reported as upstream-unavailable, just not retried.
+   assert.equal(classify(internal).code, 'UPSTREAM_UNAVAILABLE');
+   assert.equal(classify(internal).retryable, false);
+   assert.equal(isTransient(Object.assign(new Error('slow'), { $metadata: { httpStatusCode: 429 } })), true);
+   assert.equal(isTransient(throttling()), true);
+});
+
 test('the strategy retries a throttle and gives up on a rejection', async () => {
    const retried = new ScriptedModel([throwing(throttling()), say('ok')]);
    const agent = new Agent({
