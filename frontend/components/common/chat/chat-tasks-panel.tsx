@@ -17,16 +17,43 @@ interface ChatQueueProps {
 }
 
 /**
+ * Three dots, breathing in turn: the agent is working.
+ *
+ * Reuses the `berrypulse` keyframe the thread's stage line uses, staggered so
+ * the row reads as motion rather than as one blinking dot. Decorative, so it is
+ * hidden from assistive technology — the text beside it is the announcement.
+ */
+function ThinkingDots() {
+   return (
+      <span className="flex items-center gap-1" aria-hidden="true">
+         {[0, 180, 360].map((delay) => (
+            <span
+               key={delay}
+               style={{ animationDelay: `${delay}ms` }}
+               className="size-1 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none"
+            />
+         ))}
+      </span>
+   );
+}
+
+/**
  * What this conversation still has to do.
  *
- * Messages sent while a reply is running become tasks behind it, so the queue
- * is the honest answer to "did my message go anywhere". Each waiting task can
- * be moved to the front or dropped, and the whole queue can be cleared —
- * dropping a task is the only way to take back something already sent.
+ * Collapsed, this is a thinking animation and nothing else: while one reply is
+ * being written there is no decision to make, and a table of one row with a
+ * timestamp and two buttons was noise over the top of the reply itself.
+ *
+ * The controls are not gone, because a queue is exactly when they matter.
+ * Messages sent while a reply is running become tasks behind it, so the count
+ * is the honest answer to "did my message go anywhere" — and opening it gives
+ * back the per-task move-to-front and drop, and the clear. Dropping a task is
+ * still the only way to take back something already sent.
  */
 export function ChatQueue({ conversationId, tasks, onChanged }: ChatQueueProps) {
    const t = useTranslations('agentsChat.chat');
-   const [open, setOpen] = useState(true);
+   // Shut by default now that the collapsed state says something on its own.
+   const [open, setOpen] = useState(false);
    const [busy, setBusy] = useState(false);
 
    if (tasks.length === 0) return null;
@@ -53,15 +80,30 @@ export function ChatQueue({ conversationId, tasks, onChanged }: ChatQueueProps) 
    return (
       <div className="flex-none border-t border-[var(--shell-line)] px-6 py-2">
          <div className="flex flex-wrap items-center gap-3">
-            <button
-               type="button"
-               aria-expanded={open}
-               onClick={() => setOpen(!open)}
-               className="text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
-            >
-               {t('queueTitle', { count: tasks.length })}
-            </button>
-            {queued.length > 0 ? (
+            {queued.length === 0 ? (
+               // Nothing waiting: the agent is simply working, so the row is the
+               // animation and its word. There is nothing here to decide.
+               <span
+                  role="status"
+                  className="flex items-center gap-2 text-[var(--shell-text-dim)]"
+               >
+                  <ThinkingDots />
+                  {t('msgStageThinking')}
+               </span>
+            ) : (
+               // Something is waiting behind the reply, which is a fact worth
+               // stating and acting on — so the count opens the queue.
+               <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpen(!open)}
+                  className="flex items-center gap-2 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
+               >
+                  <ThinkingDots />
+                  {t('queueTitle', { count: queued.length })}
+               </button>
+            )}
+            {open && queued.length > 0 ? (
                <button
                   type="button"
                   disabled={busy}
