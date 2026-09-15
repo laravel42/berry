@@ -40,6 +40,46 @@ test('invoke sends the envelope as the payload on the (agent, issue) session and
    assert.deepEqual(JSON.parse(new TextDecoder().decode(command.input.payload as Uint8Array)), envelope);
 });
 
+const completed: LifecycleEvent[] = [
+   { type: 'task.started' },
+   { type: 'task.completed', result: { text: 'ok', truncated: false, delivery: null } },
+];
+
+async function invokeWithBody(body: unknown): Promise<LifecycleEvent[]> {
+   const client = { send: async () => ({ response: body }) };
+   const transport = agentCoreTransport({ region: 'us-east-1', client: client as never });
+   const events: LifecycleEvent[] = [];
+   for await (const event of transport.invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) {
+      events.push(event);
+   }
+   return events;
+}
+
+test('invoke reads a buffered Uint8Array body (service returned the SSE whole)', async () => {
+   const bytes = new TextEncoder().encode(completed.map(encodeLifecycle).join(''));
+   assert.deepEqual(await invokeWithBody(bytes), completed);
+});
+
+test('invoke reads a string body', async () => {
+   assert.deepEqual(await invokeWithBody(completed.map(encodeLifecycle).join('')), completed);
+});
+
+test('invoke reads a web ReadableStream body (undici/fetch handler)', async () => {
+   const bytes = new TextEncoder().encode(completed.map(encodeLifecycle).join(''));
+   const readable = new ReadableStream<Uint8Array>({
+      start(controller) {
+         controller.enqueue(bytes.subarray(0, 12));
+         controller.enqueue(bytes.subarray(12));
+         controller.close();
+      },
+   });
+   assert.deepEqual(await invokeWithBody(readable), completed);
+});
+
+test('invoke rejects a body that is neither a stream nor bytes', async () => {
+   await assert.rejects(() => invokeWithBody({ not: 'a stream' }), RuntimeUnavailable);
+});
+
 test('a refused invoke is RuntimeUnavailable', async () => {
    const client = { send: async () => { throw new Error('ThrottlingException'); } };
    const transport = agentCoreTransport({ region: 'us-east-1', client: client as never });
