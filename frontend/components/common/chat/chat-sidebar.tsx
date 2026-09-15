@@ -111,16 +111,15 @@ export function ChatSidebar({
    return (
       <aside className="flex w-[218px] flex-none flex-col overflow-y-auto border-r border-[var(--shell-line)] bg-[var(--shell-rail)]">
          <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--shell-line)] px-4 py-1.5">
-            <span className="font-medium">{t('title')}</span>
+            <h1 className="min-w-0 truncate">{t('title')}</h1>
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <button
                      type="button"
-                     aria-label={t('newChat')}
-                     className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]"
+                     className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   >
                      <Plus className="size-3.5" />
-                     new
+                     {t('newChat')}
                   </button>
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="max-h-96 min-w-60 overflow-y-auto">
@@ -146,7 +145,10 @@ export function ChatSidebar({
 
          {pinned.length > 0 ? (
             <>
-               <div className="px-[18px] pt-2 pb-[7px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+               <div
+                  data-heading="label"
+                  className="px-[18px] pt-2 pb-[7px] text-[var(--shell-text-dim)]"
+               >
                   {t('pinned')}
                </div>
                <ul className="flex flex-col gap-px px-2">

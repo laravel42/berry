@@ -10,6 +10,7 @@ import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 import { agentHasRuntime } from '@/lib/runtimes';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -80,7 +81,7 @@ export function Chat() {
    const [tasks, setTasks] = useState<ChatTask[]>([]);
    const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
    const [regenerating, setRegenerating] = useState(false);
-   
+
    const [composer, setComposer] = useState('');
    const [sending, setSending] = useState(false);
    const [error, setError] = useState<string | null>(null);
@@ -88,6 +89,9 @@ export function Chat() {
    const [offline, setOffline] = useState(false);
    const [renaming, setRenaming] = useState(false);
    const [title, setTitle] = useState('');
+   /** The conversation whose running reply is about to be stopped. */
+   const [stopping, setStopping] = useState<ChatThread | null>(null);
+   const [deleting, setDeleting] = useState(false);
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const activeId = active?.id ?? null;
@@ -384,16 +388,37 @@ export function Chat() {
       }
    };
 
-   const stop = async (thread: ChatThread) => {
+   const stop = (thread: ChatThread) => {
       if (!thread.activeRunId) return;
-      if (!window.confirm(t('stopConfirm'))) return;
+      setStopping(thread);
+   };
+
+   /** Runs once the stop is confirmed; a failure keeps the dialog open. */
+   const confirmStop = async () => {
+      const thread = stopping;
+      if (!thread?.activeRunId) return;
       try {
          await cancelSessionTask(thread.id, thread.activeRunId);
-         await refreshThreads();
-         if (thread.id === activeId) await refreshSession(thread.id);
       } catch (cause) {
          toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
+         throw cause;
       }
+      await refreshThreads().catch(() => undefined);
+      if (thread.id === activeId) await refreshSession(thread.id).catch(() => undefined);
+   };
+
+   /** Runs once the delete is confirmed; a failure keeps the dialog open. */
+   const confirmDelete = async () => {
+      if (!active) return;
+      try {
+         await deleteSession(active.id);
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
+         throw cause;
+      }
+      setActive(null);
+      show(null);
+      await refreshThreads().catch(() => undefined);
    };
 
    const regenerate = async () => {
@@ -409,6 +434,12 @@ export function Chat() {
    };
 
    const agentName = active?.agentName ?? null;
+   // A conversation that is still called after its agent has no second name
+   // to show; the header would read "Frontend Engineer Frontend Engineer".
+   const topicIsAgentName =
+      agentName !== null &&
+      active !== null &&
+      active.topic.trim().toLowerCase() === agentName.trim().toLowerCase();
    const noRuntime =
       active?.agentId !== undefined &&
       active?.agentId !== null &&
@@ -453,62 +484,70 @@ export function Chat() {
                void refreshThreads().catch(() => undefined);
                if (showArchived) void refreshArchived();
             }}
-            onStop={(thread) => void stop(thread)}
+            onStop={stop}
          />
 
          <section className="flex min-w-0 flex-1 flex-col">
-            <header className="flex flex-none items-center gap-3 border-b border-[var(--shell-line)] px-6 py-3">
-               {renaming && active ? (
-                  <input
-                     autoFocus
-                     value={title}
-                     aria-label={t('rename')}
-                     onChange={(event) => setTitle(event.target.value)}
-                     onBlur={() => setRenaming(false)}
-                     onKeyDown={(event) => {
-                        if (event.key === 'Escape') {
-                           setRenaming(false);
+            {/* The pane is named by who you are talking to. The page is
+                already called Chat three times over — rail, tab, sidebar —
+                so with nothing open the pane says nothing at all. */}
+            {active ? (
+               <header className="flex flex-none items-center gap-3 border-b border-[var(--shell-line)] px-6 py-3">
+                  <h2 className="min-w-0 flex-none truncate text-[var(--shell-text)]">
+                     {agentName ?? active.topic}
+                  </h2>
+
+                  {renaming ? (
+                     <input
+                        autoFocus
+                        value={title}
+                        aria-label={t('rename')}
+                        onChange={(event) => setTitle(event.target.value)}
+                        onBlur={() => setRenaming(false)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Escape') {
+                              setRenaming(false);
+                              setTitle(active.topic);
+                           }
+                           if (event.key === 'Enter' && title.trim()) {
+                              setRenaming(false);
+                              void renameSession(active.id, title.trim())
+                                 .then(() => refreshThreads())
+                                 .catch((cause: unknown) =>
+                                    toast.error(
+                                       cause instanceof BerryApiError
+                                          ? cause.message
+                                          : t('rowFailed')
+                                    )
+                                 );
+                           }
+                        }}
+                        className="min-w-0 flex-1 rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                     />
+                  ) : agentName && !topicIsAgentName ? (
+                     // The conversation's own name, one step back from the
+                     // agent's; the click is how it is renamed in place.
+                     <button
+                        type="button"
+                        onClick={() => {
                            setTitle(active.topic);
-                        }
-                        if (event.key === 'Enter' && title.trim()) {
-                           setRenaming(false);
-                           void renameSession(active.id, title.trim())
-                              .then(() => refreshThreads())
-                              .catch((cause: unknown) =>
-                                 toast.error(
-                                    cause instanceof BerryApiError ? cause.message : t('rowFailed')
-                                 )
-                              );
-                        }
-                     }}
-                     className="min-w-0 flex-1 rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none"
-                  />
-               ) : (
-                  <button
-                     type="button"
-                     disabled={!active}
-                     onClick={() => {
-                        if (!active) return;
-                        setTitle(active.topic);
-                        setRenaming(true);
-                     }}
-                     className="min-w-0 truncate text-left text-[var(--shell-text)] disabled:cursor-default"
-                  >
-                     {active ? active.topic : t('title')}
-                  </button>
-               )}
+                           setRenaming(true);
+                        }}
+                        title={t('rename')}
+                        className="min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+                     >
+                        {active.topic}
+                     </button>
+                  ) : (
+                     <span className="min-w-0 flex-1" aria-hidden />
+                  )}
 
-               <p className="min-w-0 flex-1 truncate text-[var(--shell-text-dim)]">
-                  {agentName ?? t('composerNoSession')}
-               </p>
-
-               {active ? (
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
                         <button
                            type="button"
-                           aria-label={t('title')}
-                           className="flex-none rounded p-1 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
+                           aria-label={t('headerMenu')}
+                           className="flex size-8 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] max-lg:size-11"
                         >
                            <MoreHorizontal className="size-4" />
                         </button>
@@ -521,7 +560,12 @@ export function Chat() {
                               </Link>
                            </DropdownMenuItem>
                         ) : null}
-                        <DropdownMenuItem onSelect={() => setRenaming(true)}>
+                        <DropdownMenuItem
+                           onSelect={() => {
+                              setTitle(active.topic);
+                              setRenaming(true);
+                           }}
+                        >
                            {t('rename')}
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -538,26 +582,38 @@ export function Chat() {
                            {active.archived ? t('unarchive') : t('archive')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                           onSelect={() => {
-                              if (!window.confirm(t('deleteConfirm', { name: active.topic }))) {
-                                 return;
-                              }
-                              void deleteSession(active.id)
-                                 .then(() => {
-                                    setActive(null);
-                                    show(null);
-                                    return refreshThreads();
-                                 })
-                                 .catch(() => undefined);
-                           }}
-                        >
+                        <DropdownMenuItem onSelect={() => setDeleting(true)}>
                            {t('delete')}
                         </DropdownMenuItem>
                      </DropdownMenuContent>
                   </DropdownMenu>
-               ) : null}
-            </header>
+               </header>
+            ) : null}
+
+            {active ? (
+               <ConfirmAction
+                  open={deleting}
+                  onOpenChange={setDeleting}
+                  title={t('deleteTitle', { name: active.topic })}
+                  description={t('deleteBody')}
+                  confirmLabel={t('delete')}
+                  pendingLabel={t('deleting')}
+                  destructive
+                  onConfirm={confirmDelete}
+               />
+            ) : null}
+
+            <ConfirmAction
+               open={stopping !== null}
+               onOpenChange={(open) => {
+                  if (!open) setStopping(null);
+               }}
+               title={t('stopTitle', { name: stopping?.topic ?? '' })}
+               description={t('stopBody')}
+               confirmLabel={t('stop')}
+               pendingLabel={t('stopping')}
+               onConfirm={confirmStop}
+            />
 
             {banner ? (
                <p className="flex-none border-b border-[var(--shell-line)] bg-[var(--shell-surface)] px-6 py-2 text-[var(--shell-text-muted)]">
@@ -597,11 +653,11 @@ export function Chat() {
                value={composer}
                onChange={changeComposer}
                onSend={() => void send()}
-               onStop={active?.activeRunId ? () => void stop(active) : null}
+               onStop={active?.activeRunId ? () => stop(active) : null}
                queueing={tasks.length > 0}
                disabled={!activeId || sending}
                placeholder={
-                  agentName ? t('composerPlaceholder', { name: agentName }) : t('composerNoSession')
+                  agentName ? t('composerPlaceholder', { name: agentName }) : t('composerIdle')
                }
                workspaceId={workspaceId}
             />

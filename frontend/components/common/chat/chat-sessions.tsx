@@ -5,6 +5,7 @@ import { MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -65,9 +66,22 @@ function SessionRow({
    const t = useTranslations('agentsChat.chat');
    const [renaming, setRenaming] = useState(false);
    const [title, setTitle] = useState(thread.topic);
+   const [deleting, setDeleting] = useState(false);
 
    const act = (work: Promise<unknown>) =>
       void work.then(onChanged, (error: unknown) => failed(error, t('rowFailed')));
+
+   // Permanent, and said so: an archive is the reversible option and it is
+   // one item up the same menu. A failure keeps the dialog open.
+   const remove = async () => {
+      try {
+         await deleteSession(thread.id);
+      } catch (error) {
+         failed(error, t('rowFailed'));
+         throw error;
+      }
+      onChanged();
+   };
 
    if (renaming) {
       return (
@@ -149,18 +163,20 @@ function SessionRow({
                   <DropdownMenuItem onSelect={onStop}>{t('stop')}</DropdownMenuItem>
                ) : null}
                <DropdownMenuSeparator />
-               <DropdownMenuItem
-                  onSelect={() => {
-                     // Permanent, and said so: an archive is the reversible
-                     // option and it is one item up this same menu.
-                     if (!window.confirm(t('deleteConfirm', { name: thread.topic }))) return;
-                     act(deleteSession(thread.id));
-                  }}
-               >
-                  {t('delete')}
-               </DropdownMenuItem>
+               <DropdownMenuItem onSelect={() => setDeleting(true)}>{t('delete')}</DropdownMenuItem>
             </DropdownMenuContent>
          </DropdownMenu>
+
+         <ConfirmAction
+            open={deleting}
+            onOpenChange={setDeleting}
+            title={t('deleteTitle', { name: thread.topic })}
+            description={t('deleteBody')}
+            confirmLabel={t('delete')}
+            pendingLabel={t('deleting')}
+            destructive
+            onConfirm={remove}
+         />
       </li>
    );
 }
@@ -180,7 +196,7 @@ export function ChatSessions({
 
    return (
       <div className="flex flex-col">
-         <div className="px-[18px] pt-2 pb-[7px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+         <div data-heading="label" className="px-[18px] pt-2 pb-[7px] text-[var(--shell-text-dim)]">
             {t('sessions')}
          </div>
          <ul className="flex flex-col gap-px px-2">
@@ -201,6 +217,7 @@ export function ChatSessions({
 
          <button
             type="button"
+            data-heading="label"
             className="mx-2 mt-2 rounded px-2.5 py-1.5 text-left text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
             aria-expanded={showArchived}
             onClick={onToggleArchived}

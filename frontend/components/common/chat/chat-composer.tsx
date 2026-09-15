@@ -17,7 +17,18 @@ interface ChatComposerProps {
    disabled: boolean;
    placeholder: string;
    workspaceId: string | undefined;
+   /**
+    * How the send button is dressed. On the chat page it is the page's
+    * primary action; in the floating window it sits over a page that
+    * already has one, so there it is a secondary control.
+    */
+   sendVariant?: 'primary' | 'secondary';
 }
+
+const SEND_VARIANT = {
+   primary: 'bg-berry text-chalk hover:brightness-110',
+   secondary: 'bg-[var(--shell-line)] text-[var(--shell-text)] hover:bg-[var(--shell-line-strong)]',
+} as const;
 
 /** `@` immediately before the caret, with whatever has been typed since. */
 const MENTION = /(?:^|\s)@([\w-]{0,40})$/;
@@ -39,6 +50,7 @@ export function ChatComposer({
    disabled,
    placeholder,
    workspaceId,
+   sendVariant = 'primary',
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
    const input = useRef<HTMLTextAreaElement>(null);
@@ -196,7 +208,10 @@ export function ChatComposer({
                   disabled={!canSend}
                   aria-label={sendLabel}
                   title={sendLabel}
-                  className="mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-md bg-berry text-chalk transition-[opacity,transform] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={[
+                     'mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-md transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
+                     SEND_VARIANT[sendVariant],
+                  ].join(' ')}
                >
                   <SendHorizonal className="size-3.5" aria-hidden />
                </button>

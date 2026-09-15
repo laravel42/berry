@@ -121,10 +121,12 @@ export function ChatThread({
 
          {messages.length === 0 ? (
             <div className="flex flex-col gap-3">
-               <p className="text-[var(--shell-text)]">
-                  {agentName ? t('emptyTitle', { name: agentName }) : t('composerNoSession')}
+               <h2 className="text-[var(--shell-text)]">
+                  {agentName ? t('emptyTitle', { name: agentName }) : t('emptyNoAgentTitle')}
+               </h2>
+               <p className="max-w-prose leading-relaxed text-[var(--shell-text-dim)]">
+                  {agentName ? t('emptyBody') : t('emptyNoAgentBody')}
                </p>
-               <p className="text-[var(--shell-text-dim)]">{t('emptyBody')}</p>
                {starters.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                      {starters.map((starter) => (

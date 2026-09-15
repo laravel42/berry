@@ -23,8 +23,10 @@ const NUMBERED = /^\s*\d+[.)]\s+(.*)$/;
 const QUOTE = /^>\s?(.*)$/;
 
 /** `code`, **bold**, *italic*, [text](url), and bare links, in one pass. */
+// Underscore emphasis only at word boundaries: `list_files` and `read_file`
+// are identifiers, not an italic "files, read".
 const INLINE =
-   /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*]+\*)|(_[^_]+_)|(\[[^\]]+\]\((https?:\/\/[^\s)]+)\))|(https?:\/\/[^\s<]+)/g;
+   /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*)|((?<![\w])_[^_\s][^_]*_(?![\w]))|(\[[^\]]+\]\((https?:\/\/[^\s)]+)\))|(https?:\/\/[^\s<]+)/g;
 
 function inline(text: string, keyPrefix: string): ReactNode[] {
    const nodes: ReactNode[] = [];
@@ -156,18 +158,45 @@ function parse(source: string): Block[] {
    return blocks.filter((block) => block.kind === 'code' || block.lines.length > 0);
 }
 
-export function ChatMarkdown({ body }: { body: string }) {
+/**
+ * Which surface the text sits on. The chat panel lives on the always-dark
+ * shell and reads the shell tokens; a review summary or a task comment sits on
+ * the page and follows its theme, so code and quotes take the page tokens.
+ */
+export type MarkdownTone = 'shell' | 'page';
+
+const TONE = {
+   shell: {
+      code: 'bg-[var(--shell-line)]',
+      quote: 'border-[var(--shell-line-strong)] text-[var(--shell-text-dim)]',
+   },
+   page: {
+      code: 'bg-muted',
+      quote: 'border-border text-muted-foreground',
+   },
+} as const;
+
+export function ChatMarkdown({
+   body,
+   tone = 'shell',
+   className,
+}: {
+   body: string;
+   tone?: MarkdownTone;
+   className?: string;
+}) {
    const blocks = parse(body);
+   const tones = TONE[tone];
 
    return (
-      <div className="flex flex-col gap-2">
+      <div className={['flex flex-col gap-2', className ?? ''].join(' ').trim()}>
          {blocks.map((block, index) => {
             const key = `block-${index}`;
             if (block.kind === 'code') {
                return (
                   <pre
                      key={key}
-                     className="overflow-x-auto rounded-md bg-[var(--shell-line)] px-3 py-2 font-mono"
+                     className={`overflow-x-auto rounded-md px-3 py-2 font-mono ${tones.code}`}
                   >
                      <code>{block.lines.join('\n')}</code>
                   </pre>
@@ -176,8 +205,11 @@ export function ChatMarkdown({ body }: { body: string }) {
             if (block.kind === 'heading') {
                const text = inline(block.lines[0] ?? '', key);
                // Inside a message a heading is a section marker, not a page
-               // title, so the scale tops out well below the page's own.
-               return block.level === 1 ? (
+               // title, so the scale tops out well below the page's own. The
+               // text sits under an h2 section (Activity, Summary), so its
+               // first two levels share h3 and deeper ones take h4: an agent
+               // that opens with "## Summary" must not skip the outline a level.
+               return (block.level ?? 1) <= 2 ? (
                   <h3 key={key} className="font-medium">
                      {text}
                   </h3>
@@ -203,10 +235,7 @@ export function ChatMarkdown({ body }: { body: string }) {
             }
             if (block.kind === 'quote') {
                return (
-                  <blockquote
-                     key={key}
-                     className="border-l-2 border-[var(--shell-line-strong)] pl-3 text-[var(--shell-text-dim)]"
-                  >
+                  <blockquote key={key} className={`border-l-2 pl-3 ${tones.quote}`}>
                      {block.lines.map((line, at) => (
                         <Fragment key={`${key}-${at}`}>
                            {inline(line, `${key}-${at}`)}
