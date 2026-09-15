@@ -31,8 +31,11 @@ test('the composition root gives the agent layer the real queue and completion e
    // No seam is left unwired.
    assert.doesNotMatch(root, /\b(enqueue|complete): null\b/);
    assert.match(root, /const complete = agentCompletion\(\{/);
-   // Chat sessions.
-   assert.match(root, /conversationMounts\(\{[^}]*enqueue: agentEnqueue,\s*complete,/s);
+   // Chat sessions. Wrapped rather than passed bare, so the dispatcher is
+   // nudged the moment a message is queued — someone is watching this run
+   // arrive — but the queue underneath is still the real seam.
+   assert.match(root, /conversationMounts\(\{[\s\S]*?await agentEnqueue\(sql, input\)[\s\S]*?complete,/);
+   assert.match(root, /conversationMounts\(\{[\s\S]*?dispatcher\?\.nudge\(\)[\s\S]*?complete,/);
    // The builder's completions.
    assert.match(root, /new AgentBuilder\(\{ sql, complete, /);
    // Mentions and replies on comments.

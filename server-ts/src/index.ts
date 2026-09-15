@@ -906,8 +906,16 @@ registry.registerAll(
       conversations: conversationRepository,
       boards,
       sql,
-      // Chat runs as agent tasks through the runtime's queue.
-      enqueue: agentEnqueue,
+      // Chat runs as agent tasks through the runtime's queue, and the
+      // dispatcher is asked to look now rather than on its next beat: someone
+      // is watching this one arrive, and a poll interval of dead air before the
+      // agent even starts is the most visible latency chat has. Completions
+      // already do this; chat was left waiting.
+      enqueue: async (sql, input) => {
+         const queued = await agentEnqueue(sql, input);
+         dispatcher?.nudge();
+         return queued;
+      },
       complete,
       ledger: runOptions.ledger,
       runs: runOptions.runs,

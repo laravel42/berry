@@ -348,7 +348,13 @@ function gone(error: unknown): never {
 
 /** One page of events per read; a long log arrives in order rather than at once. */
 const STREAM_PAGE = 200;
-const STREAM_POLL_MS = 300;
+/**
+ * Tighter than the workspace stream's 500ms, because this one is read while a
+ * person waits on the words. The runtime already coalesces prose into roughly
+ * quarter-second deltas, so a slower poll here would simply add to that wait;
+ * the query behind it is an indexed `sequence >` on one run.
+ */
+const STREAM_POLL_MS = 120;
 const STREAM_HEARTBEAT_MS = 10_000;
 /**
  * A ceiling on one connection, so a run that never reaches a terminal event —
