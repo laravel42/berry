@@ -12,7 +12,7 @@ import { Registry } from '../http/registry.ts';
 import { RunLedger } from '../runs/ledger.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { call, dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from './agent-layer.fixture.ts';
-import { conversationMounts } from './conversations.ts';
+import { conversationMounts, streamCursor } from './conversations.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -173,4 +173,101 @@ describe('conversations mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       const cancel = await call(app, world.ownerToken, 'POST', `/api/v1/conversations/${id}/tasks/${runId}/cancel`);
       assert.equal(cancel.status, 202);
    });
+
+   test('a task stream replays the run’s output and ends when the run does', async (t) => {
+      if (!hasChatColumn) {
+         t.skip('runs.chat_session_id is not present (workstream A not merged)');
+         return;
+      }
+      const id = await newSession();
+      const [run] = await sql`
+         INSERT INTO runs (issue_id, board_id, agent_id, requested_by, chat_session_id, status)
+         VALUES (${world.issueId}, ${world.boardId}, ${world.agentId}, ${world.ownerId}, ${id}, 'running')
+         RETURNING id`;
+      const runId = run?.id as string;
+      // Two deltas and a terminal event, written straight to the ledger table:
+      // what the runtime would have produced, without running an agent.
+      await sql`
+         INSERT INTO run_events (id, run_id, board_id, issue_id, sequence, event_type, payload, public, occurred_at)
+         VALUES (${randomUUID()}, ${runId}, ${world.boardId}, ${world.issueId}, 1, 'run.output.delta',
+                 ${sql.json({ channel: 'progress', text: 'Hello ' } as never)}, true, now()),
+                (${randomUUID()}, ${runId}, ${world.boardId}, ${world.issueId}, 2, 'run.output.delta',
+                 ${sql.json({ channel: 'progress', text: 'world' } as never)}, true, now()),
+                (${randomUUID()}, ${runId}, ${world.boardId}, ${world.issueId}, 3, 'run.completed',
+                 ${sql.json({} as never)}, true, now())`;
+
+      const response = await app.request(`/api/v1/conversations/${id}/tasks/${runId}/stream`, {
+         headers: { authorization: `Bearer ${world.ownerToken}` },
+      });
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/);
+      // The terminal event closes the stream, so reading to the end terminates.
+      const body = await response.text();
+      assert.match(body, /event: run\.output\.delta/);
+      assert.match(body, /"text":"Hello "/);
+      assert.match(body, /"text":"world"/);
+      assert.match(body, /event: run\.completed/);
+      // The sequence is the id a reconnecting client resumes from.
+      assert.match(body, /^id: 3$/m);
+
+      // Resuming past the first delta skips it rather than repeating it.
+      const resumed = await app.request(
+         `/api/v1/conversations/${id}/tasks/${runId}/stream?after=1`,
+         { headers: { authorization: `Bearer ${world.ownerToken}` } }
+      );
+      const tail = await resumed.text();
+      assert.doesNotMatch(tail, /"text":"Hello "/);
+      assert.match(tail, /"text":"world"/);
+   });
+
+   test('a task stream is not reachable by an outsider, or across sessions', async (t) => {
+      if (!hasChatColumn) {
+         t.skip('runs.chat_session_id is not present (workstream A not merged)');
+         return;
+      }
+      const id = await newSession();
+      const [run] = await sql`
+         INSERT INTO runs (issue_id, board_id, agent_id, requested_by, chat_session_id, status)
+         VALUES (${world.issueId}, ${world.boardId}, ${world.agentId}, ${world.ownerId}, ${id}, 'running')
+         RETURNING id`;
+      const runId = run?.id as string;
+      // Refused before a byte is written: a 200 with an event-stream body
+      // cannot be taken back, so the check has to precede the stream.
+      for (const token of [world.outsiderToken, world.memberToken]) {
+         const res = await app.request(`/api/v1/conversations/${id}/tasks/${runId}/stream`, {
+            headers: { authorization: `Bearer ${token}` },
+         });
+         assert.equal(res.status, 404);
+      }
+      // A run of another session is not reachable through this one.
+      const other = await newSession();
+      const foreign = await app.request(
+         `/api/v1/conversations/${other}/tasks/${runId}/stream`,
+         { headers: { authorization: `Bearer ${world.ownerToken}` } }
+      );
+      assert.equal(foreign.status, 404);
+   });
+});
+
+/**
+ * The resume cursor for a task stream, which needs no database.
+ *
+ * A sequence rather than an event id, and anything unparseable replays from
+ * the start: a stream that silently skipped ahead would drop the very text it
+ * exists to deliver.
+ */
+test('a task stream resumes from a sequence, and refuses to guess', () => {
+   assert.equal(streamCursor('12', undefined), 12);
+   assert.equal(streamCursor(null, '12'), 12);
+   assert.equal(streamCursor('0', undefined), 0);
+   // The query wins when both are present; the caller asked for it explicitly.
+   assert.equal(streamCursor('7', '99'), 7);
+   // Nothing to resume from, so the run replays whole.
+   assert.equal(streamCursor(null, undefined), null);
+   assert.equal(streamCursor('', ''), null);
+   assert.equal(streamCursor('not-a-number', undefined), null);
+   assert.equal(streamCursor('-3', undefined), null);
+   assert.equal(streamCursor('1.5', undefined), null);
+   // An event id from another stream is not a sequence.
+   assert.equal(streamCursor(null, '3f1a6c2e-0000-4000-8000-000000000000'), null);
 });

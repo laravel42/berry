@@ -12,7 +12,7 @@ import {
 } from '../conversations/chat-tasks.ts';
 import type { ConversationContext, ConversationRepository } from '../conversations/repository.ts';
 import type { Sql } from '../db/pool.ts';
-import { json } from '../http/app.ts';
+import { goJSON, json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
@@ -273,6 +273,51 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
       return json({ nodes: await options.runs.events(runId, null, 500) });
    });
 
+   /**
+    * The task's events as they happen, so a reply can be read while it is
+    * written rather than only once the run ends.
+    *
+    * The route above is a snapshot; this is the same rows followed. It lives
+    * here rather than under `/runs` because a chat run has no issue, and that
+    * mount authorizes a run through one — `sessionRun` is what makes this
+    * reachable at all. Both checks run before a single byte is written: a 200
+    * carrying an event-stream body cannot be taken back.
+    *
+    * Replayed from `run_events` rather than subscribed to, like every other
+    * stream here: the rows are the record, so a reader that missed a second
+    * gets the second rather than a gap.
+    */
+   route.get('/:conversationId/tasks/:runId/stream', async (context) => {
+      const conversation = await load(context);
+      const runId = await sessionRun(conversation, context.req.param('runId'));
+      const url = new URL(context.req.url);
+      const after = streamCursor(url.searchParams.get('after'), context.req.header('last-event-id'));
+
+      const stream = new ReadableStream<Uint8Array>({
+         start: (controller) => {
+            void followTask({
+               controller,
+               runs: options.runs,
+               runId,
+               after,
+               signal: context.req.raw.signal,
+            });
+         },
+      });
+
+      return new Response(stream, {
+         status: 200,
+         headers: {
+            'Content-Type': 'text/event-stream; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            // Nginx buffers a body by default, which turns a live stream into
+            // one long silence followed by everything at once.
+            'X-Accel-Buffering': 'no',
+         },
+      });
+   });
+
    return [{ prefix: '/api/v1/conversations', handler: route }];
 
    async function load(context: {
@@ -299,4 +344,124 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
 function gone(error: unknown): never {
    if (error instanceof NotFound) throw ApiError.notFound('Conversation');
    throw error;
+}
+
+/** One page of events per read; a long log arrives in order rather than at once. */
+const STREAM_PAGE = 200;
+const STREAM_POLL_MS = 300;
+const STREAM_HEARTBEAT_MS = 10_000;
+/**
+ * A ceiling on one connection, so a run that never reaches a terminal event —
+ * a dispatcher that died mid-task — cannot hold a stream open forever. The
+ * client reconnects with its cursor and loses nothing.
+ */
+const STREAM_MAX_MS = 30 * 60 * 1000;
+
+const TERMINAL_EVENTS = new Set(['run.completed', 'run.failed', 'run.cancelled']);
+
+/**
+ * The cursor a reader resumes from: a sequence, exclusive.
+ *
+ * A sequence rather than an event id, because `RunRepository.events` pages on
+ * `sequence > after`. Anything unparseable is treated as no cursor, which
+ * replays the run from its start — the safe direction, since a stream that
+ * silently skipped ahead would drop the very text it exists to deliver.
+ */
+export function streamCursor(after: string | null, lastEventId: string | undefined): number | null {
+   const raw = (after ?? lastEventId ?? '').trim();
+   if (raw === '' || !/^\d+$/.test(raw)) return null;
+   const parsed = Number(raw);
+   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+/**
+ * Follows one run's events until it ends, the client leaves, or the ceiling.
+ *
+ * `id` on each frame is the event's sequence, which is what a reconnecting
+ * client sends back as `Last-Event-ID`, and `event` is the type so a listener
+ * can switch without parsing every payload.
+ */
+async function followTask(options: {
+   controller: ReadableStreamDefaultController<Uint8Array>;
+   runs: Pick<RunRepository, 'events'>;
+   runId: string;
+   after: number | null;
+   signal: AbortSignal;
+}): Promise<void> {
+   const encoder = new TextEncoder();
+   const started = Date.now();
+   let after = options.after;
+   let closed = false;
+
+   const send = (text: string): boolean => {
+      if (closed) return false;
+      try {
+         options.controller.enqueue(encoder.encode(text));
+         return true;
+      } catch {
+         // The client hung up between the read and the write.
+         closed = true;
+         return false;
+      }
+   };
+
+   /** Sends everything after the cursor. 'done' once a terminal event is out. */
+   const drain = async (): Promise<'following' | 'done' | 'gone'> => {
+      for (;;) {
+         const found = await options.runs.events(options.runId, after, STREAM_PAGE);
+         for (const event of found) {
+            const body = {
+               id: event.id,
+               type: event.type,
+               occurredAt: event.occurredAt,
+               sequence: event.sequence,
+               payload: event.payload,
+            };
+            if (!send(`id: ${event.sequence}\nevent: ${event.type}\ndata: ${goJSON(body)}\n\n`)) {
+               return 'gone';
+            }
+            after = event.sequence;
+            // Sent first, then stop: the reader needs to see how the run ended.
+            if (TERMINAL_EVENTS.has(event.type)) return 'done';
+         }
+         // A short page means the log is drained; a full one means there is
+         // more behind it, and stopping here would strand the rest.
+         if (found.length < STREAM_PAGE) return 'following';
+      }
+   };
+
+   try {
+      // Tells the browser how long to wait before reconnecting.
+      if (!send('retry: 3000\n\n')) return;
+      let lastSent = Date.now();
+      while (!options.signal.aborted && !closed) {
+         const before = after;
+         const outcome = await drain();
+         if (outcome !== 'following') break;
+         if (after !== before) lastSent = Date.now();
+         else if (Date.now() - lastSent >= STREAM_HEARTBEAT_MS) {
+            // A comment frame, so a proxy that would close an idle connection
+            // sees traffic and the client learns the stream is alive.
+            if (!send(': heartbeat\n\n')) break;
+            lastSent = Date.now();
+         }
+         if (Date.now() - started >= STREAM_MAX_MS) break;
+         await sleep(STREAM_POLL_MS);
+      }
+   } catch {
+      // Any failure ends the stream. The client reconnects with its last id
+      // and resumes where it stopped, which is what the cursor is for.
+   } finally {
+      if (!closed) {
+         try {
+            options.controller.close();
+         } catch {
+            // Already closed by the runtime when the socket went.
+         }
+      }
+   }
+}
+
+function sleep(ms: number): Promise<void> {
+   return new Promise((resolve) => setTimeout(resolve, ms).unref?.());
 }
