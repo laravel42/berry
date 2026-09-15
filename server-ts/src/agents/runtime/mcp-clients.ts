@@ -48,6 +48,10 @@ export function mcpServerConfigs(servers: EnvelopeMcpServerLike[]): Record<strin
  * The agent-facing names each loaded server listed, keyed by server name
  * (Strands names each client after its config key). A server that failed to
  * connect lists nothing, and neither does one whose listing throws.
+ *
+ * Each `listTools()` is a network round-trip. This is the standalone path (and
+ * what the tests use); the handler never calls it, reusing the `listed` that
+ * {@link registrableMcpTools} already fetched so no client is listed twice.
  */
 export async function listedMcpTools(clients: McpClient[]): Promise<Record<string, string[]>> {
    const listed: Record<string, string[]> = {};
@@ -129,7 +133,63 @@ export async function registrableMcpTools(
    return { tools, listed };
 }
 
-export async function loadMcpClients(servers: EnvelopeMcpServerLike[]): Promise<McpClient[]> {
+/** Default bound on a single server's connect handshake, so a hung one cannot stall task start. */
+export const MCP_CONNECT_TIMEOUT_MS = 15_000;
+
+/**
+ * The agent's MCP servers as connected Strands clients, each connect bounded.
+ *
+ * `loadServers` only constructs clients; the connect (and its network round-
+ * trip) is lazy, fired by the first `listTools()`/`callTool()`. So a server
+ * that accepts the socket but never answers `initialize` would otherwise hang
+ * the first tool listing — and with it task start — indefinitely, because the
+ * SDK's `McpClient.connect()` forwards no timeout or AbortSignal to the MCP
+ * transport (verified against @strands-agents/sdk 1.16.0). We therefore connect
+ * each client here under a `timeoutMs` race and drop any that do not answer in
+ * time.
+ *
+ * Connecting eagerly also folds into one round-trip: `listTools()` reuses an
+ * already-connected client rather than reconnecting.
+ *
+ * MCP is best-effort (see this file's header): a server we drop simply
+ * contributes no tools, matching `continueOnError`. A dropped client is
+ * disconnected so its half-open socket does not leak, and a warning is
+ * surfaced. A run with every server unreachable proceeds toolless-of-MCP
+ * rather than failing.
+ */
+export async function loadMcpClients(
+   servers: EnvelopeMcpServerLike[],
+   timeoutMs: number = MCP_CONNECT_TIMEOUT_MS,
+   warn?: Warn
+): Promise<McpClient[]> {
    if (servers.length === 0) return [];
-   return McpClient.loadServers(mcpServerConfigs(servers));
+   const clients = await McpClient.loadServers(mcpServerConfigs(servers));
+   const connected = await Promise.all(
+      clients.map(async (client) => {
+         let timer: ReturnType<typeof setTimeout> | undefined;
+         const timedOut = Symbol('timeout');
+         const deadline = new Promise<typeof timedOut>((resolve) => {
+            timer = setTimeout(() => resolve(timedOut), timeoutMs);
+         });
+         try {
+            // connect() with continueOnError:true never throws — it swallows a
+            // refused connection into a 'failed' state — so the only thing this
+            // race guards against is a connect that never settles at all.
+            const outcome = await Promise.race([client.connect().then(() => 'connected' as const), deadline]);
+            if (outcome !== timedOut) return client;
+            warn?.('MCP server dropped: it did not answer the connect handshake in time', {
+               server: client.clientName,
+               timeoutMs,
+            });
+            // Leave the hung connect running but disconnect the client so its
+            // socket is closed and no unhandled rejection escapes if it later
+            // settles.
+            void client.disconnect().catch(() => undefined);
+            return undefined;
+         } finally {
+            clearTimeout(timer);
+         }
+      })
+   );
+   return connected.filter((client): client is McpClient => client !== undefined);
 }

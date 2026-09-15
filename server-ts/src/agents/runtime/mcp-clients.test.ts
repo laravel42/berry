@@ -149,3 +149,56 @@ test('an unapproved tool on the same server is never listed to the agent', async
 test('no servers means no clients and no connection attempt', async () => {
    assert.deepEqual(await loadMcpClients([]), []);
 });
+
+/**
+ * A server that accepts the socket but never answers: it reads the request and
+ * holds the response open, so the MCP `initialize` handshake never completes.
+ * This is the hang loadMcpClients' connect timeout must escape.
+ */
+async function nonRespondingMcpServer(): Promise<{ url: string; close: () => Promise<void> }> {
+   const held: Array<{ req: import('node:http').IncomingMessage; res: import('node:http').ServerResponse }> = [];
+   const server: Server = createServer((req, res) => {
+      req.on('data', () => undefined);
+      req.on('end', () => held.push({ req, res })); // never writes a response
+   });
+   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+   const { port } = server.address() as AddressInfo;
+   return {
+      url: `http://127.0.0.1:${port}/mcp`,
+      close: () =>
+         new Promise<void>((resolve) => {
+            for (const { res } of held) res.destroy();
+            server.close(() => resolve());
+         }),
+   };
+}
+
+test('a server that never answers the handshake is dropped within the timeout, fail-soft', async () => {
+   const rejections: unknown[] = [];
+   const onRejection = (reason: unknown): void => {
+      rejections.push(reason);
+   };
+   process.on('unhandledRejection', onRejection);
+   const dead = await nonRespondingMcpServer();
+   const warnings: { message: string; fields: Record<string, unknown> }[] = [];
+   try {
+      const started = Date.now();
+      const clients = await loadMcpClients(
+         [{ name: 'hung', url: dead.url, transport: 'streamable_http', headers: {}, allowedTools: null }],
+         50,
+         (message, fields) => warnings.push({ message, fields })
+      );
+      const elapsed = Date.now() - started;
+      // Resolved, not hung: empty client list, well inside a generous bound.
+      assert.deepEqual(clients, []);
+      assert.ok(elapsed < 5_000, `loadMcpClients took ${elapsed}ms`);
+      assert.equal(warnings.length, 1, JSON.stringify(warnings));
+      assert.equal(warnings[0]!.fields.server, 'hung');
+      // Let any late settle from the abandoned connect surface as a rejection.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      assert.deepEqual(rejections, []);
+   } finally {
+      process.off('unhandledRejection', onRejection);
+      await dead.close();
+   }
+});
