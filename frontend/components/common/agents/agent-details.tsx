@@ -22,7 +22,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
 import {
    agentStatusDisplay,
@@ -36,13 +38,13 @@ import {
    type AgentRoster,
    type AgentTask,
 } from '@/lib/agents';
-import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import AgentAssignWorkDialog from './agent-assign-work-dialog';
 import AgentCapabilitiesTab from './agent-capabilities-tab';
 import AgentOverviewTab from './agent-overview-tab';
 import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
+import { PresenceDot } from './presence-dot';
 
 const TABS = ['overview', 'role', 'capabilities', 'settings'] as const;
 type DetailTab = (typeof TABS)[number];
@@ -66,12 +68,16 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const t = useTranslations('agentsChat.detail');
    const coverage = useAgentCoverage();
    const listCopy = useTranslations('agentsChat.list');
+   const common = useTranslations('agentsChat.common');
+   const rosterCopy = useTranslations('agents.roster');
+   const org = useTranslations('organization');
 
    const storedAgent = useAgentsStore((state) => state.getAgentById(agentId));
    const upsertAgent = useAgentsStore((state) => state.upsertAgent);
    const removeAgent = useAgentsStore((state) => state.removeAgent);
 
    const [agent, setAgent] = useState<Agent | null>(storedAgent ?? null);
+   useTabLabel(agent?.name ?? null);
    const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'forbidden'>(
       storedAgent ? 'ready' : 'loading'
    );
@@ -83,6 +89,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const [dirty, setDirty] = useState(false);
    const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
    const [assigning, setAssigning] = useState(false);
+   const [archiving, setArchiving] = useState(false);
+   const [archiveBusy, setArchiveBusy] = useState(false);
 
    // Unknown or retired tab names (activity, work) fall back to overview.
    const view: DetailTab = isTab(searchParams?.get('view') ?? null)
@@ -198,9 +206,41 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    }
 
    const presence = agentStatusDisplay(agent.status);
+   // Same rule as the roster: a presence dot is earned by a run in flight or
+   // on record. Before that, the honest word is that it has never run.
+   const hasPresence = roster !== undefined && (roster.running > 0 || roster.totalRuns > 0);
+   const presenceLabel =
+      presence.tone === 'online'
+         ? listCopy('availabilityAvailable')
+         : presence.tone === 'busy'
+           ? listCopy('availabilityBusy')
+           : presence.tone === 'offline'
+             ? listCopy('availabilityOffline')
+             : listCopy('availabilityUnknown');
+   // The level lives on the contract; the agent row carries a copy for lists.
+   // Only an organization role has one: a plain agent's permissions govern it.
+   const level = agent.roleKey
+      ? (agent.contract?.autonomy_level ?? agent.autonomyLevel ?? null)
+      : null;
+   const levelKey = level === null ? null : (String(level) as '1' | '2' | '3' | '4' | '5');
    const archived = Boolean(agent.archivedAt);
    const isProtected = agent.capabilities.includes('orchestrate');
    const needsRuntime = roster !== undefined && !agentHasRuntime(coverage, agentId) && !archived;
+
+   const archive = async () => {
+      setArchiveBusy(true);
+      try {
+         await archiveAgent(agent.id);
+         removeAgent(agent.id);
+         toast.success(listCopy('archiveDone', { name: agent.name }));
+         setArchiving(false);
+         router.push(`/${orgId}/agents`);
+      } catch (error) {
+         toast.error(error instanceof BerryApiError ? error.message : t('failureUnknown'));
+      } finally {
+         setArchiveBusy(false);
+      }
+   };
 
    const tabLabel: Record<DetailTab, string> = {
       overview: t('tabOverview'),
@@ -224,25 +264,33 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   </span>
                   <div className="min-w-0">
                      <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="font-medium leading-none">{agent.name}</h1>
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-2 py-1 text-muted-foreground">
-                           <span
-                              className={cn(
-                                 'size-1.5 rounded-full',
-                                 presence.tone === 'online' && 'bg-[#00cc66]',
-                                 presence.tone === 'busy' && 'bg-amber-500',
-                                 (presence.tone === 'offline' || presence.tone === 'unknown') &&
-                                    'bg-muted-foreground/40'
-                              )}
-                           />
-                           {presence.tone === 'online'
-                              ? listCopy('availabilityAvailable')
-                              : presence.tone === 'busy'
-                                ? listCopy('availabilityBusy')
-                                : presence.tone === 'offline'
-                                  ? listCopy('availabilityOffline')
-                                  : listCopy('availabilityUnknown')}
-                        </span>
+                        <h1 className="leading-none">{agent.name}</h1>
+                        {hasPresence ? (
+                           <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-2 py-1 text-muted-foreground">
+                              <PresenceDot tone={presence.tone} label={presenceLabel} />
+                              {presenceLabel}
+                           </span>
+                        ) : roster ? (
+                           <span className="inline-flex items-center rounded-md border border-border/70 px-2 py-1 text-muted-foreground">
+                              {rosterCopy('neverRan')}
+                           </span>
+                        ) : null}
+                        {levelKey ? (
+                           <Tooltip>
+                              <TooltipTrigger asChild>
+                                 <span
+                                    tabIndex={0}
+                                    className="inline-flex items-center rounded-md border border-border/70 px-2 py-1 text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                                 >
+                                    {org('levelChip', {
+                                       level: levelKey,
+                                       name: org(`levelNames.${levelKey}`),
+                                    })}
+                                 </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{org('levelHint')}</TooltipContent>
+                           </Tooltip>
+                        ) : null}
                      </div>
                      {agent.description ? (
                         <p className="mt-2 max-w-3xl text-muted-foreground">{agent.description}</p>
@@ -294,24 +342,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                         variant="secondary"
                         disabled={isProtected}
                         title={isProtected ? listCopy('protectedAgent') : undefined}
-                        onClick={() => {
-                           if (!window.confirm(listCopy('archiveTitle', { name: agent.name }))) {
-                              return;
-                           }
-                           void archiveAgent(agent.id).then(
-                              () => {
-                                 removeAgent(agent.id);
-                                 toast.success(listCopy('archiveDone', { name: agent.name }));
-                                 router.push(`/${orgId}/agents`);
-                              },
-                              (error: unknown) =>
-                                 toast.error(
-                                    error instanceof BerryApiError
-                                       ? error.message
-                                       : t('failureUnknown')
-                                 )
-                           );
-                        }}
+                        onClick={() => setArchiving(true)}
                      >
                         <Archive className="size-4" />
                         {t('archive')}
@@ -332,7 +363,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   </p>
                ) : null}
                {needsRuntime ? (
-                  <p className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2">
+                  <p className="flex flex-wrap items-center gap-2 rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2">
                      {t('bannerNoRuntime')}
                      <button
                         type="button"
@@ -351,14 +382,10 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
             onValueChange={(value) => requestTab(value as DetailTab)}
             className="flex min-h-0 flex-1 flex-col"
          >
-            <div className="border-b px-8">
-               <TabsList className="h-10 gap-1 rounded-none bg-transparent p-0">
+            <div className="border-b px-8 py-2">
+               <TabsList aria-label={agent.name}>
                   {TABS.map((tab) => (
-                     <TabsTrigger
-                        key={tab}
-                        value={tab}
-                        className="rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                     >
+                     <TabsTrigger key={tab} value={tab}>
                         {tabLabel[tab]}
                      </TabsTrigger>
                   ))}
@@ -435,6 +462,31 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      }}
                   >
                      {t('unsavedLeave')}
+                  </AlertDialogAction>
+               </AlertDialogFooter>
+            </AlertDialogContent>
+         </AlertDialog>
+
+         <AlertDialog open={archiving} onOpenChange={(open) => (open ? null : setArchiving(false))}>
+            <AlertDialogContent>
+               <AlertDialogHeader>
+                  <AlertDialogTitle>
+                     {listCopy('archiveTitle', { name: agent.name })}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>{listCopy('archiveBody')}</AlertDialogDescription>
+               </AlertDialogHeader>
+               <AlertDialogFooter>
+                  <AlertDialogCancel disabled={archiveBusy}>{common('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction
+                     disabled={archiveBusy}
+                     onClick={(event) => {
+                        // Kept open until the request settles: a dialog that
+                        // closes on click reports success before there is any.
+                        event.preventDefault();
+                        void archive();
+                     }}
+                  >
+                     {listCopy('archiveAction')}
                   </AlertDialogAction>
                </AlertDialogFooter>
             </AlertDialogContent>

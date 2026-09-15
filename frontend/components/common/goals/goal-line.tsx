@@ -58,7 +58,7 @@ export default function GoalLine({ goal }: { goal: Goal }) {
             )}
          </div>
 
-         <div className="hidden w-28 shrink-0 text-muted-foreground md:block">
+         <div className="hidden w-36 shrink-0 text-muted-foreground md:block">
             {relativeTime(goal.updatedAt)}
          </div>
       </Link>

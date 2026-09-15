@@ -25,6 +25,7 @@ import { Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { LABEL_PALETTE } from './label-palette';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -38,16 +39,7 @@ import { useSettingsResource } from './use-settings-resource';
  * either way, because the uniqueness index only covers live rows.
  */
 
-const PALETTE = [
-   '#6366f1',
-   '#f97316',
-   '#347b5a',
-   '#9b6715',
-   '#397caf',
-   '#b4436c',
-   '#7c5cbf',
-   '#4a5568',
-];
+const PALETTE = LABEL_PALETTE;
 
 export default function IssueLabelsSettings() {
    const t = useTranslations('workspaceAdmin.labels');

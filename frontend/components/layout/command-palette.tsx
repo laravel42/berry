@@ -24,6 +24,7 @@ import { useCreatePlanStore } from '@/store/create-plan-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useRecentIssuesStore } from '@/store/recent-issues-store';
+import { useShortcutBindings } from '@/store/shortcuts-store';
 import {
    PALETTE_SEARCH_TYPES,
    highlightParts,
@@ -40,6 +41,7 @@ import {
    Check,
    ChevronsDownUp,
    ChevronsUpDown,
+   ChevronRight,
    CircleDot,
    Clipboard,
    ClipboardList,
@@ -69,8 +71,11 @@ import { toast } from 'sonner';
 
 type PaletteRoute = 'root' | 'assign' | 'status' | 'priority' | 'labels' | 'project' | 'due-date';
 
-/** How many recent tasks an empty query offers. */
-const RECENT_LIMIT = 20;
+/**
+ * How many recent tasks an empty query offers. Six: the row you came from and
+ * a few before it, above the pages rather than instead of them.
+ */
+const RECENT_LIMIT = 6;
 
 /** How many results the server is asked for, and how many are shown. */
 const SEARCH_LIMIT = 20;
@@ -98,7 +103,7 @@ function Highlighted({ text, query }: { text: string; query: string }) {
    return (
       <>
          {before}
-         <mark className="rounded-[2px] bg-primary/20 text-foreground">{hit}</mark>
+         <mark className="rounded-[2px] bg-accent text-foreground">{hit}</mark>
          {after}
       </>
    );
@@ -118,7 +123,17 @@ interface PalettePage {
    icon: React.ElementType;
    /** Route under `/{orgId}`. */
    href: string;
-   keys?: string[];
+   /**
+    * The go-to action in `lib/shortcuts.ts` that opens this page. The row
+    * prints whatever keys that action currently has, so a hint is never a
+    * chord nothing listens for.
+    */
+   shortcutId?: string;
+   /**
+    * Shown before anything is typed. Six places cover most of a day; the
+    * rest are one row away behind "Show all pages", and typing finds any.
+    */
+   primary?: boolean;
 }
 
 const PAGES: PalettePage[] = [
@@ -128,7 +143,8 @@ const PAGES: PalettePage[] = [
       keywords: ['notifications', 'alerts', 'unread', 'bell'],
       icon: Bell,
       href: '/inbox',
-      keys: ['G', 'I'],
+      shortcutId: 'goto.inbox',
+      primary: true,
    },
    {
       id: 'my-issues',
@@ -136,23 +152,8 @@ const PAGES: PalettePage[] = [
       keywords: ['issues', 'my work', 'assigned', 'todo'],
       icon: ClipboardList,
       href: '/tasks',
-      keys: ['G', 'M'],
-   },
-   {
-      id: 'goals',
-      label: 'Goals',
-      keywords: ['objectives', 'outcomes', 'plans'],
-      icon: Target,
-      href: '/goals',
-      keys: ['G', 'G'],
-   },
-   {
-      id: 'approvals',
-      label: 'Approvals',
-      keywords: ['review requests', 'permission', 'gates'],
-      icon: ShieldCheck,
-      href: '/approvals',
-      keys: ['G', 'A'],
+      shortcutId: 'goto.myIssues',
+      primary: true,
    },
    {
       id: 'reviews',
@@ -160,28 +161,17 @@ const PAGES: PalettePage[] = [
       keywords: ['pull requests', 'code review', 'diffs'],
       icon: GitBranch,
       href: '/reviews',
+      shortcutId: 'goto.reviews',
+      primary: true,
    },
    {
-      id: 'chat',
-      label: 'Chat',
-      keywords: ['conversations', 'threads', 'messages', 'ask'],
-      icon: MessageSquare,
-      href: '/chat',
-   },
-   {
-      id: 'projects',
-      label: 'Projects',
-      keywords: ['initiatives', 'workstreams'],
-      icon: Box,
-      href: '/projects',
-      keys: ['G', 'P'],
-   },
-   {
-      id: 'views',
-      label: 'Views',
-      keywords: ['saved searches', 'filters'],
-      icon: Layers,
-      href: '/views',
+      id: 'approvals',
+      label: 'Approvals',
+      keywords: ['review requests', 'permission', 'gates'],
+      icon: ShieldCheck,
+      href: '/approvals',
+      shortcutId: 'goto.approvals',
+      primary: true,
    },
    {
       id: 'agents',
@@ -189,6 +179,41 @@ const PAGES: PalettePage[] = [
       keywords: ['bots', 'workers', 'ai'],
       icon: Sparkles,
       href: '/agents',
+      shortcutId: 'goto.agents',
+      primary: true,
+   },
+   {
+      id: 'projects',
+      label: 'Projects',
+      keywords: ['initiatives', 'workstreams'],
+      icon: Box,
+      href: '/projects',
+      shortcutId: 'goto.projects',
+      primary: true,
+   },
+   {
+      id: 'goals',
+      label: 'Goals',
+      keywords: ['objectives', 'outcomes', 'plans'],
+      icon: Target,
+      href: '/goals',
+      shortcutId: 'goto.goals',
+   },
+   {
+      id: 'chat',
+      label: 'Chat',
+      keywords: ['conversations', 'threads', 'messages', 'ask'],
+      icon: MessageSquare,
+      href: '/chat',
+      shortcutId: 'goto.chat',
+   },
+   {
+      id: 'views',
+      label: 'Views',
+      keywords: ['saved searches', 'filters'],
+      icon: Layers,
+      href: '/views',
+      shortcutId: 'goto.views',
    },
    {
       id: 'runtimes',
@@ -196,6 +221,7 @@ const PAGES: PalettePage[] = [
       keywords: ['runs', 'execution', 'machines', 'agentcore', 'settings'],
       icon: Server,
       href: '/settings/runtimes',
+      shortcutId: 'goto.runtimes',
    },
    {
       id: 'members',
@@ -210,7 +236,7 @@ const PAGES: PalettePage[] = [
       keywords: ['preferences', 'configuration', 'shortcuts'],
       icon: FileText,
       href: '/settings',
-      keys: ['G', 'S'],
+      shortcutId: 'goto.settings',
    },
 ];
 
@@ -239,6 +265,9 @@ export function CommandPalette() {
    const [query, setQuery] = useState('');
    /** When true, the issue context chip was dismissed with ⌫. */
    const [contextCleared, setContextCleared] = useState(false);
+   /** The person asked for every page, not the six the palette opens on. */
+   const [showAllPages, setShowAllPages] = useState(false);
+   const bindings = useShortcutBindings();
 
    const pathname = usePathname();
    const router = useRouter();
@@ -271,6 +300,8 @@ export function CommandPalette() {
     * click itself — and read back when the row acts.
     */
    const modifierDown = useRef(false);
+   /** Clicking a row that keeps the palette open must hand focus back to the search. */
+   const inputRef = useRef<HTMLInputElement>(null);
 
    const orgId = pathname.split('/')[1] || WORKSPACE_SLUG;
 
@@ -336,7 +367,17 @@ export function CommandPalette() {
       setRoute('root');
       setQuery('');
       setContextCleared(false);
+      setShowAllPages(false);
    }, []);
+
+   /** The keys an action currently has, one chip per key; null when it has none. */
+   const keysOf = useCallback(
+      (shortcutId: string | undefined): string[] | null => {
+         const bound = shortcutId ? bindings[shortcutId] : null;
+         return bound ? formatCombo(bound).split(' ') : null;
+      },
+      [bindings]
+   );
 
    const close = useCallback(() => {
       setOpen(false);
@@ -406,10 +447,18 @@ export function CommandPalette() {
    const trimmed = query.trim();
    const searching = trimmed.length > 0;
 
+   // Typing searches every page. Before that, the six that matter most —
+   // unless every page was asked for.
    const pages = useMemo(
-      () => PAGES.filter((page) => matches(trimmed, page.label, ...page.keywords)),
-      [trimmed]
+      () =>
+         PAGES.filter(
+            (page) =>
+               (searching || showAllPages || page.primary) &&
+               matches(trimmed, page.label, ...page.keywords)
+         ),
+      [trimmed, searching, showAllPages]
    );
+   const morePages = !searching && !showAllPages && pages.length < PAGES.length;
 
    // Members are matched here rather than at the server: the workspace's
    // people are already loaded, and a round trip to find a name that is
@@ -439,6 +488,7 @@ export function CommandPalette() {
    );
 
    const newTabHint = formatCombo('mod+enter');
+   const createKeys = keysOf('issue.create');
 
    const renderResult = (result: SearchResult) => {
       const href = searchResultHref(result);
@@ -469,6 +519,7 @@ export function CommandPalette() {
    const input = (
       <div className="relative">
          <CommandInput
+            ref={inputRef}
             autoFocus
             placeholder={t('placeholder')}
             value={query}
@@ -626,20 +677,36 @@ export function CommandPalette() {
 
                   {route === 'root' && pages.length > 0 && (
                      <CommandGroup heading={t('pages')}>
-                        {pages.map((page) => (
+                        {pages.map((page) => {
+                           const keys = keysOf(page.shortcutId);
+                           return (
+                              <CommandItem
+                                 key={page.id}
+                                 value={`page-${page.id}`}
+                                 onSelect={() => go(page.href)}
+                                 onClick={(event) => {
+                                    if (event.metaKey || event.ctrlKey) modifierDown.current = true;
+                                 }}
+                              >
+                                 <page.icon className="text-muted-foreground" />
+                                 <Highlighted text={page.label} query={trimmed} />
+                                 {keys ? <Keys keys={keys} /> : null}
+                              </CommandItem>
+                           );
+                        })}
+                        {morePages ? (
                            <CommandItem
-                              key={page.id}
-                              value={`page-${page.id}`}
-                              onSelect={() => go(page.href)}
-                              onClick={(event) => {
-                                 if (event.metaKey || event.ctrlKey) modifierDown.current = true;
+                              value="pages-show-all"
+                              onSelect={() => {
+                                 setShowAllPages(true);
+                                 inputRef.current?.focus();
                               }}
+                              className="text-muted-foreground"
                            >
-                              <page.icon className="text-muted-foreground" />
-                              <Highlighted text={page.label} query={trimmed} />
-                              {page.keys ? <Keys keys={page.keys} /> : null}
+                              <ChevronRight className="text-muted-foreground" />
+                              {t('showAllPages')}
                            </CommandItem>
-                        ))}
+                        ) : null}
                      </CommandGroup>
                   )}
 
@@ -655,7 +722,7 @@ export function CommandPalette() {
                            >
                               <SquarePen className="text-muted-foreground" />
                               {t('newIssue')}
-                              <Keys keys={['C']} />
+                              {createKeys ? <Keys keys={createKeys} /> : null}
                            </CommandItem>
                         ) : null}
                         {matches(trimmed, t('newProject'), 'project', 'create') ? (
@@ -690,7 +757,6 @@ export function CommandPalette() {
                            >
                               <Link2 className="text-muted-foreground" />
                               {t('copyLink')}
-                              <Keys keys={['⌘', '⇧', ',']} />
                            </CommandItem>
                         ) : null}
                         {issue && matches(trimmed, t('copyIdentifier'), 'id', 'identifier') ? (
@@ -700,7 +766,6 @@ export function CommandPalette() {
                            >
                               <Clipboard className="text-muted-foreground" />
                               {t('copyIdentifier')}
-                              <Keys keys={['⌘', '.']} />
                            </CommandItem>
                         ) : null}
                         {/* Folding is not the palette's to do: it says so, and
@@ -745,7 +810,6 @@ export function CommandPalette() {
                            >
                               <UserRoundPlus className="text-muted-foreground" />
                               Assign to…
-                              <Keys keys={['A']} />
                            </CommandItem>
                            <CommandItem
                               value="task-unassign"
@@ -757,7 +821,6 @@ export function CommandPalette() {
                            >
                               <UserRoundMinus className="text-muted-foreground" />
                               Un-assign from me
-                              <Keys keys={['I']} />
                            </CommandItem>
                            <CommandItem
                               value="task-status"
@@ -768,7 +831,6 @@ export function CommandPalette() {
                            >
                               <CircleDot className="text-muted-foreground" />
                               Change status…
-                              <Keys keys={['S']} />
                            </CommandItem>
                            <CommandItem
                               value="task-priority"
@@ -779,7 +841,6 @@ export function CommandPalette() {
                            >
                               <Layers className="text-muted-foreground" />
                               Set priority…
-                              <Keys keys={['P']} />
                            </CommandItem>
                            <CommandItem
                               value="task-project"
@@ -790,7 +851,6 @@ export function CommandPalette() {
                            >
                               <Box className="text-muted-foreground" />
                               Move to project…
-                              <Keys keys={['⇧', 'P']} />
                            </CommandItem>
                            <CommandItem
                               value="task-labels"
@@ -801,7 +861,6 @@ export function CommandPalette() {
                            >
                               <Tags className="text-muted-foreground" />
                               Change or add labels…
-                              <Keys keys={['L']} />
                            </CommandItem>
                            <CommandItem
                               value="task-due-date"
@@ -812,7 +871,6 @@ export function CommandPalette() {
                            >
                               <CalendarPlus className="text-muted-foreground" />
                               Set due date…
-                              <Keys keys={['⇧', 'D']} />
                            </CommandItem>
                         </CommandGroup>
                         <CommandGroup heading="Copy">
@@ -822,7 +880,6 @@ export function CommandPalette() {
                            >
                               <Type className="text-muted-foreground" />
                               Copy task title
-                              <Keys keys={['⌘', '⇧', "'"]} />
                            </CommandItem>
                            <CommandItem
                               value="copy-title-link"
@@ -835,7 +892,6 @@ export function CommandPalette() {
                            >
                               <Link2 className="text-muted-foreground" />
                               Copy title as link
-                              <Keys keys={['⌘', 'C']} />
                            </CommandItem>
                            <CommandItem
                               value="copy-description"
@@ -857,7 +913,6 @@ export function CommandPalette() {
                            >
                               <ClipboardType className="text-muted-foreground" />
                               Copy task content as Markdown
-                              <Keys keys={['⌘', '⌥', 'C']} />
                            </CommandItem>
                            <CommandItem
                               value="copy-branch"
@@ -865,7 +920,6 @@ export function CommandPalette() {
                            >
                               <GitBranch className="text-muted-foreground" />
                               Copy git branch name
-                              <Keys keys={['⌘', '⇧', '.']} />
                            </CommandItem>
                            <CommandItem
                               value="copy-prompt"
@@ -878,7 +932,6 @@ export function CommandPalette() {
                            >
                               <ClipboardList className="text-muted-foreground" />
                               Copy as prompt
-                              <Keys keys={['⌘', '⌥', 'P']} />
                            </CommandItem>
                         </CommandGroup>
                      </>

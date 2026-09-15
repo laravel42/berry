@@ -11,6 +11,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
+import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
 import { PrioritySelector } from './priority-selector';
@@ -94,6 +95,7 @@ export function IssueGrid({
    const { displayProperties } = useDisplaySettingsStore();
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null);
+   const liveRun = useIssueLiveRun(issue);
 
    const columnKey = columnIssueIds.join(',');
 
@@ -178,7 +180,7 @@ export function IssueGrid({
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group w-full cursor-grab rounded-lg bg-void p-2 pl-1.5 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative w-full cursor-grab rounded-lg bg-void p-2 pl-1.5 text-chalk transition-colors active:cursor-grabbing',
                      /* Not the themed `--border`, which would turn near-white on a
                         card that stays dark in both themes. `--board-card-line` is
                         the column behind it lifted a step, so the edge reads as a
@@ -203,18 +205,39 @@ export function IssueGrid({
                      </div>
                      <div className="min-w-0 flex-1">
                         <div className="mb-1.5 flex items-center justify-between gap-2">
-                           <span className="flex min-w-0 items-center gap-1.5">
+                           {/* The key never wraps; the assignee's name is what
+                               gives way when the two meet. */}
+                           <span className="flex shrink-0 items-center gap-1.5">
+                              {liveRun ? (
+                                 <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
+                              ) : null}
                               {displayProperties.id ? (
-                                 <span className="text-subtle-foreground">{issue.identifier}</span>
+                                 <span className="whitespace-nowrap text-subtle-foreground">
+                                    {issue.identifier}
+                                 </span>
                               ) : null}
                            </span>
                            {displayProperties.assignee ? (
-                              <AssigneeUser user={issue.assignee} issueId={issue.id} />
+                              <span className="relative z-[1] flex min-w-0 items-center gap-1.5">
+                                 <AssigneeUser user={issue.assignee} issueId={issue.id} />
+                                 {issue.assignee ? (
+                                    <span
+                                       className="min-w-0 truncate text-ash"
+                                       title={issue.assignee.name}
+                                    >
+                                       {issue.assignee.name}
+                                    </span>
+                                 ) : null}
+                              </span>
                            ) : null}
                         </div>
+                        {/* The link covers the card through its pseudo-element,
+                            so the card's hover promise -- the whole thing lifts
+                            -- is kept by the whole thing. The assignee and the
+                            priority sit above it as their own controls. */}
                         <Link
                            href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
-                           className="rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                           className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                            draggable={false}
                            onClick={(event) => {
                               if (isDragging) event.preventDefault();
@@ -234,7 +257,7 @@ export function IssueGrid({
                               {issue.title}
                            </div>
                         </Link>
-                        <div className="flex flex-wrap gap-1 mb-2 min-h-[1.25rem]">
+                        <div className="relative z-[1] mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
                            {displayProperties.labels && <LabelBadge label={issue.labels} />}
                            {displayProperties.project && issue.project && (
                               <ProjectBadge project={issue.project} />
@@ -250,10 +273,12 @@ export function IssueGrid({
                                  <span />
                               )}
                               {displayProperties.priority ? (
-                                 <PrioritySelector
-                                    priority={issue.priority}
-                                    issueId={issue.id}
-                                 />
+                                 <span className="relative z-[1] flex items-center">
+                                    <PrioritySelector
+                                       priority={issue.priority}
+                                       issueId={issue.id}
+                                    />
+                                 </span>
                               ) : null}
                            </div>
                         ) : null}

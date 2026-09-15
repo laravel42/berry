@@ -29,9 +29,9 @@ export function IssueUsageSection({ issueId }: { issueId: string }) {
    if (error || !data) return null;
    return (
       <section>
-         <div className="mb-2 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+         <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
             {t('title')}
-         </div>
+         </h2>
          {data.totals.events === 0 ? (
             <p className="text-muted-foreground">{t('none')}</p>
          ) : (

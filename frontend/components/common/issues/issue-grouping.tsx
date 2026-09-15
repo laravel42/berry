@@ -21,8 +21,6 @@ export interface IssueGroupEntry {
    total: number;
 }
 
-const NEUTRAL = '#8f9299';
-
 function bucket(issues: Issue[], keyOf: (issue: Issue) => string): Map<string, Issue[]> {
    const map = new Map<string, Issue[]>();
    for (const issue of issues) {
@@ -209,7 +207,6 @@ export function buildIssueGroups({
          group: {
             id: `property:${key}`,
             name: labelOf(key),
-            color: NEUTRAL,
             icon: <CircleDashed className="size-4 text-muted-foreground" />,
          },
          issues: visible.get(key) ?? [],
@@ -230,7 +227,6 @@ export function buildIssueGroups({
                   group: {
                      id: key,
                      name: assignee?.name ?? 'No assignee',
-                     color: NEUTRAL,
                      icon: assignee ? (
                         <Avatar className="size-4">
                            <AvatarImage src={assignee.avatarUrl} alt={assignee.name} />
@@ -250,7 +246,6 @@ export function buildIssueGroups({
             group: {
                id: priority.id,
                name: priority.name,
-               color: NEUTRAL,
                icon: <priority.icon className="size-4" />,
             },
             issues: issues.filter((issue) => issue.priority.id === priority.id),
@@ -269,7 +264,6 @@ export function buildIssueGroups({
                   group: {
                      id: key,
                      name: project?.name ?? 'No project',
-                     color: NEUTRAL,
                      icon: <Icon className="size-4 text-muted-foreground" />,
                   },
                   issues: visible.get(key) ?? [],
@@ -288,7 +282,6 @@ export function buildIssueGroups({
                group: {
                   id: key,
                   name: key === 'no-parent' ? 'No parent' : (titleOf.get(key) ?? 'Parent task'),
-                  color: NEUTRAL,
                   icon: <Layers className="size-4 text-muted-foreground" />,
                },
                issues: visible.get(key) ?? [],
@@ -301,7 +294,6 @@ export function buildIssueGroups({
                group: {
                   id: 'all',
                   name: 'All tasks',
-                  color: NEUTRAL,
                   icon: <Box className="size-4 text-muted-foreground" />,
                },
                issues,

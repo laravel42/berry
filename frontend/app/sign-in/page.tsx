@@ -59,7 +59,10 @@ function SignInContent() {
    };
 
    return (
-      <AuthCard title="Sign in to Berry" description="Berry uses your GitHub account to sign you in.">
+      <AuthCard
+         title="Sign in to Berry"
+         description="Berry uses your GitHub account to sign you in."
+      >
          <div className="grid gap-4">
             <Button
                type="button"
@@ -71,13 +74,21 @@ function SignInContent() {
                {pending ? 'Opening GitHub…' : 'Continue with GitHub'}
             </Button>
             {available === false ? (
-               <p role="status" className="text-muted-foreground">
-                  GitHub sign-in is not configured on this server. An administrator needs to set
-                  BERRY_AUTH_GITHUB_CLIENT_ID and BERRY_AUTH_GITHUB_CLIENT_SECRET.
-               </p>
+               <div role="status" className="grid gap-1.5 text-muted-foreground">
+                  <p>
+                     Sign-in is not set up on this server. An administrator needs to add the GitHub
+                     sign-in credentials.
+                  </p>
+                  {/* The exact names, for whoever is doing the setting up. */}
+                  <p className="font-mono">
+                     <code>BERRY_AUTH_GITHUB_CLIENT_ID</code>
+                     <br />
+                     <code>BERRY_AUTH_GITHUB_CLIENT_SECRET</code>
+                  </p>
+               </div>
             ) : null}
             {error ? (
-               <p role="alert" className="text-destructive-foreground">
+               <p role="alert" className="text-status-danger">
                   {error}
                </p>
             ) : null}

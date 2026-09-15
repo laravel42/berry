@@ -1,6 +1,13 @@
 'use client';
 
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
+import { cn } from '@/lib/utils';
+import {
+   PROJECT_ACTIONS_SLOT,
+   PROJECT_CELL_PAD,
+   PROJECT_COLUMN,
+   PROJECT_SELECT_SLOT,
+} from './project-columns';
 import ProjectLine from './project-line';
 import { ProjectGroup } from './projects';
 
@@ -17,24 +24,28 @@ export default function ProjectsList({ groups, selected, onToggleSelected }: Pro
 
    return (
       <div className="w-full h-full overflow-y-auto">
-         <div className="bg-container px-6 py-1.5 flex items-center text-muted-foreground border-b sticky top-0 z-10">
-            <div className="flex-1 min-w-0">Name</div>
+         <div className="sticky top-0 z-10 flex items-center border-b bg-container px-6 py-1.5 text-muted-foreground">
+            {onToggleSelected ? <span className={PROJECT_SELECT_SLOT} aria-hidden /> : null}
+            <div className="min-w-0 flex-1">Name</div>
             {displayProperties.health && (
-               <div className="hidden sm:block w-[120px] shrink-0 pl-2">Health</div>
+               <div className={cn(PROJECT_COLUMN.health, PROJECT_CELL_PAD)}>Health</div>
             )}
             {displayProperties.priority && (
-               <div className="hidden md:block w-[70px] shrink-0 pl-2">Priority</div>
+               <div className={cn(PROJECT_COLUMN.priority, PROJECT_CELL_PAD)}>Priority</div>
             )}
             {displayProperties.lead && (
-               <div className="hidden xl:block w-[130px] shrink-0 pl-2">Lead</div>
+               <div className={cn(PROJECT_COLUMN.lead, PROJECT_CELL_PAD)}>Lead</div>
             )}
             {displayProperties.targetDate && (
-               <div className="hidden xl:block w-[110px] shrink-0 pl-2.5">Target date</div>
+               <div className={cn(PROJECT_COLUMN.targetDate, PROJECT_CELL_PAD)}>Target date</div>
             )}
             {displayProperties.issues && (
-               <div className="hidden xl:block w-[60px] shrink-0 pl-2.5">Tasks</div>
+               <div className={cn(PROJECT_COLUMN.issues, PROJECT_CELL_PAD)}>Tasks</div>
             )}
-            {displayProperties.status && <div className="w-[90px] shrink-0 pl-2">Status</div>}
+            {displayProperties.status && (
+               <div className={cn(PROJECT_COLUMN.status, PROJECT_CELL_PAD)}>Status</div>
+            )}
+            <span className={cn(PROJECT_ACTIONS_SLOT, 'h-px')} aria-hidden />
          </div>
 
          {groups.map((group) => (

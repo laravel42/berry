@@ -13,6 +13,7 @@ import {
    GitPullRequestClosed,
    GitPullRequestDraft,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 
 const STATE_LABEL: Record<LinkedPullRequest['state'], string> = {
@@ -28,9 +29,13 @@ function StateIcon({ state }: { state: LinkedPullRequest['state'] }) {
       case 'merged':
          return <GitMerge className={cn(className, 'text-review-approved')} aria-hidden />;
       case 'closed':
-         return <GitPullRequestClosed className={cn(className, 'text-status-danger')} aria-hidden />;
+         return (
+            <GitPullRequestClosed className={cn(className, 'text-status-danger')} aria-hidden />
+         );
       case 'draft':
-         return <GitPullRequestDraft className={cn(className, 'text-muted-foreground')} aria-hidden />;
+         return (
+            <GitPullRequestDraft className={cn(className, 'text-muted-foreground')} aria-hidden />
+         );
       default:
          return <GitPullRequestArrow className={cn(className, 'text-status-info')} aria-hidden />;
    }
@@ -90,6 +95,7 @@ function ChecksSummary({ checks }: { checks: LinkedPullRequest['checks'] }) {
  * has switched the panel off or no pull request names the task.
  */
 export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
+   const t = useTranslations('issueDetail.pullRequests');
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const [pullRequests, setPullRequests] = useState<LinkedPullRequest[]>([]);
    const [visible, setVisible] = useState(false);
@@ -128,8 +134,10 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
    if (!visible || pullRequests.length === 0) return null;
 
    return (
-      <div className="flex flex-col gap-2">
-         <h3 className="font-medium text-muted-foreground">Pull requests</h3>
+      <section className="flex flex-col gap-2">
+         <h2 data-heading="label" className="pb-[7px] text-muted-foreground">
+            {t('title')}
+         </h2>
          <ul className="flex flex-col gap-2">
             {pullRequests.map((pr) => (
                <li key={pr.id} className="min-w-0">
@@ -147,7 +155,9 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
                   <div className="flex flex-wrap items-center gap-x-2 pl-5 text-muted-foreground">
                      <span>{STATE_LABEL[pr.state]}</span>
                      <span className="truncate">{pr.repoFullName}</span>
-                     {pr.closeIntent && pr.state !== 'merged' && <span>closes this task on merge</span>}
+                     {pr.closeIntent && pr.state !== 'merged' && (
+                        <span>closes this task on merge</span>
+                     )}
                   </div>
                   <div className="pl-0">
                      <ChecksSummary checks={pr.checks} />
@@ -155,6 +165,6 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
                </li>
             ))}
          </ul>
-      </div>
+      </section>
    );
 }

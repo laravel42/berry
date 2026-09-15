@@ -15,7 +15,7 @@ interface CapacityRingProps {
 export function CapacityRing({
    value,
    size = 16,
-   color = '#5e6ad2',
+   color = 'var(--status-success)',
    trackColor = 'var(--border)',
 }: CapacityRingProps) {
    const clamped = Math.max(0, Math.min(value, 100));

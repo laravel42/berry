@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -107,7 +108,8 @@ export default function ApiTokens() {
       if (!revoking) return;
       const rest = (tokens.value ?? []).filter((entry) => entry.id !== revoking.id);
       const ok = await tokens.mutate(rest, () => revokeToken(revoking.id));
-      if (ok) setRevoking(null);
+      // `mutate` rolled back and said why; the dialog stays for another go.
+      if (!ok) throw new Error('The key could not be revoked.');
    };
 
    const when = (iso: string) => format(parseISO(iso), 'd MMM yyyy');
@@ -284,28 +286,16 @@ export default function ApiTokens() {
             </DialogContent>
          </Dialog>
 
-         <Dialog open={revoking !== null} onOpenChange={(open) => !open && setRevoking(null)}>
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>{t('revokeTitle')}</DialogTitle>
-                  <DialogDescription>
-                     {t('revokeBody', { name: revoking?.name ?? '' })}
-                  </DialogDescription>
-               </DialogHeader>
-               <DialogFooter>
-                  <Button variant="secondary" onClick={() => setRevoking(null)}>
-                     {t('cancel')}
-                  </Button>
-                  <Button
-                     variant="destructive"
-                     disabled={tokens.saving}
-                     onClick={() => void confirmRevoke()}
-                  >
-                     {t('revokeAction')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
+         <ConfirmAction
+            open={revoking !== null}
+            onOpenChange={(open) => !open && setRevoking(null)}
+            title={t('revokeTitle')}
+            description={t('revokeBody', { name: revoking?.name ?? '' })}
+            confirmLabel={t('revokeAction')}
+            cancelLabel={t('cancel')}
+            destructive
+            onConfirm={confirmRevoke}
+         />
       </SettingsShell>
    );
 }

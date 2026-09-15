@@ -38,6 +38,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { IssueListEmpty } from './issue-list-empty';
 import {
@@ -125,6 +126,7 @@ function TitleCell({
 }) {
    const { orgId } = useParams<{ orgId: string }>();
    const updateIssue = useIssuesStore((state) => state.updateIssue);
+   const liveRun = useIssueLiveRun(issue);
    const [editing, setEditing] = useState(false);
    const [title, setTitle] = useState(issue.title);
 
@@ -145,7 +147,10 @@ function TitleCell({
    };
 
    return (
-      <span className="flex min-w-0 items-center gap-1" style={{ paddingLeft: depth * 16 }}>
+      <span
+         className="flex h-full min-w-0 items-center gap-1 self-stretch"
+         style={{ paddingLeft: depth * 16 }}
+      >
          {expandable ? (
             <button
                type="button"
@@ -180,15 +185,20 @@ function TitleCell({
                }}
             />
          ) : (
+            // The link fills its cell, so the whole title column is the
+            // target rather than the width of the words in it.
             <Link
-               className="truncate hover:underline"
+               className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                href={`/${orgId}/issue/${issue.identifier}`}
                onDoubleClick={(event) => {
                   event.preventDefault();
                   setEditing(true);
                }}
             >
-               {issue.title}
+               {liveRun ? (
+                  <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
+               ) : null}
+               <span className="truncate group-hover:underline">{issue.title}</span>
             </Link>
          )}
       </span>
@@ -688,11 +698,7 @@ export function IssueTable({
 
    if (!loading && issues.length === 0) {
       const scoped = totalIssues ?? issues;
-      return (
-         <IssueListEmpty
-            filtered={filters.length > 0 || scoped.length > issues.length}
-         />
-      );
+      return <IssueListEmpty filtered={filters.length > 0 || scoped.length > issues.length} />;
    }
 
    return (

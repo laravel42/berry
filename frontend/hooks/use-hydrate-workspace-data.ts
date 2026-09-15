@@ -25,6 +25,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useViewsStore } from '@/store/views-store';
 import { useEffect } from 'react';
 import { useBoardEventStream } from './use-board-event-stream';
+import { useOpenReviewsSync } from './use-open-reviews-sync';
 import { useWorkspaceEventStream } from './use-workspace-event-stream';
 
 /**
@@ -36,6 +37,9 @@ export function useHydrateWorkspaceData(): void {
    // goals, approvals and the inbox.
    useBoardEventStream();
    useWorkspaceEventStream();
+   // The open review queue feeds the rail's count and the task page's link to
+   // its own review; it rides on the workspace stream above.
+   useOpenReviewsSync();
 
    const status = useSessionStore((state) => state.status);
    const boardId = useSessionStore((state) => state.boardId);

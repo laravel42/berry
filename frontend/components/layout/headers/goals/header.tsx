@@ -10,11 +10,8 @@ import { useTranslations } from 'next-intl';
 export default function Header() {
    const t = useTranslations('goals.header');
    return (
-      <header className="flex h-auto w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="min-w-0">
-            <span className="font-medium">{t('title')}</span>
-            <p className="mt-1 max-w-2xl text-muted-foreground">{t('description')}</p>
-         </div>
+      <header className="flex w-full items-center border-b px-6 py-3">
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
       </header>
    );
 }

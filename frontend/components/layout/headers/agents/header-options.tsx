@@ -13,7 +13,8 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { agentModelDisplay, modelPairKey } from '@/lib/agents';
+import { agentModelName } from '@/components/common/agents/model-name';
+import { modelPairKey } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 import {
    AGENT_COLUMNS,
@@ -102,7 +103,7 @@ export default function HeaderOptions() {
          if (entry?.runtimeId) runtimes.set(entry.runtimeId, entry.runtimeName ?? entry.runtimeId);
          if (entry?.ownerId) owners.set(entry.ownerId, entry.ownerName ?? entry.ownerId);
          const key = modelPairKey(agent);
-         if (key) models.set(key, agentModelDisplay(agent).label);
+         if (key) models.set(key, agentModelName(agent));
       }
       const named = (map: Map<string, string>): Option[] =>
          [...map.entries()]
@@ -150,8 +151,8 @@ export default function HeaderOptions() {
    );
 
    return (
-      <div className="flex h-10 w-full items-center justify-between gap-3 border-b px-6 py-1.5">
-         <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-h-10 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-1.5">
+         <div className="flex shrink-0 items-center gap-3">
             <div className="flex shrink-0 items-center gap-1">
                {SCOPES.map((entry) => (
                   <button

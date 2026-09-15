@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -193,6 +194,7 @@ export default function WorkspaceGeneral() {
                  : t('leaveFailed')
          );
          setLeaving(false);
+         throw cause;
       }
    };
 
@@ -204,6 +206,7 @@ export default function WorkspaceGeneral() {
       } catch (cause) {
          toast.error(cause instanceof Error ? cause.message : t('deleteFailed'));
          setDeleting(false);
+         throw cause;
       }
    };
 
@@ -438,78 +441,42 @@ export default function WorkspaceGeneral() {
             </DialogContent>
          </Dialog>
 
-         <Dialog
+         <ConfirmAction
             open={confirmingLeave}
-            onOpenChange={(open) => !leaving && setConfirmingLeave(open)}
-         >
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>{t('leaveConfirmTitle')}</DialogTitle>
-                  <DialogDescription>
-                     {t('leaveConfirmBody', { name: record?.name ?? '' })}
-                  </DialogDescription>
-               </DialogHeader>
-               <DialogFooter>
-                  <Button
-                     variant="secondary"
-                     disabled={leaving}
-                     onClick={() => setConfirmingLeave(false)}
-                  >
-                     {t('cancel')}
-                  </Button>
-                  <Button
-                     variant="destructive"
-                     disabled={leaving}
-                     onClick={() => void confirmLeave()}
-                  >
-                     {leaving ? t('leaving') : t('leaveConfirmAction')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
+            onOpenChange={setConfirmingLeave}
+            title={t('leaveConfirmTitle')}
+            description={t('leaveConfirmBody', { name: record?.name ?? '' })}
+            confirmLabel={t('leaveConfirmAction')}
+            pendingLabel={t('leaving')}
+            cancelLabel={t('cancel')}
+            destructive
+            onConfirm={confirmLeave}
+         />
 
          {/* While the delete is in flight the dialog cannot be dismissed: the
              workspace is going away underneath the page, and a half-closed
-             dialog over a dying route is not a state worth having. */}
-         <Dialog
+             dialog over a dying route is not a state worth having. The
+             wrapper holds it shut while `onConfirm` is pending. */}
+         <ConfirmAction
             open={confirmingDelete}
-            onOpenChange={(open) => !deleting && setConfirmingDelete(open)}
+            onOpenChange={setConfirmingDelete}
+            title={t('deleteConfirmTitle')}
+            description={t('deleteConfirmBody', { name: record?.name ?? '' })}
+            confirmLabel={t('deleteConfirmAction')}
+            pendingLabel={t('deleting')}
+            cancelLabel={t('cancel')}
+            confirmDisabled={!nameMatches}
+            destructive
+            onConfirm={confirmDelete}
          >
-            <DialogContent
-               onEscapeKeyDown={(event) => deleting && event.preventDefault()}
-               onInteractOutside={(event) => deleting && event.preventDefault()}
-            >
-               <DialogHeader>
-                  <DialogTitle>{t('deleteConfirmTitle')}</DialogTitle>
-                  <DialogDescription>
-                     {t('deleteConfirmBody', { name: record?.name ?? '' })}
-                  </DialogDescription>
-               </DialogHeader>
-               <Input
-                  value={typedName}
-                  aria-label={t('deleteTypeName')}
-                  placeholder={record?.name ?? ''}
-                  disabled={deleting}
-                  onChange={(event) => setTypedName(event.target.value)}
-               />
-               <DialogFooter>
-                  <Button
-                     variant="secondary"
-                     disabled={deleting}
-                     onClick={() => setConfirmingDelete(false)}
-                  >
-                     {t('cancel')}
-                  </Button>
-                  <Button
-                     variant="destructive"
-                     disabled={!nameMatches || deleting}
-                     onClick={() => void confirmDelete()}
-                  >
-                     {deleting ? t('deleting') : t('deleteConfirmAction')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
+            <Input
+               value={typedName}
+               aria-label={t('deleteTypeName')}
+               placeholder={record?.name ?? ''}
+               disabled={deleting}
+               onChange={(event) => setTypedName(event.target.value)}
+            />
+         </ConfirmAction>
       </SettingsShell>
    );
 }

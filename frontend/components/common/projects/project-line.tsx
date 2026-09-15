@@ -24,6 +24,12 @@ import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { DeleteProjectDialog, useProjectDeletion } from './delete-project';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
+import {
+   PROJECT_ACTIONS_SLOT,
+   PROJECT_CELL_PAD,
+   PROJECT_COLUMN,
+   PROJECT_SELECT_SLOT,
+} from './project-columns';
 import { HealthPopover } from './health-popover';
 import { PrioritySelector } from './priority-selector';
 import { LeadSelector } from './lead-selector';
@@ -71,7 +77,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
 
          {onToggleSelected ? (
             <span
-               className="relative z-10 mr-2 flex shrink-0 items-center"
+               className={cn(PROJECT_SELECT_SLOT, 'relative z-10')}
                onClick={(event) => event.stopPropagation()}
                role="presentation"
             >
@@ -110,12 +116,12 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
          </div>
 
          {displayProperties.health && (
-            <div className="relative z-10 hidden w-[120px] shrink-0 pointer-events-auto sm:block">
+            <div className={cn(PROJECT_COLUMN.health, 'relative z-10 pointer-events-auto')}>
                <HealthPopover project={project} />
             </div>
          )}
          {displayProperties.priority && (
-            <div className="relative z-10 hidden w-[70px] shrink-0 pointer-events-auto md:block">
+            <div className={cn(PROJECT_COLUMN.priority, 'relative z-10 pointer-events-auto')}>
                <PrioritySelector
                   priority={project.priority}
                   onPriorityChange={(priorityId) => {
@@ -126,7 +132,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
             </div>
          )}
          {displayProperties.lead && (
-            <div className="relative z-10 hidden w-[130px] shrink-0 pointer-events-auto xl:block">
+            <div className={cn(PROJECT_COLUMN.lead, 'relative z-10 pointer-events-auto')}>
                <LeadSelector
                   lead={project.lead}
                   members={members}
@@ -138,7 +144,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
             </div>
          )}
          {displayProperties.targetDate && (
-            <div className="relative z-10 hidden w-[110px] shrink-0 pointer-events-auto xl:block">
+            <div className={cn(PROJECT_COLUMN.targetDate, 'relative z-10 pointer-events-auto')}>
                <DatePicker
                   date={project.targetDate ? new Date(project.targetDate) : undefined}
                   onDateChange={(date) => {
@@ -151,12 +157,18 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
             </div>
          )}
          {displayProperties.issues && (
-            <div className="relative z-10 hidden w-[60px] shrink-0 pl-2.5 text-muted-foreground pointer-events-none xl:block">
+            <div
+               className={cn(
+                  PROJECT_COLUMN.issues,
+                  PROJECT_CELL_PAD,
+                  'relative z-10 pointer-events-none tabular-nums text-muted-foreground'
+               )}
+            >
                {issueCount}
             </div>
          )}
          {displayProperties.status && (
-            <div className="relative z-10 w-[90px] shrink-0 pointer-events-auto">
+            <div className={cn(PROJECT_COLUMN.status, 'relative z-10 pointer-events-auto')}>
                <StatusWithPercent
                   status={project.status}
                   percentComplete={project.percentComplete}
@@ -173,7 +185,12 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
          {/* The row's own actions. Pinning is one click because it is the one
              people do from a list; anything destructive stays behind a menu
              and a confirmation. */}
-         <div className="relative z-10 ml-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+         <div
+            className={cn(
+               PROJECT_ACTIONS_SLOT,
+               'relative z-10 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100'
+            )}
+         >
             <PinToggle targetType="project" targetId={project.id} />
             <DropdownMenu>
                <DropdownMenuTrigger asChild>

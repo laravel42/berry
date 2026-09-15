@@ -28,7 +28,9 @@ export function AuthCard({ title, description, children, footer }: AuthCardProps
                <CardTitle>
                   <h1>{title}</h1>
                </CardTitle>
-               {description ? <CardDescription>{description}</CardDescription> : null}
+               {description ? (
+                  <CardDescription className="text-balance">{description}</CardDescription>
+               ) : null}
             </CardHeader>
             <CardContent>{children}</CardContent>
          </Card>

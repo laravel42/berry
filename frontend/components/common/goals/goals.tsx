@@ -41,7 +41,7 @@ export default function Goals() {
             <div className="min-w-0 flex-1">{t('goal')}</div>
             <div className="w-27.5 shrink-0">{t('status')}</div>
             <div className="hidden w-40 shrink-0 sm:block">{t('progress')}</div>
-            <div className="hidden w-28 shrink-0 md:block">{t('updated')}</div>
+            <div className="hidden w-36 shrink-0 md:block">{t('updated')}</div>
          </div>
          {!loaded && !error ? (
             <div className="px-6 py-10 text-muted-foreground">{t('loading')}</div>

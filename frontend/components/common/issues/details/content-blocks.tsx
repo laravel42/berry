@@ -54,7 +54,7 @@ export function InlineText({ text }: { text: string }) {
                   <a
                      key={index}
                      href={href}
-                     className="text-primary underline underline-offset-2"
+                     className="underline decoration-muted-foreground/60 underline-offset-2 hover:decoration-foreground"
                      target="_blank"
                      rel="noreferrer"
                   >
@@ -99,7 +99,7 @@ function ImagePlaceholder({
 
 function VideoPlaceholder({ title, duration }: { title: string; duration?: string }) {
    return (
-      <div className="my-4 w-full aspect-video rounded-lg border border-border/60 bg-zinc-950/90 dark:bg-zinc-900/80 relative flex items-center justify-center">
+      <div className="my-4 w-full aspect-video rounded-lg border border-border/60 bg-void relative flex items-center justify-center">
          <div className="size-12 rounded-full bg-white/10 backdrop-blur flex items-center justify-center">
             <Play className="size-5 text-white fill-white ml-0.5" />
          </div>
@@ -196,13 +196,11 @@ export function ContentBlocks({ blocks }: { blocks: ContentBlock[] }) {
                                  className={cn(
                                     'mt-1 size-4 rounded border flex items-center justify-center shrink-0',
                                     item.checked
-                                       ? 'border-primary bg-primary'
+                                       ? 'border-foreground bg-foreground'
                                        : 'border-input'
                                  )}
                               >
-                                 {item.checked && (
-                                    <Check className="size-3 text-primary-foreground" />
-                                 )}
+                                 {item.checked && <Check className="size-3 text-background" />}
                               </span>
                               <span
                                  className={cn(

@@ -5,6 +5,7 @@ import { ApprovalCard } from '@/components/common/approvals/approval-card';
 import { IssueLine } from '@/components/common/issues/issue-line';
 import { Pill, SectionHeading } from '@/components/common/plans/plan-sections';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { useGoal } from '@/hooks/use-goal';
 import { APPROVAL_STATUS, GOAL_STATUS, statusLook, uiStatusFromApi } from '@/lib/catalog';
 import { WORKSPACE_SLUG } from '@/lib/config';
@@ -271,6 +272,7 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
    const inDrawer = useInDetailDrawer();
    const { goal, error, loading } = useGoal(goalId);
    const { lists } = useGoalLists(goalId);
+   useTabLabel(goal?.title ?? null);
 
    if (!goal) {
       return (

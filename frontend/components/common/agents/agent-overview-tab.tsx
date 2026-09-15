@@ -9,15 +9,10 @@ import AgentActivityTab from '@/components/common/agents/agent-activity-tab';
 import { AgentSparkline } from '@/components/common/agents/agent-sparkline';
 import AgentWorkTab from '@/components/common/agents/agent-work-tab';
 import { Button } from '@/components/ui/button';
-import {
-   agentModelDisplay,
-   agentTaskDurationMs,
-   type Agent,
-   type AgentRoster,
-   type AgentTask,
-} from '@/lib/agents';
+import { agentTaskDurationMs, type Agent, type AgentRoster, type AgentTask } from '@/lib/agents';
 import { formatRunDuration } from '@/lib/runs';
 import { cn } from '@/lib/utils';
+import { agentModelName } from './model-name';
 
 interface AgentOverviewTabProps {
    agent: Agent;
@@ -120,8 +115,11 @@ export default function AgentOverviewTab({
          <div className="flex flex-col gap-6 xl:flex-row">
             <div className="min-w-0 flex-1">
                {stalled ? (
-                  <div className="mb-6 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-3">
-                     <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
+                  <div className="mb-6 flex items-start gap-2 rounded-lg border border-status-warning/40 bg-status-warning/5 px-4 py-3">
+                     <AlertTriangle
+                        className="mt-0.5 size-4 shrink-0 text-status-warning"
+                        aria-hidden
+                     />
                      <div className="min-w-0">
                         <p>{t('queuedNoRuntime', { count: roster?.queued ?? 0 })}</p>
                         <Button
@@ -171,7 +169,9 @@ export default function AgentOverviewTab({
 
             <aside className="w-full shrink-0 xl:w-80">
                <div className="rounded-lg border border-border/70 p-4">
-                  <Row label={t('overviewOwner')}>{roster?.ownerName ?? list('ownerWorkspace')}</Row>
+                  <Row label={t('overviewOwner')}>
+                     {roster?.ownerName ?? list('ownerWorkspace')}
+                  </Row>
                   <Row label={t('overviewAccess')}>{accessLabel}</Row>
                   <Row label={t('overviewRuntime')}>
                      {roster?.runtimeId ? (
@@ -180,8 +180,8 @@ export default function AgentOverviewTab({
                               className={cn(
                                  'size-1.5 rounded-full',
                                  roster.runtimeStatus === 'active'
-                                    ? 'bg-[#00cc66]'
-                                    : 'bg-amber-500'
+                                    ? 'bg-status-success'
+                                    : 'bg-status-warning'
                               )}
                            />
                            <span className="truncate">{roster.runtimeName}</span>
@@ -193,13 +193,13 @@ export default function AgentOverviewTab({
                         <button
                            type="button"
                            onClick={onOpenSettings}
-                           className="text-amber-500 underline-offset-2 hover:underline"
+                           className="text-status-warning underline-offset-2 hover:underline"
                         >
                            {list('runtimeNone')}
                         </button>
                      )}
                   </Row>
-                  <Row label={t('overviewModel')}>{agentModelDisplay(agent).label}</Row>
+                  <Row label={t('overviewModel')}>{agentModelName(agent)}</Row>
                   <Row label={t('overviewConcurrency')}>
                      {agent.maxConcurrency ?? common('none')}
                   </Row>

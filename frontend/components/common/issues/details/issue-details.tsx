@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getIssueDetail } from '@/data/issue-details';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { getBoardIssue } from '@/lib/issues';
 import { forgetIssue, rememberIssue } from '@/lib/recent-issues';
@@ -72,6 +73,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    );
 
    const detail = useMemo(() => (issue ? getIssueDetail(issue) : null), [issue]);
+
+   // The shell tab takes the task's key and title once it is known.
+   useTabLabel(issue ? `${issue.identifier} ${issue.title}` : null);
 
    const afterDelete = useCallback(() => {
       if (closeDrawer) {
@@ -240,7 +244,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
 
                   <SubIssues issue={issue} />
                   <IssueAttachments issueRef={issue.identifier} />
-                  <IssueArtifacts issueRef={issue.identifier} />
                   <IssueReviews issueRef={issue.identifier} />
 
                   <ActivityFeedList
@@ -256,8 +259,15 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                      onRunChanged={activity.upsertRun}
                   />
 
+                  {/* After the conversation, not before it: the agent's final
+                      message is a comment, and the files it produced are the
+                      evidence behind that message rather than the headline. */}
+                  <IssueArtifacts issueRef={issue.identifier} />
+
                   <ExecutionLog
                      issueId={issue.id}
+                     issueRef={issue.identifier}
+                     inReview={issue.status.id === 'in-review'}
                      runs={activity.runs}
                      onRunsChanged={activity.upsertRun}
                   />
@@ -289,10 +299,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                <div className="mb-3 flex justify-end">
                   <IssueQuickActions issueRef={issue.identifier} />
                </div>
-               <IssuePropertiesPanel
-                  issue={issue}
-                  detail={detail ?? getIssueDetail(issue)}
-               />
+               <IssuePropertiesPanel issue={issue} detail={detail ?? getIssueDetail(issue)} />
             </aside>
          ) : null}
       </div>

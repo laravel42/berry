@@ -11,14 +11,14 @@ export function Section({
    children: ReactNode;
 }) {
    return (
-      <div>
+      <section>
          <div className="mb-2 flex items-center justify-between gap-2 pb-[7px]">
-            <span className="font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-               {title.toLowerCase()}
-            </span>
+            <h2 data-heading="label" className="text-muted-foreground">
+               {title}
+            </h2>
             {action}
          </div>
          {children}
-      </div>
+      </section>
    );
 }

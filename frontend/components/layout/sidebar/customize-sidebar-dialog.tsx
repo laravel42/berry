@@ -29,6 +29,7 @@ import {
    Lightbulb,
    LucideIcon,
    MessageSquare,
+   ShieldCheck,
    Sparkles,
    Target,
    Timer,
@@ -44,20 +45,21 @@ interface ItemConfig {
 }
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
-   { key: 'my-issues', label: 'tasks', icon: FolderKanban },
-   { key: 'reviews', label: 'reviews', icon: GitPullRequest },
-   { key: 'chat', label: 'chat', icon: MessageSquare },
-   { key: 'goals', label: 'goals', icon: Target },
-   { key: 'projects', label: 'projects', icon: Box },
-   { key: 'proposals', label: 'proposals', icon: Lightbulb },
+   { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
+   { key: 'reviews', label: 'Reviews', icon: GitPullRequest, badged: true },
+   { key: 'approvals', label: 'Approvals', icon: ShieldCheck, badged: true },
+   { key: 'chat', label: 'Chat', icon: MessageSquare },
+   { key: 'goals', label: 'Goals', icon: Target },
+   { key: 'projects', label: 'Projects', icon: Box },
+   { key: 'proposals', label: 'Proposals', icon: Lightbulb },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [
-   { key: 'dashboard', label: 'dashboard', icon: LayoutDashboard },
-   { key: 'agents', label: 'agents', icon: Sparkles },
-   { key: 'skills', label: 'skills', icon: BookOpen },
-   { key: 'autopilot', label: 'autopilots', icon: Timer },
-   { key: 'usage', label: 'usage', icon: Coins },
+   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+   { key: 'agents', label: 'Agents', icon: Sparkles },
+   { key: 'skills', label: 'Skills', icon: BookOpen },
+   { key: 'autopilot', label: 'Autopilots', icon: Timer },
+   { key: 'usage', label: 'Usage', icon: Coins },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

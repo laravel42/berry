@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CircleCheck, CircleX, AlertCircle, HelpCircle, Bell } from 'lucide-react';
+import { CircleCheck, CircleX, AlertCircle, CircleDashed, Bell } from 'lucide-react';
 import { Project } from '@/data/projects';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -12,33 +12,37 @@ interface HealthPopoverProps {
    project: Project;
 }
 
-export function HealthPopover({ project }: HealthPopoverProps) {
-   const getHealthIcon = (healthId: string) => {
-      switch (healthId) {
-         case 'on-track':
-            return <CircleCheck className="size-4 text-green-500" />;
-         case 'off-track':
-            return <CircleX className="size-4 text-red-500" />;
-         case 'at-risk':
-            return <AlertCircle className="size-4 text-amber-500" />;
-         case 'no-update':
-         default:
-            return <HelpCircle className="size-4 text-muted-foreground" />;
-      }
-   };
+function HealthIcon({ healthId }: { healthId: string }) {
+   switch (healthId) {
+      case 'on-track':
+         return <CircleCheck className="size-4 text-status-success" aria-hidden />;
+      case 'off-track':
+         return <CircleX className="size-4 text-status-danger" aria-hidden />;
+      case 'at-risk':
+         return <AlertCircle className="size-4 text-status-warning" aria-hidden />;
+      case 'no-update':
+      default:
+         // Neutral, not alarmed: no update is a fact, not a warning.
+         return <CircleDashed className="size-4 text-status-neutral" aria-hidden />;
+   }
+}
 
+export function HealthPopover({ project }: HealthPopoverProps) {
    const isMobile = useIsMobile();
+   const label = project.health.name;
 
    return (
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               className="flex items-center justify-center gap-1 h-7 px-2"
+               className="flex h-7 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
                size="sm"
                variant="ghost"
+               aria-label={`Health: ${label}`}
+               title={label}
             >
-               {getHealthIcon(project.health.id)}
-               <span className="mt-[1px] ml-0.5 hidden xl:inline">{project.health.name}</span>
+               <HealthIcon healthId={project.health.id} />
+               <span className="mt-[1px] ml-0.5 hidden xl:inline">{label}</span>
             </Button>
          </PopoverTrigger>
          <PopoverContent
@@ -65,8 +69,8 @@ export function HealthPopover({ project }: HealthPopoverProps) {
             <div className="p-3 space-y-3">
                <div className="flex items-center justify-start gap-3">
                   <div className="flex items-center gap-2">
-                     {getHealthIcon(project.health.id)}
-                     <span>{project.health.name}</span>
+                     <HealthIcon healthId={project.health.id} />
+                     <span>{label}</span>
                   </div>
                   <div className="flex items-center gap-2">
                      <Avatar className="size-5">

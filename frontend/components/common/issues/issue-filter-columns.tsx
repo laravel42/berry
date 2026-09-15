@@ -11,10 +11,10 @@ import {
    optionFilterFn,
    textFilterFn,
 } from '@/components/data-table-filter/lib/filter-fns';
-import { Issue } from '@/data/issues';
+import type { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
-import { status, StatusCategory } from '@/data/status';
+import { status, type StatusCategory } from '@/data/status';
 import type { Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import { agentToUser, type Agent } from '@/lib/agents';

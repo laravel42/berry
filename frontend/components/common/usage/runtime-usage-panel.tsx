@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
+import { readableModelName } from '@/components/common/agents/model-name';
 import { Button } from '@/components/ui/button';
 import {
    formatCost,
@@ -129,7 +130,12 @@ export function RuntimeUsagePanel({ runtimeId, query }: { runtimeId: string; que
                           href: `/${orgId}/agents/${row.key}`,
                           bucket: row,
                        }))
-                     : data.byModel.map((row) => ({ id: row.key, label: row.key, bucket: row }))
+                     : data.byModel.map((row) => ({
+                          id: row.key,
+                          label: readableModelName(row.key),
+                          title: row.key,
+                          bucket: row,
+                       }))
                }
             />
          </section>
@@ -153,7 +159,9 @@ export function RuntimeUsagePanel({ runtimeId, query }: { runtimeId: string; que
                         {data.byDayModel.map((row) => (
                            <tr key={`${row.day}:${row.model}`} className="border-t">
                               <td className="py-1.5 pr-4 tabular-nums">{row.day}</td>
-                              <td className="max-w-[16rem] truncate py-1.5 pr-4">{row.model}</td>
+                              <td className="max-w-[16rem] truncate py-1.5 pr-4" title={row.model}>
+                                 {readableModelName(row.model)}
+                              </td>
                               <td className="py-1.5 pr-4 text-right tabular-nums">
                                  {formatTokens(row.tokens)}
                               </td>

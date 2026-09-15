@@ -25,6 +25,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { DEFAULT_LABEL_COLOR, OPTION_PALETTE } from './label-palette';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -44,7 +45,7 @@ import { useSettingsResource } from './use-settings-resource';
  * is a row in the task panel that everybody carries, so the cost of one more
  * is not paid by whoever adds it.
  */
-const OPTION_COLORS = ['#6366f1', '#f97316', '#347b5a', '#9b6715', '#397caf', '#b4436c'];
+const OPTION_COLORS = OPTION_PALETTE;
 
 function optionsFrom(raw: string) {
    return raw
@@ -59,7 +60,7 @@ function optionsFrom(raw: string) {
                .replace(/^-+|-+$/g, '')
                .slice(0, 40) || `option-${index}`,
          name,
-         color: OPTION_COLORS[index % OPTION_COLORS.length] ?? '#6366f1',
+         color: OPTION_COLORS[index % OPTION_COLORS.length] ?? DEFAULT_LABEL_COLOR,
       }));
 }
 
@@ -150,7 +151,7 @@ export default function IssuePropertiesSettings() {
    return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-8">
          <div>
-            <h1 className="font-display">{t('title')}</h1>
+            <h1>{t('title')}</h1>
             <p className="text-muted-foreground">{t('lead')}</p>
             <p className={full ? 'mt-1 text-status-danger' : 'mt-1 text-muted-foreground'}>
                {t('counter', { used: active.length, max: MAX_ACTIVE_PROPERTIES })}

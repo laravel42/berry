@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -54,6 +55,7 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
    const [selected, setSelected] = useState<string | null>(null);
    const [prompt, setPrompt] = useState('');
    const [busy, setBusy] = useState(false);
+   const [discarding, setDiscarding] = useState(false);
    const [notice, setNotice] = useState<string | null>(null);
    const [edited, setEdited] = useState<{
       name: string;
@@ -169,14 +171,24 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
       }
    };
 
+   /** Runs once the discard is confirmed; the session and its drafts go. */
    const discard = async () => {
-      if (!window.confirm(t('aiDiscardConfirm'))) return;
       if (id) await discardBuilderSession(id).catch(() => undefined);
       router.push(`/${orgId}/agents/new`);
    };
 
    return (
       <div className="grid gap-6 lg:grid-cols-2">
+         <ConfirmAction
+            open={discarding}
+            onOpenChange={setDiscarding}
+            title={t('aiDiscardTitle')}
+            description={t('aiDiscardBody')}
+            confirmLabel={t('aiDiscard')}
+            pendingLabel={t('aiDiscarding')}
+            destructive
+            onConfirm={discard}
+         />
          <div className="flex flex-col gap-3">
             <Textarea
                rows={5}
@@ -206,7 +218,12 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
                   </Button>
                ) : null}
                {id ? (
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => void discard()}>
+                  <Button
+                     size="sm"
+                     variant="ghost"
+                     disabled={busy}
+                     onClick={() => setDiscarding(true)}
+                  >
                      {t('aiDiscard')}
                   </Button>
                ) : null}

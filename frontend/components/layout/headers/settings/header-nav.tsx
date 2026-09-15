@@ -40,11 +40,7 @@ export default function HeaderNav() {
 
    return (
       <div className="w-full flex justify-between items-center border-b py-1.5 px-6 h-10">
-         <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-               <span className="font-medium">{t('title')}</span>
-            </div>
-         </div>
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
 
          <DropdownMenu>
             <DropdownMenuTrigger

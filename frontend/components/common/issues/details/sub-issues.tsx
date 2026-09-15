@@ -336,22 +336,23 @@ export function SubIssues({ issue }: { issue: Issue }) {
    return (
       <section className="flex flex-col gap-2">
          <div className="flex items-center gap-2">
-            <Button
-               variant="ghost"
-               size="xs"
-               className="-ml-2"
-               aria-expanded={!collapsed}
-               onClick={() => setCollapsed(issue.identifier, !collapsed)}
-            >
-               {collapsed ? (
-                  <ChevronRight className="mr-1 size-3.5" />
-               ) : (
-                  <ChevronDown className="mr-1 size-3.5" />
-               )}
-               <span className="font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+            <h2 data-heading="label" className="text-muted-foreground">
+               <Button
+                  variant="ghost"
+                  size="xs"
+                  className="-ml-2"
+                  aria-expanded={!collapsed}
+                  aria-label={collapsed ? t('expand') : t('collapse')}
+                  onClick={() => setCollapsed(issue.identifier, !collapsed)}
+               >
+                  {collapsed ? (
+                     <ChevronRight className="mr-1 size-3.5" aria-hidden />
+                  ) : (
+                     <ChevronDown className="mr-1 size-3.5" aria-hidden />
+                  )}
                   {t('title')}
-               </span>
-            </Button>
+               </Button>
+            </h2>
             {progress.total > 0 ? (
                <span className="text-muted-foreground">
                   {t('progress', { done: progress.done, total: progress.total })}
@@ -407,8 +408,13 @@ export function SubIssues({ issue }: { issue: Issue }) {
                      onChange={(event) => setTitle(event.target.value)}
                      onKeyDown={(event) => event.key === 'Enter' && add()}
                   />
-                  <Button size="xs" disabled={!title.trim() || adding} onClick={add}>
-                     <Plus className="mr-1 size-3.5" />
+                  <Button
+                     size="xs"
+                     variant="outline"
+                     disabled={!title.trim() || adding}
+                     onClick={add}
+                  >
+                     <Plus className="mr-1 size-3.5" aria-hidden />
                      {t('add')}
                   </Button>
                   <AttachExisting parentRef={issue.identifier} onAttached={reload} />

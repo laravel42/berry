@@ -137,7 +137,7 @@ export default function AgentCapabilitiesTab({
                <h3 className="font-medium">{t('capInstructions')}</h3>
                <p className="text-muted-foreground">{t('capInstructionsHint')}</p>
                {instructionsDirty ? (
-                  <span className="ml-auto text-amber-500">{t('capUnsaved')}</span>
+                  <span className="ml-auto text-status-warning">{t('capUnsaved')}</span>
                ) : null}
             </div>
             <Textarea
@@ -164,7 +164,7 @@ export default function AgentCapabilitiesTab({
                <h3 className="font-medium">{t('capStarters')}</h3>
                <p className="text-muted-foreground">{t('capStartersHint')}</p>
                {startersDirty ? (
-                  <span className="ml-auto text-amber-500">{t('capUnsaved')}</span>
+                  <span className="ml-auto text-status-warning">{t('capUnsaved')}</span>
                ) : null}
             </div>
             <div className="flex flex-col gap-2">

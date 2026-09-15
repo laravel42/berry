@@ -4,8 +4,15 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback } from 'react';
 
 import { DetailDrawerProvider } from '@/components/layout/detail-drawer-context';
+import {
+   RAIL_COLLAPSED_WIDTH,
+   RAIL_OVERLAY_WIDTH,
+   RAIL_WIDTH,
+} from '@/components/layout/shell/shell-layout';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { useShellStore } from '@/store/shell-store';
 
 interface DetailDrawerShellProps {
    header?: ReactNode;
@@ -20,17 +27,17 @@ interface DetailDrawerShellProps {
    maxWidth?: number;
 }
 
-/** Offset of the workspace sidebar; a drawer never covers it. */
-const SIDEBAR_OFFSET = '244px';
-
 /**
  * Wide right drawer for intercepted detail routes; dismiss via overlay, Esc,
  * or router.back().
  *
  * Width is capped globally by `--drawer-max-width` and additionally clamped to
- * the space left beside the sidebar, so the drawer never covers navigation on
- * a narrow viewport. The cap is a token rather than a prop default so changing
- * it is one edit rather than an audit of every call site.
+ * the space left beside the rail, so the drawer never covers navigation on
+ * a narrow viewport. The rail's width comes from the shell: 218px as a
+ * column, 36px collapsed, and nothing below `lg`, where it is an overlay
+ * and the drawer may take the whole screen. The cap is a token rather than a
+ * prop default so changing it is one edit rather than an audit of every
+ * call site.
  */
 export default function DetailDrawerShell({
    header,
@@ -40,6 +47,9 @@ export default function DetailDrawerShell({
    maxWidth,
 }: DetailDrawerShellProps) {
    const router = useRouter();
+   const isMobile = useIsMobile();
+   const railOpen = useShellStore((state) => state.railOpen);
+   const railWidth = isMobile ? RAIL_OVERLAY_WIDTH : railOpen ? RAIL_WIDTH : RAIL_COLLAPSED_WIDTH;
 
    const dismiss = useCallback(() => {
       if (onClose) {
@@ -71,7 +81,7 @@ export default function DetailDrawerShell({
             style={{
                width: `min(${
                   maxWidth ? `${maxWidth}px` : 'var(--drawer-max-width)'
-               }, calc(100vw - ${SIDEBAR_OFFSET}))`,
+               }, calc(100vw - ${railWidth}px))`,
             }}
          >
             <DetailDrawerProvider onClose={dismiss}>

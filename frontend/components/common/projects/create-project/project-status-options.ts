@@ -15,7 +15,7 @@ export interface ProjectCreateStatusOption {
 const projectPausedStatus: Status = {
    id: 'paused',
    name: 'Paused',
-   color: '#6A6767',
+   color: 'var(--status-neutral)',
    category: 'started',
    icon: PausedIcon,
 };
@@ -25,7 +25,7 @@ const PROJECT_STATUS_OPTIONS: ProjectCreateStatusOption[] = [
       status: {
          id: 'to-do',
          name: 'Todo',
-         color: '#6A6767',
+         color: 'var(--status-neutral)',
          category: 'unstarted',
          icon: ToDoIcon,
       },
@@ -35,7 +35,7 @@ const PROJECT_STATUS_OPTIONS: ProjectCreateStatusOption[] = [
       status: {
          id: 'in-progress',
          name: 'In Progress',
-         color: '#5A92C9',
+         color: 'var(--status-info)',
          category: 'started',
          icon: InProgressIcon,
       },
@@ -43,14 +43,20 @@ const PROJECT_STATUS_OPTIONS: ProjectCreateStatusOption[] = [
    },
    { status: projectPausedStatus, label: 'Paused' },
    {
-      status: { id: 'done', name: 'Done', color: '#4F9F7A', category: 'completed', icon: DoneIcon },
+      status: {
+         id: 'done',
+         name: 'Done',
+         color: 'var(--status-success)',
+         category: 'completed',
+         icon: DoneIcon,
+      },
       label: 'Completed',
    },
    {
       status: {
          id: 'cancelled',
          name: 'Cancelled',
-         color: '#D9A441',
+         color: 'var(--status-warning)',
          category: 'canceled',
          icon: CancelledIcon,
       },

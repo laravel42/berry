@@ -5,7 +5,7 @@ import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recha
 
 import { formatCost, formatTokens, totalTokens, type UsageBucket } from '@/lib/usage';
 
-export type UsageMetric = 'cost' | 'tokens' | 'reports';
+export type UsageMetric = 'cost' | 'tokens' | 'calls';
 
 function value(point: UsageBucket, metric: UsageMetric): number {
    if (metric === 'cost') return point.costMicros;
@@ -15,7 +15,9 @@ function value(point: UsageBucket, metric: UsageMetric): number {
 
 /**
  * One bar per bucket. Keys are days (`YYYY-MM-DD`), weeks (the day they start)
- * or hours (`00`..`23`), and the chart draws whichever it is given.
+ * or hours (`00`..`23`), and the chart draws whichever it is given. Bars take
+ * the agent-activity hue (`chart-2`) over a muted track, so an empty day still
+ * reads as a day.
  */
 export function UsageDailyChart({
    points,
@@ -36,7 +38,7 @@ export function UsageDailyChart({
            ? formatTokens
            : (count: number) => String(count);
    return (
-      <div className="h-48 w-full text-foreground/70">
+      <div className="h-48 w-full text-muted-foreground">
          <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
                <XAxis
@@ -60,7 +62,12 @@ export function UsageDailyChart({
                   itemStyle={{ color: 'var(--popover-foreground)' }}
                   labelStyle={{ color: 'var(--muted-foreground)' }}
                />
-               <Bar dataKey="value" fill="currentColor" radius={[2, 2, 0, 0]} />
+               <Bar
+                  dataKey="value"
+                  fill="var(--chart-2)"
+                  background={{ fill: 'var(--muted)', radius: 2 }}
+                  radius={[2, 2, 0, 0]}
+               />
             </BarChart>
          </ResponsiveContainer>
       </div>

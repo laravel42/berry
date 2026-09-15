@@ -3,6 +3,7 @@
 import { ContentBlocks } from '@/components/common/issues/details/content-blocks';
 import { Button } from '@/components/ui/button';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { useProject } from '@/hooks/use-project';
 import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
@@ -30,6 +31,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const t = useTranslations('issueLists');
    const agentContext = t('projects.agentContext');
    const project = useProject(projectId);
+   useTabLabel(project?.name ?? null);
    const detail = getProjectDetail(projectId);
    const { issues: allIssues } = useIssuesStore();
    const { postUpdate } = useProjectUpdatesStore();

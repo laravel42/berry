@@ -4,9 +4,16 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { BerryApiError } from '@/lib/api';
 import {
@@ -31,10 +38,18 @@ const failure = (error: unknown, fallback: string) =>
         : fallback;
 
 const toHeaders = (rows: HeaderRow[]) =>
-   Object.fromEntries(rows.filter((row) => row.name.trim()).map((row) => [row.name.trim(), row.value]));
+   Object.fromEntries(
+      rows.filter((row) => row.name.trim()).map((row) => [row.name.trim(), row.value])
+   );
 
 /** Header name/value rows. Values are typed here and sent once; they never come back. */
-function HeaderRows({ rows, onChange }: { rows: HeaderRow[]; onChange: (rows: HeaderRow[]) => void }) {
+function HeaderRows({
+   rows,
+   onChange,
+}: {
+   rows: HeaderRow[];
+   onChange: (rows: HeaderRow[]) => void;
+}) {
    return (
       <div className="flex flex-col gap-2">
          {rows.map((row, index) => (
@@ -44,7 +59,11 @@ function HeaderRows({ rows, onChange }: { rows: HeaderRow[]; onChange: (rows: He
                   placeholder="Header"
                   aria-label="Header name"
                   onChange={(event) =>
-                     onChange(rows.map((entry, at) => (at === index ? { ...entry, name: event.target.value } : entry)))
+                     onChange(
+                        rows.map((entry, at) =>
+                           at === index ? { ...entry, name: event.target.value } : entry
+                        )
+                     )
                   }
                />
                <Input
@@ -54,7 +73,11 @@ function HeaderRows({ rows, onChange }: { rows: HeaderRow[]; onChange: (rows: He
                   aria-label="Header value"
                   autoComplete="off"
                   onChange={(event) =>
-                     onChange(rows.map((entry, at) => (at === index ? { ...entry, value: event.target.value } : entry)))
+                     onChange(
+                        rows.map((entry, at) =>
+                           at === index ? { ...entry, value: event.target.value } : entry
+                        )
+                     )
                   }
                />
                <Button
@@ -93,6 +116,17 @@ function ServerRow({
 }) {
    const [replacing, setReplacing] = useState(false);
    const [rows, setRows] = useState<HeaderRow[]>([{ name: '', value: '' }]);
+   const [removing, setRemoving] = useState(false);
+
+   const remove = async () => {
+      try {
+         await deleteMcpServer(server.id);
+         onRemoved(server.id);
+      } catch (error) {
+         toast.error(failure(error, 'The server could not be removed.'));
+         throw error;
+      }
+   };
 
    const patch = async (work: () => Promise<McpServer>, done: string) => {
       try {
@@ -124,7 +158,10 @@ function ServerRow({
                   disabled={readOnly}
                   aria-label={`Enable ${server.name}`}
                   onCheckedChange={(enabled) =>
-                     void patch(() => updateMcpServer(server.id, { enabled }), enabled ? 'Server enabled' : 'Server disabled')
+                     void patch(
+                        () => updateMcpServer(server.id, { enabled }),
+                        enabled ? 'Server enabled' : 'Server disabled'
+                     )
                   }
                />
                {readOnly ? null : (
@@ -136,12 +173,7 @@ function ServerRow({
                         size="xs"
                         variant="ghost"
                         aria-label={`Remove ${server.name}`}
-                        onClick={() =>
-                           void deleteMcpServer(server.id).then(
-                              () => onRemoved(server.id),
-                              (error: unknown) => toast.error(failure(error, 'The server could not be removed.'))
-                           )
-                        }
+                        onClick={() => setRemoving(true)}
                      >
                         <Trash2 className="size-4" />
                      </Button>
@@ -157,23 +189,41 @@ function ServerRow({
                   size="xs"
                   className="w-fit"
                   onClick={() =>
-                     void patch(() => updateMcpServer(server.id, { headers: toHeaders(rows) }), 'Headers replaced').then(
-                        () => {
-                           setReplacing(false);
-                           setRows([{ name: '', value: '' }]);
-                        }
-                     )
+                     void patch(
+                        () => updateMcpServer(server.id, { headers: toHeaders(rows) }),
+                        'Headers replaced'
+                     ).then(() => {
+                        setReplacing(false);
+                        setRows([{ name: '', value: '' }]);
+                     })
                   }
                >
                   Save headers
                </Button>
             </div>
          ) : null}
+
+         <ConfirmAction
+            open={removing}
+            onOpenChange={setRemoving}
+            title={`Remove ${server.name}?`}
+            description="Agents lose its tools at once and its headers are deleted. This cannot be undone."
+            confirmLabel="Remove"
+            pendingLabel="Removing…"
+            destructive
+            onConfirm={remove}
+         />
       </li>
    );
 }
 
-function AddServerForm({ agentId, onAdded }: { agentId: string | null; onAdded: (server: McpServer) => void }) {
+function AddServerForm({
+   agentId,
+   onAdded,
+}: {
+   agentId: string | null;
+   onAdded: (server: McpServer) => void;
+}) {
    const [name, setName] = useState('');
    const [url, setUrl] = useState('');
    const [transport, setTransport] = useState<McpTransport>('streamable_http');
@@ -266,7 +316,9 @@ export function McpServerManager({ agentId, readOnly = false }: McpServerManager
    }, [agentId]);
 
    useEffect(() => {
-      load().catch((failed: unknown) => setError(failure(failed, 'MCP servers could not be loaded.')));
+      load().catch((failed: unknown) =>
+         setError(failure(failed, 'MCP servers could not be loaded.'))
+      );
    }, [load]);
 
    if (error) return <p className="text-muted-foreground">{error}</p>;
@@ -283,14 +335,23 @@ export function McpServerManager({ agentId, readOnly = false }: McpServerManager
                      key={server.id}
                      server={server}
                      readOnly={readOnly}
-                     onChanged={(next) => setServers((current) => current?.map((s) => (s.id === next.id ? next : s)) ?? null)}
-                     onRemoved={(id) => setServers((current) => current?.filter((s) => s.id !== id) ?? null)}
+                     onChanged={(next) =>
+                        setServers(
+                           (current) => current?.map((s) => (s.id === next.id ? next : s)) ?? null
+                        )
+                     }
+                     onRemoved={(id) =>
+                        setServers((current) => current?.filter((s) => s.id !== id) ?? null)
+                     }
                   />
                ))}
             </ul>
          )}
          {readOnly ? null : (
-            <AddServerForm agentId={agentId} onAdded={(server) => setServers((current) => [...(current ?? []), server])} />
+            <AddServerForm
+               agentId={agentId}
+               onAdded={(server) => setServers((current) => [...(current ?? []), server])}
+            />
          )}
       </div>
    );
@@ -303,7 +364,8 @@ export default function McpServersSettings() {
          <div>
             <h2 className="font-medium">MCP servers</h2>
             <p className="text-muted-foreground">
-               Servers every agent in this workspace can use. Header values are encrypted and never shown again.
+               Servers every agent in this workspace can use. Header values are encrypted and never
+               shown again.
             </p>
          </div>
          <McpServerManager agentId={null} />

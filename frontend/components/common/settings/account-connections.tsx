@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -77,9 +78,14 @@ export default function AccountConnections() {
       }
    };
 
+   const [removing, setRemoving] = useState<ChannelIdentity | null>(null);
+
+   // `mutate` has already rolled back and said why when it answers false;
+   // throwing keeps the dialog open so the reader can try again or back out.
    const remove = async (identity: ChannelIdentity) => {
       const rest = (channels.value ?? []).filter((entry) => entry.id !== identity.id);
-      await channels.mutate(rest, () => removeChannel(identity.id));
+      const ok = await channels.mutate(rest, () => removeChannel(identity.id));
+      if (!ok) throw new Error('The address could not be removed.');
    };
 
    return (
@@ -121,7 +127,7 @@ export default function AccountConnections() {
                                  variant="ghost"
                                  className="text-status-danger hover:text-status-danger"
                                  disabled={channels.saving}
-                                 onClick={() => void remove(identity)}
+                                 onClick={() => setRemoving(identity)}
                               >
                                  Remove
                               </Button>
@@ -140,8 +146,9 @@ export default function AccountConnections() {
                            disabled={adding}
                            onChange={(label) =>
                               setChannel(
-                                 [...CHANNELS].find((entry) => (LABELS[entry] ?? entry) === label) ??
-                                    'EMAIL'
+                                 [...CHANNELS].find(
+                                    (entry) => (LABELS[entry] ?? entry) === label
+                                 ) ?? 'EMAIL'
                               )
                            }
                         />
@@ -167,6 +174,16 @@ export default function AccountConnections() {
                />
             </SettingsCard>
          </SettingsSection>
+         <ConfirmAction
+            open={removing !== null}
+            onOpenChange={(open) => !open && setRemoving(null)}
+            title="Remove this address?"
+            description={`Berry stops reaching you at ${removing?.address ?? ''}. You can add it again later.`}
+            confirmLabel="Remove"
+            pendingLabel="Removing…"
+            destructive
+            onConfirm={() => (removing ? remove(removing) : undefined)}
+         />
       </SettingsShell>
    );
 }

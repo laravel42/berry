@@ -35,7 +35,7 @@ function ProjectDragPreview({ project }: { project: Project }) {
          </div>
          <h3 className="mb-2 line-clamp-2">{project.name}</h3>
          <div className="flex items-center gap-2 text-muted-foreground">
-            <CapacityRing value={project.percentComplete} color="#6771c5" />
+            <CapacityRing value={project.percentComplete} />
             {project.percentComplete}%
          </div>
       </div>
@@ -158,7 +158,10 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                            <project.icon className="size-3.5 text-subtle-foreground shrink-0" />
                            {displayProperties.lead ? (
                               <Avatar className="size-4 shrink-0">
-                                 <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
+                                 <AvatarImage
+                                    src={project.lead.avatarUrl}
+                                    alt={project.lead.name}
+                                 />
                                  <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
                               </Avatar>
                            ) : null}
@@ -188,7 +191,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                            )}
                            {displayProperties.status && (
                               <span className="inline-flex items-center gap-1 text-muted-foreground">
-                                 <CapacityRing value={project.percentComplete} color="#6771c5" />
+                                 <CapacityRing value={project.percentComplete} />
                                  {project.percentComplete}%
                               </span>
                            )}

@@ -62,6 +62,11 @@ interface DisplaySettingsState {
    displayProperties: Record<DisplayPropertyKey, boolean>;
    /** Board columns hidden by hand, by group id. */
    hiddenBoardColumns: string[];
+   /**
+    * Whether the Display popover's "More options" fold is open. Memory of a
+    * control, not a display setting: reset leaves it where it was.
+    */
+   moreOptionsOpen: boolean;
 
    setGrouping: (mode: ViewType, grouping: GroupingKey) => void;
    setOrdering: (ordering: OrderingKey) => void;
@@ -74,6 +79,7 @@ interface DisplaySettingsState {
    hideBoardColumn: (groupId: string) => void;
    restoreBoardColumn: (groupId: string) => void;
    restoreAllBoardColumns: () => void;
+   setMoreOptionsOpen: (open: boolean) => void;
    resetDisplaySettings: () => void;
 }
 
@@ -99,6 +105,7 @@ export const useDisplaySettingsStore = create<DisplaySettingsState>()(
    persist(
       (set) => ({
          ...DEFAULTS,
+         moreOptionsOpen: false,
 
          setGrouping: (mode, grouping) =>
             set((state) => ({ groupingByMode: { ...state.groupingByMode, [mode]: grouping } })),
@@ -126,6 +133,7 @@ export const useDisplaySettingsStore = create<DisplaySettingsState>()(
                hiddenBoardColumns: state.hiddenBoardColumns.filter((entry) => entry !== groupId),
             })),
          restoreAllBoardColumns: () => set({ hiddenBoardColumns: [] }),
+         setMoreOptionsOpen: (moreOptionsOpen) => set({ moreOptionsOpen }),
          resetDisplaySettings: () => set({ ...DEFAULTS }),
       }),
       {

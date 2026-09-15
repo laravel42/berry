@@ -110,7 +110,7 @@ function BreakdownList({
                      <span className="truncate">{row.label}</span>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 text-muted-foreground">
-                     <CapacityRing value={row.completedPercent} color="#6771c5" />
+                     <CapacityRing value={row.completedPercent} />
                      <span className="whitespace-nowrap">
                         {row.completedPercent}% of {row.total}
                      </span>
@@ -475,21 +475,21 @@ export function ProjectPropertiesPanel({
             <div className="grid grid-cols-3 gap-2 mb-2">
                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                     <span className="size-2 rounded-[2px] bg-[#8f9299]" />
+                     <span className="size-2 rounded-[2px] bg-status-neutral" />
                      Scope
                   </div>
                   <span className="font-medium">{issues.length}</span>
                </div>
                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                     <span className="size-2 rounded-[2px] bg-[#facc15]" />
+                     <span className="size-2 rounded-[2px] bg-status-info" />
                      Started
                   </div>
                   <span className="font-medium">{started}</span>
                </div>
                <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-1.5 text-muted-foreground">
-                     <span className="size-2 rounded-[2px] bg-[#6771c5]" />
+                     <span className="size-2 rounded-[2px] bg-status-success" />
                      Completed
                   </div>
                   <span className="font-medium">{completed}</span>

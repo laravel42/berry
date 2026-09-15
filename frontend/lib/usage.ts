@@ -234,8 +234,8 @@ export function formatDuration(seconds: number): string {
    if (seconds <= 0) return '0 s';
    const hours = Math.floor(seconds / 3600);
    const minutes = Math.round((seconds % 3600) / 60);
-   if (hours > 0) return `${hours} h ${minutes} m`;
-   if (seconds >= 60) return `${Math.round(seconds / 60)} m`;
+   if (hours > 0) return `${hours} h ${minutes} min`;
+   if (seconds >= 60) return `${Math.round(seconds / 60)} min`;
    return `${Math.round(seconds)} s`;
 }
 

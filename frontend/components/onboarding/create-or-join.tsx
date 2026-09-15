@@ -116,11 +116,7 @@ export function CreateOrJoin({ onEntered }: CreateOrJoinProps) {
 
          <TabsContent value="create">
             <Form {...createForm}>
-               <form
-                  onSubmit={createForm.handleSubmit(onCreate)}
-                  className="grid gap-4"
-                  noValidate
-               >
+               <form onSubmit={createForm.handleSubmit(onCreate)} className="grid gap-4" noValidate>
                   <FormField
                      control={createForm.control}
                      name="name"
@@ -141,17 +137,14 @@ export function CreateOrJoin({ onEntered }: CreateOrJoinProps) {
                         <FormItem>
                            <FormLabel>Description (optional)</FormLabel>
                            <FormControl>
-                              <Textarea
-                                 placeholder="What this workspace is for"
-                                 {...field}
-                              />
+                              <Textarea placeholder="What this workspace is for" {...field} />
                            </FormControl>
                            <FormMessage />
                         </FormItem>
                      )}
                   />
                   {createError ? (
-                     <p role="alert" className="text-destructive-foreground">
+                     <p role="alert" className="text-status-danger">
                         {createError}
                      </p>
                   ) : null}
@@ -204,7 +197,7 @@ export function CreateOrJoin({ onEntered }: CreateOrJoinProps) {
                      )}
                   />
                   {joinError ? (
-                     <p role="alert" className="text-destructive-foreground">
+                     <p role="alert" className="text-status-danger">
                         {joinError}
                      </p>
                   ) : null}

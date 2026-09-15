@@ -17,6 +17,11 @@ import { listBoards, type BoardSummary } from '@/lib/boards';
 import { knownTimezones, localTimezone } from '@/lib/cron-schedule';
 import { USAGE_DAY_OPTIONS, type UsageQuery } from '@/lib/usage';
 
+/** `America/Mexico_City` → `America / Mexico City`: the id, as words. */
+function readableZone(zone: string): string {
+   return zone.replace(/_/g, ' ').replace(/\//g, ' / ');
+}
+
 interface Props {
    query: UsageQuery;
    onChange: (query: UsageQuery) => void;
@@ -103,7 +108,7 @@ export default function UsageFilters({ query, onChange, lastUpdated, loading, on
             <PopoverTrigger asChild>
                <Button size="xs" variant="ghost">
                   <Globe className="mr-1 size-4" />
-                  {query.timezone ?? 'UTC'}
+                  {t('timesShownIn', { zone: readableZone(query.timezone ?? 'UTC') })}
                </Button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-0" align="start">
@@ -114,11 +119,11 @@ export default function UsageFilters({ query, onChange, lastUpdated, loading, on
                         {['UTC', localTimezone(), ...zones].map((zone, index) => (
                            <CommandItem
                               key={`${zone}-${index}`}
-                              value={zone}
+                              value={`${zone} ${readableZone(zone)}`}
                               onSelect={() => onChange({ ...query, timezone: zone })}
                               className="justify-between"
                            >
-                              {zone}
+                              {readableZone(zone)}
                               {(query.timezone ?? 'UTC') === zone ? (
                                  <Check className="size-4" />
                               ) : null}

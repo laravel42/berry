@@ -2,8 +2,9 @@
 
 import { useShortcut } from '@/components/layout/shortcut-provider';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { AgentMarkdown } from '@/components/common/agent-markdown';
+import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
 import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -60,7 +61,6 @@ import {
    Unlock,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -104,49 +104,56 @@ function timeAgo(iso: string): string {
    }
 }
 
-/** Comment text with its mentions and task keys turned into links. */
-function CommentText({ body }: { body: string }) {
+/**
+ * Tokens the decorator must leave alone: fenced and inline code, links the
+ * writer already made, and bare URLs. A task key inside a URL is part of the
+ * URL, and a mention inside a code span is an example, not a mention.
+ */
+const PROTECTED = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<)]+)/g;
+
+/**
+ * The body with its mentions and task keys turned into Markdown links, so the
+ * Markdown renderer draws them as links. Absolute, because the renderer only
+ * links `http(s)://`; until the origin is known (first paint) they are plain
+ * names, which is still readable — never the raw `@[name](agent:id)` token.
+ */
+function decorateBody(body: string, origin: string, org: string): string {
+   const linkTo = (label: string, path: string) =>
+      origin ? `[${label}](${origin}/${org}${path})` : label;
+   const transform = (text: string) =>
+      splitMentions(text)
+         .map((part) =>
+            'text' in part
+               ? part.text.replace(ISSUE_KEY, (key) => linkTo(key, `/issue/${key}`))
+               : linkTo(`@${part.mention.name}`, `/agents/${part.mention.id}`)
+         )
+         .join('');
+   return body
+      .split(PROTECTED)
+      .map((segment, index) => (index % 2 === 1 ? segment : transform(segment)))
+      .join('');
+}
+
+/**
+ * A comment as written, rendered.
+ *
+ * Agents write Markdown — a heading, a list of what they found, a fenced
+ * diff — and people increasingly do too. Printing "## Summary" literally made
+ * every agent reply look like a dump. Long ones fold at a screenful.
+ */
+function CommentBody({
+   body,
+   clamp,
+}: {
+   body: string;
+   clamp?: { lines: number; moreLabel: string; lessLabel: string };
+}) {
    const { orgId } = useParams<{ orgId: string }>();
    const org = orgId ?? WORKSPACE_SLUG;
-
-   const linkKeys = (text: string, keyPrefix: string): ReactNode[] => {
-      const parts: ReactNode[] = [];
-      let last = 0;
-      for (const match of text.matchAll(ISSUE_KEY)) {
-         const index = match.index ?? 0;
-         if (index > last) parts.push(text.slice(last, index));
-         parts.push(
-            <Link
-               key={`${keyPrefix}-${index}`}
-               href={`/${org}/issue/${match[1]}`}
-               className="underline underline-offset-2"
-            >
-               {match[1]}
-            </Link>
-         );
-         last = index + match[0].length;
-      }
-      if (last < text.length) parts.push(text.slice(last));
-      return parts;
-   };
-
-   return (
-      <p className="whitespace-pre-wrap break-words">
-         {splitMentions(body).map((part, index) =>
-            'text' in part ? (
-               <span key={index}>{linkKeys(part.text, String(index))}</span>
-            ) : (
-               <Link
-                  key={index}
-                  href={`/${org}/agents/${part.mention.id}`}
-                  className="rounded bg-accent px-1 text-foreground hover:underline"
-               >
-                  @{part.mention.name}
-               </Link>
-            )
-         )}
-      </p>
-   );
+   const [origin, setOrigin] = useState('');
+   useEffect(() => setOrigin(window.location.origin), []);
+   const decorated = useMemo(() => decorateBody(body, origin, org), [body, origin, org]);
+   return <AgentMarkdown body={decorated} clamp={clamp} />;
 }
 
 function EventRow({ item }: { item: EventItem }) {
@@ -160,7 +167,7 @@ function EventRow({ item }: { item: EventItem }) {
             )}
          </span>
          <span className="min-w-0 truncate">
-            <span className="font-medium text-foreground/90">{item.actor.name}</span> {item.text}
+            <ActorName user={item.actor} /> {item.text}
          </span>
          <span className="shrink-0">· {item.timeAgo}</span>
       </div>
@@ -193,7 +200,7 @@ function EventGroup({ items }: { items: EventItem[] }) {
       );
    }
    return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
          <EventRow item={first} />
          <span className="shrink-0 rounded bg-accent px-1.5 text-muted-foreground">
             {t('repeated', { count: items.length })}
@@ -367,28 +374,14 @@ function CommentCard({
          data-comment-id={comment.id}
          className={cn(
             'rounded-sm border border-border/60 bg-container p-3.5 transition-colors',
-            isAgent && 'border-azure/25 bg-deep text-chalk',
+            isAgent && 'border-actor-agent/40',
             highlighted && 'border-status-warning bg-status-warning/5'
          )}
       >
          <div className="mb-1.5 flex items-center gap-2">
-            {isAgent ? (
-               <BerryMark
-                  size="sm"
-                  tone="working"
-                  bracketClassName="text-chalk"
-                  label={`${actor.name}, agent`}
-               />
-            ) : (
-               <Avatar className="size-5">
-                  <AvatarImage src={actor.avatarUrl} alt={actor.name} />
-                  <AvatarFallback>{actor.name[0]}</AvatarFallback>
-               </Avatar>
-            )}
-            <span className="font-medium">{actor.name}</span>
-            <span className={cn('text-muted-foreground', isAgent && 'text-ash')}>
-               {timeAgo(comment.createdAt)}
-            </span>
+            <ActorAvatar user={actor} size="sm" />
+            <ActorName user={actor} />
+            <span className="text-muted-foreground">{timeAgo(comment.createdAt)}</span>
             {comment.resolvedAt ? (
                <span className="rounded bg-accent px-1.5 text-muted-foreground">
                   {t('resolved')}
@@ -404,9 +397,14 @@ function CommentCard({
             />
          </div>
 
-         <div className={cn('[&_p]:my-1.5', isAgent && '[&_.text-muted-foreground]:text-ash')}>
-            <CommentText body={comment.body} />
-         </div>
+         <CommentBody
+            body={comment.body}
+            clamp={
+               isAgent
+                  ? { lines: 12, moreLabel: t('readRest'), lessLabel: t('showLess') }
+                  : undefined
+            }
+         />
 
          <div className="mt-1 flex flex-wrap items-center gap-2">
             <ReactionBar target="comment" id={comment.id} />
@@ -698,9 +696,9 @@ export function ActivityFeedList({
 
    return (
       <div>
-         <div className="mb-2 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+         <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
             {t('title')}
-         </div>
+         </h2>
 
          {error && (
             <p className="mb-2 text-muted-foreground" role="alert">
@@ -954,7 +952,9 @@ export function ActivityCommentComposer({
                />
                <Button
                   size="icon"
-                  className="mb-0.5 size-8 flex-none bg-berry text-chalk hover:bg-berry hover:brightness-110 disabled:opacity-40"
+                  // Secondary: on a task in review the decision bar holds the
+                  // page's one primary action, and a comment is not it.
+                  className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
                   aria-label={sendLabel}
                   title={sendLabel}
                   onClick={send}

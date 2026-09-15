@@ -158,7 +158,7 @@ export default function Projects() {
                group: {
                   id: 'all',
                   name: 'All projects',
-                  color: '#8f9299',
+                  color: 'var(--status-neutral)',
                   icon: <Box className="size-4 text-muted-foreground" />,
                },
                projects: displayed,

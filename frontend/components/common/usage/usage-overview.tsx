@@ -2,8 +2,9 @@
 
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import { readableModelName } from '@/components/common/agents/model-name';
 import { Button } from '@/components/ui/button';
 import { getWorkspaceUsage, weeklyBuckets, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
@@ -13,12 +14,12 @@ import { UsageDailyChart, type UsageMetric } from './usage-daily-chart';
 import { UsageTiles } from './usage-tiles';
 import { useUsage } from './use-usage';
 
-const METRICS: UsageMetric[] = ['cost', 'tokens', 'reports'];
+const METRICS: UsageMetric[] = ['cost', 'tokens', 'calls'];
 
 /**
  * The workspace's spend: what it cost, how it moved, and who spent it.
  *
- * The trend can be read as cost, tokens or reports, by day or by week, because
+ * The trend can be read as cost, tokens or runs, by day or by week, because
  * ninety days of daily bars says less than thirteen weekly ones.
  */
 export default function UsageOverview({
@@ -39,7 +40,11 @@ export default function UsageOverview({
       workspaceId ? () => getWorkspaceUsage(workspaceId, query) : null,
       `${workspaceId}:${query.days}:${query.timezone ?? ''}:${query.boardId ?? ''}`
    );
-   onState?.({ lastUpdated, loading, reload });
+   // Reported after render, not during it: a parent setState from inside a
+   // child's render is the React error Next flags on this page.
+   useEffect(() => {
+      onState?.({ lastUpdated, loading, reload });
+   }, [onState, lastUpdated, loading, reload]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
@@ -52,7 +57,7 @@ export default function UsageOverview({
 
          <section className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-               <h3 className="mr-auto font-medium">{t('chart.title')}</h3>
+               <h2 className="mr-auto font-medium">{t('chart.title')}</h2>
                <div className="flex items-center gap-1 rounded-md border p-0.5">
                   {METRICS.map((option) => (
                      <Button
@@ -95,7 +100,12 @@ export default function UsageOverview({
             <UsageBreakdownTable
                title={t('leaderboard.models')}
                ranked
-               rows={data.byModel.map((row) => ({ id: row.key, label: row.key, bucket: row }))}
+               rows={data.byModel.map((row) => ({
+                  id: row.key,
+                  label: readableModelName(row.key),
+                  title: row.key,
+                  bucket: row,
+               }))}
             />
          </div>
       </div>

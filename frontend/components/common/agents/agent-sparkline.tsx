@@ -19,8 +19,11 @@ interface AgentSparklineProps {
 }
 
 const HEIGHT = 20;
-const BAR = 4;
+const BAR = 5;
 const GAP = 2;
+
+const percentOf = (point: ActivityPoint) =>
+   point.runs === 0 ? 0 : Math.round((point.failed / point.runs) * 100);
 
 /**
  * Seven days of runs as one small column chart.
@@ -28,73 +31,71 @@ const GAP = 2;
  * Failures are drawn as the bottom of each column rather than as a second
  * series: the question a reader brings to this cell is "is this agent working,
  * and is its work landing", and two overlapping lines answer neither at this
- * size. A day with no runs still gets a baseline tick, so the gaps read as
- * "nothing happened" instead of as missing data.
+ * size. One faint baseline runs under the week, so a day with no runs reads as
+ * a gap on a chart rather than as a dash; a week with no runs at all is said
+ * in words, because a bare baseline looks like a broken glyph.
  *
  * Tooltips are SVG `<title>` elements, one per column. They need no JavaScript,
  * they survive a table that re-renders under the pointer, and a screen reader
- * gets the same numbers from the group label.
+ * gets the same numbers from the group label. The fade on mount is skipped
+ * for readers who asked for less motion.
  */
 export function AgentSparkline({ activity, describe, emptyLabel, className }: AgentSparklineProps) {
-   const width = activity.length * BAR + Math.max(0, activity.length - 1) * GAP;
-   const peak = Math.max(1, ...activity.map((point) => point.runs));
    const total = activity.reduce((sum, point) => sum + point.runs, 0);
 
-   if (total === 0) {
-      return (
-         <span
-            className={cn('inline-flex items-center text-muted-foreground', className)}
-            title={emptyLabel}
-         >
-            <svg
-               width={width}
-               height={HEIGHT}
-               viewBox={`0 0 ${width} ${HEIGHT}`}
-               role="img"
-               aria-label={emptyLabel}
-            >
-               {activity.map((point, index) => (
-                  <rect
-                     key={point.day}
-                     x={index * (BAR + GAP)}
-                     y={HEIGHT - 1}
-                     width={BAR}
-                     height={1}
-                     className="fill-muted-foreground/30"
-                  />
-               ))}
-            </svg>
-         </span>
-      );
+   if (activity.length === 0 || total === 0) {
+      return <span className={cn('truncate text-muted-foreground', className)}>{emptyLabel}</span>;
    }
 
+   const width = activity.length * BAR + (activity.length - 1) * GAP;
+   const peak = Math.max(1, ...activity.map((point) => point.runs));
+
    return (
-      <span className={cn('inline-flex items-center', className)}>
+      <span
+         className={cn(
+            'inline-flex items-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300',
+            className
+         )}
+      >
          <svg
             width={width}
             height={HEIGHT}
             viewBox={`0 0 ${width} ${HEIGHT}`}
             role="img"
             aria-label={activity
-               .map((point) =>
-                  describe({
-                     ...point,
-                     percent: point.runs === 0 ? 0 : Math.round((point.failed / point.runs) * 100),
-                  })
-               )
+               .map((point) => describe({ ...point, percent: percentOf(point) }))
                .join('. ')}
          >
+            <rect
+               x={0}
+               y={HEIGHT - 1}
+               width={width}
+               height={1}
+               className="fill-muted-foreground/25"
+            />
             {activity.map((point, index) => {
-               const full = Math.max(1, Math.round((point.runs / peak) * (HEIGHT - 2)));
+               const x = index * (BAR + GAP);
+               const label = describe({ ...point, percent: percentOf(point) });
+               if (point.runs === 0) {
+                  // Nothing to draw, but the day still answers a hover.
+                  return (
+                     <g key={point.day}>
+                        <title>{label}</title>
+                        <rect
+                           x={x}
+                           y={0}
+                           width={BAR}
+                           height={HEIGHT}
+                           className="fill-transparent"
+                        />
+                     </g>
+                  );
+               }
+               const full = Math.max(2, Math.round((point.runs / peak) * (HEIGHT - 2)));
                const failed =
                   point.failed === 0
                      ? 0
-                     : Math.max(1, Math.round((point.failed / peak) * (HEIGHT - 2)));
-               const x = index * (BAR + GAP);
-               const label = describe({
-                  ...point,
-                  percent: point.runs === 0 ? 0 : Math.round((point.failed / point.runs) * 100),
-               });
+                     : Math.max(2, Math.round((point.failed / peak) * (HEIGHT - 2)));
                return (
                   <g key={point.day}>
                      <title>{label}</title>
@@ -104,9 +105,7 @@ export function AgentSparkline({ activity, describe, emptyLabel, className }: Ag
                         width={BAR}
                         height={full}
                         rx={1}
-                        className={
-                           point.runs === 0 ? 'fill-muted-foreground/30' : 'fill-primary/70'
-                        }
+                        className="fill-status-info/80"
                      />
                      {failed > 0 ? (
                         <rect
@@ -115,7 +114,7 @@ export function AgentSparkline({ activity, describe, emptyLabel, className }: Ag
                            width={BAR}
                            height={failed}
                            rx={1}
-                           className="fill-destructive"
+                           className="fill-status-danger"
                         />
                      ) : null}
                   </g>

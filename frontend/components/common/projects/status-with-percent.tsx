@@ -49,11 +49,13 @@ export function StatusWithPercent({
          <PopoverTrigger asChild>
             <Button
                id={id}
-               className="flex items-center justify-center gap-1.5"
+               className="flex h-7 items-center justify-start gap-1.5 px-2 has-[>svg]:px-2"
                size="sm"
                variant="ghost"
                role="combobox"
                aria-expanded={open}
+               aria-label={`Status: ${status.name}, ${percentComplete}% complete`}
+               title={status.name}
             >
                {(() => {
                   const selectedItem = projectStatuses.find((item) => item.id === value);

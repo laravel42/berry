@@ -1,7 +1,9 @@
 'use client';
 
-import { AutoReview, loadAutoReviews } from '@/lib/runs';
+import { PeerVerdictChip } from '@/components/common/reviews/review-shared';
+import { type AutoReview, loadAutoReviews } from '@/lib/runs';
 import { CircleCheck, CircleX, Loader2, ShieldCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 /**
@@ -17,6 +19,7 @@ import { useEffect, useState } from 'react';
  * cheaper than the machinery to push it.
  */
 export function ReviewerProperty({ issueRef }: { issueRef: string }) {
+   const tPeer = useTranslations('reviews.peer');
    const [review, setReview] = useState<AutoReview | null>(null);
 
    useEffect(() => {
@@ -49,31 +52,27 @@ export function ReviewerProperty({ issueRef }: { issueRef: string }) {
 
    if (!review) return null;
 
+   const approved = review.inProgress ? null : review.approved;
+   const title =
+      approved === null
+         ? tPeer('reading', { reviewer: review.reviewer, author: review.author })
+         : `${tPeer('by', { reviewer: review.reviewer })} · ${tPeer('attempt', { attempt: review.attempt })}`;
+
    return (
-      <div className="flex items-center gap-2" title={reviewTitle(review)}>
+      <div className="flex items-center gap-2" title={title}>
          <div className="flex size-7 shrink-0 items-center justify-center">
-            {review.inProgress ? (
-               <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            ) : review.approved ? (
-               <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+            {approved === null ? (
+               <Loader2 className="size-4 animate-spin text-review-pending" aria-hidden />
+            ) : approved ? (
+               <CircleCheck className="size-4 text-review-approved" aria-hidden />
             ) : (
-               <CircleX className="size-4 text-amber-600 dark:text-amber-400" />
+               <CircleX className="size-4 text-review-changes" aria-hidden />
             )}
          </div>
          <span className="min-w-0 truncate">{review.reviewer}</span>
-         <span className="shrink-0 text-muted-foreground">
-            {review.inProgress ? 'reviewing' : review.approved ? 'approved' : 'sent back'}
-         </span>
+         <PeerVerdictChip verdict={{ approved, reviewer: review.reviewer }} />
       </div>
    );
-}
-
-function reviewTitle(review: AutoReview): string {
-   if (review.inProgress) {
-      return `${review.reviewer} is reviewing what ${review.author} produced`;
-   }
-   const outcome = review.approved ? 'approved' : 'sent this back';
-   return `${review.reviewer} ${outcome} (attempt ${review.attempt})`;
 }
 
 /** The icon the section header uses, so the panel and the block agree. */

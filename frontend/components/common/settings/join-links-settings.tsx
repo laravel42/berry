@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { SettingsCard, SettingsRow, SettingsSection } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,17 @@ export function JoinLinksPanel() {
    const [expiry, setExpiry] = useState('7');
    const [fresh, setFresh] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
+   const [revoking, setRevoking] = useState<JoinLink | null>(null);
+
+   const revoke = async (link: JoinLink) => {
+      try {
+         await revokeJoinLink(workspaceId, link.id);
+         links.reload();
+      } catch (cause) {
+         toast.error(cause instanceof Error ? cause.message : t('joinLinksRevokeFailed'));
+         throw cause;
+      }
+   };
 
    const create = async () => {
       setCreating(true);
@@ -125,13 +137,21 @@ export function JoinLinksPanel() {
                      </SelectContent>
                   </Select>
                   <Button size="xs" disabled={creating} onClick={() => void create()}>
-                     {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('joinLinksCreateAction')}
+                     {creating ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                     ) : (
+                        t('joinLinksCreateAction')
+                     )}
                   </Button>
                </div>
             </SettingsRow>
             {fresh ? (
                <SettingsRow
-                  title={<code className="block max-w-full truncate font-mono font-normal">{fresh}</code>}
+                  title={
+                     <code className="block max-w-full truncate font-mono font-normal">
+                        {fresh}
+                     </code>
+                  }
                   description={t('joinLinksFresh')}
                   trailing={
                      <Button size="xs" variant="secondary" onClick={() => void copy(fresh)}>
@@ -152,27 +172,16 @@ export function JoinLinksPanel() {
                      key={link.id}
                      muted={state !== 'joinLinksActive'}
                      title={t(roleKey(link.role))}
-                     description={[
-                        t(state),
-                        t('joinLinksUsed', { count: link.useCount }),
-                     ].join(' · ')}
+                     description={[t(state), t('joinLinksUsed', { count: link.useCount })].join(
+                        ' · '
+                     )}
                      trailing={
                         state === 'joinLinksActive' ? (
                            <Button
                               size="xs"
                               variant="ghost"
                               className="text-status-danger hover:text-status-danger"
-                              onClick={() =>
-                                 void revokeJoinLink(workspaceId, link.id)
-                                    .then(() => links.reload())
-                                    .catch((cause: unknown) =>
-                                       toast.error(
-                                          cause instanceof Error
-                                             ? cause.message
-                                             : t('joinLinksRevokeFailed')
-                                       )
-                                    )
-                              }
+                              onClick={() => setRevoking(link)}
                            >
                               {t('revoke')}
                            </Button>
@@ -182,6 +191,16 @@ export function JoinLinksPanel() {
                );
             })}
          </SettingsCard>
+
+         <ConfirmAction
+            open={revoking !== null}
+            onOpenChange={(open) => !open && setRevoking(null)}
+            title={t('joinLinksRevokeTitle')}
+            description={t('joinLinksRevokeBody')}
+            confirmLabel={t('joinLinksRevokeAction')}
+            destructive
+            onConfirm={() => (revoking ? revoke(revoking) : undefined)}
+         />
       </SettingsSection>
    );
 }

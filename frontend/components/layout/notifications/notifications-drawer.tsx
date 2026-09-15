@@ -36,7 +36,6 @@ export function NotificationsDrawer() {
    const { isOpen, close } = useNotificationsDrawerStore();
    const notifications = useNotificationsStore((state) => state.notifications);
    const markAsRead = useNotificationsStore((state) => state.markAsRead);
-   const markAllAsRead = useNotificationsStore((state) => state.markAllAsRead);
    const archiveNotification = useNotificationsStore((state) => state.archiveNotification);
    const selected = useNotificationsStore((state) => state.selectedNotification);
    const select = useNotificationsStore((state) => state.setSelectedNotification);
@@ -60,8 +59,6 @@ export function NotificationsDrawer() {
       });
    }, [notifications]);
 
-   const unread = ordered.filter((item) => !item.read).length;
-
    const openNotification = (item: InboxItem) => {
       if (!item.read) void markAsRead(item.id);
       const href = destinationOf(item, orgId);
@@ -76,21 +73,20 @@ export function NotificationsDrawer() {
          <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-[28rem]">
             {/* pr-12 keeps the action clear of the sheet's own close control,
                 which is absolutely positioned in this corner. */}
-            <SheetHeader className="flex-row items-center justify-between space-y-0 border-b py-3 pr-12 pl-5">
-               <div className="min-w-0">
-                  <SheetTitle className="font-medium">{t('drawer.title')}</SheetTitle>
-                  <SheetDescription className="sr-only">{t('drawer.description')}</SheetDescription>
-               </div>
-               {unread > 0 ? (
-                  <Button size="xs" variant="ghost" onClick={() => void markAllAsRead()}>
-                     {t('drawer.markAllRead')}
-                  </Button>
-               ) : null}
+            {/* Only one action here, and it is the link to the page: marking
+                everything read and the archive sweeps live on the inbox page's
+                menu, so the two surfaces do not offer the same button twice. */}
+            <SheetHeader className="border-b py-3 pr-12 pl-5">
+               <SheetTitle className="font-medium">{t('drawer.title')}</SheetTitle>
+               <SheetDescription className="sr-only">{t('drawer.description')}</SheetDescription>
             </SheetHeader>
 
             {ordered.length === 0 ? (
-               <div className="flex flex-1 items-center justify-center px-6 text-center text-muted-foreground">
-                  {t('drawer.empty')}
+               <div className="flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center">
+                  <p>{t('drawer.empty')}</p>
+                  <p className="max-w-xs leading-relaxed text-muted-foreground">
+                     {t('drawer.emptyBody')}
+                  </p>
                </div>
             ) : (
                <div className="min-h-0 flex-1 overflow-y-auto">

@@ -1,9 +1,8 @@
 'use client';
 
-import { Issue } from '@/data/issues';
-import { Status } from '@/data/status';
+import type { Issue } from '@/data/issues';
+import { statusTone, type Status, type StatusTone } from '@/data/status';
 import { useIssuesStore } from '@/store/issues-store';
-import { useViewStore } from '@/store/view-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { cn } from '@/lib/utils';
 import { useVirtualRows } from '@/lib/use-virtual-rows';
@@ -15,6 +14,7 @@ import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { IssueDragType, IssueGrid } from './issue-grid';
 import { IssueLine } from './issue-line';
+import { useIssueListView } from './use-issue-list-view';
 
 /**
  * Generic descriptor of an issue group. Groups are usually statuses but the
@@ -24,7 +24,12 @@ import { IssueLine } from './issue-line';
 export interface IssueGroupDescriptor {
    id: string;
    name: string;
-   color: string;
+   /**
+    * No longer read here: the header tint comes from the status tone, and a
+    * group without a status is neutral. Left optional so the builders that
+    * still fill it keep compiling until they drop it.
+    */
+   color?: string;
    icon: ReactNode;
    /** Set when grouping by status: enables board drop + "+" default status. */
    status?: Status;
@@ -49,9 +54,31 @@ interface GroupIssuesProps {
 const VIRTUALIZE_ABOVE = 40;
 const ESTIMATED_CARD_HEIGHT = 104;
 
-/** Circle board/list header tint — ~6% alpha on board, ~3% on list. */
-function statusHeaderTint(color: string, isViewTypeGrid: boolean): string {
-   return `${color}${isViewTypeGrid ? '10' : '08'}`;
+/**
+ * Header tint per tone: a wash of the status's own `--status-*` token over
+ * the container (tokens in globals.css), so the column agrees with the glyph
+ * in both themes. The board column takes the fuller wash, the list group bar
+ * the lighter one. A group that is not a status (assignee, priority, ...)
+ * has no tone of its own and stays neutral.
+ */
+const COLUMN_TINT: Record<StatusTone, string> = {
+   neutral: 'bg-column-tint-neutral',
+   info: 'bg-column-tint-info',
+   warning: 'bg-column-tint-warning',
+   success: 'bg-column-tint-success',
+   danger: 'bg-column-tint-danger',
+};
+
+const GROUP_TINT: Record<StatusTone, string> = {
+   neutral: 'bg-group-tint-neutral',
+   info: 'bg-group-tint-info',
+   warning: 'bg-group-tint-warning',
+   success: 'bg-group-tint-success',
+   danger: 'bg-group-tint-danger',
+};
+
+function groupTone(group: IssueGroupDescriptor): StatusTone {
+   return group.status ? statusTone(group.status) : 'neutral';
 }
 
 const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
@@ -105,11 +132,16 @@ function GroupHeaderBar({
       </Button>
    );
 
+   const tone = groupTone(group);
+
    if (isViewTypeGrid) {
       return (
          <div
-            className="flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1"
-            style={{ backgroundColor: statusHeaderTint(group.color, true) }}
+            data-column-tint={tone}
+            className={cn(
+               'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
+               COLUMN_TINT[tone]
+            )}
          >
             <div className="flex min-w-0 items-center gap-2">{label}</div>
             <div className="flex shrink-0 items-center">
@@ -137,10 +169,8 @@ function GroupHeaderBar({
    return (
       <div className="sticky top-0 z-10 h-10 w-full bg-container">
          <div
-            className="flex h-full w-full items-center justify-between px-6"
-            style={{
-               backgroundColor: statusHeaderTint(group.color, false),
-            }}
+            data-column-tint={tone}
+            className={cn('flex h-full w-full items-center justify-between px-6', GROUP_TINT[tone])}
          >
             {showChevron ? (
                <CollapsibleTrigger asChild>
@@ -189,21 +219,17 @@ const IssueLineList: FC<{
    return (
       <div ref={ref} className={cn('space-y-0 transition-colors', isOver && 'bg-accent/30')}>
          {issues.map((issue) => (
-            <IssueLine
-               key={issue.id}
-               issue={issue}
-               layoutId={true}
-               order={orderIds}
-               draggable
-            />
+            <IssueLine key={issue.id} issue={issue} layoutId={true} order={orderIds} draggable />
          ))}
       </div>
    );
 };
 
 export function GroupIssues({ group, issues, count, onHide, onDropIssue }: GroupIssuesProps) {
-   const { viewType } = useViewStore();
-   const isViewTypeGrid = viewType === 'grid';
+   // The URL's `layout` wins over the stored preference, as it does for the
+   // view around this group; a shared `?layout=grid` link shows the board.
+   const { mode } = useIssueListView();
+   const isViewTypeGrid = mode === 'grid';
    const showChevron = !isViewTypeGrid;
    const canCollapse = issues.length > 0;
 

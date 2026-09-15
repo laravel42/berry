@@ -14,18 +14,16 @@ export function InboxHeader() {
    const unread = useNotificationsStore((state) => state.getUnreadCount());
 
    return (
-      <div className="flex h-auto w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-               <span className="font-medium">{t('title')}</span>
-               <p className="mt-1 max-w-2xl text-muted-foreground">{t('description')}</p>
-            </div>
-            {unread > 0 ? (
-               <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 font-medium text-primary-foreground">
-                  {unread}
-               </span>
-            ) : null}
-         </div>
+      <div className="flex w-full items-center gap-3 border-b px-6 py-3">
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
+         {unread > 0 ? (
+            <span
+               aria-label={t('unreadCount', { count: unread })}
+               className="shrink-0 rounded-full bg-primary px-2 py-0.5 font-medium tabular-nums text-primary-foreground"
+            >
+               {unread}
+            </span>
+         ) : null}
       </div>
    );
 }

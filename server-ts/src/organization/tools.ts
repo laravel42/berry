@@ -146,8 +146,11 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
          const caller = await requireContract(context);
          const issueId = issueOf(context);
          const parent = await parentOf(context, issueId);
+         // "an operational decision", "a product decision": the article
+         // follows the word, and this sentence opens every escalation card.
+         const article = /^[aeiou]/i.test(input.decision) ? 'an' : 'a';
          const body = [
-            `${caller.name} needs a ${input.decision} decision.`,
+            `${caller.name} needs ${article} ${input.decision} decision.`,
             input.question,
             input.options.length ? `Options:\n${input.options.map((option) => `- ${option}`).join('\n')}` : '',
             input.recommendation ? `Recommendation: ${input.recommendation}` : '',

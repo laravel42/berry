@@ -1,40 +1,55 @@
 'use client';
 
-import { BerryMark } from '@/components/brand/berry-mark';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuLabel,
-   DropdownMenuSeparator,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Input } from '@/components/ui/input';
-import { statusUserColors, User } from '@/data/users';
+   Command,
+   CommandEmpty,
+   CommandGroup,
+   CommandInput,
+   CommandItem,
+   CommandList,
+   CommandSeparator,
+} from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { statusUserColors, type User } from '@/data/users';
 import { agentToUser } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
-import { useMembersStore } from '@/store/members-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { CheckIcon, Send, UserIcon, UserRound } from 'lucide-react';
+import { useMembersStore } from '@/store/members-store';
+import { CheckIcon, Send, UserRound } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
+import { ActorAvatar } from './actor-avatar';
 
+/**
+ * The assignee control of a row, a card and the properties panel.
+ *
+ * A person or an agent, picked from one list with two groups. The list is
+ * searchable as soon as it is long enough to need it, and the search box takes
+ * focus when the menu opens, so the keyboard route is type-then-Enter rather
+ * than arrow-down eighteen times past the organization's roles.
+ */
+
+/** Agents shown before a search narrows them; the workspace ships with nineteen. */
 const MAX_VISIBLE_AGENTS = 10;
+/** Below this many names the list is short enough to scan; above it, search. */
+const SEARCH_THRESHOLD = 6;
 
 interface AssigneeUserProps {
    user: User | null;
    issueId?: string;
+   /** Off where the full name is printed beside the control, as in the properties panel. */
+   monogram?: boolean;
 }
 
 function AssigneePlaceholder() {
    return (
-      <div className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/45 bg-muted/20">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/45 bg-muted/20">
          <UserRound className="size-3.5 text-muted-foreground/70" />
-      </div>
+      </span>
    );
 }
 
-function AssigneeMenuItem({
+function AssigneeItem({
    person,
    selected,
    onSelect,
@@ -44,107 +59,76 @@ function AssigneeMenuItem({
    onSelect: () => void;
 }) {
    return (
-      <DropdownMenuItem
-         onClick={(event) => {
-            event.stopPropagation();
-            onSelect();
-         }}
-      >
-         <div className="flex items-center gap-2">
-            {person.role === 'Application' ? (
-               <BerryMark size="sm" tone="working" label={`${person.name}, agent`} />
-            ) : (
-               <Avatar className="h-5 w-5">
-                  <AvatarImage src={person.avatarUrl} alt={person.name} />
-                  <AvatarFallback>{person.name[0]}</AvatarFallback>
-               </Avatar>
-            )}
-            <span>{person.name}</span>
-         </div>
-         {selected ? <CheckIcon className="ml-auto h-4 w-4" /> : null}
-      </DropdownMenuItem>
+      <CommandItem value={person.name} onSelect={onSelect} className="flex items-center gap-2">
+         <ActorAvatar user={person} size="sm" />
+         <span className="min-w-0 truncate">{person.name}</span>
+         {selected ? <CheckIcon className="ml-auto size-4 shrink-0" /> : null}
+      </CommandItem>
    );
 }
 
-export function AssigneeUser({ user, issueId }: AssigneeUserProps) {
+export function AssigneeUser({ user, issueId, monogram = true }: AssigneeUserProps) {
+   const t = useTranslations('issueLists.assignee');
    const [open, setOpen] = useState(false);
-   const [agentQuery, setAgentQuery] = useState('');
+   const [query, setQuery] = useState('');
    const [currentAssignee, setCurrentAssignee] = useState<User | null>(user);
    const agents = useAgentsStore((state) => state.agents);
    const members = useMembersStore((state) => state.members);
    const updateIssueAssignee = useIssuesStore((state) => state.updateIssueAssignee);
 
-   const agentAssignees = useMemo(() => agents.map(agentToUser), [agents]);
+   const agentAssignees = useMemo(
+      () => agents.filter((agent) => !agent.archivedAt).map(agentToUser),
+      [agents]
+   );
 
+   // With a search the command list does the narrowing; without one the
+   // current agent leads and the rest is capped, so the menu stays a menu.
    const visibleAgents = useMemo(() => {
-      const query = agentQuery.trim().toLowerCase();
-      let matches = query
-         ? agentAssignees.filter((agent) => agent.name.toLowerCase().includes(query))
-         : [...agentAssignees];
+      if (query.trim()) return agentAssignees;
+      const current = currentAssignee?.role === 'Application' ? currentAssignee : null;
+      const rest = current
+         ? agentAssignees.filter((agent) => agent.id !== current.id)
+         : agentAssignees;
+      return (current ? [current, ...rest] : rest).slice(0, MAX_VISIBLE_AGENTS);
+   }, [agentAssignees, query, currentAssignee]);
 
-      if (currentAssignee?.role === 'Application') {
-         matches = [
-            currentAssignee,
-            ...matches.filter((agent) => agent.id !== currentAssignee.id),
-         ];
-      }
-
-      return matches.slice(0, MAX_VISIBLE_AGENTS);
-   }, [agentAssignees, agentQuery, currentAssignee]);
+   const searchable = members.length + agentAssignees.length > SEARCH_THRESHOLD;
+   const capped =
+      !query.trim() && agentAssignees.length > MAX_VISIBLE_AGENTS
+         ? { shown: visibleAgents.length, total: agentAssignees.length }
+         : null;
 
    useEffect(() => {
       setCurrentAssignee(user);
    }, [user]);
 
    useEffect(() => {
-      if (!open) {
-         setAgentQuery('');
-      }
+      if (!open) setQuery('');
    }, [open]);
 
-   const handleAssigneeChange = (assignee: User | null) => {
+   const choose = (assignee: User | null) => {
       setCurrentAssignee(assignee);
       setOpen(false);
-      if (issueId) {
-         updateIssueAssignee(issueId, assignee);
-      }
-   };
-
-   const renderAvatar = () => {
-      if (!currentAssignee) {
-         return <AssigneePlaceholder />;
-      }
-
-      if (currentAssignee.role === 'Application') {
-         return (
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--actor-agent)]">
-               <BerryMark
-                  size="sm"
-                  tone="working"
-                  bracketClassName="text-chalk"
-                  className="[&_circle]:text-chalk"
-                  label={`${currentAssignee.name}, agent`}
-               />
-            </span>
-         );
-      }
-
-      return (
-         <Avatar className="size-6 shrink-0">
-            <AvatarImage src={currentAssignee.avatarUrl} alt={currentAssignee.name} />
-            <AvatarFallback>{currentAssignee.name[0]}</AvatarFallback>
-         </Avatar>
-      );
+      if (issueId) updateIssueAssignee(issueId, assignee);
    };
 
    return (
-      <DropdownMenu open={open} onOpenChange={setOpen}>
-         <DropdownMenuTrigger asChild>
+      <Popover open={open} onOpenChange={setOpen}>
+         <PopoverTrigger asChild>
             <button
-               className="relative w-fit rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-               aria-label={currentAssignee ? `Assigned to ${currentAssignee.name}` : 'Assign task'}
+               type="button"
+               aria-haspopup="listbox"
+               aria-expanded={open}
+               aria-label={
+                  currentAssignee ? t('assigned', { name: currentAssignee.name }) : t('unassigned')
+               }
+               className="relative flex w-fit items-center rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
             >
-               {renderAvatar()}
+               {currentAssignee ? (
+                  <ActorAvatar user={currentAssignee} monogram={monogram} />
+               ) : (
+                  <AssigneePlaceholder />
+               )}
                {currentAssignee && currentAssignee.role !== 'Application' ? (
                   <span
                      className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
@@ -154,83 +138,81 @@ export function AssigneeUser({ user, issueId }: AssigneeUserProps) {
                   </span>
                ) : null}
             </button>
-         </DropdownMenuTrigger>
-         <DropdownMenuContent align="start" className="w-[220px]">
-            <DropdownMenuLabel>assign to…</DropdownMenuLabel>
-            <DropdownMenuItem
-               onClick={(event) => {
-                  event.stopPropagation();
-                  handleAssigneeChange(null);
-               }}
-            >
-               <div className="flex items-center gap-2">
-                  <UserIcon className="h-5 w-5" />
-                  <span>no assignee</span>
-               </div>
-               {!currentAssignee ? <CheckIcon className="ml-auto h-4 w-4" /> : null}
-            </DropdownMenuItem>
+         </PopoverTrigger>
+         <PopoverContent align="start" className="w-[240px] p-0">
+            <Command>
+               {searchable ? (
+                  <CommandInput
+                     autoFocus
+                     value={query}
+                     onValueChange={setQuery}
+                     placeholder={t('search')}
+                     aria-label={t('search')}
+                  />
+               ) : null}
+               <CommandList>
+                  <CommandEmpty>{t('noMatch')}</CommandEmpty>
+                  <CommandGroup>
+                     <CommandItem
+                        value={t('none')}
+                        onSelect={() => choose(null)}
+                        className="flex items-center gap-2"
+                     >
+                        <AssigneePlaceholder />
+                        <span>{t('none')}</span>
+                        {!currentAssignee ? (
+                           <CheckIcon className="ml-auto size-4 shrink-0" />
+                        ) : null}
+                     </CommandItem>
+                  </CommandGroup>
 
-            {members.length > 0 ? (
-               <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>members</DropdownMenuLabel>
-                  {members.map((member) => (
-                     <AssigneeMenuItem
-                        key={member.id}
-                        person={member}
-                        selected={currentAssignee?.id === member.id}
-                        onSelect={() => handleAssigneeChange(member)}
-                     />
-                  ))}
-               </>
-            ) : null}
-
-            {agentAssignees.length > 0 ? (
-               <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>agents</DropdownMenuLabel>
-                  <div
-                     className="px-2 pb-1"
-                     onKeyDown={(event) => event.stopPropagation()}
-                     onPointerDown={(event) => event.stopPropagation()}
-                  >
-                     <Input
-                        value={agentQuery}
-                        onChange={(event) => setAgentQuery(event.target.value)}
-                        placeholder="Filter agents…"
-                        className="h-8"
-                        aria-label="Filter agents"
-                     />
-                  </div>
-                  {visibleAgents.length > 0 ? (
-                     visibleAgents.map((agent) => (
-                        <AssigneeMenuItem
-                           key={agent.id}
-                           person={agent}
-                           selected={currentAssignee?.id === agent.id}
-                           onSelect={() => handleAssigneeChange(agent)}
-                        />
-                     ))
-                  ) : (
-                     <div className="px-2 py-1.5 text-muted-foreground">No agents found</div>
-                  )}
-                  {agentAssignees.length > MAX_VISIBLE_AGENTS && !agentQuery.trim() ? (
-                     <div className="px-2 py-1 text-muted-foreground">
-                        Showing {MAX_VISIBLE_AGENTS} of {agentAssignees.length}. Type to filter.
-                     </div>
+                  {members.length > 0 ? (
+                     <>
+                        <CommandSeparator />
+                        <CommandGroup heading={t('people')}>
+                           {members.map((member) => (
+                              <AssigneeItem
+                                 key={member.id}
+                                 person={member}
+                                 selected={currentAssignee?.id === member.id}
+                                 onSelect={() => choose(member)}
+                              />
+                           ))}
+                        </CommandGroup>
+                     </>
                   ) : null}
-               </>
-            ) : null}
 
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>new user</DropdownMenuLabel>
-            <DropdownMenuItem>
-               <div className="flex items-center gap-2">
-                  <Send className="h-4 w-4" />
-                  <span>invite and assign…</span>
-               </div>
-            </DropdownMenuItem>
-         </DropdownMenuContent>
-      </DropdownMenu>
+                  {agentAssignees.length > 0 ? (
+                     <>
+                        <CommandSeparator />
+                        <CommandGroup heading={t('agents')}>
+                           {visibleAgents.map((agent) => (
+                              <AssigneeItem
+                                 key={agent.id}
+                                 person={agent}
+                                 selected={currentAssignee?.id === agent.id}
+                                 onSelect={() => choose(agent)}
+                              />
+                           ))}
+                        </CommandGroup>
+                        {capped ? (
+                           <p className="px-3 pb-1.5 text-muted-foreground">
+                              {t('showing', capped)}
+                           </p>
+                        ) : null}
+                     </>
+                  ) : null}
+
+                  <CommandSeparator />
+                  <CommandGroup>
+                     <CommandItem value={t('invite')} className="flex items-center gap-2">
+                        <Send className="size-4 text-muted-foreground" />
+                        <span>{t('invite')}</span>
+                     </CommandItem>
+                  </CommandGroup>
+               </CommandList>
+            </Command>
+         </PopoverContent>
+      </Popover>
    );
 }

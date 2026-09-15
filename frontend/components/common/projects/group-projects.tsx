@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button';
 import type { Project } from '@/data/projects';
-import type { Status } from '@/data/status';
+import { statusTone, type Status, type StatusTone } from '@/data/status';
 import { cn } from '@/lib/utils';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useProjectsStore } from '@/store/projects-store';
@@ -15,7 +15,12 @@ import { ProjectDragType, ProjectGrid } from './project-grid';
 export interface ProjectGroupDescriptor {
    id: string;
    name: string;
-   color: string;
+   /**
+    * No longer read here: the header tint comes from the status tone, and a
+    * group without a status is neutral. Left optional so the builders that
+    * still fill it keep compiling until they drop it.
+    */
+   color?: string;
    icon: ReactNode;
    /** Set when grouping by status — enables drag-drop and create-in-column. */
    status?: Status;
@@ -29,17 +34,35 @@ interface GroupProjectsProps {
 
 const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
 
-function groupHeaderTint(color: string): string {
-   return `${color}10`;
+/**
+ * Header tint per tone: a wash of the status's own `--status-*` token over
+ * the container (tokens in globals.css), the same one the task board's
+ * columns take, so the two boards agree. A group that is not a status has no
+ * tone of its own and stays neutral.
+ */
+const COLUMN_TINT: Record<StatusTone, string> = {
+   neutral: 'bg-column-tint-neutral',
+   info: 'bg-column-tint-info',
+   warning: 'bg-column-tint-warning',
+   success: 'bg-column-tint-success',
+   danger: 'bg-column-tint-danger',
+};
+
+function groupTone(group: ProjectGroupDescriptor): StatusTone {
+   return group.status ? statusTone(group.status) : 'neutral';
 }
 
 function GroupHeaderBar({ group, count }: { group: ProjectGroupDescriptor; count: number }) {
    const { openModal } = useCreateProjectStore();
+   const tone = groupTone(group);
 
    return (
       <div
-         className="flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1"
-         style={{ backgroundColor: groupHeaderTint(group.color) }}
+         data-column-tint={tone}
+         className={cn(
+            'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
+            COLUMN_TINT[tone]
+         )}
       >
          <div className="flex min-w-0 items-center gap-2">
             {group.icon}

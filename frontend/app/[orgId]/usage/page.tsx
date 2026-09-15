@@ -8,7 +8,7 @@ import UsageErrors from '@/components/common/usage/usage-errors';
 import UsageFilters from '@/components/common/usage/usage-filters';
 import UsageOverview from '@/components/common/usage/usage-overview';
 import MainLayout from '@/components/layout/main-layout';
-import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { localTimezone } from '@/lib/cron-schedule';
 import type { UsageQuery } from '@/lib/usage';
 
@@ -56,23 +56,17 @@ function UsageScreen() {
 
    const header = (
       <div className="flex w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="min-w-0">
-            <span className="font-medium">{t('title')}</span>
-            <p className="mt-1 max-w-2xl text-muted-foreground">{t('subtitle')}</p>
-         </div>
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-md border p-0.5">
-               {TABS.map((name) => (
-                  <Button
-                     key={name}
-                     size="xxs"
-                     variant={tab === name ? 'secondary' : 'ghost'}
-                     onClick={() => open(name)}
-                  >
-                     {t(`tabs.${name}`)}
-                  </Button>
-               ))}
-            </div>
+            <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
+               <TabsList aria-label={t('title')}>
+                  {TABS.map((name) => (
+                     <TabsTrigger key={name} value={name}>
+                        {t(`tabs.${name}`)}
+                     </TabsTrigger>
+                  ))}
+               </TabsList>
+            </Tabs>
             <UsageFilters
                query={query}
                onChange={setQuery}

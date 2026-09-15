@@ -15,6 +15,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -130,7 +131,19 @@ function TriggerRow({
    onSecrets: (secrets: WebhookSecrets) => void;
 }) {
    const t = useTranslations('areas.autopilots.triggers');
+   const tc = useTranslations('common.confirm');
    const [rotating, setRotating] = useState(false);
+   const [removing, setRemoving] = useState(false);
+
+   const remove = async () => {
+      try {
+         await deleteTrigger(autopilotId, trigger.id);
+         onChanged();
+      } catch (failure) {
+         toast.error(describeAutopilotFailure(failure));
+         throw failure;
+      }
+   };
 
    const act = async (work: () => Promise<unknown>) => {
       try {
@@ -183,12 +196,7 @@ function TriggerRow({
             </Button>
          ) : null}
          {canEdit ? (
-            <Button
-               type="button"
-               size="xs"
-               variant="ghost"
-               onClick={() => void act(() => deleteTrigger(autopilotId, trigger.id))}
-            >
+            <Button type="button" size="xs" variant="ghost" onClick={() => setRemoving(true)}>
                {t('remove')}
             </Button>
          ) : null}
@@ -215,6 +223,17 @@ function TriggerRow({
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
+
+         <ConfirmAction
+            open={removing}
+            onOpenChange={setRemoving}
+            title={tc('removeTriggerTitle')}
+            description={tc('removeTriggerBody')}
+            confirmLabel={tc('remove')}
+            cancelLabel={t('cancel')}
+            destructive
+            onConfirm={remove}
+         />
       </div>
    );
 }

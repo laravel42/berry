@@ -25,8 +25,8 @@ import { toast } from 'sonner';
 
 /** The colour a health level wears, from alive to long silent. */
 const HEALTH_DOT: Record<string, string> = {
-   online: 'bg-[#00cc66]',
-   recentlyLost: 'bg-amber-500',
+   online: 'bg-status-success',
+   recentlyLost: 'bg-status-warning',
    offline: 'bg-destructive',
    longOffline: 'bg-destructive/60',
    disabled: 'bg-muted-foreground',

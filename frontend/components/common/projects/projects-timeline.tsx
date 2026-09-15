@@ -476,10 +476,7 @@ export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
                                           />
                                        )}
                                        {displayProperties.status && (
-                                          <CapacityRing
-                                             value={project.percentComplete}
-                                             color="#6771c5"
-                                          />
+                                          <CapacityRing value={project.percentComplete} />
                                        )}
                                        {displayProperties.priority && (
                                           <project.priority.icon

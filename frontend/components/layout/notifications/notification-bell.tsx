@@ -1,9 +1,10 @@
 'use client';
 
-import { shellIconButton } from '@/components/layout/shell/shell-icon';
+import { shellIconButton, shellStripHitArea } from '@/components/layout/shell/shell-icon';
 import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { Bell } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 /**
  * The bell at the right of the tab strip.
@@ -16,6 +17,7 @@ import { Bell } from 'lucide-react';
  * you are going to read one at a time".
  */
 export function NotificationBell() {
+   const t = useTranslations('shell');
    const toggle = useNotificationsDrawerStore((state) => state.toggle);
    const isOpen = useNotificationsDrawerStore((state) => state.isOpen);
    const notifications = useNotificationsStore((state) => state.notifications);
@@ -31,9 +33,11 @@ export function NotificationBell() {
       <button
          type="button"
          onClick={toggle}
-         aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+         aria-label={
+            unread > 0 ? t('bell.notificationsUnread', { count: unread }) : t('bell.notifications')
+         }
          aria-expanded={isOpen}
-         className={`relative my-[3.5px] mr-1.5 ml-1 size-[26px] ${shellIconButton}`}
+         className={`mr-1.5 ml-1 size-[26px] self-center max-lg:mx-[9px] ${shellIconButton} ${shellStripHitArea}`}
       >
          <Bell size={15} strokeWidth={1.8} aria-hidden="true" />
          {unread > 0 ? (

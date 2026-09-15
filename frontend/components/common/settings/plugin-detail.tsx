@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -52,6 +53,7 @@ export default function PluginDetail() {
 
    const [config, setConfig] = useState<Record<string, PluginConfigValue>>({});
    const [secretDrafts, setSecretDrafts] = useState<Record<string, string>>({});
+   const [confirmingUninstall, setConfirmingUninstall] = useState(false);
    useEffect(() => {
       if (plugin.value) setConfig(plugin.value.config);
    }, [plugin.value]);
@@ -102,12 +104,6 @@ export default function PluginDetail() {
    };
 
    const uninstall = async () => {
-      if (
-         !window.confirm(
-            `Uninstall ${current.name}? Its settings, secrets and storage are deleted.`
-         )
-      )
-         return;
       try {
          await uninstallPlugin(workspaceId, pluginId);
          router.push(`/${orgId}/settings/plugins`);
@@ -115,6 +111,7 @@ export default function PluginDetail() {
          toast.error(
             cause instanceof Error ? cause.message : 'The plugin could not be uninstalled.'
          );
+         throw cause;
       }
    };
 
@@ -344,7 +341,7 @@ export default function PluginDetail() {
                         size="xs"
                         variant="ghost"
                         className="text-status-danger hover:text-status-danger"
-                        onClick={() => void uninstall()}
+                        onClick={() => setConfirmingUninstall(true)}
                      >
                         Uninstall
                      </Button>
@@ -352,6 +349,17 @@ export default function PluginDetail() {
                />
             </SettingsCard>
          </SettingsSection>
+
+         <ConfirmAction
+            open={confirmingUninstall}
+            onOpenChange={setConfirmingUninstall}
+            title={`Uninstall ${current.name}?`}
+            description="Its settings, secrets, stored data and history are deleted, and agents lose the tools it provides. This cannot be undone."
+            confirmLabel="Uninstall"
+            pendingLabel="Uninstalling…"
+            destructive
+            onConfirm={uninstall}
+         />
       </SettingsShell>
    );
 }

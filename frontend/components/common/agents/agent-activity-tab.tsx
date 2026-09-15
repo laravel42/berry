@@ -29,7 +29,7 @@ interface AgentActivityTabProps {
 
 function StatusIcon({ status }: { status: string }) {
    if (status === 'succeeded')
-      return <CheckCircle2 className="size-4 text-[#00cc66]" aria-hidden />;
+      return <CheckCircle2 className="size-4 text-status-success" aria-hidden />;
    if (status === 'failed') return <XCircle className="size-4 text-destructive" aria-hidden />;
    if (status === 'running' || status === 'queued') {
       return <LoaderCircle className="size-4 animate-spin text-muted-foreground" aria-hidden />;
@@ -105,9 +105,7 @@ export default function AgentActivityTab({
    return (
       <div
          className={
-            embedded
-               ? 'flex max-w-4xl flex-col gap-8'
-               : 'flex max-w-4xl flex-col gap-8 px-8 py-6'
+            embedded ? 'flex max-w-4xl flex-col gap-8' : 'flex max-w-4xl flex-col gap-8 px-8 py-6'
          }
       >
          <section>

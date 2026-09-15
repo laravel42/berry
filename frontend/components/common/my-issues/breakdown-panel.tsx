@@ -15,26 +15,31 @@ interface BreakdownRow {
    count: number;
 }
 
+/**
+ * A label's colour name is a hint from the workspace, not a hue Berry paints
+ * with: the counters cycle the chart series so the swatches read as one set
+ * in both themes.
+ */
 const LABEL_COLORS: Record<string, string> = {
-   purple: '#8b5cf6',
-   red: '#ef4444',
-   green: '#22c55e',
-   blue: '#3b82f6',
-   yellow: '#eab308',
-   orange: '#f97316',
-   pink: '#ec4899',
-   gray: '#6b7280',
-   indigo: '#6366f1',
-   teal: '#14b8a6',
-   cyan: '#06b6d4',
+   purple: 'var(--chart-1)',
+   red: 'var(--chart-2)',
+   green: 'var(--chart-3)',
+   blue: 'var(--chart-4)',
+   yellow: 'var(--chart-5)',
+   orange: 'var(--chart-1)',
+   pink: 'var(--chart-2)',
+   gray: 'var(--chart-3)',
+   indigo: 'var(--chart-4)',
+   teal: 'var(--chart-5)',
+   cyan: 'var(--chart-1)',
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-   'no-priority': '#94a3b8',
-   'urgent': '#eb5757',
-   'high': '#f2994a',
-   'medium': '#facc15',
-   'low': '#4cb782',
+   'no-priority': 'var(--status-neutral)',
+   'urgent': 'var(--status-danger)',
+   'high': 'var(--status-warning)',
+   'medium': 'var(--chart-2)',
+   'low': 'var(--status-success)',
 };
 
 /**
@@ -58,14 +63,14 @@ export function BreakdownPanel({ issues }: { issues: Issue[] }) {
                bump(label.id, {
                   key: label.id,
                   label: label.name,
-                  color: LABEL_COLORS[label.color] ?? '#6b7280',
+                  color: LABEL_COLORS[label.color] ?? 'var(--status-neutral)',
                });
             }
          } else if (tab === 'priority') {
             bump(issue.priority.id, {
                key: issue.priority.id,
                label: issue.priority.name,
-               color: PRIORITY_COLORS[issue.priority.id] ?? '#94a3b8',
+               color: PRIORITY_COLORS[issue.priority.id] ?? 'var(--status-neutral)',
             });
          } else if (issue.project) {
             bump(issue.project.id, { key: issue.project.id, label: issue.project.name });

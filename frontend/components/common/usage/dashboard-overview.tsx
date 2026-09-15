@@ -69,7 +69,7 @@ export default function DashboardOverview() {
                </div>
 
                <section>
-                  <h3 className="mb-2 font-medium">{t('runsByDay')}</h3>
+                  <h2 className="mb-2 font-medium">{t('runsByDay')}</h2>
                   <div className="h-48 w-full">
                      <ResponsiveContainer width="100%" height="100%">
                         <BarChart
@@ -117,13 +117,13 @@ export default function DashboardOverview() {
                </section>
 
                <section>
-                  <h3 className="mb-2 font-medium">{t('costByDay')}</h3>
+                  <h2 className="mb-2 font-medium">{t('costByDay')}</h2>
                   <UsageDailyChart points={data.usageDaily} metric="cost" />
                </section>
 
                <div className="grid gap-8 lg:grid-cols-2">
                   <section className="flex flex-col gap-2">
-                     <h3 className="font-medium">{t('workingNow')}</h3>
+                     <h2 className="font-medium">{t('workingNow')}</h2>
                      {data.workingAgents.length === 0 ? (
                         <p className="text-muted-foreground">{t('noneWorking')}</p>
                      ) : (
@@ -152,7 +152,7 @@ export default function DashboardOverview() {
                   </section>
 
                   <section className="flex flex-col gap-2">
-                     <h3 className="font-medium">{t('failuresByAgent')}</h3>
+                     <h2 className="font-medium">{t('failuresByAgent')}</h2>
                      {data.failuresByAgent.length === 0 ? (
                         <p className="text-muted-foreground">{t('noFailures')}</p>
                      ) : (
@@ -179,7 +179,7 @@ export default function DashboardOverview() {
                </div>
 
                <section className="flex flex-col gap-2">
-                  <h3 className="font-medium">{t('tasksNow')}</h3>
+                  <h2 className="font-medium">{t('tasksNow')}</h2>
                   <div className="flex flex-wrap gap-2">
                      {Object.entries(data.taskSnapshot).map(([status, count]) => (
                         <span key={status} className="rounded-md border px-3 py-1.5">

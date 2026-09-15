@@ -37,14 +37,13 @@ export function SettingsShell({
 }) {
    return (
       <div className="w-full overflow-y-auto h-full">
-         <div
-            className={cn(
-               'mx-auto max-w-2xl px-6',
-               compact ? 'py-6 pb-12' : 'py-10 pb-20'
-            )}
-         >
+         <div className={cn('mx-auto max-w-2xl px-6', compact ? 'py-6 pb-12' : 'py-10 pb-20')}>
             <div className="flex flex-wrap items-center gap-3">
-               <h1 className="font-display tracking-[-0.025em]">{title}</h1>
+               {/* The settings bar above is the page's h1 ("Settings"); the
+                   page name sits one level down and keeps the h1 size. It is
+                   a section name, not a page display title, so it takes the
+                   heading role rather than the display face. */}
+               <h2 data-heading="h1">{title}</h2>
                {badge ? (
                   <span className="rounded-md border px-2 py-0.5 text-muted-foreground">
                      {badge}
@@ -76,7 +75,7 @@ export function SettingsSection({
          {(title || action) && (
             <div className="flex items-end justify-between gap-4 mb-1">
                <div>
-                  {title && <h2 className="text-md font-medium">{title}</h2>}
+                  {title && <h2>{title}</h2>}
                   {description && <p className="text-muted-foreground mt-0.5">{description}</p>}
                </div>
                {action}
@@ -144,7 +143,9 @@ export function SettingsRow({
                {description && <div className="text-muted-foreground mt-0.5">{description}</div>}
             </div>
             {trailing && (
-               <div className="shrink-0 flex items-center gap-2 text-muted-foreground">{trailing}</div>
+               <div className="shrink-0 flex items-center gap-2 text-muted-foreground">
+                  {trailing}
+               </div>
             )}
             {chevron && <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
          </div>
@@ -161,7 +162,7 @@ export function SelectMenu({
    options,
    labels,
    defaultValue,
-   value: controlledValue,
+   'value': controlledValue,
    onChange,
    disabled,
    searchable,
@@ -169,19 +170,19 @@ export function SelectMenu({
    emptyLabel = 'Nothing matches.',
    'aria-label': ariaLabel,
 }: {
-   options: string[];
+   'options': string[];
    /** Display text per option; the option value is shown when absent. */
-   labels?: Record<string, string>;
-   defaultValue?: string;
+   'labels'?: Record<string, string>;
+   'defaultValue'?: string;
    /** Optional controlled value (e.g. wired to next-themes). */
-   value?: string;
-   onChange?: (value: string) => void;
+   'value'?: string;
+   'onChange'?: (value: string) => void;
    /** While a write is in flight, so a second click cannot race the first. */
-   disabled?: boolean;
+   'disabled'?: boolean;
    /** A filter field, for lists too long to scan (IANA zones). */
-   searchable?: boolean;
-   searchPlaceholder?: string;
-   emptyLabel?: string;
+   'searchable'?: boolean;
+   'searchPlaceholder'?: string;
+   'emptyLabel'?: string;
    'aria-label'?: string;
 }) {
    const [internal, setInternal] = useState(defaultValue ?? options[0]);
@@ -198,7 +199,11 @@ export function SelectMenu({
    if (searchable) {
       return (
          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger disabled={disabled} aria-label={ariaLabel} className={selectTriggerClass}>
+            <PopoverTrigger
+               disabled={disabled}
+               aria-label={ariaLabel}
+               className={selectTriggerClass}
+            >
                <span className="min-w-0 truncate">{display}</span>
                <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
             </PopoverTrigger>
@@ -265,7 +270,7 @@ export function SelectMenu({
 export function EnabledDot({ children }: { children: React.ReactNode }) {
    return (
       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-         <span className="size-1.5 rounded-full bg-[#00cc66] shrink-0" />
+         <span className="size-1.5 shrink-0 rounded-full bg-status-success" aria-hidden />
          {children}
       </span>
    );

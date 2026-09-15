@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useIssuesStore } from '@/store/issues-store';
 import { priorities, Priority } from '@/data/priorities';
 import { CheckIcon } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useId, useState } from 'react';
 
 interface PrioritySelectorProps {
@@ -20,6 +21,7 @@ interface PrioritySelectorProps {
 }
 
 export function PrioritySelector({ priority, issueId }: PrioritySelectorProps) {
+   const t = useTranslations('issueLists');
    const id = useId();
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string>(priority.id);
@@ -53,6 +55,8 @@ export function PrioritySelector({ priority, issueId }: PrioritySelectorProps) {
                   variant="ghost"
                   role="combobox"
                   aria-expanded={open}
+                  aria-label={t('row.priority', { current: priority.name })}
+                  title={t('row.priority', { current: priority.name })}
                >
                   {(() => {
                      const selectedItem = priorities.find((item) => item.id === value);

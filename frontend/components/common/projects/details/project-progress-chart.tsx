@@ -11,7 +11,11 @@ interface ProjectProgressChartProps {
    completed: number;
 }
 
-const COLORS = { scope: '#8f9299', started: '#facc15', completed: '#6771c5' };
+const COLORS = {
+   scope: 'var(--chart-5)',
+   started: 'var(--chart-2)',
+   completed: 'var(--chart-3)',
+};
 
 /** Deterministic burn-up-style points for the project Progress card. */
 function buildPoints(scope: number, started: number, completed: number) {

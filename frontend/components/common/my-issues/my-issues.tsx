@@ -19,12 +19,78 @@ import { SearchIssues } from '@/components/common/issues/search-issues';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { BreakdownPanel } from './breakdown-panel';
 import { displayOrderedStatus } from '@/data/status';
+import { Button } from '@/components/ui/button';
+import type { Issue } from '@/data/issues';
 import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
-import { useMemo } from 'react';
+import { useSessionStore } from '@/store/session-store';
+import { useTranslations } from 'next-intl';
+import { useEffect, useMemo, useState } from 'react';
 import { scopeMyIssues, useMyIssuesScope, useMyIssuesTab } from './use-my-issues';
+
+const DISCOVERY_DISMISSED_KEY = 'berry:discovery-notice-dismissed';
+
+/** A task an agent filed on its sweep: agent-authored, in the backlog, titled for it. */
+function isDiscoveryTask(issue: Issue): boolean {
+   return (
+      issue.status.id === 'backlog' &&
+      issue.createdBy?.role === 'Application' &&
+      issue.title.startsWith('Discovery:')
+   );
+}
+
+/**
+ * One line over a fresh workspace's backlog, explaining where its eighteen
+ * "Discovery:" tasks came from. Shown only while the viewer has filed nothing
+ * of their own -- after that they know what a task is -- and gone for good
+ * once dismissed.
+ */
+function DiscoveryNotice({ issues }: { issues: Issue[] }) {
+   const t = useTranslations('tasks.discovery');
+   const userId = useSessionStore((state) => state.user?.id ?? null);
+   // Unknown until the browser has been asked, so the server render and the
+   // first client render agree; a store that cannot be read counts as seen.
+   const [dismissed, setDismissed] = useState<boolean | null>(null);
+
+   useEffect(() => {
+      try {
+         setDismissed(window.localStorage.getItem(DISCOVERY_DISMISSED_KEY) === '1');
+      } catch {
+         setDismissed(true);
+      }
+   }, []);
+
+   const relevant = useMemo(() => {
+      if (!userId) return false;
+      const filedOne = issues.some((issue) => issue.createdById === userId);
+      return !filedOne && issues.some(isDiscoveryTask);
+   }, [issues, userId]);
+
+   if (dismissed !== false || !relevant) return null;
+
+   const dismiss = () => {
+      setDismissed(true);
+      try {
+         window.localStorage.setItem(DISCOVERY_DISMISSED_KEY, '1');
+      } catch {
+         /* Not remembering the dismissal is a nuisance next visit, not a failure now. */
+      }
+   };
+
+   return (
+      <div
+         role="status"
+         className="flex items-center gap-3 border-b border-border/45 bg-actor-agent/5 px-4 py-1.5 sm:px-6"
+      >
+         <p className="min-w-0 flex-1 text-muted-foreground">{t('body')}</p>
+         <Button size="xs" variant="ghost" className="shrink-0" onClick={dismiss}>
+            {t('dismiss')}
+         </Button>
+      </div>
+   );
+}
 
 /**
  * "My issues" body — the same machinery as the team views (search, filters,
@@ -76,6 +142,7 @@ export default function MyIssues() {
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar showActions={false} />
          <BatchToolbar visibleIds={displayedIssues.map((issue) => issue.id)} />
+         <DiscoveryNotice issues={issues} />
          <div className="flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {view.mode === 'table' ? (

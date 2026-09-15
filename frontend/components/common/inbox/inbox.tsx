@@ -102,6 +102,15 @@ export default function Inbox() {
       if (archivedView && archivedStatus === 'idle') void loadArchive();
    }, [archivedView, archivedStatus, loadArchive]);
 
+   // An empty inbox means one of two things — nothing has ever reached this
+   // person, or they have dealt with everything — and only the archive can
+   // tell them apart. It is read once, when the working list turns up empty.
+   useEffect(() => {
+      if (status === 'ready' && notifications.length === 0 && archivedStatus === 'idle') {
+         void loadArchive();
+      }
+   }, [status, notifications.length, archivedStatus, loadArchive]);
+
    const source = archivedView ? archivedItems : notifications;
 
    const facetsOf = useCallback(
@@ -297,6 +306,7 @@ export default function Inbox() {
                   failed={archivedView && archivedStatus === 'error'}
                   archivedView={archivedView}
                   filtered={hasActiveFilters(filters)}
+                  handled={archivedStatus === 'ready' && archivedItems.length > 0}
                   selectedId={selectedId}
                   orgId={orgId}
                   senderName={senderName}
@@ -319,6 +329,7 @@ export default function Inbox() {
          >
             <InboxDetail
                item={selected}
+               listEmpty={listReady && visible.length === 0}
                archived={archivedView}
                orgId={orgId}
                onArchive={() => {
@@ -341,6 +352,8 @@ interface InboxListProps {
    failed: boolean;
    archivedView: boolean;
    filtered: boolean;
+   /** Whether the archive holds anything: the difference between first use and "nothing new". */
+   handled: boolean;
    selectedId: string | null;
    orgId: string;
    senderName: (key: string) => string;
@@ -358,6 +371,7 @@ function InboxList({
    failed,
    archivedView,
    filtered,
+   handled,
    selectedId,
    orgId,
    senderName,
@@ -389,8 +403,11 @@ function InboxList({
             />
          );
       }
-      return archivedView ? (
-         <InboxPanel title={t('states.emptyArchive')} body={t('states.emptyArchiveBody')} />
+      if (archivedView) {
+         return <InboxPanel title={t('states.emptyArchive')} body={t('states.emptyArchiveBody')} />;
+      }
+      return handled ? (
+         <InboxPanel title={t('states.caughtUp')} body={t('states.caughtUpBody')} />
       ) : (
          <InboxPanel title={t('states.empty')} body={t('states.emptyBody')} />
       );

@@ -83,8 +83,7 @@ function DeliveryStrip({ delivery }: { delivery: RunDelivery }) {
          <span className="text-muted-foreground">
             {delivery.filesChanged} file{delivery.filesChanged === 1 ? '' : 's'}
             {' · '}
-            <span className="text-status-success">+{delivery.insertions}</span>
-            {' '}
+            <span className="text-status-success">+{delivery.insertions}</span>{' '}
             <span className="text-status-danger">−{delivery.deletions}</span>
          </span>
          {delivery.pullRequest ? (
@@ -164,7 +163,9 @@ export default function RunOverview() {
                if (isTerminalRunEvent(event.type)) {
                   setStreamStatus(event.type.replace('run.', ''));
                   if (boardId) {
-                     void loadBoardRuns(boardId, { first: 200 }).then((found) => hydrateRuns(found));
+                     void loadBoardRuns(boardId, { first: 200 }).then((found) =>
+                        hydrateRuns(found)
+                     );
                   }
                   return;
                }
@@ -275,7 +276,7 @@ export default function RunOverview() {
                            colSpan={COLUMNS.length}
                            className="px-6 py-12 leading-6 text-muted-foreground sm:px-8"
                         >
-                           Nothing assigned.
+                           {t('empty')}
                         </td>
                      </tr>
                   ) : (

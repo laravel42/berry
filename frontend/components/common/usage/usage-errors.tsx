@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { Button } from '@/components/ui/button';
@@ -43,7 +43,11 @@ export default function UsageErrors({
       workspaceId ? () => getUsageErrors(workspaceId, query) : null,
       `errors:${workspaceId}:${query.days}:${query.timezone ?? ''}:${query.boardId ?? ''}`
    );
-   onState?.({ lastUpdated, loading, reload });
+   // Reported after render, not during it: a parent setState from inside a
+   // child's render is the React error Next flags on this page.
+   useEffect(() => {
+      onState?.({ lastUpdated, loading, reload });
+   }, [onState, lastUpdated, loading, reload]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
@@ -74,7 +78,7 @@ export default function UsageErrors({
          </div>
 
          <section className="flex flex-col gap-2">
-            <h3 className="font-medium">{t('chart')}</h3>
+            <h2 className="font-medium">{t('chart')}</h2>
             <div className="h-48 w-full text-foreground/70">
                <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -109,7 +113,7 @@ export default function UsageErrors({
 
          <div className="grid gap-8 lg:grid-cols-2">
             <section className="flex flex-col gap-2">
-               <h3 className="font-medium">{t('byType')}</h3>
+               <h2 className="font-medium">{t('byType')}</h2>
                {data.byType.length === 0 ? (
                   <p className="text-muted-foreground">{t('empty')}</p>
                ) : (
@@ -126,7 +130,7 @@ export default function UsageErrors({
 
             <section className="flex flex-col gap-2">
                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="mr-auto font-medium">{t('offenders')}</h3>
+                  <h2 className="mr-auto font-medium">{t('offenders')}</h2>
                   <div className="flex items-center gap-1 rounded-md border p-0.5">
                      {(['count', 'rate'] as const).map((option) => (
                         <Button

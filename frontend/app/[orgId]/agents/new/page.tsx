@@ -48,9 +48,8 @@ export default function NewAgentPage() {
    const t = useTranslations('agentsChat.create');
 
    const header = (
-      <div className="flex w-full flex-col gap-1 border-b px-6 py-3">
-         <span className="font-medium">{t('title')}</span>
-         <p className="text-muted-foreground">{t('subtitle')}</p>
+      <div className="flex w-full items-center border-b px-6 py-3">
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
       </div>
    );
 

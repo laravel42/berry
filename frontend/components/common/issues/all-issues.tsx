@@ -8,8 +8,8 @@ import { applyIssueFilters, usePropertyFilterMatches } from './issue-filter-colu
 import { IssueFilterBar } from './issue-filter-bar';
 import { BatchToolbar } from './batch-toolbar';
 import { useRightPanelStore } from '@/store/right-panel-store';
+import { useIssueListView } from './use-issue-list-view';
 import { useSearchStore } from '@/store/search-store';
-import { useViewStore } from '@/store/view-store';
 import { useMemo } from 'react';
 import { GroupedIssuesView } from './grouped-issues-view';
 import { IssueGantt } from './issue-gantt';
@@ -27,7 +27,9 @@ interface AllIssuesProps {
 
 export default function AllIssues({ categories }: AllIssuesProps) {
    const { isSearchOpen, searchQuery } = useSearchStore();
-   const { viewType } = useViewStore();
+   // The URL's layout wins over the persisted preference, as it does for
+   // the grouped list below.
+   const { mode: viewType } = useIssueListView();
    const { filters } = useFilterStore();
    const { issues } = useIssuesStore();
    const { openPanel } = useRightPanelStore();

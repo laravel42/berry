@@ -88,11 +88,8 @@ export default function AutopilotsPage() {
 
    const header = (
       <div className="flex w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-               <span className="font-medium">{t('title')}</span>
-               <p className="mt-1 max-w-2xl text-muted-foreground">{t('subtitle')}</p>
-            </div>
+         <div className="flex flex-wrap items-center justify-between gap-4">
+            <h1 className="min-w-0 truncate">{t('title')}</h1>
             {canEdit ? (
                <Button
                   size="xs"

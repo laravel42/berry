@@ -38,11 +38,14 @@ export const AGENT_COLUMNS: AgentColumn[] = [
    'access',
 ];
 
-/** The columns a fresh workspace sees: what the agent is doing, and on what. */
+/**
+ * The columns a fresh workspace sees: what the agent is doing, and how much.
+ * Runtime stays in the picker but off by default -- every seeded agent runs
+ * on the workspace default, so the column said "Default" eighteen times.
+ */
 const DEFAULT_COLUMNS: AgentColumn[] = [
    'presence',
    'workload',
-   'runtime',
    'activity',
    'runs',
    'lastActive',
@@ -90,7 +93,7 @@ interface AgentsListState {
    clearSelection: () => void;
 }
 
-export const useAgentsListStore = create<AgentsListState>((set, get) => ({
+export const useAgentsListStore = create<AgentsListState>((set) => ({
    scope: 'all',
    sortKey: 'activity',
    sortDescending: true,

@@ -68,8 +68,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
    const saveDueDate = (value: string) => {
       // The date input yields YYYY-MM-DD; the API insists on RFC 3339.
-      const dueDate =
-         value === '' ? null : new Date(`${value}T12:00:00.000Z`).toISOString();
+      const dueDate = value === '' ? null : new Date(`${value}T12:00:00.000Z`).toISOString();
       const previous = issue.dueDate;
       updateIssue(issue.id, { dueDate: dueDate ?? undefined });
       void patchBoardIssue(issue.id, { dueDate }).catch((cause: unknown) => {
@@ -81,127 +80,124 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
    return (
       <div className="flex h-full min-h-0 flex-col">
          <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto">
-               <Section title={t('title')}>
-                  <div className="flex flex-col gap-1.5">
-                     <div className="flex items-center gap-2">
-                        <div className="flex size-7 shrink-0 items-center justify-center">
-                           <StatusSelector status={issue.status} issueId={issue.id} />
-                        </div>
-                        <span className="min-w-0 truncate">{issue.status.name}</span>
+            <Section title={t('title')}>
+               <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                     <div className="flex size-7 shrink-0 items-center justify-center">
+                        <StatusSelector status={issue.status} issueId={issue.id} />
                      </div>
-                     <CustomStatusSelect issue={issue} />
-                     <div className="flex items-center gap-2">
-                        <div className="flex size-7 shrink-0 items-center justify-center">
-                           <PrioritySelector priority={issue.priority} issueId={issue.id} />
-                        </div>
-                        <span className="min-w-0 truncate">{issue.priority.name}</span>
+                     <span className="min-w-0 truncate">{issue.status.name}</span>
+                  </div>
+                  <CustomStatusSelect issue={issue} />
+                  <div className="flex items-center gap-2">
+                     <div className="flex size-7 shrink-0 items-center justify-center">
+                        <PrioritySelector priority={issue.priority} issueId={issue.id} />
                      </div>
-                     <div className="flex items-center gap-2">
-                        <div className="flex size-7 shrink-0 items-center justify-center">
-                           <AssigneeUser user={issue.assignee} issueId={issue.id} />
-                        </div>
-                        <span className="min-w-0 truncate">
-                           {issue.assignee ? issue.assignee.name : t('assign')}
-                        </span>
+                     <span className="min-w-0 truncate">{issue.priority.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                     <div className="flex size-7 shrink-0 items-center justify-center">
+                        <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} />
                      </div>
-                     <ReviewerProperty issueRef={issue.identifier} />
+                     <span className="min-w-0 truncate">
+                        {issue.assignee ? issue.assignee.name : t('assign')}
+                     </span>
+                  </div>
+                  <ReviewerProperty issueRef={issue.identifier} />
 
-                     <div className="flex items-center gap-2">
-                        <button
-                           type="button"
-                           className="flex size-7 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                           aria-label={t('dueDate')}
-                           onClick={openDuePicker}
-                        >
-                           <CalendarClock
-                              className="size-4 text-status-info"
-                              aria-hidden
-                           />
-                        </button>
-                        <button
-                           type="button"
-                           className={cn(
-                              'h-7 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                              dueLabel
-                                 ? 'tabular-nums hover:bg-accent/40'
-                                 : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground hover:text-foreground'
-                           )}
-                           onClick={openDuePicker}
-                        >
-                           {dueLabel ?? t('setDate')}
-                        </button>
-                        <input
-                           ref={duePicker}
-                           type="date"
-                           aria-label={t('dueDate')}
-                           value={dueValue}
-                           onChange={(event) => saveDueDate(event.target.value)}
-                           className="sr-only"
-                        />
+                  <div className="flex items-center gap-2">
+                     <button
+                        type="button"
+                        className="flex size-7 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        aria-label={t('dueDate')}
+                        onClick={openDuePicker}
+                     >
+                        <CalendarClock className="size-4 text-status-info" aria-hidden />
+                     </button>
+                     <button
+                        type="button"
+                        className={cn(
+                           'h-7 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                           dueLabel
+                              ? 'tabular-nums hover:bg-accent/40'
+                              : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground hover:text-foreground'
+                        )}
+                        onClick={openDuePicker}
+                     >
+                        {dueLabel ?? t('setDate')}
+                     </button>
+                     <input
+                        ref={duePicker}
+                        type="date"
+                        aria-label={t('dueDate')}
+                        value={dueValue}
+                        onChange={(event) => saveDueDate(event.target.value)}
+                        className="sr-only"
+                     />
+                  </div>
+               </div>
+            </Section>
+
+            <IssueLabelPicker issueRef={issue.identifier} />
+            <IssueCustomProperties issueRef={issue.identifier} />
+
+            {issue.project && (
+               <Section title={t('project')}>
+                  <div className="flex items-center gap-2">
+                     <issue.project.icon className="size-4 shrink-0 text-muted-foreground" />
+                     <span className="truncate">{issue.project.name}</span>
+                  </div>
+                  {detail.milestone && (
+                     <div className="mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground">
+                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
+                        <span className="truncate">{detail.milestone}</span>
                      </div>
+                  )}
+               </Section>
+            )}
+
+            <IssueParentSection issue={issue} />
+            <IssueQuickActions issueRef={issue.identifier} />
+            <IssueApprovalSection issue={issue} />
+            <IssueGoalSection issue={issue} />
+            <IssueDependenciesSection issue={issue} />
+            <IssueLinkedPullRequests issueRef={issue.identifier} />
+
+            {detail.relatedIds && detail.relatedIds.length > 0 && (
+               <Section title="Related">
+                  <div className="flex flex-col">
+                     {detail.relatedIds.map((identifier) => (
+                        <IssueRefRow key={identifier} identifier={identifier} />
+                     ))}
                   </div>
                </Section>
+            )}
 
-               <IssueLabelPicker issueRef={issue.identifier} />
-               <IssueCustomProperties issueRef={issue.identifier} />
-
-               {issue.project && (
-                  <Section title={t('project')}>
-                     <div className="flex items-center gap-2">
-                        <issue.project.icon className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{issue.project.name}</span>
-                     </div>
-                     {detail.milestone && (
-                        <div className="mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground">
-                           <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
-                           <span className="truncate">{detail.milestone}</span>
+            {detail.prLinks && detail.prLinks.length > 0 && (
+               <Section title="Diffs">
+                  <div className="flex flex-col gap-1">
+                     {detail.prLinks.map((pr) => (
+                        <div key={pr.id} className="flex min-w-0 items-center gap-2">
+                           <GitPullRequestArrow
+                              className={
+                                 'size-3.5 shrink-0 ' +
+                                 (pr.status === 'merged'
+                                    ? 'text-review-approved'
+                                    : 'text-status-info')
+                              }
+                           />
+                           <span className="shrink-0 text-muted-foreground">{pr.id}</span>
+                           <span className="truncate">{pr.title}</span>
+                           <span className="ml-auto shrink-0 rounded bg-accent px-1.5 py-0.5 uppercase tracking-wide text-muted-foreground">
+                              {pr.status}
+                           </span>
                         </div>
-                     )}
-                  </Section>
-               )}
+                     ))}
+                  </div>
+               </Section>
+            )}
 
-               <IssueParentSection issue={issue} />
-               <IssueQuickActions issueRef={issue.identifier} />
-               <IssueApprovalSection issue={issue} />
-               <IssueGoalSection issue={issue} />
-               <IssueDependenciesSection issue={issue} />
-               <IssueLinkedPullRequests issueRef={issue.identifier} />
-
-               {detail.relatedIds && detail.relatedIds.length > 0 && (
-                  <Section title="Related">
-                     <div className="flex flex-col">
-                        {detail.relatedIds.map((identifier) => (
-                           <IssueRefRow key={identifier} identifier={identifier} />
-                        ))}
-                     </div>
-                  </Section>
-               )}
-
-               {detail.prLinks && detail.prLinks.length > 0 && (
-                  <Section title="Diffs">
-                     <div className="flex flex-col gap-1">
-                        {detail.prLinks.map((pr) => (
-                           <div key={pr.id} className="flex min-w-0 items-center gap-2">
-                              <GitPullRequestArrow
-                                 className={
-                                    'size-3.5 shrink-0 ' +
-                                    (pr.status === 'merged'
-                                       ? 'text-review-approved'
-                                       : 'text-status-info')
-                                 }
-                              />
-                              <span className="shrink-0 text-muted-foreground">{pr.id}</span>
-                              <span className="truncate">{pr.title}</span>
-                              <span className="ml-auto shrink-0 rounded bg-accent px-1.5 py-0.5 uppercase tracking-wide text-muted-foreground">
-                                 {pr.status}
-                              </span>
-                           </div>
-                        ))}
-                     </div>
-                  </Section>
-               )}
-
-               <IssueDetailsSection issue={issue} />
+            <IssueDetailsSection issue={issue} />
          </div>
       </div>
    );

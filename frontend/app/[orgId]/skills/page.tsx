@@ -102,11 +102,8 @@ function SkillsScreen() {
 
    const header = (
       <div className="flex w-full flex-col border-b">
-         <div className="flex flex-wrap items-start justify-between gap-4 px-6 py-3">
-            <div className="min-w-0">
-               <span className="font-medium">{t('title')}</span>
-               <p className="mt-1 max-w-2xl text-muted-foreground">{t('subtitle')}</p>
-            </div>
+         <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
+            <h1 className="min-w-0 truncate">{t('title')}</h1>
             {canEdit ? (
                <Button size="xs" variant="secondary" onClick={() => setCreating(true)}>
                   <Plus className="size-3.5" />

@@ -1,9 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
+
+import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 
 import {
    AlertDialog,
@@ -82,6 +85,7 @@ export default function Agents() {
    const common = useTranslations('agentsChat.common');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
+   const coverage = useAgentCoverage();
 
    const agents = useAgentsStore((state) => state.agents);
    const archived = useAgentsStore((state) => state.archived);
@@ -238,7 +242,7 @@ export default function Agents() {
       await load();
    };
 
-   const header = (column: AgentColumn, label: string, align?: string) => {
+   const header = (column: AgentColumn, label: string, align?: string, hint?: string) => {
       if (!columns.includes(column)) return null;
       const key = SORT_FOR_COLUMN[column];
       const classes = cn(
@@ -248,7 +252,11 @@ export default function Agents() {
          align
       );
       if (!key) {
-         return <div className={classes}>{label}</div>;
+         return (
+            <div className={classes} title={hint}>
+               {label}
+            </div>
+         );
       }
       return (
          <div className={classes}>
@@ -271,120 +279,132 @@ export default function Agents() {
    return (
       <div className="flex h-full w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-         <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
-            <Checkbox
-               checked={allSelected}
-               onCheckedChange={() => setSelected(allSelected ? [] : rows.map((agent) => agent.id))}
-               aria-label={t('selectAll')}
-               className="shrink-0"
-            />
-            <button
-               type="button"
-               onClick={() => sortBy('name')}
-               className={cn(
-                  'min-w-0 flex-1 text-left hover:text-foreground',
-                  sortKey === 'name' && 'text-foreground'
-               )}
-            >
-               {t('colAgent')}
-               {sortKey === 'name' ? <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span> : null}
-            </button>
-            {header('presence', t('colPresence'))}
-            {header('workload', t('colWorkload'))}
-            {header('runtime', t('colRuntime'))}
-            {header('activity', t('colActivity'))}
-            {header('runs', t('colRuns'), 'justify-end')}
-            {header('lastActive', t('colLastActive'))}
-            {header('model', t('colModel'))}
-            {header('owner', t('colOwner'))}
-            {header('access', t('colAccess'))}
-            <span className="size-6 shrink-0" aria-hidden />
-         </div>
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
+               <Checkbox
+                  checked={allSelected}
+                  onCheckedChange={() =>
+                     setSelected(allSelected ? [] : rows.map((agent) => agent.id))
+                  }
+                  aria-label={t('selectAll')}
+                  className="shrink-0"
+               />
+               <button
+                  type="button"
+                  onClick={() => sortBy('name')}
+                  className={cn(
+                     'min-w-0 flex-1 text-left hover:text-foreground',
+                     sortKey === 'name' && 'text-foreground'
+                  )}
+               >
+                  {t('colAgent')}
+                  {sortKey === 'name' ? (
+                     <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span>
+                  ) : null}
+               </button>
+               {header('presence', t('colPresence'), undefined, t('colPresenceHint'))}
+               {header('workload', t('colWorkload'))}
+               {header('runtime', t('colRuntime'))}
+               {header('activity', t('colActivity'))}
+               {header('runs', t('colRuns'), 'justify-end')}
+               {header('lastActive', t('colLastActive'))}
+               {header('model', t('colModel'))}
+               {header('owner', t('colOwner'))}
+               {header('access', t('colAccess'))}
+               <span className="size-6 shrink-0" aria-hidden />
+            </div>
 
-         {bulkReport ? (
-            <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
-               <div className="flex items-center gap-3">
-                  <span>{t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}</span>
-                  <Button size="xs" variant="ghost" onClick={() => setBulkReport(null)}>
-                     {common('close')}
+            {bulkReport ? (
+               <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
+                  <div className="flex items-center gap-3">
+                     <span>
+                        {t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}
+                     </span>
+                     <Button size="xs" variant="ghost" onClick={() => setBulkReport(null)}>
+                        {common('close')}
+                     </Button>
+                  </div>
+                  {bulkReport.failures.length > 0 ? (
+                     <ul className="mt-1 text-muted-foreground">
+                        <li>{t('bulkFailed', { count: bulkReport.failures.length })}</li>
+                        {bulkReport.failures.map((failure) => (
+                           <li key={failure}>{failure}</li>
+                        ))}
+                     </ul>
+                  ) : null}
+               </div>
+            ) : null}
+
+            {loading ? (
+               <div className="flex flex-col gap-px p-6">
+                  {[0, 1, 2, 3, 4].map((row) => (
+                     <div key={row} className="flex items-center gap-3 py-2">
+                        <Skeleton className="size-8 rounded-md" />
+                        <Skeleton className="h-4 w-48" />
+                        <Skeleton className="ml-auto h-4 w-24" />
+                        <Skeleton className="hidden h-4 w-20 md:block" />
+                     </div>
+                  ))}
+               </div>
+            ) : storedError ? (
+               <div className="flex flex-col items-start gap-3 px-6 py-10">
+                  <p className="text-muted-foreground">{storedError}</p>
+                  <Button size="xs" variant="secondary" onClick={() => void load()}>
+                     {common('retry')}
                   </Button>
                </div>
-               {bulkReport.failures.length > 0 ? (
-                  <ul className="mt-1 text-muted-foreground">
-                     <li>{t('bulkFailed', { count: bulkReport.failures.length })}</li>
-                     {bulkReport.failures.map((failure) => (
-                        <li key={failure}>{failure}</li>
-                     ))}
-                  </ul>
-               ) : null}
-            </div>
-         ) : null}
-
-         {loading ? (
-            <div className="flex flex-col gap-px p-6">
-               {[0, 1, 2, 3, 4].map((row) => (
-                  <div key={row} className="flex items-center gap-3 py-2">
-                     <Skeleton className="size-8 rounded-md" />
-                     <Skeleton className="h-4 w-48" />
-                     <Skeleton className="ml-auto h-4 w-24" />
-                     <Skeleton className="hidden h-4 w-20 md:block" />
-                  </div>
-               ))}
-            </div>
-         ) : storedError ? (
-            <div className="flex flex-col items-start gap-3 px-6 py-10">
-               <p className="text-muted-foreground">{storedError}</p>
-               <Button size="xs" variant="secondary" onClick={() => void load()}>
-                  {common('retry')}
-               </Button>
-            </div>
-         ) : rows.length === 0 ? (
-            <div className="px-6 py-10 text-muted-foreground">
-               {Object.values(filters).some(Boolean) ? (
-                  t('noMatch')
-               ) : scope === 'archived' ? (
-                  t('emptyArchived')
-               ) : (
-                  <>
-                     <p>{t('empty')}</p>
-                     <p className="mt-1">{t('emptyHint')}</p>
-                  </>
-               )}
-            </div>
-         ) : (
-            rows.map((agent) => (
-               <AgentLine
-                  key={agent.id}
-                  agent={agent}
-                  roster={roster.get(agent.id)}
-                  columns={columns}
-                  selected={selected.includes(agent.id)}
-                  onToggleSelected={toggleSelected}
-                  actions={{
-                     onDuplicate: (target) =>
-                        router.push(`/${orgId}/agents/new?duplicate=${target.id}`),
-                     onCancelRuns: (target) => {
-                        const entry = roster.get(target.id);
-                        const running = entry?.running ?? 0;
-                        const queued = entry?.queued ?? 0;
-                        if (running + queued === 0) {
-                           toast.info(t('cancelRunsNone'));
-                           return;
-                        }
-                        setConfirm({ kind: 'cancel-runs', agent: target, running, queued });
-                     },
-                     onArchive: (target) =>
-                        setConfirm({ kind: 'archive', agent: target, running: 0, queued: 0 }),
-                     onRestore: (target) => void restore(target),
-                  }}
-               />
-            ))
-         )}
+            ) : rows.length === 0 ? (
+               <div className="px-6 py-10 text-muted-foreground">
+                  {Object.values(filters).some(Boolean) ? (
+                     t('noMatch')
+                  ) : scope === 'archived' ? (
+                     t('emptyArchived')
+                  ) : (
+                     <div className="flex max-w-md flex-col items-start gap-3">
+                        <h2 className="text-foreground">{t('empty')}</h2>
+                        <p className="leading-relaxed">{t('emptyHint')}</p>
+                        <Button asChild>
+                           <Link href={`/${orgId}/agents/new`}>{t('emptyCta')}</Link>
+                        </Button>
+                     </div>
+                  )}
+               </div>
+            ) : (
+               rows.map((agent) => (
+                  <AgentLine
+                     key={agent.id}
+                     agent={agent}
+                     roster={roster.get(agent.id)}
+                     coverage={coverage}
+                     columns={columns}
+                     selected={selected.includes(agent.id)}
+                     onToggleSelected={toggleSelected}
+                     actions={{
+                        onDuplicate: (target) =>
+                           router.push(`/${orgId}/agents/new?duplicate=${target.id}`),
+                        onCancelRuns: (target) => {
+                           const entry = roster.get(target.id);
+                           const running = entry?.running ?? 0;
+                           const queued = entry?.queued ?? 0;
+                           if (running + queued === 0) {
+                              toast.info(t('cancelRunsNone'));
+                              return;
+                           }
+                           setConfirm({ kind: 'cancel-runs', agent: target, running, queued });
+                        },
+                        onArchive: (target) =>
+                           setConfirm({ kind: 'archive', agent: target, running: 0, queued: 0 }),
+                        onRestore: (target) => void restore(target),
+                     }}
+                  />
+               ))
+            )}
          </div>
 
          {selectedRows.length > 0 ? (
             <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
-               <span className="font-medium">{t('bulkSelected', { count: selectedRows.length })}</span>
+               <span className="font-medium">
+                  {t('bulkSelected', { count: selectedRows.length })}
+               </span>
                {scope === 'archived' ? (
                   <Button
                      size="xs"

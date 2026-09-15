@@ -18,19 +18,14 @@ function HeaderNav() {
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
 
    return (
-      <div className="flex h-auto w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-               <span className="font-medium">{t('title')}</span>
-               <p className="mt-1 max-w-2xl text-muted-foreground">{t('description')}</p>
-            </div>
-            {canEdit ? (
-               <Button size="xs" variant="secondary" onClick={() => openModal()}>
-                  <Plus className="size-4" />
-                  {t('create')}
-               </Button>
-            ) : null}
-         </div>
+      <div className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
+         {canEdit ? (
+            <Button size="xs" variant="secondary" onClick={() => openModal()}>
+               <Plus className="size-4" />
+               {t('create')}
+            </Button>
+         ) : null}
       </div>
    );
 }
@@ -48,7 +43,9 @@ function HeaderOptions() {
                size="xs"
                variant="outline"
                className={cn(
-                  'border-muted-foreground/15',
+                  // The panels these open are desktop-only; a button that does
+                  // nothing on a phone is worse than no button.
+                  'hidden border-muted-foreground/15 lg:inline-flex',
                   openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
                )}
                onClick={() => togglePanel('insights')}
@@ -60,7 +57,7 @@ function HeaderOptions() {
                size="xs"
                variant="outline"
                className={cn(
-                  'border-muted-foreground/15',
+                  'hidden border-muted-foreground/15 lg:inline-flex',
                   openPanel === 'breakdown' && 'bg-secondary hover:bg-secondary/80'
                )}
                onClick={() => togglePanel('breakdown')}

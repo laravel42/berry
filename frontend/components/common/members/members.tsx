@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { JoinLinksPanel } from '@/components/common/settings/join-links-settings';
 import { SettingsCard, SettingsRow, SettingsSection } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
@@ -218,6 +219,7 @@ export default function Members() {
 
    const [busy, setBusy] = useState<string | null>(null);
    const [removing, setRemoving] = useState<WorkspaceMemberRole | null>(null);
+   const [revoking, setRevoking] = useState<WorkspaceInvitation | null>(null);
 
    const changeRole = async (member: WorkspaceMemberRole, role: WorkspaceRole) => {
       setBusy(member.userId);
@@ -252,8 +254,20 @@ export default function Members() {
                  ? cause.message
                  : t('removeFailed')
          );
+         // Rethrown so the confirmation stays open on the failure it just named.
+         throw cause;
       } finally {
          setBusy(null);
+      }
+   };
+
+   const confirmRevoke = async (invitation: WorkspaceInvitation) => {
+      try {
+         await revokeWorkspaceInvitation(workspaceId, invitation.id);
+         invitations.reload();
+      } catch (cause) {
+         toast.error(cause instanceof Error ? cause.message : t('revokeFailed'));
+         throw cause;
       }
    };
 
@@ -416,17 +430,7 @@ export default function Members() {
                                        size="xs"
                                        variant="ghost"
                                        className="text-status-danger hover:text-status-danger"
-                                       onClick={() =>
-                                          void revokeWorkspaceInvitation(workspaceId, invitation.id)
-                                             .then(() => invitations.reload())
-                                             .catch((cause: unknown) =>
-                                                toast.error(
-                                                   cause instanceof Error
-                                                      ? cause.message
-                                                      : t('revokeFailed')
-                                                )
-                                             )
-                                       }
+                                       onClick={() => setRevoking(invitation)}
                                     >
                                        {t('revoke')}
                                     </Button>
@@ -514,28 +518,27 @@ export default function Members() {
             </DialogContent>
          </Dialog>
 
-         <Dialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>{t('removeTitle')}</DialogTitle>
-                  <DialogDescription>
-                     {t('removeBody', { name: removing?.name ?? '' })}
-                  </DialogDescription>
-               </DialogHeader>
-               <DialogFooter>
-                  <Button variant="secondary" onClick={() => setRemoving(null)}>
-                     {t('cancel')}
-                  </Button>
-                  <Button
-                     variant="destructive"
-                     disabled={busy !== null}
-                     onClick={() => void confirmRemove()}
-                  >
-                     {t('removeAction')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
+         <ConfirmAction
+            open={removing !== null}
+            onOpenChange={(open) => !open && setRemoving(null)}
+            title={t('removeTitle')}
+            description={t('removeBody', { name: removing?.name ?? '' })}
+            confirmLabel={t('removeAction')}
+            cancelLabel={t('cancel')}
+            destructive
+            onConfirm={confirmRemove}
+         />
+
+         <ConfirmAction
+            open={revoking !== null}
+            onOpenChange={(open) => !open && setRevoking(null)}
+            title={t('revokeTitle')}
+            description={t('revokeBody', { email: revoking?.email ?? '' })}
+            confirmLabel={t('revokeAction')}
+            cancelLabel={t('cancel')}
+            destructive
+            onConfirm={() => (revoking ? confirmRevoke(revoking) : undefined)}
+         />
       </div>
    );
 }

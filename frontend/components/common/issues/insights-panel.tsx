@@ -19,11 +19,11 @@ import { usePanelFilter } from './use-panel-filter';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const PRIORITY_COLORS: Record<string, string> = {
-   'no-priority': '#64748b',
-   'urgent': '#eb5757',
-   'high': '#f2994a',
-   'medium': '#facc15',
-   'low': '#4cb782',
+   'no-priority': 'var(--status-neutral)',
+   'urgent': 'var(--status-danger)',
+   'high': 'var(--status-warning)',
+   'medium': 'var(--chart-2)',
+   'low': 'var(--status-success)',
 };
 
 interface InsightsRow {
@@ -234,7 +234,6 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
                </tbody>
             </table>
          </div>
-
       </div>
    );
 }

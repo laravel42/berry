@@ -33,7 +33,7 @@ export function DatePicker({ date, onDateChange }: DatePickerProps) {
          <PopoverTrigger asChild>
             <Button
                variant="ghost"
-               className="h-7 px-2 justify-start text-left font-normal"
+               className="h-7 justify-start px-2 text-left font-normal has-[>svg]:px-2"
                size="sm"
             >
                <CalendarIcon className="h-4 w-4 md:mr-0.5" />

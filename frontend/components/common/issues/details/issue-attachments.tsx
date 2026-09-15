@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { AttachmentPreview } from '@/components/layout/attachments/attachment-preview';
 import { Bot, Download, FileText, Loader2, Paperclip } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -25,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * what it always was, a list of uploads.
  */
 export function IssueAttachments({ issueRef }: { issueRef: string }) {
+   const t = useTranslations('issueDetail.attachments');
    const [attachments, setAttachments] = useState<ApiAttachment[]>([]);
    const [pending, setPending] = useState<string | null>(null);
    const [uploading, setUploading] = useState(false);
@@ -97,15 +99,17 @@ export function IssueAttachments({ issueRef }: { issueRef: string }) {
    return (
       <div>
          <div className="mb-2 flex items-center gap-1.5 pb-[7px]">
-            <h3 className="font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-               {attachments.length > 0 ? `files (${attachments.length})` : 'files'}
-            </h3>
+            <h2 data-heading="label" className="text-muted-foreground">
+               {attachments.length > 0
+                  ? t('titleCount', { count: attachments.length })
+                  : t('title')}
+            </h2>
             <Button
                variant="ghost"
                size="icon"
                className="size-6 text-muted-foreground"
                disabled={uploading}
-               aria-label={uploading ? 'Uploading…' : 'Add a file'}
+               aria-label={uploading ? t('uploading') : t('add')}
                onClick={() => picker.current?.click()}
             >
                {uploading ? (

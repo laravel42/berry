@@ -46,7 +46,10 @@ consume semantic state names rather than raw colors.
 
 Berry Dark is the default product theme. Berry Light is an accessible print-like inversion;
 System selects between those two. The inherited `pure-light`, `magic-blue`, `classic-dark`,
-and custom theme variants are not Berry themes.
+and custom theme variants are not Berry themes. Today `theme-provider.tsx` forces dark. The
+shell (rail and tab strip) is dark chrome in either theme and sets its own text colour, so
+`MainLayout` resets `text-foreground` at the page boundary: a page never inherits the
+shell's colour, which is what makes the light theme safe to enable without an audit.
 
 Semantic state aliases keep color meaning stable across both themes:
 
@@ -57,9 +60,16 @@ Semantic state aliases keep color meaning stable across both themes:
 | `status-danger` | Failed, blocked, destructive |
 | `status-info` | Informational or running |
 | `status-neutral` | Paused, cancelled, inactive |
-| `actor-human` | Human-authored activity/avatar accent |
-| `actor-agent` | Agent-authored activity/avatar accent |
-| `review-pending`, `review-approved`, `review-changes` | Review-gate states |
+| `actor-human` | Human-authored activity: the author's name and avatar ring in the activity feed, comments and the run transcript (amber) |
+| `actor-agent` | Agent-authored activity: the same slots when an agent wrote it, and the agent mark's working tone (azure) |
+| `review-pending`, `review-approved`, `review-changes` | Review-gate states: the review card, the reviewer property and the approval queue rows |
+| `column-tint-*`, `group-tint-*` | Board column and list group headers: the status tone mixed at 10 % (board) or 5 % (list) into `--container`, one per tone (`neutral`, `info`, `warning`, `success`, `danger`) |
+
+A status never carries a colour of its own. `data/status.tsx` gives each one a *tone*
+(`statusTone()`), and everything that colours by status - the glyph, the column tint, the
+group bar - reads the matching `--status-*` token, so a column cannot disagree with the
+mark beside it in either theme. In review and Blocked are warning, Done is success, In
+progress is info, and Backlog, Todo and Cancelled are neutral.
 
 Berry is never an error color. Destructive/error actions use the separate `status-danger`
 token. Status marks retain one bracket silhouette; the berry dot, label, and optional
@@ -67,28 +77,44 @@ non-color cue communicate the state.
 
 ### Typography
 
+The app ships two faces, loaded in `app/layout.tsx`: JetBrains Mono (300-600) as the one
+interface face - `--font-sans` and `--font-mono` both resolve to it - and DM Serif Display
+(400) as the display face.
+
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
-| Interface | Geist Mono 300, 13/20 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | DM Serif Display | Wordmark, page display titles, and quoted agent handoff only |
-| Micro label | 8–11 px, usually medium | Restrict to nonessential badges; never primary content |
-| Caption | `text-xs` = 11/16 px | Metadata, timestamps, compact labels |
-| Body compact | `text-sm` = 13/20 px | Default dense UI body and controls |
-| Body | `text-base` = 14/22 px | Forms and reading surfaces; mobile inputs already force 16 px |
-| Heading small | `text-lg` = 16/24 px, semibold | Dialog/card title |
-| Heading medium | `text-xl`–`text-2xl` = 18–20 px | Page/section title |
-| Display | `text-3xl` = 24/28 px | Rare overview/empty-state emphasis |
-| Sidebar menu | `text-sm` = 15/26 px, `text-xs` = 12/16 px | Already compacted; do not inherit the workspace scale |
+| Interface | JetBrains Mono 400, 13 px / 1.2 | Default for controls, body, metadata, identifiers, logs, and durations |
+| Display | DM Serif Display 400 | Wordmark, page display titles (the task, goal, plan and project title; a full-screen empty or access state) and quoted agent handoff only |
+| Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here. `text-base` (14 px) is the rail items and tab titles |
+| Heading small | `h4` = 13/20 px | Row-level heading |
+| Heading | `h3` = 14/20, `h2` = 16/24, `h1` = 18/24 px, weight 500 | Dialog/card title, section title, page title |
+| Section label | `data-heading="label"` = 12/16 px, 500, tracked caps | "Sub-tasks", "Files", "Activity": labels for a group inside a page, not the rail's section headings |
+| Display size | `data-heading="display"` = 24/28 px | Page display titles and the rare empty-state emphasis |
+| Sidebar menu | `[data-slot='sidebar']` keeps the inherited scale | Already compacted; do not inherit the workspace scale |
+
+Sizes come from the element, never from a utility. `h1`-`h4` step down through the named
+scale in the base layer of `globals.css`, everything else sits at the 13 px body, and a
+`text-*` size utility in a component is refused by ESLint (`no-restricted-syntax`). A form
+field standing in for a heading - the title field of a create dialog - borrows the size
+with `data-heading="h1|h2|h3"`; `data-heading="display"` is the page display size; and
+`data-heading="label"` is the section-label role. Only the wordmark sizes outside the scale,
+through `data-wordmark`.
+
+**Weight.** The body is 400. `h1`-`h3`, their `data-heading` stand-ins and the section
+label carry one step, to 500. That is the only weight step the scale spends: mono has no
+italic voice and few weights, so the rest of the hierarchy comes from size, tone and
+spacing. `font-normal` resolves to 300 (`--font-weight-normal`), the shell's weight, not the
+page's; do not reach for it to "reset" text.
 
 Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` in
 `globals.css`. Do not rely on the user-agent fill. Placeholders fade
 `--foreground` (about 40% opacity), not low-opacity `--muted-foreground`, so they
 stay visible on void.
 
-Geist Mono defaults to weight 300. Hierarchy comes from size, tone, and spacing rather than many weights.
-DM Serif Display never appears in buttons, controls, tables, or dense queue rows. Prefer the
-defined scale over new arbitrary values; migrate recurring 10 px and 11 px labels into named
-`type-micro` and `type-overline` styles if they survive accessibility review.
+DM Serif Display never appears in buttons, controls, tables, dense queue rows, or section
+titles inside a page: a settings page name or a card title is a heading, not a display
+title. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
+labels into named `type-micro` and `type-overline` styles if they survive accessibility review.
 
 ### Spacing and sizing
 
@@ -220,6 +246,24 @@ property selectors, empty/loading states, toasts, charts, diff views, and settin
 Avoiding likeness is a system-level task: changing a logo or accent color alone is
 insufficient. At least navigation hierarchy, workspace framing, row/card anatomy, status
 language, agent representation, and review interactions should express Berry's model.
+
+## Confirming irreversible actions
+
+Anything that cannot be undone from the app - delete, remove, revoke, uninstall, leave -
+confirms through `components/common/confirm-action.tsx`, a wrapper over the `AlertDialog`
+primitive. The rule it encodes: the title asks the question and names the thing ("Revoke
+this key?"), the body states the consequence (what stops, what is lost, whether it can be
+undone), and the confirm button carries the verb ("Revoke", "Delete forever"), never "OK".
+
+`ConfirmAction` takes `open`/`onOpenChange`, `title`, `description`, `confirmLabel`, an
+optional `cancelLabel` (defaults to the common "Cancel"), `destructive` to paint the button,
+`children` for a typed-name field or an affected list, `confirmDisabled` to hold the button
+until a precondition is met, `pendingLabel`, and `onConfirm`, which may return a promise.
+While that promise is pending the dialog cannot be dismissed and both buttons are held; it
+closes on success and stays open on failure, so the caller toasts the reason and the reader
+can try again or back out. `window.confirm` (no pending state, no styling, no focus
+management) and a plain `Dialog` (closes on Escape mid-request) are not acceptable here.
+Reversible actions - archive with a restore, signing a device out - do not confirm.
 
 ## Required states and accessibility contract
 

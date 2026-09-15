@@ -1,5 +1,6 @@
 'use client';
 
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { subscribeWorkspaceEvents } from '@/lib/events';
@@ -69,6 +70,7 @@ function RepositoriesDirectory() {
    const t = useTranslations('workspaceAdmin.repositories');
    // The two words every settings page that autosaves says, said the same way.
    const tSave = useTranslations('workspaceAdmin.save');
+   const [removing, setRemoving] = useState<Row | null>(null);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const searchParams = useSearchParams();
    const router = useRouter();
@@ -520,7 +522,7 @@ function RepositoriesDirectory() {
                               variant="ghost"
                               className="size-8 shrink-0"
                               aria-label={t('remove')}
-                              onClick={() => void remove(row)}
+                              onClick={() => (row.id ? setRemoving(row) : void remove(row))}
                            >
                               <Trash2 className="size-4" />
                            </Button>
@@ -546,6 +548,16 @@ function RepositoriesDirectory() {
                ))}
             </ul>
          )}
+
+         <ConfirmAction
+            open={removing !== null}
+            onOpenChange={(open) => !open && setRemoving(null)}
+            title={t('removeTitle')}
+            description={t('removeBody', { name: removing?.url ?? '' })}
+            confirmLabel={t('removeAction')}
+            destructive
+            onConfirm={() => (removing ? remove(removing) : undefined)}
+         />
 
          {workspaceId && (
             <GitHubImportPicker

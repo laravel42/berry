@@ -1,17 +1,19 @@
 'use client';
 
+import { BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import {
-   ArtifactTreeNode,
-   RunArtifact,
+   type ArtifactTreeNode,
+   type RunArtifact,
    buildArtifactTree,
    downloadArtifact,
    formatFileSize,
    loadIssueArtifacts,
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
-import { Bot, ChevronDown, ChevronRight, Download, FileCode2, Folder, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Download, FileCode2, Folder, Loader2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 
 /**
  * What the agents on this issue produced, as the tree they wrote.
@@ -21,46 +23,102 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
  * something and it has a structure — src/password/generator.ts beside
  * src/password/index.ts is a fact about the work, and flattening it to a list
  * of names throws that away.
+ *
+ * Folded by default. The tree is the evidence, not the message: a reader
+ * arriving at a delivered task wants the agent's summary first and the forty
+ * files it touched on request, not four levels of folders between the title
+ * and what was said. The fold remembers nothing, so every visit starts small.
+ *
+ * The review pane embeds the same tree under its own heading, unfolded and
+ * narrowed to the run under review; the optional props exist for that.
  */
-export function IssueArtifacts({ issueRef }: { issueRef: string }) {
-   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
+export interface IssueArtifactsProps {
+   issueRef: string;
+   /**
+    * Replaces the section's own caption text. `null` removes the caption row
+    * altogether — the caller supplies its own heading — and with no row to
+    * hold the toggle, the tree is always shown.
+    */
+   heading?: ReactNode | null;
+   /** Start with the tree unfolded; the task page leaves it folded. */
+   defaultOpen?: boolean;
+   /** The files, once loaded (after the `runId` filter), so a caller can state the count without a second fetch. */
+   onLoaded?: (artifacts: RunArtifact[]) => void;
+   /** Show only what this run produced. */
+   runId?: string;
+}
+
+export function IssueArtifacts({
+   issueRef,
+   heading,
+   defaultOpen = false,
+   onLoaded,
+   runId,
+}: IssueArtifactsProps) {
+   const t = useTranslations('issueDetail.artifacts');
+   const treeId = useId();
+   const [all, setAll] = useState<RunArtifact[]>([]);
+   const [loaded, setLoaded] = useState(false);
    const [pending, setPending] = useState<string | null>(null);
    const [error, setError] = useState<string | null>(null);
    const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+   const [open, setOpen] = useState(defaultOpen);
+
+   // The latest callback, read when the fetch lands: a caller re-rendering
+   // with a new closure must not trigger another fetch.
+   const onLoadedRef = useRef(onLoaded);
+   onLoadedRef.current = onLoaded;
 
    useEffect(() => {
+      setLoaded(false);
       if (!issueRef) {
-         setArtifacts([]);
+         setAll([]);
          return;
       }
       let cancelled = false;
       void loadIssueArtifacts(issueRef)
-         .then((loaded) => {
-            if (!cancelled) setArtifacts(loaded);
+         .then((fetched) => {
+            if (cancelled) return;
+            setAll(fetched);
+            setLoaded(true);
          })
          .catch(() => {
-            if (!cancelled) setArtifacts([]);
+            if (cancelled) return;
+            setAll([]);
+            setLoaded(true);
          });
       return () => {
          cancelled = true;
       };
    }, [issueRef]);
 
+   const artifacts = useMemo(
+      () => (runId ? all.filter((artifact) => artifact.runId === runId) : all),
+      [all, runId]
+   );
+
+   useEffect(() => {
+      if (loaded) onLoadedRef.current?.(artifacts);
+   }, [loaded, artifacts]);
+
    const tree = useMemo(() => buildArtifactTree(artifacts), [artifacts]);
 
-   const download = useCallback(async (artifact: RunArtifact) => {
-      setPending(artifact.id);
-      setError(null);
-      try {
-         await downloadArtifact(artifact);
-      } catch {
-         // Named rather than silent: a download that does nothing looks like a
-         // broken button, and the file may simply no longer be there.
-         setError(`${artifact.name} could not be downloaded.`);
-      } finally {
-         setPending(null);
-      }
-   }, []);
+   const download = useCallback(
+      async (artifact: RunArtifact) => {
+         setPending(artifact.id);
+         setError(null);
+         try {
+            await downloadArtifact(artifact);
+         } catch {
+            // Named rather than silent: a download that does nothing looks like
+            // a broken button, and the file may simply no longer be there.
+            setError(t('downloadFailed', { name: artifact.name }));
+         } finally {
+            setPending(null);
+         }
+      },
+      [t]
+   );
 
    const toggle = useCallback((path: string) => {
       setCollapsed((previous) => {
@@ -74,37 +132,68 @@ export function IssueArtifacts({ issueRef }: { issueRef: string }) {
    if (artifacts.length === 0) return null;
 
    const agents = [...new Set(artifacts.map((artifact) => artifact.agentName))].filter(Boolean);
+   const showTree = heading === null || open;
 
    return (
-      <div>
-         <h3 className="mb-2 flex items-center gap-2 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-            <span>
-               produced ({artifacts.length} {artifacts.length === 1 ? 'file' : 'files'})
-            </span>
-            {agents.length > 0 ? (
-               <span className="flex items-center gap-1 font-normal">
-                  <Bot className="size-3.5" />
-                  {agents.join(', ')}
-               </span>
-            ) : null}
-         </h3>
+      <section>
+         {heading === null ? null : (
+            <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pb-[7px]">
+               <h2 data-heading="label" className="text-muted-foreground">
+                  {heading ?? t('title', { count: artifacts.length })}
+               </h2>
+               {agents.length > 0 ? (
+                  <span className="flex min-w-0 items-center gap-1 text-actor-agent">
+                     <BerryMark
+                        size="sm"
+                        tone="working"
+                        bracketClassName="text-actor-agent"
+                        className="[&_circle]:text-actor-agent"
+                     />
+                     <span className="min-w-0 truncate">
+                        {t('by', { names: agents.join(', ') })}
+                     </span>
+                  </span>
+               ) : null}
+               <Button
+                  variant="ghost"
+                  size="xs"
+                  className="ml-auto text-muted-foreground"
+                  aria-expanded={open}
+                  aria-controls={treeId}
+                  onClick={() => setOpen((value) => !value)}
+               >
+                  {open ? (
+                     <ChevronDown className="mr-1 size-3.5" aria-hidden />
+                  ) : (
+                     <ChevronRight className="mr-1 size-3.5" aria-hidden />
+                  )}
+                  {open ? t('hide') : t('show')}
+               </Button>
+            </div>
+         )}
 
-         <div className="flex flex-col">
-            {tree.map((node) => (
-               <TreeRow
-                  key={node.path}
-                  node={node}
-                  depth={0}
-                  collapsed={collapsed}
-                  onToggle={toggle}
-                  onDownload={download}
-                  pending={pending}
-               />
-            ))}
-         </div>
+         {showTree ? (
+            <div id={treeId} className="flex flex-col">
+               {tree.map((node) => (
+                  <TreeRow
+                     key={node.path}
+                     node={node}
+                     depth={0}
+                     collapsed={collapsed}
+                     onToggle={toggle}
+                     onDownload={download}
+                     pending={pending}
+                  />
+               ))}
+            </div>
+         ) : null}
 
-         {error ? <p className="mt-2 text-destructive">{error}</p> : null}
-      </div>
+         {error ? (
+            <p className="mt-2 text-status-danger" role="alert">
+               {error}
+            </p>
+         ) : null}
+      </section>
    );
 }
 
@@ -123,6 +212,7 @@ function TreeRow({
    onDownload: (artifact: RunArtifact) => void;
    pending: string | null;
 }) {
+   const t = useTranslations('issueDetail.artifacts');
    // Indent by nesting rather than by a computed class name, so Tailwind's
    // scanner sees every padding it has to emit.
    const indent = { paddingLeft: `${depth * 14}px` };
@@ -134,7 +224,7 @@ function TreeRow({
             className="flex min-w-0 items-center gap-2 border-b border-border/50 py-1.5"
             style={indent}
          >
-            <FileCode2 className="size-4 shrink-0 text-muted-foreground" />
+            <FileCode2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="truncate">{node.name}</span>
             <span className="shrink-0 text-muted-foreground">
                {formatFileSize(artifact.sizeBytes)}
@@ -143,15 +233,15 @@ function TreeRow({
                variant="ghost"
                size="icon"
                className={cn('ml-auto size-7 shrink-0')}
-               aria-label={`Download ${artifact.path}`}
+               aria-label={t('download', { path: artifact.path })}
                title={artifact.path}
                disabled={pending === artifact.id}
                onClick={() => void onDownload(artifact)}
             >
                {pending === artifact.id ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
                ) : (
-                  <Download className="size-4" />
+                  <Download className="size-4" aria-hidden />
                )}
             </Button>
          </div>
@@ -165,15 +255,15 @@ function TreeRow({
             type="button"
             onClick={() => onToggle(node.path)}
             aria-expanded={!isCollapsed}
-            className="flex min-w-0 items-center gap-1.5 py-1.5 text-left hover:bg-sidebar/50"
+            className="flex min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-left outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
             style={indent}
          >
             {isCollapsed ? (
-               <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+               <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
             ) : (
-               <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+               <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
             )}
-            <Folder className="size-4 shrink-0 text-muted-foreground" />
+            <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="truncate font-medium">{node.name}</span>
             <span className="shrink-0 text-muted-foreground">{countFiles(node)}</span>
          </button>
@@ -195,8 +285,5 @@ function TreeRow({
 }
 
 function countFiles(node: ArtifactTreeNode): number {
-   return node.children.reduce(
-      (total, child) => total + (child.file ? 1 : countFiles(child)),
-      0
-   );
+   return node.children.reduce((total, child) => total + (child.file ? 1 : countFiles(child)), 0);
 }

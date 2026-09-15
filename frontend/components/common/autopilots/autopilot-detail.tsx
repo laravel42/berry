@@ -249,7 +249,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                            <span
                               className={cn(
                                  'size-1.5 rounded-full',
-                                 paused ? 'bg-muted-foreground/40' : 'bg-[#00cc66]'
+                                 paused ? 'bg-muted-foreground/40' : 'bg-status-success'
                               )}
                               aria-hidden
                            />
@@ -313,7 +313,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
 
             {blocked === 'noRuntime' ? (
                <p
-                  className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2"
+                  className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2"
                   role="status"
                >
                   <span>{t('detail.noRuntimeBanner', { name: assigneeName })}</span>
@@ -502,7 +502,10 @@ function AccessPanel({
             ) : (
                <ul className="flex flex-col divide-y divide-border/60">
                   {members.map((member) => (
-                     <li key={member.userId} className="flex items-center justify-between gap-3 py-2.5">
+                     <li
+                        key={member.userId}
+                        className="flex items-center justify-between gap-3 py-2.5"
+                     >
                         <span className="truncate">
                            {people.find((person) => person.id === member.userId)?.name ??
                               member.userId}

@@ -64,7 +64,10 @@
    --shell-line-strong: #3a3a40;
    --shell-text: #f0edea;
    --shell-text-muted: #a8a6ac;
-   --shell-text-dim: #6b6a70;
+   /* Section headings and quiet captions on the rail. 5.4:1 on --shell-rail
+      and 5.0:1 on --shell-surface; the prototype's #6b6a70 read at 3.5:1,
+      which is below the 4.5:1 floor for text at this size. */
+   --shell-text-dim: #8a898f;
    --shell-text-faint: #4a4a50;
    --shell-accent: var(--brand-berry);
 
@@ -101,10 +104,11 @@
    --status-success: #347b5a;
    --status-warning: #9b6715;
    --status-danger: oklch(0.54 0.17 28);
-   --status-info: #397caf;
+   /* 5.2:1 on the light card surface; #397caf sat at 4.4:1 as running text. */
+   --status-info: #31709f;
    --status-neutral: var(--brand-slate);
    --actor-human: #9b6715;
-   --actor-agent: #397caf;
+   --actor-agent: #31709f;
    --review-pending: #9b6715;
    --review-approved: #347b5a;
    --review-changes: oklch(0.54 0.17 28);
@@ -125,8 +129,23 @@
       its first colour, and an edge that matches the column disappears, where
       one that fell back to white would blaze. */
    --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
-   /* Circle board column header neutral tint (~6% zinc on container). */
-   --board-column-header-neutral: color-mix(in oklab, var(--color-zinc-500) 6%, var(--container));
+   /* Board column and list group header tints. A status column takes a wash
+      of its own semantic tone over the container, so the header agrees with
+      the glyph beside it: In review and Blocked wear warning, Done wears
+      success, In progress wears info, and the rest stay neutral. Declared
+      once for both themes on purpose -- --status-* and --container swap with
+      the theme on this same element, so the mix follows them. `column-` is
+      the board column header; `group-` is the lighter list section bar. */
+   --column-tint-neutral: color-mix(in oklab, var(--status-neutral) 8%, var(--container));
+   --column-tint-info: color-mix(in oklab, var(--status-info) 10%, var(--container));
+   --column-tint-warning: color-mix(in oklab, var(--status-warning) 10%, var(--container));
+   --column-tint-success: color-mix(in oklab, var(--status-success) 10%, var(--container));
+   --column-tint-danger: color-mix(in oklab, var(--status-danger) 10%, var(--container));
+   --group-tint-neutral: color-mix(in oklab, var(--status-neutral) 4%, var(--container));
+   --group-tint-info: color-mix(in oklab, var(--status-info) 5%, var(--container));
+   --group-tint-warning: color-mix(in oklab, var(--status-warning) 5%, var(--container));
+   --group-tint-success: color-mix(in oklab, var(--status-success) 5%, var(--container));
+   --group-tint-danger: color-mix(in oklab, var(--status-danger) 5%, var(--container));
    --sidebar: var(--brand-base);
    --sidebar-foreground: var(--brand-chalk);
    --sidebar-primary: var(--brand-berry);
@@ -156,7 +175,10 @@
    --subtle-foreground: var(--brand-ash);
    --accent: #252529;
    --accent-foreground: var(--brand-chalk);
-   --destructive: oklch(0.62 0.16 28);
+   /* A filled destructive button carries chalk text; 0.62 lightness put that
+      pair at 3.7:1, this sits at 4.9:1. Danger *text* on dark surfaces uses
+      --status-danger below, which stays lighter. */
+   --destructive: oklch(0.55 0.16 28);
    --destructive-foreground: var(--brand-chalk);
    --border: var(--brand-hairline);
    --input: #35353b;
@@ -165,13 +187,14 @@
    --status-warning: var(--brand-amber);
    --status-danger: oklch(0.68 0.15 28);
    --status-info: var(--brand-azure);
-   --status-neutral: var(--brand-slate);
+   /* Ash, not slate: neutral state is used as running text (cancelled runs,
+      paused autopilots) and slate on base is 3.1:1. */
+   --status-neutral: var(--brand-ash);
    --actor-human: var(--brand-amber);
    --actor-agent: var(--brand-azure);
    --review-pending: var(--brand-amber);
    --review-approved: var(--brand-verdant);
    --review-changes: oklch(0.68 0.15 28);
-   --board-column-header-neutral: color-mix(in oklab, var(--color-zinc-400) 8%, var(--container));
    --sidebar: var(--brand-base);
    --sidebar-foreground: var(--brand-chalk);
    --sidebar-primary: var(--brand-berry);
@@ -246,7 +269,16 @@
    --color-sidebar-ring: var(--sidebar-ring);
    --color-container: var(--container);
    --color-board-column-body: var(--board-column-body);
-   --color-board-column-header-neutral: var(--board-column-header-neutral);
+   --color-column-tint-neutral: var(--column-tint-neutral);
+   --color-column-tint-info: var(--column-tint-info);
+   --color-column-tint-warning: var(--column-tint-warning);
+   --color-column-tint-success: var(--column-tint-success);
+   --color-column-tint-danger: var(--column-tint-danger);
+   --color-group-tint-neutral: var(--group-tint-neutral);
+   --color-group-tint-info: var(--group-tint-info);
+   --color-group-tint-warning: var(--group-tint-warning);
+   --color-group-tint-success: var(--group-tint-success);
+   --color-group-tint-danger: var(--group-tint-danger);
 }
 
 @layer base {
@@ -326,6 +358,30 @@
       line-height: var(--text-3xl--line-height);
    }
 
+   /* Headings carry one step of weight over the 400 body so a page title, a
+      dialog title and a section title read as a different role from the row
+      text beside them, not merely a different size. Mono has no italic
+      voice and few weights; this is the one weight step the scale spends. */
+   h1,
+   h2,
+   h3,
+   [data-heading='h1'],
+   [data-heading='h2'],
+   [data-heading='h3'] {
+      font-weight: 500;
+   }
+
+   /* Section labels inside a page ("Sub-tasks", "Files", "Activity"): tracked
+      caps one step below the body, so they read as labels for a group and
+      not as the rail's section headings, which are a shell element. */
+   [data-heading='label'] {
+      font-size: 0.75rem;
+      line-height: 1rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+   }
+
    /* The one size set outside the scale above. The wordmark is a logo lockup,
       not running text: the word is drawn to sit against the mark beside it, so
       it has to scale with the mark and not with the surrounding UI. Kept here
@@ -397,9 +453,12 @@
       font-weight: 400;
    }
 
+   /* Selection takes the focus hue, not the brand red: berry is reserved for
+      the one primary action on a view, and a highlighted paragraph should not
+      compete with it. */
    ::selection {
-      color: #ffffff;
-      background: var(--brand-berry);
+      color: var(--foreground);
+      background: color-mix(in oklab, var(--brand-azure) 40%, transparent);
    }
 
    :where(
@@ -577,7 +636,8 @@ input[type='search'] {
    background: linear-gradient(90deg, #c4b5fd, #a78bfa, #93c5fd, #c4b5fd);
    background-size: 300% 100%;
    animation: ai-border-flow 4s linear infinite;
-   box-shadow: 0 0 0 1px color-mix(in oklab, #a78bfa 25%, transparent),
+   box-shadow:
+      0 0 0 1px color-mix(in oklab, #a78bfa 25%, transparent),
       0 10px 30px color-mix(in oklab, #a78bfa 18%, transparent);
 }
 

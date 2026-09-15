@@ -15,6 +15,8 @@ import { InboxPanel } from './inbox-states';
 
 interface InboxDetailProps {
    item: InboxItem | null;
+   /** True when the list beside this pane has no rows, so there is nothing to select. */
+   listEmpty?: boolean;
    archived: boolean;
    orgId: string;
    onArchive: () => void;
@@ -33,6 +35,7 @@ interface InboxDetailProps {
  */
 export function InboxDetail({
    item,
+   listEmpty = false,
    archived,
    orgId,
    onArchive,
@@ -43,7 +46,7 @@ export function InboxDetail({
    const [retrying, setRetrying] = useState(false);
 
    if (!item) {
-      return <InboxPanel title={t('list.selectHint')} />;
+      return listEmpty ? <div className="h-full" /> : <InboxPanel title={t('list.selectHint')} />;
    }
 
    if (item.issueDeleted) {
@@ -139,9 +142,12 @@ export function InboxDetail({
                <IssueDetails issueRef={item.identifier} />
             ) : (
                <div className="h-full overflow-y-auto px-6 py-6 sm:px-8">
-                  <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
+                  <h2
+                     data-heading="h1"
+                     className="text-balance font-display leading-[1.08] tracking-[-0.025em]"
+                  >
                      {item.title}
-                  </h1>
+                  </h2>
                   <p className="mt-4 whitespace-pre-wrap break-words leading-relaxed">
                      {item.content && item.content !== item.title
                         ? item.content

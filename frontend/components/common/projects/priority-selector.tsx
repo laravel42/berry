@@ -36,26 +36,23 @@ export function PrioritySelector({ priority, onPriorityChange }: PrioritySelecto
       }
    };
 
+   const selectedItem = priorities.find((item) => item.id === value);
+
    return (
       <div>
          <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                <Button
                   id={id}
-                  className="flex size-7 items-center justify-center"
-                  size="icon"
+                  className="flex h-7 items-center justify-start px-2 has-[>svg]:px-2"
+                  size="sm"
                   variant="ghost"
                   role="combobox"
                   aria-expanded={open}
+                  aria-label={selectedItem ? `Priority: ${selectedItem.name}` : 'Priority'}
+                  title={selectedItem?.name}
                >
-                  {(() => {
-                     const selectedItem = priorities.find((item) => item.id === value);
-                     if (selectedItem) {
-                        const Icon = selectedItem.icon;
-                        return <Icon className="text-muted-foreground size-4" />;
-                     }
-                     return null;
-                  })()}
+                  {selectedItem ? <selectedItem.icon className="size-4" aria-hidden /> : null}
                </Button>
             </PopoverTrigger>
             <PopoverContent className="border-input w-48 p-0" align="start">

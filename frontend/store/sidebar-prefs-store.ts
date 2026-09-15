@@ -28,9 +28,21 @@ interface SidebarPrefsState {
    visibility: Record<SidebarItemKey, SidebarVisibility>;
    /** Item order per section (drag & drop in the Customize sidebar modal). */
    order: Record<SidebarSection, SidebarItemKey[]>;
+   /**
+    * Whether the rail's Manage section is unfolded. Null until the person
+    * decides: then the role decides (see `manageOpenByDefault`), because an
+    * owner configures the workspace and a member mostly does not.
+    */
+   manageOpen: boolean | null;
    setBadgeStyle: (style: SidebarBadgeStyle) => void;
    setVisibility: (item: SidebarItemKey, visibility: SidebarVisibility) => void;
    moveItem: (section: SidebarSection, from: number, to: number) => void;
+   setManageOpen: (open: boolean) => void;
+}
+
+/** Owners and admins start with Manage unfolded; everyone else with it folded. */
+export function manageOpenByDefault(role: string | undefined): boolean {
+   return role === 'owner' || role === 'admin';
 }
 
 /**
@@ -65,7 +77,9 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    personal: [],
    // Goals sits under projects because that is where a goal comes from: it
    // groups the tasks one plan compiled inside a project.
-   workspace: ['projects', 'goals', 'my-issues', 'reviews', 'chat', 'proposals'],
+   // Approvals sits under reviews: both are queues of delivered work waiting
+   // on a person, and the rail reads them together.
+   workspace: ['projects', 'goals', 'my-issues', 'reviews', 'approvals', 'chat', 'proposals'],
    automate: [],
    // No runtimes entry: Runtimes lives in Settings. A stored `agent` key from
    // before the move is dropped by resolveOrder, which keeps only known keys.
@@ -135,7 +149,9 @@ export const useSidebarPrefsStore = create<SidebarPrefsState>()(
          badgeStyle: 'count',
          visibility: DEFAULT_VISIBILITY,
          order: DEFAULT_ORDER,
+         manageOpen: null,
          setBadgeStyle: (badgeStyle) => set({ badgeStyle }),
+         setManageOpen: (manageOpen) => set({ manageOpen }),
          setVisibility: (item, value) =>
             set((state) => ({ visibility: { ...state.visibility, [item]: value } })),
          moveItem: (section, from, to) =>

@@ -8,6 +8,7 @@ import {
 } from '@/components/common/issues/use-issue-list-view';
 import { useWorkspaceProperties } from '@/components/common/issues/issue-grouping';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -32,6 +33,7 @@ import {
    ArrowUpDown,
    ArrowUpNarrowWide,
    CalendarRange,
+   ChevronRight,
    LayoutGrid,
    LayoutList,
    SlidersHorizontal,
@@ -46,12 +48,21 @@ const LAYOUTS: { value: ViewType; icon: React.ElementType }[] = [
    { value: 'gantt', icon: CalendarRange },
 ];
 
+/** A control in the popover is at least 44px tall where a finger taps it. */
+const touchRow = 'max-lg:min-h-11';
+
 /**
- * The Display popover of a task list: layout, grouping (per layout), ordering
- * and its direction, what counts as visible, and the per-row properties.
+ * The Display popover of a task list.
+ *
+ * Two decisions are on the surface: which layout, and what it is grouped by.
+ * Everything else — ordering and its direction, what counts as visible, the
+ * per-row properties — is one fold away under "More options", because a
+ * person changes a layout ten times for every time they hide a card
+ * property. The fold remembers whether it was left open.
  */
 export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
-   const t = useTranslations('issueLists');
+   const t = useTranslations('issueLists.display');
+   const mode = useTranslations('issueLists.mode');
    const view = useIssueListView();
    const properties = useWorkspaceProperties();
    const {
@@ -60,19 +71,35 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       showSubIssues,
       showEmptyGroups,
       displayProperties,
+      moreOptionsOpen,
       setOrderCompletedByRecency,
       setCompletedIssues,
       setShowSubIssues,
       setShowEmptyGroups,
       toggleDisplayProperty,
+      setMoreOptionsOpen,
+      resetDisplaySettings,
    } = useDisplaySettingsStore();
 
    const isDefault =
+      view.mode === 'list' &&
       view.grouping === 'status' &&
       view.ordering === 'priority' &&
       view.direction === 'asc' &&
+      !orderCompletedByRecency &&
       completedIssues === 'all' &&
+      showSubIssues &&
       !showEmptyGroups;
+
+   // The URL carries layout, grouping and ordering per link, so those go
+   // back through the view (which clears the URL too); the rest is the store's.
+   const reset = () => {
+      view.setMode('list');
+      view.setGrouping('status');
+      view.setOrdering('priority');
+      view.setDirection('asc');
+      resetDisplaySettings();
+   };
 
    const groupings = groupingKeysForMode(view.mode);
    const takesProperties = modeTakesPropertyGrouping(view.mode);
@@ -80,232 +107,284 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
    // Spelled out rather than built from the key: `t()` is typed against the
    // English catalogue, and a template-literal key is not a key it can check.
    const layoutLabel: Record<ViewType, string> = {
-      list: t('mode.list'),
-      grid: t('mode.board'),
-      table: t('mode.table'),
-      gantt: t('mode.gantt'),
+      list: mode('list'),
+      grid: mode('board'),
+      table: mode('table'),
+      gantt: mode('gantt'),
    };
    const groupingLabel: Record<string, string> = {
-      status: t('display.status'),
-      assignee: t('display.assignee'),
-      priority: t('display.priority'),
-      project: t('display.project'),
-      parent: t('display.parent'),
-      none: t('display.none'),
+      status: t('status'),
+      assignee: t('assignee'),
+      priority: t('priority'),
+      project: t('project'),
+      parent: t('parent'),
+      none: t('none'),
    };
    const orderingLabel: Record<OrderingKey, string> = {
-      manual: t('display.manual'),
-      status: t('display.status'),
-      priority: t('display.priority'),
-      dueDate: t('display.dueDate'),
-      created: t('display.created'),
-      updated: t('display.updated'),
-      title: t('display.title'),
+      manual: t('manual'),
+      status: t('status'),
+      priority: t('priority'),
+      dueDate: t('dueDate'),
+      created: t('created'),
+      updated: t('updated'),
+      title: t('title'),
    };
 
+   const directionLabel = view.direction === 'asc' ? t('ascending') : t('descending');
+
    return (
-      <>
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button
-                  className="relative border-muted-foreground/15"
-                  size="xs"
-                  variant="outline"
-                  aria-label={iconOnly ? 'Display' : undefined}
+      <Popover>
+         <PopoverTrigger asChild>
+            <Button
+               className="relative border-muted-foreground/15"
+               size="xs"
+               variant="outline"
+               aria-label={iconOnly ? t('label') : undefined}
+            >
+               <SlidersHorizontal className={cn('size-4', !iconOnly && 'mr-1')} />
+               {iconOnly ? null : t('label')}
+               {!isDefault && (
+                  <span
+                     aria-hidden="true"
+                     className="absolute right-0 top-0 size-2 rounded-full bg-status-warning"
+                  />
+               )}
+            </Button>
+         </PopoverTrigger>
+         <PopoverContent className="w-80 p-0" align="end">
+            {/* Layout */}
+            <div className="p-3">
+               <div
+                  role="group"
+                  aria-label={mode('label')}
+                  className="grid w-full grid-cols-4 gap-1 rounded-md bg-accent/50 p-1"
                >
-                  <SlidersHorizontal className={cn('size-4', !iconOnly && 'mr-1')} />
-                  {iconOnly ? null : 'Display'}
-                  {(!isDefault || view.mode !== 'list') && (
-                     <span className="absolute right-0 top-0 w-2 h-2 bg-orange-500 rounded-full" />
-                  )}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-               {/* Layout */}
-               <div className="p-3">
-                  <div className="grid w-full grid-cols-4 gap-1 bg-accent/50 rounded-md p-1">
-                     {LAYOUTS.map((layout) => (
+                  {LAYOUTS.map((layout) => {
+                     const on = view.mode === layout.value;
+                     return (
                         <button
                            key={layout.value}
+                           type="button"
+                           aria-pressed={on}
                            onClick={() => view.setMode(layout.value)}
                            className={cn(
-                              'flex flex-col items-center justify-center gap-0.5 h-12 rounded font-medium transition-colors',
-                              view.mode === layout.value
+                              'flex h-12 flex-col items-center justify-center gap-0.5 rounded font-medium transition-colors',
+                              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+                              on
                                  ? 'bg-background shadow-sm'
-                                 : 'text-muted-foreground'
+                                 : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
                            )}
                         >
                            <layout.icon className="size-3.5" />
                            {layoutLabel[layout.value]}
                         </button>
+                     );
+                  })}
+               </div>
+            </div>
+
+            {/* Grouping */}
+            <div className={cn('flex items-center justify-between gap-2 px-3 pb-3', touchRow)}>
+               <span className="flex items-center gap-1.5 text-muted-foreground">
+                  <ArrowUpDown className="size-3.5" aria-hidden="true" />
+                  {t('grouping')}
+               </span>
+               <Select
+                  value={view.grouping}
+                  onValueChange={(value) => view.setGrouping(value as GroupingKey)}
+               >
+                  <SelectTrigger aria-label={t('grouping')} className="h-7 w-36 max-lg:h-11">
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     {groupings.map((key) => (
+                        <SelectItem key={key} value={key}>
+                           {groupingLabel[key] ?? key}
+                        </SelectItem>
                      ))}
-                  </div>
+                     {takesProperties &&
+                        properties.map((definition) => (
+                           <SelectItem key={definition.id} value={`property:${definition.id}`}>
+                              {definition.name}
+                           </SelectItem>
+                        ))}
+                  </SelectContent>
+               </Select>
+            </div>
+
+            <Collapsible open={moreOptionsOpen} onOpenChange={setMoreOptionsOpen}>
+               <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5">
+                  <CollapsibleTrigger asChild>
+                     <button
+                        type="button"
+                        className={cn(
+                           'group flex min-h-8 items-center gap-1.5 rounded px-1 text-muted-foreground transition-colors',
+                           'hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+                           touchRow
+                        )}
+                     >
+                        <ChevronRight
+                           aria-hidden="true"
+                           className="size-3.5 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none"
+                        />
+                        {t('moreOptions')}
+                     </button>
+                  </CollapsibleTrigger>
+                  {!isDefault ? (
+                     <Button variant="ghost" size="xs" onClick={reset} className={touchRow}>
+                        {t('reset')}
+                     </Button>
+                  ) : null}
                </div>
 
-               {/* Grouping & ordering */}
-               <div className="px-3 pb-3 flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                     <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <ArrowUpDown className="size-3.5" />
-                        {t('display.grouping')}
-                     </span>
-                     <Select
-                        value={view.grouping}
-                        onValueChange={(value) => view.setGrouping(value as GroupingKey)}
-                     >
-                        <SelectTrigger className="h-7 w-36">
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {groupings.map((key) => (
-                              <SelectItem key={key} value={key}>
-                                 {groupingLabel[key] ?? key}
-                              </SelectItem>
-                           ))}
-                           {takesProperties &&
-                              properties.map((definition) => (
-                                 <SelectItem
-                                    key={definition.id}
-                                    value={`property:${definition.id}`}
-                                 >
-                                    {definition.name}
-                                 </SelectItem>
-                              ))}
-                        </SelectContent>
-                     </Select>
-                  </div>
+               <CollapsibleContent>
+                  {/* Ordering */}
+                  <div className="flex flex-col gap-2.5 px-3 pb-3">
+                     <div className={cn('flex items-center justify-between gap-2', touchRow)}>
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                           <ArrowUpNarrowWide className="size-3.5" aria-hidden="true" />
+                           {t('ordering')}
+                        </span>
+                        <div className="flex items-center gap-1">
+                           <Select
+                              value={view.ordering}
+                              onValueChange={(value) => view.setOrdering(value as OrderingKey)}
+                           >
+                              <SelectTrigger
+                                 aria-label={t('ordering')}
+                                 className="h-7 w-28 max-lg:h-11"
+                              >
+                                 <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                 {ORDERING_KEYS.map((key) => (
+                                    <SelectItem key={key} value={key}>
+                                       {orderingLabel[key]}
+                                    </SelectItem>
+                                 ))}
+                              </SelectContent>
+                           </Select>
+                           <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-7 max-lg:size-11"
+                              aria-label={directionLabel}
+                              title={directionLabel}
+                              onClick={() =>
+                                 view.setDirection(view.direction === 'asc' ? 'desc' : 'asc')
+                              }
+                           >
+                              {view.direction === 'asc' ? (
+                                 <ArrowUpNarrowWide className="size-3.5" />
+                              ) : (
+                                 <ArrowDownWideNarrow className="size-3.5" />
+                              )}
+                           </Button>
+                        </div>
+                     </div>
 
-                  <div className="flex items-center justify-between gap-2">
-                     <span className="flex items-center gap-1.5 text-muted-foreground">
-                        <ArrowUpNarrowWide className="size-3.5" />
-                        {t('display.ordering')}
-                     </span>
-                     <div className="flex items-center gap-1">
-                        <Select
-                           value={view.ordering}
-                           onValueChange={(value) => view.setOrdering(value as OrderingKey)}
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="order-completed-recency"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
                         >
-                           <SelectTrigger className="h-7 w-28">
-                              <SelectValue />
-                           </SelectTrigger>
-                           <SelectContent>
-                              {ORDERING_KEYS.map((key) => (
-                                 <SelectItem key={key} value={key}>
-                                    {orderingLabel[key]}
-                                 </SelectItem>
-                              ))}
-                           </SelectContent>
-                        </Select>
-                        <Button
-                           size="icon"
-                           variant="ghost"
-                           className="size-7"
-                           aria-label={
-                              view.direction === 'asc'
-                                 ? t('display.ascending')
-                                 : t('display.descending')
-                           }
-                           title={
-                              view.direction === 'asc'
-                                 ? t('display.ascending')
-                                 : t('display.descending')
-                           }
-                           onClick={() =>
-                              view.setDirection(view.direction === 'asc' ? 'desc' : 'asc')
-                           }
-                        >
-                           {view.direction === 'asc' ? (
-                              <ArrowUpNarrowWide className="size-3.5" />
-                           ) : (
-                              <ArrowDownWideNarrow className="size-3.5" />
-                           )}
-                        </Button>
+                           {t('orderCompletedByRecency')}
+                        </Label>
+                        <Switch
+                           id="order-completed-recency"
+                           checked={orderCompletedByRecency}
+                           onCheckedChange={setOrderCompletedByRecency}
+                        />
                      </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
-                     <Label
-                        htmlFor="order-completed-recency"
-                        className="text-muted-foreground font-normal"
-                     >
-                        Order completed by recency
-                     </Label>
-                     <Switch
-                        id="order-completed-recency"
-                        checked={orderCompletedByRecency}
-                        onCheckedChange={setOrderCompletedByRecency}
-                     />
-                  </div>
-               </div>
-
-               <div className="border-t px-3 py-3 flex flex-col gap-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                     <span className="text-muted-foreground">Completed tasks</span>
-                     <Select
-                        value={completedIssues}
-                        onValueChange={(value) =>
-                           setCompletedIssues(value as CompletedIssuesFilter)
-                        }
-                     >
-                        <SelectTrigger className="h-7 w-36">
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           <SelectItem value="all">All</SelectItem>
-                           <SelectItem value="none">None</SelectItem>
-                        </SelectContent>
-                     </Select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                     <Label htmlFor="show-sub-issues" className="text-muted-foreground font-normal">
-                        {t('display.subIssues')}
-                     </Label>
-                     <Switch
-                        id="show-sub-issues"
-                        checked={showSubIssues}
-                        onCheckedChange={setShowSubIssues}
-                     />
-                  </div>
-               </div>
-
-               <div className="border-t px-3 py-3 flex flex-col gap-2.5">
-                  <span className="font-medium">List options</span>
-                  <div className="flex items-center justify-between">
-                     <Label
-                        htmlFor="show-empty-groups"
-                        className="text-muted-foreground font-normal"
-                     >
-                        Show empty groups
-                     </Label>
-                     <Switch
-                        id="show-empty-groups"
-                        checked={showEmptyGroups}
-                        onCheckedChange={setShowEmptyGroups}
-                     />
-                  </div>
-
-                  <span className="text-muted-foreground mt-1">{t('display.cardProperties')}</span>
-                  <div className="flex flex-wrap gap-1.5">
-                     {DISPLAY_PROPERTIES.map((property) => (
-                        <button
-                           key={property.key}
-                           onClick={() => toggleDisplayProperty(property.key)}
-                           className={cn(
-                              'px-2 h-6 rounded-md border transition-colors',
-                              displayProperties[property.key]
-                                 ? 'bg-accent border-border text-foreground'
-                                 : 'border-transparent bg-accent/40 text-muted-foreground hover:text-foreground'
-                           )}
+                  {/* What counts as visible */}
+                  <div className="flex flex-col gap-2.5 border-t px-3 py-3">
+                     <div className={cn('flex items-center justify-between gap-2', touchRow)}>
+                        <span className="text-muted-foreground">{t('completedTasks')}</span>
+                        <Select
+                           value={completedIssues}
+                           onValueChange={(value) =>
+                              setCompletedIssues(value as CompletedIssuesFilter)
+                           }
                         >
-                           {property.label}
-                        </button>
-                     ))}
-                  </div>
-               </div>
+                           <SelectTrigger
+                              aria-label={t('completedTasks')}
+                              className="h-7 w-36 max-lg:h-11"
+                           >
+                              <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent>
+                              <SelectItem value="all">{t('completedAll')}</SelectItem>
+                              <SelectItem value="none">{t('completedNone')}</SelectItem>
+                           </SelectContent>
+                        </Select>
+                     </div>
 
-               </PopoverContent>
-         </Popover>
-      </>
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-sub-issues"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                        >
+                           {t('subIssues')}
+                        </Label>
+                        <Switch
+                           id="show-sub-issues"
+                           checked={showSubIssues}
+                           onCheckedChange={setShowSubIssues}
+                        />
+                     </div>
+
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-empty-groups"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                        >
+                           {t('showEmptyGroups')}
+                        </Label>
+                        <Switch
+                           id="show-empty-groups"
+                           checked={showEmptyGroups}
+                           onCheckedChange={setShowEmptyGroups}
+                        />
+                     </div>
+                  </div>
+
+                  {/* Per-row properties */}
+                  <div className="flex flex-col gap-2 border-t px-3 py-3">
+                     <span id="display-card-properties" className="text-muted-foreground">
+                        {t('cardProperties')}
+                     </span>
+                     <div
+                        role="group"
+                        aria-labelledby="display-card-properties"
+                        className="flex flex-wrap gap-1.5"
+                     >
+                        {DISPLAY_PROPERTIES.map((property) => {
+                           const on = displayProperties[property.key];
+                           return (
+                              <button
+                                 key={property.key}
+                                 type="button"
+                                 aria-pressed={on}
+                                 onClick={() => toggleDisplayProperty(property.key)}
+                                 className={cn(
+                                    'h-6 rounded-md border px-2 transition-colors max-lg:min-h-11',
+                                    'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+                                    on
+                                       ? 'border-border bg-accent text-foreground'
+                                       : 'border-transparent bg-accent/40 text-muted-foreground hover:text-foreground'
+                                 )}
+                              >
+                                 {property.label}
+                              </button>
+                           );
+                        })}
+                     </div>
+                  </div>
+               </CollapsibleContent>
+            </Collapsible>
+         </PopoverContent>
+      </Popover>
    );
 }

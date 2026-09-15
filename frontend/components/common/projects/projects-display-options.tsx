@@ -188,16 +188,10 @@ export function ProjectsDisplayOptions() {
                   {viewType === 'timeline' && (
                      <>
                         <OptionRow label="Show project list">
-                           <Switch
-                              checked={showProjectList}
-                              onCheckedChange={setShowProjectList}
-                           />
+                           <Switch checked={showProjectList} onCheckedChange={setShowProjectList} />
                         </OptionRow>
                         <OptionRow label="Show week numbers">
-                           <Switch
-                              checked={showWeekNumbers}
-                              onCheckedChange={setShowWeekNumbers}
-                           />
+                           <Switch checked={showWeekNumbers} onCheckedChange={setShowWeekNumbers} />
                         </OptionRow>
                      </>
                   )}
@@ -242,7 +236,7 @@ export function ProjectsDisplayOptions() {
                >
                   Reset
                </button>
-               <button className="text-indigo-500 dark:text-indigo-400 hover:underline">
+               <button type="button" className="text-status-info hover:underline">
                   Set default for everyone
                </button>
             </div>
