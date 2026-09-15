@@ -6,8 +6,10 @@
    "nav": {
       "tasks": "Tasks",
       "reviews": "Reviews",
+      "approvals": "Approvals",
       "goals": "Goals",
       "projects": "Projects",
+      "proposals": "Proposals",
       "runtimes": "Runtimes",
       "agents": "Agents",
       "analytics": "Analytics",
@@ -16,18 +18,40 @@
       "dashboard": "Dashboard",
       "usage": "Usage",
       "chat": "Chat",
-      "proposals": "proposals"
+      "inbox": "Inbox",
+      "runs": "Runs",
+      "plans": "Plans",
+      "views": "Views",
+      "attachments": "Attachments",
+      "plugins": "Plugins",
+      "profiles": "Profiles"
    },
    "rail": {
       "workspace": "Workspace",
       "workspaceMenu": "Workspace menu",
       "runsInProgress": "Runs in progress",
       "customizeSidebar": "Customize sidebar",
-      "collapseSidebar": "Collapse sidebar"
+      "collapseSidebar": "Collapse sidebar",
+      "expandSidebar": "Expand sidebar",
+      "openMenu": "Open menu",
+      "closeMenu": "Close menu",
+      "approvalsWaiting": "{count, plural, one {# approval waiting} other {# approvals waiting}}",
+      "reviewsWaiting": "{count, plural, one {# review waiting} other {# reviews waiting}}"
    },
    "tabs": {
       "openViews": "Open views",
       "newTab": "New tab",
       "close": "Close {label}"
+   },
+   "chat": {
+      "open": "Open chat",
+      "openUnread": "Open chat, {count} unread",
+      "close": "Close chat",
+      "onChatPage": "You are in chat",
+      "shortcutHint": "Chat anywhere with {keys}"
+   },
+   "bell": {
+      "notifications": "Notifications",
+      "notificationsUnread": "Notifications, {count} unread"
    }
 }

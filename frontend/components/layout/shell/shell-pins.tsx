@@ -160,7 +160,8 @@ export function ShellPins({ orgId }: { orgId: string }) {
                      key={pin.id}
                      data-pin-row
                      className={[
-                        'group/pin flex items-center gap-1 rounded pr-1',
+                        // A tap target on the overlay rail; sized to its text as a column.
+                        'group/pin flex min-h-11 items-center gap-1 rounded pr-1 lg:min-h-0',
                         dragIndex === index
                            ? 'bg-[var(--shell-hover)]'
                            : 'hover:bg-[var(--shell-hover)]',

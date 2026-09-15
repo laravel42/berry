@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 
 import { useShortcut } from '@/components/layout/shortcut-provider';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useShellStore } from '@/store/shell-store';
@@ -21,7 +22,9 @@ import { useShellStore } from '@/store/shell-store';
  */
 export function ShellShortcuts({ orgId }: { orgId: string }) {
    const router = useRouter();
+   const isMobile = useIsMobile();
    const toggleRail = useShellStore((state) => state.toggleRail);
+   const toggleRailOverlay = useShellStore((state) => state.toggleRailOverlay);
    const openIssueModal = useCreateIssueStore((state) => state.openModal);
    const openPanel = useRightPanelStore((state) => state.openPanel);
    const openPanelOfType = useRightPanelStore((state) => state.openPanelOfType);
@@ -30,7 +33,10 @@ export function ShellShortcuts({ orgId }: { orgId: string }) {
    const go = (path: string) => router.push(`/${orgId}${path}`);
 
    useShortcut('issue.create', () => openIssueModal());
-   useShortcut('sidebar.toggle', toggleRail);
+   // The rail is a column at `lg` and an overlay below it; the key toggles
+   // whichever shape is on screen rather than a stored preference the
+   // narrow layout never reads.
+   useShortcut('sidebar.toggle', () => (isMobile ? toggleRailOverlay() : toggleRail()));
    useShortcut('rightSidebar.toggle', () => {
       // Which panel a page shows is the page's business; the shortcut only
       // says "show it" or "hide it", and insights is the panel every page
@@ -47,6 +53,7 @@ export function ShellShortcuts({ orgId }: { orgId: string }) {
    useShortcut('goto.projects', () => go('/projects'));
    useShortcut('goto.goals', () => go('/goals'));
    useShortcut('goto.reviews', () => go('/reviews'));
+   useShortcut('goto.approvals', () => go('/approvals'));
    useShortcut('goto.views', () => go('/views'));
    useShortcut('goto.agents', () => go('/agents'));
    useShortcut('goto.runtimes', () => go('/settings/runtimes'));

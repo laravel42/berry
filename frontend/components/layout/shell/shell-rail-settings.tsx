@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import { settingsNav } from '@/components/layout/sidebar/nav-settings';
 import { isNavItemActive } from '@/lib/nav-active';
+import { shellNavRow } from './shell-icon';
 
 /**
  * Settings mode for the rail.
@@ -20,29 +22,25 @@ import { isNavItemActive } from '@/lib/nav-active';
  * reimplemented: the legacy components render sidebar primitives styled for the
  * light Circle sidebar, which would sit wrong in the dark rail and, being
  * outside SidebarProvider here, would throw.
+ *
+ * `trailing` is the rail's close control below `lg`, placed on the back row
+ * so the overlay has a visible way out whatever the rail is showing.
  */
-export function ShellRailSettings({ orgId }: { orgId: string }) {
+export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing?: ReactNode }) {
    const pathname = usePathname() ?? '';
    const t = useTranslations('workspaceAdmin');
 
-   const link = (active: boolean) =>
-      [
-         'flex items-center gap-2.5 rounded px-3 py-1.5 transition-colors',
-         active
-            ? 'bg-[var(--shell-surface)] text-[var(--shell-text)]'
-            : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
-      ].join(' ');
-
    return (
       <>
-         <div className="px-3.5 pt-4 pb-3.5">
+         <div className="flex items-center justify-between gap-2 px-3.5 pt-4 pb-3.5">
             <Link
                href={`/${orgId}/tasks`}
-               className="flex w-fit items-center gap-1.5 rounded-[5px] bg-[var(--shell-line)] px-2 py-1 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-line-strong)] hover:text-[var(--shell-text)]"
+               className="flex min-h-11 w-fit items-center gap-1.5 rounded-[5px] bg-[var(--shell-line)] px-2 py-1 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-line-strong)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] lg:min-h-0"
             >
                <ChevronLeft className="size-4" />
                Back to app
             </Link>
+            {trailing}
          </div>
 
          {settingsNav.map((group) => (
@@ -60,7 +58,7 @@ export function ShellRailSettings({ orgId }: { orgId: string }) {
                               data-shell-nav
                               href={href}
                               aria-current={active ? 'page' : undefined}
-                              className={link(active)}
+                              className={shellNavRow(active)}
                            >
                               <item.icon className="size-[15px] flex-none" />
                               {t(`nav.${item.labelKey}`)}

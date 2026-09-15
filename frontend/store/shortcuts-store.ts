@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { normalizeCombo, resolveBindings } from '@/lib/shortcuts';
@@ -45,8 +46,12 @@ export const useShortcutsStore = create<ShortcutsState>()(
    )
 );
 
-/** Every action's current combination: defaults with this person's edits on top. */
+/**
+ * Every action's current combination: defaults with this person's edits on
+ * top. One object per set of overrides, so a listener keyed on it is rebuilt
+ * when a key is remapped and not on every render in between.
+ */
 export function useShortcutBindings(): Record<string, string | null> {
    const overrides = useShortcutsStore((state) => state.overrides);
-   return resolveBindings(overrides);
+   return useMemo(() => resolveBindings(overrides), [overrides]);
 }

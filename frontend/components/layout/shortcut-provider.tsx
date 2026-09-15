@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import {
+   SEQUENCE_WINDOW_MS,
    comboFromEvent,
+   sequencePrefixes,
    shortcutById,
    shortcutForCombo,
    type ShortcutDefinition,
@@ -27,6 +29,12 @@ import { useShortcutBindings } from '@/store/shortcuts-store';
  *
  * The handler is called with the original `KeyboardEvent` and runs after the
  * event is already default-prevented, so a shortcut never also types.
+ *
+ * A sequence (`g i`) is two keystrokes. The first is held for
+ * `SEQUENCE_WINDOW_MS` and fires nothing on its own; the second completes
+ * the sequence or is dropped. A bare chord bound to the same key as a
+ * sequence's opener wins, because a person who bound it asked for exactly
+ * that — and the settings page refuses the clash anyway.
  */
 
 type Handler = (event: KeyboardEvent) => void;
@@ -123,12 +131,32 @@ function allowed(definition: ShortcutDefinition, event: KeyboardEvent): boolean 
  * Mounts the listener. One per app, at the root of the workspace shell.
  */
 export function ShortcutProvider({ children }: { children?: React.ReactNode }) {
-   const bindings = useShortcutBindings();
-   // Re-subscribing on every render of a parent would be wasteful; the map is
-   // stable between remappings, which is when the listener must change.
-   const resolved = useMemo(() => bindings, [bindings]);
+   // Stable between remappings, which is when the listener must change; the
+   // store memoises it so a parent's render does not re-subscribe.
+   const resolved = useShortcutBindings();
+   const prefixes = useMemo(() => sequencePrefixes(resolved), [resolved]);
+
+   // The opener of a sequence, while its window is open. The time is kept as
+   // well as the timer: under a busy main thread the second key can be
+   // served before an overdue timer, and the clock does not have that gap.
+   const pending = useRef<{ prefix: string; at: number; timer: number } | null>(null);
 
    useEffect(() => {
+      const forget = () => {
+         if (!pending.current) return;
+         window.clearTimeout(pending.current.timer);
+         pending.current = null;
+      };
+
+      const fire = (definition: ShortcutDefinition, event: KeyboardEvent) => {
+         if (!allowed(definition, event)) return;
+         const stack = handlers.get(definition.id);
+         const handler = stack?.[stack.length - 1];
+         if (!handler) return;
+         event.preventDefault();
+         handler(event);
+      };
+
       const onKeyDown = (event: KeyboardEvent) => {
          if (suspended) return;
          // Mid-composition, a keystroke belongs to the input method: a Japanese
@@ -141,20 +169,52 @@ export function ShortcutProvider({ children }: { children?: React.ReactNode }) {
 
          const combo = comboFromEvent(event);
          if (!combo) return;
+
+         // The second key of a sequence completes it or ends it. A key that
+         // completes nothing is not tried as a chord of its own: G then C is
+         // a mistyped sequence, not a request for a new task.
+         if (pending.current) {
+            const { prefix, at } = pending.current;
+            forget();
+            if (performance.now() - at > SEQUENCE_WINDOW_MS) {
+               // Too late to be the second half; the opener is gone and this
+               // key falls through to be whatever it is on its own.
+            } else {
+               const definition = shortcutForCombo(`${prefix} ${combo}`, resolved);
+               if (definition) fire(definition, event);
+               return;
+            }
+         }
+
          const definition = shortcutForCombo(combo, resolved);
-         if (!definition || !allowed(definition, event)) return;
+         if (definition) {
+            fire(definition, event);
+            return;
+         }
 
-         const stack = handlers.get(definition.id);
-         const handler = stack?.[stack.length - 1];
-         if (!handler) return;
-
-         event.preventDefault();
-         handler(event);
+         // An opener on its own: hold it, and wait. Not while typing — there
+         // a G is a letter — and not past the window, after which it is
+         // forgotten as if never pressed.
+         if (prefixes.has(combo) && !typingTarget(event.target)) {
+            event.preventDefault();
+            pending.current = {
+               prefix: combo,
+               at: performance.now(),
+               timer: window.setTimeout(forget, SEQUENCE_WINDOW_MS),
+            };
+         }
       };
 
       window.addEventListener('keydown', onKeyDown);
-      return () => window.removeEventListener('keydown', onKeyDown);
-   }, [resolved]);
+      // Leaving the window mid-sequence ends it; the next key after coming
+      // back should not be read as its second half.
+      window.addEventListener('blur', forget);
+      return () => {
+         window.removeEventListener('keydown', onKeyDown);
+         window.removeEventListener('blur', forget);
+         forget();
+      };
+   }, [resolved, prefixes]);
 
    return <>{children}</>;
 }

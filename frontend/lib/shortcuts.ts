@@ -26,7 +26,11 @@ export interface ShortcutDefinition {
    /**
     * The combination this action starts with. Null means registered but
     * unbound: it appears in settings, it can be given a key, and until then
-    * nothing fires it. Every go-to action ships this way.
+    * nothing fires it.
+    *
+    * A space separates the chords of a sequence: `g i` is G, then I within
+    * `SEQUENCE_WINDOW_MS`. The go-to actions ship as sequences so a single
+    * letter is never claimed for a destination.
     */
    defaultCombo: string | null;
    /**
@@ -50,13 +54,23 @@ export const MOD = 'mod';
 /** Order modifiers are written in, so two spellings of one combo compare equal. */
 const MODIFIER_ORDER = [MOD, 'ctrl', 'alt', 'shift'] as const;
 
+/** Between the chords of a sequence: `g i`. */
+const SEQUENCE_SEPARATOR = ' ';
+
+/**
+ * How long the second key of a sequence may take. Long enough to read the
+ * palette's hint and press it; short enough that a G pressed by accident is
+ * forgotten before the next real keystroke.
+ */
+export const SEQUENCE_WINDOW_MS = 1000;
+
 /**
  * The default set.
  *
  * `general` is what you do where you are; `navigation` is where you go. The
- * go-to actions are deliberately unbound: they exist so another area can
- * register the destination and a person can give it a key, without Berry
- * claiming a letter nobody asked it to claim.
+ * go-to actions are two-key sequences behind G, so the palette can print the
+ * keys beside each page without Berry claiming a bare letter for any of them.
+ * Runtimes stays unbound: it is a settings page, and G S gets you there.
  */
 export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'issue.create', group: 'general', labelKey: 'createIssue', defaultCombo: 'c' },
@@ -119,16 +133,17 @@ export const SHORTCUTS: ShortcutDefinition[] = [
       defaultCombo: 'mod+]',
       allowInInput: true,
    },
-   { id: 'goto.myIssues', group: 'navigation', labelKey: 'goToMyIssues', defaultCombo: null },
-   { id: 'goto.inbox', group: 'navigation', labelKey: 'goToInbox', defaultCombo: null },
-   { id: 'goto.chat', group: 'navigation', labelKey: 'goToChat', defaultCombo: null },
-   { id: 'goto.projects', group: 'navigation', labelKey: 'goToProjects', defaultCombo: null },
-   { id: 'goto.goals', group: 'navigation', labelKey: 'goToGoals', defaultCombo: null },
-   { id: 'goto.reviews', group: 'navigation', labelKey: 'goToReviews', defaultCombo: null },
-   { id: 'goto.views', group: 'navigation', labelKey: 'goToViews', defaultCombo: null },
-   { id: 'goto.agents', group: 'navigation', labelKey: 'goToAgents', defaultCombo: null },
+   { id: 'goto.inbox', group: 'navigation', labelKey: 'goToInbox', defaultCombo: 'g i' },
+   { id: 'goto.myIssues', group: 'navigation', labelKey: 'goToMyIssues', defaultCombo: 'g t' },
+   { id: 'goto.reviews', group: 'navigation', labelKey: 'goToReviews', defaultCombo: 'g r' },
+   { id: 'goto.approvals', group: 'navigation', labelKey: 'goToApprovals', defaultCombo: 'g a' },
+   { id: 'goto.agents', group: 'navigation', labelKey: 'goToAgents', defaultCombo: 'g e' },
+   { id: 'goto.projects', group: 'navigation', labelKey: 'goToProjects', defaultCombo: 'g p' },
+   { id: 'goto.goals', group: 'navigation', labelKey: 'goToGoals', defaultCombo: 'g g' },
+   { id: 'goto.chat', group: 'navigation', labelKey: 'goToChat', defaultCombo: 'g c' },
+   { id: 'goto.views', group: 'navigation', labelKey: 'goToViews', defaultCombo: 'g v' },
+   { id: 'goto.settings', group: 'navigation', labelKey: 'goToSettings', defaultCombo: 'g s' },
    { id: 'goto.runtimes', group: 'navigation', labelKey: 'goToRuntimes', defaultCombo: null },
-   { id: 'goto.settings', group: 'navigation', labelKey: 'goToSettings', defaultCombo: null },
 ];
 
 /**
@@ -159,10 +174,39 @@ export function isApplePlatform(): boolean {
 
 /**
  * A combination in canonical form: modifiers in a fixed order, lower case,
- * joined with `+`. Two people describing one chord get one string, which is
- * what makes conflict detection a map lookup.
+ * joined with `+`; the chords of a sequence separated by one space. Two
+ * people describing one combination get one string, which is what makes
+ * conflict detection a map lookup.
  */
 export function normalizeCombo(combo: string): string {
+   return combo
+      .trim()
+      .split(/\s+/)
+      .filter((chord) => chord !== '')
+      .map(normalizeChord)
+      .join(SEQUENCE_SEPARATOR);
+}
+
+/** The chords of a combination: one for a chord, two or more for a sequence. */
+export function comboChords(combo: string): string[] {
+   return combo.split(SEQUENCE_SEPARATOR);
+}
+
+/**
+ * The first chords of every bound sequence — the keys that start a sequence
+ * rather than fire an action. The provider holds one of these for a moment
+ * and waits for the key that completes it.
+ */
+export function sequencePrefixes(bindings: Record<string, string | null>): Set<string> {
+   const prefixes = new Set<string>();
+   for (const bound of Object.values(bindings)) {
+      const chords = bound ? comboChords(bound) : [];
+      if (chords.length > 1 && chords[0]) prefixes.add(chords[0]);
+   }
+   return prefixes;
+}
+
+function normalizeChord(combo: string): string {
    const parts = combo
       .toLowerCase()
       .split('+')
@@ -183,7 +227,8 @@ export function comboFromEvent(event: KeyboardEvent): string | null {
    // A keydown from a password manager, an extension or a script-made event
    // can carry no key at all, and a keystroke mid-composition (an IME
    // spelling out a character) names no shortcut either.
-   if (typeof key !== 'string' || key === '' || key === 'Unidentified' || event.isComposing) return null;
+   if (typeof key !== 'string' || key === '' || key === 'Unidentified' || event.isComposing)
+      return null;
    if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return null;
 
    const parts: string[] = [];
@@ -236,8 +281,18 @@ const OTHER_NAMES: Record<string, string> = {
    arrowright: '→',
 };
 
-/** A combination as a person reads it: `⌘K` on a Mac, `Ctrl+K` elsewhere. */
+/**
+ * A combination as a person reads it: `⌘K` on a Mac, `Ctrl+K` elsewhere. The
+ * chords of a sequence stay separated by a space (`G I`), so a caller that
+ * wants one chip per key can split on it.
+ */
 export function formatCombo(combo: string, apple = isApplePlatform()): string {
+   return comboChords(combo)
+      .map((chord) => formatChord(chord, apple))
+      .join(SEQUENCE_SEPARATOR);
+}
+
+function formatChord(combo: string, apple: boolean): string {
    const parts = combo.split('+').map((part) => {
       const mapped = apple ? APPLE_GLYPHS[part] : OTHER_NAMES[part];
       if (mapped) return mapped;
@@ -319,19 +374,34 @@ export function comboProblem(
 ): ComboProblem | null {
    const normalized = normalizeCombo(combo);
    if (normalized === '') return { kind: 'typing' };
-   if (RESERVED.has(normalized)) return { kind: 'reserved' };
+   const chords = comboChords(normalized);
 
-   const parts = normalized.split('+');
-   const key = parts[parts.length - 1];
-   const bare = parts.length === 1;
-   if (bare && TYPING_KEYS.has(key)) return { kind: 'typing' };
+   for (const chord of chords) {
+      if (RESERVED.has(chord)) return { kind: 'reserved' };
+      const parts = chord.split('+');
+      const key = parts[parts.length - 1] ?? '';
+      const bare = parts.length === 1;
+      if (bare && TYPING_KEYS.has(key)) return { kind: 'typing' };
+      const fixed = FIXED_SHORTCUTS.find((entry) => normalizeCombo(entry.combo) === chord);
+      if (fixed) return { kind: 'fixed', labelKey: fixed.labelKey };
+   }
 
-   const fixed = FIXED_SHORTCUTS.find((entry) => normalizeCombo(entry.combo) === normalized);
-   if (fixed) return { kind: 'fixed', labelKey: fixed.labelKey };
-
+   // A chord that opens someone else's sequence would start it instead of
+   // firing; a sequence that opens with someone else's chord would never
+   // begin. Both are conflicts, and both name the action in the way.
+   const first = chords[0] ?? '';
    for (const [id, bound] of Object.entries(bindings)) {
       if (id === forId || !bound) continue;
-      if (normalizeCombo(bound) === normalized) return { kind: 'conflict', shortcutId: id };
+      const other = normalizeCombo(bound);
+      if (other === normalized) return { kind: 'conflict', shortcutId: id };
+      const otherChords = comboChords(other);
+      const otherFirst = otherChords[0] ?? '';
+      if (chords.length === 1 && otherChords.length > 1 && otherFirst === normalized) {
+         return { kind: 'conflict', shortcutId: id };
+      }
+      if (chords.length > 1 && otherChords.length === 1 && other === first) {
+         return { kind: 'conflict', shortcutId: id };
+      }
    }
    return null;
 }

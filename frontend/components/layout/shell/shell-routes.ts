@@ -12,6 +12,7 @@ export type ShellRoute =
    | 'issues'
    | 'runs'
    | 'reviews'
+   | 'approvals'
    | 'chat'
    | 'inbox'
    | 'projects'
@@ -28,6 +29,7 @@ export type ShellLabelKey =
    | 'tasks'
    | 'chat'
    | 'reviews'
+   | 'approvals'
    | 'goals'
    | 'projects'
    | 'proposals'
@@ -73,6 +75,13 @@ export interface ShellRouteDef {
     * the route table stays the one description of what a route is.
     */
    live?: 'runs';
+   /**
+    * Show a count at the end of this item, the way Personal's Inbox row
+    * counts unread: decisions waiting in approvals, reviews waiting for a
+    * person. Named here for the same reason as `live`: the rail asks the
+    * route what it carries, and the route table stays the one answer.
+    */
+   badge?: 'approvals' | 'reviews';
 }
 
 const WORK: ShellRouteDef[] = [
@@ -94,7 +103,19 @@ const WORK: ShellRouteDef[] = [
       labelKey: 'reviews',
       href: '/reviews',
       prefsKey: 'reviews',
+      badge: 'reviews',
       icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
+   },
+   {
+      // Risky steps wait here for a person to decide. Directly under Reviews:
+      // both are queues of work that stops until somebody says so.
+      id: 'approvals',
+      label: 'approvals',
+      labelKey: 'approvals',
+      href: '/approvals',
+      prefsKey: 'approvals',
+      badge: 'approvals',
+      icon: '<path d="M12 3l7 3v6c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6z" /><path d="M9 12l2 2 4-4" />',
    },
    {
       id: 'goals',

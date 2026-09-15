@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { ChevronRight, X } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -11,16 +12,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
    isSidebarItemVisible,
+   manageOpenByDefault,
    resolveOrder,
    useSidebarPrefsStore,
    type SidebarItemKey,
    type SidebarSection,
 } from '@/store/sidebar-prefs-store';
 import { isTerminalRunStatus } from '@/lib/runs';
+import { selectPendingCount, useApprovalsStore } from '@/store/approvals-store';
+import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useRunsStore } from '@/store/runs-store';
+import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
-import { ShellIcon, BerryMark, shellIconButton } from './shell-icon';
+import { ShellBadge } from './shell-badge';
+import { ShellIcon, BerryMark, shellIconButton, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
@@ -32,9 +38,18 @@ type PinnableRoute = ShellRouteDef & { prefsKey: SidebarItemKey };
 interface ShellRailProps {
    orgId: string;
    active: ShellRoute | null;
-   onToggle: () => void;
    /** Settings replaces the rail's contents, as it did in AppSidebar. */
    settingsMode: boolean;
+   /** At `lg` and above: shown as a column, or collapsed to its expand control. */
+   columnOpen: boolean;
+   /** Below `lg`: shown as an overlay over the page, or slid away. */
+   overlayOpen: boolean;
+   /** The foot control at `lg` and above: collapse the column. */
+   onCollapse: () => void;
+   /** The close control below `lg`: put the overlay away. */
+   onDismiss: () => void;
+   /** The shell moves focus into the rail when the overlay opens. */
+   ref?: Ref<HTMLElement>;
 }
 
 /**
@@ -44,34 +59,52 @@ interface ShellRailProps {
  * handlers so middle-click, cmd-click, and "copy link address" behave the way
  * they do everywhere else — the prototype used div+onClick, which silently
  * removes all three.
+ *
+ * One element, two shapes. At `lg` and above it is a 218px column in the
+ * shell's grid, collapsible from its foot. Below `lg` it is a 260px overlay
+ * that slides in from the left edge over the page, closed until the strip's
+ * menu button opens it. The switch is made in CSS (`lg:` classes) so the
+ * server's render and the first paint agree; the breakpoint hook only
+ * governs behaviour that CSS cannot express, such as `inert`.
  */
-export function ShellRail({ orgId, active, onToggle, settingsMode }: ShellRailProps) {
+export function ShellRail({
+   orgId,
+   active,
+   settingsMode,
+   columnOpen,
+   overlayOpen,
+   onCollapse,
+   onDismiss,
+   ref,
+}: ShellRailProps) {
    const t = useTranslations('shell');
-   const { visibility, order } = useSidebarPrefsStore();
+   const { visibility, order, manageOpen, setManageOpen } = useSidebarPrefsStore();
+   const role = useSessionStore((state) => state.workspace?.role);
    const isMobile = useIsMobile();
-   const pathname = usePathname() ?? '';
-   const lastPath = useRef(pathname);
    // A run that has not reached a terminal status is still going, which is what
    // the dot beside runtimes reports.
    const runsLive = useRunsStore((state) =>
       state.runs.some((run) => !isTerminalRunStatus(run.status))
    );
+   // Hydrated workspace-wide on boot and refreshed on `approval.*` events by
+   // the workspace event stream; the rail only reads it.
+   const pendingApprovals = useApprovalsStore(selectPendingCount);
+   // Kept current by `useOpenReviewsSync`; null until the first load, and a
+   // count nobody has yet is not a count worth showing.
+   const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
+
+   /** What a route's badge currently says, for the badge and for "show when badged". */
+   const badgeCount = (route: ShellRouteDef): number => {
+      if (route.badge === 'approvals') return pendingApprovals;
+      if (route.badge === 'reviews') return openReviews;
+      return 0;
+   };
 
    // The preference store is persisted, so its first client value differs from
    // what the server rendered. Rendering the unfiltered list until mount keeps
    // hydration consistent, matching the legacy sidebar's behaviour.
    const [mounted, setMounted] = useState(false);
    useEffect(() => setMounted(true), []);
-
-   // On a narrow screen the rail covers the page it navigated to, so going
-   // somewhere closes it. Only on an actual change of route: closing on mount
-   // would mean a deep link on a phone opens with the rail already dismissed,
-   // which looks like the control does not work.
-   useEffect(() => {
-      if (pathname === lastPath.current) return;
-      lastPath.current = pathname;
-      if (isMobile) onToggle();
-   }, [pathname, isMobile, onToggle]);
 
    /**
     * Apply the user's pin preferences to a section, returning what is shown in
@@ -89,7 +122,7 @@ export function ShellRail({ orgId, active, onToggle, settingsMode }: ShellRailPr
       )
          .map((key) => pinnable.find((route) => route.prefsKey === key))
          .filter((route): route is PinnableRoute => Boolean(route))
-         .filter((route) => isSidebarItemVisible(visibility[route.prefsKey], 0));
+         .filter((route) => isSidebarItemVisible(visibility[route.prefsKey], badgeCount(route)));
 
       // Placeholders have no prefsKey and always show. Pinnable items keep the
       // user's order in the slots they occupy; hidden pins drop out.
@@ -102,20 +135,49 @@ export function ShellRail({ orgId, active, onToggle, settingsMode }: ShellRailPr
             shown.push(route);
             continue;
          }
-         if (!isSidebarItemVisible(visibility[route.prefsKey], 0)) continue;
+         if (!isSidebarItemVisible(visibility[route.prefsKey], badgeCount(route))) continue;
          const next = queue.shift();
          if (next) shown.push(next);
       }
       return shown;
    };
 
+   // The overlay's way out, on the row the rail starts with whatever it is
+   // showing. Escape and the backdrop close it too; this is the one you can see.
+   const closeButton = (
+      <button
+         type="button"
+         onClick={onDismiss}
+         aria-label={t('rail.closeMenu')}
+         className="flex size-11 flex-none cursor-pointer items-center justify-center rounded text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:hidden"
+      >
+         <X size={18} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+   );
+
    return (
       <nav
+         ref={ref}
+         id="shell-rail"
          aria-label={t('rail.workspace')}
-         className="flex w-[218px] flex-none flex-col bg-[var(--shell-rail)]"
+         // Off screen and out of the tab order while closed below `lg`.
+         // Opening switches visibility at once, so focus can move in on the
+         // same tick; closing delays it to the end of the slide, so the panel
+         // is seen leaving rather than vanishing.
+         inert={isMobile && !overlayOpen}
+         className={[
+            'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
+            'fixed inset-y-0 left-0 z-50 w-[260px] max-w-[85vw] border-r border-[var(--shell-line)]',
+            'duration-200 ease-out motion-reduce:transition-none',
+            overlayOpen
+               ? 'visible translate-x-0 transition-transform'
+               : 'invisible -translate-x-full transition-[transform,visibility] [transition-delay:0s,200ms]',
+            'lg:visible lg:static lg:inset-auto lg:z-auto lg:w-[218px] lg:max-w-none lg:translate-x-0 lg:border-r-0 lg:transition-none',
+            columnOpen ? 'lg:flex' : 'lg:hidden',
+         ].join(' ')}
       >
          {settingsMode ? (
-            <ShellRailSettings orgId={orgId} />
+            <ShellRailSettings orgId={orgId} trailing={closeButton} />
          ) : (
             <>
                {/* The brand opens the workspace menu, as it does throughout the app.
@@ -129,7 +191,7 @@ export function ShellRail({ orgId, active, onToggle, settingsMode }: ShellRailPr
                         <button
                            type="button"
                            aria-label={t('rail.workspaceMenu')}
-                           className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
+                           className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
                            <BerryMark size={24} />
                            <span
@@ -160,74 +222,128 @@ export function ShellRail({ orgId, active, onToggle, settingsMode }: ShellRailPr
                         <WorkspaceMenuItems orgId={orgId} />
                      </DropdownMenuContent>
                   </DropdownMenu>
+                  {closeButton}
                </div>
 
                <ShellPersonal orgId={orgId} />
 
                {SHELL_SECTIONS.map((section) => {
                   const shown = partition(section.routes, section.prefsSection);
+                  const heading = section.headingKey ? t(`sections.${section.headingKey}`) : null;
+                  const list = (
+                     <ul className="flex flex-col gap-1 px-3">
+                        {shown.map((route) => {
+                           const on = Boolean(route.href) && route.id === active;
+                           const className = shellNavRow(on);
+                           const count = badgeCount(route);
+                           const inner = (
+                              <>
+                                 <ShellIcon path={route.icon} />
+                                 {t(`nav.${route.labelKey}`)}
+                                 {route.live === 'runs' && runsLive ? (
+                                    <span
+                                       aria-label={t('rail.runsInProgress')}
+                                       title={t('rail.runsInProgress')}
+                                       className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
+                                    />
+                                 ) : null}
+                                 {route.badge === 'approvals' ? (
+                                    <ShellBadge
+                                       count={count}
+                                       label={t('rail.approvalsWaiting', { count })}
+                                    />
+                                 ) : null}
+                                 {route.badge === 'reviews' ? (
+                                    <ShellBadge
+                                       count={count}
+                                       label={t('rail.reviewsWaiting', { count })}
+                                    />
+                                 ) : null}
+                              </>
+                           );
+                           return (
+                              <li key={route.id}>
+                                 {route.href ? (
+                                    <Link
+                                       data-shell-nav
+                                       href={`/${orgId}${route.href}`}
+                                       aria-current={on ? 'page' : undefined}
+                                       className={className}
+                                    >
+                                       {inner}
+                                    </Link>
+                                 ) : (
+                                    <span data-shell-nav className={className}>
+                                       {inner}
+                                    </span>
+                                 )}
+                              </li>
+                           );
+                        })}
+                     </ul>
+                  );
+
+                  if (section.headingKey !== 'manage' || heading === null) {
+                     return (
+                        <div key={section.heading ?? 'primary'}>
+                           {heading ? (
+                              <div className="px-6 pt-[18px] pb-[7px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+                                 {heading}
+                              </div>
+                           ) : null}
+                           {list}
+                        </div>
+                     );
+                  }
+
+                  // Manage folds. Owners and admins start with it open, since
+                  // they are the ones who configure the workspace; anyone
+                  // else starts with it closed, unless the page they are on
+                  // lives inside it. A choice, once made, is kept. Before
+                  // mount the stored choice is unknown, so the role decides.
+                  const activeInside = shown.some((route) => route.id === active);
+                  const expanded = mounted
+                     ? (manageOpen ?? (manageOpenByDefault(role) || activeInside))
+                     : manageOpenByDefault(role) || activeInside;
                   return (
-                     <div key={section.heading ?? 'primary'}>
-                        {section.heading ? (
-                           <div className="px-6 pt-[18px] pb-[7px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-                              {section.headingKey ? t(`sections.${section.headingKey}`) : null}
-                           </div>
-                        ) : null}
-                        <ul className="flex flex-col gap-1 px-3">
-                           {shown.map((route) => {
-                              const on = Boolean(route.href) && route.id === active;
-                              const className = [
-                                 'flex items-center gap-2.5 rounded px-3 py-1.5 transition-colors',
-                                 on
-                                    ? // Inset rather than a real border: a 2px edge on a rounded
-                                      // pill would shift the label by two pixels on selection.
-                                      'bg-[var(--shell-surface)] text-[var(--shell-text)]'
-                                    : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
-                              ].join(' ');
-                              const inner = (
-                                 <>
-                                    <ShellIcon path={route.icon} />
-                                    {t(`nav.${route.labelKey}`)}
-                                    {route.live === 'runs' && runsLive ? (
-                                       <span
-                                          aria-label={t('rail.runsInProgress')}
-                                          title={t('rail.runsInProgress')}
-                                          className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
-                                       />
-                                    ) : null}
-                                 </>
-                              );
-                              return (
-                                 <li key={route.id}>
-                                    {route.href ? (
-                                       <Link
-                                          data-shell-nav
-                                          href={`/${orgId}${route.href}`}
-                                          aria-current={on ? 'page' : undefined}
-                                          className={className}
-                                       >
-                                          {inner}
-                                       </Link>
-                                    ) : (
-                                       <span data-shell-nav className={className}>
-                                          {inner}
-                                       </span>
-                                    )}
-                                 </li>
-                              );
-                           })}
-                        </ul>
-                     </div>
+                     <Collapsible
+                        key={section.heading}
+                        open={expanded}
+                        onOpenChange={setManageOpen}
+                     >
+                        <div className="px-3 pt-[11px]">
+                           <CollapsibleTrigger asChild>
+                              {/* Radix supplies aria-expanded and aria-controls; the
+                                  visible word is the name, so it never changes
+                                  under a screen reader as it opens and closes. */}
+                              <button
+                                 type="button"
+                                 className="group/fold flex min-h-11 w-full cursor-pointer items-center gap-1 rounded px-3 py-[7px] text-left uppercase tracking-[0.14em] text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text-muted)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:min-h-0"
+                              >
+                                 {heading}
+                                 <ChevronRight
+                                    size={12}
+                                    strokeWidth={1.8}
+                                    aria-hidden="true"
+                                    className="transition-transform group-data-[state=open]/fold:rotate-90 motion-reduce:transition-none"
+                                 />
+                              </button>
+                           </CollapsibleTrigger>
+                        </div>
+                        <CollapsibleContent>{list}</CollapsibleContent>
+                     </Collapsible>
                   );
                })}
             </>
          )}
 
          <ShellPins orgId={orgId} />
-         <div className="mt-auto flex items-center gap-1.5 p-3.5">
+         {/* Collapse belongs to the column. The overlay closes from its own
+             control at the top, the backdrop, or Escape. */}
+         <div className="mt-auto hidden items-center gap-1.5 p-3.5 lg:flex">
             <button
                type="button"
-               onClick={onToggle}
+               onClick={onCollapse}
                aria-label={t('rail.collapseSidebar')}
                title={t('rail.collapseSidebar')}
                className={`ml-auto size-[26px] ${shellIconButton}`}
