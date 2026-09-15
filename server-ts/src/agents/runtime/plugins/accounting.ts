@@ -52,6 +52,9 @@ export class AccountingPlugin implements Plugin {
          if (inner instanceof ModelMetadataEvent && inner.usage) {
             this.#usage.inputTokens += inner.usage.inputTokens;
             this.#usage.outputTokens += inner.usage.outputTokens;
+            // Completion total only: cache tokens are excluded on purpose and
+            // tracked apart in #cacheReadTokens/#cacheWriteTokens. Downstream
+            // reads Usage.totalTokens as input+output — do not fold cache in.
             this.#usage.totalTokens = this.#usage.inputTokens + this.#usage.outputTokens;
             this.#cacheReadTokens += inner.usage.cacheReadInputTokens ?? 0;
             this.#cacheWriteTokens += inner.usage.cacheWriteInputTokens ?? 0;

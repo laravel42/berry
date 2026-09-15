@@ -45,8 +45,8 @@ export async function runCompletionTask(
             model: envelope.agent.model,
             inputTokens: usage?.inputTokens ?? 0,
             outputTokens: usage?.outputTokens ?? 0,
-            cacheReadTokens: 0,
-            cacheWriteTokens: 0,
+            cacheReadTokens: usage?.cacheReadInputTokens ?? 0,
+            cacheWriteTokens: usage?.cacheWriteInputTokens ?? 0,
          },
       });
       if (schema && result.structuredOutput === undefined) {

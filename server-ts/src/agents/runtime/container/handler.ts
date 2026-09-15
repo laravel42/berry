@@ -122,7 +122,12 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // The agent's skills, laid out where skill-aware tools look, and its
       // MCP servers as Strands clients beside Berry's own tools.
       await writeSkills(join(deps.workRoot, key), envelope.agent.skills);
-      mcpClients = await (deps.loadMcp ?? loadMcpClients)(envelope.agent.mcpServers);
+      // Injected loaders keep their single-arg shape; the production loader
+      // bounds each connect and reports a server it had to drop.
+      const warn = deps.warn ?? consoleWarn;
+      mcpClients = deps.loadMcp
+         ? await deps.loadMcp(envelope.agent.mcpServers)
+         : await loadMcpClients(envelope.agent.mcpServers, undefined, warn);
       // Whatever the loader threw, a task that cannot read its tools never
       // runs toolless: it fails retryable, as Berry being unreachable.
       const remote = await (deps.loadTools ?? loadRemoteTools)(api).catch((cause: unknown) => {
@@ -153,7 +158,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       const mcp = await registrableMcpTools(
          mcpClients,
          tools.map((t) => t.name),
-         deps.warn ?? consoleWarn
+         warn
       );
       const table = toolTable(envelope.agent.mcpServers, mcp.listed, remote.map((t) => t.name));
 
@@ -251,16 +256,17 @@ export function toolTable(
 }
 
 function emitUsage(emit: Emit, envelope: TaskEnvelope, accounting: AccountingPlugin): void {
-   const { usage } = accounting.snapshot();
-   if (usage.inputTokens === 0 && usage.outputTokens === 0) return;
+   const { usage, cacheReadTokens, cacheWriteTokens } = accounting.snapshot();
+   // Nothing to bill only when every counter is zero — cache-only calls still cost.
+   if (usage.inputTokens === 0 && usage.outputTokens === 0 && cacheReadTokens === 0 && cacheWriteTokens === 0) return;
    emit({
       type: 'task.usage',
       usage: {
          model: envelope.agent.model,
          inputTokens: usage.inputTokens,
          outputTokens: usage.outputTokens,
-         cacheReadTokens: 0,
-         cacheWriteTokens: 0,
+         cacheReadTokens,
+         cacheWriteTokens,
       },
    });
 }

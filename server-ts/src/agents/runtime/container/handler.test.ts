@@ -67,6 +67,24 @@ test('a run emits started, its words, usage, then completed', async () => {
    assert.equal(completed.result.text, 'all done');
 });
 
+test('cache tokens the model reported reach the usage event', async () => {
+   const { run } = harness([
+      call('probe', {}, { inputTokens: 100, outputTokens: 10, cacheReadInputTokens: 900, cacheWriteInputTokens: 50 }),
+      say('done', { inputTokens: 20, outputTokens: 5, cacheReadInputTokens: 1000 }),
+   ], {
+      loadTools: async () => [
+         tool({ name: 'probe', description: 'probe', inputSchema: z.object({}), callback: () => 'ok' }),
+      ],
+   });
+   const events = await run(envelope());
+   const usage = events.find((event) => event.type === 'task.usage');
+   assert.ok(usage?.type === 'task.usage');
+   assert.equal(usage.usage.inputTokens, 120);
+   assert.equal(usage.usage.outputTokens, 15);
+   assert.equal(usage.usage.cacheReadTokens, 1900);
+   assert.equal(usage.usage.cacheWriteTokens, 50);
+});
+
 test('warm: a second task on a live session appends to the same conversation', async () => {
    const { model, run } = harness([say('one'), say('two')]);
    await run(envelope({ runId: 'run-1', task: { ...envelope().task, prompt: 'first' } }));
