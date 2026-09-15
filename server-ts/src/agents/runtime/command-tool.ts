@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ExecutionSession } from '../../execution/driver.ts';
 import { ExecutionUnavailable } from '../../execution/driver.ts';
 import type { RunLedger } from '../../runs/ledger.ts';
+import { splitUtf8 } from './output-buffer.ts';
 
 /** The three ledger writes a command makes. The runtime passes an emitter instead. */
 export type CommandLedger = Pick<
@@ -219,15 +220,20 @@ class OutputRecorder {
          this.#truncated = true;
          return;
       }
+      // The cap is in bytes, so it is measured and cut in bytes: `.length` is
+      // UTF-16 code units and would let multibyte output past the limit. The
+      // cut is char-safe — splitUtf8's first piece is the most that fits in
+      // `room` bytes without breaking a character.
+      const bytes = Buffer.byteLength(text, 'utf8');
       const room = MAX_RECORDED_BYTES - this.#recorded;
-      const slice = text.length > room ? text.slice(0, room) : text;
-      if (slice.length < text.length) this.#truncated = true;
+      const slice = bytes > room ? (splitUtf8(text, room)[0] ?? '') : text;
+      if (Buffer.byteLength(slice, 'utf8') < bytes) this.#truncated = true;
 
       this.#buffers[stream] += slice;
-      this.#recorded += slice.length;
+      this.#recorded += Buffer.byteLength(slice, 'utf8');
 
       const due =
-         this.#buffers[stream].length >= FLUSH_BYTES ||
+         Buffer.byteLength(this.#buffers[stream], 'utf8') >= FLUSH_BYTES ||
          this.#clock().getTime() - this.#lastFlush >= FLUSH_MS;
       if (due) await this.flush();
    }
@@ -260,9 +266,15 @@ class Tail {
 
    write(stream: 'stdout' | 'stderr', text: string): void {
       const combined = this.#parts[stream] + text;
-      if (combined.length > this.#limit) {
+      // The limit is in bytes, kept char-safe: splitUtf8 cuts from the front
+      // into pieces of at most `#limit` bytes, so the last piece is the tail
+      // that fits without breaking a character. `.length` here would keep the
+      // last N code units and could still be over the byte budget — or split
+      // a multibyte character into a replacement char.
+      if (Buffer.byteLength(combined, 'utf8') > this.#limit) {
          this.#dropped[stream] = true;
-         this.#parts[stream] = combined.slice(combined.length - this.#limit);
+         const pieces = splitUtf8(combined, this.#limit);
+         this.#parts[stream] = pieces[pieces.length - 1] ?? '';
       } else {
          this.#parts[stream] = combined;
       }

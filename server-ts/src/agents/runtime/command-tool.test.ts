@@ -369,3 +369,58 @@ test('a command runs in the checkout when the run has one, unless told otherwise
    assert.deepEqual(seen, [{ cwd: 'circle' }, { cwd: 'elsewhere' }]);
    assert.equal(events.find((event) => event.type === 'started')?.cwd, 'circle');
 });
+
+test('the byte caps are counted in UTF-8 bytes, and never split a character', async () => {
+   // The caps are named in bytes but multibyte output is where code-unit
+   // counting drifts: an emoji is one code point, two UTF-16 code units, and
+   // four UTF-8 bytes. What must hold is that the ledger stays under its byte
+   // budget, the model's tail stays under its own, and neither cut lands
+   // mid-character and reaches a reader as a replacement char.
+   const { ledger, events } = fakeLedger();
+   // Each 🍓 is 4 UTF-8 bytes; enough of them to blow past both the 256 KiB
+   // ledger cap and the 4 KiB model tail several times over.
+   const flood: ExecEvent[] = Array.from({ length: 40 }, (_unused, index) => ({
+      type: 'stdout' as const,
+      seq: index,
+      data: '🍓'.repeat(16 * 1024),
+   }));
+   flood.push({ type: 'exit', seq: 40, exitCode: 0 });
+
+   const result = await call(tool(fakeSession(flood), ledger), { command: 'yes' });
+
+   const recorded = events
+      .filter((event) => event.type === 'output')
+      .map((event) => event.text as string)
+      .join('');
+   // Under the byte budget, cut on a character boundary, so no U+FFFD.
+   assert.ok(
+      Buffer.byteLength(recorded, 'utf8') <= 256 * 1024,
+      `ledger held ${Buffer.byteLength(recorded, 'utf8')} bytes, over the cap`
+   );
+   assert.ok(!recorded.includes('\uFFFD'), 'the ledger cut a multibyte character');
+   assert.equal(events.find((event) => event.type === 'completed')?.truncated, true);
+   assert.equal(result.note, 'output was truncated in the run log');
+
+   // The model's tail is bounded in bytes too, and equally char-safe.
+   const stdout = result.stdout as string;
+   const body = stdout.replace(/^…earlier output omitted…\n/, '');
+   assert.ok(
+      Buffer.byteLength(body, 'utf8') <= 4 * 1024,
+      `model tail held ${Buffer.byteLength(body, 'utf8')} bytes, over the cap`
+   );
+   assert.ok(!stdout.includes('\uFFFD'), 'the model tail cut a multibyte character');
+   assert.match(stdout, /earlier output omitted/);
+});
+
+test('accented multibyte output survives to the model tail intact', async () => {
+   // A smaller case that fits under both caps: nothing is dropped, and the
+   // accented text round-trips without a replacement char.
+   const { ledger } = fakeLedger();
+   const session = fakeSession([
+      { type: 'stdout', seq: 0, data: 'café — naïve — résumé\n' },
+      { type: 'exit', seq: 1, exitCode: 0 },
+   ]);
+   const result = await call(tool(session, ledger), { command: 'echo' });
+   assert.equal(result.stdout, 'café — naïve — résumé\n');
+   assert.ok(!(result.stdout as string).includes('\uFFFD'));
+});
