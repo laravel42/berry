@@ -2,12 +2,12 @@
 
 import { parseAsBoolean, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 
-export type ApprovalsView = 'all' | 'pending' | 'resolved';
+export type ApprovalsView = 'pending' | 'all' | 'resolved';
 
-const VIEWS: ApprovalsView[] = ['all', 'pending', 'resolved'];
+const VIEWS: ApprovalsView[] = ['pending', 'all', 'resolved'];
 
 const parsers = {
-   status: parseAsStringLiteral(VIEWS).withDefault('all'),
+   status: parseAsStringLiteral(VIEWS).withDefault('pending'),
    mine: parseAsBoolean.withDefault(false),
    approval: parseAsString.withDefault(''),
 };
@@ -29,7 +29,7 @@ export function useApprovalsFilterStore(): ApprovalsFilterState {
       view: state.status,
       mine: state.mine,
       selectedId: state.approval,
-      setView: (view) => setState({ status: view === 'all' ? null : view }),
+      setView: (view) => setState({ status: view === 'pending' ? null : view }),
       setMine: (mine) => setState({ mine: mine ? true : null }),
       select: (approvalId) => setState({ approval: approvalId || null }),
    };

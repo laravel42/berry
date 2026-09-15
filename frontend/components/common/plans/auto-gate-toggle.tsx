@@ -1,11 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-   Tooltip,
-   TooltipContent,
-   TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { ShieldCheck } from 'lucide-react';
 
@@ -38,7 +34,7 @@ export function AutoGateToggle({ enabled, onChange }: AutoGateToggleProps) {
                onClick={() => onChange(!enabled)}
                className={cn(
                   'flex items-center gap-1.5',
-                  enabled && 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  enabled && 'border-status-warning/40 bg-status-warning/10 text-status-warning'
                )}
             >
                <ShieldCheck className="size-4" />

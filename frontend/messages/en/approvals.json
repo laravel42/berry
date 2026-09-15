@@ -1,0 +1,110 @@
+{
+   "title": "Approvals",
+   "mine": "Mine",
+   "mineDescription": "Show only the approvals you can decide",
+   "views": {
+      "pending": "Pending",
+      "all": "All",
+      "resolved": "Resolved"
+   },
+   "groups": {
+      "pending": "Pending",
+      "resolved": "Resolved"
+   },
+   "loading": "Loading approvals…",
+   "empty": {
+      "firstUse": "Nothing to decide yet",
+      "intro": "Approvals are the decisions a person makes before something goes ahead: starting a task a plan flagged, a proposed piece of work, or an escalation where an agent asks a question. Each one is addressed to a person or a role, and only they, or someone more senior, can decide it.",
+      "pending": "Nothing to decide",
+      "pendingBody": "Approvals appear here when a plan, a task or a workflow step needs a person to say yes.",
+      "resolved": "Nothing decided yet",
+      "resolvedBody": "Decisions show here once they are made.",
+      "mine": "No pending approval is addressed to you."
+   },
+   "backToList": "All approvals",
+   "select": "Select an approval to see what it gates.",
+   "row": {
+      "askedOf": "asked of {who}"
+   },
+   "risk": "{risk} risk",
+   "askedOf": "Asked of",
+   "requestedAt": "Requested",
+   "expires": "Expires",
+   "linked": "Linked to",
+   "request": "The request",
+   "more": "Read the rest",
+   "less": "Show less",
+   "outcome": {
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "escalation": {
+         "approved": "Answered",
+         "rejected": "Declined"
+      },
+      "issueStart": {
+         "approved": "Started",
+         "rejected": "Kept in backlog"
+      },
+      "workProposal": {
+         "approved": "Accepted",
+         "rejected": "Rejected"
+      }
+   },
+   "decision": {
+      "noteLabel": "Decision note",
+      "notePlaceholder": "Add a note (optional)",
+      "confirmNotePlaceholder": "Why not? (optional)",
+      "cancel": "Cancel",
+      "retry": "Try again",
+      "failed": "The decision was not saved. {reason}",
+      "escalation": {
+         "answerLabel": "Your answer",
+         "answerHint": "Pick an option, or write your own.",
+         "notePlaceholder": "Write your answer, or pick an option above",
+         "noteRequired": "Pick an option or write an answer first.",
+         "positive": "Answer",
+         "positiveBusy": "Answering…",
+         "negative": "Decline to answer",
+         "negativeBusy": "Declining…",
+         "confirmTitle": "Decline to answer?",
+         "confirmBody": "The task stays blocked and the agent gets no answer. A note tells it why.",
+         "confirmAction": "Decline",
+         "explain": "Answering releases the blocked task; if an agent is assigned, its run starts with your answer."
+      },
+      "issueStart": {
+         "positive": "Start",
+         "positiveBusy": "Starting…",
+         "negative": "Keep in backlog",
+         "negativeBusy": "Keeping…",
+         "confirmTitle": "Keep “{title}” in backlog?",
+         "confirmBody": "The task stays in Backlog and whatever waits on it keeps waiting. A note tells whoever asked why.",
+         "confirmAction": "Keep in backlog",
+         "explain": "Start moves the task from Backlog to Todo. It does not start a run by itself."
+      },
+      "workProposal": {
+         "positive": "Accept",
+         "positiveBusy": "Accepting…",
+         "negative": "Reject",
+         "negativeBusy": "Rejecting…",
+         "confirmTitle": "Reject this proposal?",
+         "confirmBody": "The proposed task is cancelled. A note tells the agent who proposed it why.",
+         "confirmAction": "Reject",
+         "explain": "Accepting assigns the task to the owning role's agent and starts a run. Rejecting cancels the proposed task."
+      },
+      "default": {
+         "positive": "Approve",
+         "positiveBusy": "Approving…",
+         "negative": "Reject",
+         "negativeBusy": "Rejecting…",
+         "confirmTitle": "Reject “{title}”?",
+         "confirmBody": "Whatever this approval gates stays where it is. A note tells the person who asked why.",
+         "confirmAction": "Reject",
+         "explain": "Approving lets what this gates go ahead. Rejecting leaves it where it is."
+      }
+   },
+   "refusal": {
+      "adminRequired": "An admin has to decide this one.",
+      "notAddressee": "This approval is addressed to someone else."
+   }
+}

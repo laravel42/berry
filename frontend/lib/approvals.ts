@@ -281,3 +281,134 @@ export function approvalRefusalReason(error: unknown): 'not_addressee' | 'admin_
    }
    return null;
 }
+
+// ---------------------------------------------------------------------------
+// Reading an approval for the row and the decision it asks for
+
+/**
+ * The decision an approval asks for, by kind. `/api/v1/approvals` sends kinds
+ * camelCased and the goal's approval list sends the column spelling, so both
+ * are normalised before the switch.
+ */
+export type ApprovalDecisionKind = 'escalation' | 'issueStart' | 'workProposal' | 'default';
+
+export function approvalDecisionKind(kind: string): ApprovalDecisionKind {
+   switch (kind.replace(/_([a-z])/g, (_all, letter: string) => letter.toUpperCase())) {
+      case 'escalation':
+         return 'escalation';
+      case 'issueStart':
+         return 'issueStart';
+      case 'workProposal':
+         return 'workProposal';
+      default:
+         return 'default';
+   }
+}
+
+const TITLE_PREFIX =
+   /^\s*(?:decision needed|decision required|escalation|question|proposal|approval needed|approval)\s*:\s*/i;
+
+/** Sentence-initial agent phrasing, rewritten so the row reads as a fact. */
+const FIRST_PERSON: [RegExp, string][] = [
+   [
+      /^(?:this task|the task|[A-Z][A-Z0-9]*-\d+)\s*(?:\([A-Z][A-Z0-9]*-\d+\)\s*)?asks me to\s+/i,
+      '',
+   ],
+   [/^i need to\s+/i, ''],
+   [/^i(?:'m| am) unable to\s+/i, 'Unable to '],
+   [/^i (?:can't|cannot|can not)\s+/i, 'Cannot '],
+   [/^i have no\s+/i, 'No '],
+];
+
+function capitalise(text: string): string {
+   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * The agent's title as one line for a list row: the "Decision needed:" prefix
+ * and first-person framing dropped, the first sentence kept, and cut at a
+ * word before `max` characters. The full title belongs in `title=`.
+ */
+export function summarizeApprovalTitle(title: string, max = 80): string {
+   let text = title.replace(/\s+/g, ' ').trim().replace(TITLE_PREFIX, '');
+   for (const [pattern, replacement] of FIRST_PERSON) {
+      if (pattern.test(text)) {
+         text = capitalise(text.replace(pattern, replacement));
+         break;
+      }
+   }
+   // A sentence ends at a terminator followed by a capital, a quote, or the
+   // end — "e.g." and "index.css" do not end one.
+   const sentence = text.match(/^(.*?[.!?]["”’']?)(?=\s+["“(]?[A-Z]|\s*$)/);
+   if (sentence?.[1]) text = sentence[1];
+   if (text.length > max) {
+      const bare = text
+         .replace(/\s*\([^)]*\)/g, '')
+         .replace(/\s+/g, ' ')
+         .trim();
+      if (bare.length > 0) text = bare;
+   }
+   if (text.length > max) {
+      const cut = text.slice(0, max - 1);
+      const space = cut.lastIndexOf(' ');
+      text = `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:(]+$/, '')}…`;
+   }
+   return text;
+}
+
+export interface EscalationRequest {
+   /** The request with the options list taken out. */
+   body: string;
+   /** The choices the agent offered, in its order; empty when it offered none. */
+   options: string[];
+}
+
+const OPTIONS_HEADING = /^(.*?)\s*(?:\*\*|__)?options?(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*$/i;
+const LIST_ITEM = /^\s*(?:[-*•+]|\d+[.)])\s+(.+?)\s*$/;
+
+function plainOption(text: string): string {
+   return text
+      .replace(/\*\*|__/g, '')
+      .replace(/`([^`]*)`/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+}
+
+/**
+ * Lifts the "Options:" list an escalation ends its question with — bullets or
+ * numbers, possibly followed by a recommendation — out of the body, so the
+ * choices can be offered as a radio group instead of prose. A body with fewer
+ * than two options comes back untouched.
+ */
+export function splitEscalationOptions(description: string | null | undefined): EscalationRequest {
+   const text = description ?? '';
+   const lines = text.split('\n');
+   const headingAt = lines.findIndex((line) => OPTIONS_HEADING.test(line));
+   if (headingAt < 0) return { body: text, options: [] };
+   const options: string[] = [];
+   let index = headingAt + 1;
+   while (index < lines.length && lines[index]?.trim() === '') index += 1;
+   while (index < lines.length) {
+      const line = lines[index] ?? '';
+      const item = line.match(LIST_ITEM);
+      if (item?.[1]) {
+         options.push(item[1]);
+      } else if (options.length > 0 && /^\s+\S/.test(line)) {
+         // An indented continuation belongs to the option above it.
+         options[options.length - 1] = `${options[options.length - 1]} ${line.trim()}`;
+      } else {
+         break;
+      }
+      index += 1;
+   }
+   if (options.length < 2) return { body: text, options: [] };
+   const lead = lines[headingAt]?.match(OPTIONS_HEADING)?.[1]?.trim() ?? '';
+   const before = lines.slice(0, headingAt);
+   if (lead) before.push(lead);
+   const after = lines.slice(index);
+   const body = [...before, ...after]
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+   return { body, options: options.map(plainOption) };
+}
