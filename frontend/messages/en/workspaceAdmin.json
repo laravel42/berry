@@ -1,8 +1,8 @@
 {
    "groups": {
-      "personal": "personal",
-      "workspace": "workspace",
-      "connections": "connections"
+      "personal": "Personal",
+      "workspace": "Workspace",
+      "connections": "Connections"
    },
    "nav": {
       "preferences": "Preferences",
@@ -121,6 +121,9 @@
       "expires": "expires {when}",
       "revoke": "Revoke",
       "revokeFailed": "That invitation could not be revoked.",
+      "revokeTitle": "Revoke this invitation?",
+      "revokeBody": "{email} can no longer use it. You can invite them again later.",
+      "revokeAction": "Revoke",
       "joinLinks": "Join links",
       "joinLinksDescription": "A shareable link anyone can use to join, at a role you fix in advance.",
       "joinLinksCreate": "New link",
@@ -134,6 +137,9 @@
       "joinLinksFresh": "Copy this now — it is shown once. Berry kept only a hash of it.",
       "joinLinksFailed": "The link could not be created.",
       "joinLinksRevokeFailed": "That link could not be revoked.",
+      "joinLinksRevokeTitle": "Revoke this link?",
+      "joinLinksRevokeBody": "Anyone still holding it can no longer join. A revoked link cannot be turned back on; create a new one instead.",
+      "joinLinksRevokeAction": "Revoke",
       "joinLinksActive": "active",
       "joinLinksRevoked": "revoked",
       "joinLinksUsedUp": "used up",
@@ -342,6 +348,9 @@
       "descriptionLabel": "Description",
       "descriptionPlaceholder": "What this repository holds",
       "remove": "Remove repository",
+      "removeTitle": "Remove this repository?",
+      "removeBody": "{name} leaves this workspace and agents stop working in it. Nothing on GitHub changes.",
+      "removeAction": "Remove",
       "urlRequired": "Enter a repository URL.",
       "urlInvalid": "Use an https:// or ssh address.",
       "duplicate": "That repository is already in the list."

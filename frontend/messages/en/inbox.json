@@ -1,6 +1,5 @@
 {
    "title": "Inbox",
-   "description": "What happened on your work while you were elsewhere.",
    "views": {
       "active": "Inbox",
       "archived": "Archive"
@@ -27,14 +26,16 @@
    },
    "states": {
       "loading": "Loading your notifications…",
-      "empty": "Nothing has happened yet.",
-      "emptyBody": "Assignments, comments and agent outcomes on work you follow arrive here.",
+      "empty": "Nothing has reached you yet.",
+      "emptyBody": "Berry sends you what happens on tasks you follow: mentions, assignments, comments, review requests and agent runs. You follow a task when you create it, take it, comment on it or are mentioned in it, or when you press Follow.",
       "noMatches": "No notifications match these filters.",
       "emptyArchive": "The archive is empty.",
       "emptyArchiveBody": "Notifications you archive are kept here.",
       "error": "The archive could not be loaded.",
       "errorBody": "The request did not come back. Nothing was lost.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "caughtUp": "You’re caught up.",
+      "caughtUpBody": "Everything you handled is in the archive. New mentions, assignments, comments, reviews and runs on tasks you follow land here."
    },
    "actions": {
       "markRead": "Mark read",
@@ -70,11 +71,11 @@
    },
    "drawer": {
       "title": "Notifications",
-      "description": "What happened on your work while you were elsewhere.",
-      "markAllRead": "Mark all read",
-      "empty": "Nothing has happened yet.",
+      "description": "Mentions, assignments, comments, reviews and runs on tasks you follow.",
+      "empty": "Nothing waiting for you.",
       "unread": "Unread",
-      "openInbox": "Open the inbox"
+      "openInbox": "Open the inbox",
+      "emptyBody": "Mentions, assignments, comments, reviews and runs on tasks you follow land here."
    },
    "toast": {
       "open": "Open",
@@ -104,5 +105,6 @@
       "agentBlocked": "Agent blocked",
       "agentCompleted": "Agent finished",
       "autopilotPaused": "Autopilot paused"
-   }
+   },
+   "unreadCount": "{count} unread"
 }

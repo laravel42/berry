@@ -16,6 +16,8 @@
       "gantt": "Gantt"
    },
    "display": {
+      "label": "Display",
+      "moreOptions": "More options",
       "grouping": "Grouping",
       "ordering": "Ordering",
       "direction": "Direction",
@@ -33,6 +35,11 @@
       "dueDate": "Due date",
       "none": "None",
       "subIssues": "Show sub-tasks",
+      "showEmptyGroups": "Show empty groups",
+      "orderCompletedByRecency": "Order completed by recency",
+      "completedTasks": "Completed tasks",
+      "completedAll": "All",
+      "completedNone": "None",
       "cardProperties": "Card properties",
       "reset": "Reset"
    },
@@ -73,7 +80,7 @@
       "savedToView": "View updated"
    },
    "agents": {
-      "chip": "{agents} agents · {tasks} tasks",
+      "chip": "{agents, plural, one {# agent} other {# agents}} · {tasks, plural, one {# task} other {# tasks}}",
       "working": "Working",
       "queued": "Queued",
       "none": "No agent is working right now",
@@ -184,5 +191,28 @@
       "table": "Table",
       "selected": "{count} selected",
       "noneMatch": "No project matches these filters."
+   },
+   "row": {
+      "priority": "Priority: {current}"
+   },
+   "assignee": {
+      "assigned": "Assigned to {name}",
+      "unassigned": "Assign this task",
+      "none": "No assignee",
+      "people": "People",
+      "agents": "Agents",
+      "search": "Search people and agents",
+      "noMatch": "No one matches.",
+      "invite": "Invite and assign…",
+      "showing": "Showing {shown} of {total} agents. Type to search.",
+      "searchAgents": "Search agents",
+      "orchestratorHint": "The Orchestrator routes the task to the best-fitting agent. Pick one yourself to skip that."
+   },
+   "actor": {
+      "agent": "agent",
+      "person": "person",
+      "working": "Agent working",
+      "workingBy": "{name} is working on this",
+      "queuedBy": "{name} is queued on this"
    }
 }

@@ -12,6 +12,14 @@
       "parentOf": "sub-task of",
       "markDone": "Mark done",
       "markNotDone": "Reopen",
+      "decideInReviews": "Decide in Reviews",
+      "markDoneTitle": "Mark {identifier} done?",
+      "markDoneBody": "It skips review. Nothing on it gets a decision first.",
+      "markDoneConfirm": "Mark done",
+      "reopenTitle": "Reopen {identifier}?",
+      "reopenBody": "It leaves Done and goes back to In Progress.",
+      "reopenConfirm": "Reopen",
+      "keep": "Keep as is",
       "pin": "Pin",
       "unpin": "Unpin",
       "delete": "Delete",
@@ -56,7 +64,7 @@
       "position": "{index} of {total}"
    },
    "subIssues": {
-      "title": "sub-tasks",
+      "title": "Sub-tasks",
       "progress": "{done}/{total} done",
       "expand": "Show sub-tasks",
       "collapse": "Hide sub-tasks",
@@ -150,7 +158,15 @@
          "builder": "agent builder",
          "completion": "follow-up",
          "retry": "retry #{count}"
-      }
+      },
+      "latest": "Latest run",
+      "outcomeDelivered": "{name} delivered {when}.",
+      "outcomeFailed": "{name} failed {when}: {reason}",
+      "outcomeCancelled": "{name} was stopped {when}.",
+      "awaitingReview": "Waiting for a person to decide.",
+      "outcomeStopped": "{name} stopped without delivering {when}.",
+      "openInReviews": "Open in Reviews",
+      "pullRequest": "Pull request #{number}"
    },
    "usage": {
       "title": "Usage",
@@ -214,7 +230,7 @@
       "newestFirst": "Newest first"
    },
    "activity": {
-      "title": "activity",
+      "title": "Activity",
       "error": "Activity could not be loaded.",
       "showMore": "Show {count} more",
       "showLess": "Show less",
@@ -250,7 +266,8 @@
       "deleteFailed": "The comment could not be deleted.",
       "runStarted": "started a run from this comment",
       "runStop": "Stop",
-      "runWaiting": "Waiting for output…"
+      "runWaiting": "Waiting for output…",
+      "readRest": "Read the rest"
    },
    "composer": {
       "placeholder": "leave a comment…",
@@ -340,7 +357,33 @@
       "promptPlaceholder": "What should the agent do?",
       "pickAgent": "Choose an agent",
       "attachments": "Attachments",
-      "agentCreated": "On it. The result arrives in your inbox.",
-      "titleRequired": "A task needs a title."
+      "agentCreated": "Handed to {name}. Its result lands as a comment on the task, and the task moves to In review for a person.",
+      "titleRequired": "A task needs a title.",
+      "mode": "How to create it",
+      "promptLabel": "What should the agent do?",
+      "agentRequired": "Choose an agent to hand this to.",
+      "promptRequired": "Say what the agent should do.",
+      "agentAssigned": "Handed to {name}. Nothing runs until someone starts it.",
+      "titlePreview": "Title: {title}"
+   },
+   "artifacts": {
+      "title": "Produced · {count, plural, =1 {1 file} other {# files}}",
+      "by": "by {names}",
+      "show": "Show files",
+      "hide": "Hide files",
+      "download": "Download {path}",
+      "downloadFailed": "{name} could not be downloaded."
+   },
+   "attachments": {
+      "title": "Files",
+      "titleCount": "Files ({count})",
+      "add": "Add a file",
+      "uploading": "Uploading…"
+   },
+   "reviews": {
+      "title": "AutoGate review"
+   },
+   "pullRequests": {
+      "title": "Pull requests"
    }
 }

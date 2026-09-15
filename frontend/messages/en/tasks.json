@@ -1,7 +1,6 @@
 {
    "header": {
       "title": "Tasks",
-      "description": "Work starts here. Assign to a human or an agent, then track it through review.",
       "insights": "Insights",
       "breakdown": "Breakdown",
       "create": "Create task"
@@ -10,5 +9,16 @@
       "all": "All",
       "members": "Members",
       "agent": "Agent"
+   },
+   "empty": {
+      "title": "No tasks yet.",
+      "body": "A task can go to a person or to an agent, and either way the result comes back here for a person to review.",
+      "next": "Create the first task to get started.",
+      "cta": "Create task",
+      "mark": "Empty task list"
+   },
+   "discovery": {
+      "body": "Your agents filed these discovery tasks on their weekly sweep. They wait in the backlog until someone starts them.",
+      "dismiss": "Dismiss"
    }
 }

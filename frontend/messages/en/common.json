@@ -1,4 +1,10 @@
 {
    "loading": "Loading…",
-   "retry": "Try again"
+   "retry": "Try again",
+   "confirm": {
+      "cancel": "Cancel",
+      "remove": "Remove",
+      "removeTriggerTitle": "Remove this trigger?",
+      "removeTriggerBody": "The autopilot stops firing from it at once. A webhook’s address and signing secret stop working. This cannot be undone."
+   }
 }

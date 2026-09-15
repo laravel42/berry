@@ -41,6 +41,7 @@ export const NAMESPACES = [
    'workspaceAdmin',
    'areas',
    'organization',
+   'approvals',
 ] as const;
 export type Namespace = (typeof NAMESPACES)[number];
 

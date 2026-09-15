@@ -1,7 +1,6 @@
 {
    "header": {
-      "title": "Runtimes",
-      "description": "Execution ledger for agent work — status, events, usage, and cost per run."
+      "title": "Runtimes"
    },
    "overview": {
       "label": "Runtimes",
@@ -12,6 +11,7 @@
       "cancelled": "Run cancelled",
       "cancelFailed": "Could not cancel run",
       "waiting": "Waiting for output…",
-      "openTranscript": "Open transcript"
+      "openTranscript": "Open transcript",
+      "empty": "No runs yet. A run is one attempt by an agent to work on a task; every run lands here with its status, events and cost."
    }
 }

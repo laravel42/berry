@@ -1,11 +1,10 @@
 {
    "skills": {
       "title": "Skills",
-      "subtitle": "Reusable instructions and files your agents carry into their tasks.",
       "search": "Search skills",
       "loading": "Loading skills…",
       "loadFailed": "Skills could not be loaded.",
-      "empty": "No skills yet. Write one.",
+      "empty": "No skills yet. A skill is a set of instructions and files an agent carries into its tasks. Write one.",
       "noMatch": "No skill matches that.",
       "cancel": "Cancel",
       "columns": {
@@ -111,7 +110,6 @@
    },
    "autopilots": {
       "title": "Autopilots",
-      "subtitle": "Standing instructions for agents. Each firing — scheduled, from a webhook or by hand — becomes one agent task you can follow like any other.",
       "new": "New autopilot",
       "search": "Search autopilots",
       "loading": "Loading autopilots…",
@@ -375,7 +373,6 @@
    },
    "usage": {
       "title": "Usage",
-      "subtitle": "Model tokens and cost across the workspace, priced when each run reports them.",
       "loading": "Loading usage…",
       "tabs": {
          "usage": "Usage",
@@ -388,12 +385,13 @@
          "searchZones": "Search time zones",
          "updated": "Updated {when}",
          "never": "Not loaded yet",
-         "refresh": "Refresh"
+         "refresh": "Refresh",
+         "timesShownIn": "Times shown in {zone}"
       },
       "tiles": {
          "cost": "Cost",
          "tokens": "Tokens",
-         "cache": "Cache r/w",
+         "cache": "Cache reads / writes",
          "runs": "Runs",
          "runTime": "Run time",
          "unpriced": "{unpriced} of {events} usage reports used a model with no published price. Their tokens are counted here; their cost is not."
@@ -404,12 +402,12 @@
          "weekly": "Weekly",
          "metric_cost": "Cost",
          "metric_tokens": "Tokens",
-         "metric_reports": "Reports"
+         "metric_calls": "Model calls"
       },
       "breakdown": {
          "empty": "No usage in this window.",
          "name": "Name",
-         "reports": "Reports",
+         "calls": "Model calls",
          "tokens": "Tokens",
          "cost": "Cost"
       },
@@ -452,7 +450,6 @@
    },
    "dashboard": {
       "title": "Dashboard",
-      "subtitle": "Runs, failures, spend and task status for the whole workspace.",
       "days": "{count} days",
       "status_queued": "Queued",
       "status_running": "Running",

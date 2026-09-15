@@ -1,14 +1,13 @@
 {
    "header": {
-      "title": "Projects",
-      "description": "Group related tasks into a shared plan with status, health, and a target date."
+      "title": "Projects"
    },
    "toggleInsights": "Toggle projects insights panel",
    "empty": {
       "mark": "No projects",
       "title": "No projects yet.",
       "body": "A project is a shared plan for related work — status, health, and a target date in one place.",
-      "cta": "create a project"
+      "cta": "Create a project"
    },
    "states": {
       "hiddenByFilters": "{count, plural, =1 {1 project} other {# projects}} hidden by filters",

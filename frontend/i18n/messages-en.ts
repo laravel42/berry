@@ -1,5 +1,6 @@
 import agents from '@/messages/en/agents.json';
 import agentsChat from '@/messages/en/agentsChat.json';
+import approvals from '@/messages/en/approvals.json';
 import areas from '@/messages/en/areas.json';
 import common from '@/messages/en/common.json';
 import goals from '@/messages/en/goals.json';
@@ -24,6 +25,7 @@ import workspaceAdmin from '@/messages/en/workspaceAdmin.json';
 const messages = {
    agents,
    agentsChat,
+   approvals,
    areas,
    common,
    goals,

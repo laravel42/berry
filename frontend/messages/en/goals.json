@@ -1,7 +1,6 @@
 {
    "header": {
-      "title": "Goals",
-      "description": "The tasks one plan produced, grouped inside their project. Berry makes a goal when you plan work in a project."
+      "title": "Goals"
    },
    "list": {
       "goal": "Goal",
@@ -14,6 +13,6 @@
       "mark": "No goals",
       "title": "No goals yet.",
       "body": "A goal is the group of tasks one plan produced. Plan work in a project and the goal arrives with the tasks.",
-      "cta": "go to projects"
+      "cta": "Go to projects"
    }
 }

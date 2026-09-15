@@ -54,7 +54,7 @@
          "mark": "No proposals",
          "title": "No proposals yet.",
          "body": "Discovery autopilots file evidence-backed work here when role agents inspect the workspace.",
-         "cta": "go to autopilots"
+         "cta": "Go to autopilots"
       },
       "evidence": "Evidence",
       "impact": "Impact",
@@ -66,5 +66,14 @@
       "reject": "Reject",
       "decided": "Decision recorded",
       "adminOnly": "Only workspace owners and admins can accept or reject a proposal."
-   }
+   },
+   "levelNames": {
+      "1": "Advisory",
+      "2": "Contributor",
+      "3": "Executor",
+      "4": "Autonomous",
+      "5": "Authority"
+   },
+   "levelChip": "Level {level} · {name}",
+   "levelHint": "Caps which tools this agent may use; no level can merge code or close a task."
 }
