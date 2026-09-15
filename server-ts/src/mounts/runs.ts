@@ -3,6 +3,7 @@ import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
+import { runEventStream, wantsEventStream } from '../runs/event-stream.ts';
 import { decodeTimeCursor, encodeCursor, parsePageQuery } from '../http/cursor.ts';
 import { assertValid, decodeBody, fieldError } from '../http/body.ts';
 import { idempotent } from '../http/idempotent.ts';
@@ -102,6 +103,17 @@ export function runMounts(options: RunOptions): Mount[] {
 
       const url = new URL(context.req.url);
       const after = parseAfterSequence(url.searchParams.get('after'), context.req.header('last-event-id'));
+
+      // A caller that asked for a stream is followed rather than paged. The
+      // frontend has asked for one since the live transcript was written, and
+      // got a JSON body it could not parse as frames — so the run transcript,
+      // the inline output tail, the tool-call counter and the delivery panel
+      // all silently showed nothing. Authorized above, before any bytes: a 200
+      // carrying an event-stream body cannot be taken back.
+      if (wantsEventStream(context.req.header('accept'))) {
+         return runEventStream({ runs, runId: run.id, after, signal: context.req.raw.signal });
+      }
+
       const events = await runs.events(run.id, after, EVENT_PAGE);
 
       return json({

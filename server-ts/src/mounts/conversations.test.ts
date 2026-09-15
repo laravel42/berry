@@ -12,7 +12,8 @@ import { Registry } from '../http/registry.ts';
 import { RunLedger } from '../runs/ledger.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { call, dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from './agent-layer.fixture.ts';
-import { conversationMounts, streamCursor } from './conversations.ts';
+import { streamCursor } from '../runs/event-stream.ts';
+import { conversationMounts } from './conversations.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
