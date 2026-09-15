@@ -85,7 +85,12 @@ export class RuntimeTaskExecutor implements Executor {
       const { sql } = this.#o;
       const task = await loadTask(sql, runId);
       const dispatch = task.issueId ? await this.#ledger.claimDispatch(runId) : await claimDirect(sql, runId);
-      const recorder: TaskRecorder = task.issueId ? ledgerRecorder(this.#ledger, runId) : directRecorder(sql, runId);
+      // A chat task has no issue, so it records on the row — but its output is
+      // a reply someone is reading as it arrives, so the deltas go to the
+      // ledger too and the conversation's stream follows them.
+      const recorder: TaskRecorder = task.issueId
+         ? ledgerRecorder(this.#ledger, runId)
+         : directRecorder(sql, runId, this.#ledger);
       const usage: Usage = { ...ZERO };
       const abort = signal ?? new AbortController().signal;
 

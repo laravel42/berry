@@ -80,7 +80,28 @@ export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
    };
 }
 
-export function directRecorder(sql: Sql, runId: string): TaskRecorder {
+/**
+ * The recorder for a run with no issue.
+ *
+ * `output` is the one message it writes. A chat task has no board to publish
+ * on, which is why the rest of the lifecycle lives on the row — but its reply
+ * is prose a person is waiting to read, and holding it until the run ended left
+ * the thread silent for however long the agent worked. The deltas go to the
+ * ledger (which `run_events` has accepted with a null board and issue since
+ * migration 053), and the conversation's task stream follows them.
+ *
+ * Everything terminal is unchanged: `result` still lands on the row, and the
+ * reply is still the summary the terminal hook posts. This only makes the run
+ * readable while it happens.
+ *
+ * `ledger` is optional so a caller with nothing to stream on — a completion,
+ * which emits no output messages at all — can leave it out.
+ */
+export function directRecorder(
+   sql: Sql,
+   runId: string,
+   ledger?: Pick<RunLedger, 'appendOutput'>
+): TaskRecorder {
    // Only on the transition: a repeated terminal write changes no row and must
    // not announce a second time, even though the hooks are idempotent.
    const announce = async (rows: readonly unknown[]) => {
@@ -95,8 +116,16 @@ export function directRecorder(sql: Sql, runId: string): TaskRecorder {
                    started_at = COALESCE(started_at, now()), dispatch_accepted_at = now(), updated_at = now()
              WHERE id = ${runId} AND status = 'queued'`;
       },
-      async message() {
-         // No stream to publish on; the result is what the caller waits for.
+      async message(message) {
+         // Only prose, and only when there is a ledger to write it to. A tool
+         // or command event belongs to a board's run stream, which a run
+         // without an issue does not have.
+         if (message.kind !== 'output' || !ledger) return;
+         await ledger.appendOutput(runId, message.channel, message.text).catch((cause: unknown) => {
+            // The run ended while a delta was in flight: its ending is already
+            // recorded, and nothing after it belongs in the record.
+            if (!(cause instanceof RunTerminal)) throw cause;
+         });
       },
       async succeeded({ summary, usage, result }) {
          const rows = await sql`

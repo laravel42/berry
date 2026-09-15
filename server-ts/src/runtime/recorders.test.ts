@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
-import type { Run } from '../runs/ledger.ts';
+import { RunTerminal, type Run } from '../runs/ledger.ts';
 import { onRunTerminal } from '../runs/terminal-hooks.ts';
 import { directRecorder } from './recorders.ts';
 import { cleanupFixture, seedFixture, type Fixture } from './test-fixture.ts';
@@ -94,4 +94,62 @@ describe('the direct recorder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
          stop();
       }
    });
+});
+
+/**
+ * A chat task's prose reaches the ledger, so the reply can be read while it is
+ * written. Needs no database: `message` touches only the ledger.
+ */
+test('the direct recorder streams output deltas and ignores the rest', async () => {
+   const appended: { runId: string; channel: string; text: string }[] = [];
+   const ledger = {
+      appendOutput: async (runId: string, channel: string, text: string) => {
+         appended.push({ runId, channel, text });
+      },
+   };
+   const recorder = directRecorder(null as unknown as Sql, 'run-1', ledger);
+
+   await recorder.message({ kind: 'output', channel: 'progress', text: 'Hello ' });
+   await recorder.message({ kind: 'output', channel: 'progress', text: 'world' });
+   // A tool or command belongs to a board's run stream, which this run has not got.
+   await recorder.message({ kind: 'tool.started', toolCallId: 't1', name: 'read_file' });
+   await recorder.message({ kind: 'tool.completed', toolCallId: 't1', succeeded: true });
+
+   assert.deepEqual(
+      appended.map((entry) => entry.text),
+      ['Hello ', 'world']
+   );
+   assert.deepEqual(appended[0], { runId: 'run-1', channel: 'progress', text: 'Hello ' });
+});
+
+test('the direct recorder without a ledger writes nothing, as a completion does', async () => {
+   const recorder = directRecorder(null as unknown as Sql, 'run-1');
+   // No ledger, no throw: a completion emits no output messages, and one that
+   // did must not take the run down over it.
+   await recorder.message({ kind: 'output', channel: 'progress', text: 'ignored' });
+});
+
+test('a run that ended mid-delta is not an error the task has to carry', async () => {
+   const ledger = {
+      appendOutput: async () => {
+         throw new RunTerminal();
+      },
+   };
+   const recorder = directRecorder(null as unknown as Sql, 'run-1', ledger);
+   // The run's own ending is already recorded; a delta arriving after it is not
+   // a failure of the task.
+   await recorder.message({ kind: 'output', channel: 'progress', text: 'late' });
+});
+
+test('a real ledger failure still fails the task', async () => {
+   const ledger = {
+      appendOutput: async () => {
+         throw new Error('storage is down');
+      },
+   };
+   const recorder = directRecorder(null as unknown as Sql, 'run-1', ledger);
+   await assert.rejects(
+      () => recorder.message({ kind: 'output', channel: 'progress', text: 'x' }),
+      /storage is down/
+   );
 });
