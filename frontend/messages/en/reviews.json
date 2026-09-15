@@ -1,10 +1,12 @@
 {
    "title": "Reviews",
+   "tabTitle": "{identifier} review",
    "tabs": {
       "waiting": "Waiting",
       "decided": "Decided"
    },
    "groups": {
+      "needsHelp": "Needs help",
       "waiting": "Waiting for a decision",
       "approved": "Approved",
       "sentBack": "Sent back"
@@ -16,6 +18,131 @@
    },
    "count": {
       "open": "{count} waiting",
+      "needsHelp": "{count, plural, one {# needs help} other {# need help}}",
       "decided": "{count} decided"
+   },
+   "select": {
+      "open": "Select a task to decide.",
+      "decided": "Select a task to see what was decided."
+   },
+   "status": {
+      "open": "Waiting for a decision",
+      "undelivered": "Waiting for a decision, nothing committed",
+      "merged": "Approved",
+      "closed": "Sent back"
+   },
+   "peer": {
+      "approved": "Peer approved",
+      "sentBack": "Peer sent back",
+      "reviewing": "Peer reviewing",
+      "by": "Peer review by {reviewer}",
+      "attempt": "attempt {attempt}",
+      "ofAuthor": "on {author}'s work",
+      "reading": "{reviewer} is reading what {author} produced.",
+      "returned": "Sent back to To do to be worked again, with this feedback.",
+      "none": "No peer verdict yet.",
+      "notOptedIn": "This task did not opt into peer review."
+   },
+   "delivery": {
+      "stopped": "{agent} stopped without delivering.",
+      "pullRequest": "{agent} delivered PR #{number}.",
+      "committed": "{agent} committed changes but opened no pull request.",
+      "produced": "{agent} delivered {count, plural, one {# file} other {# files}} without a commit."
+   },
+   "sections": {
+      "overview": "Overview",
+      "verdicts": "Verdicts",
+      "diff": "Diff"
+   },
+   "detail": {
+      "loading": "Loading review…",
+      "notFound": "Review not found",
+      "backToList": "All reviews",
+      "openTask": "Open the task",
+      "pullRequest": "PR #{number}"
+   },
+   "facts": {
+      "deliveredBy": "Delivered by",
+      "deliveredAt": "Delivered",
+      "runBy": "Run by",
+      "stoppedAt": "Stopped",
+      "ago": "{time} ago",
+      "noAuthor": "an agent",
+      "pullRequest": "Pull request",
+      "noPullRequest": "No pull request",
+      "branch": "Branch",
+      "changes": "Changes",
+      "filesChanged": "{count, plural, one {# file changed} other {# files changed}}",
+      "nothingCommitted": "Nothing committed",
+      "produced": "Produced",
+      "producedFiles": "{count, plural, one {# produced file} other {# produced files}}",
+      "noProducedFiles": "No produced files",
+      "checks": "Checks",
+      "checksNone": "No checks are defined for this project",
+      "checksPassed": "{count, plural, one {# check passed} other {# checks passed}}",
+      "checksFailed": "{failed} of {total} checks failed",
+      "checksIncomplete": "not all checks ran",
+      "peerReview": "Peer review",
+      "peerBy": "by {reviewer}",
+      "noPeerReview": "No peer review"
+   },
+   "summary": {
+      "title": "Summary",
+      "empty": "The run left no summary.",
+      "more": "Read the rest",
+      "less": "Show less"
+   },
+   "artifacts": {
+      "title": "Produced files"
+   },
+   "checks": {
+      "title": "Checks",
+      "exit": "exit {code}",
+      "noExit": "exit none",
+      "passed": "passed",
+      "failed": "failed",
+      "budgetSpent": "The remaining checks did not run: the verification budget was spent."
+   },
+   "changed": {
+      "title": "What changed",
+      "nothing": "The run committed nothing. Its answer is the summary above and the files it produced."
+   },
+   "diff": {
+      "noPullRequest": "This run opened no pull request.",
+      "files": "Files",
+      "filter": "Filter files",
+      "loading": "Loading the diff…",
+      "failed": "Could not load the diff"
+   },
+   "decision": {
+      "noteLabel": "Note for the author",
+      "notePlaceholder": "What should change, or what was good about it.",
+      "noteHelp": "A note is required to send back and optional to approve; the agent reads it on its next run.",
+      "noteRequired": "Add a note so the agent knows what to change.",
+      "explain": "Approve marks the task done. Send back returns it to To do with your note.",
+      "explainStopped": "Send back returns it to To do with your note so the agent can try again. Approve marks it done as it is.",
+      "approve": "Approve",
+      "approving": "Approving…",
+      "sendBack": "Send back",
+      "sendingBack": "Sending back…",
+      "retry": "Try again",
+      "failed": "The decision was not saved. {reason}",
+      "confirmTitle": "Mark {identifier} done?",
+      "confirmPullRequest": "The pull request stays open on GitHub for you to merge. The task leaves the review queue.",
+      "confirmCommitted": "The changes are committed but no pull request was opened. The task leaves the review queue.",
+      "confirmNothingCommitted": "Nothing was committed. The task leaves the review queue.",
+      "markDone": "Mark done",
+      "keepInReview": "Keep in review",
+      "keysMac": "⌘ Enter",
+      "keysOther": "Ctrl+Enter",
+      "shortcutApprove": "{keys} approves.",
+      "shortcutSendBack": "{keys} sends back."
+   },
+   "outcome": {
+      "approved": "{identifier} approved and moved to Done.",
+      "sentBack": "{identifier} sent back to To do with your note.",
+      "caughtUp": "All caught up",
+      "caughtUpBody": "Nothing else is waiting for a decision.",
+      "dismiss": "Dismiss"
    }
 }

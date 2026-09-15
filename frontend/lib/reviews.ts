@@ -52,6 +52,8 @@ export const reviewItemSchema = z.object({
       insertions: z.number(),
       deletions: z.number(),
       files: z.array(z.string()).default([]),
+      /** Files the run produced and attached, whether or not it committed. */
+      producedFiles: z.number().default(0),
    }),
    checks: z
       .object({
@@ -76,7 +78,10 @@ export type ReviewItem = z.infer<typeof reviewItemSchema>;
 export type ReviewVerdict = z.infer<typeof reviewVerdictSchema>;
 export type ReviewQueueState = 'open' | 'completed';
 
-export async function loadReviews(workspaceId: string, state: ReviewQueueState): Promise<ReviewItem[]> {
+export async function loadReviews(
+   workspaceId: string,
+   state: ReviewQueueState
+): Promise<ReviewItem[]> {
    const params = new URLSearchParams({ workspaceId, state });
    const json: unknown = await apiFetch(`/api/v1/reviews?${params.toString()}`);
    const parsed = z.object({ nodes: z.array(reviewItemSchema) }).safeParse(json);
@@ -88,6 +93,19 @@ export async function loadReviewDiff(runId: string): Promise<string> {
    return apiText(`/api/v1/reviews/${encodeURIComponent(runId)}/diff`);
 }
 
+/**
+ * The run ended with nothing to decide on: no commit and no pull request.
+ * Such a task needs help rather than a verdict, and the queue, the detail
+ * pane and the task page all read it that way.
+ */
+export function stoppedWithoutDelivering(
+   item: Pick<ReviewItem, 'delivery' | 'pullRequest'>
+): boolean {
+   // A design task delivers files without a commit; only a run that left
+   // nothing at all behind stopped without delivering.
+   return !item.delivery.committed && !item.pullRequest && item.delivery.producedFiles === 0;
+}
+
 export type ReviewDecision = 'approve' | 'send-back';
 
 /**
@@ -95,7 +113,11 @@ export type ReviewDecision = 'approve' | 'send-back';
  * a comment first, so the reason is on the task before its status changes —
  * the order a person reading the timeline expects.
  */
-export async function decideReview(item: ReviewItem, decision: ReviewDecision, note: string): Promise<void> {
+export async function decideReview(
+   item: ReviewItem,
+   decision: ReviewDecision,
+   note: string
+): Promise<void> {
    const trimmed = note.trim();
    if (trimmed !== '') {
       await createIssueComment(
@@ -103,7 +125,9 @@ export async function decideReview(item: ReviewItem, decision: ReviewDecision, n
          `${decision === 'approve' ? '**Review: approved.**' : '**Review: sent back.**'}\n\n${trimmed}`
       );
    }
-   await patchBoardIssue(item.issue.identifier, { status: decision === 'approve' ? 'done' : 'todo' });
+   await patchBoardIssue(item.issue.identifier, {
+      status: decision === 'approve' ? 'done' : 'todo',
+   });
 }
 
 /** A relative time short enough for a list row. */
@@ -157,7 +181,17 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
          }
          continue;
       }
-      if (raw.startsWith('+++') || raw.startsWith('---') || raw.startsWith('index ') || raw.startsWith('new file') || raw.startsWith('deleted file') || raw.startsWith('similarity') || raw.startsWith('rename ') || raw.startsWith('Binary files') || raw.startsWith('\\ No newline')) {
+      if (
+         raw.startsWith('+++') ||
+         raw.startsWith('---') ||
+         raw.startsWith('index ') ||
+         raw.startsWith('new file') ||
+         raw.startsWith('deleted file') ||
+         raw.startsWith('similarity') ||
+         raw.startsWith('rename ') ||
+         raw.startsWith('Binary files') ||
+         raw.startsWith('\\ No newline')
+      ) {
          continue;
       }
       if (raw.startsWith('+')) {

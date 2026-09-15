@@ -1,37 +1,72 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { loadReviews, reviewTimeAgo, type ReviewItem, type ReviewQueueState } from '@/lib/reviews';
+import {
+   loadReviews,
+   reviewTimeAgo,
+   stoppedWithoutDelivering,
+   type ReviewItem,
+   type ReviewQueueState,
+} from '@/lib/reviews';
 import { useSessionStore } from '@/store/session-store';
+import { X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
-import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { ReviewDetail, ReviewSection } from './review-detail';
-import { PrIcon } from './review-shared';
-
-/** Hand-drawn empty-state sketch (paper plane over a folded sheet). */
-function EmptySketch() {
-   return (
-      <svg width="150" height="120" viewBox="0 0 150 120" fill="none" aria-hidden>
-         <g stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M28 78l58-22 34 30-64 16z" />
-            <path d="M28 78l30-6 28 28" />
-            <path d="M86 56l-8 40" strokeDasharray="4 4" />
-            <path d="M104 34c8-10 22-12 26-6s-4 16-14 18" />
-            <path d="M116 46c-4 2-8 2-12 0" />
-            <path d="M44 66l6-2M56 84l6-2M70 92l6-2" strokeDasharray="3 4" />
-         </g>
-      </svg>
-   );
-}
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { ReviewOutcome } from './review-decision-bar';
+import { ReviewDetail, type ReviewSection } from './review-detail';
+import { DiffStat, PeerVerdictChip, PrIcon } from './review-shared';
+import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 
 /** How a task at the gate reads in the list: what the last decision on it was. */
 export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
    if (item.issue.status === 'in_review') return 'open';
    if (item.issue.status === 'done') return 'merged';
    return 'closed';
+}
+
+function rowId(reviewId: string): string {
+   return `review-row-${reviewId}`;
+}
+
+/**
+ * What the run left behind, on the row's second line: the pull request and
+ * its size, or the plain fact that nothing was committed. Without this every
+ * waiting row looked like a delivery, and most were not.
+ */
+function DeliveryFacts({ item }: { item: ReviewItem }) {
+   const t = useTranslations('reviews');
+   if (item.delivery.committed) {
+      return (
+         <>
+            <span className={item.pullRequest ? 'text-foreground' : undefined}>
+               {item.pullRequest
+                  ? t('detail.pullRequest', { number: item.pullRequest.number })
+                  : t('facts.noPullRequest')}
+            </span>
+            <DiffStat additions={item.delivery.insertions} deletions={item.delivery.deletions} />
+         </>
+      );
+   }
+   return (
+      <>
+         {item.pullRequest && (
+            <span className="text-foreground">
+               {t('detail.pullRequest', { number: item.pullRequest.number })}
+            </span>
+         )}
+         {item.delivery.producedFiles > 0 ? (
+            <span className="text-foreground">
+               {t('facts.producedFiles', { count: item.delivery.producedFiles })}
+            </span>
+         ) : (
+            <span>{t('facts.nothingCommitted')}</span>
+         )}
+      </>
+   );
 }
 
 function ReviewRow({
@@ -48,53 +83,67 @@ function ReviewRow({
    onSelect: (id: string) => void;
 }) {
    const latest = item.verdicts[0];
+   const status = reviewStatusOf(item);
    const href = `/${orgId}/review/${item.id}${listTab === 'created' ? '?list=created' : ''}`;
    return (
       <Link
          // Soft-selects the right pane; unmodified left-click updates the URL
          // without remounting the list. Modifier-clicks still open a real link.
+         id={rowId(item.id)}
          href={href}
+         aria-current={selected ? 'true' : undefined}
          onClick={(event) => {
-            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+            if (
+               event.metaKey ||
+               event.ctrlKey ||
+               event.shiftKey ||
+               event.altKey ||
+               event.button !== 0
+            ) {
                return;
             }
             event.preventDefault();
             onSelect(item.id);
          }}
          className={cn(
-            'mt-px flex items-start gap-2 border-b border-border/40 px-4 py-3 transition-colors',
-            selected
-               ? 'bg-[#99a2b220] hover:bg-[#99a2b22e]'
-               : 'bg-[#99a2b210] hover:bg-[#99a2b218]'
+            'flex flex-col gap-0.5 border-b border-border/40 px-4 py-2.5 transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none',
+            selected ? 'bg-accent/70 hover:bg-accent/70' : 'hover:bg-accent/40'
          )}
       >
-         <PrIcon status={reviewStatusOf(item)} />
-         <span className="text-muted-foreground shrink-0 pt-px">{item.issue.identifier}</span>
-         <span className="min-w-0 flex-1 whitespace-normal break-words">
-            {item.issue.title}
-         </span>
-         {item.issue.autoGate && latest && latest.approved !== null && (
-            <span
-               className={cn(
-                  'shrink-0 rounded px-1.5 py-px',
-                  latest.approved
-                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                     : 'bg-red-500/10 text-red-600'
-               )}
-               title={`Peer review by ${latest.reviewer}`}
-            >
-               {latest.approved ? 'peer ok' : 'peer no'}
+         <span className="flex items-start gap-2">
+            <PrIcon
+               status={status}
+               muted={status === 'open' && !item.delivery.committed}
+               className="pt-px"
+            />
+            <span className="shrink-0 pt-px text-muted-foreground">{item.issue.identifier}</span>
+            <span className="line-clamp-2 min-w-0 flex-1 break-words" title={item.issue.title}>
+               {item.issue.title}
             </span>
-         )}
-         <span className="shrink-0 pt-px text-muted-foreground">
-            {reviewTimeAgo(item.run.completedAt ?? item.updatedAt)}
+            {item.issue.autoGate && latest && latest.approved !== null && (
+               <PeerVerdictChip verdict={latest} />
+            )}
+            <span className="shrink-0 pt-px text-muted-foreground">
+               {reviewTimeAgo(item.run.completedAt ?? item.updatedAt)}
+            </span>
+         </span>
+         <span className="flex flex-wrap items-center gap-x-2 pl-6 text-muted-foreground">
+            <DeliveryFacts item={item} />
          </span>
       </Link>
    );
 }
 
 /** Collapsible status group: the header arrow really opens and closes the rows. */
-function ReviewGroup({ label, count, children }: { label: string; count: number; children: ReactNode }) {
+function ReviewGroup({
+   label,
+   count,
+   children,
+}: {
+   label: string;
+   count: number;
+   children: ReactNode;
+}) {
    const [open, setOpen] = useState(true);
    return (
       <div>
@@ -102,16 +151,29 @@ function ReviewGroup({ label, count, children }: { label: string; count: number;
             type="button"
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
-            className="flex w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 px-4 py-1.5 font-medium transition-colors"
-            style={{ backgroundColor: '#eb575710' }}
+            className="flex w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 bg-muted/50 px-4 py-1.5 transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none"
          >
-            {label}
-            <svg width="8" height="8" viewBox="0 0 8 8" className={cn('text-muted-foreground transition-transform duration-200', !open && '-rotate-90')} aria-hidden>
+            <span data-heading="label">{label}</span>
+            <svg
+               width="8"
+               height="8"
+               viewBox="0 0 8 8"
+               className={cn(
+                  'text-muted-foreground transition-transform duration-200',
+                  !open && '-rotate-90'
+               )}
+               aria-hidden
+            >
                <path d="M1 3l3 3 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" />
             </svg>
-            <span className="ml-auto text-muted-foreground font-normal">{count}</span>
+            <span className="ml-auto text-muted-foreground">{count}</span>
          </button>
-         <div className={cn('grid transition-[grid-template-rows] duration-200 ease-out', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+         <div
+            className={cn(
+               'grid transition-[grid-template-rows] duration-200 ease-out',
+               open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            )}
+         >
             <div className="overflow-hidden">{children}</div>
          </div>
       </div>
@@ -132,19 +194,30 @@ interface ReviewsProps {
 /**
  * Reviews split view: the tasks at the review gate on the left, the evidence
  * for one on the right. Loaded from the API for the active workspace; a
- * decision on the right refreshes the left.
+ * decision on the right refreshes the left, announces what happened and
+ * moves on to the next task waiting.
  */
-export default function Reviews({ listTab = 'for-you', selectedReviewId, section = 'overview' }: ReviewsProps) {
+export default function Reviews({
+   listTab = 'for-you',
+   selectedReviewId,
+   section = 'overview',
+}: ReviewsProps) {
    const t = useTranslations('reviews');
    const { orgId } = useParams<{ orgId: string }>();
    const workspace = useSessionStore((state) => state.workspace);
    const state: ReviewQueueState = listTab === 'for-you' ? 'open' : 'completed';
    const [items, setItems] = useState<ReviewItem[] | null>(null);
    const [error, setError] = useState<string | null>(null);
+   const [outcome, setOutcome] = useState<ReviewOutcome | null>(null);
    // Selection is local so clicking a row hydrates the right pane without
    // remounting this list (a Next navigation between /reviews and /review/:id
    // would reload both sides).
    const [selectedId, setSelectedId] = useState(selectedReviewId);
+   const caughtUpRef = useRef<HTMLHeadingElement>(null);
+
+   // The shell tab names the review under decision, not its id.
+   const selectedItem = selectedId ? (items?.find((item) => item.id === selectedId) ?? null) : null;
+   useTabLabel(selectedItem ? t('tabTitle', { identifier: selectedItem.issue.identifier }) : null);
 
    useEffect(() => {
       setSelectedId(selectedReviewId);
@@ -159,6 +232,8 @@ export default function Reviews({ listTab = 'for-you', selectedReviewId, section
       return () => window.removeEventListener('popstate', onPopState);
    }, []);
 
+   const listPath = `/${orgId}/reviews${listTab === 'created' ? '/created' : ''}`;
+
    const selectReview = useCallback(
       (id: string) => {
          setSelectedId(id);
@@ -168,65 +243,129 @@ export default function Reviews({ listTab = 'for-you', selectedReviewId, section
       [orgId, listTab]
    );
 
-   const reload = useCallback(async () => {
-      if (!workspace) return;
+   const clearSelection = useCallback(() => {
+      setSelectedId(undefined);
+      window.history.pushState(null, '', listPath);
+   }, [listPath]);
+
+   const fetchItems = useCallback(async (): Promise<ReviewItem[] | null> => {
+      if (!workspace) return null;
       try {
-         setItems(await loadReviews(workspace.id, state));
+         const loaded = await loadReviews(workspace.id, state);
+         setItems(loaded);
          setError(null);
+         return loaded;
       } catch (cause) {
-         setError(cause instanceof Error ? cause.message : 'Could not load reviews');
+         setError(cause instanceof Error ? cause.message : t('loading'));
+         return null;
       }
-   }, [workspace, state]);
+   }, [workspace, state, t]);
 
    useEffect(() => {
-      void reload();
-   }, [reload]);
+      void fetchItems();
+   }, [fetchItems]);
 
-   const groups = [
-      {
-         label: state === 'open' ? t('groups.waiting') : t('groups.approved'),
-         status: state === 'open' ? 'open' : 'merged',
+   /**
+    * After a decision the decided task leaves the waiting list. The next one
+    * down takes its place on the right and its row takes focus, so a reviewer
+    * working through the queue never has to reach for the list; when nothing
+    * is left the pane says so and takes focus itself.
+    */
+   const handleDecided = useCallback(
+      async (decided: ReviewOutcome) => {
+         const previous = items ?? [];
+         const index = previous.findIndex((item) => item.id === decided.reviewId);
+         const fresh = await fetchItems();
+         setOutcome(decided);
+         if (state !== 'open') return;
+         const remaining = (fresh ?? previous).filter((item) => item.id !== decided.reviewId);
+         const next =
+            previous.slice(index + 1).find((item) => remaining.some((r) => r.id === item.id)) ??
+            remaining[0];
+         if (next) {
+            selectReview(next.id);
+            requestAnimationFrame(() => document.getElementById(rowId(next.id))?.focus());
+         } else {
+            clearSelection();
+            requestAnimationFrame(() => caughtUpRef.current?.focus());
+         }
       },
-      { label: t('groups.sentBack'), status: 'closed' },
-   ]
-      .map((group) => ({ ...group, items: (items ?? []).filter((item) => reviewStatusOf(item) === group.status) }))
-      .filter((group) => group.items.length > 0);
+      [items, fetchItems, state, selectReview, clearSelection]
+   );
+
+   // The waiting list splits in two. A run that stopped without committing
+   // anything or opening a pull request has nothing to approve — it needs
+   // help — and sits above the real deliveries so the two are never confused.
+   const all = items ?? [];
+   const sentBack = all.filter((item) => reviewStatusOf(item) === 'closed');
+   const needsHelp = all.filter(
+      (item) => reviewStatusOf(item) === 'open' && stoppedWithoutDelivering(item)
+   );
+   const groups = (
+      state === 'open'
+         ? [
+              { key: 'needsHelp', label: t('groups.needsHelp'), items: needsHelp },
+              {
+                 key: 'waiting',
+                 label: t('groups.waiting'),
+                 items: all.filter(
+                    (item) => reviewStatusOf(item) === 'open' && !stoppedWithoutDelivering(item)
+                 ),
+              },
+              { key: 'sentBack', label: t('groups.sentBack'), items: sentBack },
+           ]
+         : [
+              {
+                 key: 'approved',
+                 label: t('groups.approved'),
+                 items: all.filter((item) => reviewStatusOf(item) === 'merged'),
+              },
+              { key: 'sentBack', label: t('groups.sentBack'), items: sentBack },
+           ]
+   ).filter((group) => group.items.length > 0);
+
+   const outcomeText = outcome
+      ? outcome.decision === 'approve'
+         ? t('outcome.approved', { identifier: outcome.identifier })
+         : t('outcome.sentBack', { identifier: outcome.identifier })
+      : null;
+
+   const caughtUp = items !== null && items.length === 0 && state === 'open';
 
    return (
-      <div className="w-full h-full flex overflow-hidden">
-         <div className="flex h-full w-[40%] shrink-0 flex-col border-r bg-container">
-            <div className="flex items-center justify-between px-4 py-1.5 h-10 border-b shrink-0">
-               <span className="font-medium">{t('title')}</span>
+      <div className="flex h-full w-full overflow-hidden">
+         <div
+            className={cn(
+               'flex h-full w-full shrink-0 flex-col border-r bg-container md:w-[40%]',
+               selectedId && 'hidden md:flex'
+            )}
+         >
+            <div className="flex h-10 shrink-0 items-center border-b px-4">
+               <h1>{t('title')}</h1>
             </div>
-            <div className="flex items-center gap-1.5 px-4 py-2 shrink-0">
-               <Link
-                  href={`/${orgId}/reviews`}
-                  className={cn(
-                     'px-2.5 py-1 rounded-md border font-medium transition-colors',
-                     listTab === 'for-you'
-                        ? 'border-azure/50 bg-azure/20 text-foreground'
-                        : 'border-transparent text-muted-foreground hover:bg-accent/50'
-                  )}
-               >
-                  {t('tabs.waiting')}
-               </Link>
-               <Link
-                  href={`/${orgId}/reviews/created`}
-                  className={cn(
-                     'px-2.5 py-1 rounded-md border font-medium transition-colors',
-                     listTab === 'created'
-                        ? 'border-azure/50 bg-azure/20 text-foreground'
-                        : 'border-transparent text-muted-foreground hover:bg-accent/50'
-                  )}
-               >
-                  {t('tabs.decided')}
-               </Link>
+            <div className="shrink-0 px-4 py-2">
+               <Tabs value={listTab} className="gap-0">
+                  <TabsList className="h-8">
+                     <TabsTrigger value="for-you" asChild>
+                        <Link href={`/${orgId}/reviews`}>{t('tabs.waiting')}</Link>
+                     </TabsTrigger>
+                     <TabsTrigger value="created" asChild>
+                        <Link href={`/${orgId}/reviews/created`}>{t('tabs.decided')}</Link>
+                     </TabsTrigger>
+                  </TabsList>
+               </Tabs>
             </div>
             <div className="flex-1 overflow-y-auto">
-               {items === null && !error && <div className="px-4 py-6 text-muted-foreground">{t('loading')}</div>}
-               {error && <div className="px-4 py-6 text-muted-foreground" role="alert">{error}</div>}
+               {items === null && !error && (
+                  <div className="px-4 py-6 text-muted-foreground">{t('loading')}</div>
+               )}
+               {error && (
+                  <div className="px-4 py-6 text-muted-foreground" role="alert">
+                     {error}
+                  </div>
+               )}
                {groups.map((group) => (
-                  <ReviewGroup key={group.label} label={group.label} count={group.items.length}>
+                  <ReviewGroup key={group.key} label={group.label} count={group.items.length}>
                      {group.items.map((item) => (
                         <ReviewRow
                            key={item.id}
@@ -255,24 +394,76 @@ export default function Reviews({ listTab = 'for-you', selectedReviewId, section
             </div>
          </div>
 
-         <div className="h-full min-w-0 w-[60%] overflow-hidden">
+         <div
+            className={cn(
+               'flex h-full w-full min-w-0 flex-col overflow-hidden md:w-[60%]',
+               !selectedId && 'hidden md:flex'
+            )}
+         >
+            {outcomeText && (
+               <div
+                  role="status"
+                  className="flex shrink-0 items-center gap-3 border-b border-border/60 bg-muted/50 px-4 py-2"
+               >
+                  <BerryMark
+                     size="sm"
+                     tone={outcome?.decision === 'approve' ? 'complete' : 'attention'}
+                     state="solid"
+                  />
+                  <span className="min-w-0 flex-1">{outcomeText}</span>
+                  <button
+                     type="button"
+                     onClick={() => setOutcome(null)}
+                     aria-label={t('outcome.dismiss')}
+                     className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  >
+                     <X className="size-4" aria-hidden />
+                  </button>
+               </div>
+            )}
             {selectedId ? (
-               <ReviewDetail
-                  // Keyed by review: the section tab is local state, and a
-                  // different review should open on the section its link names.
-                  key={selectedId}
-                  reviewId={selectedId}
-                  section={section}
-                  listTab={listTab}
-                  onDecided={reload}
-               />
+               <div className="min-h-0 flex-1">
+                  <ReviewDetail
+                     // Keyed by review: the section tab is local state, and a
+                     // different review should open on the section its link names.
+                     key={selectedId}
+                     reviewId={selectedId}
+                     section={section}
+                     listTab={listTab}
+                     onDecided={handleDecided}
+                     onBack={clearSelection}
+                  />
+               </div>
             ) : (
-               <div className="h-full flex flex-col items-center justify-center gap-4 text-muted-foreground">
-                  <EmptySketch />
-                  <span className="flex items-center gap-2">
-                     <BerryMark size="sm" tone="neutral" />
-                     {items ? t(state === 'open' ? 'count.open' : 'count.decided', { count: items.length }) : ''}
-                  </span>
+               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 px-6 text-center text-muted-foreground">
+                  {caughtUp ? (
+                     <>
+                        <h2
+                           ref={caughtUpRef}
+                           tabIndex={-1}
+                           className="text-foreground outline-none"
+                        >
+                           {t('outcome.caughtUp')}
+                        </h2>
+                        <p>{t('outcome.caughtUpBody')}</p>
+                     </>
+                  ) : (
+                     <>
+                        <p className="text-foreground">
+                           {state === 'open' ? t('select.open') : t('select.decided')}
+                        </p>
+                        {items && (
+                           <p>
+                              {t(state === 'open' ? 'count.open' : 'count.decided', {
+                                 count: items.length,
+                              })}
+                              {state === 'open' && needsHelp.length > 0
+                                 ? ` · ${t('count.needsHelp', { count: needsHelp.length })}`
+                                 : ''}
+                           </p>
+                        )}
+                     </>
+                  )}
                </div>
             )}
          </div>

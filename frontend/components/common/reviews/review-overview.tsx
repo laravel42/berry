@@ -1,106 +1,322 @@
 'use client';
 
-import { reviewTimeAgo, type ReviewItem } from '@/lib/reviews';
+import { BerryMark } from '@/components/brand/berry-mark';
+import { AgentMarkdown } from '@/components/common/agent-markdown';
+import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
+import type { RunArtifact } from '@/lib/attachments';
+import { reviewTimeAgo, stoppedWithoutDelivering, type ReviewItem } from '@/lib/reviews';
+import { cn } from '@/lib/utils';
 import { Check, FileCode2, GitBranch, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { DiffStat, InlineText } from './review-shared';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { DiffStat, PeerVerdictChip } from './review-shared';
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
    return (
       <section className="flex flex-col gap-2">
-         <h3 className="font-medium">{title}</h3>
+         <h3>{title}</h3>
          {children}
       </section>
    );
 }
 
+/** One row of the facts block: a label in the margin, the fact beside it. */
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+   return (
+      <div className="contents">
+         <dt className="text-muted-foreground">{label}</dt>
+         <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">{children}</dd>
+      </div>
+   );
+}
+
 /**
- * The evidence a decision is made on: what the task asked, what the agent
- * says it did, what the checks said, what changed, and any peer verdict.
+ * A run summary that opens with its own "Summary" heading would print that
+ * word twice under the section's heading, so that one line is dropped; any
+ * other opening heading is the agent's and stays.
+ */
+function withoutLeadingSummaryHeading(body: string): string {
+   return body.replace(/^\s*#{1,6}\s*summary\s*:?\s*\n+/i, '');
+}
+
+function absoluteTime(iso: string): string {
+   try {
+      return new Date(iso).toLocaleString();
+   } catch {
+      return iso;
+   }
+}
+
+/**
+ * The evidence a decision is made on, outcome first: did the agent deliver,
+ * or did it stop with nothing to show. Then the facts — who ran it and when,
+ * whether there is a pull request, what was committed or produced, what the
+ * checks said and whether any peer has looked. Then the agent's own account,
+ * folded after a screen, and the files it left behind.
  */
 export function ReviewOverview({ item }: { item: ReviewItem }) {
+   const t = useTranslations('reviews');
    const { orgId } = useParams<{ orgId: string }>();
    const latest = item.verdicts[0];
+   const [artifacts, setArtifacts] = useState<RunArtifact[] | null>(null);
+   const stopped = stoppedWithoutDelivering(item);
+   const agent = item.author?.name ?? t('facts.noAuthor');
+   const outcome = stopped
+      ? t('delivery.stopped', { agent })
+      : item.pullRequest
+        ? t('delivery.pullRequest', { agent, number: item.pullRequest.number })
+        : item.delivery.committed
+          ? t('delivery.committed', { agent })
+          : t('delivery.produced', { agent, count: item.delivery.producedFiles });
+
+   // The produced-files list below fetches this run's files once and hands
+   // them up, so the facts block can state the count without a second call.
+   // A new item means a new run: forget the previous count until it lands.
+   useEffect(() => {
+      setArtifacts(null);
+   }, [item.run.id]);
+   const onArtifactsLoaded = useCallback((loaded: RunArtifact[]) => setArtifacts(loaded), []);
+
+   const producedCount = artifacts?.length ?? 0;
+   const checks = item.checks;
+   const checkResults = checks?.results ?? [];
+   const failedChecks = checkResults.filter((result) => !result.passed).length;
+   const clamp = { lines: 12, moreLabel: t('summary.more'), lessLabel: t('summary.less') };
+
    return (
       <div className="h-full overflow-y-auto">
-         <div className="flex w-full flex-col gap-8 px-4 py-6">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-               {item.author && <span>by agent {item.author.name}</span>}
-               {item.run.completedAt && <span>delivered {reviewTimeAgo(item.run.completedAt)} ago</span>}
-               {item.pullRequest?.branch && (
-                  <span className="inline-flex items-center gap-1 font-mono">
-                     <GitBranch className="size-3.5" />
-                     {item.pullRequest.branch}
-                  </span>
+         <div className="flex w-full max-w-[75ch] flex-col gap-8 px-6 py-6">
+            <p className="-mb-4 flex items-start gap-2">
+               <BerryMark
+                  size="sm"
+                  tone={stopped ? 'attention' : 'complete'}
+                  className="mt-0.5 shrink-0"
+               />
+               <span className="min-w-0">{outcome}</span>
+            </p>
+            <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+               <Fact label={stopped ? t('facts.runBy') : t('facts.deliveredBy')}>
+                  <span className="text-actor-agent">{agent}</span>
+               </Fact>
+               {item.run.completedAt && (
+                  <Fact label={stopped ? t('facts.stoppedAt') : t('facts.deliveredAt')}>
+                     <time
+                        dateTime={item.run.completedAt}
+                        title={absoluteTime(item.run.completedAt)}
+                     >
+                        {t('facts.ago', { time: reviewTimeAgo(item.run.completedAt) })}
+                     </time>
+                  </Fact>
                )}
-               <Link href={`/${orgId}/issue/${item.issue.identifier}`} className="hover:text-foreground">
-                  open the task
-               </Link>
-            </div>
+               <Fact label={t('facts.pullRequest')}>
+                  {item.pullRequest ? (
+                     <>
+                        {item.pullRequest.url ? (
+                           <a
+                              href={item.pullRequest.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline-offset-2 hover:underline"
+                           >
+                              #{item.pullRequest.number}
+                           </a>
+                        ) : (
+                           <span>#{item.pullRequest.number}</span>
+                        )}
+                        {item.pullRequest.branch && (
+                           <span className="inline-flex items-center gap-1 font-mono text-muted-foreground">
+                              <GitBranch className="size-3.5" aria-hidden />
+                              {item.pullRequest.branch}
+                           </span>
+                        )}
+                     </>
+                  ) : (
+                     <span className="text-muted-foreground">{t('facts.noPullRequest')}</span>
+                  )}
+               </Fact>
+               <Fact label={t('facts.changes')}>
+                  {item.delivery.committed ? (
+                     <>
+                        <span>
+                           {t('facts.filesChanged', { count: item.delivery.filesChanged })}
+                        </span>
+                        <DiffStat
+                           additions={item.delivery.insertions}
+                           deletions={item.delivery.deletions}
+                        />
+                     </>
+                  ) : (
+                     <span className="text-muted-foreground">{t('facts.nothingCommitted')}</span>
+                  )}
+               </Fact>
+               <Fact label={t('facts.produced')}>
+                  {artifacts === null ? (
+                     <span className="text-muted-foreground">…</span>
+                  ) : producedCount > 0 ? (
+                     <a
+                        href="#review-produced-files"
+                        className="underline-offset-2 hover:underline"
+                     >
+                        {t('facts.producedFiles', { count: producedCount })}
+                     </a>
+                  ) : (
+                     <span className="text-muted-foreground">{t('facts.noProducedFiles')}</span>
+                  )}
+               </Fact>
+               <Fact label={t('facts.checks')}>
+                  {checkResults.length === 0 ? (
+                     <span className="text-muted-foreground">{t('facts.checksNone')}</span>
+                  ) : failedChecks > 0 ? (
+                     <span className="text-status-danger">
+                        {t('facts.checksFailed', {
+                           failed: failedChecks,
+                           total: checkResults.length,
+                        })}
+                     </span>
+                  ) : (
+                     <span className="text-status-success">
+                        {t('facts.checksPassed', { count: checkResults.length })}
+                     </span>
+                  )}
+                  {checks && !checks.complete && checkResults.length > 0 && (
+                     <span className="text-muted-foreground">· {t('facts.checksIncomplete')}</span>
+                  )}
+               </Fact>
+               {/* Always a row, AutoGate or not: a lead wants to see at a
+                   glance whether anyone has looked, and "No peer review" is
+                   as much a fact as a verdict. */}
+               <Fact label={t('facts.peerReview')}>
+                  {latest ? (
+                     <>
+                        <PeerVerdictChip verdict={latest} />
+                        <span className="text-muted-foreground">
+                           {t('facts.peerBy', { reviewer: latest.reviewer })}
+                           {latest.attempt > 1
+                              ? ` · ${t('peer.attempt', { attempt: latest.attempt })}`
+                              : ''}
+                        </span>
+                        {latest.reason && (
+                           <AgentMarkdown
+                              body={latest.reason}
+                              className="basis-full text-muted-foreground"
+                              clamp={{
+                                 lines: 4,
+                                 moreLabel: t('summary.more'),
+                                 lessLabel: t('summary.less'),
+                              }}
+                           />
+                        )}
+                     </>
+                  ) : (
+                     <span className="text-muted-foreground">{t('facts.noPeerReview')}</span>
+                  )}
+               </Fact>
+            </dl>
 
-            {latest && latest.approved !== null && (
-               <div className={`rounded-md border px-4 py-3 ${latest.approved ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-red-500/40 bg-red-500/5'}`}>
-                  <p className="font-medium">
-                     Peer review by {latest.reviewer}: {latest.approved ? 'approved' : 'sent back'}
-                     {latest.attempt > 1 ? ` (attempt ${latest.attempt})` : ''}
-                  </p>
-                  <p className="mt-1 whitespace-pre-line text-muted-foreground">{latest.reason}</p>
-               </div>
-            )}
-
-            <Section title="What the agent says it did">
+            <Section title={t('summary.title')}>
                {item.run.summary ? (
-                  <p className="whitespace-pre-line leading-6"><InlineText text={item.run.summary} /></p>
+                  <AgentMarkdown
+                     body={withoutLeadingSummaryHeading(item.run.summary)}
+                     clamp={clamp}
+                  />
                ) : (
-                  <p className="text-muted-foreground">The run left no summary.</p>
+                  <p className="text-muted-foreground">{t('summary.empty')}</p>
                )}
             </Section>
 
-            <Section title="Checks">
-               {item.checks && item.checks.results.length > 0 ? (
+            {/* Always mounted: the list is what loads the files, and it renders
+                nothing when this run produced none. The heading appears once
+                the count is known, so the outline never shows an empty
+                section. */}
+            <section
+               id="review-produced-files"
+               className={cn('flex flex-col gap-2', producedCount === 0 && 'hidden')}
+            >
+               {producedCount > 0 ? <h3>{t('artifacts.title')}</h3> : null}
+               <IssueArtifacts
+                  issueRef={item.issue.identifier}
+                  runId={item.run.id}
+                  heading={null}
+                  defaultOpen
+                  onLoaded={onArtifactsLoaded}
+               />
+            </section>
+
+            {checkResults.length > 0 && (
+               <Section title={t('checks.title')}>
                   <ul className="flex flex-col gap-1">
-                     {item.checks.results.map((result) => (
+                     {checkResults.map((result) => (
                         <li key={result.command} className="flex items-center gap-2 font-mono">
-                           {result.passed ? <Check className="size-3.5 text-emerald-600" /> : <X className="size-3.5 text-red-500" />}
-                           <span>{result.command}</span>
-                           {!result.passed && <span className="text-muted-foreground">exit {result.exitCode ?? 'none'}</span>}
+                           {result.passed ? (
+                              <Check
+                                 className="size-3.5 shrink-0 text-status-success"
+                                 aria-hidden
+                              />
+                           ) : (
+                              <X className="size-3.5 shrink-0 text-status-danger" aria-hidden />
+                           )}
+                           <span className="min-w-0 break-all">{result.command}</span>
+                           <span className="shrink-0 text-muted-foreground">
+                              {result.passed
+                                 ? t('checks.passed')
+                                 : `${t('checks.failed')} · ${
+                                      result.exitCode === null
+                                         ? t('checks.noExit')
+                                         : t('checks.exit', { code: result.exitCode })
+                                   }`}
+                           </span>
                         </li>
                      ))}
-                     {!item.checks.complete && (
-                        <li className="text-muted-foreground">The remaining checks did not run: the verification budget was spent.</li>
+                     {checks && !checks.complete && (
+                        <li className="text-muted-foreground">{t('checks.budgetSpent')}</li>
                      )}
                   </ul>
-               ) : (
-                  <p className="text-muted-foreground">The project defines no checks, so none ran.</p>
-               )}
-            </Section>
+               </Section>
+            )}
 
-            <Section title="What changed">
-               {item.delivery.committed ? (
-                  <>
-                     <div className="flex items-center gap-2">
-                        <span>{item.delivery.filesChanged} files</span>
-                        <DiffStat additions={item.delivery.insertions} deletions={item.delivery.deletions} />
-                        {item.pullRequest?.url && (
-                           <a href={item.pullRequest.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                              pull request #{item.pullRequest.number}
-                           </a>
-                        )}
-                     </div>
-                     <ul className="flex flex-col gap-1">
-                        {item.delivery.files.map((file) => (
-                           <li key={file} className="flex items-center gap-1.5 font-mono">
-                              <FileCode2 className="size-3.5 text-muted-foreground shrink-0" />
-                              {file}
-                           </li>
-                        ))}
-                     </ul>
-                  </>
-               ) : (
-                  <p className="text-muted-foreground">The run committed nothing. Its answer is the comment on the task.</p>
-               )}
-            </Section>
+            {item.delivery.committed && (
+               <Section title={t('changed.title')}>
+                  <div className="flex flex-wrap items-center gap-2">
+                     <span>{t('facts.filesChanged', { count: item.delivery.filesChanged })}</span>
+                     <DiffStat
+                        additions={item.delivery.insertions}
+                        deletions={item.delivery.deletions}
+                     />
+                     {item.pullRequest?.url && (
+                        <a
+                           href={item.pullRequest.url}
+                           target="_blank"
+                           rel="noreferrer"
+                           className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                        >
+                           {t('detail.pullRequest', { number: item.pullRequest.number })}
+                        </a>
+                     )}
+                  </div>
+                  <ul className="flex flex-col gap-1">
+                     {item.delivery.files.map((file) => (
+                        <li key={file} className="flex items-center gap-1.5 font-mono">
+                           <FileCode2
+                              className="size-3.5 shrink-0 text-muted-foreground"
+                              aria-hidden
+                           />
+                           <span className="min-w-0 break-all">{file}</span>
+                        </li>
+                     ))}
+                  </ul>
+               </Section>
+            )}
+
+            <p className="text-muted-foreground">
+               <Link
+                  href={`/${orgId}/issue/${item.issue.identifier}`}
+                  className="underline-offset-2 hover:text-foreground hover:underline"
+               >
+                  {t('detail.openTask')}
+               </Link>
+            </p>
          </div>
       </div>
    );

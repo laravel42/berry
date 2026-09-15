@@ -26,7 +26,20 @@ export interface ReviewItem {
    run: { id: string; summary: string | null; completedAt: string | null };
    repository: string | null;
    pullRequest: { number: number; url: string | null; branch: string | null; headCommit: string | null } | null;
-   delivery: { committed: boolean; filesChanged: number; insertions: number; deletions: number; files: string[] };
+   delivery: {
+      committed: boolean;
+      filesChanged: number;
+      insertions: number;
+      deletions: number;
+      files: string[];
+      /**
+       * Files the run produced and attached to the task, whether or not it
+       * committed anything. A design task delivers this way, so a review with
+       * no pull request and nothing committed is not a run that stopped
+       * without delivering when this is above zero.
+       */
+      producedFiles: number;
+   };
    checks: {
       passed: boolean;
       complete: boolean;
@@ -130,6 +143,19 @@ export class ReviewQueue {
          verdicts.set(row.issue_id as string, list);
       }
 
+      // Ready artifacts per run, counted by path: a re-attached file is one
+      // file, not two.
+      const runIds = rows.map((row) => row.run_id as string).filter(Boolean);
+      const artifactRows = runIds.length
+         ? await this.#sql`
+              SELECT run_id, COUNT(DISTINCT path)::int AS produced
+                FROM run_artifacts
+               WHERE run_id = ANY(${runIds}) AND state = 'ready'
+               GROUP BY run_id`
+         : [];
+      const produced = new Map<string, number>();
+      for (const row of artifactRows) produced.set(row.run_id as string, Number(row.produced));
+
       return rows.map((row) => {
          const delivered = (row.delivered ?? null) as {
             committed?: boolean;
@@ -171,6 +197,7 @@ export class ReviewQueue {
                insertions: delivered?.insertions ?? 0,
                deletions: delivered?.deletions ?? 0,
                files: delivered?.files ?? [],
+               producedFiles: produced.get(row.run_id as string) ?? 0,
             },
             checks: (row.verified as ReviewItem['checks']) ?? null,
             verdicts: verdicts.get(row.id as string) ?? [],
