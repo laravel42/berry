@@ -14,6 +14,9 @@ export async function setupTelemetry(logger: Logger, env: NodeJS.ProcessEnv = pr
    const endpoint = (env.OTEL_EXPORTER_OTLP_ENDPOINT ?? '').trim();
    if (!endpoint) return false;
    try {
+      // OTLP export works only if the container image actually ships the
+      // @opentelemetry peer packages the Strands SDK lists. Absent them, the
+      // import below throws and telemetry is silently off via the warn path.
       const telemetry = await import('@strands-agents/sdk/telemetry');
       telemetry.setupTracer({ exporters: { otlp: true } });
       telemetry.setupMeter({ exporters: { otlp: true } });

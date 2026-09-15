@@ -59,10 +59,22 @@ export const DEFAULT_MAX_TOKENS = 32_000;
  * clamped here rather than failing every run on that model: Nova Pro stops
  * at 10,000, the smaller Nova models at 5,000. Anything not listed keeps
  * what it was asked for.
+ *
+ * A list rather than a chain of `if`s so a new family is one row to add. Order
+ * matters: the first pattern to match wins, so the pro/premier ceiling has to
+ * come before the catch-all Nova one.
  */
+const MODEL_CEILINGS: ReadonlyArray<{ pattern: RegExp; ceiling: number }> = [
+   { pattern: /amazon\.nova-(pro|premier)/, ceiling: 10_000 },
+   { pattern: /amazon\.nova-/, ceiling: 5_000 },
+];
+
 export function maxTokensFor(model: string, requested: number): number {
-   if (/amazon\.nova-(pro|premier)/.test(model)) return Math.min(requested, 10_000);
-   if (/amazon\.nova-/.test(model)) return Math.min(requested, 5_000);
+   for (const { pattern, ceiling } of MODEL_CEILINGS) {
+      if (pattern.test(model)) return Math.min(requested, ceiling);
+   }
+   // A model that is not listed has no known ceiling, so it keeps what it was
+   // asked for — by design, not by omission.
    return requested;
 }
 

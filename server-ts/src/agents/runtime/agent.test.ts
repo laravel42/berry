@@ -50,6 +50,44 @@ test('a long run is windowed so the context cannot grow without bound', async ()
    assert.equal(model.calls, 151);
 });
 
+test('windowing keeps toolUse/toolResult pairs intact for Bedrock', async () => {
+   // Issue #7: trimming to the recent N must not sever a toolUse from its
+   // toolResult, or the next Bedrock invoke fails ("tool_use ids must have
+   // corresponding tool_result"). The SDK's sliding window is pair-aware; this
+   // pins that by checking the clamped conversation the model was handed.
+   const turns = Array.from({ length: 150 }, (_, n) =>
+      call('echo', { n }, { inputTokens: 40 * (n + 1), outputTokens: 5 })
+   );
+   const model = new ScriptedModel([...turns, say('done')], { contextWindowLimit: 3_000 });
+   await spec(model).invoke('go');
+
+   // Inspect a batch from after the window clamped down (not the first few,
+   // which are below the window and never trimmed).
+   const batch = model.received.at(-1) ?? [];
+   const blocks = (m: (typeof batch)[number]) => m.content as { type: string; toolUseId?: string }[];
+
+   // Every toolResult resolves to a toolUse that appears earlier in the batch:
+   // no leading orphan survived the trim.
+   const seenToolUse = new Set<string>();
+   for (const message of batch) {
+      for (const block of blocks(message)) {
+         if (block.type === 'toolUseBlock' && block.toolUseId) seenToolUse.add(block.toolUseId);
+         if (block.type === 'toolResultBlock') {
+            assert.ok(
+               block.toolUseId && seenToolUse.has(block.toolUseId),
+               `toolResult ${block.toolUseId} has no preceding toolUse in the window`
+            );
+         }
+      }
+   }
+
+   // The batch does not end on a toolUse whose result was trimmed away.
+   const last = batch.at(-1);
+   const endsOnDanglingToolUse =
+      last !== undefined && blocks(last).some((b) => b.type === 'toolUseBlock');
+   assert.ok(!endsOnDanglingToolUse, 'window ended on a toolUse with no following toolResult');
+});
+
 test('the run is named after the agent, safely', async () => {
    const model = new ScriptedModel([say('hi')]);
    const agent = spec(model);

@@ -61,6 +61,15 @@ export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = b
       // A long run reads many files and runs many commands; without a ceiling
       // the conversation grows until the model refuses it. The window keeps
       // the recent turns and the run ledger keeps everything that fell out.
+      //
+      // The window is pair-aware, so trimming to the recent N never severs a
+      // toolUse from its toolResult (which Bedrock rejects on the next invoke).
+      // SlidingWindowConversationManager trims via findValidTrimPoint, which
+      // walks the cut forward off any leading orphan toolResult and off a
+      // trailing toolUse whose toolResult doesn't follow; when no plain user
+      // cut exists it falls back to a complete tool pair. Large tool results
+      // are truncated in place (shouldTruncateResults, default on) before any
+      // trim. So the window size is safe as-is — no wrapper needed.
       conversationManager: new SlidingWindowConversationManager({
          windowSize: WINDOW_SIZE,
          proactiveCompression: true,
