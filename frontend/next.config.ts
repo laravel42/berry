@@ -32,6 +32,16 @@ const apiOrigin = berryApiOrigin();
 const nextConfig: NextConfig = {
    distDir: process.env.NEXT_DIST_DIR ?? '.next',
    devIndicators: false,
+   /**
+    * A self-contained server, so the app can be deployed without the workspace.
+    *
+    * `next start` needs the repository's `node_modules`, which is a pnpm
+    * workspace with symlinks across packages — nothing that survives being
+    * copied to a host. Standalone emits `.next/standalone/server.js` with only
+    * the files it traced, which is what a container or a bare box can actually
+    * run. It is also the entry point the image pipeline looks for.
+    */
+   output: 'standalone',
    experimental: {
       turbo: {
          root: repoRoot,
