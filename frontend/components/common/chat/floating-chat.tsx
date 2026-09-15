@@ -35,6 +35,7 @@ import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
 import { ChatThread as ThreadView } from './chat-thread';
+import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 
 const SIZE_KEY = 'berry.floating-chat.size';
 const MIN_WIDTH = 320;
@@ -139,6 +140,17 @@ export function FloatingChat() {
    const [composer, setComposer] = useState('');
    const [sending, setSending] = useState(false);
    const [opening, setOpening] = useState<string | null>(null);
+   // The same live reply the chat page shows, so the two surfaces agree.
+   const { text: streamingText, stage: streamStage } = useChatReplyStream({
+      conversationId: active?.id ?? null,
+      runId: tasks.find((task) => task.status === 'running')?.id ?? null,
+      messages,
+      labels: {
+         running: chat('msgStageRunning'),
+         writing: chat('msgStageWriting'),
+         thinking: chat('msgStageThinking'),
+      },
+   });
    const resizing = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
 
    // The chat page is the full version of this; two of them on one screen
@@ -446,8 +458,10 @@ export function FloatingChat() {
                   loadingEarlier={false}
                   onLoadEarlier={() => undefined}
                   stage={
-                     tasks.some((task) => task.status === 'running') ? chat('rowWorking') : null
+                     streamStage ??
+                     (tasks.some((task) => task.status === 'running') ? chat('rowWorking') : null)
                   }
+                  streamingText={streamingText}
                />
                {/* The composer is shared with the chat page, where its send
                    button is that page's primary action. Here the window sits

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiFetch } from './api';
+import { apiFetch, apiStream } from './api';
 
 /**
  * Chat sessions with an agent. Each message a person sends runs as an agent
@@ -162,6 +162,78 @@ export async function prioritizeSessionTask(id: string, runId: string): Promise<
 export async function listTaskEvents(id: string, runId: string): Promise<ChatTaskEvent[]> {
    const json: unknown = await apiFetch(session(id, `/tasks/${encodeURIComponent(runId)}/events`));
    return z.object({ nodes: z.array(taskEventSchema) }).parse(json).nodes;
+}
+
+/**
+ * The task's events as they happen, so a reply can be shown while it is
+ * written.
+ *
+ * The same rows `listTaskEvents` returns, followed instead of sampled. The
+ * server replays from `run_events`, so a dropped connection resumes from
+ * `after` (a sequence) rather than losing what it missed.
+ */
+export async function* streamTaskEvents(
+   id: string,
+   runId: string,
+   options: { signal?: AbortSignal; after?: number } = {}
+): AsyncGenerator<ChatTaskEvent> {
+   const query = options.after === undefined ? '' : `?after=${options.after}`;
+   const response = await apiStream(
+      session(id, `/tasks/${encodeURIComponent(runId)}/stream${query}`),
+      undefined,
+      options.signal ? { signal: options.signal } : undefined
+   );
+   if (!response.body) throw new Error('Task event stream had no body');
+   const reader = response.body.getReader();
+   const decoder = new TextDecoder();
+   let buffer = '';
+   try {
+      for (;;) {
+         const { done, value } = await reader.read();
+         if (done) break;
+         buffer += decoder.decode(value, { stream: true });
+         const blocks = buffer.split('\n\n');
+         buffer = blocks.pop() ?? '';
+         for (const block of blocks) {
+            const event = parseTaskFrame(block);
+            if (event) yield event;
+         }
+      }
+      const tail = parseTaskFrame(buffer);
+      if (tail) yield tail;
+   } finally {
+      reader.releaseLock();
+   }
+}
+
+/** One SSE frame. A comment-only frame (`: heartbeat`) carries nothing. */
+function parseTaskFrame(block: string): ChatTaskEvent | undefined {
+   const data: string[] = [];
+   for (const rawLine of block.split('\n')) {
+      const line = rawLine.replace(/\r$/, '');
+      if (!line || line.startsWith(':')) continue;
+      if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+   }
+   if (data.length === 0) return undefined;
+   try {
+      const parsed = taskEventSchema.safeParse(JSON.parse(data.join('\n')));
+      return parsed.success ? parsed.data : undefined;
+   } catch {
+      return undefined;
+   }
+}
+
+/** The reply text a frame carries, if any. Tool and command noise is not it. */
+export function replyTextFromTaskEvent(event: ChatTaskEvent): string {
+   if (event.type !== 'run.output.delta') return '';
+   const payload = event.payload;
+   if (typeof payload !== 'object' || payload === null) return '';
+   const text = (payload as { text?: unknown }).text;
+   return typeof text === 'string' ? text : '';
+}
+
+export function isTerminalTaskEvent(type: string): boolean {
+   return type === 'run.completed' || type === 'run.failed' || type === 'run.cancelled';
 }
 
 export async function listSuggestions(agentId: string): Promise<ChatSuggestion[]> {

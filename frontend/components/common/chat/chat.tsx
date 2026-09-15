@@ -28,7 +28,6 @@ import {
    listMessages,
    listSessionTasks,
    listSuggestions,
-   listTaskEvents,
    listThreads,
    markSessionRead,
    openAgentThread,
@@ -43,6 +42,7 @@ import {
    type ChatThread,
 } from '@/lib/chat';
 import { subscribeWorkspaceEvents } from '@/lib/events';
+import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { useSessionStore } from '@/store/session-store';
 import { ChatComposer } from './chat-composer';
 import { ChatSidebar, MAX_PINNED_AGENTS } from './chat-sidebar';
@@ -278,37 +278,19 @@ export function Chat() {
       };
    }, []);
 
-   // What the running reply is doing, from the newest event of its task.
+   // The running reply, streamed as it is written rather than waiting for the
+   // run to end and the stored message to be refetched.
    const running = tasks.find((task) => task.status === 'running');
-   const [stage, setStage] = useState<string | null>(null);
-   useEffect(() => {
-      if (!activeId || !running) {
-         setStage(null);
-         return;
-      }
-      let cancelled = false;
-      const read = () =>
-         void listTaskEvents(activeId, running.id)
-            .then((events) => {
-               if (cancelled) return;
-               const newest = events.at(-1);
-               const type = newest?.type ?? '';
-               setStage(
-                  /tool|command|exec/i.test(type)
-                     ? t('msgStageRunning')
-                     : /message|output|write/i.test(type)
-                       ? t('msgStageWriting')
-                       : t('msgStageThinking')
-               );
-            })
-            .catch(() => undefined);
-      read();
-      const timer = setInterval(read, 4000);
-      return () => {
-         cancelled = true;
-         clearInterval(timer);
-      };
-   }, [activeId, running, t]);
+   const { text: streamingText, stage } = useChatReplyStream({
+      conversationId: activeId,
+      runId: running?.id ?? null,
+      messages,
+      labels: {
+         running: t('msgStageRunning'),
+         writing: t('msgStageWriting'),
+         thinking: t('msgStageThinking'),
+      },
+   });
 
    const changeComposer = (value: string) => {
       setComposer(value);
@@ -633,6 +615,7 @@ export function Chat() {
                loadingEarlier={loadingEarlier}
                onLoadEarlier={() => void loadEarlier()}
                stage={stage}
+               streamingText={streamingText}
             />
 
             {error ? (

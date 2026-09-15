@@ -21,6 +21,13 @@ interface ChatThreadProps {
    onLoadEarlier: () => void;
    /** What the running reply is doing right now; null when nothing is running. */
    stage: string | null;
+   /**
+    * The reply being written, before it is stored as a message.
+    *
+    * Kept apart from `messages` on purpose: it has no id yet, and the stored
+    * reply replaces it the moment it lands.
+    */
+   streamingText?: string | null;
 }
 
 function clockTime(iso: string): string {
@@ -59,6 +66,7 @@ export function ChatThread({
    loadingEarlier,
    onLoadEarlier,
    stage,
+   streamingText = null,
 }: ChatThreadProps) {
    const t = useTranslations('agentsChat.chat');
    const scroller = useRef<HTMLDivElement>(null);
@@ -74,6 +82,15 @@ export function ChatThread({
       endRef.current?.scrollIntoView({ block: 'end' });
    }, [lastId]);
 
+   // A reply that grows has no new message id, so it needs its own follow —
+   // but only while the reader is already at the bottom. Someone who scrolled
+   // up to read something is not asking to be dragged back down every 60ms.
+   const following = useRef(true);
+   useEffect(() => {
+      if (streamingText === null || !following.current) return;
+      endRef.current?.scrollIntoView({ block: 'end' });
+   }, [streamingText]);
+
    useLayoutEffect(() => {
       const element = scroller.current;
       if (!element || !anchor.current) return;
@@ -85,7 +102,12 @@ export function ChatThread({
 
    const onScroll = () => {
       const element = scroller.current;
-      if (!element || !hasEarlier || loadingEarlier) return;
+      if (!element) return;
+      // Within a line or two of the bottom counts as following, so a growing
+      // reply keeps the view pinned and scrolling away releases it.
+      following.current =
+         element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+      if (!hasEarlier || loadingEarlier) return;
       if (element.scrollTop > 48) return;
       anchor.current = { height: element.scrollHeight, top: element.scrollTop };
       onLoadEarlier();
@@ -201,14 +223,36 @@ export function ChatThread({
             );
          })}
 
-         {stage ? (
+         {streamingText ? (
+            <article className="flex gap-3" aria-live="polite" aria-busy="true">
+               <span
+                  className="mt-0.5 flex size-6 flex-none items-center justify-center rounded bg-[color-mix(in_srgb,var(--shell-accent)_28%,transparent)] text-[var(--shell-text)]"
+                  aria-hidden="true"
+               >
+                  {(agentName?.trim()[0] ?? '?').toUpperCase()}
+               </span>
+               <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-baseline gap-2">
+                     {agentName ? (
+                        <span className="text-[var(--shell-text)]">{agentName}</span>
+                     ) : null}
+                     <span className="size-1.5 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none" />
+                  </div>
+                  <div className="text-[var(--shell-text-muted)]">
+                     <ChatMarkdown body={streamingText} />
+                  </div>
+               </div>
+            </article>
+         ) : null}
+
+         {stage && !streamingText ? (
             <p className="flex items-center gap-2 text-[var(--shell-text-dim)]" role="status">
                <span className="size-1.5 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none" />
                {stage}
             </p>
          ) : null}
 
-         {messages.length > 0 && suggestions.length > 0 && !stage ? (
+         {messages.length > 0 && suggestions.length > 0 && !stage && !streamingText ? (
             <div className="flex flex-wrap items-center gap-2">
                <span className="text-[var(--shell-text-dim)]">{t('followUps')}</span>
                {suggestions.map((suggestion) => (
