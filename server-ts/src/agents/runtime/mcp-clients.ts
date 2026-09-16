@@ -144,7 +144,7 @@ export const MCP_CONNECT_TIMEOUT_MS = 15_000;
  * that accepts the socket but never answers `initialize` would otherwise hang
  * the first tool listing — and with it task start — indefinitely, because the
  * SDK's `McpClient.connect()` forwards no timeout or AbortSignal to the MCP
- * transport (verified against @strands-agents/sdk 1.16.0). We therefore connect
+ * transport (verified against @strands-agents/sdk 1.18.0). We therefore connect
  * each client here under a `timeoutMs` race and drop any that do not answer in
  * time.
  *
