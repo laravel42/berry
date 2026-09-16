@@ -13,6 +13,8 @@
       "onlyBuiltDependencies": [
          "@biomejs/biome",
          "@google/genai",
+         "@parcel/watcher",
+         "@swc/core",
          "better-sqlite3",
          "esbuild",
          "node-llama-cpp",
@@ -25,9 +27,18 @@
          "tree-sitter-typescript",
          "unrs-resolver",
          "workerd"
-      ]
+      ],
+      "peerDependencyRules": {
+         "allowedVersions": {
+            "eslint-plugin-import>eslint": "10",
+            "eslint-plugin-jsx-a11y>eslint": "10",
+            "eslint-plugin-react>eslint": "10",
+            "@tobilu/qmd>typescript": "7"
+         }
+      }
    },
    "scripts": {
+      "prepare": "husky",
       "dev:frontend": "pnpm --filter berry-frontend dev",
       "lint:frontend": "pnpm --filter berry-frontend lint",
       "build:frontend": "pnpm --filter berry-frontend build",
@@ -40,5 +51,8 @@
       "reset:server": "pnpm --filter @berry/server reset",
       "test:plugin-sdk": "pnpm --filter @berry/plugin-sdk test",
       "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
+   },
+   "devDependencies": {
+      "husky": "^9.1.7"
    }
 }
