@@ -7,8 +7,8 @@ fileMatchPattern: ['frontend/**']
 
 Next.js 15 App Router, React 19 (see `package.json` for exact versions).
 Prettier **3-space**, single quotes, semicolons, `es5` trailing commas,
-`printWidth` 100. Alias `@/*` → frontend root. Zod 3 (`package.json` pins
-`^3.24.2`; the server is on Zod 4 — do not assume they match). No test
+`printWidth` 100. Alias `@/*` → frontend root. Zod 4 (`package.json` pins
+`^4.6.5`). No test
 runner — `pnpm lint` and `pnpm build:check` (never plain `pnpm build` while
 `next dev` is running against the same `.next` dir), plus a manual check of
 the changed view.

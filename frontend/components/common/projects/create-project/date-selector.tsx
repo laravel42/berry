@@ -41,7 +41,7 @@ export function ProjectDateSelector({ label, date, onChange }: ProjectDateSelect
                   onChange(next);
                   setOpen(false);
                }}
-               initialFocus
+               autoFocus
             />
             {date ? (
                <div className="border-t p-2">

@@ -168,7 +168,7 @@ function search(query: UsageQuery): string {
    return `?${params.toString()}`;
 }
 
-async function read<T>(path: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<T> {
+async function read<T>(path: string, schema: z.ZodType<T>): Promise<T> {
    const json: unknown = await apiFetch(path);
    const parsed = schema.safeParse(json);
    if (!parsed.success) throw new Error('Usage response was not recognized');

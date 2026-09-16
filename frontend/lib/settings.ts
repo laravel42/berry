@@ -221,7 +221,7 @@ export type NotificationSwitches = Record<NotificationKey, boolean>;
 
 const notificationsSchema = z.object({
    workspaceId: z.string(),
-   inApp: z.record(z.boolean()),
+   inApp: z.record(z.string(), z.boolean()),
 });
 
 export async function loadNotifications(workspaceId: string): Promise<NotificationSwitches> {
@@ -383,4 +383,3 @@ function parse<T extends z.ZodTypeAny>(schema: T, json: unknown, what: string): 
    if (!parsed.success) throw new Error(`${what} response was not recognized`);
    return parsed.data;
 }
-

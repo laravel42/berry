@@ -7,7 +7,8 @@ import { BerryApiError } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { BubbleMenu, EditorContent, useEditor } from '@tiptap/react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
 import { Bold, Code, Italic, Link2, Strikethrough } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,24 +17,26 @@ import { Markdown } from 'tiptap-markdown';
 
 interface TiptapAiEditorProps {
    /** Markdown text stored by the form. */
-   value: string;
+   'value': string;
    /** Fired with markdown on every editor update. */
-   onChange: (markdown: string) => void;
-   placeholder?: string;
-   className?: string;
+   'onChange': (markdown: string) => void;
+   'placeholder'?: string;
+   'className'?: string;
    'aria-label'?: string;
    'data-heading'?: 'h1' | 'h2' | 'h3';
    /**
     * The AI assist bar under the text. On by default; a form that wants plain
     * prose turns it off, and the space the bar reserved goes with it.
     */
-   aiAssist?: boolean;
+   'aiAssist'?: boolean;
 }
 
 type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
 
 function readMarkdown(editor: TipTapEditor): string {
-   return editor.storage.markdown.getMarkdown() as string;
+   // tiptap-markdown declares MarkdownStorage but does not augment @tiptap/core Storage.
+   const storage = editor.storage as unknown as { markdown?: { getMarkdown(): string } };
+   return storage.markdown?.getMarkdown() ?? editor.getText();
 }
 
 export function TiptapAiEditor({
@@ -95,8 +98,7 @@ export function TiptapAiEditor({
          if (!trimmedInstruction) return;
 
          const { from, to } = editor.state.selection;
-         const selected =
-            from !== to ? editor.state.doc.textBetween(from, to, '\n\n').trim() : '';
+         const selected = from !== to ? editor.state.doc.textBetween(from, to, '\n\n').trim() : '';
          const source = selected || readMarkdown(editor).trim();
          if (!source) {
             toast.error('Write something to rewrite');
@@ -110,12 +112,7 @@ export function TiptapAiEditor({
                instruction: `${trimmedInstruction}\n\nReturn Markdown only.`,
             });
             if (selected) {
-               editor
-                  .chain()
-                  .focus()
-                  .deleteRange({ from, to })
-                  .insertContent(rewritten)
-                  .run();
+               editor.chain().focus().deleteRange({ from, to }).insertContent(rewritten).run();
             } else {
                editor.commands.setContent(rewritten);
             }
@@ -159,7 +156,7 @@ export function TiptapAiEditor({
       >
          <BubbleMenu
             editor={editor}
-            tippyOptions={{ duration: 100 }}
+            options={{ offset: 8 }}
             className="bg-popover text-popover-foreground border-border flex items-center gap-0.5 rounded-md border p-1 shadow-md"
          >
             <Button

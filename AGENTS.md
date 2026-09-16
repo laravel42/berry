@@ -52,7 +52,7 @@ write code. Never run one workspace's tools over another.
 | Paths | relative, `.ts` extensions kept | `@/*` → frontend root | relative, `.ts` extensions kept |
 | Format + lint | none configured; match surrounding style | Prettier **3-space**, single quotes + ESLint | match server |
 | Tests | `node --test` | none — lint + build | `node --test` |
-| Validation | Zod v4 | Zod v3 (`package.json` pins `^3.24.2`) | — |
+| Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
 
 Also in the repo: `docs/` and `scripts/` (Python repository checks). There is
 no container stack: Berry runs on the host against its own PostgreSQL 16, AWS

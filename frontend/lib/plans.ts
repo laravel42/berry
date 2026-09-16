@@ -199,8 +199,8 @@ export const planSchema = z.object({
    compiled: z
       .object({
          goalId: z.string(),
-         issueIds: z.record(z.string()).default({}),
-         approvalIds: z.record(z.string()).default({}),
+         issueIds: z.record(z.string(), z.string()).default({}),
+         approvalIds: z.record(z.string(), z.string()).default({}),
          compiledAt: z.string(),
       })
       .nullish(),
@@ -370,10 +370,7 @@ export interface PlanAnswerInput {
  * answer survives this tab being closed. The caller watches the plan the same
  * way it watches a first generation.
  */
-export async function answerPlan(
-   planId: string,
-   answers: PlanAnswerInput[]
-): Promise<PlanRecord> {
+export async function answerPlan(planId: string, answers: PlanAnswerInput[]): Promise<PlanRecord> {
    const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/answers`, {
       method: 'POST',
       headers: { 'Idempotency-Key': newIdempotencyKey() },

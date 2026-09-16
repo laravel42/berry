@@ -39,7 +39,7 @@ const bootstrapSchema = z.object({
 });
 
 const configSchema = z.object({
-   capabilities: z.object({ githubSignIn: z.boolean().optional() }).passthrough(),
+   capabilities: z.looseObject({ githubSignIn: z.boolean().optional() }),
 });
 
 export type LoginUser = z.infer<typeof userSchema>;

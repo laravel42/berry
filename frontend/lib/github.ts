@@ -187,7 +187,7 @@ function base(workspaceId: string): string {
    return `/api/v1/github/${encodeURIComponent(workspaceId)}`;
 }
 
-function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, value: unknown, what: string): T {
+function parse<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
    const parsed = schema.safeParse(value);
    if (!parsed.success) throw new Error(`${what} was not recognized`);
    return parsed.data;

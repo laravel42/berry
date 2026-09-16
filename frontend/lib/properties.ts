@@ -138,7 +138,7 @@ export async function clearIssueProperty(issueRef: string, propertyId: string): 
    });
 }
 
-const metadataSchema = z.object({ metadata: z.record(z.unknown()) });
+const metadataSchema = z.object({ metadata: z.record(z.string(), z.unknown()) });
 
 export async function loadIssueMetadata(issueRef: string): Promise<Record<string, unknown>> {
    return parseResponse(metadataSchema, await apiFetch(onIssue(issueRef, '/metadata')), 'Metadata')

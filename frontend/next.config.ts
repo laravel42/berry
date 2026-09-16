@@ -42,10 +42,9 @@ const nextConfig: NextConfig = {
     * run. It is also the entry point the image pipeline looks for.
     */
    output: 'standalone',
-   experimental: {
-      turbo: {
-         root: repoRoot,
-      },
+   // Next 16: turbopack config is top-level (was experimental.turbo).
+   turbopack: {
+      root: repoRoot,
    },
    async rewrites() {
       return [

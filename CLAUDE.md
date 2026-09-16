@@ -14,7 +14,7 @@ Berry is a self-hosted, multi-workspace issue tracker whose assignees can be peo
 | Imports | relative with `.ts` extension; no aliases, no barrels | `@/*` → `frontend/` | relative `.ts` |
 | Style | no formatter; match surroundings (3-space, single quotes) | Prettier 3-space + ESLint | match server |
 | Tests | `node --test` | none — lint + build | `node --test` |
-| Zod | v4 | **v3** | — |
+| Zod | v4 | **v4** | — |
 
 Never run one workspace's formatter or linter over another. The server enables `erasableSyntaxOnly`, `verbatimModuleSyntax` and `noUncheckedIndexedAccess`. That rules out enums, namespaces and parameter properties, and requires `import type` for type-only imports.
 

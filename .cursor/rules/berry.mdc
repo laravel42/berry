@@ -20,9 +20,9 @@ and `server-ts/ROUTING.md` before touching the server.
 ## Three workspaces
 
 `server-ts` (Node 22, no build step, `--experimental-strip-types`, Zod 4),
-`frontend` (Next.js, Prettier **3-space** + ESLint, `@/`, Zod 3) and
+`frontend` (Next.js, Prettier **3-space** + ESLint, `@/`, Zod 4) and
 `packages/plugin-sdk` (Node, strip-types) do not share a toolchain. Never
-format one with another, and do not assume their Zod major matches.
+format one with another.
 
 ## Boundaries
 

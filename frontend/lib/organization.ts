@@ -22,16 +22,22 @@ export const roleContractSchema = z.object({
    outputs: z.array(z.string()),
    can_delegate_to: z.array(z.string()),
    receives_work_from: z.array(z.string()),
-   escalation_rules: z.array(
-      z.object({ when: z.string(), to: z.string(), decision: z.string() })
-   ),
+   escalation_rules: z.array(z.object({ when: z.string(), to: z.string(), decision: z.string() })),
    review_requirements: z.array(
-      z.object({ reviewer: z.string(), authority: z.string(), when: z.record(z.unknown()) })
+      z.object({
+         reviewer: z.string(),
+         authority: z.string(),
+         when: z.record(z.string(), z.unknown()),
+      })
    ),
    autonomy_level: z.number(),
    review_domains: z.array(z.string()),
    discovery: z
-      .object({ cron: z.string(), focus: z.array(z.string()), evidence_sources: z.array(z.string()) })
+      .object({
+         cron: z.string(),
+         focus: z.array(z.string()),
+         evidence_sources: z.array(z.string()),
+      })
       .nullable(),
    run_limits: z.object({ max_turns: z.number(), max_output_tokens: z.number() }),
    never: z.array(z.string()),
@@ -54,7 +60,11 @@ const organizationSchema = z.object({
                /** False when the stored contract for this role no longer validates. */
                contractValid: z.boolean(),
                discovery: z
-                  .object({ autopilotId: z.string(), status: z.string(), cron: z.string().nullable() })
+                  .object({
+                     autopilotId: z.string(),
+                     status: z.string(),
+                     cron: z.string().nullable(),
+                  })
                   .nullable(),
             })
          ),

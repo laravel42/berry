@@ -27,14 +27,14 @@ lib/<domain>.ts  ──►  lib/api.ts  ──► Berry API (same-origin, proxie
 
 ## Folder responsibilities
 
-| Folder | Responsibility |
-| --- | --- |
-| `app/` | Next.js App Router routes. Public routes (`login`, `sign-in`, `onboarding`, `invite`, `invitations`, `join`, `workspaces`) sit at the top; everything authenticated lives under the dynamic `app/[orgId]/` segment (tasks, projects, goals, agents, plans, proposals, members, the `settings/` tree, …). `layout.tsx` wraps the app in the session gate; `globals.css` holds the semantic design tokens. |
-| `components/` | React components, grouped: `ui/` are the shadcn/Radix primitives; `common/` are the domain components (one subfolder per feature); `layout/`, `auth/`, `brand/`, `onboarding/` are their namesakes; `data-table-filter/` is vendored (the **only** place `any` is allowed). |
-| `lib/` | One client module per resource (`issues.ts`, `projects.ts`, `agents.ts`, …), each calling the API through `api.ts`. Also `config.ts` (the `NEXT_PUBLIC_*` knobs) and shared utilities. **All server traffic goes through `api.ts`.** |
-| `store/` | Zustand stores, one per screen or feature slice (`session-store`, `issues-store`, `filter-store`, `event-stream-store`, …). State the UI reads and mutates. |
-| `data/` | Domain **types**, fixed vocabularies (statuses, priorities, project health) and pure helpers. Stores start empty and fill from the API. `currentUser` is a pre-auth placeholder pending removal. `eslint.config.mjs` (`FIXTURE_IMPORT_PATHS`) refuses imports of removed fixtures and of surfaces with no backend. |
-| `hooks/` | Shared React hooks: realtime event-stream subscriptions, `use-hydrate-workspace-data`, entity loaders (`use-plan`/`use-project`/`use-goal`), and `use-mobile`. |
+| Folder        | Responsibility                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app/`        | Next.js App Router routes. Public routes (`login`, `sign-in`, `onboarding`, `invite`, `invitations`, `join`, `workspaces`) sit at the top; everything authenticated lives under the dynamic `app/[orgId]/` segment (tasks, projects, goals, agents, plans, proposals, members, the `settings/` tree, …). `layout.tsx` wraps the app in the session gate; `globals.css` holds the semantic design tokens. |
+| `components/` | React components, grouped: `ui/` are the shadcn/Radix primitives; `common/` are the domain components (one subfolder per feature); `layout/`, `auth/`, `brand/`, `onboarding/` are their namesakes; `data-table-filter/` is vendored (the **only** place `any` is allowed).                                                                                                                              |
+| `lib/`        | One client module per resource (`issues.ts`, `projects.ts`, `agents.ts`, …), each calling the API through `api.ts`. Also `config.ts` (the `NEXT_PUBLIC_*` knobs) and shared utilities. **All server traffic goes through `api.ts`.**                                                                                                                                                                     |
+| `store/`      | Zustand stores, one per screen or feature slice (`session-store`, `issues-store`, `filter-store`, `event-stream-store`, …). State the UI reads and mutates.                                                                                                                                                                                                                                              |
+| `data/`       | Domain **types**, fixed vocabularies (statuses, priorities, project health) and pure helpers. Stores start empty and fill from the API. `currentUser` is a pre-auth placeholder pending removal. `eslint.config.mjs` (`FIXTURE_IMPORT_PATHS`) refuses imports of removed fixtures and of surfaces with no backend.                                                                                       |
+| `hooks/`      | Shared React hooks: realtime event-stream subscriptions, `use-hydrate-workspace-data`, entity loaders (`use-plan`/`use-project`/`use-goal`), and `use-mobile`.                                                                                                                                                                                                                                           |
 
 ## Realtime
 
@@ -89,9 +89,8 @@ exist but are intentionally absent from the nav (`profile`,
   `es5` trailing commas, `printWidth` 100. The alias `@/*` maps to the frontend
   root (the bundler resolves it — unlike the server, aliases are fine here).
 - **Forms use `react-hook-form` + a Zod schema** (one schema per form). The
-  frontend is on **Zod 3** (`package.json` pins `^3.24.2`) while the server is
-  on Zod 4 — do not assume they match. See `lib/zod-resolver.ts` for the
-  resolver seam that bridges `@hookform/resolvers` 4 against Zod 3.
+  frontend and server are both on **Zod 4**; see `lib/zod-resolver.ts` for the
+  thin `zodResolver` seam used by forms.
 - **No test runner.** Verify with `pnpm lint` and `pnpm build:check` (which
   writes to a throwaway dist dir so it will not corrupt a running `next dev`),
   plus a manual check of the changed view.

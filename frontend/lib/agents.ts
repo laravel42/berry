@@ -624,7 +624,7 @@ export async function revealAgentEnv(id: string): Promise<Record<string, string>
       method: 'POST',
       body: '{}',
    });
-   return z.object({ env: z.record(z.string()) }).parse(json).env;
+   return z.object({ env: z.record(z.string(), z.string()) }).parse(json).env;
 }
 
 export async function listAgentEnvAudit(id: string): Promise<AgentEnvAuditEntry[]> {

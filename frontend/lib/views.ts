@@ -183,7 +183,7 @@ export async function deleteSavedView(viewId: string): Promise<void> {
 
 const preferencesSchema = z.object({
    activeViewId: z.string().nullable(),
-   preferences: z.record(z.unknown()),
+   preferences: z.record(z.string(), z.unknown()),
 });
 
 export async function loadViewPreferences(
@@ -211,9 +211,9 @@ const queryResultSchema = z.object({
    total: z.number(),
    groups: z.array(z.object({ key: z.string(), count: z.number(), issueIds: z.array(z.string()) })),
    facets: z.object({
-      status: z.record(z.number()),
-      priority: z.record(z.number()),
-      assignee: z.record(z.number()),
+      status: z.record(z.string(), z.number()),
+      priority: z.record(z.string(), z.number()),
+      assignee: z.record(z.string(), z.number()),
    }),
 });
 export type IssueQueryResult = z.infer<typeof queryResultSchema>;

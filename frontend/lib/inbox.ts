@@ -27,7 +27,7 @@ const inboxSchema = z.object({
    goalId: z.string().nullish(),
    planId: z.string().nullish(),
    /** Whatever the projection recorded about the event; shape varies by event. */
-   details: z.record(z.unknown()).nullish(),
+   details: z.record(z.string(), z.unknown()).nullish(),
 });
 
 const inboxConnectionSchema = connectionSchema(inboxSchema);

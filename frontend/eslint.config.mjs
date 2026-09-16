@@ -1,13 +1,7 @@
-import { dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { FlatCompat } from '@eslint/eslintrc';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-   baseDirectory: __dirname,
-});
+import { defineConfig, globalIgnores } from 'eslint/config';
+import nextVitals from 'eslint-config-next/core-web-vitals';
+import nextTs from 'eslint-config-next/typescript';
+import prettier from 'eslint-config-prettier/flat';
 
 /* A Tailwind font-size utility -- the named scale or an arbitrary length --
    with any variant prefixes (`md:`, `file:`, `[&_svg]:`) in front of it.
@@ -86,11 +80,33 @@ const FIXTURE_IMPORT_PATHS = [
    },
 ];
 
-const eslintConfig = [
-   ...compat.extends('next/core-web-vitals', 'next/typescript'),
+export default defineConfig([
+   ...nextVitals,
+   ...nextTs,
+   // Last so Prettier wins over stylistic rules from next/typescript.
+   prettier,
+   globalIgnores(['.next/**', '.next-verify/**', 'out/**', 'build/**', 'next-env.d.ts']),
    {
+      name: 'berry/settings',
+      settings: {
+         // Pin so eslint-plugin-react skips detectReactVersion (calls removed
+         // context.getFilename under ESLint 10). Upstream still peers eslint^9.
+         react: { version: '19.0' },
+      },
+   },
+   {
+      name: 'berry/app',
       files: ['**/*.{ts,tsx}'],
       rules: {
+         // eslint-plugin-react-hooks v7 (via eslint-config-next 16) ships React
+         // Compiler lint rules that flag common Berry patterns. Keep the prior
+         // lint bar for this upgrade; re-enable selectively later.
+         'react-hooks/set-state-in-effect': 'off',
+         'react-hooks/refs': 'off',
+         'react-hooks/purity': 'off',
+         'react-hooks/use-memo': 'off',
+         'react-hooks/immutability': 'off',
+         'react-hooks/preserve-manual-memoization': 'off',
          'no-restricted-imports': ['error', { paths: FIXTURE_IMPORT_PATHS }],
          'no-restricted-syntax': [
             'error',
@@ -107,6 +123,7 @@ const eslintConfig = [
    },
    {
       // Vendored bazza/ui data-table-filter (kept close to upstream for easy updates)
+      name: 'berry/data-table-filter',
       files: ['components/data-table-filter/**/*.{ts,tsx}'],
       rules: {
          '@typescript-eslint/no-unused-vars': 'off',
@@ -114,8 +131,7 @@ const eslintConfig = [
          '@typescript-eslint/no-this-alias': 'off',
          'react-hooks/rules-of-hooks': 'off',
          'react-hooks/exhaustive-deps': 'off',
+         'react-hooks/set-state-in-effect': 'off',
       },
    },
-];
-
-export default eslintConfig;
+]);

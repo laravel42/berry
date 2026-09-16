@@ -25,7 +25,7 @@ const installationSchema = z.object({
    source: z.enum(['url', 'upload']),
    sourceUrl: z.string().nullable(),
    enabled: z.boolean(),
-   config: z.record(configValueSchema),
+   config: z.record(z.string(), configValueSchema),
    configFields: z.array(configFieldSchema),
    secrets: z.array(z.object({ name: z.string(), description: z.string(), set: z.boolean() })),
    scopes: z.array(z.string()),

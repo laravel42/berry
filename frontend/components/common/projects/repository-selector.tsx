@@ -20,7 +20,8 @@ import {
 } from '@/lib/projects';
 import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects-store';
-import { Check, Github, Loader2, X } from 'lucide-react';
+import { Check, Loader2, X } from 'lucide-react';
+import { RiGithubFill } from '@remixicon/react';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 
@@ -78,9 +79,7 @@ export function RepositoryPicker({
             // An empty list and a list that failed to load look identical, and
             // the fixes are opposite — so the reason is shown, not hidden.
             setError(
-               cause instanceof BerryApiError
-                  ? cause.message
-                  : 'Repositories could not be loaded.'
+               cause instanceof BerryApiError ? cause.message : 'Repositories could not be loaded.'
             );
          })
          .finally(() => {
@@ -120,7 +119,7 @@ export function RepositoryPicker({
                      )}
                   />
                ) : (
-                  <Github
+                  <RiGithubFill
                      className={cn(
                         'shrink-0 text-muted-foreground',
                         size === 'xxs' || size === 'xs' ? 'size-3' : 'size-4'
@@ -158,7 +157,7 @@ export function RepositoryPicker({
                                  value={repository.fullName}
                                  onSelect={() => choose(repository.fullName)}
                               >
-                                 <Github className="size-4 shrink-0" />
+                                 <RiGithubFill className="size-4 shrink-0" />
                                  <span className="truncate">{repository.fullName}</span>
                                  {value === repository.fullName ? (
                                     <Check className="ml-auto size-4" />
@@ -241,7 +240,9 @@ export function RepositorySelector({ project }: { project: Project }) {
          } catch (cause) {
             updateProject(project.id, { githubRepo: previous });
             toast.error(
-               cause instanceof BerryApiError ? cause.message : 'That repository could not be saved.'
+               cause instanceof BerryApiError
+                  ? cause.message
+                  : 'That repository could not be saved.'
             );
          } finally {
             setSaving(false);

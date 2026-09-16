@@ -96,7 +96,7 @@ export interface ProfileInput {
    idleTimeoutS?: number | null;
 }
 
-function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, json: unknown, what: string): T {
+function parse<T>(schema: z.ZodType<T>, json: unknown, what: string): T {
    const parsed = schema.safeParse(json);
    if (!parsed.success) throw new Error(`${what} response was not recognized`);
    return parsed.data;
