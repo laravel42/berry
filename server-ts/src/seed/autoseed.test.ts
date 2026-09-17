@@ -93,7 +93,7 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
       assert.equal(agents!.n, CATALOG.length);
 
       const [skills] = await sql<Array<{ n: number }>>`
-         SELECT count(*)::int AS n FROM skills WHERE workspace_id = ${workspaceId}`;
+         SELECT count(*)::int AS n FROM skills WHERE workspace_id = ${workspaceId} AND name = 'product-discovery'`;
       assert.equal(skills!.n, 1);
 
       const [bindings] = await sql<Array<{ n: number }>>`

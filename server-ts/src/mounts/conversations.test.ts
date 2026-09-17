@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { after, before, describe, test } from 'node:test';
+import { after, afterEach, before, describe, test } from 'node:test';
 import type { EnqueueInput, EnqueueTask } from '../agents/seams.ts';
 import { personalTokenResolver } from '../auth/credentials.ts';
 import { SessionService } from '../auth/sessions.ts';
@@ -64,6 +64,11 @@ describe('conversations mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
    after(async () => {
       await dropAgentLayerWorld(sql, world);
       await closeDatabase(sql);
+   });
+
+   afterEach(async () => {
+      await sql`UPDATE runs SET status = 'cancelled', dispatch_state = 'cancelled', completed_at = now()
+         WHERE issue_id = ${world.issueId} AND status IN ('queued', 'running')`;
    });
 
    const newSession = async (token = world.ownerToken): Promise<string> => {

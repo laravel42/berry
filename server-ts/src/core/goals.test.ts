@@ -231,7 +231,7 @@ describe('goals', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, 
       const created = [];
       for (const title of ['one', 'two', 'three']) {
          created.push(
-            (await goals.create({ workspaceId, title, createdBy: fixture.userId, createdAt: now() })).goal
+            (await goals.create({ workspaceId, title, createdBy: fixture.userId, createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, created.length)).toISOString() })).goal
          );
       }
       const filter = { query: '', status: null, projectId: null };
