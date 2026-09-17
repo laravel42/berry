@@ -26,7 +26,9 @@ export function AutonomyLevelChip({ level, className, tabIndex }: AutonomyLevelC
          title={tabIndex === undefined ? org('levelHint') : undefined}
          tabIndex={tabIndex}
          className={cn(
-            'shrink-0 rounded border px-1.5 py-px text-[11px] leading-none',
+            // No text-* size here: the base layer in app/globals.css sizes a
+            // span, and a chip that set its own would drift from every other one.
+            'shrink-0 rounded border px-1.5 py-px leading-none',
             AUTONOMY_LEVEL_STYLE[coded],
             tabIndex !== undefined &&
                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',

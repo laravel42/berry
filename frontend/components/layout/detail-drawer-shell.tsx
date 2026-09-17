@@ -50,6 +50,12 @@ export default function DetailDrawerShell({
    const isMobile = useIsMobile();
    const railOpen = useShellStore((state) => state.railOpen);
    const railWidth = isMobile ? RAIL_OVERLAY_WIDTH : railOpen ? RAIL_WIDTH : RAIL_COLLAPSED_WIDTH;
+   // One expression for both width and max-width so the Sheet's default
+   // `w-3/4` / `sm:max-w-sm` cannot leave agents and tasks on different
+   // used sizes if an inline width is ever dropped.
+   const drawerWidth = `min(${
+      maxWidth ? `${maxWidth}px` : 'var(--drawer-max-width)'
+   }, calc(100vw - ${railWidth}px))`;
 
    const dismiss = useCallback(() => {
       if (onClose) {
@@ -75,13 +81,12 @@ export default function DetailDrawerShell({
             hideClose
             overlayClassName="bg-transparent"
             className={cn(
-               'flex h-full inset-y-0 right-0 left-auto flex-col gap-0 border-l bg-container p-0',
+               'flex h-full w-auto inset-y-0 right-0 left-auto flex-col gap-0 border-l bg-container p-0',
                'max-w-none sm:max-w-none'
             )}
             style={{
-               width: `min(${
-                  maxWidth ? `${maxWidth}px` : 'var(--drawer-max-width)'
-               }, calc(100vw - ${railWidth}px))`,
+               width: drawerWidth,
+               maxWidth: drawerWidth,
             }}
          >
             <DetailDrawerProvider onClose={dismiss}>
