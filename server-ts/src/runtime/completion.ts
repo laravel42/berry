@@ -15,6 +15,7 @@ export interface CompletionDeps {
    sql: Sql;
    /** Asks the dispatcher to look now rather than at its next poll. */
    nudge?: () => void;
+   /** How long any call may take unless the call itself asks for less or more. */
    timeoutMs?: number;
    pollMs?: number;
    defaultModel?: string;
@@ -79,6 +80,15 @@ export async function runCompletionTask(
       model?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
+      /**
+       * This call's own budget, overriding the deployment's.
+       *
+       * One number for every caller cannot be right: a one-line classification
+       * and a call that has to write an id for each of thirty tasks are not the
+       * same wait, and the shared default is what turns the long one into a
+       * cancelled run with nothing to show.
+       */
+      timeoutMs?: number;
    }
 ): Promise<CompletionResult<unknown>> {
    const started = Date.now();
@@ -108,7 +118,7 @@ export async function runCompletionTask(
    });
    deps.nudge?.();
 
-   const deadline = started + (deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+   const deadline = started + (input.timeoutMs ?? deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
    while (true) {
       const [row] = await deps.sql`
          SELECT status::text AS status, result, input_tokens, output_tokens,
@@ -157,7 +167,15 @@ export async function runCompletionTask(
    }
 }
 
-type Call = { workspaceId: string; model: string; system: string; purpose?: string; signal?: AbortSignal | undefined };
+type Call = {
+   workspaceId: string;
+   model: string;
+   system: string;
+   purpose?: string;
+   signal?: AbortSignal | undefined;
+   /** This call's budget, when the deployment-wide one does not fit it. */
+   timeoutMs?: number | undefined;
+};
 
 /** The old `Completion` surface, so callers change their import and add a workspace. */
 export class RuntimeCompletion {
@@ -199,6 +217,7 @@ export class RuntimeCompletion {
          model: input.model,
          ...(transcript ? { transcript } : {}),
          ...(input.signal ? { signal: input.signal } : {}),
+         ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
       });
    }
 }

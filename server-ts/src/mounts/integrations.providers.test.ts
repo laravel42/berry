@@ -215,6 +215,7 @@ describe(
                   userAccess,
                   publicUrl: 'http://localhost:4000',
                   appUrl: 'http://localhost:3000',
+                  completeAgentCoreAuthorization: null,
                   firstRunSetup: null,
                   ...overrides,
                })

@@ -85,7 +85,7 @@ test('changes are committed, pushed, and reported with a diffstat', async () => 
    assert.ok(calls.every((call) => call.cwd === 'frontend'));
 });
 
-test('the token never appears in a command, only on the environment of the fetch and the push', async () => {
+test('the token never appears in a command, only on the push environment', async () => {
    // The same rule as the checkout, and for the same reason: commands are
    // recorded verbatim and streamed to everyone watching the run.
    const { session, calls } = fakeSession({
@@ -106,50 +106,18 @@ test('the token never appears in a command, only on the environment of the fetch
    const withToken = calls.filter((call) => call.env?.BERRY_GIT_TOKEN !== undefined);
    assert.deepEqual(
       withToken.map((call) => (call.command.includes('push') ? 'push' : 'fetch')),
-      ['fetch', 'push']
+      ['push']
    );
    for (const call of withToken) assert.match(call.command, /\$BERRY_GIT_TOKEN/);
 });
 
-test('a retried run updates its own branch but refuses to clobber someone else', async () => {
-   const { session, calls } = fakeSession({
-      numstat: { stdout: CHANGES },
-      'rev-parse': { stdout: 'abc\n' },
-   });
-   await commitAndPush({
-      session,
-      directory: 'frontend',
-      branch: 'b',
-      token: TOKEN,
-      message: 'work',
-   });
-   const push = calls.find((call) => call.command.includes('push'))!;
-   // The lease names the value it expects — the sha the fetch brought back —
-   // because the implicit lease is refused on a shallow clone.
-   assert.match(push.command, /--force-with-lease='b:abc'/);
-   // The lease has to have something to compare with: a fresh clone knows
-   // nothing about the branch the earlier attempt pushed, and was refused
-   // with "stale info" until the branch was fetched first.
-   const fetch = calls.findIndex((call) => /fetch origin '\+refs\/heads\/b:refs\/remotes\/origin\/b'/.test(call.command));
-   const pushAt = calls.findIndex((call) => call.command.includes('push'));
-   assert.ok(fetch >= 0 && fetch < pushAt, 'the branch is fetched before it is pushed');
-   assert.equal(calls[fetch]!.env?.BERRY_GIT_TOKEN, TOKEN, 'the fetch authenticates the same way');
-});
-
-test('a branch that does not exist yet fails to fetch, and is pushed anyway', async () => {
-   const { session, calls } = fakeSession({
-      numstat: { stdout: CHANGES },
-      // Listed before `rev-parse`: the fake answers by the first key a command
-      // contains, and the remote-ref probe is a `rev-parse --verify`.
-      '--verify': { exitCode: 1, stdout: '' },
-      'rev-parse': { stdout: 'abc\n' },
-      fetch: { exitCode: 128, stderr: "fatal: couldn't find remote ref b\n" },
-   });
-   const delivery = await commitAndPush({ session, directory: 'frontend', branch: 'b', token: TOKEN, message: 'work' });
-   assert.equal(delivery.committed, true);
-   const push = calls.find((call) => call.command.includes('push'))!;
-   // An empty expectation: create the branch, and refuse if one appeared.
-   assert.match(push.command, /--force-with-lease='b:'/);
+test('delivery never force-pushes a divergent branch', async () => {
+   const { session, calls } = fakeSession({ numstat: { stdout: CHANGES }, 'rev-parse': { stdout: 'abc\n' } });
+   await commitAndPush({ session, directory: 'repo', branch: 'b', token: TOKEN, message: 'work' });
+   const push = calls.find((call) => call.command.includes('push'));
+   assert.ok(push);
+   assert.doesNotMatch(push.command, /--force/);
+   assert.match(push.command, /HEAD:refs\/heads\/b/);
 });
 
 test('a commit message with a body survives the shell', async () => {
@@ -225,10 +193,14 @@ test('an empty or malformed diffstat reports nothing changed', () => {
    }
 });
 
-test('a file list is bounded, though the counts are not', () => {
+test('all paths remain available for policy evaluation', () => {
    const many = Array.from({ length: 200 }, (_x, index) => `1\t1\tsrc/file${index}.ts`).join('\n');
    const stat = parseNumstat(many);
    assert.equal(stat.filesChanged, 200);
    assert.equal(stat.insertions, 200);
-   assert.equal(stat.files.length, 50);
+   assert.equal(stat.files.length, 200);
+});
+
+test('NUL-delimited paths preserve tabs, newlines and literal rename arrows', () => {
+   assert.deepEqual(parseNumstat('1\t2\t src/auth/odd\nname\t => file.ts\0').files, [' src/auth/odd\nname\t => file.ts']);
 });

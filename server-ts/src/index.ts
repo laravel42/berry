@@ -71,6 +71,8 @@ import { OAuthStateStore } from './integrations/oauth.ts';
 import { RunRepository } from './runs/repository.ts';
 import { RunLedger } from './runs/ledger.ts';
 import { Dispatcher } from './runs/dispatcher.ts';
+import { FollowupWorker } from './runs/followups.ts';
+import { publishRunArtifacts } from './runs/publish-artifacts.ts';
 import {
    agentCompletion,
    agentEnqueue,
@@ -446,7 +448,7 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
         region: config.agentCore.region,
         endpointUrl: null,
      }
-   : config.runtime.agentRuntimeUrl
+   : config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
      ? {
           id: null,
           driver: 'http',
@@ -472,6 +474,9 @@ const reviewGate = defaultTarget
         maxAttempts: config.agents?.autoGateMaxAttempts ?? 2,
         github: async (workspaceId) =>
            new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }),
+        // `write_file` saves against the run rather than the repository, so for
+        // most tasks the saved files *are* the work under review.
+        ...(storage ? { openArtifact: (key: string) => storage.open(key) } : {}),
         onError: (message, error) =>
            logger.error(message, { error: error instanceof Error ? error.message : String(error) }),
      })
@@ -491,7 +496,7 @@ const transport = routingTransport({
            ...(config.agentCore.credentials ? { credentials: config.agentCore.credentials } : {}),
         })
       : null,
-   http: httpTransport(),
+   http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
 const executor = defaultTarget
@@ -507,6 +512,7 @@ const executor = defaultTarget
               config.integrations.publicUrl ??
               `http://${config.apiAddr.host}:${config.apiAddr.port}`,
            defaultModel: config.runtime.defaultModel,
+           maxTokens: config.runtime.maxTokens,
            memory: runMemory ?? nullRunMemory(),
            sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
            ...(scm.provisioning ? { gitCredential: scm.gitCredential } : {}),
@@ -524,6 +530,10 @@ const executor = defaultTarget
         ...(reviewGate ? { reviewGate } : {}),
         onGateError: (error) =>
            logger.error('peer review failed', {
+              error: error instanceof Error ? error.message : String(error),
+           }),
+        onCancelError: (error) =>
+           logger.error('the runtime session could not be stopped; the run is still cancelled', {
               error: error instanceof Error ? error.message : String(error),
            }),
         onUsageError: (error) =>
@@ -787,7 +797,9 @@ registry.registerAll(
 );
 registry.registerAll(runMounts(runOptions));
 // Berry's tools for a running task, behind its task token (not a session).
-registry.registerAll(agentToolMounts({ sql, storage, issues, projects }));
+registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
+   ...(scm.provisioning ? { github: async (workspaceId: string) => new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }) } : {}),
+}));
 const agentCore = config.agentCore;
 registry.registerAll(
    runtimeMounts({
@@ -909,11 +921,11 @@ registry.registerAll(
       // is watching this one arrive, and a poll interval of dead air before the
       // agent even starts is the most visible latency chat has. Completions
       // already do this; chat was left waiting.
-      enqueue: async (sql, input) => {
+      enqueue: executor ? async (sql, input) => {
          const queued = await agentEnqueue(sql, input);
          dispatcher?.nudge();
          return queued;
-      },
+      } : null,
       complete,
       ledger: runOptions.ledger,
       runs: runOptions.runs,
@@ -966,6 +978,7 @@ registry.registerAll(
       // create. A stored App's slug wins.
       appSlug: config.auth.githubAppSlug,
       userAccess: githubUserAccess,
+      completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
       publicUrl: config.integrations.publicUrl,
       appUrl: config.integrations.appUrl,
       // Settings pages live under the workspace, so a callback needs its slug
@@ -1087,6 +1100,43 @@ const dispatcher = executor
    : null;
 dispatcher?.start();
 
+/**
+ * Publish, then review.
+ *
+ * The files a run saved are put on a branch and into a pull request before the
+ * reviewer is asked anything, because that is what makes the work reviewable:
+ * `write_file` saves against the run rather than the checkout, so without this
+ * step the reviewer sees a summary and no diff, nothing merges, and the next
+ * task checks out a repository missing everything before it. Publishing never
+ * throws — a run whose files could not be committed is still reviewed on the
+ * files themselves.
+ */
+const followupWorker = reviewGate
+   ? new FollowupWorker({
+        sql,
+        review: async (runId) => {
+           await publishRunArtifacts(
+              {
+                 sql,
+                 github: async (workspaceId) =>
+                    new GitHubClient({
+                       token: (await scm.gitCredential(workspaceId)).password,
+                    }),
+                 ...(storage ? { openArtifact: (key: string) => storage.open(key) } : {}),
+                 onError: (message, error) =>
+                    logger.error(message, {
+                       error: error instanceof Error ? error.message : String(error),
+                    }),
+              },
+              runId
+           );
+           return reviewGate.review(runId);
+        },
+        logger,
+     })
+   : null;
+followupWorker?.start();
+
 // Schedules fire only where tasks can run: a schedule on a server with no
 // dispatcher would queue work nothing takes. Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
@@ -1157,6 +1207,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
          // process that is on its way out.
          void Promise.all([
             dispatcher ? dispatcher.stop() : Promise.resolve(),
+            followupWorker ? followupWorker.stop() : Promise.resolve(),
             autopilotScheduler ? autopilotScheduler.stop() : Promise.resolve(),
             pluginHooks ? pluginHooks.stop() : Promise.resolve(),
          ])
@@ -1166,4 +1217,3 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       });
    });
 }
-

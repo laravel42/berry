@@ -275,6 +275,119 @@ describe('agent tool API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.equal(body.error.code, 'TOOL_NOT_ALLOWED');
    });
 
+   /**
+    * The one surface that turns a task token into repository bytes.
+    *
+    * It is not a tool, so the autonomy allowlist does not gate it — the agent's
+    * `read_repository` permission and the snapshot row do. Every refusal is a
+    * 404 so a token cannot be used to discover which runs or repositories exist.
+    */
+   describe('repository snapshot', () => {
+      const archived: Array<{ owner: string; name: string; ref: string }> = [];
+      let snapshotApp: BerryApp;
+
+      before(() => {
+         const issues = new IssueRepository(sql);
+         const registry = new Registry();
+         registry.registerAll(
+            agentToolMounts({
+               sql,
+               storage: null,
+               projects: new ProjectRepository(sql),
+               issues: { create: (params) => issues.create(params), update: async () => ({ issue: {} as never, events: [] }) },
+               github: async () =>
+                  ({
+                     archive: async (owner: string, name: string, ref: string) => {
+                        archived.push({ owner, name, ref });
+                        return new Response(new Uint8Array([0x1f, 0x8b, 0x08]));
+                     },
+                  }) as never,
+            })
+         );
+         snapshotApp = createApp(registry);
+      });
+
+      const snapshot = (bearer: string) =>
+         snapshotApp.request('/api/v1/agent-tools/repository-snapshot', {
+            headers: { authorization: `Bearer ${bearer}` },
+         });
+
+      const withSnapshot = async (values: { readOnly?: boolean } = {}) => {
+         await sql`DELETE FROM run_repository_snapshots WHERE run_id = ${runId}`;
+         await sql`
+            INSERT INTO run_repository_snapshots
+                   (run_id, repository, branch, base_commit, default_commit, expected_head, read_only)
+            VALUES (${runId}, 'berry/app', 'agent/work', 'basecommit', 'maincommit', 'basecommit',
+                    ${values.readOnly ?? false})`;
+      };
+
+      test('a run with a snapshot gets the archive, and no upstream header reaches the runtime', async () => {
+         await withSnapshot();
+         const fresh = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:read', 'task:write'], ttlSeconds: 600,
+         });
+         archived.length = 0;
+         const response = await snapshot(fresh);
+         assert.equal(response.status, 200);
+         assert.equal(response.headers.get('content-type'), 'application/gzip');
+         assert.equal(response.headers.get('cache-control'), 'no-store');
+         // The base commit is what is served, never the branch head.
+         assert.deepEqual(archived, [{ owner: 'berry', name: 'app', ref: 'basecommit' }]);
+      });
+
+      test('a read-only snapshot still reads: the refusal to publish is enforced on delivery', async () => {
+         await withSnapshot({ readOnly: true });
+         const fresh = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:read'], ttlSeconds: 600,
+         });
+         assert.equal((await snapshot(fresh)).status, 200);
+      });
+
+      test('a token without task:read is refused', async () => {
+         await withSnapshot();
+         const writeOnly = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:write'], ttlSeconds: 600,
+         });
+         assert.equal((await snapshot(writeOnly)).status, 404);
+      });
+
+      test('an agent without read_repository is refused', async () => {
+         await withSnapshot();
+         const [before] = await sql`SELECT permissions FROM agents WHERE id = ${mine!.agentId}`;
+         await sql`
+            UPDATE agents SET permissions = ${sql.array(['run_commands'])} WHERE id = ${mine!.agentId}`;
+         try {
+            const fresh = await mintTaskToken(sql, {
+               runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+               scopes: ['task:read'], ttlSeconds: 600,
+            });
+            assert.equal((await snapshot(fresh)).status, 404);
+         } finally {
+            await sql`
+               UPDATE agents SET permissions = ${sql.array((before!.permissions as string[]) ?? [])}
+                WHERE id = ${mine!.agentId}`;
+         }
+      });
+
+      test('a run with no snapshot row is refused', async () => {
+         await sql`DELETE FROM run_repository_snapshots WHERE run_id = ${runId}`;
+         const fresh = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:read'], ttlSeconds: 600,
+         });
+         assert.equal((await snapshot(fresh)).status, 404);
+      });
+
+      test('without a task token nothing is served', async () => {
+         await withSnapshot();
+         assert.equal((await snapshotApp.request('/api/v1/agent-tools/repository-snapshot')).status, 401);
+         assert.equal((await snapshot('berry_pat_nope')).status, 401);
+      });
+   });
+
    test('a revoked token stops working', async () => {
       await revokeTaskTokens(sql, runId);
       assert.equal((await call('')).status, 401);

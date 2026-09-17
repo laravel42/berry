@@ -20,6 +20,7 @@ const registry = new SessionRegistry();
 const waitTool = tool({ name: 'wait', description: 'w', inputSchema: z.object({}), callback: async () => (await gate, 'ok') });
 const server = createRuntimeServer({
    registry,
+   authMode: 'agentcore',
    // Each task builds its own model; the envelope's model id picks the script.
    modelFactory: (spec) =>
       new ScriptedModel(spec.model === 'wait' ? [call('wait', {}), say('late')] : [say('hello')]),
@@ -88,4 +89,18 @@ test('the loop outlives a closed stream, and ping says HealthyBusy meanwhile', a
 test('local stop forgets a session', async () => {
    const response = await fetch(`${base}/sessions/berry-${'2'.repeat(64)}`, { method: 'DELETE' });
    assert.equal(response.status, 204);
+});
+
+test('standalone runtime refuses missing credentials and unauthenticated requests', async () => {
+   const deps = { registry: new SessionRegistry(), modelFactory: () => new ScriptedModel([say('ok')]), region: 'us-east-1', workRoot: mkdtempSync(join(tmpdir(), 'berry-auth-')) };
+   assert.throws(() => createRuntimeServer(deps), /requires BERRY_RUNTIME_AUTH_TOKEN/);
+   const secured = createRuntimeServer({ ...deps, authToken: 's'.repeat(32), localControl: true });
+   await new Promise<void>((resolve) => secured.listen(0, '127.0.0.1', resolve));
+   const url = `http://127.0.0.1:${(secured.address() as AddressInfo).port}`;
+   try {
+      assert.equal((await fetch(`${url}/ping`)).status, 200);
+      assert.equal((await fetch(`${url}/invocations`, { method: 'POST', body: '{}' })).status, 401);
+      assert.equal((await fetch(`${url}/sessions/example`, { method: 'DELETE' })).status, 401);
+      assert.equal((await fetch(`${url}/invocations`, { method: 'POST', body: '{}', headers: { authorization: `Bearer ${'s'.repeat(32)}` } })).status, 400);
+   } finally { await new Promise<void>((resolve) => secured.close(() => resolve())); }
 });

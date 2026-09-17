@@ -381,6 +381,14 @@ export class IssueRepository {
        * The column is nullable, and `created_by` is the only honest answer.
        */
       createdBy: string | null;
+      /**
+       * Whether the review gate may release this task on a passing review.
+       *
+       * Off unless asked. A plan sets it on the tasks it compiles, and an agent
+       * working on such a task passes it to work it files — otherwise a loop a
+       * person delegated leaks tasks they never agreed to be asked about.
+       */
+      autoGate?: boolean;
    }): Promise<{ issue: Issue; events: IssueMutationEvent[] }> {
       const id = this.newId();
       const now = this.clock().toISOString();
@@ -400,13 +408,13 @@ export class IssueRepository {
             INSERT INTO issues (
                id, board_id, number, title, description, status, priority,
                sort_order, due_date, assignee_type, assignee_id, created_by,
-               created_at, updated_at
+               auto_gate, created_at, updated_at
             ) VALUES (
                ${id}, ${params.boardId}, ${number}, ${params.title}, ${params.description},
                ${params.status}::issue_status, ${params.priority}::issue_priority,
                ${params.sortOrder}, ${params.dueDate},
                ${params.assignee?.type ?? null}::assignee_type, ${params.assignee?.id ?? null},
-               ${params.createdBy}, ${now}, ${now}
+               ${params.createdBy}, ${params.autoGate ?? false}, ${now}, ${now}
             )`.catch(classifyWrite);
 
          if (params.assignee) {

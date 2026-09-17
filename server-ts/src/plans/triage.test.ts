@@ -14,6 +14,8 @@ interface Fake {
    triage: PlanTriage;
    admitted: Array<{ issueId: string; agentId: string; instructions: string }>;
    sent: () => Record<string, unknown>;
+   /** The task ids each routing call was given, in order. */
+   calls: () => string[][];
 }
 
 interface FakeAgent {
@@ -28,8 +30,15 @@ function fake(options: {
    answer: unknown;
    admitFails?: string;
    begin?: (work: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+   /**
+    * Answers per call instead of one answer for all of them, so a test can watch
+    * the batches: it is given the task ids in this call and either returns an
+    * answer or throws, standing in for a batch the orchestrator did not answer.
+    */
+   answerFor?: (call: number, taskIds: string[]) => unknown;
 }): Fake {
    const admitted: Fake['admitted'] = [];
+   const calls: string[][] = [];
    let sent: Record<string, unknown> = {};
 
    const triage = new PlanTriage({
@@ -40,9 +49,15 @@ function fake(options: {
       completion: {
          async structured(input: { model: string; system: string; user: string; schema: z.ZodType }) {
             sent = { model: input.model, system: input.system, user: input.user };
+            const asked = (
+               JSON.parse(input.user) as { tasks: Array<{ id: string }> }
+            ).tasks.map((task) => task.id);
+            calls.push(asked);
             // Parsed the way the real completion parses it, so an answer the
             // schema refuses is refused here too.
-            const value = input.schema.parse(options.answer);
+            const value = input.schema.parse(
+               options.answerFor ? options.answerFor(calls.length, asked) : options.answer
+            );
             return { value, text: JSON.stringify(value), inputTokens: 0, outputTokens: 0, durationMs: 1 };
          },
       } as never,
@@ -77,6 +92,7 @@ function fake(options: {
       triage,
       admitted,
       sent: () => sent,
+      calls: () => calls,
    };
 }
 
@@ -151,6 +167,73 @@ describe('routing a compiled plan', () => {
       assert.deepEqual(f.admitted.map((a) => a.issueId), ['t2']);
    });
 
+   test('a big plan is routed in batches, not in one call', async () => {
+      const tasks = Array.from({ length: 20 }, (_, index) => ({
+         id: `t${index + 1}`,
+         status: 'todo',
+      }));
+      const f = fake({
+         tasks,
+         agents: ['a1'],
+         answerFor: (_call, taskIds) => ({
+            assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })),
+         }),
+         answer: {},
+      });
+
+      const result = await run(f);
+
+      // Twenty tasks in eights: three calls, each asked about only its own
+      // tasks. One call for all twenty is what timed out in production.
+      assert.deepEqual(
+         f.calls().map((call) => call.length),
+         [8, 8, 4]
+      );
+      assert.equal(result.assigned, 20);
+      assert.equal(result.started, 20);
+      assert.deepEqual(result.failures, []);
+   });
+
+   test('a batch the orchestrator never answers costs its own tasks only', async () => {
+      const tasks = Array.from({ length: 12 }, (_, index) => ({
+         id: `t${index + 1}`,
+         status: 'todo',
+      }));
+      const f = fake({
+         tasks,
+         agents: ['a1'],
+         answerFor: (call, taskIds) => {
+            if (call === 1) throw new Error('the completion did not finish in time');
+            return { assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })) };
+         },
+         answer: {},
+      });
+
+      const result = await run(f);
+
+      // The four in the second batch are routed and started; the eight in the
+      // first are reported, not silently lost.
+      assert.equal(result.assigned, 4);
+      assert.equal(result.unassigned.length, 8);
+      assert.equal(result.failures.length, 1);
+      assert.match(result.failures[0]!, /did not finish in time/);
+   });
+
+   test('an orchestrator that answers nothing at all is a failure', async () => {
+      const f = fake({
+         tasks: [{ id: 't1', status: 'todo' }],
+         agents: ['a1'],
+         answerFor: () => {
+            throw new Error('the completion did not finish in time');
+         },
+         answer: {},
+      });
+
+      // Every batch failing is the whole routing failing: the caller has to
+      // hear it, because nothing on the board moved.
+      await assert.rejects(run(f), TriageUnavailable);
+   });
+
    test('a workspace with no agent to take work says so', async () => {
       const f = fake({ tasks: [{ id: 't1', status: 'todo' }], agents: [], answer: {} });
 
@@ -160,7 +243,7 @@ describe('routing a compiled plan', () => {
    test('nothing to route is not a failure', async () => {
       const f = fake({ tasks: [], agents: ['a1'], answer: {} });
 
-      assert.deepEqual(await run(f), { assigned: 0, started: 0, unassigned: [] });
+      assert.deepEqual(await run(f), { assigned: 0, started: 0, unassigned: [], failures: [] });
    });
 
    test('the orchestrator is shown the task and the roster, and nothing else', async () => {

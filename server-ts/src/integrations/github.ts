@@ -113,6 +113,68 @@ export class GitHubClient {
       };
    }
 
+   async branchHead(owner: string, name: string, branch: string): Promise<string | null> {
+      try {
+         const ref = await this.#json<{ object: { sha: string } }>('GET', `/repos/${encode(owner)}/${encode(name)}/git/ref/heads/${encode(branch)}`);
+         return ref.object.sha;
+      } catch (error) {
+         if (error instanceof GitHubError && error.status === 404) return null;
+         throw error;
+      }
+   }
+
+   async archive(owner: string, name: string, commit: string): Promise<Response> {
+      const response = await this.#fetch(`${this.#baseUrl}/repos/${encode(owner)}/${encode(name)}/tarball/${encode(commit)}`, {
+         headers: { authorization: `Bearer ${this.#token}`, 'user-agent': 'berry' },
+         signal: AbortSignal.timeout(60_000),
+      });
+      if (!response.ok) throw new GitHubError('Could not retrieve the repository snapshot', response.status);
+      return response;
+   }
+
+   /** Git data API only: no author-controlled checkout, hooks, commands or Git configuration. */
+   async publishCandidate(input: {
+      owner: string; name: string; branch: string; baseCommit: string; defaultCommit: string;
+      expectedHead: string | null; message: string; timestamp: string;
+      files: Array<{ path: string; mode: '100644' | '100755' | '120000'; content: string | null }>;
+      authorizePaths?: (files: string[]) => Promise<void>;
+   }): Promise<{ commit: string; files: string[] }> {
+      const root = `/repos/${encode(input.owner)}/${encode(input.name)}`;
+      const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(input.baseCommit)}`);
+      const tree: Array<{ path: string; mode: string; type: 'blob'; sha: string | null }> = [];
+      for (const file of input.files) {
+         const blob = file.content === null ? null : await this.#json<{ sha: string }>('POST', `${root}/git/blobs`, { content: file.content, encoding: 'base64' });
+         tree.push({ path: file.path, mode: file.mode, type: 'blob', sha: blob?.sha ?? null });
+      }
+      const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, { base_tree: parent.tree.sha, tree });
+      const commit = await this.#json<{ sha: string }>('POST', `${root}/git/commits`, {
+         message: input.message, tree: nextTree.sha, parents: [input.baseCommit],
+         author: { name: 'Berry', email: 'agent@berry.invalid', date: input.timestamp },
+         committer: { name: 'Berry', email: 'agent@berry.invalid', date: input.timestamp },
+      });
+      // Complete policy paths are derived from provider trees, never the runtime's display summary.
+      const entries = async (sha: string) => {
+         const value = await this.#json<{ truncated: boolean; tree: Array<{ path: string; sha: string; mode: string; type: string }> }>('GET', `${root}/git/trees/${encode(sha)}?recursive=1`);
+         if (value.truncated) throw new GitHubError('Repository tree exceeds the complete review manifest limit', 0);
+         return new Map(value.tree.filter((entry) => entry.type !== 'tree').map((entry) => [entry.path, `${entry.mode}:${entry.sha}`]));
+      };
+      const defaultParent = input.defaultCommit === input.baseCommit
+         ? parent
+         : await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(input.defaultCommit)}`);
+      const [before, after] = await Promise.all([entries(defaultParent.tree.sha), entries(nextTree.sha)]);
+      const files = [...new Set([...before.keys(), ...after.keys()])].filter((path) => before.get(path) !== after.get(path)).sort();
+      await input.authorizePaths?.(files);
+      const head = await this.branchHead(input.owner, input.name, input.branch);
+      if (head === commit.sha) return { commit: commit.sha, files };
+      if (head !== input.expectedHead) throw new GitHubError('The branch changed during this run; integrate the collaborator changes before retrying', 409);
+      if (head === null) {
+         await this.#json('POST', `${root}/git/refs`, { ref: `refs/heads/${input.branch}`, sha: commit.sha });
+      } else {
+         await this.#json('PATCH', `${root}/git/refs/heads/${encode(input.branch)}`, { sha: commit.sha, force: false });
+      }
+      return { commit: commit.sha, files };
+   }
+
    /**
     * The stored identity of one repository: its numeric id and canonical name.
     *
@@ -270,6 +332,46 @@ export class GitHubClient {
          // A 422 with no pull request behind it is a real refusal — an empty
          // diff, a base that does not exist — and saying "already open" would
          // be a lie that sends someone looking for a link that is not there.
+         throw error;
+      }
+   }
+
+   /**
+    * Merges a pull request, returning what GitHub said rather than throwing.
+    *
+    * A refusal is an ordinary answer here, not an exception: 405 is "not
+    * mergeable" (a conflict, a failing required check, a protected branch) and
+    * 409 is "the head moved under you". Both are things the author has to fix,
+    * so the caller turns them into work rather than into an error — which is why
+    * they come back as `{ merged: false, reason }` instead of as a throw. A
+    * transport failure or a bad credential still throws.
+    */
+   async mergePullRequest(input: {
+      owner: string;
+      name: string;
+      number: number;
+      /** The commit title. GitHub composes one when this is absent. */
+      title?: string;
+      method?: 'merge' | 'squash' | 'rebase';
+   }): Promise<{ merged: boolean; sha: string | null; reason: string | null }> {
+      try {
+         const result = await this.#json<{ merged?: boolean; sha?: string; message?: string }>(
+            'PUT',
+            `/repos/${encode(input.owner)}/${encode(input.name)}/pulls/${input.number}/merge`,
+            {
+               merge_method: input.method ?? 'squash',
+               ...(input.title ? { commit_title: input.title } : {}),
+            }
+         );
+         return {
+            merged: result.merged === true,
+            sha: result.sha ?? null,
+            reason: result.merged === true ? null : (result.message ?? 'GitHub did not merge it'),
+         };
+      } catch (error) {
+         if (error instanceof GitHubError && (error.status === 405 || error.status === 409)) {
+            return { merged: false, sha: null, reason: error.message };
+         }
          throw error;
       }
    }

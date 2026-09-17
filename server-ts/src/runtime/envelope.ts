@@ -19,6 +19,8 @@ export const repoPlanSchema = z.object({
    fullName: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
    branch: z.string().min(1),
    baseBranch: z.string().min(1),
+   readOnly: z.boolean().optional(),
+   snapshotCommit: z.string().regex(/^[0-9a-f]{40,64}$/).optional(),
    credential: z.object({ username: z.string(), password: z.string() }),
    verifyCommands: z.array(z.string()),
    issueReference: z.string(),
@@ -57,7 +59,7 @@ export const taskEnvelopeSchema = z.object({
    /** Human-readable `(agent, issue)` / `(agent, chat)` / `completion:<run>` key. */
    sessionKey: z.string().min(1),
    /** AgentCore requires at least 33 characters. */
-   runtimeSessionId: z.string().min(33).max(100),
+   runtimeSessionId: z.string().min(33).max(100).regex(/^[A-Za-z0-9_-]+$/),
    agent: z.object({
       name: z.string().min(1),
       instructions: z.string(),
@@ -72,6 +74,8 @@ export const taskEnvelopeSchema = z.object({
        */
       tools: z.array(z.string().min(1)).nullable().default(null),
       maxTokens: z.number().int().positive().nullable(),
+      maxTurns: z.number().int().positive().optional(),
+      maxOutputTokens: z.number().int().positive().optional(),
       temperature: z.number().nullable(),
    }),
    task: z.object({

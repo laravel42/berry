@@ -10,6 +10,8 @@ import { agentToolAllowlist } from '../../organization/enforcement.ts';
 import { registerCoreAgentTools } from './core-tools.ts';
 import { getAgentTool, listAgentTools } from './registry.ts';
 import { resolveTaskToken, type TaskClaims } from './tokens.ts';
+import type { GitHubClient } from '../../integrations/github.ts';
+import { parseRepository } from '../../agents/checkout.ts';
 
 /**
  * `/api/v1/agent-tools`: the only way an agent in a runtime acts on Berry.
@@ -23,6 +25,7 @@ export function agentToolMounts(options: {
    storage: Storage | null;
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
+   github?: (workspaceId: string) => Promise<GitHubClient>;
 }): Mount[] {
    registerCoreAgentTools();
    const route = new Hono<{ Variables: { task: TaskClaims; allowed: Set<string> | null } }>();
@@ -46,6 +49,20 @@ export function agentToolMounts(options: {
             .filter((tool) => allowed === null || allowed.has(tool.name))
             .map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.jsonSchema })),
       });
+   });
+
+   route.get('/repository-snapshot', async (context) => {
+      const task = context.get('task');
+      if (!task.scopes.includes('task:read') || !options.github) throw ApiError.notFound('Repository snapshot');
+      const [snapshot] = await options.sql`SELECT s.repository, s.base_commit FROM run_repository_snapshots AS s
+         JOIN runs AS r ON r.id = s.run_id JOIN agents AS a ON a.id = r.agent_id
+         WHERE s.run_id = ${task.runId} AND r.workspace_id = ${task.workspaceId}
+           AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
+      if (!snapshot) throw ApiError.notFound('Repository snapshot');
+      const { owner, name } = parseRepository(snapshot.repository as string);
+      const response = await (await options.github(task.workspaceId)).archive(owner, name, snapshot.base_commit as string);
+      // Never relay upstream headers, redirect URLs, or credentials to the runtime.
+      return new Response(response.body, { headers: { 'content-type': 'application/gzip', 'cache-control': 'no-store' } });
    });
 
    route.post('/:name', async (context) => {

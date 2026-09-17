@@ -231,8 +231,14 @@ export function planMounts(options: PlanOptions): Mount[] {
          }
 
          if (record.compile?.status === 'succeeded') {
-            // Starting a started plan again is a no-op, not a conflict: the
-            // caller wanted it started, and it is.
+            // Compiling again is a no-op — the tasks exist — but routing them is
+            // not. Routing is a separate model call after the compile, and when
+            // it fails the plan is left reading "started" over a board of work
+            // nobody owns, with this route answering that all is well. So the
+            // second press routes what is still unowned, which is exactly what
+            // someone pressing it again is asking for. Tasks already assigned
+            // are not reconsidered: `triage` only ever sees unassigned ones.
+            void routeCompiled(options, record, context.get('user').id);
             return json(serializePlan(record));
          }
 
@@ -647,6 +653,7 @@ async function routeCompiled(
    if (!options.triage || !options.runs || !plan.boardId) return;
    const runs = options.runs;
    const boardId = plan.boardId;
+   const started = Date.now();
    try {
       const result = await options.triage.triage({
          planId: plan.id,
@@ -667,11 +674,37 @@ async function routeCompiled(
          assigned: result.assigned,
          started: result.started,
          unassigned: result.unassigned.length,
+         ...(result.failures.length ? { failedBatches: result.failures.length } : {}),
       });
+      // A partly routed plan is not a success to be filed away silently: the
+      // outcome says whether anything is still owned by nobody.
+      await options.plans
+         .recordRouting({
+            planId: plan.id,
+            workspaceId: plan.workspaceId,
+            outcome: result.failures.length > 0 ? 'error' : 'ok',
+            durationMs: Date.now() - started,
+            detail: {
+               assigned: result.assigned,
+               started: result.started,
+               unassigned: result.unassigned.length,
+               ...(result.failures.length ? { failures: result.failures } : {}),
+            },
+         })
+         .catch(() => undefined);
    } catch (error) {
-      options.logger.error('plan routing failed', {
-         planId: plan.id,
-         error: error instanceof TriageUnavailable ? error.message : String(error),
-      });
+      const message = error instanceof TriageUnavailable ? error.message : String(error);
+      options.logger.error('plan routing failed', { planId: plan.id, error: message });
+      await options.plans
+         .recordRouting({
+            planId: plan.id,
+            workspaceId: plan.workspaceId,
+            // A budget nobody spent reads differently from a refusal, and only
+            // one of the two is worth simply trying again.
+            outcome: /did not finish in time|COMPLETION_TIMEOUT/.test(message) ? 'timeout' : 'error',
+            durationMs: Date.now() - started,
+            detail: { assigned: 0, started: 0, error: message },
+         })
+         .catch(() => undefined);
    }
 }

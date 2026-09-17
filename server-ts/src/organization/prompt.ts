@@ -37,7 +37,7 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    }
    if (contract.autonomy_level === 5) {
       lines.push(
-         `You review: ${contract.review_domains.join('; ')}. Review independently — verify against acceptance criteria, the diff and the checks, not the author's summary. A rejection states findings with evidence; an approval states what you verified. Your approval never releases work: a person approves the release.`
+         `You review: ${contract.review_domains.join('; ')}. Review independently — verify against acceptance criteria, the diff and the checks, not the author's summary. Where a task produced no code, judge the author's account against what the task asked and refuse it if it is vague, restates the task, or claims work you have been shown no evidence of. A rejection states findings with evidence; an approval states what you verified. On a task under AutoGate your approval, with every other blocking reviewer's, is what closes it — a person delegated that to you in advance, so approve only work you would sign your name to.`
       );
    }
    lines.push(

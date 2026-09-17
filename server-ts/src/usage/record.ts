@@ -16,6 +16,7 @@ import { costMicrosFor, type PricingSource } from '../agents/pricing.ts';
 const tokens = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 export const taskUsageInputSchema = z.object({
+   eventId: z.string().min(1).max(200).optional(),
    runId: z.uuid(),
    workspaceId: z.uuid(),
    agentId: z.uuid(),
@@ -67,6 +68,8 @@ export async function recordTaskUsage(sql: Sql, input: TaskUsageInput): Promise<
 
    await sql.begin(async (transaction) => {
       const tx = transaction as unknown as Sql;
+      const [owner] = await tx`SELECT id FROM runs WHERE id = ${usage.runId} AND workspace_id = ${usage.workspaceId} AND agent_id = ${usage.agentId} FOR UPDATE`;
+      if (!owner) throw new UsageRunMismatch(usage.runId);
 
       // The run's workspace is re-derived rather than trusted: a report naming
       // a run in another workspace would otherwise bill that workspace's chart.
@@ -74,19 +77,20 @@ export async function recordTaskUsage(sql: Sql, input: TaskUsageInput): Promise<
       // the reported workspace alone.
       const [row] = await tx`
          INSERT INTO task_usage (
-            id, workspace_id, run_id, issue_id, agent_id, runtime_id, model,
+            id, workspace_id, run_id, issue_id, agent_id, runtime_id, model, event_id,
             input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
             cost_micros, currency
          )
          SELECT ${id}, ${usage.workspaceId}, r.id, r.issue_id, ${usage.agentId}, ${runtimeId},
-                ${usage.model}, ${usage.inputTokens}, ${usage.outputTokens},
+                ${usage.model}, ${usage.eventId ?? null}, ${usage.inputTokens}, ${usage.outputTokens},
                 ${usage.cacheReadTokens}, ${usage.cacheWriteTokens}, ${costMicros}, ${currency}
            FROM runs AS r
            LEFT JOIN boards AS b ON b.id = r.board_id
           WHERE r.id = ${usage.runId}
             AND COALESCE(b.workspace_id, ${usage.workspaceId}::uuid) = ${usage.workspaceId}
+         ON CONFLICT (run_id, event_id) WHERE event_id IS NOT NULL DO NOTHING
          RETURNING occurred_at, issue_id`;
-      if (!row) throw new UsageRunMismatch(usage.runId);
+      if (!row) return;
       const occurredAt = row.occurred_at as string;
       const issueId = (row.issue_id as string | null) ?? null;
 

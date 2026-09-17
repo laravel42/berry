@@ -35,7 +35,7 @@ export function globMatch(pattern: string, path: string): boolean {
          source += /[.+?^${}()|[\]\\]/.test(char) ? `\\${char}` : char;
       }
    }
-   return new RegExp(`^${source}$`).test(path);
+   return new RegExp(`^${source}$`, 's').test(path);
 }
 
 function applies(when: RoleContract['review_requirements'][number]['when'], subject: ReviewSubject): boolean {

@@ -1,3 +1,5 @@
+import { scheduleMention } from '../../runs/followups.ts';
+import { callerContract, canDelegate } from '../../organization/delegation.ts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { BerryArtifactService } from '../../agents/artifact-service.ts';
@@ -37,6 +39,39 @@ function issueOf(context: AgentToolContext): string {
 async function requesterOf(context: AgentToolContext): Promise<string | null> {
    const [run] = await context.sql`SELECT requested_by FROM runs WHERE id = ${context.task.runId}`;
    return (run?.requested_by as string | null) ?? null;
+}
+
+/**
+ * Whether the task this run is working on was delegated to the review gate.
+ *
+ * Read from the run's own task rather than passed in: the agent does not get to
+ * choose, and a run with no task (chat, a completion) inherits nothing.
+ */
+async function inheritsAutoGate(context: AgentToolContext): Promise<boolean> {
+   const [row] = await context.sql`
+      SELECT issue.auto_gate
+        FROM runs AS run JOIN issues AS issue ON issue.id = run.issue_id
+       WHERE run.id = ${context.task.runId}`;
+   return Boolean(row?.auto_gate);
+}
+
+/**
+ * The project of the task this run is working on.
+ *
+ * A task's project is what gives it a repository: `repositoryForIssue` reaches
+ * the repository through `issue_project_links`, so a task with no project has no
+ * code to work on. An agent filing follow-up work almost never names the project
+ * — it is working inside one — and the task it filed then arrived with no
+ * repository at all, which is exactly what an agent blocking itself with "no
+ * repository or project resources are attached" was telling us.
+ */
+async function inheritedProject(context: AgentToolContext): Promise<string | null> {
+   const [row] = await context.sql`
+      SELECT link.project_id
+        FROM runs AS run
+        JOIN issue_project_links AS link ON link.issue_id = run.issue_id
+       WHERE run.id = ${context.task.runId}`;
+   return (row?.project_id as string | null) ?? null;
 }
 
 /**
@@ -318,6 +353,10 @@ export function registerCoreAgentTools(): void {
 
          const boardId = await boardOf(context);
          const createdBy = await requesterOf(context);
+         // Work filed while doing delegated work is delegated too. Without this
+         // the loop leaks: an agent under AutoGate files the follow-up it needs,
+         // the follow-up carries no flag, and the review gate hands it to the
+         // person who had already said once that it should not come to them.
          const { issue } = await context.issues.create({
             boardId,
             title: input.title,
@@ -327,8 +366,13 @@ export function registerCoreAgentTools(): void {
             sortOrder: 0,
             dueDate: null,
             assignee: null,
-            project: input.projectId ?? null,
+            // The agent's choice first, then the project it is already working
+            // in. Without the fallback, follow-up work lands with no project and
+            // therefore no repository, and the next agent on it has nothing to
+            // read — it can only block.
+            project: input.projectId ?? (await inheritedProject(context)),
             createdBy,
+            autoGate: await inheritsAutoGate(context),
          });
          if (input.parentId) {
             await setParent(context.sql, { workspaceId, issueId: issue.id, parentId: input.parentId, stage: null });
@@ -354,6 +398,15 @@ export function registerCoreAgentTools(): void {
             SELECT id FROM agents
              WHERE id = ${input.agentId} AND workspace_id = ${context.task.workspaceId} AND archived_at IS NULL`;
          if (!agent) throw ApiError.notFound('Agent');
+         if (input.agentId === context.task.agentId) throw ApiError.badRequest('An agent cannot hand work to itself');
+         const [caller, target] = await Promise.all([
+            callerContract(context.sql, context.task.agentId), callerContract(context.sql, input.agentId),
+         ]);
+         if ((caller || target) && (!caller || !target || !canDelegate(caller, target))) {
+            throw new ApiError(403, 'DELEGATION_NOT_ALLOWED', 'These roles cannot hand work to each other');
+         }
+         issueOf(context);
+         const handoffId = await scheduleMention(context.sql, context.task.runId, input.agentId, input.message);
          await postRunResult(context.sql, {
             issueId: issueOf(context),
             agentId: context.task.agentId,
@@ -361,10 +414,7 @@ export function registerCoreAgentTools(): void {
             cut: false,
             occurredAt: new Date().toISOString(),
          });
-         // Queued behind this run: the issue holds one active run, so the
-         // mention is recorded and picked up when this one ends. Workstream D
-         // replaces this with its mention-trigger path.
-         return { mentioned: input.agentId, queued: false };
+         return { mentioned: input.agentId, queued: true, handoffId };
       },
    });
 }

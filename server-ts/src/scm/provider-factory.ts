@@ -4,6 +4,7 @@ import type { Config } from '../config/config.ts';
 import type { GitHubAppRepository } from '../integrations/github-app.ts';
 import type { GitHubUserAccess } from '../integrations/github-user.ts';
 import { startGateway } from '../agentcore/bootstrap.ts';
+import { AgentCoreIdentity } from '../agentcore/identity.ts';
 import { GitHubProvider } from './github-provider.ts';
 import { ScmLinkRepository } from './links.ts';
 import { ScmProvisioning } from './provisioning.ts';
@@ -39,6 +40,8 @@ export interface Scm {
    sync: ScmSync | null;
    /** Refuses by default; replaced when a provider is configured. */
    gitCredential: GitCredential;
+   /** Completes AgentCore's user-federation callback on the same identity instance. */
+   completeAgentCoreAuthorization: ((sessionUri: string) => Promise<void>) | null;
 }
 
 /**
@@ -70,6 +73,60 @@ export async function createScm(options: {
       throw new Error('no GitHub credential is configured');
    };
 
+   /**
+    * AgentCore Identity's GitHub token, when a credential provider is
+    * configured, ahead of whatever else can mint one.
+    *
+    * Preferred because it is the credential Berry does not hold: AgentCore owns
+    * the lifecycle and Berry asks per run. Tried rather than trusted, though —
+    * a `USER_FEDERATION` provider answers with an authorization URL until
+    * somebody has consented once, and a deployment mid-setup should keep
+    * cloning with the App or the sign-in token instead of losing repository
+    * access to a half-finished migration.
+    */
+   const identityCredential = config.agentCoreGitCredential
+      ? new AgentCoreIdentity({
+           region: config.agentCoreGitCredential.region,
+           providerName: config.agentCoreGitCredential.providerName,
+           workloadName: config.agentCoreGitCredential.workloadName,
+           flow: config.agentCoreGitCredential.flow,
+           ...(config.agentCoreGitCredential.userId
+              ? { userId: config.agentCoreGitCredential.userId }
+              : {}),
+           ...(config.agentCoreGitCredential.returnUrl
+              ? { returnUrl: config.agentCoreGitCredential.returnUrl }
+              : {}),
+        })
+      : null;
+   const completeAgentCoreAuthorization = identityCredential
+      ? async (sessionUri: string) => {
+           try {
+              await identityCredential.completeAuthorization(sessionUri);
+           } catch (error) {
+              // The URI is deliberately absent: it is the capability that binds
+              // the browser's authorization session, and logs are not its home.
+              logger.error('AgentCore Identity could not complete GitHub authorization', {
+                 error: error instanceof Error ? error.message : String(error),
+              });
+              throw error;
+           }
+        }
+      : null;
+
+   const preferIdentity = (next: GitCredential): GitCredential => {
+      if (!identityCredential) return next;
+      return async (workspaceId, owner) => {
+         try {
+            return await identityCredential.gitCredential();
+         } catch (error) {
+            logger.warn('AgentCore Identity did not supply a GitHub token; falling back', {
+               error: error instanceof Error ? error.message : String(error),
+            });
+            return next(workspaceId, owner);
+         }
+      };
+   };
+
    if (config.githubProvider === 'agentcore' && config.agentCoreGateway) {
       const started = await startGateway(config.agentCoreGateway, logger);
       if (started.provider) {
@@ -80,13 +137,14 @@ export async function createScm(options: {
             links,
             logger,
          });
-         gitCredential = () => started.identity.gitCredential();
+         gitCredential = preferIdentity(() => started.identity.gitCredential());
          return {
             links,
             provisioning,
             workspaces: new ScmWorkspaces(sql, provisioning),
             sync: new ScmSync(sql, provisioning, logger),
             gitCredential,
+            completeAgentCoreAuthorization,
          };
       }
    } else if (githubApp || userAccess) {
@@ -126,22 +184,32 @@ export async function createScm(options: {
          links,
          logger,
       });
-      gitCredential = (workspaceId: string, owner?: string | null) =>
+      gitCredential = preferIdentity((workspaceId: string, owner?: string | null) =>
          access(workspaceId, owner).then((granted) => ({
             username: 'x-access-token',
             password: granted.token,
             ...(granted.canPush === undefined ? {} : { canPush: granted.canPush }),
-         }));
+         }))
+      );
       return {
          links,
          provisioning,
          workspaces: new ScmWorkspaces(sql, provisioning),
          sync: new ScmSync(sql, provisioning, logger),
          gitCredential,
+         completeAgentCoreAuthorization,
       };
    }
 
-   // No provider configured: the links repository still exists (webhooks and
-   // stored links are read regardless), but nothing can provision or sync.
-   return { links, provisioning: null, workspaces: null, sync: null, gitCredential };
+   // No API provider configured. AgentCore Identity may still hold a git
+   // credential, and that alone is enough to clone and push — so it is wired
+   // even here, where nothing can provision or sync.
+   return {
+      links,
+      provisioning: null,
+      workspaces: null,
+      sync: null,
+      gitCredential: preferIdentity(gitCredential),
+      completeAgentCoreAuthorization,
+   };
 }

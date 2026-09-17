@@ -222,6 +222,7 @@ describe(
                   github: null,
                   githubApp: overrides.githubApp,
                   appSlug: overrides.appSlug,
+                  completeAgentCoreAuthorization: null,
                   publicUrl: 'http://localhost:4000',
                   appUrl: 'http://localhost:3000',
                   workspaceSlug: async (id: string) => {

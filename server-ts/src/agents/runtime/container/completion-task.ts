@@ -1,4 +1,5 @@
 import { Agent, JsonValidationError, StructuredOutputError } from '@strands-agents/sdk';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import { BerryRetryStrategy, classify } from '../failure.ts';
@@ -17,7 +18,8 @@ import { toConversation } from './conversation.ts';
 export async function runCompletionTask(
    envelope: TaskEnvelope,
    emit: Emit,
-   deps: { modelFactory: ModelFactory; region: string }
+   deps: { modelFactory: ModelFactory; region: string },
+   signal?: AbortSignal
 ): Promise<void> {
    emit({ type: 'task.started' });
    const spec = envelope.completion ?? { system: '', jsonSchema: null };
@@ -37,11 +39,16 @@ export async function runCompletionTask(
       ...(schema ? { structuredOutputSchema: schema } : {}),
    });
    try {
-      const result = await agent.invoke(envelope.task.prompt);
+      const result = await agent.invoke(envelope.task.prompt, { ...(signal ? { cancelSignal: signal } : {}) });
+      if (signal?.aborted || result.stopReason === 'cancelled') {
+         emit({ type: 'task.failed', failure: { code: 'RUN_CANCELLED', message: 'The completion was stopped.', retryable: false } });
+         return;
+      }
       const usage = result.metrics?.accumulatedUsage;
       emit({
          type: 'task.usage',
          usage: {
+            eventId: randomUUID(),
             model: envelope.agent.model,
             inputTokens: usage?.inputTokens ?? 0,
             outputTokens: usage?.outputTokens ?? 0,

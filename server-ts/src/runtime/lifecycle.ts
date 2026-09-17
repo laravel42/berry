@@ -13,6 +13,7 @@ import { z } from 'zod';
  */
 
 export const taskUsageSchema = z.object({
+   eventId: z.string().min(1).max(200).optional(),
    model: z.string(),
    inputTokens: z.number().int().nonnegative(),
    outputTokens: z.number().int().nonnegative(),
@@ -67,6 +68,12 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
 ]);
 
 export const taskDeliverySchema = z.object({
+   /** Untrusted candidate bytes; the control plane alone authorizes and publishes them. */
+   candidate: z.array(z.object({
+      path: z.string().min(1).max(4096).refine((path) => !path.startsWith('/') && !path.includes('\\') && !path.includes('\0') && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..' && part.toLowerCase() !== '.git')),
+      mode: z.enum(['100644', '100755', '120000']),
+      content: z.string().max(8 * 1024 * 1024).nullable(),
+   })).max(2000).optional(),
    committed: z.boolean(),
    commit: z.string().nullable(),
    branch: z.string(),

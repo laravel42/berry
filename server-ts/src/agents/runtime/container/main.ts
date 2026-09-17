@@ -1,7 +1,7 @@
 import type { Logger } from '../../../observability/log.ts';
 import { bedrockModel, type AwsCredentials } from '../model.ts';
 import { setupTelemetry } from '../telemetry.ts';
-import { containerRepository } from './repository.ts';
+import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
 import { SessionRegistry } from './sessions.ts';
 
@@ -22,12 +22,14 @@ const credentials: AwsCredentials | null =
    accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null;
 
 const server = createRuntimeServer({
+   authMode: env.BERRY_RUNTIME_AUTH_MODE === 'agentcore' ? 'agentcore' : 'token',
+   ...(env.BERRY_RUNTIME_AUTH_TOKEN ? { authToken: env.BERRY_RUNTIME_AUTH_TOKEN } : {}),
    registry: new SessionRegistry(),
    modelFactory: (spec) => bedrockModel({ ...spec, credentials: spec.credentials ?? credentials }),
    region,
    credentials,
    workRoot: env.BERRY_RUNTIME_WORK_ROOT ?? '/mnt/workspace',
-   repository: containerRepository(),
+   repository: snapshotRepository(),
    localControl: (env.BERRY_RUNTIME_LOCAL_CONTROL ?? '').trim().toLowerCase() === 'true',
    videoOutput: /^s3:\/\//.test((env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim())
       ? { s3Uri: (env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim() }

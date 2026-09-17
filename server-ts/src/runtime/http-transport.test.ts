@@ -15,7 +15,8 @@ test('invoke posts to /invocations with the AgentCore session header', async () 
    }) as unknown as typeof fetch;
    const envelope = sampleEnvelope();
    const events: LifecycleEvent[] = [];
-   for await (const e of httpTransport({ fetch: fakeFetch }).invoke({ target, envelope, signal: new AbortController().signal })) events.push(e);
+   for await (const e of httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl }).invoke({ target, envelope, signal: new AbortController().signal })) events.push(e);
+   assert.equal(new Headers(seen[0]?.init?.headers).get('authorization'), `Bearer ${'t'.repeat(32)}`);
    assert.equal(seen[0]!.url, 'http://agent-runtime:8080/invocations');
    assert.equal(new Headers(seen[0]!.init?.headers).get('x-amzn-bedrock-agentcore-runtime-session-id'), envelope.runtimeSessionId);
    assert.deepEqual(events, [{ type: 'task.started' }]);
@@ -24,7 +25,7 @@ test('invoke posts to /invocations with the AgentCore session header', async () 
 test('a runtime that answers an error status is unavailable', async () => {
    const fakeFetch = (async () => new Response('down', { status: 502 })) as unknown as typeof fetch;
    const iterate = async () => {
-      for await (const _ of httpTransport({ fetch: fakeFetch }).invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) {
+      for await (const _ of httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl }).invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) {
          // drain
       }
    };
@@ -37,6 +38,6 @@ test('stop deletes the local session', async () => {
       seen.push(`${init?.method} ${url}`);
       return new Response(null, { status: 204 });
    }) as unknown as typeof fetch;
-   await httpTransport({ fetch: fakeFetch }).stop({ target, runtimeSessionId: 'berry-x' });
+   await httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl }).stop({ target, runtimeSessionId: 'berry-x' });
    assert.deepEqual(seen, ['DELETE http://agent-runtime:8080/sessions/berry-x']);
 });

@@ -1,7 +1,9 @@
 import {
    BedrockAgentCoreClient,
+   CompleteResourceTokenAuthCommand,
    GetResourceOauth2TokenCommand,
    GetWorkloadAccessTokenCommand,
+   GetWorkloadAccessTokenForUserIdCommand,
    type Oauth2FlowType,
 } from '@aws-sdk/client-bedrock-agentcore';
 import { SourceControlAuthenticationError } from './errors.ts';
@@ -32,6 +34,10 @@ export interface AgentCoreIdentityOptions {
    scopes?: string[];
    /** `M2M` for one workspace credential; `USER_FEDERATION` for per-person. */
    flow?: Oauth2FlowType;
+   /** The stable user binding AgentCore uses for `USER_FEDERATION`. */
+   userId?: string;
+   /** Where AgentCore returns the browser after the one-time consent. */
+   returnUrl?: string;
    client?: BedrockAgentCoreClient;
    clock?: () => number;
    /** How long before expiry a cached token is treated as spent. */
@@ -50,9 +56,15 @@ export class AgentCoreIdentity {
    readonly #workloadName: string;
    readonly #scopes: string[];
    readonly #flow: Oauth2FlowType;
+   readonly #userId: string | null;
+   readonly #returnUrl: string | null;
    readonly #clock: () => number;
    readonly #marginMs: number;
    #cached: { token: string; expiresAt: number } | null = null;
+   /** The in-flight 3LO session; the callback completes this exact session. */
+   #sessionUri: string | null = null;
+   /** The workload token that opened that session; session binding requires the same one. */
+   #sessionWorkloadToken: string | null = null;
 
    constructor(options: AgentCoreIdentityOptions) {
       this.#client = options.client ?? new BedrockAgentCoreClient({ region: options.region });
@@ -60,12 +72,59 @@ export class AgentCoreIdentity {
       this.#workloadName = options.workloadName;
       this.#scopes = options.scopes ?? DEFAULT_SCOPES;
       this.#flow = options.flow ?? 'M2M';
+      this.#userId = options.userId?.trim() || null;
+      this.#returnUrl = options.returnUrl?.trim() || null;
       this.#clock = options.clock ?? Date.now;
       this.#marginMs = options.marginMs ?? DEFAULT_MARGIN_MS;
    }
 
    /**
-    * A GitHub access token, for the one thing a gateway cannot do.
+    * Completes the browser's URL-session binding.
+    *
+    * The provider callback first lands at AgentCore, where GitHub's code is
+    * exchanged, then AgentCore redirects to Berry with `session_id`. That
+    * redirect is not the completion: Berry must prove the user that returned is
+    * the user that opened it by calling CompleteResourceTokenAuth. Until it
+    * does, every poll correctly says IN_PROGRESS forever.
+    *
+    * The user id comes from this configured identity, not from the query string;
+    * the callback handle is untrusted input and names no person. The HTTP route
+    * additionally requires a Berry session with settings access before it calls
+    * this method.
+    */
+   async completeAuthorization(sessionUri: string): Promise<void> {
+      if (this.#flow !== 'USER_FEDERATION' || !this.#userId) {
+         throw new SourceControlAuthenticationError(
+            'AgentCore GitHub authorization completion requires user federation'
+         );
+      }
+      const value = sessionUri.trim();
+      if (!value.startsWith('urn:ietf:params:oauth:request_uri:')) {
+         throw new SourceControlAuthenticationError('AgentCore returned an invalid OAuth session');
+      }
+      await this.#client
+         .send(
+            new CompleteResourceTokenAuthCommand({
+               sessionUri: value,
+               userIdentifier: { userId: this.#userId },
+            })
+         )
+         .catch((cause: unknown) => {
+            throw new SourceControlAuthenticationError(
+               `AgentCore Identity could not complete GitHub authorization: ${message(cause)}`,
+               { cause }
+            );
+         });
+
+      // AgentCore may return a completion handle that differs from the URI that
+      // opened the browser. When this instance opened it, keep the original
+      // workload token and replace only the handle; that exact pair is what the
+      // next GetResourceOauth2Token call must present.
+      this.#sessionUri = this.#sessionWorkloadToken ? value : null;
+      this.#cached = null;
+   }
+
+   /** A GitHub access token, for the one thing a gateway cannot do.
     *
     * Git is a wire protocol: `git clone` and `git push` talk to github.com and
     * no tool call can stand in for them. So the API moves to the gateway and
@@ -78,19 +137,26 @@ export class AgentCoreIdentity {
          return this.#cached.token;
       }
 
-      const workload = await this.#workloadToken();
+      // Session binding is against both values: a fresh workload token with the
+      // old URI can report IN_PROGRESS forever after the browser has returned.
+      // Keep the pair until this exact session yields a resource token.
+      const workload = this.#sessionWorkloadToken ?? (await this.#workloadToken());
       const response = await this.#client
          .send(
             new GetResourceOauth2TokenCommand({
                workloadIdentityToken: workload,
                resourceCredentialProviderName: this.#providerName,
                scopes: this.#scopes,
-               // Berry acts as itself, not on behalf of a signed-in person:
-               // the same installation credential serves every run in a
-               // workspace, which is what the GitHub App did before this.
-               // `USER_FEDERATION` is the alternative, for a deployment that
-               // wants each person's own GitHub identity.
                oauth2Flow: this.#flow,
+               // The callback completes a *particular* 3LO session. Keeping its
+               // URI and presenting it again is how the call that first returned
+               // an authorization URL later returns the access token; dropping
+               // it starts a fresh consent every time and the completed one is
+               // never observed.
+               ...(this.#sessionUri ? { sessionUri: this.#sessionUri } : {}),
+               ...(this.#flow === 'USER_FEDERATION' && this.#returnUrl
+                  ? { resourceOauth2ReturnUrl: this.#returnUrl }
+                  : {}),
             })
          )
          .catch((cause: unknown) => {
@@ -102,15 +168,32 @@ export class AgentCoreIdentity {
 
       const token = response.accessToken;
       if (!token) {
+         if (response.sessionUri) {
+            this.#sessionUri = response.sessionUri;
+            this.#sessionWorkloadToken = workload;
+         }
+         // A failed session cannot later yield a token; clear the pair so the
+         // next call starts one the user can actually complete.
+         if (response.sessionStatus === 'FAILED') {
+            this.#sessionUri = null;
+            this.#sessionWorkloadToken = null;
+         }
          // An authorization URL instead of a token means somebody has to
-         // consent in a browser. Saying so is more useful than a null.
+         // consent in a browser. A session status means that exact consent is
+         // still pending (or failed). Neither value is logged here: the URL is
+         // sensitive according to the SDK model and belongs in the UI that
+         // initiated the flow, not in a server log.
          throw new SourceControlAuthenticationError(
             response.authorizationUrl
                ? 'GitHub is not authorised for this AgentCore identity yet; complete the consent flow'
-               : 'AgentCore Identity returned no GitHub token'
+               : response.sessionStatus
+                 ? `AgentCore GitHub consent is ${response.sessionStatus.toLowerCase()}`
+                 : 'AgentCore Identity returned no GitHub token'
          );
       }
 
+      this.#sessionUri = null;
+      this.#sessionWorkloadToken = null;
       this.#cached = { token, expiresAt: now + ASSUMED_TTL_MS };
       return token;
    }
@@ -127,14 +210,28 @@ export class AgentCoreIdentity {
    }
 
    async #workloadToken(): Promise<string> {
-      const response = await this.#client
-         .send(new GetWorkloadAccessTokenCommand({ workloadName: this.#workloadName }))
-         .catch((cause: unknown) => {
-            throw new SourceControlAuthenticationError(
-               `AgentCore Identity refused Berry's workload identity: ${message(cause)}`,
-               { cause }
-            );
-         });
+      if (this.#flow === 'USER_FEDERATION' && !this.#userId) {
+         throw new SourceControlAuthenticationError(
+            'AgentCore GitHub user federation needs a stable user id'
+         );
+      }
+      const request =
+         this.#flow === 'USER_FEDERATION'
+            ? this.#client.send(
+                 new GetWorkloadAccessTokenForUserIdCommand({
+                    workloadName: this.#workloadName,
+                    userId: this.#userId!,
+                 })
+              )
+            : this.#client.send(
+                 new GetWorkloadAccessTokenCommand({ workloadName: this.#workloadName })
+              );
+      const response = await request.catch((cause: unknown) => {
+         throw new SourceControlAuthenticationError(
+            `AgentCore Identity refused Berry's workload identity: ${message(cause)}`,
+            { cause }
+         );
+      });
       const token = response.workloadAccessToken;
       if (!token) {
          throw new SourceControlAuthenticationError('AgentCore returned no workload access token');

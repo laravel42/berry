@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { taskEnvelopeSchema } from '../../../runtime/envelope.ts';
 import { encodeLifecycle } from '../../../runtime/lifecycle.ts';
 import { handleInvocation, type HandlerDeps } from './handler.ts';
@@ -18,7 +19,10 @@ const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const KEEPALIVE_MS = 15_000;
 
-export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean }): Server {
+export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean; authMode?: 'agentcore' | 'token'; authToken?: string }): Server {
+   if (deps.authMode !== 'agentcore' && (!deps.authToken || deps.authToken.length < 32)) {
+      throw new Error('Standalone runtime requires BERRY_RUNTIME_AUTH_TOKEN with at least 32 characters');
+   }
    let lastUpdate = Math.floor(Date.now() / 1000);
    const touch = () => {
       lastUpdate = Math.floor(Date.now() / 1000);
@@ -36,8 +40,17 @@ export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean
          return reply(200, { status: deps.registry.busy ? 'HealthyBusy' : 'Healthy', time_of_last_update: lastUpdate });
       }
 
+      if (deps.authMode !== 'agentcore') {
+         const expected = createHash('sha256').update(`Bearer ${deps.authToken}`).digest();
+         const actual = createHash('sha256').update(request.headers.authorization ?? '').digest();
+         if (!timingSafeEqual(expected, actual)) return reply(401, { error: 'runtime authentication required' });
+      }
+
       if (deps.localControl && request.method === 'DELETE' && path.startsWith('/sessions/')) {
-         const stopped = deps.registry.stop(decodeURIComponent(path.slice('/sessions/'.length)));
+         let session: string;
+         try { session = decodeURIComponent(path.slice('/sessions/'.length)); }
+         catch { return reply(400, { error: 'invalid session path' }); }
+         const stopped = deps.registry.stop(session);
          response.writeHead(stopped ? 204 : 404).end();
          return;
       }

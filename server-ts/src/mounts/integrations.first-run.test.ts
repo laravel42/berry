@@ -55,6 +55,7 @@ describe(
                   sql,
                   sealer: sealerFromKey(randomBytes(32).toString('base64')),
                }),
+               completeAgentCoreAuthorization: null,
                publicUrl: 'http://localhost:4000',
                appUrl: 'http://localhost:3000',
                firstRunSetup: setup,

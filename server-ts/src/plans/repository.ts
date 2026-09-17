@@ -545,6 +545,35 @@ export class PlanRepository {
           WHERE id = ${planId}`;
    }
 
+   /**
+    * How routing went, on the plan's own event stream.
+    *
+    * Compiling a plan writes tasks; routing is what gives them an owner, and it
+    * is a model call that can time out. Until this, that failure existed only as
+    * a line in the server log — the plan said `compile: succeeded` and the board
+    * showed work nobody held, with nothing anywhere to connect the two. Recorded
+    * as `execute`, which is the stage the schema already has for a plan becoming
+    * work, and never fatal: a plan that routed but could not say so still routed.
+    */
+   async recordRouting(input: {
+      planId: string;
+      workspaceId: string;
+      outcome: 'ok' | 'error' | 'timeout';
+      durationMs: number;
+      detail: Record<string, unknown>;
+   }): Promise<void> {
+      await this.#sql.begin(async (transaction) => {
+         await appendEvent(transaction as unknown as Sql, {
+            workspaceId: input.workspaceId,
+            planId: input.planId,
+            stage: 'execute',
+            outcome: input.outcome,
+            durationMs: input.durationMs,
+            detail: input.detail,
+         });
+      });
+   }
+
    async versions(planId: string, limit = 50) {
       const rows = await this.#sql`
          SELECT id, version, origin, ir, validation, critic, patch, created_by, created_at

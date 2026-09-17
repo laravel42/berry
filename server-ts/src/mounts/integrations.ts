@@ -220,6 +220,14 @@ export interface IntegrationsOptions {
    /** A workspace's slug, for the settings page a callback returns to. */
    workspaceSlug?: (workspaceId: string) => Promise<string | null>;
    /**
+    * Completes AgentCore Identity's user-federation session binding.
+    *
+    * Null when AgentCore Identity is not the GitHub credential. The function is
+    * bound to the same identity instance that opened the browser session, so it
+    * retains the matching workload token until the callback returns.
+    */
+   completeAgentCoreAuthorization: ((sessionUri: string) => Promise<void>) | null;
+   /**
     * The one-time way in for a deployment nobody can sign into yet.
     *
     * Lets the App be created before anyone has signed in; sign-in itself is a
@@ -277,6 +285,45 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
    });
 
    route.use('*', requireSession(options.sessions));
+
+   /**
+    * Completes AgentCore's URL-session binding after GitHub returns.
+    *
+    * Unlike the older provider callbacks above, this has no Berry-minted state
+    * row: AgentCore returns an opaque `session_id`, and the service validates it
+    * when CompleteResourceTokenAuth is called. So this route remains behind the
+    * session middleware and also requires settings access — an untrusted query
+    * value alone cannot bind the deployment's GitHub credential to whoever
+    * clicked it.
+    */
+   route.get('/agentcore/callback', async (context) => {
+      const url = new URL(context.req.url);
+      const workspaceId = await requireWorkspace(context, options, 'settings.write');
+      const landing = settingsPath(await slugOf(options, workspaceId));
+      const back = (status: string): Response =>
+         redirectTo(
+            new URL(
+               `${landing}?integration=github&status=${encodeURIComponent(status)}`,
+               options.appUrl || options.publicUrl || url.origin
+            ).toString()
+         );
+
+      // Duplicate query fields are parameter pollution, not "first one wins".
+      // The handle is never logged, persisted or reflected into the redirect.
+      const values = url.searchParams.getAll('session_id');
+      const sessionUri = values.length === 1 ? values[0]?.trim() : '';
+      if (!sessionUri) return back('invalid_response');
+      const complete = options.completeAgentCoreAuthorization;
+      if (!complete) return back('exchange_failed');
+      try {
+         await complete(sessionUri);
+         return back('connected');
+      } catch {
+         // The bound SCM layer logs a sanitized failure. A provider error never
+         // belongs in a URL, where browser history and proxy logs retain it.
+         return back('exchange_failed');
+      }
+   });
 
    /**
     * The catalogue, with this workspace's connection state folded in.

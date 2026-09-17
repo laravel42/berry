@@ -49,13 +49,14 @@ import { writeSkills } from '../skill-files.ts';
 
 export interface RepositoryStep {
    /** Clones or refreshes the checkout; returns its directory, or null without a repo. */
-   prepare(input: { envelope: TaskEnvelope; session: LocalSession; warm: boolean; emit: Emit }): Promise<string | null>;
+   prepare(input: { envelope: TaskEnvelope; session: LocalSession; warm: boolean; emit: Emit; signal?: AbortSignal }): Promise<string | null>;
    deliver(input: {
       envelope: TaskEnvelope;
       session: LocalSession;
       directory: string;
       summary: string | null;
       emit: Emit;
+      signal?: AbortSignal;
    }): Promise<TaskDelivery | null>;
 }
 
@@ -88,6 +89,31 @@ export interface HandlerDeps {
 
 const consoleWarn: Warn = (message, fields) => console.warn(JSON.stringify({ level: 'WARN', msg: message, ...fields }));
 
+/** Stop reasons that mean a ceiling was reached rather than the work ending. */
+const LIMIT_STOPS: readonly string[] = ['limitTurns', 'limitOutputTokens', 'limitTotalTokens', 'maxTokens'];
+
+/**
+ * Which ceiling, and how high it was.
+ *
+ * "Reached its configured limit" was the same sentence for four different stops
+ * and named none of them, so the one question it raised — which limit, set to
+ * what — could only be answered by reading the agent's contract. It also sent
+ * the reader to "the recorded work", which for a chat run is a handful of
+ * progress lines. Say the number instead, and say that the work already done
+ * stands: a run cut on its last turn has usually finished the job.
+ */
+function limitMessage(stopReason: string, agent: TaskEnvelope['agent']): string {
+   const turns = stopReason === 'limitTurns';
+   const ceiling = turns ? agent.maxTurns : agent.maxOutputTokens;
+   const raise = turns ? 'step limit' : 'output limit';
+   const reached = !ceiling
+      ? `Stopped at this agent's ${raise}`
+      : turns
+        ? `Stopped after ${ceiling} step${ceiling === 1 ? '' : 's'}, this agent's limit`
+        : `Stopped after ${ceiling} tokens written, this agent's limit`;
+   return `${reached}. Anything it already did stands. Raise the ${raise} on the agent, or ask for less in one go.`;
+}
+
 export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps: HandlerDeps): Promise<void> {
    let ended = false;
    const say: Emit = (event) => {
@@ -97,7 +123,7 @@ export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps:
    };
    if (envelope.kind === 'completion') {
       // Fresh by construction: no registry, so nothing warm is read or kept.
-      await runCompletionTask(envelope, say, deps);
+      await deps.registry.exclusive(envelope.runtimeSessionId, (signal) => runCompletionTask(envelope, say, deps, signal));
       return;
    }
    await deps.registry.exclusive(envelope.runtimeSessionId, (signal) => runAgentTask(envelope, say, deps, signal));
@@ -109,10 +135,16 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    const fingerprint = agentFingerprint(envelope);
    const held = deps.registry.get(key);
    const warm = held !== undefined && held.fingerprint === fingerprint;
-   const workspace =
-      held?.workspace ?? new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env });
+   // Files survive a warm turn; credentials and execution configuration do not.
+   const workspace = new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env, signal });
    const sink = emitterSink(emit);
    const accounting = new AccountingPlugin();
+   let usageEmitted = false;
+   const flushUsage = () => {
+      if (usageEmitted) return;
+      usageEmitted = true;
+      emitUsage(emit, envelope, accounting);
+   };
    const ledger = new LedgerPlugin({ ledger: sink, runId: envelope.runId });
    const outcome = new ToolOutcomePlugin();
    const api: BerryApi = { ...envelope.berry, ...(deps.fetch ? { fetch: deps.fetch } : {}) };
@@ -163,7 +195,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       const table = toolTable(envelope.agent.mcpServers, mcp.listed, remote.map((t) => t.name));
 
       const directory = deps.repository
-         ? await deps.repository.prepare({ envelope, session: workspace, warm, emit })
+         ? await deps.repository.prepare({ envelope, session: workspace, warm, emit, signal })
          : null;
 
       const agent = buildRunAgent(
@@ -195,9 +227,23 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       );
       if (directory) agent.appState.set(WORKDIR_KEY, directory);
 
-      const result = await agent.invoke(envelope.task.prompt, { cancelSignal: signal });
+      const result = await agent.invoke(envelope.task.prompt, {
+         cancelSignal: signal,
+         limits: {
+            ...(envelope.agent.maxTurns ? { turns: envelope.agent.maxTurns } : {}),
+            ...(envelope.agent.maxOutputTokens ? { outputTokens: envelope.agent.maxOutputTokens } : {}),
+         },
+      });
       await ledger.flush();
-      emitUsage(emit, envelope, accounting);
+      flushUsage();
+      if (LIMIT_STOPS.includes(result.stopReason)) {
+         deps.registry.drop(key);
+         emit({
+            type: 'task.failed',
+            failure: { code: 'RUN_LIMIT_REACHED', message: limitMessage(result.stopReason, envelope.agent), retryable: false },
+         });
+         return;
+      }
       if (signal.aborted || result.stopReason === 'cancelled') {
          deps.registry.drop(key);
          emit({ type: 'task.failed', failure: { code: 'RUN_CANCELLED', message: 'The session was stopped.', retryable: false } });
@@ -214,15 +260,16 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       const [text, cut] = accounting.snapshot().result.final();
       const delivery =
          deps.repository && directory
-            ? await deps.repository.deliver({ envelope, session: workspace, directory, summary: text === '' ? null : text, emit })
+            ? await deps.repository.deliver({ envelope, session: workspace, directory, summary: text === '' ? null : text, emit, signal })
             : null;
+      signal.throwIfAborted();
       emit({
          type: 'task.completed',
          result: { text: truncateUtf8(text, MAX_SUMMARY_BYTES), truncated: cut || Buffer.byteLength(text) > MAX_SUMMARY_BYTES, delivery },
       });
    } catch (error) {
       await ledger.flush().catch(() => undefined);
-      emitUsage(emit, envelope, accounting);
+      flushUsage();
       // A conversation that ended mid-turn may hold a tool call with no
       // result, which the model refuses on the next invoke. Cold is safe.
       deps.registry.drop(key);
@@ -232,6 +279,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             : classify(error);
       emit({ type: 'task.failed', failure });
    } finally {
+      await workspace.stop();
       await Promise.all(mcpClients.map((client) => client.disconnect().catch(() => undefined)));
    }
 }
@@ -262,6 +310,7 @@ function emitUsage(emit: Emit, envelope: TaskEnvelope, accounting: AccountingPlu
    emit({
       type: 'task.usage',
       usage: {
+         eventId: randomUUID(),
          model: envelope.agent.model,
          inputTokens: usage.inputTokens,
          outputTokens: usage.outputTokens,

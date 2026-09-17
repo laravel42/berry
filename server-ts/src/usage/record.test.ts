@@ -98,6 +98,20 @@ describe('recording task usage', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       assert.equal(run!.currency, 'USD');
    });
 
+   test('concurrent delivery of the same event updates usage and outbox exactly once', async () => {
+      configureUsagePricing(pricing);
+      const { runId } = await addRun(sql, world);
+      const event = report(runId, { eventId: 'stable-invocation-usage' });
+      await Promise.all([recordTaskUsage(sql, event), recordTaskUsage(sql, event)]);
+      const [usage] = await sql`SELECT count(*)::int AS n FROM task_usage WHERE run_id = ${runId}`;
+      const [run] = await sql`SELECT input_tokens, cost_micros FROM runs WHERE id = ${runId}`;
+      const [events] = await sql`SELECT count(*)::int AS n FROM outbox_events WHERE aggregate_id = ${runId} AND topic = 'usage.recorded'`;
+      assert.equal(usage?.n, 1);
+      assert.equal(Number(run?.input_tokens), 1000);
+      assert.equal(Number(run?.cost_micros), 11475);
+      assert.equal(events?.n, 1);
+   });
+
    test('two reports in the same hour fold into one hourly row', async () => {
       // In `other`, whose hourly rows no other test writes, so the counts are exact.
       configureUsagePricing(pricing);

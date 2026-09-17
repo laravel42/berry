@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import type { TaskEnvelope } from '../../../runtime/envelope.ts';
-import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { LocalSession } from './local-session.ts';
 import { containerRepository } from './repository.ts';
 
@@ -48,27 +47,14 @@ test('no repository in the envelope means no checkout', async () => {
    assert.equal(directory, null);
 });
 
-test('a warm session reuses its checkout on the issue branch without cloning', async () => {
-   const { session } = withRepo('berry/ber-1');
-   const events: LifecycleEvent[] = [];
-   const directory = await containerRepository().prepare({
-      envelope: envelopeFor('berry/ber-1'), session, warm: true, emit: (event) => events.push(event),
-   });
-   assert.equal(directory, join(session.root, 'repo'));
-   const ready = events.find((event) => event.type === 'task.message' && event.message.kind === 'repository.ready');
-   assert.ok(ready);
-});
-
-test('delivery verifies, commits and pushes the branch', async () => {
-   const { session, remote } = withRepo('berry/ber-2');
-   await session.writeFile('repo/new.txt', 'hello\n');
-   const events: LifecycleEvent[] = [];
-   const delivery = await containerRepository().deliver({
-      envelope: envelopeFor('berry/ber-2'), session, directory: join(session.root, 'repo'),
-      summary: 'Added a file', emit: (event) => events.push(event),
-   });
-   assert.equal(delivery?.committed, true);
-   assert.equal(delivery?.branch, 'berry/ber-2');
-   assert.ok(git(remote, 'rev-parse', 'berry/ber-2'));
-   assert.ok(events.some((event) => event.type === 'task.message' && event.message.kind === 'verified'));
+test('legacy credential envelopes cannot reuse or publish a warm checkout', async () => {
+   const { session, remote } = withRepo('berry/ber-1');
+   const repository = containerRepository();
+   await assert.rejects(repository.prepare({
+      envelope: envelopeFor('berry/ber-1'), session, warm: true, emit: () => {},
+   }), /updated Berry server/);
+   await assert.rejects(repository.deliver({
+      envelope: envelopeFor('berry/ber-1'), session, directory: join(session.root, 'repo'), summary: 'old work', emit: () => {},
+   }), /baseline is missing/);
+   assert.equal(git(remote, 'for-each-ref', '--format=%(refname)'), '');
 });

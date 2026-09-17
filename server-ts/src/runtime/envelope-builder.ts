@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { Sql } from '../db/pool.ts';
 import type { RunMemory } from '../agentcore/memory.ts';
 import { recallPrompt } from '../agentcore/memory.ts';
@@ -17,6 +18,7 @@ import { loadAgentExtensions, type ExtensionDeps } from '../agents/extensions.ts
 import { pluginMcpServers } from '../plugins/mcp.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
+import { parseContract } from '../organization/contract.ts';
 
 export interface CompletionSpec {
    purpose: string;
@@ -42,6 +44,8 @@ export interface TaskRow {
 }
 
 export interface AgentConfig {
+   maxTurns?: number;
+   maxOutputTokens?: number;
    id: string;
    name: string;
    instructions: string;
@@ -64,6 +68,7 @@ export interface DeliveryPlan {
 }
 
 export interface EnvelopeDeps {
+   maxTokens?: number | null;
    sql: Sql;
    /** `BERRY_PUBLIC_URL`: where the runtime calls the Berry tool API. */
    publicUrl: string;
@@ -155,14 +160,15 @@ export class EnvelopeBuilder {
             mcpServers,
             permissions: agent.permissions,
             tools: agent.tools,
-            maxTokens: null,
+            maxTokens: this.#deps.maxTokens ?? null,
+            ...(agent.maxTurns ? { maxTurns: agent.maxTurns } : {}),
+            ...(agent.maxOutputTokens ? { maxOutputTokens: agent.maxOutputTokens } : {}),
             temperature: null,
          },
          // The runtime profile's env first; the agent's own env wins a clash.
          env: { ...profile.env, ...(extensions?.env ?? {}) },
          berry: { apiUrl: this.#deps.publicUrl, token: input.token },
       };
-
       if (task.kind === 'completion') {
          const spec = task.completionSpec ?? { purpose: 'completion', system: '', jsonSchema: null, model: null };
          return {
@@ -301,11 +307,20 @@ export class EnvelopeBuilder {
 
    async #agent(agentId: string): Promise<AgentConfig> {
       const [row] = await this.#deps.sql`
-         SELECT id, name, instructions, model_name, permissions, runtime_profile_id, role_key, role_contract
+         SELECT id, name, instructions, model_name, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
            FROM agents WHERE id = ${agentId} AND archived_at IS NULL`;
       if (!row) throw new Error(`agent ${agentId} does not exist`);
       const name = row.name as string;
+      const contract = parseContract(row.role_contract);
+      const manifest = z.object({
+         maxTurns: z.number().int().positive().optional(),
+         maxTokens: z.number().int().positive().optional(),
+      }).parse(row.manifest_limits ?? {});
+      const turns = [contract?.run_limits.max_turns, manifest.maxTurns].filter((value): value is number => value !== undefined);
+      const output = [contract?.run_limits.max_output_tokens, manifest.maxTokens].filter((value): value is number => value !== undefined);
       return {
+         ...(turns.length ? { maxTurns: Math.min(...turns) } : {}),
+         ...(output.length ? { maxOutputTokens: Math.min(...output) } : {}),
          id: row.id as string,
          name,
          instructions:
@@ -390,26 +405,38 @@ export class EnvelopeBuilder {
       // Before a credential is opened: an agent that may not read the
       // repository never causes a token to be minted on its behalf.
       permissions.require('read_repository');
-      permissions.require('create_branches');
+      const readOnly = !permissions.has('create_branches');
       const credential = await this.#deps.gitCredential(task.workspaceId);
       const { owner, name } = parseRepository(repository.fullName);
       const remote = await this.#deps.github(credential.password).repository(owner, name);
-      if (!(credential.canPush ?? remote.canPush)) {
+      if (!readOnly && !(credential.canPush ?? remote.canPush)) {
          throw new Error(`the GitHub connection cannot push to ${repository.fullName}`);
       }
       const issue = await loadIssue(this.#deps.sql, dispatch.issueId);
       const branch = branchName(agent.name, issue.reference, issue.title);
+      const client = this.#deps.github(credential.password);
+      const defaultCommit = await client.branchHead(owner, name, remote.defaultBranch);
+      if (!defaultCommit) throw new Error('The repository default branch is missing');
+      const expectedHead = readOnly ? null : await client.branchHead(owner, name, branch);
+      await this.#deps.sql`INSERT INTO run_repository_snapshots (run_id, repository, branch, base_commit, default_commit, expected_head, read_only)
+         VALUES (${task.runId}, ${repository.fullName}, ${branch}, ${expectedHead ?? defaultCommit}, ${defaultCommit}, ${expectedHead}, ${readOnly})
+         ON CONFLICT (run_id) DO NOTHING`;
+      const [snapshot] = await this.#deps.sql`SELECT base_commit FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
+      if (!snapshot) throw new Error('Repository snapshot was not persisted');
       return {
          repo: {
+            readOnly,
+            snapshotCommit: snapshot.base_commit as string,
             fullName: repository.fullName,
             branch,
             baseBranch: remote.defaultBranch,
-            credential: { username: credential.username, password: credential.password },
+            // Kept empty for wire compatibility. Repository tokens never enter the runtime.
+            credential: { username: '', password: '' },
             verifyCommands: repository.verifyCommands,
             issueReference: issue.reference,
             issueTitle: issue.title,
          },
-         delivery: {
+         delivery: readOnly ? null : {
             fullName: repository.fullName,
             defaultBranch: remote.defaultBranch,
             branch,

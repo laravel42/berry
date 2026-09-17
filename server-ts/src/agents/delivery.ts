@@ -36,12 +36,9 @@ export interface Delivery {
    filesChanged: number;
    insertions: number;
    deletions: number;
-   /** Paths, for a reviewer's summary. Bounded — a rename storm is not a report. */
+   /** Complete paths for policy evaluation. Bound previews only at presentation. */
    files: string[];
 }
-
-/** Beyond this a file list stops being useful and starts being a wall. */
-const MAX_LISTED_FILES = 50;
 
 export async function commitAndPush(options: DeliveryOptions): Promise<Delivery> {
    const at = { cwd: options.directory };
@@ -50,7 +47,7 @@ export async function commitAndPush(options: DeliveryOptions): Promise<Delivery>
    // because a new file is the usual shape of an agent's work.
    await run(options.session, 'git add -A', at, 'stage the changes');
 
-   const staged = await run(options.session, 'git diff --cached --numstat', at, 'read the changes');
+   const staged = await run(options.session, 'git diff --cached --numstat -z --no-renames', at, 'read the changes');
    const stat = parseNumstat(staged);
 
    if (stat.filesChanged === 0) {
@@ -79,31 +76,10 @@ export async function commitAndPush(options: DeliveryOptions): Promise<Delivery>
       await run(options.session, 'git rev-parse HEAD', at, 'read the commit')
    ).trim();
 
-   // What the remote has on this branch right now, so the push can say what
-   // it expects to replace. A retried run's earlier attempt already pushed
-   // the branch; a fresh shallow clone knows nothing about it, and the
-   // implicit lease was refused with "stale info" even once the branch had
-   // been fetched — reproduced against a bare repository, and specific to a
-   // shallow clone. An explicit lease is honoured in both. The refspec is
-   // spelled out because `clone --branch` is a single-branch clone whose
-   // remote covers only the default branch.
-   await options.session.exec(
-      `git -c credential.helper=${shellQuote(CREDENTIAL_HELPER)} fetch origin ${shellQuote(`+refs/heads/${options.branch}:refs/remotes/origin/${options.branch}`)}`,
-      { ...at, env: { [TOKEN_VARIABLE]: options.token } }
-   );
-   const remote = await options.session.exec(
-      `git rev-parse --verify --quiet ${shellQuote(`refs/remotes/origin/${options.branch}`)}`,
-      at
-   );
-   // Empty when the branch does not exist yet: the lease then means "create
-   // it, and refuse if somebody made one meanwhile".
-   const expected = remote.exitCode === 0 ? remote.stdout.trim() : '';
-
    await run(
       options.session,
-      // The lease names what it expects, so a retried run updates its own
-      // branch and still refuses if someone else has pushed to it meanwhile.
-      `git -c credential.helper=${shellQuote(CREDENTIAL_HELPER)} push --force-with-lease=${shellQuote(`${options.branch}:${expected}`)} --set-upstream origin ${shellQuote(options.branch)}`,
+      // Normal pushes reject divergence, including changes made while the agent worked.
+      `git -c core.hooksPath=/dev/null -c credential.helper= -c credential.helper=${shellQuote(CREDENTIAL_HELPER)} push --set-upstream origin ${shellQuote(`HEAD:refs/heads/${options.branch}`)}`,
       { ...at, env: { [TOKEN_VARIABLE]: options.token } },
       'push the branch'
    );
@@ -132,8 +108,9 @@ export function parseNumstat(output: string): {
    let deletions = 0;
    const files: string[] = [];
 
-   for (const line of output.split('\n')) {
-      const trimmed = line.trim();
+   const nulDelimited = output.includes('\0');
+   for (const line of output.split(nulDelimited ? '\0' : '\n')) {
+      const trimmed = nulDelimited ? line : line.trim();
       if (trimmed === '') continue;
       const parts = trimmed.split('\t');
       if (parts.length < 3) continue;
@@ -141,11 +118,8 @@ export function parseNumstat(output: string): {
       filesChanged += 1;
       insertions += count(parts[0]);
       deletions += count(parts[1]);
-      if (files.length < MAX_LISTED_FILES) {
-         // A rename is `old => new`; the path after the arrow is the one that
-         // exists now and the one a reviewer will open.
-         files.push(renamedTo(parts.slice(2).join('\t')));
-      }
+      const path = parts.slice(2).join('\t');
+      files.push(nulDelimited ? path : renamedTo(path));
    }
    return { filesChanged, insertions, deletions, files };
 }

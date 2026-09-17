@@ -20,11 +20,14 @@ export class LocalSession implements ExecutionSession {
    readonly id: string;
    readonly root: string;
    readonly #env: Record<string, string>;
+   readonly #signal: AbortSignal | undefined;
+   readonly #groups = new Set<number>();
 
-   constructor(options: { id: string; root: string; env?: Record<string, string> }) {
+   constructor(options: { id: string; root: string; env?: Record<string, string>; signal?: AbortSignal }) {
       this.id = options.id;
       this.root = options.root;
       this.#env = options.env ?? {};
+      this.#signal = options.signal;
    }
 
    async exec(command: string, options: ExecOptions = {}): Promise<ExecResult> {
@@ -44,6 +47,9 @@ export class LocalSession implements ExecutionSession {
    }
 
    async *stream(command: string, options: ExecOptions = {}): AsyncIterable<ExecEvent> {
+      const signals = [this.#signal, options.signal].filter((value): value is AbortSignal => value !== undefined);
+      const signal = AbortSignal.any(signals);
+      signal.throwIfAborted();
       let seq = 0;
       yield { type: 'start', seq: seq++, command };
       const cwd = this.#path(options.cwd ?? '.');
@@ -65,10 +71,20 @@ export class LocalSession implements ExecutionSession {
 
       const child = spawn('/bin/bash', ['-c', command], {
          cwd,
-         env: { ...process.env, ...this.#env, ...(options.env ?? {}) },
-         ...(options.signal ? { signal: options.signal } : {}),
-         ...(options.timeoutMs ? { timeout: options.timeoutMs } : {}),
+         // Platform credentials are not implicit tool inputs. This reduces accidental
+         // exposure; shell execution still requires an isolated OS trust boundary.
+         env: { PATH: process.env.PATH, LANG: 'C.UTF-8', HOME: this.root, TMPDIR: this.root, ...this.#env, ...(options.env ?? {}) },
+         detached: true,
       });
+      const pid = child.pid;
+      if (pid !== undefined) this.#groups.add(pid);
+      const kill = () => {
+         if (pid !== undefined) { try { process.kill(-pid, 'SIGKILL'); } catch { /* Already exited. */ } }
+      };
+      signal.addEventListener('abort', kill, { once: true });
+      if (signal.aborted) kill();
+      const timeout = setTimeout(kill, options.timeoutMs ?? 600_000);
+      timeout.unref();
       child.stdout.setEncoding('utf8');
       child.stderr.setEncoding('utf8');
       child.stdout.on('data', (data: string) => push({ type: 'stdout', seq: seq++, data }));
@@ -79,6 +95,9 @@ export class LocalSession implements ExecutionSession {
          if (child.pid === undefined) finish(127);
       });
       child.on('close', (code, signal) => {
+         clearTimeout(timeout);
+         kill();
+         if (pid !== undefined) this.#groups.delete(pid);
          if (code === null && signal) push({ type: 'error', seq: seq++, message: `command ended by ${signal}` });
          finish(code ?? 1);
       });
@@ -89,7 +108,7 @@ export class LocalSession implements ExecutionSession {
             yield next;
             continue;
          }
-         if (done) return;
+         if (done) { signal.removeEventListener('abort', kill); return; }
          await new Promise<void>((resolveWake) => {
             wake = resolveWake;
          });
@@ -106,7 +125,12 @@ export class LocalSession implements ExecutionSession {
       return readFile(this.#path(path), 'utf8');
    }
 
-   async stop(): Promise<void> {}
+   async stop(): Promise<void> {
+      for (const pid of this.#groups) {
+         try { process.kill(-pid, 'SIGKILL'); } catch { /* Already exited. */ }
+      }
+      this.#groups.clear();
+   }
 
    /** The workspace outlives a run on purpose: the next run on the session reuses it. */
    async destroy(): Promise<void> {}

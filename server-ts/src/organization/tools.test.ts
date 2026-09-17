@@ -341,7 +341,7 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
          assert.equal(await statusOf(issueId), 'todo');
       });
 
-      test('the last required approval says the reviews passed and leaves the task for a person', async () => {
+      test('the last required approval says the reviews passed and AutoGate closes the task', async () => {
          const { issueId } = await deliveredByBackend('Auth approved', ['server-ts/src/auth/x.ts']);
          await tool('submit_review').run(contextFor('qa-engineer', issueId), { approved: true, reason: 'Tested.' });
          let bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
@@ -354,7 +354,11 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
 
          bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
          assert.ok(bodies.some((comment) => /Required reviews passed/.test(comment.body as string)));
-         assert.equal(await statusOf(issueId), 'in_review');
+         // Both blocking reviewers approved a task whose plan carried AutoGate,
+         // which is the person's standing consent to release on exactly that
+         // (ADR-0016). A reviewer submitting its own verdict settles by the same
+         // rules as the gate, so it closes here too.
+         assert.equal(await statusOf(issueId), 'done');
       });
 
       test('the delivered run is reviewed even when the reviewer\'s own run on the task is newer', async () => {

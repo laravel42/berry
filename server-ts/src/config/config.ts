@@ -29,6 +29,8 @@ export interface Config {
    execution: ExecutionConfig | null;
    agentCore: AgentCoreConfig | null;
    agentCoreGateway: AgentCoreGatewayConfig | null;
+   /** AgentCore Identity's GitHub credential, usable without a gateway. */
+   agentCoreGitCredential: AgentCoreGitCredentialConfig | null;
    /** Which GitHub path is live. `agentcore` routes API calls through the gateway. */
    githubProvider: 'agentcore' | 'legacy';
    /**
@@ -121,6 +123,24 @@ export interface AgentCoreGatewayConfig {
     * matching. Empty is the normal case: names come from discovery.
     */
    toolOverrides: Record<string, string>;
+}
+
+/**
+ * What Berry needs to fetch a GitHub token from AgentCore Identity.
+ *
+ * The gateway's own config carries the same provider name because a gateway
+ * deployment needs both; this stands alone for a deployment that wants only the
+ * credential.
+ */
+export interface AgentCoreGitCredentialConfig {
+   region: string;
+   providerName: string;
+   workloadName: string;
+   flow: 'USER_FEDERATION' | 'M2M';
+   /** Stable AgentCore user binding; required by USER_FEDERATION. */
+   userId: string | null;
+   /** Browser destination after one-time consent; required by USER_FEDERATION. */
+   returnUrl: string | null;
 }
 
 export interface AgentCoreConfig {
@@ -310,6 +330,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       execution: executionConfig,
       agentCore: agentCore(env),
       agentCoreGateway: agentCoreGateway(env),
+      agentCoreGitCredential: agentCoreGitCredential(env),
       githubProvider: (env.GITHUB_PROVIDER ?? 'agentcore').trim() === 'legacy' ? 'legacy' : 'agentcore',
       // No generated fallback: a key that appeared on its own would differ
       // between restarts and strand every credential already stored.
@@ -483,6 +504,31 @@ function agentCore(env: NodeJS.ProcessEnv): AgentCoreConfig | null {
  * identity behind it cannot authorise a call, and reporting it as configured
  * would promise something that fails at the first tool.
  */
+/**
+ * The AgentCore Identity credential provider holding GitHub, on its own.
+ *
+ * Separate from the gateway because the two are independent primitives and only
+ * one of them is needed to clone: git is a wire protocol, so a run needs a
+ * token, not a tool call. Requiring a gateway URL before Berry would ask
+ * AgentCore for that token meant a deployment had to stand up gateway targets
+ * before it could use the credential provider at all.
+ */
+function agentCoreGitCredential(env: NodeJS.ProcessEnv): AgentCoreGitCredentialConfig | null {
+   const providerName = (env.AWS_AGENTCORE_GITHUB_PROVIDER ?? '').trim();
+   if (!providerName) return null;
+   const flow = (env.AWS_AGENTCORE_GITHUB_FLOW ?? '').trim().toUpperCase();
+   return {
+      region: (env.AWS_AGENTCORE_REGION ?? env.AWS_REGION ?? 'us-east-1').trim(),
+      providerName,
+      workloadName: (env.AWS_AGENTCORE_WORKLOAD_NAME ?? 'berry').trim(),
+      // Three-legged by default: a GitHub OAuth App has no client-credentials
+      // grant, so `M2M` cannot acquire its token.
+      flow: flow === 'M2M' ? 'M2M' : 'USER_FEDERATION',
+      userId: (env.AWS_AGENTCORE_GITHUB_USER_ID ?? '').trim() || null,
+      returnUrl: (env.AWS_AGENTCORE_GITHUB_RETURN_URL ?? '').trim() || null,
+   };
+}
+
 function agentCoreGateway(env: NodeJS.ProcessEnv): AgentCoreGatewayConfig | null {
    const gatewayUrl = (env.AWS_AGENTCORE_GATEWAY_URL ?? '').trim();
    const githubProviderName = (env.AWS_AGENTCORE_GITHUB_PROVIDER ?? '').trim();
@@ -624,7 +670,9 @@ function origin(value: string | undefined): string | null {
 /** A count, when the value given is one. Anything else keeps the default. */
 /** Where tasks run and how they are bounded. Independent of Bedrock: the server calls no model. */
 export interface RuntimeConfig {
-   /** The runtime image on a URL (local Compose), used when no AgentCore runtime ARN is set. */
+   authToken: string | null;
+   maxTokens: number | null;
+   /** The authenticated runtime image on a URL, used when no AgentCore runtime ARN is set. */
    agentRuntimeUrl: string | null;
    /** Used when an agent row and its profile name no model. */
    defaultModel: string;
@@ -647,6 +695,8 @@ function runtime(env: NodeJS.ProcessEnv): RuntimeConfig {
    const url = (env.BERRY_AGENT_RUNTIME_URL ?? '').trim().replace(/\/+$/, '');
    return {
       agentRuntimeUrl: /^https?:\/\//.test(url) ? url : null,
+      authToken: (env.BERRY_RUNTIME_AUTH_TOKEN ?? '').trim() || null,
+      maxTokens: env.BERRY_AGENT_MAX_TOKENS ? positive(env.BERRY_AGENT_MAX_TOKENS, 32_000) : null,
       defaultModel: (env.BERRY_AGENT_DEFAULT_MODEL ?? '').trim() || 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
       concurrency: positive(env.BERRY_RUN_CONCURRENCY, 2),
       tokenTtlSeconds: Math.min(positive(env.BERRY_TASK_TOKEN_TTL_SECONDS, 28_800), 28_800),
@@ -705,4 +755,3 @@ function git(env: NodeJS.ProcessEnv): GitConfig | null {
    const webhookSecret = (env.BERRY_GITHUB_WEBHOOK_SECRET ?? '').trim();
    return webhookSecret ? { webhookSecret } : null;
 }
-

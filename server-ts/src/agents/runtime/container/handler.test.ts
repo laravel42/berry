@@ -312,3 +312,38 @@ test('an MCP tool whose name clashes with a built-in is dropped with a warning; 
       await fake.close();
    }
 });
+
+test('warm workspaces replace rotated and removed environment values', async () => {
+   const observed: string[] = [];
+   const { run } = harness([say('one'), say('two'), say('three')], {
+      repository: {
+         prepare: async ({ session }) => {
+            observed.push((await session.exec('printf "%s" "${BERRY_TEST_ROTATION:-absent}"')).stdout);
+            return null;
+         },
+         deliver: async () => null,
+      },
+   });
+   await run(envelope({ env: { BERRY_TEST_ROTATION: 'old' } }));
+   await run(envelope({ env: { BERRY_TEST_ROTATION: 'new' } }));
+   await run(envelope({ env: {} }));
+   assert.deepEqual(observed, ['old', 'new', 'absent']);
+});
+
+test('turn exhaustion fails visibly and never delivers incomplete work', async () => {
+   let delivered = false;
+   const { run } = harness([call('probe', {}), say('must not run')], {
+      loadTools: async () => [tool({ name: 'probe', description: 'probe', inputSchema: z.object({}), callback: () => 'ok' })],
+      repository: { prepare: async () => '.', deliver: async () => { delivered = true; return null; } },
+   });
+   const sample = envelope();
+   const events = await run(envelope({ agent: { ...sample.agent, maxTurns: 1 } }));
+   const last = events.at(-1);
+   assert.ok(last?.type === 'task.failed');
+   assert.equal(last.failure.code, 'RUN_LIMIT_REACHED');
+   // Which limit, and how high: a message that names neither leaves the reader
+   // with a failure and no next move.
+   assert.match(last.failure.message, /after 1 step,/);
+   assert.match(last.failure.message, /step limit/);
+   assert.equal(delivered, false);
+});
