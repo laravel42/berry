@@ -1,0 +1,161 @@
+[
+  {
+    "slug": "index",
+    "title": "The Berry handbook",
+    "group": "Start here",
+    "description": "Everything you need to plan, build, and review work with people and agents."
+  },
+  {
+    "slug": "quickstart",
+    "title": "Quick start",
+    "group": "Start here",
+    "description": "Bring up the product server and web app, then check what your installation can do."
+  },
+  {
+    "slug": "concepts",
+    "title": "Core concepts",
+    "group": "Start here",
+    "description": "Understand the records Berry already uses to organize work."
+  },
+  {
+    "slug": "work-tracking",
+    "title": "Work tracking",
+    "group": "Using Berry",
+    "description": "Create tasks, organize views, collaborate, and keep track of progress.",
+    "source": "PRODUCT.md",
+    "section": "1. Work tracking"
+  },
+  {
+    "slug": "planning",
+    "title": "Planning and automation",
+    "group": "Using Berry",
+    "description": "Move from a proposal to Projects, Goals, tasks, and recurring work.",
+    "source": "PRODUCT.md",
+    "section": "2. Planning and automation"
+  },
+  {
+    "slug": "agents",
+    "title": "Agents and chat",
+    "group": "Using Berry",
+    "description": "Configure agents, talk to them, and understand their execution context.",
+    "source": "PRODUCT.md",
+    "section": "3. Agents"
+  },
+  {
+    "slug": "organization",
+    "title": "The agent organization",
+    "group": "Using Berry",
+    "description": "Understand the Orchestrator, role responsibilities, delegation, and autonomy.",
+    "source": "PRODUCT.md",
+    "section": "4. The agent organization"
+  },
+  {
+    "slug": "reviews",
+    "title": "Reviews and delivery",
+    "group": "Using Berry",
+    "description": "Inspect results and make the human decision to accept work.",
+    "source": "PRODUCT.md",
+    "section": "5. Review, approvals and delivery"
+  },
+  {
+    "slug": "workspace",
+    "title": "Workspace administration",
+    "group": "Using Berry",
+    "description": "Manage membership, permissions, preferences, and workspace settings.",
+    "source": "PRODUCT.md",
+    "section": "6. Workspace and administration"
+  },
+  {
+    "slug": "integrations",
+    "title": "Integrations and extensions",
+    "group": "Using Berry",
+    "description": "Connect repositories, tools, and services to your workspace.",
+    "source": "PRODUCT.md",
+    "section": "7. Integrations, API and plugins"
+  },
+  {
+    "slug": "runtime",
+    "title": "Agent runtimes",
+    "group": "Operate Berry",
+    "description": "Connect execution to Berry and understand the two network directions."
+  },
+  {
+    "slug": "configuration",
+    "title": "Configuration reference",
+    "group": "Operate Berry",
+    "description": "Know which settings belong to the server, browser, and agent runtime."
+  },
+  {
+    "slug": "troubleshooting",
+    "title": "Troubleshooting",
+    "group": "Operate Berry",
+    "description": "Follow the failing step instead of changing unrelated settings."
+  },
+  {
+    "slug": "operations",
+    "title": "Deployment and maintenance",
+    "group": "Operate Berry",
+    "description": "Operate the product server, database, storage, and execution runtime deliberately."
+  },
+  {
+    "slug": "api",
+    "title": "API overview",
+    "group": "Build with Berry",
+    "description": "Choose the right API and credential for your integration."
+  },
+  {
+    "slug": "api-reference",
+    "title": "HTTP API reference",
+    "group": "Build with Berry",
+    "description": "The repository\u2019s complete product and public HTTP contract.",
+    "source": "docs/api/gateway-v1.md"
+  },
+  {
+    "slug": "plugin-sdk",
+    "title": "Plugin SDK",
+    "group": "Build with Berry",
+    "description": "Build signed hooks, scoped API clients, and embedded plugin pages.",
+    "source": "packages/plugin-sdk/README.md"
+  },
+  {
+    "slug": "architecture",
+    "title": "Architecture",
+    "group": "Reference",
+    "description": "Product state, runtime dispatch, and the boundaries between services.",
+    "source": "server-ts/ARCHITECTURE.md"
+  },
+  {
+    "slug": "scope",
+    "title": "Server scope",
+    "group": "Reference",
+    "description": "What is served, what is deliberately absent, and where the implementation lives.",
+    "source": "server-ts/SCOPE.md"
+  },
+  {
+    "slug": "routing",
+    "title": "Route map",
+    "group": "Reference",
+    "description": "A grouped map of product API routes and implementation notes.",
+    "source": "server-ts/ROUTING.md"
+  },
+  {
+    "slug": "agentcore-decision",
+    "title": "Runtime architecture decision",
+    "group": "Reference",
+    "description": "Why Berry dispatches agent work to an external runtime.",
+    "source": "docs/adr/0014-agentcore-runtime-control-plane.md"
+  },
+  {
+    "slug": "organization-decision",
+    "title": "Organization architecture decision",
+    "group": "Reference",
+    "description": "How role agents, delegation, and review rules are represented.",
+    "source": "docs/adr/0015-default-agent-organization.md"
+  },
+  {
+    "slug": "contributing",
+    "title": "Contributing to Berry",
+    "group": "Reference",
+    "description": "Make focused changes and validate them with the repository\u2019s existing checks."
+  }
+]

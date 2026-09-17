@@ -126,6 +126,8 @@ normally.
 
 ## Documentation
 
+- [Documentation website](documentation/README.md) — searchable product guides, setup, operations, and API reference; preview with `npm --prefix documentation run dev` after installing its dependencies.
+
 - [AGENTS.md](AGENTS.md) — the authoritative short guide for coding agents working in this repo
 - [PRODUCT.md](PRODUCT.md) — product description: capabilities, the organization, reviews and proposals
 - [Product brief](docs/product-brief.md)
