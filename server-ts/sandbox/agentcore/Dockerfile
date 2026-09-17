@@ -40,7 +40,8 @@ COPY src/scm/commit-trailer.ts ./src/scm/
 
 # Session workspaces. A persistent filesystem can be mounted here through the
 # runtime's filesystemConfigurations so a checkout survives a session stop.
-RUN mkdir -p /mnt/workspace
+RUN mkdir -p /mnt/workspace && chown node:node /mnt/workspace
+USER node
 WORKDIR /mnt/workspace
 
 ENV NODE_ENV=production

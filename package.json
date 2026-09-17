@@ -49,6 +49,8 @@
       "seed:server": "pnpm --filter @berry/server seed",
       "check:models": "python3 scripts/test_check_no_model_in_server.py && python3 scripts/check-no-model-in-server.py",
       "reset:server": "pnpm --filter @berry/server reset",
+      "runtime:build": "docker build -f server-ts/sandbox/agentcore/Dockerfile -t berry-agent-runtime server-ts",
+      "runtime:docker": "pnpm runtime:build && docker run --rm --init --name berry-runtime -p 8080:8080 --env-file .env -e PORT=8080 -e BERRY_RUNTIME_WORK_ROOT=/mnt/workspace -v berry-runtime-work:/mnt/workspace berry-agent-runtime",
       "test:plugin-sdk": "pnpm --filter @berry/plugin-sdk test",
       "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
    },
