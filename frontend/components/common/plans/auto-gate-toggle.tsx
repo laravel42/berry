@@ -43,8 +43,8 @@ export function AutoGateToggle({ enabled, onChange }: AutoGateToggleProps) {
          </TooltipTrigger>
          <TooltipContent className="max-w-72">
             {enabled
-               ? 'On: agents review each finished task first and can send it back. Their approval never closes it: the task still waits in review for you.'
-               : 'Off: no agent reviews the work. Finished tasks wait in review for you.'}
+               ? 'On: this plan runs itself. Agents review each finished task, send back what is not done, and for what passes they merge the pull request, close the task and start whatever it was blocking. You are deciding that now, once, instead of task by task.'
+               : 'Off: no agent reviews the work, and every finished task waits in review for you.'}
          </TooltipContent>
       </Tooltip>
    );

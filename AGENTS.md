@@ -88,10 +88,17 @@ parameter properties — is allowed; `erasableSyntaxOnly` enforces it.
   browser sessions are Better Auth cookies (GitHub is the only sign-in method).
   Cursors and idempotency fingerprints already issued must keep decoding, so
   the canonical JSON form and the cursor envelope are not free to change.
-- **Agents don't release their own work.** No autonomy level grants a merge
-  tool, and the `set_status` tool never allows `done` or `cancelled`
-  (`server-ts/src/runtime/agent-tools/core-tools.ts`). A reviewer agent's
-  approval never releases work either — a person accepts the release.
+- **No agent releases its own work; a person decides, once or every time.** No
+  autonomy level grants a merge tool, and the `set_status` tool never allows
+  `done` or `cancelled` (`server-ts/src/runtime/agent-tools/core-tools.ts`) —
+  that boundary is absolute and no feature relaxes it. What a person may
+  delegate is *when* they decide. Without AutoGate they accept every release.
+  With AutoGate on a plan they accept it once, up front, for that plan's tasks:
+  Berry's own review gate then merges the pull request of a task whose every
+  blocking required review approved, closes it, and starts whatever it was
+  blocking
+  ([ADR-0016](docs/adr/0016-autogate-delegated-release.md)). The consent is the
+  person's either way; AutoGate only moves it from per task to per plan.
 - **Licenses.** Shipped dependencies must be MIT / Apache-2.0 (or equivalently
   permissive). Retain Circle MIT notices. Do not copy another product's schema,
   brand, or marks. Do not use "Linear" as Berry product branding or in new code
@@ -220,8 +227,10 @@ and a manual check of the changed view. No secrets or `.env` files.
 
 - Assignees are polymorphic: `user | agent`.
 - Issue statuses: `backlog → todo → in_progress → in_review → done`
-  (`blocked` and `cancelled` also exist). The release gate is always human;
-  no agent tool can set `done` or `cancelled`.
+  (`blocked` and `cancelled` also exist). No agent tool can set `done` or
+  `cancelled`. The release is a person's: they take it task by task, or delegate
+  it for one plan with AutoGate, which lets the review gate close a task its
+  blocking reviewers passed (ADR-0016).
 - Public API: `/api/v1`, cursor pagination, `Idempotency-Key` on creating
   POSTs, stable `SCREAMING_SNAKE_CASE` error codes.
 - Env booleans: do not use `z.coerce.boolean()` (`"false"` becomes `true`).

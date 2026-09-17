@@ -38,7 +38,8 @@ format one with another.
 - The wire shape is a contract: cursors, idempotency fingerprints and the error
   envelope must keep decoding for clients that already hold them.
 - Agents cannot set a task to done or cancelled, and there is no merge tool.
-  A person always decides release.
+  A person decides release — every task, or once per plan with AutoGate, which
+  lets Berry's review gate close what its blocking reviewers passed (ADR-0016).
 - MIT / Apache-2.0 dependencies only. No Linear product branding or copied
   schema. No new `Linear*` identifiers.
 - `strict` on, no `any` except vendored `frontend/components/data-table-filter/**`.

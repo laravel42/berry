@@ -32,7 +32,7 @@ flowchart LR
         org["Organization<br/>19 role contracts, autonomy levels 1–5,<br/>required reviews, proposals, discovery"]:::server
         dispatcher["Run dispatcher<br/>lease with SKIP LOCKED, envelope"]:::server
         ledger["Run ledger<br/>append-only events, task status"]:::server
-        gate["Review gate<br/>AutoGate & role reviews; never Done"]:::server
+        gate["Review gate<br/>AutoGate reviews, merges, closes,<br/>and advances the task graph"]:::server
         tools["Agent tools API<br/>/api/v1/agent-tools — task-scoped token,<br/>autonomy allowlist"]:::server
         scm["Delivery<br/>branch, push, pull request"]:::server
         publicapi["Public API /v1<br/>tokens, plugin SDK"]:::server
@@ -130,13 +130,15 @@ sequenceDiagram
     B->>DB: task → In review
     opt AutoGate on
         B->>R: required role reviews (QA, Security, …)
-        R-->>B: verdicts (never Done)
+        R-->>B: approve or send back with findings
+        B->>G: merge approved pull request
+        B->>DB: Done; release dependents → Todo; queue runs
+    else Manual gate
+        P->>W: Reviews: Approve or Send back
+        W->>B: decision
+        B->>DB: Done (or back to Todo with the note)
+        P->>G: merge the pull request
     end
-    P->>W: Reviews: Approve or Send back
-    W->>B: decision
-    B->>DB: Done (or back to Todo with the note)
-    B->>DB: release dependent tasks → Todo, queue their runs
-    P->>G: merge the pull request
 ```
 
 ## Reading the diagram

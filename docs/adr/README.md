@@ -49,7 +49,8 @@ of ADR-0008, ADR-0012 and ADR-0013. For the fuller current mechanism, see
 | [0012](0012-agentcore-managed-services.md) | Operate agents on AgentCore Runtime, Gateway, Memory, and Policy | Partially implemented (Runtime, Memory delivered; Gateway dormant; Policy not started) | 2026-09-09 |
 | [0013](0013-strands-native-agent-runtime.md) | Run agents natively on the Strands Agents SDK | Partially superseded by [0014](0014-agentcore-runtime-control-plane.md) (loop location only) | 2026-09-09 |
 | [0014](0014-agentcore-runtime-control-plane.md) | Berry is a control plane; the agent loop runs in AgentCore Runtime | Accepted — current execution design | 2026-09-10 |
-| [0015](0015-default-agent-organization.md) | Provision every workspace with a default agent organization | Accepted | 2026-09-14 |
+| [0015](0015-default-agent-organization.md) | Provision every workspace with a default agent organization | Accepted; partially superseded by [0016](0016-autogate-delegated-release.md) (what a passing review does) | 2026-09-14 |
+| [0016](0016-autogate-delegated-release.md) | AutoGate delegates the release decision, once per plan | Accepted — current release policy | 2026-09-17 |
 
 ### Withdrawn records
 

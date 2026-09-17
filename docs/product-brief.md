@@ -57,7 +57,7 @@ Berry's core loop mirrors how a team already works, extended to agents:
    product records. Run artifacts are linked as execution evidence; they do not
    replace Berry's run ledger.
 
-The inner loop (issue → agent run → in review) is autonomous up to staging; the **release gate is always human**, enforced in the tools themselves — no agent tool can set an issue to `done` or `cancelled`, and no autonomy level includes a merge tool.
+The inner loop (issue → agent run → in review) is autonomous up to staging, and the **release is a person's** — enforced in the tools themselves: no agent tool can set an issue to `done` or `cancelled`, and no autonomy level includes a merge tool. A person may delegate the timing of that decision rather than the decision: **AutoGate**, set on a plan before it runs, is consent for that plan's tasks to be released by Berry's review gate once every blocking required review has approved, and for the work each one was blocking to start. It is the difference between reviewing thirty-five tasks and starting a project. See [ADR-0016](adr/0016-autogate-delegated-release.md).
 
 ## The organization
 

@@ -1,6 +1,9 @@
 # ADR-0015: Provision every workspace with a default agent organization
 
-- **Status:** Accepted
+- **Status:** Accepted; **partially superseded by
+  [ADR-0016](0016-autogate-delegated-release.md)** — the roles, contracts,
+  autonomy ceilings and review selection all stand; what a passing set of
+  blocking reviews *does* no longer always end at a person.
 - **Date:** 2026-09-14
 - **Deciders:** Berry platform
 - **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md) (agent
@@ -50,8 +53,11 @@ the author's contract, labels, changed paths and impact class — `blocking`
 or `advisory`. QA is always blocking; Security is blocking on the `security`
 label or security paths; the Software Architect is blocking on the
 `architecture` label or paths. A Level 5 role's `submit_review` records a
-blocking review, but "your approval never releases work: a person approves
-the release" (`src/organization/prompt.ts`).
+blocking review. Whether a passing set of blocking reviews *releases* the task
+depends on the plan: without AutoGate it waits for a person, with AutoGate the
+gate closes it — see [ADR-0016](0016-autogate-delegated-release.md), which
+supersedes this ADR's "your approval never releases work" wording in
+`src/organization/prompt.ts`.
 
 **Delegation is graph-checked** (`delegate_to_agent`/`mention_agent` refused
 outside `src/organization/delegation.ts`), and discovered work is raised via

@@ -173,7 +173,10 @@ mismatch on an already-applied file makes `pnpm migrate:server` exit non-zero.
 calling agent's autonomy level (`src/organization/autonomy.ts`) — an agent's
 effective tools are its contract's `allowed_tools` intersected with its level
 ceiling. No autonomy level grants a tool that sets an issue to `done` or
-`cancelled`, and none includes a merge tool: a person always decides release.
+`cancelled`, and none includes a merge tool. The release is a person's decision;
+they may delegate *when* they make it by turning AutoGate on for a plan, which
+lets the review gate — Berry's code, not a tool — close a task its blocking
+reviewers passed (ADR-0016). No agent gains a tool either way.
 
 **A frontend page.** Add a route under `app/[orgId]/…`. Read data through
 `lib/<domain>.ts` (one-shot calls) or a Zustand store in `store/` (shared
@@ -250,7 +253,9 @@ type(scope): imperative summary (BERR-NN)
     `python3 scripts/check-no-model-in-server.py`.
   - **Frontend:** `pnpm lint` and `pnpm build:check`; the changed view was
     exercised manually.
-- Agent-delivered work always requires human review and acceptance before
-  release — an agent has no tool to set an issue `done` or `cancelled`, and
-  none can merge. A reviewer agent's approval is advisory or blocking per
-  `src/organization/catalog.ts`; it never releases work on its own.
+- Agent-delivered work is released by the person, either task by task or once
+  per plan. No agent tool can set `done`, `cancelled`, or merge. With AutoGate,
+  Berry's review gate acts on the plan-level decision: a different agent reviews
+  until it approves, then Berry merges, closes the task and starts its newly
+  unblocked dependents. Without AutoGate, reviews remain advisory or blocking
+  evidence and the task waits for a person.
