@@ -277,7 +277,7 @@ function toCatalogModel(
    const price = priceForModel(pricing, modelId);
    return {
       id,
-      displayName: entry.inferenceProfileName || id,
+      displayName: stripGeoLabel(entry.inferenceProfileName || id),
       provider: PROVIDER,
       tier: '',
       // Portkey's dataset carries prices but not context window; zero stays
@@ -314,6 +314,16 @@ export function resolveModel(
          candidate.provider === provider &&
          normalizeModelId(candidate.provider, candidate.id) === wanted
    );
+}
+
+/**
+ * Bedrock's inference profile names often lead with a geo label
+ * (`US Anthropic Claude Opus 4.5`). The picker already groups by provider, so
+ * the region prefix is noise — strip the leading `US ` (and the same for other
+ * common geo labels Bedrock uses).
+ */
+export function stripGeoLabel(name: string): string {
+   return name.replace(/^(US|EU|APAC|AP|Global)\s+/i, '');
 }
 
 /**

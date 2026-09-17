@@ -64,24 +64,36 @@ export function SettingsSection({
    description,
    action,
    children,
+   /** Match agent capability panel titles (`h3.font-medium`) instead of settings page `h2`. */
+   panel,
 }: {
    title?: string;
    description?: React.ReactNode;
    action?: React.ReactNode;
    children: React.ReactNode;
+   panel?: boolean;
 }) {
    return (
-      <section>
-         {(title || action) && (
-            <div className="flex items-end justify-between gap-4 mb-1">
-               <div>
-                  {title && <h2>{title}</h2>}
-                  {description && <p className="text-muted-foreground mt-0.5">{description}</p>}
+      <section className={panel ? 'flex flex-col gap-2' : undefined}>
+         {(title || action || (panel && description)) &&
+            (panel ? (
+               <div className="flex items-baseline gap-2">
+                  {title ? <h3 className="font-medium">{title}</h3> : null}
+                  {description ? <p className="text-muted-foreground">{description}</p> : null}
+                  {action ? <div className="ml-auto shrink-0">{action}</div> : null}
                </div>
-               {action}
-            </div>
-         )}
-         <div className="mt-3 flex flex-col gap-3">{children}</div>
+            ) : (
+               <div className="mb-1 flex items-end justify-between gap-4">
+                  <div>
+                     {title ? <h2>{title}</h2> : null}
+                     {description ? (
+                        <p className="mt-0.5 text-muted-foreground">{description}</p>
+                     ) : null}
+                  </div>
+                  {action}
+               </div>
+            ))}
+         <div className={panel ? undefined : 'mt-3 flex flex-col gap-3'}>{children}</div>
       </section>
    );
 }

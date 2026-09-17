@@ -197,6 +197,23 @@ test('a profile carries what the picker shows about it', async () => {
    assert.equal(model!.inputCostPerM, 0);
 });
 
+test('a leading US geo label is stripped from the display name', async () => {
+   const models = catalog(
+      listing([
+         {
+            inferenceProfileId: 'us.anthropic.claude-opus-4-5-20251101-v1:0',
+            inferenceProfileName: 'US Anthropic Claude Opus 4.5',
+         },
+         {
+            inferenceProfileId: 'us.openai.gpt-5.6-sol',
+            inferenceProfileName: 'US OpenAI GPT-5.6 Sol',
+         },
+      ]).client
+   );
+   const names = (await models.list()).map((model) => model.displayName).sort();
+   assert.deepEqual(names, ['Anthropic Claude Opus 4.5', 'OpenAI GPT-5.6 Sol']);
+});
+
 test('a profile with no id is dropped rather than listed as blank', async () => {
    const models = catalog(
       listing([{ inferenceProfileName: 'nameless' }, { inferenceProfileId: 'us.anthropic.x' }]).client

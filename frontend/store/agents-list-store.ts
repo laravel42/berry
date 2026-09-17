@@ -15,19 +15,10 @@ export type AgentsScope = 'all' | 'archived';
 export type AgentsSortKey = 'activity' | 'name' | 'runs' | 'created';
 
 export type AgentColumn =
-   | 'presence'
-   | 'workload'
-   | 'runtime'
-   | 'activity'
-   | 'runs'
-   | 'lastActive'
-   | 'model'
-   | 'owner'
-   | 'access';
+   'workload' | 'runtime' | 'activity' | 'runs' | 'lastActive' | 'model' | 'owner' | 'access';
 
 /** Every column the picker offers, in the order the table lays them out. */
 export const AGENT_COLUMNS: AgentColumn[] = [
-   'presence',
    'workload',
    'runtime',
    'activity',
@@ -43,14 +34,7 @@ export const AGENT_COLUMNS: AgentColumn[] = [
  * Runtime stays in the picker but off by default -- every seeded agent runs
  * on the workspace default, so the column said "Default" eighteen times.
  */
-const DEFAULT_COLUMNS: AgentColumn[] = [
-   'presence',
-   'workload',
-   'activity',
-   'runs',
-   'lastActive',
-   'model',
-];
+const DEFAULT_COLUMNS: AgentColumn[] = ['workload', 'activity', 'runs', 'lastActive', 'model'];
 
 export interface AgentFilters {
    /** A status name, or null for any. */

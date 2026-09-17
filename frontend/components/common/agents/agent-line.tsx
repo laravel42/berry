@@ -15,19 +15,14 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { colorForAgent } from '@/lib/agent-color';
 import { cn } from '@/lib/utils';
-import {
-   agentModelDisplay,
-   agentStatusDisplay,
-   useAgentAvatarSrc,
-   type Agent,
-   type AgentRoster,
-} from '@/lib/agents';
+import { agentModelDisplay, useAgentAvatarSrc, type Agent, type AgentRoster } from '@/lib/agents';
 import { agentHasRuntime, type AgentCoverage } from '@/lib/runtimes';
 import type { AgentColumn } from '@/store/agents-list-store';
 import { AgentSparkline } from './agent-sparkline';
+import { AutonomyLevelChip } from './autonomy-level-chip';
 import { agentModelName } from './model-name';
-import { PresenceDot } from './presence-dot';
 
 export interface AgentRowActions {
    onDuplicate: (agent: Agent) => void;
@@ -50,7 +45,6 @@ interface AgentLineProps {
 
 /** The widths every cell shares with its header, so the two line up. */
 export const COLUMN_WIDTH: Record<AgentColumn, string> = {
-   presence: 'w-20',
    workload: 'w-24',
    runtime: 'w-32',
    activity: 'w-24',
@@ -63,7 +57,6 @@ export const COLUMN_WIDTH: Record<AgentColumn, string> = {
 
 /** Columns that drop out before the row starts crowding the name. */
 export const COLUMN_BREAKPOINT: Partial<Record<AgentColumn, string>> = {
-   presence: 'hidden sm:flex',
    workload: 'hidden md:flex',
    runtime: 'hidden lg:flex',
    activity: 'hidden md:flex',
@@ -110,13 +103,9 @@ export default function AgentLine({
 }: AgentLineProps) {
    const { orgId } = useParams<{ orgId: string }>();
    const t = useTranslations('agentsChat.list');
-   const rosterCopy = useTranslations('agents.roster');
-   const org = useTranslations('organization');
    const format = useFormatter();
-   const status = agentStatusDisplay(agent.status);
    const model = agentModelDisplay(agent);
    const level = agent.contract?.autonomy_level ?? agent.autonomyLevel ?? null;
-   const levelKey = level === null ? null : (String(level) as '1' | '2' | '3' | '4' | '5');
    const avatarSrc = useAgentAvatarSrc(agent.avatarUrl);
    const href = `/${orgId}/agents/${agent.id}`;
    const archived = Boolean(agent.archivedAt);
@@ -147,20 +136,6 @@ export default function AgentLine({
          : agent.access?.assign === 'listed'
            ? t('accessListed')
            : t('accessEveryone');
-
-   // A presence dot is a claim about activity, and an agent that has never
-   // run has none to claim. The dot is earned by a run in flight or in the
-   // record; until then the cell says so in words.
-   const hasPresence = roster !== undefined && (roster.running > 0 || roster.totalRuns > 0);
-
-   const presenceLabel =
-      status.tone === 'online'
-         ? t('availabilityAvailable')
-         : status.tone === 'busy'
-           ? t('availabilityBusy')
-           : status.tone === 'offline'
-             ? t('availabilityOffline')
-             : t('availabilityUnknown');
 
    // The runtime cell earns a pill only when it says something: a binding to a
    // runtime other than the workspace default, a bound runtime that is not
@@ -195,7 +170,12 @@ export default function AgentLine({
                   // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
                   <img src={avatarSrc} alt="" className="size-full object-cover" />
                ) : (
-                  <BerryMark size="sm" tone="working" label={agent.name} />
+                  <BerryMark
+                     size="sm"
+                     tone="working"
+                     dotColor={colorForAgent(agent.id)}
+                     label={agent.name}
+                  />
                )}
             </span>
             <div className="min-w-0 flex-1 overflow-hidden">
@@ -205,17 +185,7 @@ export default function AgentLine({
                   <span className="min-w-0 max-w-full truncate font-medium leading-none">
                      {agent.name}
                   </span>
-                  {levelKey ? (
-                     <span
-                        title={org('levelHint')}
-                        className="shrink-0 rounded border border-border/70 px-1.5 py-px text-muted-foreground"
-                     >
-                        {org('levelChip', {
-                           level: levelKey,
-                           name: org(`levelNames.${levelKey}`),
-                        })}
-                     </span>
-                  ) : null}
+                  {level !== null ? <AutonomyLevelChip level={level} /> : null}
                </span>
                {agent.description ? (
                   // Its own line, the full width of the name column: beside
@@ -226,19 +196,6 @@ export default function AgentLine({
                ) : null}
             </div>
          </Link>
-
-         <Cell column="presence" columns={columns}>
-            {hasPresence ? (
-               <>
-                  <PresenceDot tone={status.tone} label={presenceLabel} />
-                  {status.tone === 'online' ? null : (
-                     <span className="truncate">{presenceLabel}</span>
-                  )}
-               </>
-            ) : roster ? (
-               <span className="truncate text-muted-foreground/70">{rosterCopy('neverRan')}</span>
-            ) : null}
-         </Cell>
 
          <Cell column="workload" columns={columns}>
             <span className="truncate">{workload}</span>

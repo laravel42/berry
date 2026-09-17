@@ -42,7 +42,7 @@ describe('syncPlatformRuntime', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       await sql`DELETE FROM agent_runtimes WHERE workspace_id = ${fixture!.workspaceId} AND kind = 'platform'`;
       await sql`
          INSERT INTO agent_runtimes (workspace_id, name, kind, driver, status, last_health_error)
-         VALUES (${fixture!.workspaceId}, 'Berry platform', 'platform', 'http', 'unreachable', 'the runtime answered 502')`;
+         VALUES (${fixture!.workspaceId}, 'Default', 'platform', 'http', 'unreachable', 'the runtime answered 502')`;
 
       // Scoped: test files share the database and run in parallel, and an
       // unscoped sync would rewrite, and race, every other file's workspaces.

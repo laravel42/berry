@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
@@ -106,17 +106,23 @@ function HeaderRows({
 function ServerRow({
    server,
    readOnly,
+   enabled,
+   onEnabledChange,
    onChanged,
    onRemoved,
 }: {
    server: McpServer;
    readOnly: boolean;
+   /** When set, the switch is controlled and does not write until the parent saves. */
+   enabled?: boolean;
+   onEnabledChange?: (enabled: boolean) => void;
    onChanged: (server: McpServer) => void;
    onRemoved: (id: string) => void;
 }) {
    const [replacing, setReplacing] = useState(false);
    const [rows, setRows] = useState<HeaderRow[]>([{ name: '', value: '' }]);
    const [removing, setRemoving] = useState(false);
+   const checked = enabled ?? server.enabled;
 
    const remove = async () => {
       try {
@@ -154,15 +160,19 @@ function ServerRow({
             </div>
             <div className="flex shrink-0 items-center gap-2">
                <Switch
-                  checked={server.enabled}
+                  checked={checked}
                   disabled={readOnly}
                   aria-label={`Enable ${server.name}`}
-                  onCheckedChange={(enabled) =>
+                  onCheckedChange={(next) => {
+                     if (onEnabledChange) {
+                        onEnabledChange(next);
+                        return;
+                     }
                      void patch(
-                        () => updateMcpServer(server.id, { enabled }),
-                        enabled ? 'Server enabled' : 'Server disabled'
-                     )
-                  }
+                        () => updateMcpServer(server.id, { enabled: next }),
+                        next ? 'Server enabled' : 'Server disabled'
+                     );
+                  }}
                />
                {readOnly ? null : (
                   <>
@@ -258,8 +268,7 @@ function AddServerForm({
 
    return (
       <div className="flex flex-col gap-3 rounded-md border border-border p-3">
-         <p className="font-medium">Add a server</p>
-         <div className="grid gap-2 sm:grid-cols-2">
+         <div className="grid gap-2 sm:grid-cols-3">
             <Input
                value={name}
                placeholder="name (lowercase, e.g. docs)"
@@ -272,29 +281,34 @@ function AddServerForm({
                aria-label="Server URL"
                onChange={(event) => setUrl(event.target.value)}
             />
+            <Select
+               value={transport}
+               onValueChange={(value) => setTransport(value as McpTransport)}
+            >
+               <SelectTrigger className="w-full" aria-label="Transport">
+                  <SelectValue />
+               </SelectTrigger>
+               <SelectContent>
+                  <SelectItem value="streamable_http">Streamable HTTP</SelectItem>
+                  <SelectItem value="sse">SSE</SelectItem>
+               </SelectContent>
+            </Select>
          </div>
-         <Select value={transport} onValueChange={(value) => setTransport(value as McpTransport)}>
-            <SelectTrigger className="w-60" aria-label="Transport">
-               <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-               <SelectItem value="streamable_http">Streamable HTTP</SelectItem>
-               <SelectItem value="sse">SSE</SelectItem>
-            </SelectContent>
-         </Select>
          <HeaderRows rows={rows} onChange={setRows} />
          <label className="flex items-center gap-2">
             <Switch checked={viaGateway} onCheckedChange={setViaGateway} />
             <span>Route through AgentCore Gateway</span>
          </label>
-         <Button
-            size="sm"
-            className="w-fit"
-            disabled={busy || !name.trim() || !url.trim()}
-            onClick={() => void submit()}
-         >
-            Add server
-         </Button>
+         <div className="flex flex-wrap items-center gap-2">
+            <Button
+               size="sm"
+               className="w-fit"
+               disabled={busy || !name.trim() || !url.trim()}
+               onClick={() => void submit()}
+            >
+               Add server
+            </Button>
+         </div>
       </div>
    );
 }
@@ -304,15 +318,38 @@ interface McpServerManagerProps {
    agentId: string | null;
    /** Show the list without the add, edit and remove controls. */
    readOnly?: boolean;
+   /** Section title; when set, Add server sits on the same row. */
+   title?: string;
+   /** Optional hint under the title. */
+   description?: string;
+   /**
+    * When true, enable toggles stay local until `flushEnabled` runs.
+    * Used by the agent drawer so switches participate in the unsaved bar.
+    */
+   deferEnabled?: boolean;
+   onEnabledDirtyChange?: (dirty: boolean) => void;
+   onRegisterFlushEnabled?: (flush: (() => Promise<void>) | null) => void;
 }
 
 /** A list of MCP servers with their controls; header values are write-only. */
-export function McpServerManager({ agentId, readOnly = false }: McpServerManagerProps) {
+export function McpServerManager({
+   agentId,
+   readOnly = false,
+   title,
+   description,
+   deferEnabled = false,
+   onEnabledDirtyChange,
+   onRegisterFlushEnabled,
+}: McpServerManagerProps) {
    const [servers, setServers] = useState<McpServer[] | null>(null);
    const [error, setError] = useState<string | null>(null);
+   const [adding, setAdding] = useState(true);
+   const [enabledDraft, setEnabledDraft] = useState<Record<string, boolean>>({});
 
    const load = useCallback(async () => {
-      setServers(await listMcpServers(agentId ?? 'workspace'));
+      const loaded = await listMcpServers(agentId ?? 'workspace');
+      setServers(loaded);
+      setEnabledDraft(Object.fromEntries(loaded.map((server) => [server.id, server.enabled])));
    }, [agentId]);
 
    useEffect(() => {
@@ -321,37 +358,119 @@ export function McpServerManager({ agentId, readOnly = false }: McpServerManager
       );
    }, [load]);
 
-   if (error) return <p className="text-muted-foreground">{error}</p>;
-   if (!servers) return <p className="text-muted-foreground">Loading servers…</p>;
+   const enabledDirty =
+      deferEnabled &&
+      (servers ?? []).some(
+         (server) => (enabledDraft[server.id] ?? server.enabled) !== server.enabled
+      );
+
+   const onEnabledDirtyChangeRef = useRef(onEnabledDirtyChange);
+   onEnabledDirtyChangeRef.current = onEnabledDirtyChange;
+   const onRegisterFlushEnabledRef = useRef(onRegisterFlushEnabled);
+   onRegisterFlushEnabledRef.current = onRegisterFlushEnabled;
+
+   useEffect(() => {
+      onEnabledDirtyChangeRef.current?.(enabledDirty);
+   }, [enabledDirty]);
+
+   useEffect(() => {
+      if (!deferEnabled) {
+         onRegisterFlushEnabledRef.current?.(null);
+         return;
+      }
+      const flush = async () => {
+         if (!servers) return;
+         const updates = servers.filter(
+            (server) => (enabledDraft[server.id] ?? server.enabled) !== server.enabled
+         );
+         for (const server of updates) {
+            const enabled = enabledDraft[server.id] ?? server.enabled;
+            const next = await updateMcpServer(server.id, { enabled });
+            setServers(
+               (current) => current?.map((entry) => (entry.id === next.id ? next : entry)) ?? null
+            );
+         }
+      };
+      onRegisterFlushEnabledRef.current?.(flush);
+      return () => onRegisterFlushEnabledRef.current?.(null);
+   }, [deferEnabled, enabledDraft, servers]);
 
    return (
       <div className="flex flex-col gap-3">
-         {servers.length === 0 ? (
-            <p className="text-muted-foreground">No servers yet.</p>
+         {title ? (
+            <div className="flex items-baseline gap-2">
+               <h3 className="font-medium">{title}</h3>
+               {description ? <p className="text-muted-foreground">{description}</p> : null}
+               {readOnly || adding || !servers || error ? null : (
+                  <Button
+                     size="xs"
+                     variant="secondary"
+                     className="ml-auto"
+                     onClick={() => setAdding(true)}
+                  >
+                     <Plus className="size-4" />
+                     Add server
+                  </Button>
+               )}
+            </div>
+         ) : null}
+         {error ? (
+            <p className="text-muted-foreground">{error}</p>
+         ) : !servers ? (
+            <p className="text-muted-foreground">Loading servers…</p>
          ) : (
-            <ul className="flex flex-col rounded-md border border-border">
-               {servers.map((server) => (
-                  <ServerRow
-                     key={server.id}
-                     server={server}
-                     readOnly={readOnly}
-                     onChanged={(next) =>
-                        setServers(
-                           (current) => current?.map((s) => (s.id === next.id ? next : s)) ?? null
-                        )
-                     }
-                     onRemoved={(id) =>
-                        setServers((current) => current?.filter((s) => s.id !== id) ?? null)
-                     }
+            <>
+               {servers.length > 0 ? (
+                  <ul className="flex flex-col rounded-md border border-border">
+                     {servers.map((server) => (
+                        <ServerRow
+                           key={server.id}
+                           server={server}
+                           readOnly={readOnly}
+                           enabled={
+                              deferEnabled ? (enabledDraft[server.id] ?? server.enabled) : undefined
+                           }
+                           onEnabledChange={
+                              deferEnabled
+                                 ? (enabled) =>
+                                      setEnabledDraft((current) => ({
+                                         ...current,
+                                         [server.id]: enabled,
+                                      }))
+                                 : undefined
+                           }
+                           onChanged={(next) =>
+                              setServers(
+                                 (current) =>
+                                    current?.map((s) => (s.id === next.id ? next : s)) ?? null
+                              )
+                           }
+                           onRemoved={(id) => {
+                              setServers((current) => current?.filter((s) => s.id !== id) ?? null);
+                              setEnabledDraft((current) => {
+                                 const next = { ...current };
+                                 delete next[id];
+                                 return next;
+                              });
+                           }}
+                        />
+                     ))}
+                  </ul>
+               ) : null}
+               {readOnly ? null : adding || !title ? (
+                  <AddServerForm
+                     agentId={agentId}
+                     onAdded={(server) => {
+                        setServers((current) => [...(current ?? []), server]);
+                        setEnabledDraft((current) => ({
+                           ...current,
+                           [server.id]: server.enabled,
+                        }));
+                        setAdding(false);
+                     }}
                   />
-               ))}
-            </ul>
-         )}
-         {readOnly ? null : (
-            <AddServerForm
-               agentId={agentId}
-               onAdded={(server) => setServers((current) => [...(current ?? []), server])}
-            />
+               ) : null}
+            </>
          )}
       </div>
    );
@@ -361,14 +480,11 @@ export function McpServerManager({ agentId, readOnly = false }: McpServerManager
 export default function McpServersSettings() {
    return (
       <div className="flex max-w-3xl flex-col gap-4">
-         <div>
-            <h2 className="font-medium">MCP servers</h2>
-            <p className="text-muted-foreground">
-               Servers every agent in this workspace can use. Header values are encrypted and never
-               shown again.
-            </p>
-         </div>
-         <McpServerManager agentId={null} />
+         <McpServerManager
+            agentId={null}
+            title="MCP servers"
+            description="Servers every agent in this workspace can use. Header values are encrypted and never shown again."
+         />
       </div>
    );
 }

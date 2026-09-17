@@ -58,15 +58,14 @@ export default function AgentActivityTab({
    const common = useTranslations('agentsChat.common');
    const format = useFormatter();
    const [cancelling, setCancelling] = useState<string | null>(null);
-   const [expanded, setExpanded] = useState<string | null>(null);
    const [transcript, setTranscript] = useState<string | null>(null);
 
    /**
     * A failure in the words of someone who has to decide what to do next.
     *
-    * The raw code is kept behind "details" rather than shown: `RUNTIME_5XX`
-    * tells a reader nothing they can act on, and hiding it entirely would
-    * leave the one person who can act on it with nothing to go on.
+    * The raw code stays in the transcript header rather than inline: a code
+    * like `RUNTIME_5XX` tells a reader nothing they can act on here, and the
+    * person who can act on it opens the transcript anyway.
     */
    const explain = (task: AgentTask): string => {
       const code = (task.failure?.code ?? '').toUpperCase();
@@ -103,64 +102,57 @@ export default function AgentActivityTab({
    const finished = tasks.filter((task) => task.status !== 'queued' && task.status !== 'running');
 
    return (
-      <div
-         className={
-            embedded ? 'flex max-w-4xl flex-col gap-8' : 'flex max-w-4xl flex-col gap-8 px-8 py-6'
-         }
-      >
+      <div className={embedded ? 'flex flex-col gap-8' : 'flex flex-col gap-8 px-8 py-6'}>
          <section>
             <h2 className="font-medium">{t('activityNow')}</h2>
             {active.length === 0 ? (
                <p className="mt-3 text-muted-foreground">{t('activityNoActive')}</p>
             ) : (
-               <div className="mt-3 flex flex-col gap-2">
+               <ul className="mt-3 flex flex-col rounded-md border border-border">
                   {active.map((task) => (
-                     <div
-                        key={task.id}
-                        className="flex flex-wrap items-center gap-3 rounded-lg border border-border/70 px-4 py-3"
-                     >
-                        <StatusIcon status={task.status} />
-                        <div className="min-w-0 flex-1">
-                           <p className="truncate font-medium">
-                              {task.summary?.trim() || task.id.slice(0, 8)}
-                           </p>
-                           <p className="text-muted-foreground">
-                              {/* The trigger, in the only terms the wire knows:
-                                  work that came from an issue, or from a chat. */}
-                              {t('activitySource', {
-                                 source: task.issueId ? 'issue' : 'chat',
-                              })}
-                           </p>
+                     <li key={task.id} className="border-b border-border last:border-b-0">
+                        <div className="flex flex-col gap-1 px-3 py-2.5">
+                           <div className="flex items-center gap-3">
+                              <StatusIcon status={task.status} />
+                              <p className="min-w-0 flex-1 truncate font-medium">
+                                 {task.summary?.trim() || task.id.slice(0, 8)}
+                              </p>
+                              <Button
+                                 size="xs"
+                                 variant="ghost"
+                                 className="shrink-0"
+                                 disabled={cancelling === task.id}
+                                 onClick={() => void cancel(task)}
+                              >
+                                 {t('activityCancel')}
+                              </Button>
+                           </div>
+                           <div className="flex items-center gap-3 pl-7">
+                              <p className="min-w-0 flex-1 truncate text-muted-foreground">
+                                 {t('activitySource', {
+                                    source: task.issueId ? 'issue' : 'chat',
+                                 })}
+                              </p>
+                              {task.issueId ? (
+                                 <Link
+                                    href={`/${orgId}/issue/${task.issueId}`}
+                                    className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                                 >
+                                    {t('activityOpenIssue')}
+                                 </Link>
+                              ) : null}
+                              <button
+                                 type="button"
+                                 onClick={() => setTranscript(task.id)}
+                                 className="shrink-0 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                              >
+                                 {t('activityTranscript')}
+                              </button>
+                           </div>
                         </div>
-                        {task.issueId ? (
-                           <Link
-                              href={`/${orgId}/issue/${task.issueId}`}
-                              className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                           >
-                              {t('activityOpenIssue')}
-                           </Link>
-                        ) : null}
-                        {/* The shared transcript, not a link away: reading what
-                            an agent did should not cost the reader this page. */}
-                        <button
-                           type="button"
-                           onClick={() => setTranscript(task.id)}
-                           className="shrink-0 text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                        >
-                           {t('activityTranscript')}
-                        </button>
-                        <Button
-                           size="xs"
-                           variant="ghost"
-                           className="shrink-0"
-                           disabled={cancelling === task.id}
-                           onClick={() => void cancel(task)}
-                        >
-                           {t('activityCancel')}
-                        </Button>
-                     </div>
+                     </li>
                   ))}
-               </div>
+               </ul>
             )}
          </section>
 
@@ -169,61 +161,42 @@ export default function AgentActivityTab({
             {finished.length === 0 ? (
                <p className="mt-3 text-muted-foreground">{t('activityNoRecent')}</p>
             ) : (
-               <div className="mt-3 flex flex-col">
+               <ul className="mt-3 flex flex-col rounded-md border border-border">
                   {finished.map((task) => {
                      const duration = agentTaskDurationMs(task);
                      const failed = task.status === 'failed' || task.status === 'cancelled';
                      return (
-                        <div
-                           key={task.id}
-                           className="flex flex-col gap-1 border-b border-border/60 py-3 last:border-b-0"
-                        >
-                           <div className="flex items-start gap-3">
-                              <StatusIcon status={task.status} />
-                              <div className="min-w-0 flex-1">
-                                 <p className="text-muted-foreground">
-                                    {format.relativeTime(new Date(task.createdAt))}
-                                 </p>
-                                 <p className="mt-0.5 truncate">
+                        <li key={task.id} className="border-b border-border last:border-b-0">
+                           <div className="flex flex-col gap-1 px-3 py-2.5">
+                              <div className="flex items-center gap-3">
+                                 <StatusIcon status={task.status} />
+                                 <p className="min-w-0 flex-1 truncate font-medium">
                                     {task.summary?.trim() || task.id.slice(0, 8)}
                                  </p>
-                                 {failed ? (
-                                    <p className="mt-0.5 text-muted-foreground">{explain(task)}</p>
+                                 {duration !== null ? (
+                                    <span className="shrink-0 text-muted-foreground">
+                                       {formatRunDuration(duration)}
+                                    </span>
                                  ) : null}
                               </div>
-                              <div className="shrink-0 text-right text-muted-foreground">
-                                 {duration !== null ? <p>{formatRunDuration(duration)}</p> : null}
+                              <div className="flex items-center gap-3 pl-7">
+                                 <p className="min-w-0 flex-1 truncate text-muted-foreground">
+                                    {format.relativeTime(new Date(task.createdAt))}
+                                    {failed ? ` · ${explain(task)}` : null}
+                                 </p>
                                  <button
                                     type="button"
                                     onClick={() => setTranscript(task.id)}
-                                    className="underline-offset-2 hover:text-foreground hover:underline"
+                                    className="shrink-0 font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                                  >
                                     {t('activityTranscript')}
                                  </button>
                               </div>
                            </div>
-                           {failed && task.failure?.message ? (
-                              <div className="pl-7">
-                                 <button
-                                    type="button"
-                                    onClick={() =>
-                                       setExpanded(expanded === task.id ? null : task.id)
-                                    }
-                                    className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                                 >
-                                    {t('failureDetails')}
-                                 </button>
-                                 {expanded === task.id ? (
-                                    <p className="mt-1 whitespace-pre-wrap break-words rounded-md bg-muted/30 px-3 py-2 font-mono text-muted-foreground">
-                                       {task.failure.code}: {task.failure.message}
-                                    </p>
-                                 ) : null}
-                              </div>
-                           ) : null}
-                        </div>
+                        </li>
                      );
                   })}
-               </div>
+               </ul>
             )}
             {cursor ? (
                <Button

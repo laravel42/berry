@@ -32,13 +32,7 @@ export default function AgentWorkTab({
    );
 
    return (
-      <div
-         className={
-            embedded
-               ? 'flex max-w-4xl flex-col gap-3'
-               : 'flex max-w-4xl flex-col gap-3 px-8 py-6'
-         }
-      >
+      <div className={embedded ? 'flex flex-col gap-3' : 'flex flex-col gap-3 px-8 py-6'}>
          <h2 className="font-medium">{t('workTitle')}</h2>
          {assigned.length === 0 ? (
             <p className="text-muted-foreground">{t('workEmpty')}</p>

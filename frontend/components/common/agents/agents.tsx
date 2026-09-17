@@ -301,7 +301,6 @@ export default function Agents() {
                      <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span>
                   ) : null}
                </button>
-               {header('presence', t('colPresence'), undefined, t('colPresenceHint'))}
                {header('workload', t('colWorkload'))}
                {header('runtime', t('colRuntime'))}
                {header('activity', t('colActivity'))}

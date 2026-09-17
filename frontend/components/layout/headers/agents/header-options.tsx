@@ -74,7 +74,6 @@ export default function HeaderOptions() {
    };
 
    const columnLabel: Record<AgentColumn, string> = {
-      presence: t('colPresence'),
       workload: t('colWorkload'),
       runtime: t('colRuntime'),
       activity: t('colActivity'),

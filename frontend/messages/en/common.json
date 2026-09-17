@@ -1,6 +1,19 @@
 {
    "loading": "Loading…",
    "retry": "Try again",
+   "agentPicker": {
+      "add": "Add agent",
+      "remove": "Remove {name}",
+      "search": "Search agents",
+      "empty": "No agents match that.",
+      "none": "None"
+   },
+   "unsavedBar": {
+      "unsaved": "Unsaved: {what}",
+      "discard": "Discard",
+      "save": "Save",
+      "saving": "Saving…"
+   },
    "confirm": {
       "cancel": "Cancel",
       "remove": "Remove",

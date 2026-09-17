@@ -376,6 +376,10 @@ export async function syncPlatformRuntime(
    const onlyWorkspace = scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``;
    await sql`
       UPDATE agent_runtimes
+         SET name = 'Default', updated_at = now()
+       WHERE kind = 'platform' AND name = 'Berry platform' ${onlyRow}`;
+   await sql`
+      UPDATE agent_runtimes
          SET driver = ${target.driver}, qualifier = ${target.qualifier}, region = ${target.region},
              last_health_at = NULL, last_health_error = NULL,
              status = CASE WHEN status = 'disabled' THEN status ELSE 'active' END,
@@ -385,7 +389,7 @@ export async function syncPlatformRuntime(
               OR region IS DISTINCT FROM ${target.region})`;
    await sql`
       INSERT INTO agent_runtimes (workspace_id, name, kind, driver, qualifier, region, is_default)
-      SELECT w.id, 'Berry platform', 'platform', ${target.driver}, ${target.qualifier}, ${target.region},
+      SELECT w.id, 'Default', 'platform', ${target.driver}, ${target.qualifier}, ${target.region},
              NOT EXISTS (SELECT 1 FROM agent_runtimes d WHERE d.workspace_id = w.id AND d.is_default)
         FROM workspaces AS w
        WHERE NOT EXISTS (SELECT 1 FROM agent_runtimes p WHERE p.workspace_id = w.id AND p.kind = 'platform')

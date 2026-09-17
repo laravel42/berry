@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { apiBlob, apiFetch, BerryApiError } from './api';
 import { connectionSchema } from './api-schemas';
 import { toUiUser } from './catalog';
-import { roleContractSchema } from './organization';
+import { roleContractSchema, type RoleContract } from './organization';
 
 const agentSchema = z.object({
    id: z.string(),
@@ -315,6 +315,20 @@ export async function updateAgentConfig(
       method: 'PUT',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(config),
+   });
+   const parsed = agentSchema.safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Agent response was not recognized');
+   }
+   return parsed.data;
+}
+
+/** Writes a role agent's full contract. Marks the role customized vs the catalog. */
+export async function updateAgentContract(agentId: string, contract: RoleContract): Promise<Agent> {
+   const json: unknown = await apiFetch(`/api/v1/agents/${encodeURIComponent(agentId)}/contract`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(contract),
    });
    const parsed = agentSchema.safeParse(json);
    if (!parsed.success) {

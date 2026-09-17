@@ -140,7 +140,7 @@ describe('/api/v1/runtimes', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
    test('a platform runtime cannot be removed', async () => {
       const [platform] = await sql`
          INSERT INTO agent_runtimes (workspace_id, name, kind, driver)
-         VALUES (${mine!.workspaceId}, 'Berry platform', 'platform', 'http') RETURNING id`;
+         VALUES (${mine!.workspaceId}, 'Default', 'platform', 'http') RETURNING id`;
       const response = await call(`/${platform!.id as string}`, { method: 'DELETE' });
       assert.equal(response.status, 409);
    });

@@ -21,7 +21,7 @@ import {
 } from '@/lib/runs';
 import { formatCost, formatTokens } from '@/lib/usage';
 import { cn } from '@/lib/utils';
-import { ArrowDownToLine, Check, Copy, Search } from 'lucide-react';
+import { Check, Copy, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -427,6 +427,11 @@ export function RunTranscriptDialog({
                <DialogDescription>
                   {t('subtitle', { agent: agentName ?? '—', status: status || run?.status || '—' })}
                </DialogDescription>
+               {run?.failure ? (
+                  <p className="mt-2 whitespace-pre-wrap break-words font-mono text-muted-foreground">
+                     {run.failure.code}: {run.failure.message}
+                  </p>
+               ) : null}
             </DialogHeader>
 
             <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
@@ -482,19 +487,6 @@ export function RunTranscriptDialog({
                      </Button>
                   ))}
                </div>
-
-               <Button
-                  variant={following ? 'secondary' : 'ghost'}
-                  size="xs"
-                  aria-pressed={following}
-                  onClick={() => {
-                     setFollowing(true);
-                     scroller.current?.scrollTo({ top: 0 });
-                  }}
-               >
-                  <ArrowDownToLine className="mr-1 size-3.5" />
-                  {following ? t('following') : t('follow')}
-               </Button>
             </div>
 
             {/* tabIndex so the arrows, PageUp/PageDown and Home/End reach the
