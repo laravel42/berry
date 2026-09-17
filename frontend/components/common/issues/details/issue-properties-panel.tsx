@@ -20,6 +20,7 @@ import { IssueDetailsSection } from './issue-details-section';
 import { IssueLabelPicker } from './issue-label-picker';
 import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
+import { IssueProjectProperty } from './issue-project-property';
 import { IssueQuickActions } from './issue-quick-actions';
 import {
    IssueApprovalSection,
@@ -28,6 +29,7 @@ import {
 } from './issue-relations';
 import { Section } from './panel-section';
 import { ReviewerProperty } from './reviewer-property';
+import { IssueUsageSection } from '@/components/common/usage/issue-usage-section';
 
 interface IssuePropertiesPanelProps {
    issue: Issue;
@@ -79,7 +81,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto">
+         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto">
             <Section title={t('title')}>
                <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
@@ -96,12 +98,21 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                      <span className="min-w-0 truncate">{issue.priority.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                     <div className="flex size-7 shrink-0 items-center justify-center">
-                        <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} />
-                     </div>
-                     <span className="min-w-0 truncate">
-                        {issue.assignee ? issue.assignee.name : t('assign')}
-                     </span>
+                     {issue.assignee ? (
+                        <AssigneeUser
+                           user={issue.assignee}
+                           issueId={issue.id}
+                           monogram={false}
+                           showName
+                        />
+                     ) : (
+                        <>
+                           <div className="flex size-7 shrink-0 items-center justify-center">
+                              <AssigneeUser user={null} issueId={issue.id} monogram={false} />
+                           </div>
+                           <span className="min-w-0 truncate">{t('assign')}</span>
+                        </>
+                     )}
                   </div>
                   <ReviewerProperty issueRef={issue.identifier} />
 
@@ -117,10 +128,10 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                      <button
                         type="button"
                         className={cn(
-                           'h-7 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                           'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
                            dueLabel
-                              ? 'tabular-nums hover:bg-accent/40'
-                              : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground hover:text-foreground'
+                              ? 'h-7 tabular-nums hover:bg-accent/40'
+                              : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground'
                         )}
                         onClick={openDuePicker}
                      >
@@ -135,26 +146,19 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                         className="sr-only"
                      />
                   </div>
+
+                  <IssueProjectProperty issue={issue} />
+                  {issue.project && detail.milestone ? (
+                     <div className="flex items-center gap-2 pl-9 text-muted-foreground">
+                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
+                        <span className="truncate">{detail.milestone}</span>
+                     </div>
+                  ) : null}
                </div>
             </Section>
 
             <IssueLabelPicker issueRef={issue.identifier} />
             <IssueCustomProperties issueRef={issue.identifier} />
-
-            {issue.project && (
-               <Section title={t('project')}>
-                  <div className="flex items-center gap-2">
-                     <issue.project.icon className="size-4 shrink-0 text-muted-foreground" />
-                     <span className="truncate">{issue.project.name}</span>
-                  </div>
-                  {detail.milestone && (
-                     <div className="mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground">
-                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
-                        <span className="truncate">{detail.milestone}</span>
-                     </div>
-                  )}
-               </Section>
-            )}
 
             <IssueParentSection issue={issue} />
             <IssueQuickActions issueRef={issue.identifier} />
@@ -198,6 +202,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
             )}
 
             <IssueDetailsSection issue={issue} />
+            <IssueUsageSection issueId={issue.id} />
          </div>
       </div>
    );

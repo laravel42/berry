@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
+import { CATALOG } from '../organization/catalog.ts';
 import { skillsFromPack } from './skill-pack.ts';
 
 const PACK = join(dirname(fileURLToPath(import.meta.url)), 'data', 'berry-agentcore-deep-skills-100.zip');
@@ -59,6 +60,18 @@ test('the committed pack is 100 named skills with instructions', () => {
    assert.equal(discovery?.description, 'Use for a new product/feature idea before solution commitment.');
    assert.equal(discovery?.labels[0], 'Product Lead');
    assert.ok(discovery?.content.includes('When to use'));
+});
+
+test('every pack skill label matches a catalog role agent name', () => {
+   const skills = skillsFromPack(readFileSync(PACK));
+   const catalogNames = new Set(CATALOG.map((role) => role.name));
+   const packRoles = new Set(skills.map((skill) => skill.labels[0]!));
+   for (const role of packRoles) {
+      assert.ok(catalogNames.has(role), `pack role "${role}" has no catalog agent`);
+   }
+   // The Orchestrator has no pack skills; capability seeding covers it.
+   assert.ok(catalogNames.has('Orchestrator'));
+   assert.equal(packRoles.has('Orchestrator'), false);
 });
 
 test('a wrapped pack is split on the manifest, not treated as one skill', () => {

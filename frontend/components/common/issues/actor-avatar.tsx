@@ -4,6 +4,7 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Issue } from '@/data/issues';
 import type { User } from '@/data/users';
+import { colorForAgent } from '@/lib/agent-color';
 import { isTerminalRunStatus, type RunRecord } from '@/lib/runs';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
@@ -119,6 +120,7 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
    const mark = useAgentMonogram(user.name);
 
    if (isAgentUser(user)) {
+      const dotColor = colorForAgent(user.id);
       return (
          <span
             className={cn('inline-flex shrink-0 items-center gap-1 text-actor-agent', className)}
@@ -126,15 +128,16 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
          >
             <span
                className={cn(
-                  'inline-flex shrink-0 items-center justify-center rounded-full bg-actor-agent/10',
+                  'inline-flex shrink-0 items-center justify-center rounded-full',
                   BOX[size]
                )}
+               style={{ backgroundColor: `color-mix(in oklab, ${dotColor} 12%, transparent)` }}
             >
                <BerryMark
                   size="sm"
                   tone="working"
+                  dotColor={dotColor}
                   bracketClassName="text-actor-agent"
-                  className="[&_circle]:text-actor-agent"
                   label={`${user.name}, ${t('agent')}`}
                />
             </span>
@@ -212,6 +215,7 @@ export function ActorLiveMark({
    const agent = useAgentsStore((state) => state.getAgentById(run.agentId));
    const name = agent?.name ?? fallbackName ?? t('agent');
    const label = run.status === 'queued' ? t('queuedBy', { name }) : t('workingBy', { name });
+   const dotColor = colorForAgent(run.agentId);
 
    return (
       <span
@@ -222,8 +226,9 @@ export function ActorLiveMark({
          <BerryMark
             size="sm"
             tone="working"
+            dotColor={dotColor}
             bracketClassName="text-actor-agent"
-            className="[&_circle]:text-actor-agent [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none"
+            className="[animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none"
          />
          <span className="sr-only">{t('working')}</span>
       </span>

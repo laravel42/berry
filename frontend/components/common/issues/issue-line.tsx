@@ -25,7 +25,11 @@ import { WORKSPACE_SLUG } from '@/lib/config';
 interface IssueLineProps {
    issue: Issue;
    layoutId?: boolean;
-   /** Ids of the rows around this one, so a shift-click knows what "between" means. */
+   /**
+    * Ids of the rows around this one, so a shift-click knows what "between"
+    * means. Passing them also turns the selection checkbox on — drawer and
+    * overview lists leave this off, since bulk select belongs on the board.
+    */
    order?: string[];
    /**
     * List views that move tasks between groups wrap a DndProvider; read-only
@@ -33,6 +37,8 @@ interface IssueLineProps {
     * unless asked for.
     */
    draggable?: boolean;
+   /** Off on surfaces that already name the project (goal work, project tasks). */
+   showProject?: boolean;
 }
 
 /**
@@ -51,6 +57,7 @@ function IssueLineView({
    issue,
    layoutId = false,
    order = [],
+   showProject = true,
    rowRef,
    isDragging,
 }: IssueLineProps & {
@@ -77,7 +84,9 @@ function IssueLineView({
                )}
             >
                <div className={cn('flex items-center gap-0.5', CONTROL)}>
-                  <SelectionCheckbox issueId={issue.id} order={order} className="mr-1.5" />
+                  {order.length > 0 ? (
+                     <SelectionCheckbox issueId={issue.id} order={order} className="mr-1.5" />
+                  ) : null}
                   {displayProperties.priority && (
                      <PrioritySelector priority={issue.priority} issueId={issue.id} />
                   )}
@@ -102,15 +111,15 @@ function IssueLineView({
                   onClick={(event) => {
                      if (isDragging) event.preventDefault();
                   }}
-                  className="mr-1 ml-1 flex min-w-0 items-center justify-start gap-1.5 outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                  className="mr-1 ml-1 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                >
                   {liveRun ? (
                      <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
                   ) : null}
-                  <span className="truncate font-normal">{issue.title}</span>
+                  <span className="min-w-0 truncate font-normal">{issue.title}</span>
                   <span className="sr-only"> {issue.identifier}</span>
                </Link>
-               <div className="ml-auto flex items-center justify-end gap-2 sm:w-fit">
+               <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:w-fit">
                   <div className="w-3 shrink-0"></div>
                   <div
                      className={cn(
@@ -119,7 +128,7 @@ function IssueLineView({
                      )}
                   >
                      {displayProperties.labels && <LabelBadge label={issue.labels} />}
-                     {displayProperties.project && issue.project && (
+                     {showProject && displayProperties.project && issue.project && (
                         <ProjectBadge project={issue.project} />
                      )}
                   </div>
@@ -134,8 +143,13 @@ function IssueLineView({
                      </span>
                   )}
                   {displayProperties.assignee && (
-                     <span className={cn('flex items-center', CONTROL)}>
-                        <AssigneeUser user={issue.assignee} issueId={issue.id} />
+                     <span className={cn('flex max-w-[14rem] min-w-0 items-center', CONTROL)}>
+                        <AssigneeUser
+                           user={issue.assignee}
+                           issueId={issue.id}
+                           monogram={false}
+                           showName
+                        />
                      </span>
                   )}
                </div>
@@ -146,7 +160,12 @@ function IssueLineView({
    );
 }
 
-function DraggableIssueLine({ issue, layoutId = false, order = [] }: IssueLineProps) {
+function DraggableIssueLine({
+   issue,
+   layoutId = false,
+   order = [],
+   showProject = true,
+}: IssueLineProps) {
    const rowRef = useRef<HTMLDivElement>(null);
 
    // Rows drag for the same reason cards do: on the list layout, moving a task
@@ -166,6 +185,7 @@ function DraggableIssueLine({ issue, layoutId = false, order = [] }: IssueLinePr
          issue={issue}
          layoutId={layoutId}
          order={order}
+         showProject={showProject}
          rowRef={rowRef}
          isDragging={isDragging}
       />
@@ -177,15 +197,24 @@ export function IssueLine({
    layoutId = false,
    order = [],
    draggable = false,
+   showProject = true,
 }: IssueLineProps) {
    if (draggable) {
-      return <DraggableIssueLine issue={issue} layoutId={layoutId} order={order} />;
+      return (
+         <DraggableIssueLine
+            issue={issue}
+            layoutId={layoutId}
+            order={order}
+            showProject={showProject}
+         />
+      );
    }
    return (
       <IssueLineView
          issue={issue}
          layoutId={layoutId}
          order={order}
+         showProject={showProject}
          rowRef={null}
          isDragging={false}
       />

@@ -17,6 +17,7 @@ interface ProjectsState {
    updateProjectTargetDate: (id: string, targetDate: string | undefined) => void;
    updateProjectLead: (id: string, lead: User) => void;
    updateProjectHealth: (id: string, healthId: Project['health']['id']) => void;
+   updateProjectDescription: (id: string, description: string) => void;
    deleteProject: (id: string) => void;
    getProjectById: (id: string) => Project | undefined;
 }
@@ -38,7 +39,11 @@ function leadFromSession(): User {
    );
 }
 
-function persistPatch(projectId: string, body: ProjectPatchBody, optimistic: Partial<Project>): void {
+function persistPatch(
+   projectId: string,
+   body: ProjectPatchBody,
+   optimistic: Partial<Project>
+): void {
    useProjectsStore.getState().updateProject(projectId, optimistic);
    void patchWorkspaceProject(projectId, body, leadFromSession()).then((updated) => {
       if (updated) {
@@ -89,6 +94,10 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
    updateProjectHealth: (id, healthId) => {
       const next = health.find((item) => item.id === healthId);
       if (next) get().updateProject(id, { health: next });
+   },
+
+   updateProjectDescription: (id, description) => {
+      persistPatch(id, { description: description || null }, { description });
    },
 
    getProjectById: (id) => get().projects.find((project) => project.id === id),

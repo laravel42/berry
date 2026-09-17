@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { colorForAgent } from '@/lib/agent-color';
 import {
    ContextMenuContent,
    ContextMenuGroup,
@@ -103,7 +104,12 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   ))}
                   {agentPeople.map((agent) => (
                      <ContextMenuItem key={agent.id} onClick={() => actions.setAssignee(agent.id)}>
-                        <BerryMark size="sm" tone="working" label={`${agent.name}, agent`} />
+                        <BerryMark
+                           size="sm"
+                           tone="working"
+                           dotColor={colorForAgent(agent.id)}
+                           label={`${agent.name}, agent`}
+                        />
                         {agent.name}
                      </ContextMenuItem>
                   ))}

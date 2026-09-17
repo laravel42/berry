@@ -18,7 +18,8 @@ import { useMembersStore } from '@/store/members-store';
 import { CheckIcon, Send, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
-import { ActorAvatar } from './actor-avatar';
+import { ActorAvatar, ActorName } from './actor-avatar';
+import { cn } from '@/lib/utils';
 
 /**
  * The assignee control of a row, a card and the properties panel.
@@ -39,6 +40,8 @@ interface AssigneeUserProps {
    issueId?: string;
    /** Off where the full name is printed beside the control, as in the properties panel. */
    monogram?: boolean;
+   /** Print the assignee's name inside the trigger so avatar and name are one control. */
+   showName?: boolean;
 }
 
 function AssigneePlaceholder() {
@@ -67,7 +70,12 @@ function AssigneeItem({
    );
 }
 
-export function AssigneeUser({ user, issueId, monogram = true }: AssigneeUserProps) {
+export function AssigneeUser({
+   user,
+   issueId,
+   monogram = true,
+   showName = false,
+}: AssigneeUserProps) {
    const t = useTranslations('issueLists.assignee');
    const [open, setOpen] = useState(false);
    const [query, setQuery] = useState('');
@@ -122,21 +130,33 @@ export function AssigneeUser({ user, issueId, monogram = true }: AssigneeUserPro
                aria-label={
                   currentAssignee ? t('assigned', { name: currentAssignee.name }) : t('unassigned')
                }
-               className="relative flex w-fit items-center rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+               className={cn(
+                  'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  showName ? 'max-w-full' : 'w-fit'
+               )}
             >
                {currentAssignee ? (
-                  <ActorAvatar user={currentAssignee} monogram={monogram} />
+                  <>
+                     <span className="relative shrink-0">
+                        <ActorAvatar user={currentAssignee} monogram={monogram} />
+                        {currentAssignee.role !== 'Application' ? (
+                           <span
+                              className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
+                              style={{
+                                 backgroundColor: statusUserColors[currentAssignee.status],
+                              }}
+                           >
+                              <span className="sr-only">{currentAssignee.status}</span>
+                           </span>
+                        ) : null}
+                     </span>
+                     {showName ? (
+                        <ActorName user={currentAssignee} className="min-w-0 truncate" />
+                     ) : null}
+                  </>
                ) : (
                   <AssigneePlaceholder />
                )}
-               {currentAssignee && currentAssignee.role !== 'Application' ? (
-                  <span
-                     className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
-                     style={{ backgroundColor: statusUserColors[currentAssignee.status] }}
-                  >
-                     <span className="sr-only">{currentAssignee.status}</span>
-                  </span>
-               ) : null}
             </button>
          </PopoverTrigger>
          <PopoverContent align="start" className="w-[240px] p-0">

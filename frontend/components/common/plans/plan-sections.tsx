@@ -1,6 +1,6 @@
 'use client';
 
-import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
+import { BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import { uiPriorityFromApi } from '@/lib/catalog';
 import {
@@ -57,10 +57,13 @@ export function SectionHeading({ title, count }: { title: string; count?: number
    );
 }
 
-const CONFIDENCE_TONE: Record<PlanAssumption['confidence'], BerryMarkTone> = {
-   high: 'complete',
-   medium: 'neutral',
-   low: 'attention',
+const CONFIDENCE_TONE: Record<
+   PlanAssumption['confidence'],
+   { mark: 'complete' | 'neutral' | 'attention'; pill: PillTone }
+> = {
+   high: { mark: 'complete', pill: 'complete' },
+   medium: { mark: 'neutral', pill: 'neutral' },
+   low: { mark: 'attention', pill: 'attention' },
 };
 
 /** What the planner decided without being told. Read-only until P6 makes rows editable. */
@@ -70,26 +73,29 @@ export function PlanAssumptions({ assumptions }: { assumptions: PlanAssumption[]
       <section className="mt-6">
          <SectionHeading title="Assumptions" count={assumptions.length} />
          <ul className="mt-2 space-y-1.5">
-            {assumptions.map((assumption) => (
-               <li key={assumption.id} className="flex items-start gap-2">
-                  <BerryMark
-                     size="sm"
-                     tone={
-                        assumption.blocking ? 'attention' : CONFIDENCE_TONE[assumption.confidence]
-                     }
-                     state={assumption.blocking ? 'hollow' : 'solid'}
-                     className="mt-1"
-                  />
-                  <div className="min-w-0 flex-1">
-                     <p className="leading-6">{assumption.description}</p>
-                     <p className="text-muted-foreground">
-                        {assumption.blocking
-                           ? 'needs an answer'
-                           : `${assumption.confidence} confidence`}
-                     </p>
-                  </div>
-               </li>
-            ))}
+            {assumptions.map((assumption) => {
+               const tone = CONFIDENCE_TONE[assumption.confidence];
+               return (
+                  <li key={assumption.id} className="flex items-start gap-2">
+                     <BerryMark
+                        size="sm"
+                        tone={assumption.blocking ? 'attention' : tone.mark}
+                        state={assumption.blocking ? 'hollow' : 'solid'}
+                        className="mt-1"
+                     />
+                     <div className="min-w-0 flex-1">
+                        <p className="leading-6">{assumption.description}</p>
+                        <div className="mt-1">
+                           {assumption.blocking ? (
+                              <Pill tone="attention">needs an answer</Pill>
+                           ) : (
+                              <Pill tone={tone.pill}>{assumption.confidence} confidence</Pill>
+                           )}
+                        </div>
+                     </div>
+                  </li>
+               );
+            })}
          </ul>
       </section>
    );
@@ -140,8 +146,7 @@ export function PlanConnections({
          </ul>
          {missing && (
             <p className="mt-2 text-muted-foreground">
-               The plan can start without them; a task that needs one waits until it is
-               connected.
+               The plan can start without them; a task that needs one waits until it is connected.
             </p>
          )}
       </section>
@@ -161,7 +166,12 @@ export function PlanIssues({ plan }: { plan: Plan }) {
    if (plan.issues.length === 0) return null;
    const titleOf = new Map(plan.issues.map((issue) => [issue.tempId, issue.title]));
 
-   const groups: Array<{ key: string; title: string | null; description: string | null; issues: typeof plan.issues }> =
+   const groups: Array<{
+      key: string;
+      title: string | null;
+      description: string | null;
+      issues: typeof plan.issues;
+   }> =
       plan.milestones.length > 0
          ? plan.milestones.map((milestone) => ({
               key: milestone.tempId,
@@ -180,10 +190,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
 
    return (
       <section className="mt-8">
-         <SectionHeading
-            title="Work"
-            count={plan.issues.length}
-         />
+         <SectionHeading title="Work" count={plan.issues.length} />
          {plan.milestones.length > 1 && (
             <p className="mt-1 text-muted-foreground">
                {plan.milestones.length} milestones, each a goal on the board once the plan starts.
@@ -195,7 +202,9 @@ export function PlanIssues({ plan }: { plan: Plan }) {
                   <div className="mb-2">
                      <h4 className="font-medium">
                         {group.title}
-                        <span className="ml-1.5 text-muted-foreground">· {group.issues.length}</span>
+                        <span className="ml-1.5 text-muted-foreground">
+                           · {group.issues.length}
+                        </span>
                      </h4>
                      {group.description && (
                         <p className="mt-0.5 whitespace-pre-line text-muted-foreground">
@@ -300,8 +309,7 @@ export function PlanApprovals({ plan }: { plan: Plan }) {
                            <p className="mt-1 text-muted-foreground">{approval.description}</p>
                         )}
                         <p className="mt-1 text-muted-foreground">
-                           gates{' '}
-                           {targetName(approval.target.kind, approval.target.tempId)}
+                           gates {targetName(approval.target.kind, approval.target.tempId)}
                            {' · '}
                            {approver}
                            {' · '}

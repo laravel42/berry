@@ -1,9 +1,10 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { AgentPicker } from '@/components/common/agents/agent-multiselect';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -15,14 +16,6 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-   Command,
-   CommandGroup,
-   CommandInput,
-   CommandItem,
-   CommandList,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
@@ -52,6 +45,14 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
    const t = useTranslations('areas.skills');
    const [progress, setProgress] = useState<Progressing | null>(null);
    const [confirming, setConfirming] = useState(false);
+
+   const agentOptions = useMemo(
+      () =>
+         agents
+            .map((agent) => ({ id: agent.id, label: agent.name }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+      [agents]
+   );
 
    if (selected.length === 0) return null;
    const refreshable = selected.filter((skill) => skill.source.kind === 'github');
@@ -86,7 +87,9 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
       onChanged();
    };
 
-   const addToAgent = (agent: Agent) =>
+   const addToAgent = (agentId: string) => {
+      const agent = agents.find((entry) => entry.id === agentId);
+      if (!agent) return;
       void walk(
          selected,
          (skill) => setSkillForAgent(skill.id, agent.id, true),
@@ -95,6 +98,7 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
             onClear();
          }
       );
+   };
 
    const update = () =>
       void walk(
@@ -127,31 +131,20 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
             </span>
          ) : (
             <>
-               <Popover>
-                  <PopoverTrigger asChild>
+               <AgentPicker
+                  options={agentOptions}
+                  value={null}
+                  multiple={false}
+                  searchPlaceholder={t('filters.searchAgents')}
+                  onChange={(next) => {
+                     if (typeof next === 'string') addToAgent(next);
+                  }}
+                  trigger={
                      <Button size="xs" variant="secondary">
                         {t('bulk.addToAgents')}
                      </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-60 p-0" align="start">
-                     <Command>
-                        <CommandInput placeholder={t('filters.searchAgents')} />
-                        <CommandList>
-                           <CommandGroup>
-                              {agents.map((agent) => (
-                                 <CommandItem
-                                    key={agent.id}
-                                    value={agent.name}
-                                    onSelect={() => addToAgent(agent)}
-                                 >
-                                    {agent.name}
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  </PopoverContent>
-               </Popover>
+                  }
+               />
 
                <Button
                   size="xs"

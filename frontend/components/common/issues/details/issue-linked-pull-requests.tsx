@@ -134,11 +134,11 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
    if (!visible || pullRequests.length === 0) return null;
 
    return (
-      <section className="flex flex-col gap-2">
-         <h2 data-heading="label" className="pb-[7px] text-muted-foreground">
+      <section className="flex flex-col gap-1">
+         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
             {t('title')}
          </h2>
-         <ul className="flex flex-col gap-2">
+         <ul className="flex flex-col gap-1">
             {pullRequests.map((pr) => (
                <li key={pr.id} className="min-w-0">
                   <a

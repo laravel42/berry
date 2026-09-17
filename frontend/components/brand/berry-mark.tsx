@@ -25,6 +25,8 @@ const sizeClasses = {
 
 interface BerryMarkProps extends Omit<ComponentProps<'svg'>, 'children'> {
    bracketClassName?: string;
+   /** Overrides the tone colour on the centre dot (and its pulse ring). */
+   dotColor?: string;
    label?: string;
    pulse?: boolean;
    size?: keyof typeof sizeClasses;
@@ -35,6 +37,7 @@ interface BerryMarkProps extends Omit<ComponentProps<'svg'>, 'children'> {
 export function BerryMark({
    bracketClassName,
    className,
+   dotColor,
    label,
    pulse = false,
    size = 'md',
@@ -45,6 +48,8 @@ export function BerryMark({
    const accessibility = label
       ? { 'role': 'img', 'aria-label': label }
       : { 'aria-hidden': true as const };
+   const dotStyle = dotColor ? { color: dotColor } : undefined;
+   const dotTone = dotColor ? undefined : toneClasses[tone];
 
    return (
       <svg
@@ -66,7 +71,8 @@ export function BerryMark({
          {state === 'crossed' ? (
             <path
                d="M24 24L40 40M40 24L24 40"
-               className={toneClasses[tone]}
+               className={dotTone}
+               style={dotStyle}
                stroke="currentColor"
                strokeWidth="6"
                strokeLinecap="butt"
@@ -80,9 +86,10 @@ export function BerryMark({
                      r="14"
                      className={cn(
                         'origin-center fill-none stroke-current',
-                        toneClasses[tone],
+                        dotTone,
                         'animate-[berry-working_2s_ease-in-out_infinite]'
                      )}
+                     style={dotStyle}
                      strokeWidth="3"
                   />
                )}
@@ -93,9 +100,10 @@ export function BerryMark({
                   className={cn(
                      'origin-center stroke-current',
                      state === 'hollow' ? 'fill-none' : 'fill-current',
-                     toneClasses[tone],
+                     dotTone,
                      pulse && 'animate-[berry-working_2s_ease-in-out_infinite]'
                   )}
+                  style={dotStyle}
                   strokeWidth={state === 'hollow' ? 4 : 0}
                />
             </>

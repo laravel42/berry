@@ -41,12 +41,12 @@ export function LeadSelector({ lead, members, onLeadChange }: LeadSelectorProps)
    };
 
    return (
-      <div>
+      <div className="min-w-0 max-w-full">
          <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                <Button
                   id={id}
-                  className="flex h-7 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                  className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
                   size="sm"
                   variant="ghost"
                   role="combobox"
@@ -57,14 +57,16 @@ export function LeadSelector({ lead, members, onLeadChange }: LeadSelectorProps)
                      if (selectedUser) {
                         return (
                            <>
-                              <Avatar className="size-5 mr-1">
+                              <Avatar className="size-5 mr-1 shrink-0">
                                  <AvatarImage
                                     src={selectedUser.avatarUrl}
                                     alt={selectedUser.name}
                                  />
                                  <AvatarFallback>{selectedUser.name.charAt(0)}</AvatarFallback>
                               </Avatar>
-                              <span className="hidden md:inline">{selectedUser.name}</span>
+                              <span className="hidden min-w-0 truncate md:inline">
+                                 {selectedUser.name}
+                              </span>
                            </>
                         );
                      }

@@ -1,5 +1,6 @@
 'use client';
 
+import { AgentPicker } from '@/components/common/agents/agent-multiselect';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -35,6 +36,7 @@ import {
    type QuickAction,
 } from '@/lib/quick-actions';
 import { useSessionStore } from '@/store/session-store';
+import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -86,6 +88,13 @@ export default function QuickActionsSettings() {
    const active = useMemo(() => all.filter((entry) => !entry.archivedAt), [all]);
    const archived = useMemo(() => all.filter((entry) => entry.archivedAt), [all]);
 
+   const agentOptions = useMemo(
+      () =>
+         agents
+            .map((agent) => ({ id: agent.id, label: agent.name }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+      [agents]
+   );
    const badVariables = useMemo(() => unfillableVariables(prompt), [prompt]);
    const chosenAgent = agents.find((agent) => agent.id === agentId);
    // A shared action pointing at an agent only some people may start is a
@@ -205,18 +214,22 @@ export default function QuickActionsSettings() {
                   value={name}
                   onChange={(event) => setName(event.target.value)}
                />
-               <Select value={agentId} onValueChange={setAgentId}>
-                  <SelectTrigger className="w-48">
-                     <SelectValue placeholder={t('agent')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                     {agents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.id}>
-                           {agent.name}
-                        </SelectItem>
-                     ))}
-                  </SelectContent>
-               </Select>
+               <AgentPicker
+                  options={agentOptions}
+                  value={agentId || null}
+                  multiple={false}
+                  onChange={(next) => setAgentId(typeof next === 'string' ? next : '')}
+                  trigger={
+                     <Button
+                        type="button"
+                        variant="outline"
+                        className="w-48 justify-between font-normal"
+                     >
+                        <span className="truncate">{chosenAgent?.name ?? t('agent')}</span>
+                        <ChevronDown className="size-4 shrink-0 opacity-60" />
+                     </Button>
+                  }
+               />
                <Select
                   value={visibility}
                   onValueChange={(value) => setVisibility(value as 'private' | 'workspace')}

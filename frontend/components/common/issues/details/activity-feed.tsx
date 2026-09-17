@@ -2,6 +2,7 @@
 
 import { useShortcut } from '@/components/layout/shortcut-provider';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
 import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
@@ -161,7 +162,12 @@ function EventRow({ item }: { item: EventItem }) {
       <div className="flex items-center gap-2.5 py-1.5 text-muted-foreground">
          <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
             {item.actor.role === 'Application' ? (
-               <BerryMark size="sm" tone="working" label={`${item.actor.name}, agent`} />
+               <BerryMark
+                  size="sm"
+                  tone="working"
+                  dotColor={colorForAgent(item.actor.id)}
+                  label={`${item.actor.name}, agent`}
+               />
             ) : (
                (EVENT_ICONS[item.event] ?? <CircleDot className="size-3.5" />)
             )}
@@ -276,6 +282,7 @@ function InlineRun({
                size="sm"
                tone="working"
                pulse={live}
+               dotColor={colorForAgent(run.agentId)}
                bracketClassName="text-chalk"
                label={name}
             />

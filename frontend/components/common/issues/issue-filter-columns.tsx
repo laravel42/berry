@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { colorForAgent } from '@/lib/agent-color';
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import { dateFilterOperators } from '@/components/data-table-filter/core/operators';
 import type { ColumnOption, FiltersState } from '@/components/data-table-filter/core/types';
@@ -77,7 +78,12 @@ function personOption(person: User): ColumnOption {
       label: person.name,
       icon:
          person.role === 'Application' ? (
-            <BerryMark size="sm" tone="working" label={`${person.name}, agent`} />
+            <BerryMark
+               size="sm"
+               tone="working"
+               dotColor={colorForAgent(person.id)}
+               label={`${person.name}, agent`}
+            />
          ) : (
             <Avatar className="size-4">
                <AvatarImage src={person.avatarUrl} alt={person.name} />

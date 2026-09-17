@@ -39,14 +39,7 @@ import { useMembersStore } from '@/store/members-store';
 import { selectOpenReviewForIssue, useReviewsStore } from '@/store/reviews-store';
 import { useSessionStore } from '@/store/session-store';
 import { formatDistanceToNow, parseISO } from 'date-fns';
-import {
-   ChevronDown,
-   ChevronRight,
-   GitPullRequestArrow,
-   RotateCcw,
-   ScrollText,
-   X,
-} from 'lucide-react';
+import { GitPullRequestArrow, RotateCcw, ScrollText, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -60,8 +53,8 @@ import { toast } from 'sonner';
  * of everything else and only once. What an operator asks of a task with six
  * runs behind it is a different question — which of these is still going, what
  * started each one, who asked, and why did that one stop — and that is a list,
- * ordered by relevance rather than by time: whatever is running now, then the
- * history behind a fold.
+ * ordered by relevance rather than by time: whatever is running now, then every
+ * finished run below it.
  */
 
 function statusTone(status: RunRecord['status']): string {
@@ -127,10 +120,9 @@ function RunRow({
          : t(`trigger.${runTriggerKey(run.source)}` as 'trigger.assignment');
    const asker = run.requestedBy ? getMemberById(run.requestedBy.id)?.name : undefined;
    const duration = runDurationMs(run);
+   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt);
+   const live = !isTerminalRunStatus(run.status);
 
-   // The plain-language part. A failure code is what the server knows; what a
-   // reader needs is the sentence, and a cancelled run needs one too because
-   // "cancelled" alone reads like something went wrong.
    const reason =
       run.status === 'failed'
          ? t('reasonFailed', { reason: run.failure?.message || t('reasonUnknown') })
@@ -139,38 +131,78 @@ function RunRow({
            : null;
 
    return (
-      <li className="flex flex-col gap-1 border-b border-border/50 py-2 last:border-b-0">
-         <div className="flex min-w-0 items-center gap-2">
-            <span className={cn('shrink-0 capitalize', statusTone(run.status))}>{run.status}</span>
-            <span className="min-w-0 truncate text-actor-agent">
-               {agent?.name ?? t('trigger.assignment')}
-            </span>
+      <li
+         className="flex items-center gap-2 py-0.5 text-muted-foreground"
+         title={reason ?? undefined}
+      >
+         <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
+            <BerryMark
+               size="sm"
+               tone={markTone(run.status)}
+               pulse={live}
+               label={agent?.name ?? t('trigger.assignment')}
+            />
+         </span>
+         <span className="min-w-0 flex-1 truncate">
+            <span className={cn('capitalize', statusTone(run.status))}>{run.status}</span>
+            <span aria-hidden> · </span>
+            <span className="text-actor-agent">{agent?.name ?? t('trigger.assignment')}</span>
+            <span aria-hidden> · </span>
+            <span>{trigger}</span>
+            <span aria-hidden> · </span>
+            <span>{asker ? t('by', { name: asker }) : t('bySystem')}</span>
             {duration !== null ? (
-               <span className="shrink-0 text-muted-foreground">{formatRunDuration(duration)}</span>
+               <>
+                  <span aria-hidden> · </span>
+                  <span>{formatRunDuration(duration)}</span>
+               </>
             ) : null}
-         </div>
-         <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-muted-foreground">
-            <span className="rounded bg-accent px-1.5">{trigger}</span>
-            <span className="truncate">{asker ? t('by', { name: asker }) : t('bySystem')}</span>
-         </div>
-         {reason ? <p className="text-muted-foreground">{reason}</p> : null}
-         <div className="flex flex-wrap items-center gap-1">
-            <Button variant="ghost" size="xs" onClick={() => onTranscript(run)}>
-               <ScrollText className="mr-1 size-3.5" aria-hidden />
-               {t('transcript')}
+            <span aria-hidden> · </span>
+            <span>{when}</span>
+            {reason ? (
+               <>
+                  <span aria-hidden> · </span>
+                  <span>{reason}</span>
+               </>
+            ) : null}
+         </span>
+         <span className="ml-auto flex shrink-0 items-center">
+            <Button
+               variant="ghost"
+               size="xxs"
+               className="size-6 px-0"
+               title={t('transcript')}
+               onClick={() => onTranscript(run)}
+            >
+               <ScrollText className="size-3.5" aria-hidden />
+               <span className="sr-only">{t('transcript')}</span>
             </Button>
             {isTerminalRunStatus(run.status) ? (
-               <Button variant="ghost" size="xs" disabled={busy} onClick={() => onRetry(run)}>
-                  <RotateCcw className="mr-1 size-3.5" aria-hidden />
-                  {t('retry')}
+               <Button
+                  variant="ghost"
+                  size="xxs"
+                  className="size-6 px-0"
+                  disabled={busy}
+                  title={t('retry')}
+                  onClick={() => onRetry(run)}
+               >
+                  <RotateCcw className="size-3.5" aria-hidden />
+                  <span className="sr-only">{t('retry')}</span>
                </Button>
             ) : (
-               <Button variant="ghost" size="xs" disabled={busy} onClick={() => onCancel(run)}>
-                  <X className="mr-1 size-3.5" aria-hidden />
-                  {t('cancel')}
+               <Button
+                  variant="ghost"
+                  size="xxs"
+                  className="size-6 px-0"
+                  disabled={busy}
+                  title={t('cancel')}
+                  onClick={() => onCancel(run)}
+               >
+                  <X className="size-3.5" aria-hidden />
+                  <span className="sr-only">{t('cancel')}</span>
                </Button>
             )}
-         </div>
+         </span>
       </li>
    );
 }
@@ -179,15 +211,14 @@ const reviewsLinkClass =
    'inline-flex h-7 items-center rounded-sm underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 /**
- * The latest finished run, unfolded, while the task waits on a person — and
- * the decision itself.
+ * The latest finished run, highlighted, while the task waits on a person —
+ * and the decision itself.
  *
  * In review is the moment someone opens the task to decide, and the one fact
  * they need — did the agent deliver, when, and where is the pull request —
- * should not sit behind "1 past run". Nor should the decision sit on another
- * page: once the open review queue has this task, its decision bar is here,
- * with the same rules and the same confirm as Reviews. Until the queue has
- * loaded, or when it does not list this task, only the link to Reviews shows.
+ * sits above the rest of the log. The decision bar is here too, with the same
+ * rules and the same confirm as Reviews. Until the queue has loaded, or when
+ * it does not list this task, only the link to Reviews shows.
  */
 function LatestOutcome({
    run,
@@ -252,7 +283,7 @@ function LatestOutcome({
    );
 
    return (
-      <div className="mb-2 flex flex-col gap-1 rounded-sm border border-border/60 bg-container px-3 py-2">
+      <div className="mb-1.5 flex flex-col gap-1 rounded-sm border border-border/60 bg-container px-3 py-2">
          <div className="flex min-w-0 items-start gap-2">
             <BerryMark
                size="sm"
@@ -309,7 +340,7 @@ export function ExecutionLog({
    issueId: string;
    /** The task key, for the pull request lookup on the outcome line. */
    issueRef?: string;
-   /** In review: the latest run's outcome is shown without opening the fold. */
+   /** In review: the latest run's outcome is highlighted above the past list. */
    inReview?: boolean;
    /** Every run on this task; the section decides what to show and in what order. */
    runs: RunRecord[];
@@ -319,7 +350,6 @@ export function ExecutionLog({
    const tReviews = useTranslations('reviews');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const updateIssue = useIssuesStore((state) => state.updateIssue);
-   const [showPast, setShowPast] = useState(false);
    const [confirming, setConfirming] = useState<RunRecord | null>(null);
    const [busy, setBusy] = useState(false);
    const [transcript, setTranscript] = useState<RunRecord | null>(null);
@@ -331,6 +361,7 @@ export function ExecutionLog({
 
    const { active, past } = useMemo(() => orderRunsForLog(runs), [runs]);
    const latest = inReview && active.length === 0 ? (past[0] ?? null) : null;
+   const older = latest ? past.slice(1) : past;
 
    // The decision already went through the API; the page reflects it at once
    // rather than waiting for the stream, and the outcome line stays put after
@@ -369,13 +400,13 @@ export function ExecutionLog({
 
    return (
       <section>
-         <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
+         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
             {t('title')}
          </h2>
          {decided ? (
             <div
                role="status"
-               className="mb-2 flex items-center gap-2 rounded-sm border border-border/60 bg-muted/50 px-3 py-2"
+               className="mb-1.5 flex items-center gap-2 rounded-sm border border-border/60 bg-muted/50 px-3 py-2"
             >
                <BerryMark
                   size="sm"
@@ -396,8 +427,8 @@ export function ExecutionLog({
             <>
                {active.length > 0 ? (
                   <>
-                     <div className="mb-1 text-muted-foreground">{t('active')}</div>
-                     <ul className="mb-2 flex flex-col">
+                     <div className="mb-0.5 text-muted-foreground">{t('active')}</div>
+                     <ul className="mb-1.5 flex flex-col">
                         {active.map((run) => (
                            <RunRow
                               key={run.id}
@@ -422,37 +453,26 @@ export function ExecutionLog({
                   />
                ) : null}
 
-               {past.length > 0 ? (
+               {older.length > 0 ? (
                   <>
-                     <Button
-                        variant="ghost"
-                        size="xs"
-                        className="-ml-2 text-muted-foreground"
-                        aria-expanded={showPast}
-                        onClick={() => setShowPast((value) => !value)}
-                     >
-                        {showPast ? (
-                           <ChevronDown className="mr-1 size-3.5" aria-hidden />
-                        ) : (
-                           <ChevronRight className="mr-1 size-3.5" aria-hidden />
-                        )}
-                        {showPast ? t('hidePast') : t('pastCount', { count: past.length })}
-                     </Button>
-                     {showPast ? (
-                        <ul className="flex flex-col">
-                           {past.map((run) => (
-                              <RunRow
-                                 key={run.id}
-                                 run={run}
-                                 all={runs}
-                                 busy={busy}
-                                 onCancel={setConfirming}
-                                 onRetry={(target) => void doRetry(target)}
-                                 onTranscript={setTranscript}
-                              />
-                           ))}
-                        </ul>
+                     {active.length > 0 || latest ? (
+                        <div className="mb-0.5 text-muted-foreground">
+                           {t('pastCount', { count: older.length })}
+                        </div>
                      ) : null}
+                     <ul className="flex flex-col">
+                        {older.map((run) => (
+                           <RunRow
+                              key={run.id}
+                              run={run}
+                              all={runs}
+                              busy={busy}
+                              onCancel={setConfirming}
+                              onRetry={(target) => void doRetry(target)}
+                              onTranscript={setTranscript}
+                           />
+                        ))}
+                     </ul>
                   </>
                ) : null}
             </>

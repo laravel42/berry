@@ -11,7 +11,6 @@ import {
    Calendar,
    CalendarPlus,
    ChevronRight,
-   Plus,
    Star,
    Tag,
    UserPlus,
@@ -119,12 +118,7 @@ export function ProjectPeekPanel({ projectId, onClose }: ProjectPeekPanelProps) 
 
          {/* Properties */}
          <Card>
-            <div className="flex items-center justify-between mb-1.5">
-               <h3 className="font-medium">Properties</h3>
-               <button className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Plus className="size-3.5" />
-               </button>
-            </div>
+            <h3 className="mb-1.5 font-medium">Properties</h3>
             <div className="flex flex-col">
                <PropertyRow label="Status">
                   <project.status.icon />
@@ -208,12 +202,7 @@ export function ProjectPeekPanel({ projectId, onClose }: ProjectPeekPanelProps) 
 
          {/* Milestones */}
          <Card>
-            <div className="flex items-center justify-between mb-2">
-               <h3 className="font-medium">Milestones</h3>
-               <button className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Plus className="size-3.5" />
-               </button>
-            </div>
+            <h3 className="mb-2 font-medium">Milestones</h3>
             {detail.milestones.length === 0 ? (
                <p className="text-muted-foreground">
                   Add milestones to organize work within your project and break it into more

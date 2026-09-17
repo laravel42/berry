@@ -147,13 +147,7 @@ function SkillsScreen() {
                header={<SkillDetailHeader skillId={view} />}
                onClose={() => open(null)}
             >
-               <SkillDetail
-                  key={view}
-                  skillId={view}
-                  canEdit={canEdit}
-                  onChanged={reload}
-                  onClose={() => open(null)}
-               />
+               <SkillDetail key={view} skillId={view} canEdit={canEdit} onChanged={reload} />
             </DetailDrawerShell>
          ) : null}
          <NewSkillDialog

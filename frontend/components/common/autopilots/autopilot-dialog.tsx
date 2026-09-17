@@ -1,10 +1,11 @@
 'use client';
 
-import { X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 
+import { AgentPicker } from '@/components/common/agents/agent-multiselect';
 import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
 import { Button } from '@/components/ui/button';
 import {
@@ -164,6 +165,16 @@ export default function AutopilotDialog({
 
    const runnableAgents = agents.filter((agent) => agentHasRuntime(coverage, agent.id));
    const hidden = agents.length - runnableAgents.length;
+   const agentOptions = useMemo(
+      () =>
+         runnableAgents
+            .map((agent) => ({ id: agent.id, label: agent.name }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+      [runnableAgents]
+   );
+   const assigneeName =
+      runnableAgents.find((agent) => agent.id === draft.assigneeId)?.name ??
+      agents.find((agent) => agent.id === draft.assigneeId)?.name;
 
    const ready =
       draft.name.trim() !== '' &&
@@ -266,21 +277,24 @@ export default function AutopilotDialog({
 
                <div className="grid gap-2">
                   <Label>{t('assignee')}</Label>
-                  <Select
-                     value={draft.assigneeId}
-                     onValueChange={(value) => set('assigneeId', value)}
-                  >
-                     <SelectTrigger>
-                        <SelectValue placeholder={t('chooseAssignee')} />
-                     </SelectTrigger>
-                     <SelectContent>
-                        {runnableAgents.map((entry) => (
-                           <SelectItem key={entry.id} value={entry.id}>
-                              {entry.name}
-                           </SelectItem>
-                        ))}
-                     </SelectContent>
-                  </Select>
+                  <AgentPicker
+                     options={agentOptions}
+                     value={draft.assigneeId || null}
+                     multiple={false}
+                     onChange={(next) => {
+                        if (typeof next === 'string') set('assigneeId', next);
+                     }}
+                     trigger={
+                        <Button
+                           type="button"
+                           variant="outline"
+                           className="w-full justify-between font-normal"
+                        >
+                           <span className="truncate">{assigneeName ?? t('chooseAssignee')}</span>
+                           <ChevronDown className="size-4 shrink-0 opacity-60" />
+                        </Button>
+                     }
+                  />
                   {draft.assigneeType === 'agent' && hidden > 0 ? (
                      <p className="text-muted-foreground">
                         {t('noRuntimeHint', { count: hidden })}

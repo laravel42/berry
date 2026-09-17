@@ -34,7 +34,7 @@ export function ProjectTasksSection({ issues }: { issues: Issue[] }) {
                      </div>
                      <div className="overflow-hidden rounded-md border border-border/45">
                         {statusIssues.map((issue) => (
-                           <IssueLine key={issue.id} issue={issue} />
+                           <IssueLine key={issue.id} issue={issue} showProject={false} />
                         ))}
                      </div>
                   </div>

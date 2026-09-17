@@ -109,7 +109,7 @@ function WorkSection({ refs, orgId }: { refs: GoalIssueRef[]; orgId: string }) {
             <div className="mt-2 overflow-hidden rounded-md border border-border/60 bg-background">
                {refs.map((ref) => {
                   const issue = issues.find((candidate) => candidate.id === ref.id);
-                  if (issue) return <IssueLine key={ref.id} issue={issue} />;
+                  if (issue) return <IssueLine key={ref.id} issue={issue} showProject={false} />;
                   const status = uiStatusFromApi(ref.status);
                   return (
                      <Link
@@ -322,7 +322,7 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
             </div>
          </div>
 
-         <aside className="hidden h-full w-[221px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside className="hidden h-full w-[292px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
             <Properties goal={goal} />
          </aside>
       </div>

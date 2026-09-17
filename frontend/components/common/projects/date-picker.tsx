@@ -33,16 +33,18 @@ export function DatePicker({ date, onDateChange }: DatePickerProps) {
          <PopoverTrigger asChild>
             <Button
                variant="ghost"
-               className="h-7 justify-start px-2 text-left font-normal has-[>svg]:px-2"
+               className="h-7 w-full min-w-0 justify-start px-2 text-left font-normal has-[>svg]:px-2"
                size="sm"
             >
-               <CalendarIcon className="h-4 w-4 md:mr-0.5" />
+               <CalendarIcon className="h-4 w-4 shrink-0 md:mr-0.5" />
                {selectedDate ? (
-                  <span className="hidden xl:inline mt-[1px]">
-                     {format(selectedDate, 'MMM dd, yyyy')}
+                  <span className="mt-[1px] hidden min-w-0 truncate xl:inline">
+                     {format(selectedDate, 'MMM d')}
                   </span>
                ) : (
-                  <span className="text-muted-foreground hidden xl:inline mt-[1px]">No date</span>
+                  <span className="mt-[1px] hidden min-w-0 truncate text-muted-foreground xl:inline">
+                     No date
+                  </span>
                )}
             </Button>
          </PopoverTrigger>

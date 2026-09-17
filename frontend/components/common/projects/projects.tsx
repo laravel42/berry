@@ -24,6 +24,7 @@ import { ProjectsDisplayOptions } from './projects-display-options';
 import ProjectsInsightsPanel from './projects-insights-panel';
 import ProjectsList from './projects-list';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
+import { TimelineScaleControls } from './timeline-scale-controls';
 import ProjectsTimeline from './projects-timeline';
 
 export interface ProjectGroup {
@@ -227,6 +228,7 @@ export default function Projects() {
                onChange={(event) => setQuery(event.target.value)}
             />
             <div className="ml-auto flex items-center gap-1">
+               {viewType === 'timeline' && <TimelineScaleControls />}
                <Filter />
                <ProjectsDisplayOptions />
                <Button

@@ -2,17 +2,15 @@
 
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { Project } from '@/data/projects';
-import { useProjectsDisplayStore } from '@/store/projects-display-store';
+import {
+   TIMELINE_ZOOM_LEVELS,
+   type TimelineZoom,
+   useProjectsDisplayStore,
+} from '@/store/projects-display-store';
 import { format, parseISO } from 'date-fns';
-import { ArrowLeft, ArrowRight, Check, ChevronDown, Plus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ProjectPeekPanel } from './project-peek-panel';
 import { ProjectGroup } from './projects';
@@ -27,17 +25,15 @@ const RANGE_END = Date.UTC(2032, 11, 31);
 /** Width of the sticky project list column. */
 const LIST_WIDTH = 224;
 
-/** Zoom levels for the scale dropdown (month column width in px). */
-const ZOOM_LEVELS = [
-   { id: 'year', label: 'Year', shortcut: 'Y', monthWidth: 120 },
-   { id: 'quarter', label: 'Quarter', shortcut: 'Q', monthWidth: 240 },
-   { id: 'month', label: 'Month', shortcut: 'M', monthWidth: 480 },
-   { id: 'week', label: 'Week', shortcut: 'W', monthWidth: 960 },
-] as const;
-type TimelineZoom = (typeof ZOOM_LEVELS)[number]['id'];
+/** Month column width in px for each zoom level. */
+const MONTH_WIDTH: Record<TimelineZoom, number> = {
+   year: 120,
+   quarter: 240,
+   month: 480,
+   week: 960,
+};
 
-const monthWidthOf = (zoom: TimelineZoom) =>
-   ZOOM_LEVELS.find((level) => level.id === zoom)!.monthWidth;
+const monthWidthOf = (zoom: TimelineZoom) => MONTH_WIDTH[zoom];
 
 interface MonthCell {
    key: string;
@@ -215,16 +211,20 @@ function TimelineBar({
  * Projects "Timeline" view (the default): month scale, grouped rows,
  * date-positioned bars and a Today marker. The left project list, week
  * numbers and bar contents follow the Display options; the scale dropdown
- * (Year / Quarter / Month / Week, with Y/Q/M/W shortcuts) changes the zoom.
+ * (Year / Quarter / Month / Week, with Y/Q/M/W shortcuts) lives in the
+ * filter bar and changes the zoom.
  */
 export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
    const { showProjectList, showWeekNumbers, displayProperties } = useProjectsDisplayStore();
+   const zoom = useProjectsDisplayStore((state) => state.timelineZoom);
+   const setTimelineZoom = useProjectsDisplayStore((state) => state.setTimelineZoom);
+   const todayJumpId = useProjectsDisplayStore((state) => state.todayJumpId);
    const [todayIso, setTodayIso] = useState<string | null>(null);
    const [viewport, setViewport] = useState<Viewport | null>(null);
-   const [zoom, setZoom] = useState<TimelineZoom>('year');
    const [peekProjectId, setPeekProjectId] = useState<string | null>(null);
    const scrollRef = useRef<HTMLDivElement>(null);
    const frameRef = useRef<number | null>(null);
+   const skipTodayJump = useRef(true);
 
    const monthWidth = monthWidthOf(zoom);
    const totalWidth = totalWidthOf(monthWidth);
@@ -250,13 +250,40 @@ export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
       });
    }, [syncViewport]);
 
+   const jumpTo = useCallback(
+      (contentX: number) => {
+         if (!scrollRef.current) return;
+         const anchor = Math.max(scrollRef.current.clientWidth / 3, listOffset + 80);
+         scrollRef.current.scrollTo({
+            left: Math.max(0, contentX - anchor),
+            behavior: 'smooth',
+         });
+      },
+      [listOffset]
+   );
+
+   const scrollToToday = useCallback(() => {
+      if (scrollRef.current && todayOffset !== null) {
+         // Land today clear of the sticky project list, so on small screens
+         // the line never ends up hidden behind it.
+         const anchor = Math.max(scrollRef.current.clientWidth / 3, listOffset + 80);
+         scrollRef.current.scrollTo({
+            left: Math.max(0, todayOffset - anchor),
+            behavior: 'smooth',
+         });
+      }
+   }, [todayOffset, listOffset]);
+
    useEffect(() => {
       const iso = new Date().toISOString().slice(0, 10);
       setTodayIso(iso);
       // Bring today into view on mount (a third from the left edge, but always
       // clear of the sticky project list so the line stays visible).
       if (scrollRef.current) {
-         const offset = offsetFor(iso, monthWidthOf('year'));
+         const offset = offsetFor(
+            iso,
+            monthWidthOf(useProjectsDisplayStore.getState().timelineZoom)
+         );
          const listWidth = useProjectsDisplayStore.getState().showProjectList ? LIST_WIDTH : 0;
          const anchor = Math.max(scrollRef.current.clientWidth / 3, listWidth + 80);
          scrollRef.current.scrollLeft = Math.max(0, offset - anchor);
@@ -268,23 +295,21 @@ export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
    }, [syncViewport]);
 
    /** Change zoom while keeping the date at the middle of the viewport anchored. */
-   const setZoomLevel = useCallback(
-      (next: TimelineZoom) => {
-         if (next === zoom) return;
-         const element = scrollRef.current;
-         setZoom(next);
-         if (element) {
-            const previousWidth = totalWidthOf(monthWidthOf(zoom));
-            const nextWidth = totalWidthOf(monthWidthOf(next));
-            const anchor = (element.scrollLeft + element.clientWidth / 2) / previousWidth;
-            requestAnimationFrame(() => {
-               element.scrollLeft = anchor * nextWidth - element.clientWidth / 2;
-               syncViewport();
-            });
-         }
-      },
-      [zoom, syncViewport]
-   );
+   const previousZoom = useRef(zoom);
+   useEffect(() => {
+      if (previousZoom.current === zoom) return;
+      const previous = previousZoom.current;
+      previousZoom.current = zoom;
+      const element = scrollRef.current;
+      if (!element) return;
+      const previousWidth = totalWidthOf(monthWidthOf(previous));
+      const nextWidth = totalWidthOf(monthWidthOf(zoom));
+      const anchor = (element.scrollLeft + element.clientWidth / 2) / previousWidth;
+      requestAnimationFrame(() => {
+         element.scrollLeft = anchor * nextWidth - element.clientWidth / 2;
+         syncViewport();
+      });
+   }, [zoom, syncViewport]);
 
    // Y / Q / M / W keyboard shortcuts (ignored while typing).
    useEffect(() => {
@@ -299,73 +324,28 @@ export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
          ) {
             return;
          }
-         const level = ZOOM_LEVELS.find(
+         const level = TIMELINE_ZOOM_LEVELS.find(
             (candidate) => candidate.shortcut.toLowerCase() === event.key.toLowerCase()
          );
-         if (level) setZoomLevel(level.id);
+         if (level) setTimelineZoom(level.id);
       };
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-   }, [setZoomLevel]);
+   }, [setTimelineZoom]);
 
-   const jumpTo = useCallback(
-      (contentX: number) => {
-         if (!scrollRef.current) return;
-         const anchor = Math.max(scrollRef.current.clientWidth / 3, listOffset + 80);
-         scrollRef.current.scrollTo({
-            left: Math.max(0, contentX - anchor),
-            behavior: 'smooth',
-         });
-      },
-      [listOffset]
-   );
-
-   const scrollToToday = () => {
-      if (scrollRef.current && todayOffset !== null) {
-         // Land today clear of the sticky project list, so on small screens
-         // the line never ends up hidden behind it.
-         const anchor = Math.max(scrollRef.current.clientWidth / 3, listOffset + 80);
-         scrollRef.current.scrollTo({
-            left: Math.max(0, todayOffset - anchor),
-            behavior: 'smooth',
-         });
+   useEffect(() => {
+      if (skipTodayJump.current) {
+         skipTodayJump.current = false;
+         return;
       }
-   };
+      scrollToToday();
+   }, [todayJumpId, scrollToToday]);
 
    return (
       <div className="relative w-full h-full">
          {peekProjectId !== null && (
             <ProjectPeekPanel projectId={peekProjectId} onClose={() => setPeekProjectId(null)} />
          )}
-         {/* Floating scale controls (Linear-style) */}
-         <div className="absolute top-1 right-4 z-30 flex items-center gap-1.5">
-            <button
-               type="button"
-               onClick={scrollToToday}
-               className="h-7 px-2.5 rounded-md border bg-container font-medium hover:bg-accent transition-colors shadow-xs"
-            >
-               Today
-            </button>
-            <DropdownMenu>
-               <DropdownMenuTrigger className="h-7 px-2.5 rounded-md border bg-container font-medium hover:bg-accent transition-colors shadow-xs inline-flex items-center gap-1 outline-none">
-                  {ZOOM_LEVELS.find((level) => level.id === zoom)!.label}
-                  <ChevronDown className="size-3 text-muted-foreground" />
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end" className="w-40">
-                  {ZOOM_LEVELS.map((level) => (
-                     <DropdownMenuItem
-                        key={level.id}
-                        onClick={() => setZoomLevel(level.id)}
-                        className="flex items-center gap-2"
-                     >
-                        <span className="flex-1">{level.label}</span>
-                        {zoom === level.id && <Check className="size-3.5" />}
-                        <span className="text-muted-foreground">{level.shortcut}</span>
-                     </DropdownMenuItem>
-                  ))}
-               </DropdownMenuContent>
-            </DropdownMenu>
-         </div>
 
          <div ref={scrollRef} onScroll={handleScroll} className="w-full h-full overflow-auto">
             <div style={{ width: totalWidth }} className="relative min-h-full">

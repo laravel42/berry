@@ -2,8 +2,9 @@
 
 import { ArrowUpDown, Check, ChevronRight, Columns3, ListFilter } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { AgentCommandItems } from '@/components/common/agents/agent-multiselect';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -16,7 +17,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Agent } from '@/lib/agents';
 
-export const SKILL_COLUMNS = ['agents', 'files', 'creator', 'updated'] as const;
+export const SKILL_COLUMNS = ['labels', 'agents', 'files', 'creator', 'updated'] as const;
 export type SkillColumn = (typeof SKILL_COLUMNS)[number];
 
 export const SKILL_SORTS = ['name', 'updated', 'usage'] as const;
@@ -67,6 +68,13 @@ export default function SkillsFilters({ criteria, onChange, agents, creators }: 
    const [open, setOpen] = useState(false);
    const [pane, setPane] = useState<Pane>(null);
    const count = activeFilterCount(criteria);
+   const agentOptions = useMemo(
+      () =>
+         agents
+            .map((agent) => ({ id: agent.id, label: agent.name }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+      [agents]
+   );
 
    const set = (patch: Partial<SkillCriteria>) => onChange({ ...criteria, ...patch });
    const back = (
@@ -85,11 +93,7 @@ export default function SkillsFilters({ criteria, onChange, agents, creators }: 
             }}
          >
             <PopoverTrigger asChild>
-               <Button
-                  size="xs"
-                  variant="outline"
-                  className="relative border-muted-foreground/15"
-               >
+               <Button size="xs" variant="outline" className="relative border-muted-foreground/15">
                   <ListFilter className="mr-1 size-4" />
                   {t('filters.button')}
                   {count > 0 ? (
@@ -199,19 +203,11 @@ export default function SkillsFilters({ criteria, onChange, agents, creators }: 
                               {t('filters.anyAgent')}
                               {criteria.agentId === null ? <Check className="size-4" /> : null}
                            </CommandItem>
-                           {agents.map((agent) => (
-                              <CommandItem
-                                 key={agent.id}
-                                 value={agent.name}
-                                 onSelect={() => set({ agentId: agent.id })}
-                                 className="justify-between"
-                              >
-                                 {agent.name}
-                                 {criteria.agentId === agent.id ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                           ))}
+                           <AgentCommandItems
+                              options={agentOptions}
+                              value={criteria.agentId}
+                              onSelect={(id) => set({ agentId: id })}
+                           />
                         </CommandGroup>
                      </CommandList>
                   </Command>

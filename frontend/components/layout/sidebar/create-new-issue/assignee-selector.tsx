@@ -1,6 +1,7 @@
 'use client';
 
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
+import { AutonomyLevelChip } from '@/components/common/agents/autonomy-level-chip';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -65,7 +66,6 @@ export function AssigneeSelector({
    placeholder,
 }: AssigneeSelectorProps) {
    const t = useTranslations('issueLists.assignee');
-   const org = useTranslations('organization');
    const id = useId();
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string | null>(assignee?.id || null);
@@ -108,16 +108,7 @@ export function AssigneeSelector({
 
    const levelChip = (agent: Agent) => {
       const level = agent.contract?.autonomy_level ?? agent.autonomyLevel ?? null;
-      if (level === null) return null;
-      const key = String(level) as '1' | '2' | '3' | '4' | '5';
-      return (
-         <span
-            className="shrink-0 rounded border border-border/70 px-1.5 py-px text-muted-foreground"
-            title={org('levelHint')}
-         >
-            {org('levelChip', { level: key, name: org(`levelNames.${key}`) })}
-         </span>
-      );
+      return <AutonomyLevelChip level={level} />;
    };
 
    const item = (person: User) => {

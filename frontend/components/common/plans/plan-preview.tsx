@@ -35,6 +35,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { readableModelName } from '@/components/common/agents/model-name';
 import { PlanStatusBadge } from './plan-status-badge';
 import { PlanApprovals, PlanAssumptions, PlanConnections, PlanIssues, Pill } from './plan-sections';
 import {
@@ -468,7 +469,10 @@ function PlanProperties({ record }: { record: PlanRecord }) {
       },
       { label: 'Confidence', value: confidence ?? '—' },
       { label: 'Version', value: record.version > 0 ? `v${record.version}` : '—' },
-      { label: 'Planner', value: record.plannerVersion ?? '—' },
+      {
+         label: 'Planner',
+         value: record.plannerVersion ? readableModelName(record.plannerVersion) : '—',
+      },
       { label: 'Project', value: project?.name ?? (projectId ? 'Unknown project' : 'None') },
       { label: 'Created', value: whenText(record.createdAt) },
    ];

@@ -5,7 +5,6 @@ import { Status } from '@/data/status';
 import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
-import { GripVertical } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -34,24 +33,24 @@ type IssueGridProps = {
 
 function IssueDragPreview({ issue }: { issue: Issue }) {
    return (
-      <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void p-2 text-chalk shadow-lg">
-         <div className="mb-1.5 flex items-center justify-between gap-2">
-            <span className="text-subtle-foreground">{issue.identifier}</span>
-            <AssigneeUser user={issue.assignee} issueId={issue.id} />
+      <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
+         <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
+            <PrioritySelector priority={issue.priority} issueId={issue.id} />
+            <span className="min-w-0 truncate text-subtle-foreground">{issue.identifier}</span>
+            <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+               {format(new Date(issue.createdAt), 'MMM dd')}
+            </span>
          </div>
          {/* Plain text, not a heading: the ghost is a transient copy of the
              card that only exists mid-drag, so it has nothing to contribute to
              the document outline. */}
          <div className="mb-2 line-clamp-2 font-medium">{issue.title}</div>
-         <div className="flex flex-wrap gap-1 mb-2 min-h-[1.25rem]">
+         <div className="mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
             <LabelBadge label={issue.labels} />
             {issue.project && <ProjectBadge project={issue.project} />}
          </div>
-         <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-            <span className="text-muted-foreground">
-               {format(new Date(issue.createdAt), 'MMM dd')}
-            </span>
-            <PrioritySelector priority={issue.priority} issueId={issue.id} />
+         <div className="mt-auto flex min-w-0 justify-end pt-1">
+            <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} showName />
          </div>
       </div>
    );
@@ -180,7 +179,7 @@ export function IssueGrid({
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group relative w-full cursor-grab rounded-lg bg-void p-2 pl-1.5 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative w-full cursor-grab rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
                      /* Not the themed `--border`, which would turn near-white on a
                         card that stays dark in both themes. `--board-card-line` is
                         the column behind it lifted a step, so the edge reads as a
@@ -196,93 +195,69 @@ export function IssueGrid({
                   )}
                   style={{ opacity: isDragging ? 0.45 : 1 }}
                >
-                  <div className="flex gap-1.5">
-                     <div
-                        className="mt-0.5 flex h-5 w-3.5 shrink-0 items-start justify-center text-muted-foreground"
-                        aria-hidden
-                     >
-                        <GripVertical className="size-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
-                     </div>
-                     <div className="min-w-0 flex-1">
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                           {/* The key never wraps; the assignee's name is what
-                               gives way when the two meet. */}
-                           <span className="flex shrink-0 items-center gap-1.5">
-                              {liveRun ? (
-                                 <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
-                              ) : null}
-                              {displayProperties.id ? (
-                                 <span className="whitespace-nowrap text-subtle-foreground">
-                                    {issue.identifier}
-                                 </span>
-                              ) : null}
+                  <div className="min-w-0">
+                     <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
+                        {displayProperties.priority ? (
+                           <span className="relative z-[1] flex shrink-0 items-center">
+                              <PrioritySelector priority={issue.priority} issueId={issue.id} />
                            </span>
-                           {displayProperties.assignee ? (
-                              <span className="relative z-[1] flex min-w-0 items-center gap-1.5">
-                                 <AssigneeUser user={issue.assignee} issueId={issue.id} />
-                                 {issue.assignee ? (
-                                    <span
-                                       className="min-w-0 truncate text-ash"
-                                       title={issue.assignee.name}
-                                    >
-                                       {issue.assignee.name}
-                                    </span>
-                                 ) : null}
-                              </span>
-                           ) : null}
-                        </div>
-                        {/* The link covers the card through its pseudo-element,
-                            so the card's hover promise -- the whole thing lifts
-                            -- is kept by the whole thing. The assignee and the
-                            priority sit above it as their own controls. */}
-                        <Link
-                           href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
-                           className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
-                           draggable={false}
-                           onClick={(event) => {
-                              if (isDragging) event.preventDefault();
-                           }}
-                        >
-                           {/* Sized as body text, so under the type scale it
-                               cannot be an h1-h4 -- those carry sizes. The
-                               heading role keeps what the element was giving
-                               back: a grid of cards is skimmed by its titles,
-                               and dropping to a bare div would leave screen
-                               readers tabbing every card to find one. */}
-                           <div
-                              className="mb-2 line-clamp-2 font-medium"
-                              role="heading"
-                              aria-level={4}
-                           >
-                              {issue.title}
-                           </div>
-                        </Link>
-                        <div className="relative z-[1] mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
-                           {displayProperties.labels && <LabelBadge label={issue.labels} />}
-                           {displayProperties.project && issue.project && (
-                              <ProjectBadge project={issue.project} />
-                           )}
-                        </div>
-                        {displayProperties.created || displayProperties.priority ? (
-                           <div className="mt-auto flex items-center justify-between gap-2 pt-1">
-                              {displayProperties.created ? (
-                                 <span className="text-muted-foreground">
-                                    {format(new Date(issue.createdAt), 'MMM dd')}
-                                 </span>
-                              ) : (
-                                 <span />
-                              )}
-                              {displayProperties.priority ? (
-                                 <span className="relative z-[1] flex items-center">
-                                    <PrioritySelector
-                                       priority={issue.priority}
-                                       issueId={issue.id}
-                                    />
-                                 </span>
-                              ) : null}
-                           </div>
+                        ) : null}
+                        {liveRun ? (
+                           <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
+                        ) : null}
+                        {displayProperties.id ? (
+                           <span className="min-w-0 truncate whitespace-nowrap text-subtle-foreground">
+                              {issue.identifier}
+                           </span>
+                        ) : null}
+                        {displayProperties.created ? (
+                           <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+                              {format(new Date(issue.createdAt), 'MMM dd')}
+                           </span>
                         ) : null}
                      </div>
+                     {/* The link covers the card through its pseudo-element,
+                         so the card's hover promise -- the whole thing lifts
+                         -- is kept by the whole thing. Priority and assignee
+                         sit above it as their own controls. */}
+                     <Link
+                        href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
+                        className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                        draggable={false}
+                        onClick={(event) => {
+                           if (isDragging) event.preventDefault();
+                        }}
+                     >
+                        {/* Sized as body text, so under the type scale it
+                            cannot be an h1-h4 -- those carry sizes. The
+                            heading role keeps what the element was giving
+                            back: a grid of cards is skimmed by its titles,
+                            and dropping to a bare div would leave screen
+                            readers tabbing every card to find one. */}
+                        <div
+                           className="mb-2 line-clamp-2 font-medium"
+                           role="heading"
+                           aria-level={4}
+                        >
+                           {issue.title}
+                        </div>
+                     </Link>
+                     <div className="relative z-[1] mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
+                        {displayProperties.labels && <LabelBadge label={issue.labels} />}
+                        {displayProperties.project && issue.project && (
+                           <ProjectBadge project={issue.project} />
+                        )}
+                     </div>
+                     {displayProperties.assignee ? (
+                        <div className="relative z-[1] mt-auto flex min-w-0 justify-end pt-1">
+                           <AssigneeUser
+                              user={issue.assignee}
+                              issueId={issue.id}
+                              monogram={false}
+                              showName
+                           />
+                        </div>
+                     ) : null}
                   </div>
                </div>
             </ContextMenuTrigger>

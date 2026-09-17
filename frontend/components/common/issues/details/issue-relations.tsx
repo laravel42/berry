@@ -73,7 +73,7 @@ export function IssueGoalSection({ issue }: { issue: Issue }) {
             <Button
                variant="ghost"
                size="icon"
-               className="size-6 text-muted-foreground"
+               className="size-6"
                disabled={busy}
                aria-label={current ? 'Change goal' : 'Link a goal'}
             >
@@ -280,7 +280,7 @@ export function IssueDependenciesSection({ issue }: { issue: Issue }) {
             <Button
                variant="ghost"
                size="icon"
-               className="size-6 text-muted-foreground"
+               className="size-6"
                aria-label="Add a task this one waits on"
                disabled={busyId !== null}
             >

@@ -16,6 +16,7 @@ import {
    WorkspaceSlug,
 } from './ids.ts';
 import { loadPackedSkills, upsertPackedSkills } from './skills.ts';
+import { bindRolePackSkills, ensureCapabilitySkills } from './deploy.ts';
 
 /**
  * The local development dataset.
@@ -49,7 +50,11 @@ export async function apply(
       await upsertLabels(tx, now);
       await upsertSkills(tx, now);
       const workspaces = await tx`SELECT id FROM workspaces WHERE deleted_at IS NULL`;
-      for (const workspace of workspaces) await ensureOrganizationAgents(tx, workspace.id as string);
+      for (const workspace of workspaces) {
+         await ensureOrganizationAgents(tx, workspace.id as string);
+         await bindRolePackSkills(tx, workspace.id as string);
+         await ensureCapabilitySkills(tx, workspace.id as string, now);
+      }
       if (options.demoWork ?? true) {
          await upsertIssues(tx, now);
          await labelIssues(tx, now);

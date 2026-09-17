@@ -377,7 +377,7 @@
    [data-heading='label'] {
       font-size: 0.75rem;
       line-height: 1rem;
-      font-weight: 500;
+      font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
    }
@@ -575,6 +575,38 @@ input[type='search'] {
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
    }
+}
+
+/* Berry scrollbars. Thin, hairline-toned, theme-aware via semantic tokens so
+   light and dark both get a quiet thumb that matches borders rather than the
+   OS chrome. `.no-scrollbar` and `.tabstrip` still opt out below. */
+* {
+   scrollbar-width: thin;
+   scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+   width: 8px;
+   height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+   background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+   background-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+   border-radius: 9999px;
+   border: 2px solid transparent;
+   background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+   background-color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+   background: transparent;
 }
 
 /* The tab strip scrolls horizontally without advertising a scrollbar, matching

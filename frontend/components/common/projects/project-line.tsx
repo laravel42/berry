@@ -132,7 +132,12 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
             </div>
          )}
          {displayProperties.lead && (
-            <div className={cn(PROJECT_COLUMN.lead, 'relative z-10 pointer-events-auto')}>
+            <div
+               className={cn(
+                  PROJECT_COLUMN.lead,
+                  'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
+               )}
+            >
                <LeadSelector
                   lead={project.lead}
                   members={members}
@@ -144,7 +149,12 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
             </div>
          )}
          {displayProperties.targetDate && (
-            <div className={cn(PROJECT_COLUMN.targetDate, 'relative z-10 pointer-events-auto')}>
+            <div
+               className={cn(
+                  PROJECT_COLUMN.targetDate,
+                  'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
+               )}
+            >
                <DatePicker
                   date={project.targetDate ? new Date(project.targetDate) : undefined}
                   onDateChange={(date) => {

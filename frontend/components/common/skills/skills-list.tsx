@@ -3,7 +3,7 @@
 import { colorForSkillLabel } from '@/lib/skill-labels';
 import { Lock, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -39,6 +39,7 @@ import {
    type Skill,
 } from '@/lib/skills';
 import { cn } from '@/lib/utils';
+import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
 import SkillBulkBar from './skill-bulk-bar';
 import type { SkillCriteria } from './skills-filters';
@@ -92,6 +93,7 @@ export default function SkillsList({
    narrowed,
 }: Props) {
    const t = useTranslations('areas.skills');
+   const setOrderedIds = useSkillsCatalogueStore((state) => state.setOrderedIds);
    const [selection, setSelection] = useState<string[]>([]);
    const [confirming, setConfirming] = useState<Skill | null>(null);
    const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -99,6 +101,10 @@ export default function SkillsList({
    const rows = useMemo(() => sortSkills(skills ?? [], criteria.sort), [skills, criteria.sort]);
    const selected = rows.filter((skill) => selection.includes(skill.id));
    const shows = (column: SkillCriteria['columns'][number]) => criteria.columns.includes(column);
+
+   useEffect(() => {
+      setOrderedIds(rows.map((skill) => skill.id));
+   }, [rows, setOrderedIds]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (skills === null) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
@@ -148,7 +154,7 @@ export default function SkillsList({
    return (
       <div className="flex h-full w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-container px-6 py-1 text-muted-foreground">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"
@@ -160,19 +166,22 @@ export default function SkillsList({
                   />
                ) : null}
                <div className="min-w-0 flex-1">{t('columns.skill')}</div>
+               {shows('labels') ? (
+                  <div className="hidden w-52 shrink-0 md:block">{t('columns.labels')}</div>
+               ) : null}
                {shows('agents') ? (
-                  <div className="hidden w-24 shrink-0 sm:block">{t('columns.agents')}</div>
+                  <div className="hidden w-20 shrink-0 sm:block">{t('columns.agents')}</div>
                ) : null}
                {shows('creator') ? (
-                  <div className="hidden w-32 shrink-0 lg:block">{t('columns.creator')}</div>
+                  <div className="hidden w-28 shrink-0 lg:block">{t('columns.creator')}</div>
                ) : null}
                {shows('updated') ? (
-                  <div className="hidden w-28 shrink-0 lg:block">{t('columns.updated')}</div>
+                  <div className="hidden w-24 shrink-0 lg:block">{t('columns.updated')}</div>
                ) : null}
                {shows('files') ? (
-                  <div className="w-14 shrink-0 text-right">{t('columns.files')}</div>
+                  <div className="w-12 shrink-0 text-right">{t('columns.files')}</div>
                ) : null}
-               <div className="w-7 shrink-0" />
+               <div className="w-6 shrink-0" />
             </div>
 
             {rows.length === 0 ? (
@@ -186,7 +195,7 @@ export default function SkillsList({
                      <div
                         key={skill.id}
                         className={cn(
-                           'flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3 hover:bg-sidebar/50',
+                           'flex min-h-9 w-full items-center gap-2 border-b border-muted-foreground/5 px-6 py-1.5 hover:bg-sidebar/50',
                            openId === skill.id && 'bg-sidebar/60'
                         )}
                      >
@@ -200,72 +209,75 @@ export default function SkillsList({
                         ) : null}
                         <button
                            type="button"
-                           className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                           className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
                            onClick={() => onOpen(skill.id)}
                         >
                            <span className="min-w-0 flex-1">
-                              <span className="flex min-w-0 flex-wrap items-center gap-2">
-                                 <span className="truncate font-medium leading-none">
-                                    {skill.name}
+                              <span className="block truncate font-medium leading-none">
+                                 {skill.name}
+                              </span>
+                              {skill.description ? (
+                                 <span className="mt-0.5 line-clamp-1 block leading-snug text-muted-foreground">
+                                    {skill.description}
                                  </span>
+                              ) : null}
+                           </span>
+                           {shows('labels') ? (
+                              <div className="hidden w-52 min-w-0 shrink-0 flex-wrap items-center gap-1 overflow-hidden md:flex">
                                  {skill.labels.map((label) => {
                                     const color = colorForSkillLabel(label);
                                     return (
                                        <span
                                           key={label}
-                                          className="shrink-0 rounded-full border px-1.5 py-px"
+                                          title={label}
+                                          className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
                                           style={{
                                              backgroundColor: `${color}26`,
                                              borderColor: color,
                                              color,
                                           }}
                                        >
-                                          {label}
+                                          <span className="max-w-[140px] truncate">{label}</span>
                                        </span>
                                     );
                                  })}
-                              </span>
-                              {skill.description ? (
-                                 <span className="mt-0.5 line-clamp-1 block text-muted-foreground">
-                                    {skill.description}
-                                 </span>
-                              ) : null}
-                           </span>
+                              </div>
+                           ) : null}
                            {shows('agents') ? (
-                              <div className="hidden w-24 shrink-0 text-muted-foreground sm:block">
+                              <div className="hidden w-20 shrink-0 text-muted-foreground sm:block">
                                  {isSkillInUse(skill)
                                     ? t('row.usedBy', { count: carried })
                                     : t('row.unused')}
                               </div>
                            ) : null}
                            {shows('creator') ? (
-                              <div className="hidden w-32 shrink-0 truncate text-muted-foreground lg:block">
+                              <div className="hidden w-28 shrink-0 truncate text-muted-foreground lg:block">
                                  {skill.creatorName ?? t('row.unknownCreator')}
                               </div>
                            ) : null}
                            {shows('updated') ? (
-                              <div className="hidden w-28 shrink-0 text-muted-foreground lg:block">
+                              <div className="hidden w-24 shrink-0 text-muted-foreground lg:block">
                                  {new Date(skill.updatedAt).toLocaleDateString()}
                               </div>
                            ) : null}
                            {shows('files') ? (
-                              <div className="w-14 shrink-0 text-right text-muted-foreground">
+                              <div className="w-12 shrink-0 text-right text-muted-foreground">
                                  {skill.files.length}
                               </div>
                            ) : null}
                         </button>
 
-                        <div className="flex w-7 shrink-0 justify-end">
+                        <div className="flex w-6 shrink-0 justify-end">
                            {canEdit ? (
                               <DropdownMenu>
                                  <DropdownMenuTrigger asChild>
                                     <Button
                                        size="icon"
                                        variant="ghost"
-                                       className="size-7"
+                                       className="size-6"
                                        aria-label={t('row.menu')}
                                     >
-                                       <MoreHorizontal className="size-4" />
+                                       <MoreHorizontal className="size-3.5" />
                                     </Button>
                                  </DropdownMenuTrigger>
                                  <DropdownMenuContent align="end" className="w-56">
@@ -325,7 +337,11 @@ export default function SkillsList({
                                        {t('refresh.action')}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setConfirming(skill)}>
+                                    <DropdownMenuItem
+                                       variant="destructive"
+                                       className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
+                                       onClick={() => setConfirming(skill)}
+                                    >
                                        {t('row.delete')}
                                     </DropdownMenuItem>
                                  </DropdownMenuContent>

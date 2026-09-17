@@ -12,7 +12,7 @@ export function Section({
 }) {
    return (
       <section>
-         <div className="mb-2 flex items-center justify-between gap-2 pb-[7px]">
+         <div className="mb-1 flex items-center justify-between gap-2 pb-1">
             <h2 data-heading="label" className="text-muted-foreground">
                {title}
             </h2>

@@ -20,6 +20,11 @@ interface TiptapAiEditorProps {
    'value': string;
    /** Fired with markdown on every editor update. */
    'onChange': (markdown: string) => void;
+   /**
+    * Fired when the editor loses focus. Use for commit-on-blur surfaces that
+    * should not PATCH on every keystroke.
+    */
+   'onBlur'?: (markdown: string) => void;
    'placeholder'?: string;
    'className'?: string;
    'aria-label'?: string;
@@ -42,6 +47,7 @@ function readMarkdown(editor: TipTapEditor): string {
 export function TiptapAiEditor({
    value,
    onChange,
+   onBlur,
    placeholder,
    className,
    'aria-label': ariaLabel,
@@ -51,6 +57,8 @@ export function TiptapAiEditor({
    const [aiPrompt, setAiPrompt] = useState('');
    const [aiPending, setAiPending] = useState(false);
    const focusedRef = useRef(false);
+   const onBlurRef = useRef(onBlur);
+   onBlurRef.current = onBlur;
 
    const editor = useEditor({
       extensions: [
@@ -78,8 +86,9 @@ export function TiptapAiEditor({
       onFocus: () => {
          focusedRef.current = true;
       },
-      onBlur: () => {
+      onBlur: ({ editor: current }) => {
          focusedRef.current = false;
+         onBlurRef.current?.(readMarkdown(current));
       },
    });
 

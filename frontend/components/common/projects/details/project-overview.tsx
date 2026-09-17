@@ -1,14 +1,14 @@
 'use client';
 
-import { ContentBlocks } from '@/components/common/issues/details/content-blocks';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { useProject } from '@/hooks/use-project';
 import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
+import { useProjectsStore } from '@/store/projects-store';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
-import { descriptionToBlocks } from '@/lib/description-blocks';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
@@ -34,19 +34,12 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    useTabLabel(project?.name ?? null);
    const detail = getProjectDetail(projectId);
    const { issues: allIssues } = useIssuesStore();
+   const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
    const [draft, setDraft] = useState('');
    const issues = useMemo(
       () => (project ? allIssues.filter((issue) => issue.project?.id === project.id) : []),
       [allIssues, project]
-   );
-
-   const descriptionBlocks = useMemo(
-      () =>
-         detail.description.length > 0
-            ? detail.description
-            : descriptionToBlocks(project?.description),
-      [detail.description, project?.description]
    );
 
    const afterDelete = useCallback(() => {
@@ -63,6 +56,8 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       postUpdate(project.id, 'on-track', text);
       setDraft('');
    }, [draft, postUpdate, project]);
+
+   const description = project?.description ?? '';
 
    if (!project) {
       return <div className="p-6 text-muted-foreground">Loading project…</div>;
@@ -89,13 +84,18 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                      {agentContext}
                   </div>
                   <div className="mt-1">
-                     {descriptionBlocks.length > 0 ? (
-                        <ContentBlocks blocks={descriptionBlocks} />
-                     ) : detail.summary ? (
-                        <p className="leading-relaxed text-muted-foreground">{detail.summary}</p>
-                     ) : (
-                        <p className="text-muted-foreground">No description yet.</p>
-                     )}
+                     <TiptapAiEditor
+                        value={description}
+                        onChange={() => undefined}
+                        onBlur={(markdown) => {
+                           if (markdown.trim() === description.trim()) return;
+                           updateProjectDescription(project.id, markdown);
+                        }}
+                        placeholder="Add description…"
+                        aria-label="Project description"
+                        className="min-h-24"
+                        aiAssist={false}
+                     />
                   </div>
 
                   <div className="mt-4">
@@ -140,7 +140,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
             </div>
          </div>
 
-         <aside className="hidden h-full min-w-0 w-[221px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
             <ProjectPropertiesPanel
                project={project}
                detail={detail}

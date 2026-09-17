@@ -7,6 +7,7 @@ import { ChevronDown, Maximize2, Minus, Minimize2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { colorForAgent } from '@/lib/agent-color';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -73,7 +74,12 @@ function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) 
                   // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
                   <img src={avatarSrc} alt="" className="size-full object-cover" />
                ) : (
-                  <BerryMark size="sm" tone="working" bracketClassName="text-[var(--shell-text)]" />
+                  <BerryMark
+                     size="sm"
+                     tone="working"
+                     dotColor={colorForAgent(agent.id)}
+                     bracketClassName="text-[var(--shell-text)]"
+                  />
                )}
             </span>
             <span className="min-w-0 flex-1">

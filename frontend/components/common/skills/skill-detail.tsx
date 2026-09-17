@@ -1,29 +1,18 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { AgentMarkdown } from '@/components/common/agent-markdown';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
+import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
-import { useDetailDrawerClose } from '@/components/layout/detail-drawer-context';
 import { BerryApiError } from '@/lib/api';
 import { readFrontmatter, writeFrontmatter } from '@/lib/skill-files';
-import { deleteSkill, getSkill, refreshSkill, updateSkill, type Skill } from '@/lib/skills';
+import { getSkill, updateSkill, type Skill } from '@/lib/skills';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
 interface Draft {
@@ -40,7 +29,6 @@ interface Props {
    canEdit: boolean;
    /** Told when the skill changed, so the list beside this panel keeps up. */
    onChanged?: () => void;
-   onClose?: () => void;
 }
 
 function toDraft(skill: Skill): Draft {
@@ -74,19 +62,16 @@ function changeSummary(draft: Draft, loaded: Draft): ChangedPart[] {
  * someone else saved meanwhile, the banner says so rather than silently
  * writing over their work.
  */
-export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Props) {
+export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
    const t = useTranslations('areas.skills');
-   const { orgId } = useParams<{ orgId: string }>();
-   const router = useRouter();
-   const closeDrawer = useDetailDrawerClose();
    const bumpCatalogue = useSkillsCatalogueStore((state) => state.bump);
+   const revision = useSkillsCatalogueStore((state) => state.revision);
    const [loaded, setLoaded] = useState<Skill | null>(null);
    const [draft, setDraft] = useState<Draft | null>(null);
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState(false);
    const [conflict, setConflict] = useState<Skill | null>(null);
-   const [confirmRefresh, setConfirmRefresh] = useState(false);
-   const [confirmDelete, setConfirmDelete] = useState(false);
+   const skipLabelSync = useRef(true);
 
    const take = useCallback((skill: Skill) => {
       setLoaded(skill);
@@ -96,6 +81,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
 
    useEffect(() => {
       let cancelled = false;
+      skipLabelSync.current = true;
       setLoaded(null);
       setDraft(null);
       setError(null);
@@ -114,6 +100,37 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
          cancelled = true;
       };
    }, [skillId, take, t]);
+
+   /** Header label toggles bump the catalogue; pull labels without wiping other edits. */
+   useEffect(() => {
+      if (skipLabelSync.current) {
+         skipLabelSync.current = false;
+         return;
+      }
+      let cancelled = false;
+      getSkill(skillId)
+         .then((skill) => {
+            if (cancelled) return;
+            setLoaded((prevLoaded) => {
+               if (!prevLoaded || prevLoaded.id !== skill.id) return prevLoaded;
+               setDraft((prevDraft) => {
+                  if (!prevDraft) return prevDraft;
+                  const labelsDirty = prevDraft.labels.join(',') !== prevLoaded.labels.join(',');
+                  if (labelsDirty) return prevDraft;
+                  return { ...prevDraft, labels: skill.labels };
+               });
+               return {
+                  ...prevLoaded,
+                  labels: skill.labels,
+                  updatedAt: skill.updatedAt,
+               };
+            });
+         })
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [revision, skillId]);
 
    const loadedDraft = useMemo(() => (loaded ? toDraft(loaded) : null), [loaded]);
    const changes = draft && loadedDraft ? changeSummary(draft, loadedDraft) : [];
@@ -140,22 +157,22 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
       });
    };
 
-   const editContent = (content: string) => {
-      const frontmatter = readFrontmatter(content);
-      setDraft((current) =>
-         current
-            ? {
-                 ...current,
-                 content,
-                 name: frontmatter.name ?? current.name,
-                 description: frontmatter.description ?? current.description,
-              }
-            : current
-      );
-   };
-
    const editLabels = (labels: string[]) => {
       setDraft((current) => (current ? { ...current, labels } : current));
+   };
+
+   const editBody = (body: string) => {
+      setDraft((current) => {
+         if (!current) return current;
+         const prefix = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(current.content)?.[0] ?? '';
+         return {
+            ...current,
+            content: writeFrontmatter(`${prefix}${body}`, {
+               name: current.name,
+               description: current.description,
+            }),
+         };
+      });
    };
 
    const write = async (force: boolean) => {
@@ -186,70 +203,8 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
       }
    };
 
-   const refresh = async () => {
-      setBusy(true);
-      try {
-         take(await refreshSkill(skillId));
-         toast.success(t('refresh.done'));
-         bumpCatalogue();
-         onChanged?.();
-      } catch (failure) {
-         fail(failure, t('refresh.failed'));
-      } finally {
-         setBusy(false);
-      }
-   };
-
-   const remove = async () => {
-      setBusy(true);
-      try {
-         await deleteSkill(skillId);
-         toast.success(t('row.deleted', { name: loaded.name }));
-         bumpCatalogue();
-         onChanged?.();
-         if (closeDrawer) closeDrawer();
-         else if (onClose) onClose();
-         else router.push(`/${orgId}/skills`);
-      } catch (failure) {
-         fail(failure, t('row.deleteFailed'));
-      } finally {
-         setBusy(false);
-      }
-   };
-
    return (
       <div className="flex h-full flex-col">
-         <div className="flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
-            <div className="min-w-0">
-               <h2 className="truncate font-medium">{loaded.name}</h2>
-            </div>
-            {canEdit ? (
-               <div className="flex flex-wrap items-center gap-2">
-                  {loaded.source.kind === 'github' ? (
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => setConfirmRefresh(true)}
-                     >
-                        {t('refresh.action')}
-                     </Button>
-                  ) : null}
-                  <Button
-                     size="xs"
-                     variant="destructive"
-                     disabled={busy}
-                     onClick={() => setConfirmDelete(true)}
-                  >
-                     <Trash2 className="size-3.5" />
-                     {t('row.delete')}
-                  </Button>
-               </div>
-            ) : (
-               <span className="text-muted-foreground">{t('row.locked')}</span>
-            )}
-         </div>
-
          {conflict ? (
             <div className="border-b bg-muted/40 px-6 py-3" role="alert">
                <p className="font-medium">{t('detail.conflict')}</p>
@@ -265,7 +220,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
          ) : null}
 
          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-4">
-            <div className="grid shrink-0 gap-3 sm:grid-cols-2">
+            <div className="grid shrink-0 gap-3">
                <label className="flex flex-col gap-1.5">
                   <span className="text-muted-foreground">{t('create.name')}</span>
                   <Input
@@ -283,69 +238,45 @@ export default function SkillDetail({ skillId, canEdit, onChanged, onClose }: Pr
                   />
                </label>
             </div>
-            <SkillLabelMultiselect
-               value={draft.labels}
-               disabled={!canEdit}
-               onChange={editLabels}
-            />
-            <label className="flex min-h-0 flex-1 flex-col gap-1.5">
+            <SkillLabelMultiselect value={draft.labels} disabled={!canEdit} onChange={editLabels} />
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                <span className="text-muted-foreground">{t('create.instructions')}</span>
-               <Textarea
-                  className="min-h-0 flex-1 resize-none font-mono"
-                  value={draft.content}
-                  disabled={!canEdit}
-                  onChange={(event) => editContent(event.target.value)}
-               />
-            </label>
+               {canEdit ? (
+                  <div className="border-input bg-background focus-within:border-ring min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs focus-within:ring-[3px] focus-within:ring-ring/50">
+                     <TiptapAiEditor
+                        value={readFrontmatter(draft.content).body}
+                        onChange={editBody}
+                        placeholder={t('create.instructionsPlaceholder')}
+                        aria-label={t('create.instructions')}
+                        className="min-h-full"
+                        aiAssist={false}
+                     />
+                  </div>
+               ) : (
+                  <div className="border-input bg-background min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs">
+                     {readFrontmatter(draft.content).body.trim() ? (
+                        <AgentMarkdown
+                           body={readFrontmatter(draft.content).body}
+                           className="max-w-none"
+                        />
+                     ) : (
+                        <p className="text-muted-foreground">{t('detail.emptyInstructions')}</p>
+                     )}
+                  </div>
+               )}
+            </div>
          </div>
 
          {canEdit && changes.length > 0 ? (
-            <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
-               <span className="mr-auto text-muted-foreground">
-                  {t('detail.unsaved', {
-                     what: changes.map((part) => t(`detail.change_${part}`)).join(', '),
-                  })}
-               </span>
-               <Button size="xs" variant="ghost" disabled={busy} onClick={() => take(loaded)}>
-                  {t('detail.discard')}
-               </Button>
-               <Button size="xs" disabled={busy} onClick={() => void write(false)}>
-                  {t('detail.save')}
-               </Button>
-            </div>
+            <UnsavedChangesBar
+               what={changes.map((part) => t(`detail.change_${part}`)).join(', ')}
+               busy={busy}
+               discardLabel={t('detail.discard')}
+               saveLabel={t('detail.save')}
+               onDiscard={() => take(loaded)}
+               onSave={() => void write(false)}
+            />
          ) : null}
-
-         <AlertDialog open={confirmRefresh} onOpenChange={setConfirmRefresh}>
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>{t('refresh.title', { name: loaded.name })}</AlertDialogTitle>
-                  <AlertDialogDescription>{t('refresh.body')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void refresh()}>
-                     {t('refresh.action')}
-                  </AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
-
-         <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>
-                     {t('row.confirmDeleteTitle', { name: loaded.name })}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>{t('row.confirmDeleteBody')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void remove()}>
-                     {t('row.delete')}
-                  </AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
       </div>
    );
 }

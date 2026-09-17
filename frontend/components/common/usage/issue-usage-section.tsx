@@ -1,7 +1,6 @@
 'use client';
 
 import { IssueUsageDialog } from '@/components/common/issues/details/issue-usage-dialog';
-import { Button } from '@/components/ui/button';
 import { formatCost, formatTokens, getIssueUsage, totalTokens } from '@/lib/usage';
 import { useIssueRuns } from '@/store/issue-runs-store';
 import { useSessionStore } from '@/store/session-store';
@@ -13,7 +12,7 @@ import { useUsage } from './use-usage';
 /**
  * What the agents' work on this task has cost so far.
  *
- * Three numbers under the activity feed, and the arithmetic behind them one
+ * Three numbers in the properties sidebar, and the arithmetic behind them one
  * click away. The summary stays small on purpose: cost is context for the
  * task, not the subject of the page.
  */
@@ -29,13 +28,13 @@ export function IssueUsageSection({ issueId }: { issueId: string }) {
    if (error || !data) return null;
    return (
       <section>
-         <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
+         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
             {t('title')}
          </h2>
          {data.totals.events === 0 ? (
             <p className="text-muted-foreground">{t('none')}</p>
          ) : (
-            <div className="flex flex-col gap-1">
+            <div className="flex flex-col gap-0.5">
                <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">{t('cost')}</span>
                   <span className="tabular-nums">
@@ -51,14 +50,13 @@ export function IssueUsageSection({ issueId }: { issueId: string }) {
                   <span className="text-muted-foreground">{t('runs')}</span>
                   <span className="tabular-nums">{data.byRun.length}</span>
                </div>
-               <Button
-                  variant="ghost"
-                  size="xs"
-                  className="-ml-2 self-start"
+               <button
+                  type="button"
+                  className="mt-1 self-start border-b border-dashed border-muted-foreground/50 pb-px outline-none hover:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   onClick={() => setOpen(true)}
                >
                   {t('open')}
-               </Button>
+               </button>
                <IssueUsageDialog usage={data} runs={runs} open={open} onOpenChange={setOpen} />
             </div>
          )}

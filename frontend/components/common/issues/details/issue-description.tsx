@@ -9,7 +9,7 @@ import {
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
-import { DescriptionTextarea } from '@/components/common/editor/description-textarea';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -25,6 +25,9 @@ import { ImageViewer, type ViewerImage } from './image-viewer';
  *
  * Images get a strip under the text and open in a viewer that steps through
  * all of them, since the second screenshot is usually the point.
+ *
+ * Markdown is edited with TipTap (same editor as project create) and committed
+ * on blur so keystrokes do not PATCH the issue.
  */
 export function IssueDescription({
    issueId,
@@ -126,14 +129,17 @@ export function IssueDescription({
                dragging && 'border-dashed border-status-info bg-status-info/5'
             )}
          >
-            <DescriptionTextarea
+            <TiptapAiEditor
                value={description}
-               onCommit={(markdown) => {
+               onChange={() => undefined}
+               onBlur={(markdown) => {
                   if (markdown.trim() === description.trim()) return;
                   updateIssueDescription(issueId, markdown);
                }}
                placeholder={dragging ? t('dropHere') : 'Add description…'}
                aria-label="Task description"
+               className="min-h-24"
+               aiAssist={false}
             />
          </div>
 
