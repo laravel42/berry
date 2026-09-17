@@ -47,10 +47,10 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
 
    return (
       <div>
-         <div className="px-6 pt-[18px] pb-[7px] uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
+         <div className="px-6 pt-3 pb-1 uppercase tracking-[0.14em] text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]">
             {t('personal')}
          </div>
-         <ul className="flex flex-col gap-1 px-3">
+         <ul className="flex flex-col gap-0 px-3 lg:gap-1">
             <li>
                <Link
                   data-shell-nav

@@ -398,20 +398,22 @@ export function McpServerManager({
    return (
       <div className="flex flex-col gap-3">
          {title ? (
-            <div className="flex items-baseline gap-2">
-               <h3 className="font-medium">{title}</h3>
+            <div className="flex flex-col gap-1">
+               <div className="flex items-baseline gap-2">
+                  <h3 className="font-medium">{title}</h3>
+                  {readOnly || adding || !servers || error ? null : (
+                     <Button
+                        size="xs"
+                        variant="secondary"
+                        className="ml-auto"
+                        onClick={() => setAdding(true)}
+                     >
+                        <Plus className="size-4" />
+                        Add server
+                     </Button>
+                  )}
+               </div>
                {description ? <p className="text-muted-foreground">{description}</p> : null}
-               {readOnly || adding || !servers || error ? null : (
-                  <Button
-                     size="xs"
-                     variant="secondary"
-                     className="ml-auto"
-                     onClick={() => setAdding(true)}
-                  >
-                     <Plus className="size-4" />
-                     Add server
-                  </Button>
-               )}
             </div>
          ) : null}
          {error ? (
@@ -479,7 +481,7 @@ export function McpServerManager({
 /** Settings → MCP servers: the servers every agent in the workspace connects to. */
 export default function McpServersSettings() {
    return (
-      <div className="flex max-w-3xl flex-col gap-4">
+      <div className="flex flex-col gap-4">
          <McpServerManager
             agentId={null}
             title="MCP servers"

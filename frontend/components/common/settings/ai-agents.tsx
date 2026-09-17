@@ -3,6 +3,7 @@
 import { Switch } from '@/components/ui/switch';
 import {
    AGENT_PERMISSIONS,
+   bareModelName,
    loadWorkspaceAgents,
    setAgentPermissions,
    type Agent,
@@ -65,7 +66,9 @@ export default function AiAgents() {
                            icon={<Bot className="size-4" />}
                            title={agent.name}
                            description={[
-                              agent.modelName ?? 'no model set',
+                              agent.modelName
+                                 ? bareModelName(agent.modelName) || agent.modelName
+                                 : 'no model set',
                               `${agent.permissions.length} of ${AGENT_PERMISSIONS.length} permissions`,
                               risky ? 'can merge without review' : null,
                            ]

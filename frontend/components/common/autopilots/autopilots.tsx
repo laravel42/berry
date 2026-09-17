@@ -3,7 +3,7 @@
 import { Lock, MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useFormatter } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -85,6 +85,7 @@ export default function Autopilots({
    onUseTemplate,
 }: Props) {
    const t = useTranslations('areas.autopilots');
+   const format = useFormatter();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
    const [selection, setSelection] = useState<string[]>([]);
@@ -201,18 +202,23 @@ export default function Autopilots({
                      }
                   />
                ) : null}
-               <div className="min-w-0 flex-1">{t('columns.autopilot')}</div>
-               {shows('status') ? <div className="w-20 shrink-0">{t('columns.status')}</div> : null}
-               {shows('mode') ? (
-                  <div className="hidden w-40 shrink-0 lg:block">{t('columns.mode')}</div>
-               ) : null}
-               {shows('quota') ? (
-                  <div className="hidden w-32 shrink-0 xl:block">{t('columns.quota')}</div>
-               ) : null}
-               {shows('updated') ? (
-                  <div className="hidden w-28 shrink-0 sm:block">{t('columns.updated')}</div>
-               ) : null}
-               <div className="w-7 shrink-0" />
+               {/* Cap the name so it cannot eat the row; meta stays right. */}
+               <div className="min-w-0 max-w-sm flex-1 truncate">{t('columns.autopilot')}</div>
+               <div className="ml-auto flex items-center gap-3">
+                  {shows('status') ? (
+                     <div className="w-20 shrink-0">{t('columns.status')}</div>
+                  ) : null}
+                  {shows('mode') ? (
+                     <div className="hidden w-40 shrink-0 lg:block">{t('columns.mode')}</div>
+                  ) : null}
+                  {shows('quota') ? (
+                     <div className="hidden w-32 shrink-0 xl:block">{t('columns.quota')}</div>
+                  ) : null}
+                  {shows('updated') ? (
+                     <div className="hidden w-28 shrink-0 sm:block">{t('columns.updated')}</div>
+                  ) : null}
+                  <div className="w-7 shrink-0" />
+               </div>
             </div>
 
             {rows.map((autopilot) => {
@@ -236,77 +242,82 @@ export default function Autopilots({
                            }
                         />
                      ) : null}
-                     <Link href={`/${orgId}/autopilot/${autopilot.id}`} className="min-w-0 flex-1">
+                     <Link
+                        href={`/${orgId}/autopilot/${autopilot.id}`}
+                        className="min-w-0 max-w-sm flex-1 overflow-hidden"
+                     >
                         <span className="block truncate font-medium">{autopilot.name}</span>
                         <span className="block truncate text-muted-foreground">
                            {assigneeName(autopilot)}
                         </span>
                      </Link>
-                     {shows('status') ? (
-                        <div className="w-20 shrink-0">
-                           <Badge variant={paused ? 'secondary' : 'default'}>
-                              {t(`status.${autopilot.status}`)}
-                           </Badge>
+                     <div className="ml-auto flex items-center gap-3">
+                        {shows('status') ? (
+                           <div className="w-20 shrink-0">
+                              <Badge variant={paused ? 'secondary' : 'outline'}>
+                                 {t(`status.${autopilot.status}`)}
+                              </Badge>
+                           </div>
+                        ) : null}
+                        {shows('mode') ? (
+                           <div className="hidden w-40 shrink-0 truncate text-muted-foreground lg:block">
+                              {t(`mode.${autopilot.executionMode}`)}
+                           </div>
+                        ) : null}
+                        {shows('quota') ? (
+                           <div className="hidden w-32 shrink-0 text-muted-foreground xl:block">
+                              {autopilot.quotaPeriod === 'none'
+                                 ? t('quota.none')
+                                 : t('quota.some', {
+                                      count: autopilot.quotaMax ?? 0,
+                                      period: t(`quota.${autopilot.quotaPeriod}`),
+                                   })}
+                           </div>
+                        ) : null}
+                        {shows('updated') ? (
+                           <div className="hidden w-28 shrink-0 text-muted-foreground sm:block">
+                              {format.relativeTime(new Date(autopilot.updatedAt))}
+                           </div>
+                        ) : null}
+                        <div className="flex w-7 shrink-0 justify-end">
+                           {canEdit ? (
+                              <DropdownMenu>
+                                 <DropdownMenuTrigger asChild>
+                                    <Button
+                                       size="icon"
+                                       variant="ghost"
+                                       className="size-7"
+                                       aria-label={t('row.menu')}
+                                    >
+                                       <MoreHorizontal className="size-4" />
+                                    </Button>
+                                 </DropdownMenuTrigger>
+                                 <DropdownMenuContent align="end">
+                                    <DropdownMenuItem asChild>
+                                       <Link href={`/${orgId}/autopilot/${autopilot.id}`}>
+                                          {t('row.open')}
+                                       </Link>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                       onClick={() =>
+                                          void setStatus(autopilot, paused ? 'active' : 'paused')
+                                       }
+                                    >
+                                       {paused ? t('row.resume') : t('row.pause')}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => setConfirming(autopilot)}>
+                                       {t('row.delete')}
+                                    </DropdownMenuItem>
+                                 </DropdownMenuContent>
+                              </DropdownMenu>
+                           ) : (
+                              <Lock
+                                 className="size-4 text-muted-foreground"
+                                 aria-label={t('row.locked')}
+                              />
+                           )}
                         </div>
-                     ) : null}
-                     {shows('mode') ? (
-                        <div className="hidden w-40 shrink-0 truncate text-muted-foreground lg:block">
-                           {t(`mode.${autopilot.executionMode}`)}
-                        </div>
-                     ) : null}
-                     {shows('quota') ? (
-                        <div className="hidden w-32 shrink-0 text-muted-foreground xl:block">
-                           {autopilot.quotaPeriod === 'none'
-                              ? t('quota.none')
-                              : t('quota.some', {
-                                   count: autopilot.quotaMax ?? 0,
-                                   period: t(`quota.${autopilot.quotaPeriod}`),
-                                })}
-                        </div>
-                     ) : null}
-                     {shows('updated') ? (
-                        <div className="hidden w-28 shrink-0 text-muted-foreground sm:block">
-                           {new Date(autopilot.updatedAt).toLocaleDateString()}
-                        </div>
-                     ) : null}
-                     <div className="flex w-7 shrink-0 justify-end">
-                        {canEdit ? (
-                           <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                 <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="size-7"
-                                    aria-label={t('row.menu')}
-                                 >
-                                    <MoreHorizontal className="size-4" />
-                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                 <DropdownMenuItem asChild>
-                                    <Link href={`/${orgId}/autopilot/${autopilot.id}`}>
-                                       {t('row.open')}
-                                    </Link>
-                                 </DropdownMenuItem>
-                                 <DropdownMenuItem
-                                    onClick={() =>
-                                       void setStatus(autopilot, paused ? 'active' : 'paused')
-                                    }
-                                 >
-                                    {paused ? t('row.resume') : t('row.pause')}
-                                 </DropdownMenuItem>
-                                 <DropdownMenuSeparator />
-                                 <DropdownMenuItem onClick={() => setConfirming(autopilot)}>
-                                    {t('row.delete')}
-                                 </DropdownMenuItem>
-                              </DropdownMenuContent>
-                           </DropdownMenu>
-                        ) : (
-                           <Lock
-                              className="size-4 text-muted-foreground"
-                              aria-label={t('row.locked')}
-                           />
-                        )}
                      </div>
                   </div>
                );

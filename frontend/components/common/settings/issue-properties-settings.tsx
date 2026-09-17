@@ -1,5 +1,15 @@
 'use client';
 
+import {
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -36,10 +46,9 @@ import { useSettingsResource } from './use-settings-resource';
  * mean anything. Options are typed as a comma list; ids are derived from
  * names.
  *
- * Archiving is a soft delete, so the values already on tasks survive it and
+ * Removing is a soft delete, so the values already on tasks survive it and
  * come back if the field does. That is only true if there is a way back, so
- * the archived rows are listed behind a toggle and can be restored — which is
- * also why "archive" needs no confirmation and no warning: nothing is lost.
+ * the archived rows are listed behind a toggle and can be restored.
  *
  * The count beside the heading is the point of the bound. Every active field
  * is a row in the task panel that everybody carries, so the cost of one more
@@ -79,6 +88,7 @@ export default function IssuePropertiesSettings() {
    const [options, setOptions] = useState('');
    const [creating, setCreating] = useState(false);
    const [showArchived, setShowArchived] = useState(false);
+   const [removing, setRemoving] = useState<PropertyDefinition | null>(null);
    const isSelect = kind === 'select' || kind === 'multi_select';
 
    const all = useMemo(() => properties.value ?? [], [properties.value]);
@@ -108,10 +118,12 @@ export default function IssuePropertiesSettings() {
       }
    };
 
-   const archive = (property: PropertyDefinition) =>
+   const remove = (property: PropertyDefinition) => {
+      setRemoving(null);
       void properties.mutate(replace({ ...property, archivedAt: new Date().toISOString() }), () =>
          archiveProperty(workspaceId, property.id)
       );
+   };
 
    const restore = async (property: PropertyDefinition) => {
       try {
@@ -137,8 +149,8 @@ export default function IssuePropertiesSettings() {
             ) : null}
          </span>
          {property.archivedAt === null ? (
-            <Button variant="ghost" size="sm" onClick={() => archive(property)}>
-               {t('archive')}
+            <Button variant="ghost" size="sm" onClick={() => setRemoving(property)}>
+               {t('remove')}
             </Button>
          ) : (
             <Button variant="ghost" size="sm" onClick={() => void restore(property)}>
@@ -228,6 +240,23 @@ export default function IssuePropertiesSettings() {
                ) : null}
             </div>
          ) : null}
+
+         <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
+            <AlertDialogContent>
+               <AlertDialogHeader>
+                  <AlertDialogTitle>
+                     {t('removeTitle', { name: removing?.name ?? '' })}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>{t('removeBody')}</AlertDialogDescription>
+               </AlertDialogHeader>
+               <AlertDialogFooter>
+                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => removing && remove(removing)}>
+                     {t('remove')}
+                  </AlertDialogAction>
+               </AlertDialogFooter>
+            </AlertDialogContent>
+         </AlertDialog>
       </div>
    );
 }

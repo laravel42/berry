@@ -152,7 +152,6 @@ export default function IssueLabelsSettings() {
             <div className="flex items-center border-b px-2 py-1.5 text-muted-foreground">
                <div className="min-w-0 flex-1">{t('name')}</div>
                <div className="w-24 text-right">{t('usage')}</div>
-               <div className="w-35 text-right">{t('colour')}</div>
                <div className="w-22.5" />
             </div>
 
@@ -213,9 +212,6 @@ export default function IssueLabelsSettings() {
                      {label.usageCount === undefined
                         ? '—'
                         : t('usageCount', { count: label.usageCount })}
-                  </span>
-                  <span className="w-35 text-right font-mono text-muted-foreground">
-                     {label.color}
                   </span>
                   <span className="w-22.5 text-right">
                      <Button
