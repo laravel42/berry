@@ -1,5 +1,6 @@
 'use client';
 
+import { BerryApiError } from '@/lib/api';
 import { currentUser } from '@/data/users';
 import { loadWorkspaceApprovals } from '@/lib/approvals';
 import { publishWorkspaceEvent, streamWorkspaceEvents, type EventEnvelope } from '@/lib/events';
@@ -54,6 +55,7 @@ export function useWorkspaceEventStream(): void {
    useEffect(() => {
       if (status !== 'ready' || !workspaceId) return;
 
+      useEventStreamStore.getState().setScope(`${user?.id ?? 'anonymous'}:${workspaceId}`);
       const controller = new AbortController();
       let cancelled = false;
       let reconnectDelay = RECONNECT_MIN_MS;
@@ -107,9 +109,14 @@ export function useWorkspaceEventStream(): void {
                publishWorkspaceEvent(event);
                scheduleRefresh(familiesFor(event));
             }
-         } catch {
-            // A dropped stream is expected — a sleeping laptop, a restarted
-            // API, an expired cursor. It is retried rather than surfaced.
+         } catch (error) {
+            if (cancelled) return;
+            if (
+               error instanceof BerryApiError &&
+               ['CURSOR_EXPIRED', 'INVALID_CURSOR'].includes(error.code)
+            ) {
+               setLastEventId(null);
+            }
          }
          if (cancelled) return;
          setConnected(false);
