@@ -281,7 +281,7 @@ export function Chat() {
    // The running reply, streamed as it is written rather than waiting for the
    // run to end and the stored message to be refetched.
    const running = tasks.find((task) => task.status === 'running');
-   const { text: streamingText, stage } = useChatReplyStream({
+   const { text: streamingText, stage: streamStage } = useChatReplyStream({
       conversationId: activeId,
       runId: running?.id ?? null,
       messages,
@@ -291,6 +291,21 @@ export function Chat() {
          thinking: t('msgStageThinking'),
       },
    });
+
+   /**
+    * The wait, said once, under the last message.
+    *
+    * The stream's own stage is the better answer, but it exists only once a task
+    * is running and the stream is open. Before that there is the send itself and
+    * then a queued task the 5s poll has yet to see, and those two gaps are
+    * exactly when a reader most needs to be told something is happening — so
+    * they say "thinking" too. Whether the dispatcher has claimed the task yet is
+    * Berry's business, not a distinction the reader is waiting on.
+    *
+    * Both conditions end on their own, so a send that failed stops the animation
+    * instead of leaving it breathing over an unanswered message.
+    */
+   const stage = streamStage ?? (sending || tasks.length > 0 ? t('msgStageThinking') : null);
 
    const changeComposer = (value: string) => {
       setComposer(value);
@@ -364,8 +379,11 @@ export function Chat() {
                  : t('rowFailed')
          );
       } finally {
-         setSending(false);
+         // Refresh first, then release `sending`. The other way round leaves one
+         // render where the send is over and the queued task is not back yet,
+         // which blinks the thinking animation off and on again.
          await refreshSession(activeId).catch(() => undefined);
+         setSending(false);
          void refreshThreads().catch(() => undefined);
       }
    };
@@ -504,7 +522,7 @@ export function Chat() {
                                  );
                            }
                         }}
-                        className="min-w-0 flex-1 rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
                      />
                   ) : agentName && !topicIsAgentName ? (
                      // The conversation's own name, one step back from the

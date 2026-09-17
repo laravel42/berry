@@ -124,7 +124,7 @@ function SessionRow({
                {thread.activeRunId ? (
                   <span
                      className="size-1.5 flex-none rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none"
-                     aria-label={t('rowWorking')}
+                     aria-label={t('msgStageThinking')}
                   />
                ) : null}
                <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
@@ -135,7 +135,7 @@ function SessionRow({
                ) : null}
             </span>
             <span className="min-w-0 truncate text-[var(--shell-text-dim)]">
-               {thread.activeRunId ? t('rowWorking') : preview ? preview : t('rowNoPreview')}
+               {thread.activeRunId ? t('msgStageThinking') : preview ? preview : t('rowNoPreview')}
             </span>
          </button>
 

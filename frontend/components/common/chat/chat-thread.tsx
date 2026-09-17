@@ -30,6 +30,28 @@ interface ChatThreadProps {
    streamingText?: string | null;
 }
 
+/**
+ * Three dots, breathing in turn: the reply is being worked on.
+ *
+ * Reuses the `berrypulse` keyframe the rest of the shell uses for liveness,
+ * staggered so the row reads as motion rather than as one blinking dot.
+ * Decorative, so it is hidden from assistive technology — the word beside it is
+ * the announcement, and the line that carries it owns the `role="status"`.
+ */
+function ThinkingDots() {
+   return (
+      <span className="flex flex-none items-center gap-1" aria-hidden="true">
+         {[0, 180, 360].map((delay) => (
+            <span
+               key={delay}
+               style={{ animationDelay: `${delay}ms` }}
+               className="size-1 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none"
+            />
+         ))}
+      </span>
+   );
+}
+
 function clockTime(iso: string): string {
    const at = new Date(iso);
    return Number.isNaN(at.getTime())
@@ -105,8 +127,7 @@ export function ChatThread({
       if (!element) return;
       // Within a line or two of the bottom counts as following, so a growing
       // reply keeps the view pinned and scrolling away releases it.
-      following.current =
-         element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+      following.current = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
       if (!hasEarlier || loadingEarlier) return;
       if (element.scrollTop > 48) return;
       anchor.current = { height: element.scrollHeight, top: element.scrollTop };
@@ -245,9 +266,12 @@ export function ChatThread({
             </article>
          ) : null}
 
+         {/* Under the last message and indented to the message text, so the wait
+             belongs to the conversation rather than to a bar of its own. `pl-9`
+             is the avatar gutter above it: `size-6` plus the article's `gap-3`. */}
          {stage && !streamingText ? (
-            <p className="flex items-center gap-2 text-[var(--shell-text-dim)]" role="status">
-               <span className="size-1.5 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none" />
+            <p className="flex items-center gap-2 pl-9 text-[var(--shell-text-dim)]" role="status">
+               <ThinkingDots />
                {stage}
             </p>
          ) : null}

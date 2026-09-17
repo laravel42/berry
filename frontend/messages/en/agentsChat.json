@@ -268,7 +268,6 @@
       "pickerNoRuntime": "no runtime",
       "pickerEmpty": "No agents are available.",
       "rowTyping": "typing",
-      "rowWorking": "working",
       "rowWaiting": "waiting",
       "rowFailed": "failed",
       "rowNoPreview": "No messages yet",

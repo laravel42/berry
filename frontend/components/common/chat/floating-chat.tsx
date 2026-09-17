@@ -254,18 +254,55 @@ export function FloatingChat() {
    }, [agents, pinnedIds, threads]);
 
    const activeId = active?.id ?? null;
+
+   const refresh = useCallback(async (id: string) => {
+      const [page, queue] = await Promise.all([
+         listMessages(id).catch(() => null),
+         listSessionTasks(id).catch(() => null),
+      ]);
+      if (page) setMessages(page);
+      if (queue) setTasks(queue);
+   }, []);
+
    useEffect(() => {
       if (!opened || !activeId) return;
       return subscribeWorkspaceEvents((event) => {
          if (!event.type.startsWith('run.') && !event.type.startsWith('conversation.')) return;
-         void listMessages(activeId)
-            .then(setMessages)
-            .catch(() => undefined);
-         void listSessionTasks(activeId)
-            .then(setTasks)
-            .catch(() => undefined);
+         void refresh(activeId);
       });
-   }, [opened, activeId]);
+   }, [opened, activeId, refresh]);
+
+   /**
+    * The reply arrives on a poll, not on an event.
+    *
+    * A chat run's events are board-scoped and a chat run has no board, and the
+    * `conversation.message.created` topic is on neither stream — so the
+    * subscription above cannot fire for chat, and this window would refresh once
+    * after sending and then sit silent forever. The chat page has carried the
+    * same poll for the same reason; this is that net, and it stops as soon as
+    * the queue drains.
+    */
+   useEffect(() => {
+      if (!opened || !activeId || tasks.length === 0) return;
+      const timer = setInterval(() => void refresh(activeId), 3000);
+      return () => clearInterval(timer);
+   }, [opened, activeId, tasks.length, refresh]);
+
+   /**
+    * The wait, said under the last message — the same rule as the chat page.
+    *
+    * The stream's own stage is the better answer, but it exists only once a task
+    * is running and the stream is open. Before that there is the send itself and
+    * then a queued task the poll above has yet to see, and those two gaps used to
+    * render nothing at all, so a sent message was indistinguishable from one that
+    * went nowhere. Queued or running, the word is "thinking": whether the
+    * dispatcher has claimed the task yet is Berry's business, not a distinction
+    * the reader is waiting on.
+    *
+    * Both conditions end on their own, so a send that failed stops the animation
+    * rather than leaving it breathing over an unanswered message.
+    */
+   const stage = streamStage ?? (sending || tasks.length > 0 ? chat('msgStageThinking') : null);
 
    const send = async () => {
       const text = composer.trim();
@@ -277,9 +314,12 @@ export function FloatingChat() {
       } catch {
          /* The reply that never comes is the report. */
       } finally {
+         // Through `refresh` so a failed queue read keeps whatever was there:
+         // clearing it to [] would stop the poll above before the reply landed.
+         // It runs before `sending` is released, or there is one render with the
+         // send finished and the task not yet back — a blink in the animation.
+         await refresh(activeId);
          setSending(false);
-         setMessages(await listMessages(activeId).catch(() => messages));
-         setTasks(await listSessionTasks(activeId).catch(() => []));
       }
    };
 
@@ -463,10 +503,7 @@ export function FloatingChat() {
                   hasEarlier={false}
                   loadingEarlier={false}
                   onLoadEarlier={() => undefined}
-                  stage={
-                     streamStage ??
-                     (tasks.some((task) => task.status === 'running') ? chat('rowWorking') : null)
-                  }
+                  stage={stage}
                   streamingText={streamingText}
                />
                {/* The composer is shared with the chat page, where its send
