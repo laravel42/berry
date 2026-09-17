@@ -142,9 +142,29 @@ export class GitHubClient {
       const root = `/repos/${encode(input.owner)}/${encode(input.name)}`;
       const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(input.baseCommit)}`);
       const tree: Array<{ path: string; mode: string; type: 'blob'; sha: string | null }> = [];
-      for (const file of input.files) {
-         const blob = file.content === null ? null : await this.#json<{ sha: string }>('POST', `${root}/git/blobs`, { content: file.content, encoding: 'base64' });
-         tree.push({ path: file.path, mode: file.mode, type: 'blob', sha: blob?.sha ?? null });
+      // Blob creation is content-addressed and independent per file. Posting one
+      // at a time made publication latency scale with file count; bounded waves
+      // preserve provider headroom while turning eight round trips into one.
+      const concurrency = 8;
+      for (let from = 0; from < input.files.length; from += concurrency) {
+         const wave = await Promise.all(
+            input.files.slice(from, from + concurrency).map(async (file) => {
+               const blob =
+                  file.content === null
+                     ? null
+                     : await this.#json<{ sha: string }>('POST', `${root}/git/blobs`, {
+                          content: file.content,
+                          encoding: 'base64',
+                       });
+               return {
+                  path: file.path,
+                  mode: file.mode,
+                  type: 'blob' as const,
+                  sha: blob?.sha ?? null,
+               };
+            })
+         );
+         tree.push(...wave);
       }
       const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, { base_tree: parent.tree.sha, tree });
       const commit = await this.#json<{ sha: string }>('POST', `${root}/git/commits`, {

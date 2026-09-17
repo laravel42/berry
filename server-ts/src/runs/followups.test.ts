@@ -6,6 +6,44 @@ import { createLogger } from '../observability/log.ts';
 import { enqueueTask } from './queue.ts';
 import { FollowupWorker, scheduleMention, scheduleReview } from './followups.ts';
 
+test('a followup tick runs a bounded batch concurrently', async () => {
+   const jobs = Array.from({ length: 8 }, (_, index) => ({
+      id: `followup-${index}`,
+      run_id: `run-${index}`,
+      kind: 'review',
+      attempts: 1,
+   }));
+   let claimed = false;
+   const sql = (async (strings: TemplateStringsArray) => {
+      const query = strings.join('');
+      if (query.includes('RETURNING f.*') && !claimed) {
+         claimed = true;
+         return jobs;
+      }
+      return [];
+   }) as unknown as Sql;
+   let active = 0;
+   let maxActive = 0;
+   const reviewed: string[] = [];
+   const worker = new FollowupWorker({
+      sql,
+      concurrency: 8,
+      logger: createLogger('test'),
+      review: async (runId) => {
+         active += 1;
+         maxActive = Math.max(maxActive, active);
+         await new Promise((resolve) => setTimeout(resolve, 10));
+         reviewed.push(runId);
+         active -= 1;
+      },
+   });
+
+   await worker.tick();
+
+   assert.equal(maxActive, 8, 'one slow review must not hold the other seven behind it');
+   assert.equal(reviewed.length, 8);
+});
+
 describe('durable run followups', { skip: !process.env.BERRY_TEST_DATABASE_URL }, () => {
    let sql: Sql;
    let fixture: Fixture | null = null;

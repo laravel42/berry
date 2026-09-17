@@ -1133,6 +1133,10 @@ const followupWorker = reviewGate
            return reviewGate.review(runId);
         },
         logger,
+        // Review completions use dispatcher slots too. Cap them at half the
+        // configured local throughput, never above eight, so publication and
+        // review cannot crowd all implementation work out of the queue.
+        concurrency: Math.max(1, Math.min(8, Math.ceil(config.runtime.concurrency / 2))),
      })
    : null;
 followupWorker?.start();

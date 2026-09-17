@@ -439,19 +439,34 @@ export class ReviewGate {
                for (const reviewer of pending) failed.add(reviewer.role);
             }
          }
-         for (const reviewer of unreadable ? [] : pending) {
-            const reviewId = await this.#openRequired(material, reviewer, attempt);
-            if (!reviewId) continue; // decided by the reviewer itself meanwhile
-            let verdict: Verdict | null = null;
-            try {
-               verdict = await this.#ask(material, reviewer, diff);
-            } catch (error) {
-               // Not a rejection and never an approval: the row stays undecided,
-               // it is not counted against the author, and the note says so.
-               this.#onError(`${reviewer.role} review failed`, error);
-               failed.add(reviewer.role);
-            }
-            if (verdict && (await this.#decideRequired(reviewId, verdict))) fresh.push(reviewer.id);
+         // Reviewers are independent: each has its own row, role/model and the
+         // same immutable task evidence. Waiting for QA before even asking
+         // Security made a multi-review gate take the sum of every model call;
+         // asking together makes it take the slowest one. Results are folded
+         // after all finish so settlement still happens exactly once.
+         const results = await Promise.all(
+            (unreadable ? [] : pending).map(async (reviewer) => {
+               const reviewId = await this.#openRequired(material, reviewer, attempt);
+               if (!reviewId) return { reviewer, decided: false, failed: false };
+               try {
+                  const verdict = await this.#ask(material, reviewer, diff);
+                  return {
+                     reviewer,
+                     decided: await this.#decideRequired(reviewId, verdict),
+                     failed: false,
+                  };
+               } catch (error) {
+                  // Not a rejection and never an approval: the row stays
+                  // undecided, it is not counted against the author, and the
+                  // note says so.
+                  this.#onError(`${reviewer.role} review failed`, error);
+                  return { reviewer, decided: false, failed: true };
+               }
+            })
+         );
+         for (const result of results) {
+            if (result.failed) failed.add(result.reviewer.role);
+            if (result.decided) fresh.push(result.reviewer.id);
          }
       }
 
@@ -1070,7 +1085,11 @@ export function reviewPrompt(material: ReviewMaterial, diff: string | null): str
       material.delivered?.files.length
          ? `Files changed (${material.delivered.files.length}):\n${material.delivered.files.map((file) => `- ${file}`).join('\n')}`
          : '',
-      artifactsText(material.artifacts),
+      // A pull request diff already contains the file contents in review form.
+      // Sending the same work again as up to 120 KiB of artifacts doubles input
+      // and parsing time for every reviewer; artifacts are the evidence only
+      // when there is no diff.
+      diff === null ? artifactsText(material.artifacts) : '',
       diff === null
          ? [
               'This run opened no pull request, so there is no diff — for most tasks the',

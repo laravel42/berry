@@ -40,6 +40,8 @@ export interface TriageResult {
  * and a batch that does fail costs its own tasks rather than every task.
  */
 const BATCH = 8;
+/** Maximum routing completions in flight; leaves dispatcher slots for real work. */
+const BATCH_CONCURRENCY = 4;
 
 export class TriageUnavailable extends Error {
    override readonly name = 'TriageUnavailable';
@@ -287,41 +289,71 @@ export class PlanTriage {
          throw new TriageUnavailable('this workspace has no agent that can take work');
       }
 
-      // Batch by batch, so a plan is routed as far as it can be, and each
-      // batch's assignments are written before the next one is asked for. Every
-      // batch failing is still the old error — nothing was routed and the caller
-      // should hear why — but one failing batch now costs its own tasks, and a
-      // process that stops halfway leaves the earlier ones owned rather than
-      // deciding for them and forgetting.
+      // Route in bounded waves. Four independent batches ask together, so a
+      // thirty-five-task plan takes two routing rounds rather than five, while
+      // leaving dispatcher capacity for real work. Each wave is applied before
+      // the next one starts, preserving partial progress if the process stops.
       const decided = new Map<string, { agentId: string; workflow: string | null }>();
       const failures: string[] = [];
       let assigned = 0;
-      for (let from = 0; from < tasks.length; from += BATCH) {
-         const batch = tasks.slice(from, from + BATCH);
-         let batchDecisions: Map<string, { agentId: string; workflow: string | null }>;
-         try {
-            batchDecisions = await this.#decide(input.workspaceId, batch, roster, input.signal);
-         } catch (cause) {
-            failures.push(cause instanceof Error ? cause.message : String(cause));
-            // A cancelled signal is the caller giving up, not this batch
-            // failing: carrying on would queue more work nobody is waiting for.
-            if (input.signal?.aborted) break;
-            continue;
-         }
-         for (const task of batch) {
-            const decision = batchDecisions.get(task.id);
-            if (!decision) continue;
-            decided.set(task.id, decision);
-            await this.#sql`
-               UPDATE issues
-                  SET assignee_type = 'agent', assignee_id = ${decision.agentId}, updated_at = now()
-                WHERE id = ${task.id} AND assignee_id IS NULL`;
-            assigned += 1;
-            if (decision.workflow) {
-               const workflow = decision.workflow;
-               await this.#sql.begin((tx) => patchMetadata(tx as never, task.id, { set: { 'berry.workflow': workflow } }));
+      const batches = Array.from(
+         { length: Math.ceil(tasks.length / BATCH) },
+         (_, index) => tasks.slice(index * BATCH, (index + 1) * BATCH)
+      );
+      for (let from = 0; from < batches.length; from += BATCH_CONCURRENCY) {
+         const wave = batches.slice(from, from + BATCH_CONCURRENCY);
+         const results = await Promise.all(
+            wave.map(async (batch) => {
+               try {
+                  return {
+                     batch,
+                     decisions: await this.#decide(
+                        input.workspaceId,
+                        batch,
+                        roster,
+                        input.signal
+                     ),
+                     failure: null,
+                  };
+               } catch (cause) {
+                  return {
+                     batch,
+                     decisions: null,
+                     failure: cause instanceof Error ? cause.message : String(cause),
+                  };
+               }
+            })
+         );
+
+         for (const result of results) {
+            if (!result.decisions) {
+               if (result.failure) failures.push(result.failure);
+               continue;
+            }
+            for (const task of result.batch) {
+               const decision = result.decisions.get(task.id);
+               if (!decision) continue;
+               const updated = await this.#sql`
+                  UPDATE issues
+                     SET assignee_type = 'agent', assignee_id = ${decision.agentId}, updated_at = now()
+                   WHERE id = ${task.id} AND assignee_id IS NULL
+                   RETURNING id`;
+               // Another routing request won the task. Do not count or start it
+               // from this decision — its winner owns that responsibility.
+               if (updated.length === 0) continue;
+               decided.set(task.id, decision);
+               assigned += 1;
+               if (decision.workflow) {
+                  const workflow = decision.workflow;
+                  await this.#sql.begin((tx) =>
+                     patchMetadata(tx as never, task.id, {
+                        set: { 'berry.workflow': workflow },
+                     })
+                  );
+               }
             }
          }
+         if (input.signal?.aborted) break;
       }
       // Only an orchestrator that never answered is a failure. An answer whose
       // ids were all dropped is a decision — a poor one — and leaves the tasks

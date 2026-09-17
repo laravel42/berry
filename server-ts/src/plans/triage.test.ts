@@ -35,16 +35,22 @@ function fake(options: {
     * the batches: it is given the task ids in this call and either returns an
     * answer or throws, standing in for a batch the orchestrator did not answer.
     */
-   answerFor?: (call: number, taskIds: string[]) => unknown;
+   answerFor?: (call: number, taskIds: string[]) => unknown | Promise<unknown>;
 }): Fake {
    const admitted: Fake['admitted'] = [];
    const calls: string[][] = [];
    let sent: Record<string, unknown> = {};
 
+   const sql = Object.assign(
+      async (strings: TemplateStringsArray) =>
+         strings.join('').includes('UPDATE issues') ? [{ id: 'assigned' }] : [],
+      { begin: options.begin }
+   );
    const triage = new PlanTriage({
-      // A tagged template that yields no rows: the model falls back to the
-      // deployment default, and the assignment UPDATE writes into nothing.
-      sql: Object.assign(async () => [], { begin: options.begin }) as never,
+      // Most reads yield no rows, so the model falls back to the deployment
+      // default. Assignment writes return their id, matching UPDATE … RETURNING
+      // in PostgreSQL; an empty result now means another router won the task.
+      sql: sql as never,
       defaultModel: 'test/model',
       completion: {
          async structured(input: { model: string; system: string; user: string; schema: z.ZodType }) {
@@ -55,9 +61,10 @@ function fake(options: {
             calls.push(asked);
             // Parsed the way the real completion parses it, so an answer the
             // schema refuses is refused here too.
-            const value = input.schema.parse(
-               options.answerFor ? options.answerFor(calls.length, asked) : options.answer
-            );
+            const raw = options.answerFor
+               ? await options.answerFor(calls.length, asked)
+               : options.answer;
+            const value = input.schema.parse(raw);
             return { value, text: JSON.stringify(value), inputTokens: 0, outputTokens: 0, durationMs: 1 };
          },
       } as never,
@@ -167,28 +174,38 @@ describe('routing a compiled plan', () => {
       assert.deepEqual(f.admitted.map((a) => a.issueId), ['t2']);
    });
 
-   test('a big plan is routed in batches, not in one call', async () => {
+   test('a big plan is routed in bounded parallel batches', async () => {
       const tasks = Array.from({ length: 20 }, (_, index) => ({
          id: `t${index + 1}`,
          status: 'todo',
       }));
+      let active = 0;
+      let maxActive = 0;
       const f = fake({
          tasks,
          agents: ['a1'],
-         answerFor: (_call, taskIds) => ({
-            assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })),
-         }),
+         answerFor: async (_call, taskIds) => {
+            active += 1;
+            maxActive = Math.max(maxActive, active);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            active -= 1;
+            return {
+               assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })),
+            };
+         },
          answer: {},
       });
 
       const result = await run(f);
 
       // Twenty tasks in eights: three calls, each asked about only its own
-      // tasks. One call for all twenty is what timed out in production.
+      // tasks, and all three fit in the four-call wave. One serial call for each
+      // batch is what made routing a large plan take minutes.
       assert.deepEqual(
          f.calls().map((call) => call.length),
          [8, 8, 4]
       );
+      assert.equal(maxActive, 3);
       assert.equal(result.assigned, 20);
       assert.equal(result.started, 20);
       assert.deepEqual(result.failures, []);
