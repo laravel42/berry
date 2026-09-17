@@ -32,6 +32,11 @@ const apiOrigin = berryApiOrigin();
 const nextConfig: NextConfig = {
    distDir: process.env.NEXT_DIST_DIR ?? '.next',
    devIndicators: false,
+   // Next protects dev-only endpoints (including the HMR websocket) by Origin.
+   // The Cloudflare tunnel is an intentional second origin for this local dev
+   // server; without the allowlist Next answers the upgrade `Unauthorized`,
+   // which Cloudflare correctly surfaces as a 502 handshake failure.
+   allowedDevOrigins: ['local.berry.pm'],
    /**
     * A self-contained server, so the app can be deployed without the workspace.
     *
