@@ -47,13 +47,13 @@ export interface WorkspaceOptions {
    secrets: SecretsRepository;
    clock?: () => Date;
    /**
-    * Provisions this workspace's discovery autopilots, right after a fresh
-    * create. Optional so a deployment that has not wired discovery yet still
-    * boots; errors are reported through `onDiscoveryError` and never fail
+    * Autoseeds agents, skills and discovery autopilots right after a fresh
+    * create. Optional so a deployment that has not wired seeding yet still
+    * boots; errors are reported through `onAutoseedError` and never fail
     * the create.
     */
-   ensureDiscovery?: (workspaceId: string) => Promise<unknown>;
-   onDiscoveryError?: (workspaceId: string, error: unknown) => void;
+   autoseed?: (workspaceId: string) => Promise<unknown>;
+   onAutoseedError?: (workspaceId: string, error: unknown) => void;
 }
 
 export function workspaceMounts(options: WorkspaceOptions): Mount[] {
@@ -132,12 +132,12 @@ export function workspaceMounts(options: WorkspaceOptions): Mount[] {
          })
       );
 
-      // Discovery for a genuinely new workspace only: a replayed create found
-      // the workspace it already made, and its discovery (if any) was
-      // provisioned the first time. Never fails the create.
+      // Autoseed for a genuinely new workspace only: a replayed create found
+      // the workspace it already made, and its agents/skills/discovery (if any)
+      // were provisioned the first time. Never fails the create.
       if (!replayed) {
-         options.ensureDiscovery?.(workspace.id).catch((error: unknown) => {
-            options.onDiscoveryError?.(workspace.id, error);
+         options.autoseed?.(workspace.id).catch((error: unknown) => {
+            options.onAutoseedError?.(workspace.id, error);
          });
       }
 

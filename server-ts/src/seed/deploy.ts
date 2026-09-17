@@ -1,4 +1,5 @@
 import type { Queryable, Sql } from '../db/pool.ts';
+import { ensureOrganizationAgents } from '../organization/provision.ts';
 import type { PackedSkill } from './skill-pack.ts';
 import { loadPackedSkills } from './skills.ts';
 
@@ -22,6 +23,45 @@ export function loadDeploySkills(onError: (error: unknown) => void): PackedSkill
       onError(error);
       return [];
    }
+}
+
+export interface AutoseedWorkspaceOptions {
+   skills: PackedSkill[];
+   /** Best-effort platform runtime row; a failure must not skip skills. */
+   syncRuntime?: () => Promise<void>;
+   /** Weekly discovery autopilots for every role that carries a discovery block. */
+   ensureDiscovery: (workspaceId: string) => Promise<unknown>;
+   onError?: (step: 'organization' | 'runtime' | 'skills' | 'discovery', error: unknown) => void;
+}
+
+/**
+ * Everything a brand-new workspace needs before a person opens it: the role
+ * organization, the skills pack (and bindings), the platform runtime binding,
+ * and weekly discovery autopilots.
+ *
+ * Idempotent. Each step is independent — a missing runtime never blocks skills
+ * or discovery. Called from workspace create and safe to re-run on boot.
+ */
+export async function autoseedWorkspace(
+   sql: Sql,
+   workspaceId: string,
+   options: AutoseedWorkspaceOptions
+): Promise<void> {
+   const fail = (step: 'organization' | 'runtime' | 'skills' | 'discovery', error: unknown) => {
+      options.onError?.(step, error);
+   };
+
+   await ensureOrganizationAgents(sql, workspaceId).catch((error: unknown) => fail('organization', error));
+
+   if (options.syncRuntime) {
+      await options.syncRuntime().catch((error: unknown) => fail('runtime', error));
+   }
+
+   await seedWorkspaceDefaults(sql, workspaceId, options.skills).catch((error: unknown) =>
+      fail('skills', error)
+   );
+
+   await options.ensureDiscovery(workspaceId).catch((error: unknown) => fail('discovery', error));
 }
 
 export async function seedWorkspaceDefaults(

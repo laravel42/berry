@@ -140,7 +140,7 @@ import { organizationMounts } from './mounts/organization.ts';
 import { syncPlatformRuntime } from './runtime/runtimes.ts';
 import { ensureDiscovery, ensureDiscoveryEverywhere } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
-import { loadDeploySkills, seedDefaultsEverywhere, seedWorkspaceDefaults } from './seed/deploy.ts';
+import { autoseedWorkspace, loadDeploySkills, seedDefaultsEverywhere } from './seed/deploy.ts';
 import { applyLifecycle } from './runtime/runtime-control.ts';
 import { agentCoreRuntimeDriver } from './execution/agentcore-runtime.ts';
 import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
@@ -602,22 +602,20 @@ registry.registerAll(
       // `autopilots` is declared later in this module (with the rest of the
       // autopilot wiring), but this closure only reads it once a request
       // reaches the route, well after module load has finished.
-      ensureDiscovery: async (workspaceId) => {
-         // A new workspace gets what a deploy gives every other one: the
-         // platform runtime row, the skills pack, and its agents bound to that
-         // runtime. A failure here is logged and never costs its discovery.
-         await syncPlatformRuntime(sql, defaultTarget, { workspaceId })
-            .then(() => seedWorkspaceDefaults(sql, workspaceId, deploySkills))
-            .catch((error: unknown) =>
-               logger.error('could not seed workspace defaults', {
+      autoseed: async (workspaceId) =>
+         autoseedWorkspace(sql, workspaceId, {
+            skills: deploySkills,
+            syncRuntime: () => syncPlatformRuntime(sql, defaultTarget, { workspaceId }),
+            ensureDiscovery: (id) => ensureDiscovery(sql, id, { autopilots, issues }),
+            onError: (step, error) =>
+               logger.error('could not autoseed workspace', {
                   workspaceId,
+                  step,
                   error: error instanceof Error ? error.message : String(error),
-               })
-            );
-         return ensureDiscovery(sql, workspaceId, { autopilots, issues });
-      },
-      onDiscoveryError: (workspaceId, error) =>
-         logger.error('could not provision discovery', {
+               }),
+         }),
+      onAutoseedError: (workspaceId, error) =>
+         logger.error('could not autoseed workspace', {
             workspaceId,
             error: error instanceof Error ? error.message : String(error),
          }),
