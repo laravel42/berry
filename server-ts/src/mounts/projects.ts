@@ -15,6 +15,7 @@ import type { IdempotencyStore } from '../http/idempotency.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import type {
    Project,
+   ProjectLead,
    ProjectPatch,
    ProjectRepository,
    ProjectResource,
@@ -57,6 +58,7 @@ const PROJECT_BODY_FIELDS = new Set([
    'startDate',
    'targetDate',
    'githubRepo',
+   'lead',
 ]);
 const RESOURCE_BODY_FIELDS = new Set(['kind', 'url', 'label', 'description', 'sortOrder']);
 
@@ -150,6 +152,7 @@ export function projectMounts(options: ProjectOptions): Mount[] {
             githubRepoId: repository?.githubRepoId ?? null,
             githubRepoFullName: repository?.githubRepoFullName ?? null,
             createdBy: userId,
+            lead: input.lead,
          })
          .catch(rethrow);
 
@@ -293,6 +296,41 @@ interface CreateInput {
    startDate: string | null;
    targetDate: string | null;
    githubRepo: string | null;
+   lead: ProjectLead | null;
+}
+
+/**
+ * `lead` as the wire carries it: `{"type":"aiWorkflow"}` or
+ * `{"type":"user","id":"<uuid>"}`, and `null` for nobody yet.
+ *
+ * An object rather than two flat fields, because the id belongs to exactly one
+ * of the types and a flat pair invites the half-set state the column check
+ * refuses. An unknown type is refused rather than ignored: silently dropping
+ * `{"type":"squad"}` would report success for a lead nobody recorded.
+ */
+function parseLead(body: Record<string, unknown>, fields: FieldError[]): ProjectLead | null {
+   const value = body.lead;
+   if (value === null || value === undefined) return null;
+   if (typeof value !== 'object' || Array.isArray(value)) {
+      fields.push(field('/lead', 'invalid_type', 'Lead must be an object.'));
+      return null;
+   }
+   const { type, id } = value as { type?: unknown; id?: unknown };
+   if (type === 'aiWorkflow') {
+      if (id !== undefined && id !== null) {
+         fields.push(field('/lead/id', 'invalid_type', 'The AI workflow lead takes no id.'));
+      }
+      return { type: 'aiWorkflow' };
+   }
+   if (type === 'user') {
+      if (typeof id !== 'string' || !UUID.test(id)) {
+         fields.push(field('/lead/id', 'invalid_format', 'A user lead needs a canonical UUID id.'));
+         return null;
+      }
+      return { type: 'user', userId: id };
+   }
+   fields.push(field('/lead/type', 'invalid_enum_value', 'Lead type is user or aiWorkflow.'));
+   return null;
 }
 
 function parseCreate(body: Record<string, unknown>): CreateInput {
@@ -331,8 +369,20 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       }
    }
 
+   const lead = parseLead(body, fields);
+
    assertValid(fields);
-   return { workspaceId, name, description, status, priority, startDate, targetDate, githubRepo };
+   return {
+      workspaceId,
+      name,
+      description,
+      status,
+      priority,
+      startDate,
+      targetDate,
+      githubRepo,
+      lead,
+   };
 }
 
 function parsePatch(body: Record<string, unknown>): ProjectPatch {
@@ -342,6 +392,7 @@ function parsePatch(body: Record<string, unknown>): ProjectPatch {
       startDateSet: false,
       targetDateSet: false,
       githubRepoSet: false,
+      leadSet: false,
    };
    let provided = 0;
 
@@ -403,6 +454,11 @@ function parsePatch(body: Record<string, unknown>): ProjectPatch {
             patch.githubRepoFullName = trimmed;
          }
       }
+   }
+   if ('lead' in body) {
+      provided += 1;
+      patch.leadSet = true;
+      patch.lead = parseLead(body, fields);
    }
    if (provided === 0) {
       fields.push(field('/', 'too_small', 'At least one field must be provided.'));
@@ -955,6 +1011,16 @@ function serializeProject(project: Project, link?: ScmLink | null): Record<strin
       targetDate: project.targetDate,
       githubRepo: project.githubRepo,
       gitRepo: project.gitRepo,
+      // `null` says nobody has decided, which is not the same as a person
+      // having decided it is theirs. A client that fills the gap with whoever
+      // is looking cannot tell those apart — which is how "led by the AI
+      // workflow" used to read back as "assigned to me".
+      lead:
+         project.lead === null
+            ? null
+            : project.lead.type === 'user'
+              ? { type: 'user', id: project.lead.userId }
+              : { type: 'aiWorkflow' },
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
    };

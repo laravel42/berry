@@ -14,7 +14,7 @@ import type { User } from '@/data/users';
 import { useMembersStore } from '@/store/members-store';
 import { CheckIcon, User as UserIcon, Workflow } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
-import { AI_WORKFLOW_LEAD, isAiWorkflow } from './ai-workflow';
+import { AI_WORKFLOW_LEAD, isAiWorkflow } from '@/lib/project-lead';
 
 interface ProjectLeadSelectorProps {
    /** Undefined until the person chooses; nothing is preselected. */

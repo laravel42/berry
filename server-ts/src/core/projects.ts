@@ -16,11 +16,21 @@ import type { Scope } from './boards.ts';
 const PROJECT_COLUMNS = `project.id, project.workspace_id, project.name, project.description,
    project.status, project.priority, project.start_date, project.target_date,
    project.github_repo_id, project.github_repo_full_name, project.git_repo, project.created_by,
-   project.created_at, project.updated_at`;
+   project.lead_type, project.lead_user_id, project.created_at, project.updated_at`;
 
 const RESOURCE_COLUMNS = `resource.id, resource.workspace_id, resource.project_id,
    resource.kind, resource.url, resource.label, resource.description,
    resource.sort_order, resource.created_by, resource.created_at, resource.updated_at`;
+
+/**
+ * Who leads a project.
+ *
+ * Two answers of different shapes, which is why this is a union and not a
+ * nullable id: a person is a row in `users`, and `aiWorkflow` — Berry planning
+ * the project and turning the plan into tasks — is a row nowhere. `null` is
+ * nobody has decided, which every project created before migration 195 is.
+ */
+export type ProjectLead = { type: 'user'; userId: string } | { type: 'aiWorkflow' };
 
 export interface Project {
    id: string;
@@ -34,6 +44,7 @@ export interface Project {
    githubRepo: string | null;
    /** Berry's own bare repository for this project, relative to the repos root. */
    gitRepo: string | null;
+   lead: ProjectLead | null;
    createdAt: string;
    updatedAt: string;
 }
@@ -65,6 +76,8 @@ export interface ProjectPatch {
    githubRepoFullName?: string | null;
    /** The bare repository on Berry's own git server, once it exists. */
    gitRepo?: string | null;
+   leadSet: boolean;
+   lead?: ProjectLead | null;
 }
 
 export interface ResourcePatch {
@@ -176,17 +189,21 @@ export class ProjectRepository {
       githubRepoFullName: string | null;
       /** A users.id, or nobody — see IssueRepository.create. */
       createdBy: string | null;
+      /** Who runs this project, when the caller said. */
+      lead?: ProjectLead | null;
    }): Promise<Project> {
       const now = this.now();
+      const lead = leadColumns(params.lead ?? null);
       const rows = await this.sql`
          INSERT INTO projects AS project (
             id, workspace_id, name, description, status, priority,
             start_date, target_date, github_repo_id, github_repo_full_name,
-            created_by, created_at, updated_at
+            created_by, lead_type, lead_user_id, created_at, updated_at
          ) VALUES (
             ${this.newId()}, ${params.workspaceId}, ${params.name}, ${params.description},
             ${params.status}, ${params.priority}, ${params.startDate}, ${params.targetDate},
-            ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy}, ${now}, ${now}
+            ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy},
+            ${lead.type}, ${lead.userId}, ${now}, ${now}
          )
          RETURNING ${this.sql.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
       return toProject(rows[0]!);
@@ -206,6 +223,11 @@ export class ProjectRepository {
                 -- looks linked and cannot be used.
                 github_repo_id = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoId ?? null}::bigint ELSE project.github_repo_id END,
                 github_repo_full_name = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoFullName ?? null}::text ELSE project.github_repo_full_name END,
+                -- The lead pair moves together for the same reason the
+                -- repository pair does: projects_lead_ck refuses a half, be it
+                -- a type with no user or a user with no type.
+                lead_type = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).type}::text ELSE project.lead_type END,
+                lead_user_id = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).userId}::uuid ELSE project.lead_user_id END,
                 updated_at = ${this.now()}
           WHERE project.workspace_id = ${workspaceId}
             AND project.id = ${projectId}
@@ -375,9 +397,33 @@ function toProject(row: Record<string, unknown>): Project {
       targetDate: formatDate(row.target_date),
       githubRepo: (row.github_repo_full_name as string | null) ?? null,
       gitRepo: (row.git_repo as string | null) ?? null,
+      lead: toLead(row.lead_type, row.lead_user_id),
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
    };
+}
+
+/** The stored pair as the one lead it means, or nothing. */
+function toLead(type: unknown, userId: unknown): ProjectLead | null {
+   if (type === 'ai_workflow') return { type: 'aiWorkflow' };
+   // The check constraint guarantees the id is there; the guard is what lets
+   // this return a narrowed union rather than assert one.
+   if (type === 'user' && typeof userId === 'string') return { type: 'user', userId };
+   return null;
+}
+
+/**
+ * The lead as the two columns hold it.
+ *
+ * One place, used by both the insert and the update, because the pair is only
+ * ever legal in three combinations and spelling those out twice is how one of
+ * them drifts.
+ */
+function leadColumns(lead: ProjectLead | null): { type: string | null; userId: string | null } {
+   if (!lead) return { type: null, userId: null };
+   return lead.type === 'aiWorkflow'
+      ? { type: 'ai_workflow', userId: null }
+      : { type: 'user', userId: lead.userId };
 }
 
 function toResource(row: Record<string, unknown>): ProjectResource {

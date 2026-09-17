@@ -5,7 +5,7 @@ import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { AutoGateToggle } from '@/components/common/plans/auto-gate-toggle';
-import { isAiWorkflow } from '@/components/common/projects/create-project/ai-workflow';
+import { isAiWorkflow } from '@/lib/project-lead';
 import { ProjectLeadSelector } from '@/components/common/projects/create-project/lead-selector';
 import { ProjectPrioritySelector } from '@/components/common/projects/create-project/priority-selector';
 import { defaultProjectCreateStatus } from '@/components/common/projects/create-project/project-status-options';
@@ -98,12 +98,62 @@ export function CreateProjectDialog() {
    );
 
    const [form, setForm] = useState<ProjectFormState>(createDefaultForm);
+   /**
+    * A project that exists with no plan behind it.
+    *
+    * Held rather than toasted. Asking Berry to lead a project is two steps, and
+    * only the first is undoable by walking away: when planning fails the project
+    * is already there, so a toast over a dialog that closes itself reports the
+    * failure to nobody and leaves the work unaskable — the lead is set, and
+    * nothing will ever try again. Keeping the project id here is what makes the
+    * second step retryable without creating a second project.
+    */
+   const [planFailure, setPlanFailure] = useState<{ projectId: string; message: string } | null>(
+      null
+   );
 
    useEffect(() => {
       if (isOpen) {
          setForm(createDefaultForm());
+         setPlanFailure(null);
       }
    }, [isOpen, createDefaultForm]);
+
+   /**
+    * Asks for the plan of a project that already exists.
+    *
+    * Separate from creating it so a retry is a retry: the project is not made
+    * again, and `Idempotency-Key` is fresh, so the server sees a new attempt
+    * rather than replaying the failed one.
+    */
+   const requestPlan = async (projectId: string) => {
+      if (!workspace) return;
+      setPending(true);
+      setPlanFailure(null);
+      try {
+         const record = await generatePlan({
+            workspaceId: workspace.id,
+            prompt: planPrompt(form),
+            projectId,
+            boardId: boardId ?? undefined,
+            autoGate: form.autoGate,
+            // Berry leads it, so it does not stop at a proposal: the server
+            // starts the plan once generation finishes, which is what turns
+            // it into tasks, whether or not this tab is still open.
+            autoStart: true,
+         });
+         upsertPlanRecord(record);
+         // The preview's own attempt is kept as a fallback for a server that
+         // does not start plans; it finds an already started plan otherwise.
+         markAutoStart(record.id);
+         closeModal();
+         router.push(`/${orgId}/plan/${record.id}`);
+      } catch (error) {
+         setPlanFailure({ projectId, message: describePlanFailure(error) });
+      } finally {
+         setPending(false);
+      }
+   };
 
    const createProject = async () => {
       const trimmed = form.name.trim();
@@ -153,32 +203,10 @@ export function CreateProjectDialog() {
       }
 
       // Berry leads it, so creating the project is the same act as asking for
-      // the plan. The project exists either way, which is why this failure is
-      // reported as planning failing rather than creation failing.
-      try {
-         const record = await generatePlan({
-            workspaceId: workspace.id,
-            prompt: planPrompt(form),
-            projectId: project.id,
-            boardId: boardId ?? undefined,
-            autoGate: form.autoGate,
-            // Berry leads it, so it does not stop at a proposal: the server
-            // starts the plan once generation finishes, which is what turns
-            // it into tasks, whether or not this tab is still open.
-            autoStart: true,
-         });
-         upsertPlanRecord(record);
-         // The preview's own attempt is kept as a fallback for a server that
-         // does not start plans; it finds an already started plan otherwise.
-         markAutoStart(record.id);
-         closeModal();
-         router.push(`/${orgId}/plan/${record.id}`);
-      } catch (error) {
-         toast.error(`Project created, but planning failed. ${describePlanFailure(error)}`);
-         closeModal();
-      } finally {
-         setPending(false);
-      }
+      // the plan. The project exists either way, which is why a failure here is
+      // reported as planning failing rather than creation failing — and why it
+      // is reported in the dialog, which stays open, rather than after it.
+      await requestPlan(project.id);
    };
 
    return (
@@ -216,6 +244,13 @@ export function CreateProjectDialog() {
                className="flex min-h-0 flex-1 flex-col"
                onSubmit={(event) => {
                   event.preventDefault();
+                  // Once the project exists, submitting asks for its plan again.
+                  // Routing this through `createProject` would make a second
+                  // project every time someone pressed Enter on the error.
+                  if (planFailure) {
+                     void requestPlan(planFailure.projectId);
+                     return;
+                  }
                   void createProject();
                }}
             >
@@ -310,9 +345,24 @@ export function CreateProjectDialog() {
                   </div>
                </div>
 
+               {/* The project is saved and the plan is not, which is a state
+                   worth stating plainly: it says what happened, what still
+                   exists, and what the button will do about it. `role="alert"`
+                   because it appears in response to the submit that just
+                   failed. */}
+               {planFailure ? (
+                  <p role="alert" className="flex-none border-t px-6 py-3 text-muted-foreground">
+                     <span className="text-foreground">
+                        {form.name.trim() || 'The project'} was created, but planning it failed.
+                     </span>{' '}
+                     {planFailure.message} Nothing is lost — try planning again, or close this and
+                     open the project.
+                  </p>
+               ) : null}
+
                <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
                   <Button type="button" variant="ghost" size="sm" onClick={closeModal}>
-                     Cancel
+                     {planFailure ? 'Close' : 'Cancel'}
                   </Button>
                   <Button
                      type="submit"
@@ -322,7 +372,11 @@ export function CreateProjectDialog() {
                      {isAiWorkflow(form.lead) ? (
                         <>
                            <Sparkles className="size-4" />
-                           {pending ? 'Planning…' : 'Create & plan'}
+                           {pending
+                              ? 'Planning…'
+                              : planFailure
+                                ? 'Try planning again'
+                                : 'Create & plan'}
                         </>
                      ) : (
                         <>{pending ? 'Creating…' : 'Create project'}</>

@@ -96,11 +96,20 @@ export function useHydrateWorkspaceData(): void {
    useEffect(() => {
       if (status !== 'ready' || !workspaceId) return;
       let cancelled = false;
-      const lead = user ?? currentUser;
-      void loadWorkspaceProjects(workspaceId, lead).then((projects) => {
+      // Passed as the viewer, not as the lead: a project's own lead comes back
+      // with it, and this only stands in for one that recorded none.
+      const viewer = user ?? currentUser;
+      // A person lead is resolved from the member store while each project is
+      // mapped. Load the roster first: running both requests in parallel meant a
+      // fast project response permanently became "Unknown member", because the
+      // later member hydration did not remap projects already in the store.
+      void loadWorkspaceMembers(workspaceId).then(async (members) => {
+         if (cancelled) return;
+         hydrateMembers(members);
+         const projects = await loadWorkspaceProjects(workspaceId, viewer);
          if (!cancelled) hydrateProjects(projects);
       });
-      void loadWorkspaceInbox(workspaceId, lead).then((items) => {
+      void loadWorkspaceInbox(workspaceId, viewer).then((items) => {
          if (!cancelled) hydrateNotifications(items);
       });
       void loadInboxUnreadCount(workspaceId).then((count) => {
@@ -118,13 +127,10 @@ export function useHydrateWorkspaceData(): void {
                );
             }
          });
-      void loadWorkspaceMembers(workspaceId).then((members) => {
-         if (!cancelled) hydrateMembers(members);
-      });
       void loadWorkspaceLabels(workspaceId).then((labels) => {
          if (!cancelled) hydrateLabels(labels);
       });
-      void loadWorkspaceViews(workspaceId, lead).then((views) => {
+      void loadWorkspaceViews(workspaceId, viewer).then((views) => {
          if (!cancelled) hydrateViews(views);
       });
       void loadWorkspaceGoals(workspaceId).then((goals) => {

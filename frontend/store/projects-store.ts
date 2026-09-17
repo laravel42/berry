@@ -4,6 +4,7 @@ import type { Priority } from '@/data/priorities';
 import type { Status } from '@/data/status';
 import type { User } from '@/data/users';
 import { apiPriorityFromUi, apiProjectStatusFromUi } from '@/lib/catalog';
+import { leadToApi } from '@/lib/project-lead';
 import { patchWorkspaceProject, type ProjectPatchBody } from '@/lib/projects';
 import { useSessionStore } from '@/store/session-store';
 
@@ -22,7 +23,8 @@ interface ProjectsState {
    getProjectById: (id: string) => Project | undefined;
 }
 
-function leadFromSession(): User {
+/** Who is looking — the fallback for a project that recorded no lead. */
+function viewerFromSession(): User {
    const user = useSessionStore.getState().user;
    return (
       user ?? {
@@ -45,7 +47,7 @@ function persistPatch(
    optimistic: Partial<Project>
 ): void {
    useProjectsStore.getState().updateProject(projectId, optimistic);
-   void patchWorkspaceProject(projectId, body, leadFromSession()).then((updated) => {
+   void patchWorkspaceProject(projectId, body, viewerFromSession()).then((updated) => {
       if (updated) {
          useProjectsStore.getState().updateProject(projectId, updated);
       }
@@ -87,8 +89,11 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       persistPatch(id, { targetDate: targetDate ?? null }, { targetDate });
    },
 
+   // Persisted like every other property. It used to move the row in this store
+   // and nowhere else, so changing a project's lead survived exactly until the
+   // next reload — and the AI workflow could be chosen with nothing to act on it.
    updateProjectLead: (id, lead) => {
-      get().updateProject(id, { lead });
+      persistPatch(id, { lead: leadToApi(lead) }, { lead });
    },
 
    updateProjectHealth: (id, healthId) => {
