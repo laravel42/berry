@@ -237,7 +237,7 @@ export function CreateProjectDialog() {
                   <label htmlFor="create-project-description" className="sr-only">
                      Description
                   </label>
-                  <div className="mt-5 min-h-40 flex-1">
+                  <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
                      <TiptapAiEditor
                         data-heading="h3"
                         value={form.description}

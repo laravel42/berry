@@ -31,7 +31,6 @@ import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
 import { status } from '@/data/status';
 import { BerryApiError } from '@/lib/api';
-import { uploadIssueAttachment } from '@/lib/attachments';
 import { toUiUser } from '@/lib/catalog';
 import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
 import { setIssueLabels } from '@/lib/issue-labels';
@@ -46,9 +45,9 @@ import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
 import { format } from 'date-fns';
-import { CheckIcon, ChevronRight, Paperclip, PenLine, Plus, TagIcon, X } from 'lucide-react';
+import { CheckIcon, ChevronRight, PenLine, Plus, TagIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector, isOrchestrator } from './assignee-selector';
@@ -129,8 +128,6 @@ export function CreateNewIssue() {
    const [labels, setLabels] = useState<LabelInterface[]>([]);
    const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
    const [revealedFields, setRevealedFields] = useState<string[]>([]);
-   const [files, setFiles] = useState<File[]>([]);
-   const picker = useRef<HTMLInputElement>(null);
 
    const agentMode = mode === 'agent';
    const orchestrator = useMemo(
@@ -232,13 +229,9 @@ export function CreateNewIssue() {
             toast.error(t('failed'))
          );
       }
-      for (const file of files) {
-         await uploadIssueAttachment(created.identifier, file).catch(() => undefined);
-      }
    };
 
    const finish = () => {
-      setFiles([]);
       setRevealedFields([]);
       if (createAnother) {
          // Keep the context — the column, the parent — and clear what was typed.
@@ -647,32 +640,10 @@ export function CreateNewIssue() {
                      </div>
                      {chosenAgent && isOrchestrator(chosenAgent) ? (
                         <p className="text-muted-foreground">{ta('orchestratorHint')}</p>
-                     ) : chosenAgent?.description ? (
-                        <p
-                           className="truncate text-muted-foreground"
-                           title={chosenAgent.description}
-                        >
-                           {chosenAgent.description}
-                        </p>
                      ) : null}
                   </div>
                </TabsContent>
             </Tabs>
-
-            <div className="flex flex-wrap items-center gap-2 px-4">
-               <Button variant="ghost" size="xs" onClick={() => picker.current?.click()}>
-                  <Paperclip className="mr-1 size-3.5" />
-                  {t('attachments')}
-                  {files.length > 0 ? ` · ${files.length}` : ''}
-               </Button>
-               <input
-                  ref={picker}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(event) => setFiles(Array.from(event.target.files ?? []))}
-               />
-            </div>
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <label className="flex items-center gap-2 text-muted-foreground">
