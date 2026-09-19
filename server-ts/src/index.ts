@@ -31,6 +31,10 @@ import { issueAttachmentRoutes } from './mounts/issue-attachments.ts';
 import { artifactMounts, issueArtifactRoutes } from './mounts/artifacts.ts';
 import { artifactPreviewMounts, issueArtifactPreviewRoutes, PreviewTokens } from './mounts/artifact-preview.ts';
 import { SiteBuilds } from './previews/site-builds.ts';
+import { PreviewEnvironments } from './previews/environments.ts';
+import { previewOrigin, previewProxy } from './previews/proxy.ts';
+import { pullRequestSource } from './previews/source.ts';
+import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
@@ -296,6 +300,17 @@ const storage = config.storage
    : null;
 // Builds an agent's web project in a container so its preview shows the site.
 // Needs Docker on this host; without it the preview says so.
+/**
+ * Running previews of a task's pull request: its apps and services in
+ * containers, each app at a host name of its own. In memory, so whatever an
+ * earlier process left behind is removed before the first one starts.
+ */
+const previewEnvironments = new PreviewEnvironments({ origin: (id, appName) => previewOrigin(config.previews, id, appName) });
+void previewEnvironments.removeOrphans().catch((error: unknown) =>
+   logger.warn('previews left by an earlier process were not removed', { error: error instanceof Error ? error.message : String(error) })
+);
+setInterval(() => void previewEnvironments.reap().catch(() => undefined), 60_000).unref();
+
 const siteBuilds = storage
    ? new SiteBuilds({ artifacts: runArtifacts, read: (artifact) => storage.open(artifact.storageKey) })
    : null;
@@ -710,10 +725,22 @@ registry.registerAll(
          hooks: workHooks,
          enqueue: quickActionEnqueue,
       }),
-      artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues }).route(
-         '/',
-         issueArtifactPreviewRoutes({ issues, tokens: previewTokens, builds: siteBuilds })
-      ),
+      artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues })
+         .route('/', issueArtifactPreviewRoutes({ issues, tokens: previewTokens, builds: siteBuilds }))
+         .route(
+            '/',
+            issuePreviewEnvironmentRoutes({
+               issues,
+               environments: previewEnvironments,
+               source: (issue) =>
+                  scm.provisioning
+                     ? pullRequestSource(
+                          { sql, github: async (workspaceId) => new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }) },
+                          issue
+                       )
+                     : Promise.resolve(null),
+            })
+         ),
       attachments: issueAttachmentRoutes({
          attachments,
          issues,
@@ -1205,7 +1232,14 @@ autopilotScheduler?.start();
 
 const app = createApp(registry);
 
-const server = serve({ fetch: app.fetch, hostname: config.apiAddr.host, port: config.apiAddr.port });
+// A request addressed to a preview's host name is that preview's; every other
+// request is Berry's and never sees the proxy.
+const toPreview = previewEnvironments ? previewProxy(previewEnvironments, config.previews.domain) : null;
+const server = serve({
+   fetch: toPreview ? async (request, env) => (await toPreview(request)) ?? app.fetch(request, env) : app.fetch,
+   hostname: config.apiAddr.host,
+   port: config.apiAddr.port,
+});
 logger.info('Berry server listening', {
    apiAddr: `${config.apiAddr.host}:${config.apiAddr.port}`,
    environment: config.appEnv,
@@ -1270,6 +1304,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             followupWorker ? followupWorker.stop() : Promise.resolve(),
             autopilotScheduler ? autopilotScheduler.stop() : Promise.resolve(),
             pluginHooks ? pluginHooks.stop() : Promise.resolve(),
+            previewEnvironments ? previewEnvironments.stopAll() : Promise.resolve(),
          ])
             .then(() => closeDatabase(sql))
             .then(() => authPool?.end())

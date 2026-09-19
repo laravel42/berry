@@ -17,6 +17,14 @@ export interface Config {
    auth: AuthConfig;
    /** Per-subscriber realtime event buffer, before a slow client is dropped. */
    realtimeBuffer: number;
+   /**
+    * Where a running preview is addressed: `p-<id>-<app>.<domain>`.
+    *
+    * Locally `preview.localhost` on the API's own port, which browsers resolve
+    * to this machine unaided. A deployment points a wildcard DNS record at
+    * Berry and names it here, with the scheme and port a browser really uses.
+    */
+   previews: { domain: string; scheme: 'http' | 'https'; port: number | null };
    storage: StorageConfig | null;
    agents: AgentConfig | null;
    /** Where tasks run and how they are bounded (ADR-0014). */
@@ -287,6 +295,16 @@ export class ConfigError extends Error {
    }
 }
 
+function previews(env: NodeJS.ProcessEnv, apiPort: number): Config['previews'] {
+   const domain = (env.BERRY_PREVIEW_DOMAIN ?? '').trim().toLowerCase().replace(/^\*?\./, '') || 'preview.localhost';
+   const scheme = (env.BERRY_PREVIEW_SCHEME ?? '').trim().toLowerCase() === 'https' ? 'https' : 'http';
+   const raw = (env.BERRY_PREVIEW_PORT ?? '').trim();
+   // Unset means the API's own port, which is where a local browser finds it;
+   // `default` means none in the URL, for a proxy on 80 or 443.
+   const port = raw === '' ? apiPort : raw.toLowerCase() === 'default' ? null : Number(raw);
+   return { domain, scheme, port: port !== null && Number.isInteger(port) && port > 0 && port < 65536 ? port : raw === '' ? apiPort : null };
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const problems: string[] = [];
 
@@ -321,6 +339,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       auth: authConfig,
       // Per-subscriber event buffer, before a slow client is dropped.
       realtimeBuffer: positiveInt(env.REALTIME_BUFFER, 64),
+      previews: previews(env, port),
       storage: storage(env),
       agents: agents(env),
       runtime: runtime(env),

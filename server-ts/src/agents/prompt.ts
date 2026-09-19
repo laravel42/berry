@@ -142,7 +142,26 @@ function deliveryContract(): string {
       'as changed, while the copy shown on the task stays as you saved it. ' +
       'Either way, save or write the complete new contents of a file — Berry ' +
       'commits the file as it is, not a patch, so a partial file replaces the ' +
-      'whole one.\n'
+      'whole one.\n' +
+      'A reviewer opens your pull request as a running preview: Berry starts ' +
+      'the repository\'s apps and the services they need in containers and ' +
+      'shows the result. It can work out an ordinary layout by itself (a ' +
+      'Next.js, Vite or Astro app, a Node server with a start script, a ' +
+      'Postgres or Redis named in .env.example). When the project needs ' +
+      'anything else — more than one app, a particular start command, a ' +
+      'migration or seed, environment values — say so in .berry/preview.json ' +
+      'and keep it true as the project changes: {"apps":[{"name":"api",' +
+      '"dir":"server","build":"npm run build","migrate":"npm run migrate",' +
+      '"start":"npm start","port":3001,"env":{"DATABASE_URL":"postgres://' +
+      'postgres:preview@${services.db.host}:5432/app"}},{"name":"web","dir":' +
+      '"web","build":"npm run build","start":"npx next start -p 3000","port":' +
+      '3000,"primary":true,"env":{"NEXT_PUBLIC_API_URL":"${apps.api.url}"}}],' +
+      '"services":[{"name":"db","image":"postgres:16-alpine","port":5432,' +
+      '"env":{"POSTGRES_PASSWORD":"preview","POSTGRES_DB":"app"}}]}. ' +
+      '${apps.NAME.url} is where a browser reaches an app, ${apps.NAME.internal} ' +
+      'where another container does, and a service is reached by its name. ' +
+      'Apps must listen on 0.0.0.0 and on the port given. Never put a real ' +
+      'secret in it: a preview has no access to production.\n'
    );
 }
 
