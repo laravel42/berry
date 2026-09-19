@@ -103,6 +103,12 @@ export interface IssueOptions {
    stages?: StageGate | undefined;
    /** Subscriptions, inbox rows and stage release after a write. */
    hooks?: WorkTrackingHooks | undefined;
+   /**
+    * The review gate. Turning AutoGate on for a task already waiting in review
+    * asks it to review now: the review that closes an AutoGate task runs when
+    * a run finishes, and this task's run finished while the switch was off.
+    */
+   gate?: { reviewLatest(issueId: string): Promise<unknown> } | null | undefined;
 }
 
 export function issueMounts(options: IssueOptions): Mount[] {
@@ -272,6 +278,11 @@ export function issueMounts(options: IssueOptions): Mount[] {
             .catch(rethrowWrite('updated'));
          updated = result.issue;
          await publish(options, result.events);
+         if (patch.autoGate === true && !found.autoGate && updated.status === 'inReview' && options.gate) {
+            // Not awaited: a review is a model call, and the switch should not
+            // hang on it. The gate records its own outcome and failures.
+            void options.gate.reviewLatest(updated.id).catch(() => undefined);
+         }
          await options.hooks
             ?.afterIssueWrite({
                kind: 'updated',
@@ -485,6 +496,7 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       parentId: issue.parentId,
       stage: issue.stage,
       statusId: issue.statusId,
+      autoGate: issue.autoGate,
       childProgress: issue.childProgress,
    };
 }
@@ -561,7 +573,7 @@ async function applyGoal(
 }
 
 /** Whether a patch changes the issue row, as opposed to only its goal link. */
-function touchesIssueRow(patch: IssuePatch): boolean {
+export function touchesIssueRow(patch: IssuePatch): boolean {
    return (
       patch.title !== undefined ||
       patch.descriptionSet ||
@@ -570,7 +582,8 @@ function touchesIssueRow(patch: IssuePatch): boolean {
       patch.sortOrder !== undefined ||
       patch.dueDateSet ||
       patch.assigneeSet ||
-      patch.projectSet
+      patch.projectSet ||
+      patch.autoGate !== undefined
    );
 }
 
@@ -655,7 +668,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
    };
 }
 
-function parsePatch(body: Record<string, unknown>): {
+export function parsePatch(body: Record<string, unknown>): {
    patch: IssuePatch;
    goal: string | null;
    goalSet: boolean;
@@ -718,6 +731,14 @@ function parsePatch(body: Record<string, unknown>): {
          fields.push(field('/priority', 'invalid_enum_value', 'Priority is not supported.'));
       } else {
          patch.priority = String(body.priority);
+      }
+   }
+   if ('autoGate' in body) {
+      provided += 1;
+      if (typeof body.autoGate !== 'boolean') {
+         fields.push(field('/autoGate', 'invalid_type', 'autoGate must be true or false.'));
+      } else {
+         patch.autoGate = body.autoGate;
       }
    }
    if ('sortOrder' in body) {

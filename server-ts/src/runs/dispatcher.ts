@@ -81,6 +81,14 @@ export class Dispatcher {
    #loop: Promise<void> | null = null;
    /** Resolved to cut a poll short — a finished run frees a slot immediately. */
    #wake: (() => void) | null = null;
+   /**
+    * A wake that arrived while a tick was running. Without it a run queued
+    * mid-tick waited out the whole next poll: `#wake` belongs to a sleep that
+    * had not started yet.
+    */
+   #woken = false;
+   /** Stops listening for queued runs; null when not listening. */
+   #unlisten: (() => Promise<void>) | null = null;
 
    constructor(options: DispatcherOptions) {
       this.#sql = options.sql;
@@ -110,6 +118,29 @@ export class Dispatcher {
       if (this.#running) return;
       this.#running = true;
       this.#loop = this.#poll();
+      this.#listen();
+   }
+
+   /**
+    * Wakes on `berry_run_queued` (migration 201), sent when any transaction
+    * that queued a run commits — from this process or another. Before this a
+    * released dependency or an assignment waited for the next poll. The poll
+    * stays: a notification lost to a reconnect costs one beat, not a run.
+    */
+   #listen(): void {
+      const listen = (this.#sql as { listen?: Sql['listen'] }).listen;
+      if (typeof listen !== 'function') return;
+      listen
+         .call(this.#sql, 'berry_run_queued', () => this.nudge())
+         .then((subscription) => {
+            if (!this.#running) return subscription.unlisten();
+            this.#unlisten = () => subscription.unlisten();
+         })
+         .catch((error: unknown) => {
+            this.#logger.error('dispatcher could not listen for queued runs; polling only', {
+               error: message(error),
+            });
+         });
    }
 
    /**
@@ -122,6 +153,8 @@ export class Dispatcher {
     */
    async stop(): Promise<void> {
       this.#running = false;
+      await this.#unlisten?.().catch(() => undefined);
+      this.#unlisten = null;
       this.#wake?.();
       for (const controller of this.#inflight.values()) controller.abort();
       await this.#loop?.catch(() => undefined);
@@ -140,6 +173,7 @@ export class Dispatcher {
     * holds an HTTP request open until its task finishes.
     */
    nudge(): void {
+      this.#woken = true;
       this.#wake?.();
    }
 
@@ -392,15 +426,19 @@ export class Dispatcher {
 
    /** Sleeps, unless a finished run wakes it first. */
    #sleep(ms: number): Promise<void> {
+      if (this.#woken) {
+         this.#woken = false;
+         return Promise.resolve();
+      }
       return new Promise<void>((resolve) => {
+         const finish = (): void => {
+            clearTimeout(timer);
+            this.#woken = false;
+            resolve();
+         };
          const timer = setTimeout(finish, ms);
          timer.unref?.();
          this.#wake = finish;
-
-         function finish(): void {
-            clearTimeout(timer);
-            resolve();
-         }
       });
    }
 }

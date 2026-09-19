@@ -677,6 +677,7 @@ registry.registerAll(
       agentAccess: agentAccessGuard(sql),
       nested: issueCommentRoutes(commentOptions),
       relations: issueRelationRoutes({ issues, dependencies, reviews, gate: reviewGate }),
+      gate: reviewGate,
       runs: issueRunRoutes(runOptions),
       // A task handed to an agent starts on its own. Only where runs can
       // execute: without an executor a queued run would sit forever.

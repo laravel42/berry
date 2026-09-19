@@ -215,6 +215,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
 | `status` | `IssueStatus` | yes | Workflow state |
 | `priority` | `IssuePriority` | yes | Scheduling priority |
 | `sortOrder` | integer | yes | Relative order within a board column |
+| `autoGate` | boolean | yes | A passing agent review closes the task (merging its pull request) without a person |
 | `dueDate` | `Timestamp` or null | yes | Due instant |
 | `assignee` | `ActorRef` or null | yes | Current assignee |
 | `activeRunId` | `Uuid` or null | yes | Active Berry run; null when no run is active |
@@ -531,7 +532,7 @@ Assignment through this general-purpose resource endpoint records assignment but
 
 #### `PATCH /api/v1/issues/{issueId}`
 
-Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, and `assignee`. Setting `assignee` to null unassigns the issue. Status transitions MUST follow the configured workflow; invalid transitions return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
+Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, `assignee`, and `autoGate` (boolean). Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. Status transitions MUST follow the configured workflow; invalid transitions return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
 
 - `200`: updated `Issue`
 - `404`: issue or assignee `NOT_FOUND`

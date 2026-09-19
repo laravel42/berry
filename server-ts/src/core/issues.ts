@@ -23,7 +23,7 @@ const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_s
    project.id AS project_id, project.name AS project_name,
    i.created_by, creator.name AS creator_name, creator.avatar_url AS creator_avatar_url,
    i.created_at, i.updated_at,
-   i.parent_id, i.stage, i.status_id,
+   i.parent_id, i.stage, i.status_id, i.auto_gate,
    (SELECT count(*) FROM issues AS child
      WHERE child.parent_id = i.id AND child.deleted_at IS NULL)::int AS child_total,
    (SELECT count(*) FROM issues AS child
@@ -91,6 +91,11 @@ export interface Issue {
    stage: number | null;
    /** The custom status refining `status`, when one is set. */
    statusId: string | null;
+   /**
+    * AutoGate: a passing review closes this task (and merges its pull request)
+    * without a person. Set from the plan at compile, and switchable per task.
+    */
+   autoGate: boolean;
    childProgress: { total: number; done: number };
 }
 
@@ -148,6 +153,8 @@ export interface IssuePatch {
    assignee?: AssigneeInput | null;
    projectSet: boolean;
    project?: string | null;
+   /** AutoGate on or off; undefined leaves it alone. */
+   autoGate?: boolean;
 }
 
 /** A status change the board's rules do not allow. */
@@ -482,6 +489,7 @@ export class IssueRepository {
                status_id = CASE WHEN ${patch.statusId !== undefined} THEN ${patch.statusId ?? null}::uuid ELSE status_id END,
                priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::issue_priority ELSE priority END,
                sort_order = CASE WHEN ${patch.sortOrder !== undefined} THEN ${patch.sortOrder ?? null}::integer ELSE sort_order END,
+               auto_gate = CASE WHEN ${patch.autoGate !== undefined} THEN ${patch.autoGate ?? false}::boolean ELSE auto_gate END,
                due_date = CASE WHEN ${patch.dueDateSet} THEN ${patch.dueDate ?? null}::timestamptz ELSE due_date END,
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
@@ -831,6 +839,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       parentId: (row.parent_id as string | null) ?? null,
       stage: row.stage === null || row.stage === undefined ? null : Number(row.stage),
       statusId: (row.status_id as string | null) ?? null,
+      autoGate: row.auto_gate === true,
       childProgress: { total: Number(row.child_total ?? 0), done: Number(row.child_done ?? 0) },
    };
 }

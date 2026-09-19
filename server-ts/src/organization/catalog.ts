@@ -9,7 +9,7 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 10;
+export const CATALOG_VERSION = 11;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
