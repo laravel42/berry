@@ -5,7 +5,7 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { IssueRepository } from '../core/issues.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { RunLedger } from '../runs/ledger.ts';
-import type { GitHubClient } from '../integrations/github.ts';
+import { isMergeConflict, type GitHubClient } from '../integrations/github.ts';
 import { boundedTail, reviewPrompt, ReviewGate, type ReviewMaterial } from './review-gate.ts';
 import { lastRejection } from './prompt.ts';
 import { catalogRole } from '../organization/catalog.ts';
@@ -199,9 +199,10 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
     * answer is parsed against the schema the gate asked for, as the real
     * completion does.
     */
-   function gate(verdicts: Array<Record<string, unknown>>, maxAttempts = 2, validate = false) {
+   function gate(verdicts: Array<Record<string, unknown>>, maxAttempts = 2, validate = false, refuse: string | null = null) {
       let index = 0;
       const asked: string[] = [];
+      const updated: number[] = [];
       const calls: Array<{ model: string; system: string }> = [];
       const errors: string[] = [];
       const gateUnderTest = new ReviewGate({
@@ -219,10 +220,23 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
                return { value, text: '', inputTokens: 1, outputTokens: 1, durationMs: 1 };
             },
          } as never,
-         github: async () => ({ pullRequestDiff: async () => '--- a\n+++ b\n+handler\n' }) as unknown as GitHubClient,
+         // AutoGate merges before it closes, so the fake answers the merge too:
+         // merged, unless the test says what GitHub refused it with.
+         github: async () => ({
+            pullRequestDiff: async () => '--- a\n+++ b\n+handler\n',
+            mergePullRequest: async () =>
+               refuse
+                  ? { merged: false, sha: null, reason: refuse, conflict: isMergeConflict(refuse) }
+                  : { merged: true, sha: 'f00dfeed', reason: null, conflict: false },
+            pullRequestState: async () => ({ merged: false, open: true, conflicts: refuse !== null, base: 'main' }),
+            updatePullRequestBranch: async (_owner: string, _name: string, number: number) => {
+               updated.push(number);
+               return { updated: true, reason: null };
+            },
+         }) as unknown as GitHubClient,
          onError: (message) => errors.push(message),
       });
-      return { gate: gateUnderTest, asked, calls, errors };
+      return { gate: gateUnderTest, asked, calls, errors, updated };
    }
 
    async function issueState(issueId: string) {
@@ -253,6 +267,41 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       const [comment] = await sql`SELECT author_id, body FROM comments WHERE issue_id = ${issueId}`;
       assert.equal(comment!.author_id, reviewer);
       assert.match(comment!.body as string, /approved/);
+   });
+
+   test('an approved pull request that conflicts goes back to its author with the merge to make', async () => {
+      const { issueId, runId } = await delivered('Conflicts with main');
+      const { gate: g } = gate([{ approved: true, reason: 'Does the task.' }], 2, false, 'Pull Request has merge conflicts');
+
+      await g.review(runId);
+
+      const state = await issueState(issueId);
+      assert.equal(state.status, 'todo', 'a task whose pull request cannot merge is not done');
+      assert.deepEqual(state.runs, ['succeeded', 'queued'], 'the author gets another run');
+      // The reviews approved, so no rejection carries the reason: the run's own
+      // instructions do, in plain words and without GitHub's transport text.
+      const [next] = await sql`SELECT instructions FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
+      assert.match(next!.instructions as string, /#7 could not be merged: it conflicts with main/);
+      assert.match(next!.instructions as string, /remove nothing the other task added/);
+      const bodies = (await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`).map((row) => row.body as string);
+      assert.ok(bodies.some((body) => /pull request #7 conflicts with main/.test(body)));
+      assert.ok(!bodies.some((body) => /PUT |\/repos\//.test(body)));
+   });
+
+   test('a merge brings the other open pull requests of the repository up to date, and not a task that is running', async () => {
+      const waiting = await delivered('Waits in review', false);
+      const busy = await delivered('Being reworked', false);
+      await sql`UPDATE runs SET pull_request_number = 21 WHERE id = ${waiting.runId}`;
+      await sql`UPDATE runs SET pull_request_number = 22 WHERE id = ${busy.runId}`;
+      await new RunRepository(sql).admit({ issueId: busy.issueId, boardId, workspaceId, agentId: author, requestedBy: userId, instructions: null });
+      const { runId } = await delivered('Merges first');
+      const { gate: g, updated } = gate([{ approved: true, reason: 'Does the task.' }]);
+
+      await g.review(runId);
+
+      assert.ok(updated.includes(21), 'a pull request waiting in review is brought up to date');
+      assert.ok(!updated.includes(22), 'a branch a run is working on is never moved under it');
+      assert.ok(!updated.includes(7), 'the pull request that was just merged is not updated');
    });
 
    test('work with no pull request is reviewed on its account, not skipped', async () => {

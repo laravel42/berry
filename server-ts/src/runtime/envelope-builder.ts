@@ -14,6 +14,7 @@ import type { Dispatch } from '../runs/ledger.ts';
 import type { McpServerRef, RepoPlan, TaskEnvelope, TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
+import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
 import { loadAgentExtensions, type ExtensionDeps } from '../agents/extensions.ts';
 import { pluginMcpServers } from '../plugins/mcp.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
@@ -92,6 +93,8 @@ export interface EnvelopeDeps {
    plugins?: { plugins: PluginRepository; runtime: PluginRuntimeStore; ttlMs: number } | undefined;
    /** Servers left out for want of a gateway, by name only. */
    onSkipped?: ((names: string[]) => void) | undefined;
+   /** Where a failure that does not stop the run is reported. */
+   onError?: ((message: string, error: unknown) => void) | undefined;
 }
 
 export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
@@ -227,7 +230,14 @@ export class EnvelopeBuilder {
             ...base,
             kind: 'agent',
             task: {
-               prompt: buildMessage({ ...dispatch, reviewFeedback, ...(priorWork ? { priorWork } : {}) }),
+               prompt: buildMessage({
+                  ...dispatch,
+                  reviewFeedback,
+                  ...(priorWork ? { priorWork } : {}),
+                  ...(repo?.merge
+                     ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
+                     : {}),
+               }),
                issue: {
                   id: dispatch.issueId,
                   identifier: dispatch.issueIdentifier,
@@ -420,15 +430,44 @@ export class EnvelopeBuilder {
       const defaultCommit = await client.branchHead(owner, name, remote.defaultBranch);
       if (!defaultCommit) throw new Error('The repository default branch is missing');
       const expectedHead = readOnly ? null : await client.branchHead(owner, name, branch);
-      await this.#deps.sql`INSERT INTO run_repository_snapshots (run_id, repository, branch, base_commit, default_commit, expected_head, read_only)
-         VALUES (${task.runId}, ${repository.fullName}, ${branch}, ${expectedHead ?? defaultCommit}, ${defaultCommit}, ${expectedHead}, ${readOnly})
+      // A branch that conflicts with the default branch gets a run that can
+      // resolve it. Decided here, from the repository itself, rather than from
+      // who sent the task back or why: whatever brought the run about, the
+      // pull request cannot merge until the two sides are reconciled, and a
+      // snapshot of the branch alone never shows the agent the other side.
+      let merge: MergePlan | null = null;
+      if (expectedHead) {
+         merge = await findMerge(client, { owner, name, branchHead: expectedHead, defaultHead: defaultCommit }).catch((error: unknown) => {
+            // Never a reason to stop the run: it works on its branch as before.
+            this.#deps.onError?.('planning the merge with the default branch failed', error);
+            return null;
+         });
+      }
+      await this.#deps.sql`INSERT INTO run_repository_snapshots (run_id, repository, branch, base_commit, default_commit, expected_head, read_only, merge_parent, merge_base)
+         VALUES (${task.runId}, ${repository.fullName}, ${branch}, ${expectedHead ?? defaultCommit}, ${defaultCommit}, ${expectedHead}, ${readOnly},
+                 ${merge ? merge.theirs : null}, ${merge ? merge.base : null})
          ON CONFLICT (run_id) DO NOTHING`;
-      const [snapshot] = await this.#deps.sql`SELECT base_commit FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
+      const [snapshot] = await this.#deps.sql`SELECT base_commit, merge_parent, merge_base FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
       if (!snapshot) throw new Error('Repository snapshot was not persisted');
+      // The row is the truth: an envelope built twice for one run keeps the
+      // first snapshot, so the merge is read back from its commits rather than
+      // from heads that may have moved in between.
+      const mergeParent = (snapshot.merge_parent as string | null) ?? null;
+      if (!mergeParent) merge = null;
+      else if (!merge || merge.theirs !== mergeParent || merge.ours !== snapshot.base_commit) {
+         merge = await planMerge(client, {
+            owner, name, base: snapshot.merge_base as string, ours: snapshot.base_commit as string, theirs: mergeParent,
+         });
+         if (!merge) throw new Error('The merge this run was planned with can no longer be read');
+      }
       return {
          repo: {
             readOnly,
-            snapshotCommit: snapshot.base_commit as string,
+            // What the workspace is unpacked from: the default branch head on a
+            // conflict-resolution run, otherwise the branch head (the default
+            // branch's, for a branch that does not exist yet).
+            snapshotCommit: mergeParent ?? (snapshot.base_commit as string),
+            ...(merge ? { merge: { conflicts: merge.conflicts.map((conflict) => conflict.path) } } : {}),
             fullName: repository.fullName,
             branch,
             baseBranch: remote.defaultBranch,

@@ -27,6 +27,12 @@ export interface PromptContext extends Dispatch {
     * halfway — and without it those attempts are invisible to the next one.
     */
    priorWork?: string;
+   /**
+    * The merge this run has to make, when its branch conflicts with the default
+    * branch (see `runtime/merge-plan.ts`). Berry's own words, not task data, so
+    * it is not fenced.
+    */
+   merge?: string;
 }
 
 export function buildMessage(dispatch: PromptContext): string {
@@ -57,6 +63,11 @@ export function buildMessage(dispatch: PromptContext): string {
    }
    if (dispatch.repository) {
       message += `\n\nRepository: ${dispatch.repository}`;
+   }
+   // After the repository it concerns. Whatever else the run was asked to do,
+   // the pull request cannot merge until this is done.
+   if (dispatch.merge) {
+      message += `\n\n${dispatch.merge}\n`;
    }
 
    // The contracts go last so the agent reads them with the task fresh, but

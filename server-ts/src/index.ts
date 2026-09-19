@@ -550,6 +550,8 @@ const executor = defaultTarget
               ? { plugins: { plugins: pluginRepository, runtime: pluginRuntime, ttlMs: PLUGIN_MCP_TOKEN_TTL_MS } }
               : {}),
            onSkipped: (names) => logger.warn('mcp server skipped: no gateway', { names }),
+           onError: (message, error) =>
+              logger.warn(message, { error: error instanceof Error ? error.message : String(error) }),
         }),
         memory: runMemory ?? nullRunMemory(),
         ...(scm.provisioning ? { gitCredential: scm.gitCredential } : {}),
@@ -963,6 +965,11 @@ registry.registerAll(
       // The same credential runs clone with; null when no git host is
       // configured, in which case the list still serves and the diff says so.
       gitCredential: scm.provisioning ? scm.gitCredential : null,
+      // An Approve that meets a conflict returns the task to its agent, the
+      // way the AutoGate does.
+      sendBack: { issues, runs: new RunRepository(sql) },
+      onError: (message, error) =>
+         logger.warn(message, { error: error instanceof Error ? error.message : String(error) }),
    })
 );
 registry.registerAll(inboxMounts({ sessions, inbox: new InboxRepository(sql), boards, sql }));

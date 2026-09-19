@@ -59,6 +59,17 @@ export interface ReviewItem {
    updatedAt: string;
 }
 
+/** The pull request a run opened, with what a decision on it needs to know about its task. */
+export interface PullRequestTarget {
+   workspaceId: string;
+   repository: string;
+   number: number;
+   issueId: string;
+   boardId: string;
+   /** The agent that ran, to whom a conflicting pull request goes back. */
+   author: { id: string; name: string } | null;
+}
+
 const DEFAULT_LIMIT = 50;
 
 export class ReviewQueue {
@@ -207,9 +218,10 @@ export class ReviewQueue {
    }
 
    /** The repository and pull request a run delivered, for the diff read. */
-   async pullRequestOf(runId: string): Promise<{ workspaceId: string; repository: string; number: number } | null> {
+   async pullRequestOf(runId: string): Promise<PullRequestTarget | null> {
       const [row] = await this.#sql`
          SELECT board.workspace_id, project.github_repo_full_name AS repository,
+                issue.id AS issue_id, issue.board_id, run.agent_id, agent.name AS agent_name,
                 COALESCE(run.pull_request_number, (
                    SELECT (e.payload->'pullRequest'->>'number')::int FROM run_events e
                     WHERE e.run_id = run.id AND e.event_type = 'run.delivered'
@@ -219,6 +231,7 @@ export class ReviewQueue {
            FROM runs AS run
            JOIN issues AS issue ON issue.id = run.issue_id
            JOIN boards AS board ON board.id = issue.board_id
+           LEFT JOIN agents AS agent ON agent.id = run.agent_id
            LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
            LEFT JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE run.id = ${runId}`;
@@ -227,6 +240,35 @@ export class ReviewQueue {
          workspaceId: row.workspace_id as string,
          repository: row.repository as string,
          number: Number(row.pull_request_number),
+         issueId: row.issue_id as string,
+         boardId: row.board_id as string,
+         author: row.agent_id ? { id: row.agent_id as string, name: (row.agent_name as string | null) ?? 'its agent' } : null,
       };
+   }
+
+   /**
+    * The other pull requests Berry has open against a repository: one per task
+    * that is still in flight and has delivered. A task with a run queued or
+    * running is left out — its run recorded the branch head it started from,
+    * and moving the branch under it would make its delivery fail.
+    */
+   async openPullRequests(workspaceId: string, repository: string, except: number): Promise<number[]> {
+      const rows = await this.#sql`
+         SELECT DISTINCT run.pull_request_number AS number
+           FROM runs AS run
+           JOIN issues AS issue ON issue.id = run.issue_id AND issue.deleted_at IS NULL
+           JOIN boards AS board ON board.id = issue.board_id
+           JOIN issue_project_links AS link ON link.issue_id = issue.id
+           JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
+          WHERE board.workspace_id = ${workspaceId}
+            AND lower(project.github_repo_full_name) = lower(${repository})
+            AND run.pull_request_number IS NOT NULL
+            AND run.pull_request_number <> ${except}
+            AND issue.status::text NOT IN ('done', 'cancelled')
+            AND NOT EXISTS (
+               SELECT 1 FROM runs AS active
+                WHERE active.issue_id = issue.id AND active.status IN ('queued', 'running'))
+          ORDER BY number`;
+      return rows.map((row) => Number(row.number));
    }
 }

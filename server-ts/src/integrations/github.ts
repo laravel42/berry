@@ -60,10 +60,17 @@ export class GitHubError extends Error {
    readonly status: number;
    /** What an operator should do, when there is something they can do. */
    readonly remedy: 'reconnect' | 'grant-access' | 'none';
-   constructor(message: string, status: number, remedy: GitHubError['remedy'] = 'none') {
+   /**
+    * GitHub's own sentence, without the method and path around it. The message
+    * is written for an operator's log; this is the part a person on the review
+    * page can be shown.
+    */
+   readonly detail: string;
+   constructor(message: string, status: number, remedy: GitHubError['remedy'] = 'none', detail = '') {
       super(message);
       this.status = status;
       this.remedy = remedy;
+      this.detail = detail;
    }
 }
 
@@ -137,10 +144,20 @@ export class GitHubClient {
       owner: string; name: string; branch: string; baseCommit: string; defaultCommit: string;
       expectedHead: string | null; message: string; timestamp: string;
       files: Array<{ path: string; mode: '100644' | '100755' | '120000'; content: string | null }>;
+      /**
+       * The default branch head a conflict-resolution run merged in. The
+       * candidate was measured against that commit's tree, so the new tree is
+       * built on it, and the commit gets both parents — the task branch first,
+       * as `git merge` on the branch would write it. Only a commit descended
+       * from the default branch head makes a conflicting pull request
+       * mergeable, and it does so as a fast-forward of the branch: no force.
+       */
+      mergeParent?: string | null;
       authorizePaths?: (files: string[]) => Promise<void>;
    }): Promise<{ commit: string; files: string[] }> {
       const root = `/repos/${encode(input.owner)}/${encode(input.name)}`;
-      const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(input.baseCommit)}`);
+      const treeCommit = input.mergeParent ?? input.baseCommit;
+      const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(treeCommit)}`);
       const tree: Array<{ path: string; mode: string; type: 'blob'; sha: string | null }> = [];
       // Blob creation is content-addressed and independent per file. Posting one
       // at a time made publication latency scale with file count; bounded waves
@@ -168,7 +185,8 @@ export class GitHubClient {
       }
       const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, { base_tree: parent.tree.sha, tree });
       const commit = await this.#json<{ sha: string }>('POST', `${root}/git/commits`, {
-         message: input.message, tree: nextTree.sha, parents: [input.baseCommit],
+         message: input.message, tree: nextTree.sha,
+         parents: input.mergeParent ? [input.baseCommit, input.mergeParent] : [input.baseCommit],
          author: { name: 'Berry', email: 'agent@berry.invalid', date: input.timestamp },
          committer: { name: 'Berry', email: 'agent@berry.invalid', date: input.timestamp },
       });
@@ -178,7 +196,7 @@ export class GitHubClient {
          if (value.truncated) throw new GitHubError('Repository tree exceeds the complete review manifest limit', 0);
          return new Map(value.tree.filter((entry) => entry.type !== 'tree').map((entry) => [entry.path, `${entry.mode}:${entry.sha}`]));
       };
-      const defaultParent = input.defaultCommit === input.baseCommit
+      const defaultParent = input.defaultCommit === treeCommit
          ? parent
          : await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(input.defaultCommit)}`);
       const [before, after] = await Promise.all([entries(defaultParent.tree.sha), entries(nextTree.sha)]);
@@ -366,13 +384,101 @@ export class GitHubClient {
     * they come back as `{ merged: false, reason }` instead of as a throw. A
     * transport failure or a bad credential still throws.
     */
-   /** Whether a pull request is merged, and whether it is still open. */
-   async pullRequestState(owner: string, name: string, number: number): Promise<{ merged: boolean; open: boolean }> {
-      const pull = await this.#json<{ merged?: boolean; state?: string }>(
-         'GET',
-         `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`
+   /**
+    * Whether a pull request is merged, whether it is still open, and whether
+    * GitHub already knows it conflicts with its base.
+    *
+    * `conflicts` is true only on GitHub's definite answer (`mergeable: false`
+    * in state `dirty`). GitHub computes mergeability lazily, so "not known
+    * yet" is common and reads as false: the merge attempt that follows gives
+    * the real answer.
+    */
+   async pullRequestState(
+      owner: string,
+      name: string,
+      number: number
+   ): Promise<{ merged: boolean; open: boolean; conflicts: boolean; base: string | null }> {
+      const pull = await this.#json<{
+         merged?: boolean;
+         state?: string;
+         mergeable?: boolean | null;
+         mergeable_state?: string;
+         base?: { ref?: unknown };
+      }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
+      return {
+         merged: pull.merged === true,
+         open: pull.state === 'open',
+         conflicts: pull.mergeable === false && pull.mergeable_state === 'dirty',
+         base: typeof pull.base?.ref === 'string' ? pull.base.ref : null,
+      };
+   }
+
+   /**
+    * Brings a pull request's branch up to date with its base, on GitHub.
+    *
+    * GitHub writes the merge commit itself, and only when there is nothing to
+    * reconcile: a branch that conflicts answers 422 and is left alone, which is
+    * the case that goes to the author instead. A refusal is an answer, not a
+    * throw — the callers are keeping other pull requests fresh after a merge.
+    */
+   async updatePullRequestBranch(owner: string, name: string, number: number): Promise<{ updated: boolean; reason: string | null }> {
+      try {
+         await this.#json('PUT', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}/update-branch`, {});
+         return { updated: true, reason: null };
+      } catch (error) {
+         if (error instanceof GitHubError && error.status === 422) {
+            return { updated: false, reason: error.detail || 'GitHub could not update the branch' };
+         }
+         throw error;
+      }
+   }
+
+   /**
+    * Where two commits diverged, and how far `head` is behind `base`.
+    *
+    * Null when they share no history. The file list the comparison also
+    * returns is ignored: it is capped, and a rename folds two paths into one,
+    * so the trees are read instead (see `treeEntries`).
+    */
+   async mergeBase(owner: string, name: string, base: string, head: string): Promise<{ commit: string; behindBy: number } | null> {
+      try {
+         const compared = await this.#json<{ merge_base_commit?: { sha?: unknown }; behind_by?: unknown }>(
+            'GET',
+            `/repos/${encode(owner)}/${encode(name)}/compare/${encode(base)}...${encode(head)}?per_page=1`
+         );
+         const commit = compared.merge_base_commit?.sha;
+         if (typeof commit !== 'string') return null;
+         return { commit, behindBy: typeof compared.behind_by === 'number' ? compared.behind_by : 0 };
+      } catch (error) {
+         if (error instanceof GitHubError && error.status === 404) return null;
+         throw error;
+      }
+   }
+
+   /** Every file of a commit's tree, by path. Throws when GitHub cuts the listing short. */
+   async treeEntries(owner: string, name: string, commit: string): Promise<Map<string, TreeEntry>> {
+      const root = `/repos/${encode(owner)}/${encode(name)}`;
+      const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(commit)}`);
+      const value = await this.#json<{
+         truncated: boolean;
+         tree: Array<{ path: string; sha: string; mode: string; type: string; size?: number }>;
+      }>('GET', `${root}/git/trees/${encode(parent.tree.sha)}?recursive=1`);
+      if (value.truncated) throw new GitHubError('Repository tree exceeds the complete listing limit', 0);
+      return new Map(
+         value.tree
+            .filter((entry) => entry.type !== 'tree')
+            .map((entry) => [entry.path, { sha: entry.sha, mode: entry.mode, type: entry.type, size: entry.size ?? 0 }])
       );
-      return { merged: pull.merged === true, open: pull.state === 'open' };
+   }
+
+   /** One blob's bytes. */
+   async blob(owner: string, name: string, sha: string): Promise<Buffer> {
+      const value = await this.#json<{ content?: unknown; encoding?: unknown }>(
+         'GET',
+         `/repos/${encode(owner)}/${encode(name)}/git/blobs/${encode(sha)}`
+      );
+      if (typeof value.content !== 'string') throw new GitHubError('GitHub returned a blob with no content', 0);
+      return Buffer.from(value.content, value.encoding === 'base64' ? 'base64' : 'utf8');
    }
 
    async mergePullRequest(input: {
@@ -382,7 +488,7 @@ export class GitHubClient {
       /** The commit title. GitHub composes one when this is absent. */
       title?: string;
       method?: 'merge' | 'squash' | 'rebase';
-   }): Promise<{ merged: boolean; sha: string | null; reason: string | null }> {
+   }): Promise<{ merged: boolean; sha: string | null; reason: string | null; conflict: boolean }> {
       try {
          const result = await this.#json<{ merged?: boolean; sha?: string; message?: string }>(
             'PUT',
@@ -392,14 +498,15 @@ export class GitHubClient {
                ...(input.title ? { commit_title: input.title } : {}),
             }
          );
-         return {
-            merged: result.merged === true,
-            sha: result.sha ?? null,
-            reason: result.merged === true ? null : (result.message ?? 'GitHub did not merge it'),
-         };
+         const reason = result.merged === true ? null : (result.message ?? 'GitHub did not merge it');
+         return { merged: result.merged === true, sha: result.sha ?? null, reason, conflict: isMergeConflict(reason) };
       } catch (error) {
          if (error instanceof GitHubError && (error.status === 405 || error.status === 409)) {
-            return { merged: false, sha: null, reason: error.message };
+            // GitHub's sentence alone. The reason is shown to the person who
+            // pressed Approve and quoted to the author, and neither is helped
+            // by the method and path of the call that carried it.
+            const reason = error.detail || 'GitHub refused the merge';
+            return { merged: false, sha: null, reason, conflict: isMergeConflict(reason) };
          }
          throw error;
       }
@@ -483,10 +590,32 @@ export class GitHubClient {
          default:
             return new GitHubError(
                `GitHub ${method} ${path} failed: ${response.status}${detail ? ` ${detail}` : ''}`,
-               response.status
+               response.status,
+               'none',
+               detail
             );
       }
    }
+}
+
+/** One file of a commit's tree. `type` is `blob`, or `commit` for a submodule. */
+export interface TreeEntry {
+   sha: string;
+   mode: string;
+   type: string;
+   size: number;
+}
+
+/**
+ * Whether a refused merge was refused for a content conflict.
+ *
+ * GitHub answers 405 for every "not mergeable" — a conflict, a failing
+ * required check, a protected branch — and only the sentence tells them
+ * apart. It matters which: a conflict is work the author can do, and the
+ * others are not.
+ */
+export function isMergeConflict(reason: string | null): boolean {
+   return reason !== null && /merge conflict|has conflicts/i.test(reason);
 }
 
 interface PullRequestBody {
