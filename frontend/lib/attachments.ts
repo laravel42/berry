@@ -370,8 +370,27 @@ export interface ArtifactTreeNode {
    file?: RunArtifact;
 }
 
-export function buildArtifactTree(artifacts: RunArtifact[]): ArtifactTreeNode[] {
+export function buildArtifactTree(
+   artifacts: RunArtifact[],
+   /** Folders shown although they hold no file yet: one a person just made. */
+   folders: readonly string[] = []
+): ArtifactTreeNode[] {
    const root: ArtifactTreeNode = { name: '', path: '', children: [] };
+
+   for (const folder of folders) {
+      let cursor = root;
+      folder
+         .split('/')
+         .filter(Boolean)
+         .forEach((segment, index, segments) => {
+            let next = cursor.children.find((child) => child.name === segment && !child.file);
+            if (!next) {
+               next = { name: segment, path: segments.slice(0, index + 1).join('/'), children: [] };
+               cursor.children.push(next);
+            }
+            cursor = next;
+         });
+   }
 
    for (const artifact of artifacts) {
       const segments = artifact.path.split('/').filter(Boolean);

@@ -340,7 +340,7 @@ export const CodeEditor = memo(function CodeEditor({
                   color: 'var(--brand-chalk)',
                   // Fixed metrics so gutters and lines share one box; `inherit`
                   // picked up the dialog's leading and drifted the numbers.
-                  fontSize: '13px',
+                  fontSize: '12px',
                   height: '100%',
                },
                '.cm-scroller': {
@@ -348,7 +348,7 @@ export const CodeEditor = memo(function CodeEditor({
                   ...(maxHeight ? { maxHeight } : { height: '100%', maxHeight: 'none' }),
                   fontFamily: 'var(--font-mono)',
                   lineHeight: '20px',
-                  fontSize: '13px',
+                  fontSize: '12px',
                },
                '.cm-content': {
                   caretColor: readOnly ? 'transparent' : 'var(--brand-chalk)',

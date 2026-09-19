@@ -279,6 +279,11 @@ export function loadRepositoryTree(runId: string): Promise<RepositoryTree> {
    return pending;
 }
 
+/** Drops the kept tree, so the next read asks GitHub again: the explorer's Refresh. */
+export function forgetRepositoryTree(runId: string): void {
+   trees.delete(runId);
+}
+
 /** A file's text. A blob id names exactly one content, so it is asked for once. */
 const blobs = new Map<string, Promise<string>>();
 
@@ -301,7 +306,8 @@ export function loadRepositoryFile(runId: string, sha: string): Promise<string> 
  */
 export async function commitReviewFile(
    runId: string,
-   input: { path: string; content: string; sha: string; message: string }
+   /** `sha` is the blob that was opened; null creates the file, and is refused when the path exists. */
+   input: { path: string; content: string; sha: string | null; message: string }
 ): Promise<{ commit: string; sha: string; branch: string }> {
    const committed = await apiFetch<{ commit: string; sha: string; branch: string }>(
       `/api/v1/reviews/${encodeURIComponent(runId)}/commit`,
