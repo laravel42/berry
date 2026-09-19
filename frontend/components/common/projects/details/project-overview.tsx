@@ -2,17 +2,14 @@
 
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
-import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { useProject } from '@/hooks/use-project';
 import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
-import { useTranslations } from 'next-intl';
-import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useMemo, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -24,12 +21,7 @@ interface ProjectOverviewProps {
 
 /** Unified project detail — layout mirrors issue detail. */
 export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
-   const { orgId } = useParams<{ orgId: string }>();
    const inDrawer = useInDetailDrawer();
-   const closeDrawer = useDetailDrawerClose();
-   const router = useRouter();
-   const t = useTranslations('issueLists');
-   const agentContext = t('projects.agentContext');
    const project = useProject(projectId);
    useTabLabel(project?.name ?? null);
    const detail = getProjectDetail(projectId);
@@ -42,19 +34,10 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       [allIssues, project]
    );
 
-   const afterDelete = useCallback(() => {
-      if (closeDrawer) {
-         closeDrawer();
-         return;
-      }
-      router.push(`/${orgId ?? WORKSPACE_SLUG}/projects`);
-   }, [closeDrawer, router, orgId]);
-
    const submitComment = useCallback(() => {
       const text = draft.trim();
       if (!text || !project) return;
-      postUpdate(project.id, 'on-track', text);
-      setDraft('');
+      void postUpdate(project.id, 'on-track', text).then(() => setDraft(''));
    }, [draft, postUpdate, project]);
 
    const description = project?.description ?? '';
@@ -77,13 +60,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                      {project.name}
                   </h1>
 
-                  {/* Named for what it is: agents read this before they touch
-                      the project's tasks, so it is context rather than a note
-                      to the team. */}
-                  <div className="mt-4 mb-1 font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-                     {agentContext}
-                  </div>
-                  <div className="mt-1">
+                  <div className="mt-4">
                      <TiptapAiEditor
                         value={description}
                         onChange={() => undefined}
@@ -141,13 +118,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
          </div>
 
          <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
-            <ProjectPropertiesPanel
-               project={project}
-               detail={detail}
-               issues={issues}
-               compact
-               onDeleted={afterDelete}
-            />
+            <ProjectPropertiesPanel project={project} detail={detail} issues={issues} compact />
          </aside>
       </div>
    );

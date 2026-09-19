@@ -1,6 +1,5 @@
 'use client';
 
-import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Project } from '@/data/projects';
@@ -215,7 +214,7 @@ function TimelineBar({
  * filter bar and changes the zoom.
  */
 export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
-   const { showProjectList, showWeekNumbers, displayProperties } = useProjectsDisplayStore();
+   const { showProjectList, showWeekNumbers } = useProjectsDisplayStore();
    const zoom = useProjectsDisplayStore((state) => state.timelineZoom);
    const setTimelineZoom = useProjectsDisplayStore((state) => state.setTimelineZoom);
    const todayJumpId = useProjectsDisplayStore((state) => state.todayJumpId);
@@ -444,34 +443,8 @@ export default function ProjectsTimeline({ groups }: ProjectsTimelineProps) {
                                     }
                                  />
                                  {showProjectList && (
-                                    <div className="sticky left-0 z-10 flex items-center gap-1.5 w-56 shrink-0 px-4 h-9 bg-container/95 backdrop-blur-sm border-r border-border/40">
-                                       <span className="inline-flex size-5 bg-muted/50 items-center justify-center rounded shrink-0">
-                                          <project.icon className="size-3" />
-                                       </span>
-                                       <span className="truncate flex-1">{project.name}</span>
-                                       {displayProperties.health && (
-                                          <span
-                                             className="size-2 rounded-full shrink-0"
-                                             style={{ backgroundColor: project.health.color }}
-                                          />
-                                       )}
-                                       {displayProperties.status && (
-                                          <CapacityRing value={project.percentComplete} />
-                                       )}
-                                       {displayProperties.priority && (
-                                          <project.priority.icon
-                                             className={cn('size-3 shrink-0 text-muted-foreground')}
-                                          />
-                                       )}
-                                       {displayProperties.lead && (
-                                          <Avatar className="size-4 shrink-0">
-                                             <AvatarImage
-                                                src={project.lead.avatarUrl}
-                                                alt={project.lead.name}
-                                             />
-                                             <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
-                                          </Avatar>
-                                       )}
+                                    <div className="sticky left-0 z-10 flex items-center w-56 shrink-0 px-4 h-9 bg-container/95 backdrop-blur-sm border-r border-border/40">
+                                       <span className="truncate">{project.name}</span>
                                     </div>
                                  )}
                                  {viewport && (

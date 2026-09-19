@@ -1,13 +1,17 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
+import { ActorAvatar } from '@/components/common/issues/actor-avatar';
+import { HealthPopover } from '@/components/common/projects/health-popover';
+import { ProjectDetailLeadPicker } from '@/components/common/projects/project-detail-lead-picker';
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { Project } from '@/data/projects';
+import { useResolvedProjectLead } from '@/lib/use-resolved-project-lead';
+import { cn } from '@/lib/utils';
+import { useMembersStore } from '@/store/members-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
 import type { Status } from '@/data/status';
-import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -23,20 +27,14 @@ type ProjectGridProps = {
 };
 
 function ProjectDragPreview({ project }: { project: Project }) {
+   const lead = useResolvedProjectLead(project.lead);
    return (
       <div className="w-full overflow-hidden rounded-lg bg-void px-3.5 py-2 text-chalk shadow-lg">
          <div className="mb-1.5 flex items-center justify-between gap-2">
-            <project.icon className="size-3.5 text-subtle-foreground" />
-            <Avatar className="size-4">
-               <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
-               <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
-            </Avatar>
+            <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
+            <ActorAvatar user={lead} size="sm" className="size-4" />
          </div>
          <h3 className="mb-2 line-clamp-2">{project.name}</h3>
-         <div className="flex items-center gap-2 text-muted-foreground">
-            <CapacityRing value={project.percentComplete} />
-            {project.percentComplete}%
-         </div>
       </div>
    );
 }
@@ -71,6 +69,9 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
    const { orgId } = useParams<{ orgId: string }>();
    const { displayProperties } = useProjectsDisplayStore();
    const updateProjectStatus = useProjectsStore((state) => state.updateProjectStatus);
+   const updateProjectLead = useProjectsStore((state) => state.updateProjectLead);
+   const members = useMembersStore((state) => state.members);
+   const lead = useResolvedProjectLead(project.lead);
    const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null);
 
    const [{ isDragging }, drag, preview] = useDrag(
@@ -145,12 +146,22 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                >
                   <div className="min-w-0">
                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <project.icon className="size-3.5 text-subtle-foreground shrink-0" />
+                        {displayProperties.priority ? (
+                           <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
+                        ) : null}
                         {displayProperties.lead ? (
-                           <Avatar className="size-4 shrink-0">
-                              <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
-                              <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
-                           </Avatar>
+                           <span
+                              className="relative z-10 ml-auto"
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => event.stopPropagation()}
+                           >
+                              <ProjectDetailLeadPicker
+                                 compact
+                                 lead={lead}
+                                 members={members}
+                                 onLeadChange={(member) => updateProjectLead(project.id, member)}
+                              />
+                           </span>
                         ) : null}
                      </div>
                      <Link
@@ -163,23 +174,14 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                      >
                         <h3 className="mb-2 line-clamp-2">{project.name}</h3>
                      </Link>
-                     <div className="flex flex-wrap items-center gap-2 mb-1 min-h-[1.25rem]">
+                     <div className="mb-1 flex min-h-[1.25rem] flex-wrap items-center gap-2">
                         {displayProperties.health && (
-                           <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              <span
-                                 className="size-1.5 rounded-full shrink-0"
-                                 style={{ backgroundColor: project.health.color }}
-                              />
-                              {project.health.name}
-                           </span>
-                        )}
-                        {displayProperties.priority && (
-                           <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                        {displayProperties.status && (
-                           <span className="inline-flex items-center gap-1 text-muted-foreground">
-                              <CapacityRing value={project.percentComplete} />
-                              {project.percentComplete}%
+                           <span
+                              className="relative z-10"
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => event.stopPropagation()}
+                           >
+                              <HealthPopover project={project} compact />
                            </span>
                         )}
                         {displayProperties.targetDate && project.targetDate && (
@@ -187,6 +189,10 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                               {format(parseISO(project.targetDate), 'MMM d')}
                            </span>
                         )}
+                        <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground">
+                           <CapacityRing value={project.percentComplete} size={14} />
+                           {project.percentComplete}%
+                        </span>
                      </div>
                   </div>
                </div>

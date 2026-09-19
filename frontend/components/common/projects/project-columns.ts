@@ -9,12 +9,14 @@
  */
 export const PROJECT_COLUMN = {
    health: 'hidden w-[120px] shrink-0 sm:block',
-   priority: 'hidden w-[70px] shrink-0 md:block',
    lead: 'hidden w-[130px] shrink-0 xl:block',
    targetDate: 'hidden w-[110px] shrink-0 xl:block',
    issues: 'hidden w-[60px] shrink-0 xl:block',
    status: 'w-[90px] shrink-0',
 } as const;
+
+/** Title cell: shared width for header and rows, capped so meta columns sit closer. */
+export const PROJECT_NAME_SLOT = 'min-w-0 max-w-md flex-1';
 
 export const PROJECT_CELL_PAD = 'pl-2';
 

@@ -384,6 +384,8 @@ function placeholderProject(id: string, name: string): Project {
       health: health.find((candidate) => candidate.id === 'no-update') ?? health[0],
       teamId: '',
       labels: [],
+      createdAt: '',
+      updatedAt: '',
    };
 }
 

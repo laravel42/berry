@@ -9,14 +9,18 @@ import {
    CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { isAgentUser } from '@/components/common/issues/actor-avatar';
 import { statusUserColors, type User } from '@/data/users';
+import { cn } from '@/lib/utils';
 import { CheckIcon } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 
 interface ProjectDetailLeadPickerProps {
    lead: User;
    members: User[];
    onLeadChange: (user: User) => void;
+   /** Avatar only, for a board card. */
+   compact?: boolean;
 }
 
 /**
@@ -28,17 +32,22 @@ export function ProjectDetailLeadPicker({
    lead,
    members,
    onLeadChange,
+   compact = false,
 }: ProjectDetailLeadPickerProps) {
    const id = useId();
    const [open, setOpen] = useState(false);
    const [value, setValue] = useState(lead.id);
-   const roster = members.length > 0 ? members : [lead];
+   const roster = useMemo(() => {
+      const people = members.length > 0 ? members : [lead];
+      return people.filter((member) => !isAgentUser(member));
+   }, [lead, members]);
 
    useEffect(() => {
       setValue(lead.id);
    }, [lead.id]);
 
-   const selected = roster.find((member) => member.id === value) ?? lead;
+   const selected =
+      (lead.id === value ? lead : roster.find((member) => member.id === value)) ?? lead;
 
    const handleChange = (userId: string) => {
       setValue(userId);
@@ -53,16 +62,25 @@ export function ProjectDetailLeadPicker({
             <button
                id={id}
                type="button"
-               className="relative flex size-7 items-center justify-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+               className={cn(
+                  'relative flex shrink-0 items-center justify-center overflow-visible rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                  compact ? 'size-4' : 'size-7'
+               )}
                aria-label={`Lead: ${selected.name}`}
             >
-               <ActorAvatar user={selected} size="md" />
-               <span
-                  className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
-                  style={{ backgroundColor: statusUserColors[selected.status] }}
-               >
-                  <span className="sr-only">{selected.status}</span>
-               </span>
+               <ActorAvatar
+                  user={selected}
+                  size={compact ? 'sm' : 'md'}
+                  className={compact ? 'size-4' : undefined}
+               />
+               {compact ? null : (
+                  <span
+                     className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
+                     style={{ backgroundColor: statusUserColors[selected.status] }}
+                  >
+                     <span className="sr-only">{selected.status}</span>
+                  </span>
+               )}
             </button>
          </PopoverTrigger>
          <PopoverContent className="border-input w-48 p-0" align="start">

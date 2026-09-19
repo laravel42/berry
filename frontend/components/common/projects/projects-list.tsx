@@ -6,6 +6,7 @@ import {
    PROJECT_ACTIONS_SLOT,
    PROJECT_CELL_PAD,
    PROJECT_COLUMN,
+   PROJECT_NAME_SLOT,
    PROJECT_SELECT_SLOT,
 } from './project-columns';
 import ProjectLine from './project-line';
@@ -26,26 +27,25 @@ export default function ProjectsList({ groups, selected, onToggleSelected }: Pro
       <div className="w-full h-full overflow-y-auto">
          <div className="sticky top-0 z-10 flex items-center border-b bg-container px-6 py-1.5 text-muted-foreground">
             {onToggleSelected ? <span className={PROJECT_SELECT_SLOT} aria-hidden /> : null}
-            <div className="min-w-0 flex-1">Name</div>
-            {displayProperties.health && (
-               <div className={cn(PROJECT_COLUMN.health, PROJECT_CELL_PAD)}>Health</div>
-            )}
-            {displayProperties.priority && (
-               <div className={cn(PROJECT_COLUMN.priority, PROJECT_CELL_PAD)}>Priority</div>
-            )}
-            {displayProperties.lead && (
-               <div className={cn(PROJECT_COLUMN.lead, PROJECT_CELL_PAD)}>Lead</div>
-            )}
-            {displayProperties.targetDate && (
-               <div className={cn(PROJECT_COLUMN.targetDate, PROJECT_CELL_PAD)}>Target date</div>
-            )}
-            {displayProperties.issues && (
-               <div className={cn(PROJECT_COLUMN.issues, PROJECT_CELL_PAD)}>Tasks</div>
-            )}
-            {displayProperties.status && (
-               <div className={cn(PROJECT_COLUMN.status, PROJECT_CELL_PAD)}>Status</div>
-            )}
-            <span className={cn(PROJECT_ACTIONS_SLOT, 'h-px')} aria-hidden />
+            <div className={PROJECT_NAME_SLOT}>Name</div>
+            <div className="ml-auto flex min-w-0 items-center">
+               {displayProperties.health && (
+                  <div className={cn(PROJECT_COLUMN.health, PROJECT_CELL_PAD)}>Health</div>
+               )}
+               {displayProperties.lead && (
+                  <div className={cn(PROJECT_COLUMN.lead, PROJECT_CELL_PAD)}>Lead</div>
+               )}
+               {displayProperties.targetDate && (
+                  <div className={cn(PROJECT_COLUMN.targetDate, PROJECT_CELL_PAD)}>Target date</div>
+               )}
+               {displayProperties.issues && (
+                  <div className={cn(PROJECT_COLUMN.issues, PROJECT_CELL_PAD)}>Tasks</div>
+               )}
+               {displayProperties.status && (
+                  <div className={cn(PROJECT_COLUMN.status, PROJECT_CELL_PAD)}>Status</div>
+               )}
+               <span className={cn(PROJECT_ACTIONS_SLOT, 'h-px')} aria-hidden />
+            </div>
          </div>
 
          {groups.map((group) => (

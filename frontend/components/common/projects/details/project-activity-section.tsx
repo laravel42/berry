@@ -3,7 +3,6 @@
 import { ContentBlocks } from '@/components/common/issues/details/content-blocks';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-   getProjectDetail,
    ProjectUpdate,
    ProjectUpdateHealth,
    projectUpdateHealthColor,
@@ -12,7 +11,10 @@ import {
 import { useProject } from '@/hooks/use-project';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { format, parseISO } from 'date-fns';
-import { useMemo } from 'react';
+import { useEffect } from 'react';
+
+/** Stable empty list so a missing project key does not re-render forever. */
+const EMPTY_UPDATES: ProjectUpdate[] = [];
 
 function HealthDot({ health }: { health: ProjectUpdateHealth }) {
    return (
@@ -34,7 +36,9 @@ function UpdateRow({ update }: { update: ProjectUpdate }) {
             </Avatar>
             <span className="font-medium">{update.author.name}</span>
             <HealthDot health={update.health} />
-            <span className="text-muted-foreground">{format(parseISO(update.date), 'MMM d')}</span>
+            <span className="ml-auto text-muted-foreground">
+               {format(parseISO(update.date), 'MMM d')}
+            </span>
          </div>
          <ContentBlocks blocks={update.blocks} />
       </div>
@@ -44,24 +48,27 @@ function UpdateRow({ update }: { update: ProjectUpdate }) {
 /** Project activity list — matches issue ActivityFeedList layout. */
 export function ProjectActivityFeedList({ projectId }: { projectId: string }) {
    const project = useProject(projectId);
-   const detail = getProjectDetail(projectId);
-   const { postedUpdates } = useProjectUpdatesStore();
-
-   const updates = useMemo<ProjectUpdate[]>(
-      () => (project ? [...(postedUpdates[project.id] ?? []), ...detail.updates] : []),
-      [postedUpdates, project, detail.updates]
+   const projectKey = project?.id;
+   const updates = useProjectUpdatesStore((state) =>
+      projectKey ? (state.updatesByProject[projectKey] ?? EMPTY_UPDATES) : EMPTY_UPDATES
    );
+   const loadUpdates = useProjectUpdatesStore((state) => state.loadUpdates);
+
+   useEffect(() => {
+      if (!project) return;
+      void loadUpdates(project.id);
+   }, [project, loadUpdates]);
 
    return (
       <div className="border-t border-border/60 pt-4">
          <div className="mb-1 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-            activity
+            updates
          </div>
          <div className="flex flex-col gap-1.5">
             {updates.length > 0 ? (
                updates.map((update) => <UpdateRow key={update.id} update={update} />)
             ) : (
-               <p className="text-muted-foreground">No activity yet.</p>
+               <p className="text-muted-foreground">No updates yet.</p>
             )}
          </div>
       </div>

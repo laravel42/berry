@@ -65,6 +65,30 @@ export function leadFromApi(lead: ApiProjectLead | null | undefined, viewer: Use
    return viewer;
 }
 
+/**
+ * The lead as the roster and session know them now.
+ *
+ * A project stores a snapshot at hydrate. The board card reads this at render
+ * so a later member load, or the signed-in account's own image, is the picture
+ * a person already sees on a task.
+ */
+export function resolveProjectLead(
+   lead: User,
+   members: User[],
+   viewer: User | null | undefined
+): User {
+   if (isAiWorkflow(lead)) return AI_WORKFLOW_LEAD;
+   // Legacy posts used the `currentUser` stub (`id: 'me'`, name "You"). Treat
+   // that as whoever is signed in so their real photo shows.
+   const target = lead.id === 'me' && viewer ? viewer : lead;
+   const member = members.find((entry) => entry.id === target.id);
+   const self = viewer?.id === target.id ? viewer : null;
+   const resolved = member ?? self ?? target;
+   const avatarUrl = resolved.avatarUrl || self?.avatarUrl || member?.avatarUrl || '';
+   if (avatarUrl === resolved.avatarUrl) return resolved;
+   return { ...resolved, avatarUrl };
+}
+
 /** A lead the roster has not loaded (or no longer holds), named by its id. */
 function unknownMember(id: string): User {
    return {

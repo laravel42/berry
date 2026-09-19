@@ -1,5 +1,4 @@
-import type { Project } from '@/data/projects';
-import { health } from '@/data/projects';
+import { health, type Health, type Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import { FolderKanban } from 'lucide-react';
 import { z } from 'zod';
@@ -20,6 +19,7 @@ const projectSchema = z.object({
    description: z.string().nullish(),
    status: z.string(),
    priority: z.string(),
+   health: z.string().nullish(),
    startDate: z.string().nullish(),
    targetDate: z.string().nullish(),
    githubRepo: z.string().nullish(),
@@ -27,6 +27,7 @@ const projectSchema = z.object({
    // does not send it, or sends a kind this build has never heard of, should
    // cost the lead rather than the whole project.
    lead: z.object({ type: z.string(), id: z.string().nullish() }).nullish(),
+   createdBy: z.object({ type: z.string(), id: z.string() }).nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
 });
@@ -40,6 +41,7 @@ export type ProjectPatchBody = {
    description?: string | null;
    status?: string;
    priority?: string;
+   health?: string;
    startDate?: string | null;
    targetDate?: string | null;
    lead?: ApiProjectLead | null;
@@ -53,12 +55,34 @@ export type ProjectPatchBody = {
  * current user as *the* lead is what used to make every project read as
  * "assigned to me", including the ones handed to the AI workflow.
  */
+const HEALTH_BY_API: Record<string, Health['id']> = {
+   noUpdate: 'no-update',
+   onTrack: 'on-track',
+   atRisk: 'at-risk',
+   offTrack: 'off-track',
+};
+
+const API_HEALTH_BY_UI: Record<Health['id'], string> = {
+   'no-update': 'noUpdate',
+   'on-track': 'onTrack',
+   'at-risk': 'atRisk',
+   'off-track': 'offTrack',
+};
+
+export function apiHealthFromUi(id: Health['id']): string {
+   return API_HEALTH_BY_UI[id];
+}
+
+function uiHealthFromApi(value: string | null | undefined): Health | undefined {
+   const id = HEALTH_BY_API[value ?? ''] ?? 'no-update';
+   return health.find((entry) => entry.id === id);
+}
+
 export function toUiProject(apiProject: ApiProject, viewer: User): Project | undefined {
    const status = uiStatusFromProjectApi(apiProject.status);
    const priority = uiPriorityFromApi(apiProject.priority);
-   if (!status || !priority) return undefined;
-   const noUpdate = health.find((entry) => entry.id === 'no-update');
-   if (!noUpdate) return undefined;
+   const projectHealth = uiHealthFromApi(apiProject.health);
+   if (!status || !priority || !projectHealth) return undefined;
 
    const project: Project = {
       id: apiProject.id,
@@ -69,9 +93,12 @@ export function toUiProject(apiProject: ApiProject, viewer: User): Project | und
       startDate: apiProject.startDate ?? apiProject.createdAt.slice(0, 10),
       lead: leadFromApi(apiProject.lead, viewer),
       priority,
-      health: noUpdate,
+      health: projectHealth,
       teamId: apiProject.workspaceId,
       labels: [],
+      createdById: apiProject.createdBy?.type === 'user' ? apiProject.createdBy.id : null,
+      createdAt: apiProject.createdAt,
+      updatedAt: apiProject.updatedAt,
    };
    if (apiProject.targetDate) {
       project.targetDate = apiProject.targetDate;

@@ -3,13 +3,11 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
-import { RepositoryPicker } from '@/components/common/projects/repository-selector';
-import { AutoGateToggle } from '@/components/common/plans/auto-gate-toggle';
-import { isAiWorkflow } from '@/lib/project-lead';
 import { ProjectLeadSelector } from '@/components/common/projects/create-project/lead-selector';
 import { ProjectPrioritySelector } from '@/components/common/projects/create-project/priority-selector';
 import { defaultProjectCreateStatus } from '@/components/common/projects/create-project/project-status-options';
 import { ProjectStatusSelector } from '@/components/common/projects/create-project/status-selector';
+import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -24,16 +22,13 @@ import { priorities } from '@/data/priorities';
 import type { Status } from '@/data/status';
 import type { User } from '@/data/users';
 import { BerryApiError } from '@/lib/api';
-import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
-import { describePlanFailure, generatePlan } from '@/lib/plans';
+import { WORKSPACE_NAME } from '@/lib/config';
 import { createWorkspaceProject } from '@/lib/projects';
-import { usePlanStore } from '@/store/plan-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format } from 'date-fns';
-import { ChevronRight, Sparkles, X } from 'lucide-react';
-import { useParams, useRouter } from 'next/navigation';
+import { ChevronRight, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -43,10 +38,8 @@ interface ProjectFormState {
    description: string;
    status: Status;
    priority: (typeof priorities)[number];
-   /** Undefined until chosen — the lead decides whether Berry plans this. */
+   /** Undefined until chosen — who leads is a required decision. */
    lead?: User;
-   /** Only meaningful while the lead is the AI workflow. */
-   autoGate: boolean;
    startDate?: Date;
    targetDate?: Date;
    /** owner/name, or undefined for a project that delivers nowhere yet. */
@@ -62,29 +55,13 @@ function toIsoDate(date?: Date): string | undefined {
    return date ? format(date, 'yyyy-MM-dd') : undefined;
 }
 
-/** What Berry is asked to plan: everything the person wrote, in order. */
-function planPrompt(form: ProjectFormState): string {
-   return [form.name.trim(), form.summary.trim(), form.description.trim()]
-      .filter(Boolean)
-      .join('\n\n');
-}
-
 /** Shared create-project dialog — opened from the header or board column "+". */
 export function CreateProjectDialog() {
-   const router = useRouter();
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
    const workspace = useSessionStore((state) => state.workspace);
-   const boardId = useSessionStore((state) => state.boardId);
    const addProject = useProjectsStore((state) => state.addProject);
-   const upsertPlanRecord = usePlanStore((state) => state.upsertRecord);
-   const markAutoStart = usePlanStore((state) => state.markAutoStart);
    const { isOpen, defaultStatus, closeModal } = useCreateProjectStore();
    const [pending, setPending] = useState(false);
 
-   // No lead is chosen for the person: who runs a project is the decision this
-   // dialog exists to take, and defaulting it to whoever opened the dialog
-   // hides the option that makes Berry run it.
    const createDefaultForm = useCallback(
       (): ProjectFormState => ({
          name: '',
@@ -92,68 +69,17 @@ export function CreateProjectDialog() {
          description: '',
          status: defaultStatus ?? defaultProjectCreateStatus.status,
          priority: priorities.find((entry) => entry.id === 'no-priority')!,
-         autoGate: false,
       }),
       [defaultStatus]
    );
 
    const [form, setForm] = useState<ProjectFormState>(createDefaultForm);
-   /**
-    * A project that exists with no plan behind it.
-    *
-    * Held rather than toasted. Asking Berry to lead a project is two steps, and
-    * only the first is undoable by walking away: when planning fails the project
-    * is already there, so a toast over a dialog that closes itself reports the
-    * failure to nobody and leaves the work unaskable — the lead is set, and
-    * nothing will ever try again. Keeping the project id here is what makes the
-    * second step retryable without creating a second project.
-    */
-   const [planFailure, setPlanFailure] = useState<{ projectId: string; message: string } | null>(
-      null
-   );
 
    useEffect(() => {
       if (isOpen) {
          setForm(createDefaultForm());
-         setPlanFailure(null);
       }
    }, [isOpen, createDefaultForm]);
-
-   /**
-    * Asks for the plan of a project that already exists.
-    *
-    * Separate from creating it so a retry is a retry: the project is not made
-    * again, and `Idempotency-Key` is fresh, so the server sees a new attempt
-    * rather than replaying the failed one.
-    */
-   const requestPlan = async (projectId: string) => {
-      if (!workspace) return;
-      setPending(true);
-      setPlanFailure(null);
-      try {
-         const record = await generatePlan({
-            workspaceId: workspace.id,
-            prompt: planPrompt(form),
-            projectId,
-            boardId: boardId ?? undefined,
-            autoGate: form.autoGate,
-            // Berry leads it, so it does not stop at a proposal: the server
-            // starts the plan once generation finishes, which is what turns
-            // it into tasks, whether or not this tab is still open.
-            autoStart: true,
-         });
-         upsertPlanRecord(record);
-         // The preview's own attempt is kept as a fallback for a server that
-         // does not start plans; it finds an already started plan otherwise.
-         markAutoStart(record.id);
-         closeModal();
-         router.push(`/${orgId}/plan/${record.id}`);
-      } catch (error) {
-         setPlanFailure({ projectId, message: describePlanFailure(error) });
-      } finally {
-         setPending(false);
-      }
-   };
 
    const createProject = async () => {
       const trimmed = form.name.trim();
@@ -175,9 +101,8 @@ export function CreateProjectDialog() {
          return;
       }
       setPending(true);
-      let project;
       try {
-         project = await createWorkspaceProject({
+         const project = await createWorkspaceProject({
             workspaceId: workspace.id,
             name: trimmed,
             description: composeDescription(form.summary, form.description),
@@ -189,24 +114,13 @@ export function CreateProjectDialog() {
             lead,
          });
          addProject({ ...project, lead, status: form.status, priority: form.priority });
+         toast.success('Project created');
+         closeModal();
       } catch (error) {
          toast.error(error instanceof BerryApiError ? error.message : 'Could not create project');
+      } finally {
          setPending(false);
-         return;
       }
-
-      if (!isAiWorkflow(lead)) {
-         toast.success('Project created');
-         setPending(false);
-         closeModal();
-         return;
-      }
-
-      // Berry leads it, so creating the project is the same act as asking for
-      // the plan. The project exists either way, which is why a failure here is
-      // reported as planning failing rather than creation failing — and why it
-      // is reported in the dialog, which stays open, rather than after it.
-      await requestPlan(project.id);
    };
 
    return (
@@ -244,13 +158,6 @@ export function CreateProjectDialog() {
                className="flex min-h-0 flex-1 flex-col"
                onSubmit={(event) => {
                   event.preventDefault();
-                  // Once the project exists, submitting asks for its plan again.
-                  // Routing this through `createProject` would make a second
-                  // project every time someone pressed Enter on the error.
-                  if (planFailure) {
-                     void requestPlan(planFailure.projectId);
-                     return;
-                  }
                   void createProject();
                }}
             >
@@ -293,15 +200,6 @@ export function CreateProjectDialog() {
                         lead={form.lead}
                         onChange={(lead) => setForm({ ...form, lead })}
                      />
-                     {/* Only Berry can be told to skip the human review, so the
-                         control appears with the lead that makes it mean
-                         something rather than sitting greyed out beside it. */}
-                     {isAiWorkflow(form.lead) && (
-                        <AutoGateToggle
-                           enabled={form.autoGate}
-                           onChange={(autoGate) => setForm({ ...form, autoGate })}
-                        />
-                     )}
                      <ProjectDateSelector
                         label="Start"
                         date={form.startDate}
@@ -345,42 +243,16 @@ export function CreateProjectDialog() {
                   </div>
                </div>
 
-               {/* The project is saved and the plan is not, which is a state
-                   worth stating plainly: it says what happened, what still
-                   exists, and what the button will do about it. `role="alert"`
-                   because it appears in response to the submit that just
-                   failed. */}
-               {planFailure ? (
-                  <p role="alert" className="flex-none border-t px-6 py-3 text-muted-foreground">
-                     <span className="text-foreground">
-                        {form.name.trim() || 'The project'} was created, but planning it failed.
-                     </span>{' '}
-                     {planFailure.message} Nothing is lost — try planning again, or close this and
-                     open the project.
-                  </p>
-               ) : null}
-
                <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
                   <Button type="button" variant="ghost" size="sm" onClick={closeModal}>
-                     {planFailure ? 'Close' : 'Cancel'}
+                     Cancel
                   </Button>
                   <Button
                      type="submit"
                      size="sm"
                      disabled={pending || !form.name.trim() || !form.lead}
                   >
-                     {isAiWorkflow(form.lead) ? (
-                        <>
-                           <Sparkles className="size-4" />
-                           {pending
-                              ? 'Planning…'
-                              : planFailure
-                                ? 'Try planning again'
-                                : 'Create & plan'}
-                        </>
-                     ) : (
-                        <>{pending ? 'Creating…' : 'Create project'}</>
-                     )}
+                     {pending ? 'Creating…' : 'Create project'}
                   </Button>
                </DialogFooter>
             </form>

@@ -27,6 +27,10 @@ export interface Project {
    githubRepo?: string;
    /** What the project is for, as stored Markdown. */
    description?: string;
+   /** Who created the project, when known. */
+   createdById?: string | null;
+   createdAt: string;
+   updatedAt: string;
 }
 
 export interface Health {

@@ -1,49 +1,33 @@
 'use client';
 
-import {
-   DeleteProjectDialog,
-   useProjectDeletion,
-} from '@/components/common/projects/delete-project';
+import { ArrowRight, Calendar, Check, Plus, Tag, UserPlus } from 'lucide-react';
+import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Issue } from '@/data/issues';
 import { priorities } from '@/data/priorities';
 import { ProjectDetail } from '@/data/project-details';
 import { Project } from '@/data/projects';
 import { PanelFilterTarget, usePanelFilter } from '@/components/common/issues/use-panel-filter';
+import { HealthPopover } from '@/components/common/projects/health-popover';
+import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { RepositorySelector } from '@/components/common/projects/repository-selector';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { ProjectProgressChart } from './project-progress-chart';
-import {
-   ArrowRight,
-   Calendar,
-   Check,
-   Link as LinkIcon,
-   Plus,
-   Tag,
-   Trash2,
-   UserPlus,
-} from 'lucide-react';
-import { useParams } from 'next/navigation';
-import { useMemo } from 'react';
-import { toast } from 'sonner';
-import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { ProjectDetailLeadPicker } from '../project-detail-lead-picker';
 import { ProjectDetailStatusSelector } from '../project-detail-status-selector';
 import { PrioritySelector } from '../priority-selector';
+import { ProjectDetailsSection } from './project-details-section';
 
 interface ProjectPropertiesPanelProps {
    project: Project;
    detail: ProjectDetail;
    issues: Issue[];
    compact?: boolean;
-   onDeleted?: () => void;
 }
 
 const isCompleted = (issue: Issue) => issue.status.category === 'completed';
@@ -145,114 +129,100 @@ function SidebarSection({ title, children }: { title: string; children: React.Re
 function ProjectPropertiesPanelCompact({
    project,
    detail,
-   onDeleted,
 }: {
    project: Project;
    detail: ProjectDetail;
-   onDeleted?: () => void;
 }) {
    const members = useMembersStore((state) => state.members);
-   const { updateProjectStatus, updateProjectPriority, updateProjectLead } = useProjectsStore();
-   const deletion = useProjectDeletion(onDeleted);
-   const { orgId } = useParams<{ orgId?: string }>();
+   const {
+      updateProjectStatus,
+      updateProjectPriority,
+      updateProjectLead,
+      updateProjectStartDate,
+      updateProjectTargetDate,
+   } = useProjectsStore();
+
+   const toIso = (date: Date | undefined) => (date ? format(date, 'yyyy-MM-dd') : undefined);
 
    return (
-      <>
-         <div className="flex h-full min-h-0 flex-col">
-            <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
-               <SidebarSection title="Properties">
-                  <div className="flex flex-col gap-1.5">
-                     <div className="flex items-center gap-1.5 -ml-1.5">
-                        <ProjectDetailStatusSelector
-                           status={project.status}
-                           onStatusChange={(status) => updateProjectStatus(project.id, status)}
-                        />
-                        <span>{project.status.name}</span>
-                     </div>
-                     <div className="flex items-center gap-1.5 -ml-1.5">
-                        <PrioritySelector
-                           priority={project.priority}
-                           onPriorityChange={(priorityId) => {
-                              const match = priorities.find((entry) => entry.id === priorityId);
-                              if (match) updateProjectPriority(project.id, match);
-                           }}
-                        />
-                        <span>{project.priority.name}</span>
-                     </div>
-                     <div className="flex items-center gap-1.5 -ml-1.5 mt-0.5">
-                        <ProjectDetailLeadPicker
-                           lead={project.lead}
-                           members={members}
-                           onLeadChange={(member) => updateProjectLead(project.id, member)}
-                        />
-                        <span className="truncate">{project.lead.name}</span>
-                     </div>
-                     {(project.startDate || project.targetDate) && (
-                        <div className="flex items-center gap-1.5 -ml-1.5">
-                           <span className="flex size-7 shrink-0 items-center justify-center">
-                              <Calendar className="size-4" />
-                           </span>
-                           <span className="truncate">
-                              {formatDay(project.startDate)}
-                              {project.targetDate ? ` – ${formatDay(project.targetDate)}` : ''}
-                           </span>
-                        </div>
-                     )}
+      <div className="flex h-full min-h-0 flex-col">
+         <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
+            <SidebarSection title="Properties">
+               <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 -ml-1.5">
+                     <ProjectDetailStatusSelector
+                        status={project.status}
+                        onStatusChange={(status) => updateProjectStatus(project.id, status)}
+                     />
+                     <span>{project.status.name}</span>
                   </div>
+                  <div className="flex items-center gap-1.5 -ml-1.5">
+                     <PrioritySelector
+                        priority={project.priority}
+                        onPriorityChange={(priorityId) => {
+                           const match = priorities.find((entry) => entry.id === priorityId);
+                           if (match) updateProjectPriority(project.id, match);
+                        }}
+                     />
+                     <span>{project.priority.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 -ml-1.5">
+                     <HealthPopover project={project} showLabel={false} />
+                     <span>{project.health.name}</span>
+                  </div>
+                  {/* No -ml: the lead control is a filled circle, not a padded
+                      ghost icon — negative margin clipped the avatar. */}
+                  <div className="flex items-center gap-1.5">
+                     <ProjectDetailLeadPicker
+                        lead={project.lead}
+                        members={members}
+                        onLeadChange={(member) => updateProjectLead(project.id, member)}
+                     />
+                     <span className="truncate">{project.lead.name}</span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1.5 -ml-1.5">
+                     <RepositorySelector project={project} />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                     <ProjectDateSelector
+                        layout="row"
+                        label="Start"
+                        emptyLabel="Start date"
+                        date={project.startDate ? parseISO(project.startDate) : undefined}
+                        onChange={(date) => updateProjectStartDate(project.id, toIso(date))}
+                     />
+                     <ProjectDateSelector
+                        layout="row"
+                        label="Target"
+                        emptyLabel="Target date"
+                        date={project.targetDate ? parseISO(project.targetDate) : undefined}
+                        onChange={(date) => updateProjectTargetDate(project.id, toIso(date))}
+                     />
+                  </div>
+               </div>
+            </SidebarSection>
+
+            {detail.milestones.length > 0 && (
+               <SidebarSection title="Milestones">
+                  {detail.milestones.map((milestone, index) => (
+                     <div
+                        key={milestone.id}
+                        className={
+                           index === 0
+                              ? 'flex items-center gap-2 min-w-0'
+                              : 'mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground min-w-0'
+                        }
+                     >
+                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
+                        <span className="truncate">{milestone.name}</span>
+                     </div>
+                  ))}
                </SidebarSection>
+            )}
 
-               {detail.milestones.length > 0 && (
-                  <SidebarSection title="Milestones">
-                     {detail.milestones.map((milestone, index) => (
-                        <div
-                           key={milestone.id}
-                           className={
-                              index === 0
-                                 ? 'flex items-center gap-2 min-w-0'
-                                 : 'mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground min-w-0'
-                           }
-                        >
-                           <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
-                           <span className="truncate">{milestone.name}</span>
-                        </div>
-                     ))}
-                  </SidebarSection>
-               )}
-            </div>
-
-            {/* The three things done to a project from its own page: put it in
-                the rail, hand someone the link, or remove it. */}
-            <div className="flex shrink-0 items-center justify-end">
-               <PinToggle targetType="project" targetId={project.id} />
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  aria-label="Copy link"
-                  title="Copy link"
-                  onClick={() => {
-                     void navigator.clipboard.writeText(
-                        `${window.location.origin}/${orgId ?? WORKSPACE_SLUG}/project/${project.id}/overview`
-                     );
-                     toast.success('Link copied to clipboard');
-                  }}
-               >
-                  <LinkIcon className="size-4" />
-               </Button>
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 translate-x-[10px] text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  aria-label="Delete project"
-                  onClick={() => deletion.request(project)}
-               >
-                  <Trash2 className="size-4" />
-               </Button>
-            </div>
+            <ProjectDetailsSection project={project} />
          </div>
-
-         <DeleteProjectDialog deletion={deletion} />
-      </>
+      </div>
    );
 }
 
@@ -265,7 +235,6 @@ export function ProjectPropertiesPanel({
    detail,
    issues,
    compact = false,
-   onDeleted,
 }: ProjectPropertiesPanelProps) {
    const panelFilter = usePanelFilter();
    const completed = issues.filter(isCompleted).length;
@@ -335,9 +304,7 @@ export function ProjectPropertiesPanel({
    );
 
    if (compact) {
-      return (
-         <ProjectPropertiesPanelCompact project={project} detail={detail} onDeleted={onDeleted} />
-      );
+      return <ProjectPropertiesPanelCompact project={project} detail={detail} />;
    }
 
    return (
@@ -353,6 +320,10 @@ export function ProjectPropertiesPanel({
                <PropertyRow label="Priority">
                   <project.priority.icon className="size-3.5 text-muted-foreground" />
                   <span>{project.priority.name}</span>
+               </PropertyRow>
+               <PropertyRow label="Health">
+                  <HealthPopover project={project} showLabel={false} />
+                  <span>{project.health.name}</span>
                </PropertyRow>
                <PropertyRow label="Repository">
                   <RepositorySelector project={project} />

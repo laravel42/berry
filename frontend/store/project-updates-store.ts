@@ -1,38 +1,49 @@
 import { create } from 'zustand';
-import { ProjectUpdate, ProjectUpdateHealth } from '@/data/project-details';
-import { currentUser } from '@/data/users';
+import { health as healthCatalog, type Project } from '@/data/projects';
+import type { ProjectUpdate, ProjectUpdateHealth } from '@/data/project-details';
+import { createProjectUpdate, loadProjectUpdates } from '@/lib/project-updates';
+import { useProjectsStore } from '@/store/projects-store';
 
 interface ProjectUpdatesState {
-   /** Updates posted at runtime, newest first, keyed by project id. */
-   postedUpdates: Record<string, ProjectUpdate[]>;
-   postUpdate: (projectId: string, health: ProjectUpdateHealth, text: string) => void;
+   /** Updates keyed by project id, newest first. */
+   updatesByProject: Record<string, ProjectUpdate[]>;
+   loadUpdates: (projectId: string) => Promise<void>;
+   postUpdate: (projectId: string, health: ProjectUpdateHealth, text: string) => Promise<void>;
 }
 
-let nextId = 1;
-
 /**
- * Runtime project updates (the "Post update" composer). Merged with the
- * mock updates from project-details.ts when rendering the Activity tab.
+ * Project activity updates.
+ *
+ * Loaded from and written through `/api/v1/projects/:id/updates`. Posting also
+ * moves the project's health chip — the server records both in one
+ * transaction — so this store updates the projects store locally rather than
+ * issuing a second PATCH.
  */
 export const useProjectUpdatesStore = create<ProjectUpdatesState>((set) => ({
-   postedUpdates: {},
-   postUpdate: (projectId, health, text) =>
-      set((state) => {
-         const update: ProjectUpdate = {
-            id: `posted-${nextId++}`,
-            author: currentUser,
-            date: new Date().toISOString().slice(0, 10),
-            health,
-            blocks: text
-               .split(/\n{2,}/)
-               .filter((paragraph) => paragraph.trim() !== '')
-               .map((paragraph) => ({ type: 'paragraph', text: paragraph.trim() })),
-         };
-         return {
-            postedUpdates: {
-               ...state.postedUpdates,
-               [projectId]: [update, ...(state.postedUpdates[projectId] ?? [])],
-            },
-         };
-      }),
+   updatesByProject: {},
+
+   loadUpdates: async (projectId) => {
+      const updates = await loadProjectUpdates(projectId);
+      set((state) => ({
+         updatesByProject: { ...state.updatesByProject, [projectId]: updates },
+      }));
+   },
+
+   postUpdate: async (projectId, health, text) => {
+      const created = await createProjectUpdate(projectId, health, text);
+      set((state) => ({
+         updatesByProject: {
+            ...state.updatesByProject,
+            [projectId]: [created, ...(state.updatesByProject[projectId] ?? [])],
+         },
+      }));
+
+      // The create already wrote projects.health; only refresh the chip here.
+      const next = healthCatalog.find((entry) => entry.id === health);
+      if (next) {
+         useProjectsStore.getState().updateProject(projectId, {
+            health: next,
+         } satisfies Partial<Project>);
+      }
+   },
 }));

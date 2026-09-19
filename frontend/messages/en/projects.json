@@ -12,5 +12,12 @@
    "states": {
       "hiddenByFilters": "{count, plural, =1 {1 project} other {# projects}} hidden by filters",
       "clearFilters": "Clear filters"
+   },
+   "details": {
+      "title": "Details",
+      "createdBy": "Created by",
+      "created": "Created",
+      "updated": "Updated",
+      "unknown": "Unknown"
    }
 }
