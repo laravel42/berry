@@ -49,7 +49,12 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
    // A reloaded or rebuilt frame starts over and reports again.
    useEffect(() => setNav({ canBack: false, canForward: false }), [reload, entry?.id]);
 
-   const go = (dir: -1 | 1) => frame()?.postMessage({ type: `${BRIDGE}go`, dir }, '*');
+   const go = (dir: -1 | 1) => {
+      // Both arrows wait for the page to say where it landed: a second click
+      // before then would ask for a step the page may not have.
+      setNav({ canBack: false, canForward: false });
+      frame()?.postMessage({ type: `${BRIDGE}go`, dir }, '*');
+   };
 
    useEffect(() => {
       if (!issueRef) return;

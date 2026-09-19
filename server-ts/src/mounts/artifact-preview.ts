@@ -257,13 +257,19 @@ export const SANDBOX_SHIM = `<script>(function(){function m(){var d={};return{ge
  *
  * The page has no origin, so Berry's Preview bar cannot read or drive its
  * history; it asks by message instead, and the page reports what it can do.
- * The position is counted here — client-side route changes (`pushState`) and
- * full page loads alike — and kept in `window.name`, which survives a page
- * load inside the frame. A step asked for is recorded as pending and applied
- * once: on `popstate` for a route change, on the next page's load otherwise. A step back is only taken when the page knows it has
- * somewhere to go: stepping past its first entry would move Berry itself.
+ *
+ * Every history entry the page makes carries its position (`__berryIdx` in
+ * `history.state`, copied into the app's own state object, never replacing
+ * it), and a traversal reads the position of the entry it landed on — so the
+ * count cannot drift, whoever moved the history. `window.name`, which survives
+ * a page load inside the frame, carries it across full page loads.
+ *
+ * A step is only taken where the page has an entry to go to; stepping past its
+ * first would move Berry's own page. While one is in flight further requests
+ * are refused (a double-click used to send two, and the second left the
+ * site), and the page reports it cannot move until the step lands.
  */
-export const NAV_BRIDGE = `<script>(function(){var K="berry-preview:",s={i:0,m:0,p:null};try{var o=JSON.parse(window.name||"{}");if(o&&o.b===1)s={i:o.i|0,m:o.m|0,p:o.p||null}}catch(e){}var t=(performance.getEntriesByType&&performance.getEntriesByType("navigation")[0]||{}).type;if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);else if(t==="navigate"&&window.name){s.i++;s.m=s.i}s.p=null;function save(){try{window.name=JSON.stringify({b:1,i:s.i,m:s.m,p:s.p})}catch(e){}}function post(){save();try{parent.postMessage({type:K+"state",canBack:s.i>0,canForward:s.i<s.m},"*")}catch(e){}}var ps=history.pushState;history.pushState=function(){ps.apply(history,arguments);s.i++;s.m=s.i;post()};addEventListener("message",function(e){if(e.source!==parent||!e.data||e.data.type!==K+"go")return;if(e.data.dir<0&&s.i>0){s.p="back";save();history.back()}else if(e.data.dir>0&&s.i<s.m){s.p="forward";save();history.forward()}});addEventListener("popstate",function(){if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);s.p=null;post()});addEventListener("pagehide",save);if(document.readyState==="loading")addEventListener("DOMContentLoaded",post);else post();save()})();</script>`;
+export const NAV_BRIDGE = `<script>(function(){var K="berry-preview:",s={i:0,m:0,p:null},ps=history.pushState,rs=history.replaceState,pending=0;try{var o=JSON.parse(window.name||"{}");if(o&&o.b===1)s={i:o.i|0,m:o.m|0,p:o.p||null}}catch(e){}function idx(st){return st&&typeof st==="object"&&typeof st.__berryIdx==="number"?st.__berryIdx:null}function stamp(st){if(st==null)return{__berryIdx:s.i};if(typeof st!=="object"||Array.isArray(st))return st;var c={};for(var k in st)if(Object.prototype.hasOwnProperty.call(st,k))c[k]=st[k];c.__berryIdx=s.i;return c}var here=idx(history.state),nav=(performance.getEntriesByType&&performance.getEntriesByType("navigation")[0]||{}).type;if(here!==null)s.i=here;else if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);else if(nav==="navigate"&&window.name){s.i++;s.m=s.i}s.m=Math.max(s.m,s.i);s.p=null;try{rs.call(history,stamp(history.state),"")}catch(e){}function save(){try{window.name=JSON.stringify({b:1,i:s.i,m:s.m,p:s.p})}catch(e){}}function post(){save();try{parent.postMessage({type:K+"state",canBack:s.i>0&&s.p===null,canForward:s.i<s.m&&s.p===null},"*")}catch(e){}}history.pushState=function(st,t,u){s.i++;s.m=s.i;var r=ps.call(history,stamp(st),t,u);post();return r};history.replaceState=function(st,t,u){return rs.call(history,stamp(st),t,u)};function settle(){clearTimeout(pending);s.p=null;post()}addEventListener("popstate",function(e){var x=idx(e.state);if(x!==null)s.i=x;else if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);settle()});addEventListener("message",function(e){if(e.source!==parent||!e.data||e.data.type!==K+"go")return;if(s.p!==null){post();return}if(e.data.dir<0&&s.i>0){s.p="back";save();pending=setTimeout(settle,2000);history.back()}else if(e.data.dir>0&&s.i<s.m){s.p="forward";save();pending=setTimeout(settle,2000);history.forward()}else post()});addEventListener("pagehide",save);if(document.readyState==="loading")addEventListener("DOMContentLoaded",post);else post();save()})();</script>`;
 
 /** The stand-ins and the navigation bridge, first thing in the page, before any of its own scripts. */
 export function withSandboxShim(html: string): string {
