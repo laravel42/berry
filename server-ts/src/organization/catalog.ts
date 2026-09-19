@@ -1,5 +1,5 @@
 import { toolCeiling } from './autonomy.ts';
-import type { AutonomyLevel, Department, RoleContract, RoleKey } from './contract.ts';
+import { MAX_RUN_OUTPUT_TOKENS, type AutonomyLevel, type Department, type RoleContract, type RoleKey } from './contract.ts';
 import { renderSystemPrompt } from './prompt.ts';
 
 /**
@@ -9,7 +9,7 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 5;
+export const CATALOG_VERSION = 6;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
@@ -23,28 +23,18 @@ type Tier = keyof typeof MODELS;
  * `max_output_tokens` is cumulative over a whole run, not per response, and it
  * is the ceiling that decides whether an agent can finish a task at all.
  *
- * It was 8000, and that is roughly what one real piece of work costs to write:
- * the Orchestrator spent it filing a project's tasks and was cut off with the
- * closing word left to say; then, on the same plan, four roles across two
- * tiers hit it in a single afternoon — the Backend Engineer at 9,824 written,
- * the Frontend Engineer at 8,554, the Security Engineer at 9,025, and the
- * Software Architect at 19,301 for one design. Every one of those runs is
- * reported as failed for having been too productive, and the task it was doing
- * goes nowhere.
- *
- * Four roles on two tiers is not a set of exceptions, it is the default being
- * wrong, so the fix is here rather than in a list of roles. A per-role override
- * table lived here briefly for the Orchestrator alone; raising the tier
- * subsumes it, and one number in one place is easier to reason about than
- * fifteen of nineteen roles opting out of it.
+ * The earlier 24,000-token ceiling still stopped implementation agents during
+ * normal autonomous work. A 512K run budget lets a long task make many bounded
+ * model calls; the separate per-response ceiling continues to protect each
+ * Bedrock request.
  *
  * `max_turns` is left alone. Nothing has hit it: the runs that failed were
  * writing, not looping.
  */
 const RUN_LIMITS: Record<Tier, RoleContract['run_limits']> = {
-   opus: { max_turns: 20, max_output_tokens: 24_000 },
-   sonnet: { max_turns: 40, max_output_tokens: 24_000 },
-   haiku: { max_turns: 30, max_output_tokens: 12_000 },
+   opus: { max_turns: 20, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   sonnet: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   haiku: { max_turns: 30, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
 };
 
 interface RoleSpec {

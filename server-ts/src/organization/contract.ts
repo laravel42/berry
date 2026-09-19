@@ -24,6 +24,8 @@ export type RoleKey = string;
 export type AutonomyLevel = 1 | 2 | 3 | 4 | 5;
 
 export const MAX_CONTRACT_BYTES = 65536;
+/** Maximum cumulative output across all model calls in one agent run. */
+export const MAX_RUN_OUTPUT_TOKENS = 512 * 1024;
 
 const roleKey = z.string().regex(/^[a-z][a-z0-9-]{1,48}$/);
 const text = z.string().trim().min(1).max(2000);
@@ -80,7 +82,7 @@ export const roleContractSchema = z.object({
       .nullable(),
    run_limits: z.object({
       max_turns: z.number().int().min(1).max(200),
-      max_output_tokens: z.number().int().min(256).max(64000),
+      max_output_tokens: z.number().int().min(256).max(MAX_RUN_OUTPUT_TOKENS),
    }),
    never: list,
    system_prompt: z.string().min(1).max(20000),
