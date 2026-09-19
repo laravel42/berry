@@ -78,6 +78,8 @@ test('a site is served at its own paths, sandboxed and framable only by Berry', 
    assert.equal(page.headers.get('x-frame-options'), null);
    // Module scripts from a sandboxed (null-origin) page are CORS requests.
    assert.equal(page.headers.get('access-control-allow-origin'), '*');
+   // A proxy in front of Berry must serve the agent's page as it is.
+   assert.match(page.headers.get('cache-control') ?? '', /\bno-transform\b/);
 
    const css = await server.request(`${base}site/style.css`);
    assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');

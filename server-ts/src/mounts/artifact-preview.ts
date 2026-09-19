@@ -90,7 +90,11 @@ const SANDBOX_HEADERS = {
       "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads; frame-ancestors 'self'",
    'X-Content-Type-Options': 'nosniff',
    'Referrer-Policy': 'no-referrer',
-   'Cache-Control': 'private, max-age=60',
+   // `no-transform`: a proxy in front of Berry (Cloudflare) must not rewrite
+   // the agent's page. Cloudflare otherwise injects its analytics beacon, which
+   // runs in the sandbox, fails its CORS check on every page and fills the
+   // console, and can rewrite scripts (Rocket Loader) the site depends on.
+   'Cache-Control': 'private, max-age=60, no-transform',
    'Cross-Origin-Resource-Policy': 'cross-origin',
    // A sandboxed page has the origin `null`, and module scripts, fonts and
    // fetches are CORS requests: without this a built site's
