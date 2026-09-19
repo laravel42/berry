@@ -13,9 +13,9 @@ interface GoalView {
 }
 
 /**
- * One goal with its progress. The list omits progress, so the page always
- * reads the record itself, and reads it again when a task, approval or the
- * goal changes — the counts are what a person came here for.
+ * One goal with its progress. The page always reads the record itself, and
+ * reads it again when a task, approval or the goal changes — the counts are
+ * what a person came here for.
  */
 export function useGoal(goalId: string): GoalView {
    const status = useSessionStore((state) => state.status);

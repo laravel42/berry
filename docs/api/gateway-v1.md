@@ -402,7 +402,7 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
 | `createdBy` | `ActorRef` or null | yes | |
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 | `startedAt`, `completedAt` | `Timestamp` or null | yes | |
-| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "approvalsPending": integer }` | on reads of one goal | Issues linked to the goal, and pending approvals on the goal or its issues |
+| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "approvalsPending": integer }` | on list and single reads | Issues linked to the goal, and pending approvals on the goal or its issues |
 
 ### Plan
 
@@ -728,7 +728,7 @@ Every creating `POST` requires `Idempotency-Key`. Reads need `product.read`, wri
 
 Query `workspaceId` (required), `query`, `status`, `projectId`, `first`, `after`. Ordered by `(updatedAt DESC, id DESC)`.
 
-- `200`: connection of `Goal` (without `progress`)
+- `200`: connection of `Goal` (with `progress`)
 
 #### `POST /api/v1/goals`
 

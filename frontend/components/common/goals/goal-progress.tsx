@@ -17,6 +17,9 @@ export function GoalProgress({ progress, compact = false, className }: GoalProgr
    const done = progress?.issuesDone ?? 0;
    const percent = total > 0 ? Math.round((done / total) * 100) : 0;
    if (compact) {
+      if (total === 0) {
+         return <span className={cn('text-muted-foreground', className)}>—</span>;
+      }
       return (
          <span className={cn('inline-flex items-center gap-2', className)}>
             <Progress
@@ -25,7 +28,7 @@ export function GoalProgress({ progress, compact = false, className }: GoalProgr
                aria-label={`${percent}% of tasks done`}
             />
             <span className="tabular-nums text-muted-foreground">
-               {total > 0 ? `${done}/${total}` : '—'}
+               {done}/{total}
             </span>
          </span>
       );

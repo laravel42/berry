@@ -82,13 +82,13 @@ export function goalMounts(options: GoalOptions): Mount[] {
       const rows = await goals.list(workspaceId, filter, after, page.first + 1);
       const hasNextPage = rows.length > page.first;
       const nodes = hasNextPage ? rows.slice(0, page.first) : rows;
-      const authors = await goals.lookupAuthors(nodes.map((goal) => goal.createdBy ?? ''));
+      const [authors, progress] = await Promise.all([
+         goals.lookupAuthors(nodes.map((goal) => goal.createdBy ?? '')),
+         goals.progressMany(nodes.map((goal) => goal.id)),
+      ]);
       const last = nodes.at(-1);
       return json({
-         // Progress is deliberately absent from a listing: it is five counting
-         // subqueries per goal, and a list of a hundred would pay all of them
-         // to render a number the list does not show.
-         nodes: nodes.map((goal) => serializeGoal(goal, authors, null)),
+         nodes: nodes.map((goal) => serializeGoal(goal, authors, progress.get(goal.id) ?? null)),
          pageInfo: {
             hasNextPage,
             endCursor: last ? encodeCursor(scope, { updatedAt: last.updatedAt, id: last.id }) : null,

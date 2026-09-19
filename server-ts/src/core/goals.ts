@@ -69,6 +69,10 @@ export interface Progress {
    approvalsPending: number;
 }
 
+function emptyProgress(): Progress {
+   return { issuesTotal: 0, issuesDone: 0, issuesCancelled: 0, approvalsPending: 0 };
+}
+
 export interface GoalCursor {
    updatedAt: string;
    id: string;
@@ -375,33 +379,63 @@ export class GoalRepository {
    /**
     * What the goal's work adds up to.
     *
-    * One query with five subqueries rather than five round trips, because this
-    * is rendered beside every goal read on its own. Approvals count whether
-    * they target the goal directly or one of its issues — a decision blocking
-    * an issue is blocking the goal.
+    * Approvals count whether they target the goal directly or one of its
+    * issues — a decision blocking an issue is blocking the goal.
     */
    async progress(goalId: string): Promise<Progress> {
-      const [row] = await this.sql`
-         SELECT
-            (SELECT count(*) FROM goal_issues AS link
-               JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
-              WHERE link.goal_id = ${goalId}) AS issues_total,
-            (SELECT count(*) FROM goal_issues AS link
-               JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
-              WHERE link.goal_id = ${goalId} AND issue.status = 'done') AS issues_done,
-            (SELECT count(*) FROM goal_issues AS link
-               JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
-              WHERE link.goal_id = ${goalId} AND issue.status = 'cancelled') AS issues_cancelled,
-            (SELECT count(*) FROM approvals AS approval
-              WHERE approval.status = 'pending'
-                AND (approval.goal_id = ${goalId}
-                     OR approval.issue_id IN (SELECT issue_id FROM goal_issues WHERE goal_id = ${goalId}))) AS approvals_pending`;
-      return {
-         issuesTotal: Number(row!.issues_total),
-         issuesDone: Number(row!.issues_done),
-         issuesCancelled: Number(row!.issues_cancelled),
-         approvalsPending: Number(row!.approvals_pending),
-      };
+      const counted = await this.progressMany([goalId]);
+      return counted.get(goalId) ?? emptyProgress();
+   }
+
+   /**
+    * Progress for a page of goals, in two queries rather than one per row.
+    *
+    * The list renders a bar beside every goal, so a listing that omitted the
+    * counts would pay for a round trip per row later, or show a dash forever.
+    */
+   async progressMany(goalIds: string[]): Promise<Map<string, Progress>> {
+      const wanted = [...new Set(goalIds.filter(Boolean))];
+      const result = new Map(wanted.map((id) => [id, emptyProgress()]));
+      if (wanted.length === 0) return result;
+
+      const issueRows = await this.sql`
+         SELECT link.goal_id,
+                count(*) AS issues_total,
+                count(*) FILTER (WHERE issue.status = 'done') AS issues_done,
+                count(*) FILTER (WHERE issue.status = 'cancelled') AS issues_cancelled
+           FROM goal_issues AS link
+           JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
+          WHERE link.goal_id = ANY(${wanted}::uuid[])
+          GROUP BY link.goal_id`;
+      for (const row of issueRows) {
+         const current = result.get(row.goal_id as string);
+         if (!current) continue;
+         current.issuesTotal = Number(row.issues_total);
+         current.issuesDone = Number(row.issues_done);
+         current.issuesCancelled = Number(row.issues_cancelled);
+      }
+
+      const approvalRows = await this.sql`
+         SELECT pending.goal_id, count(*) AS approvals_pending
+           FROM (
+              SELECT approval.id, approval.goal_id
+                FROM approvals AS approval
+               WHERE approval.status = 'pending'
+                 AND approval.goal_id = ANY(${wanted}::uuid[])
+              UNION
+              SELECT approval.id, link.goal_id
+                FROM approvals AS approval
+                JOIN goal_issues AS link ON link.issue_id = approval.issue_id
+               WHERE approval.status = 'pending'
+                 AND link.goal_id = ANY(${wanted}::uuid[])
+           ) AS pending
+          GROUP BY pending.goal_id`;
+      for (const row of approvalRows) {
+         const current = result.get(row.goal_id as string);
+         if (!current) continue;
+         current.approvalsPending = Number(row.approvals_pending);
+      }
+      return result;
    }
 
    /**

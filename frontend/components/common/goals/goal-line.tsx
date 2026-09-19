@@ -51,11 +51,7 @@ export default function GoalLine({ goal }: { goal: Goal }) {
          </div>
 
          <div className="hidden w-40 shrink-0 sm:block">
-            {goal.progress ? (
-               <GoalProgress progress={goal.progress} compact />
-            ) : (
-               <span className="text-muted-foreground">—</span>
-            )}
+            <GoalProgress progress={goal.progress} compact />
          </div>
 
          <div className="hidden w-36 shrink-0 text-muted-foreground md:block">

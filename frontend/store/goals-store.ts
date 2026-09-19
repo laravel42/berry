@@ -23,7 +23,7 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
    loaded: false,
    hydrateGoals: (goals, error = null) =>
       set((state) => {
-         // The list omits progress; keep what a single read already told us.
+         // A list row without progress must not wipe a fuller single read.
          const merged = goals.map((goal) => {
             const known = state.goals.find((candidate) => candidate.id === goal.id);
             return goal.progress || !known?.progress ? goal : { ...goal, progress: known.progress };

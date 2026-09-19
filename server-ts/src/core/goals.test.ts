@@ -183,6 +183,30 @@ describe('goals', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, 
       assert.deepEqual((await goals.listIssues(goal.id)).map((i) => i.title).sort(), ['Done', 'Open']);
    });
 
+   test('progressMany matches a single read and zeros a goal with no work', async () => {
+      const { goal: counted } = await make('Batch counted');
+      const { goal: idle } = await make('Batch idle');
+      const open = await createIssue(sql, fixture, 'Batch open');
+      const done = await createIssue(sql, fixture, 'Batch done');
+      for (const issueId of [open, done]) {
+         await goals.linkIssue({
+            workspaceId: fixture.workspaceId, goalId: counted.id, issueId,
+            actorId: fixture.userId, now: now(),
+         });
+      }
+      await sql`UPDATE issues SET status = 'done' WHERE id = ${done}`;
+
+      const single = await goals.progress(counted.id);
+      const many = await goals.progressMany([counted.id, idle.id]);
+      assert.deepEqual(many.get(counted.id), single);
+      assert.deepEqual(many.get(idle.id), {
+         issuesTotal: 0,
+         issuesDone: 0,
+         issuesCancelled: 0,
+         approvalsPending: 0,
+      });
+   });
+
    test('unlinking an issue that was not linked is a not-found', async () => {
       const { goal } = await make('Detach');
       const issueId = await createIssue(sql, fixture, 'Unlinked');
