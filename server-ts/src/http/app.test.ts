@@ -107,3 +107,22 @@ test('escaping leaves alone what JSON.stringify already escaped', () => {
    assert.equal(goJSON({ s: '"\\' }), String.raw`{"s":"\"\\"}`);
    assert.equal(goJSON({ s: '\n\t' }), String.raw`{"s":"\n\t"}`);
 });
+
+test('a sandboxed preview keeps its own policy; nothing else can', async () => {
+   const sandboxed = new Headers({
+      'Content-Security-Policy': "sandbox allow-scripts; frame-ancestors 'self'",
+   });
+   applyStandardHeaders(sandboxed, 'req_abc');
+   assert.equal(sandboxed.get('Content-Security-Policy'), "sandbox allow-scripts; frame-ancestors 'self'");
+   assert.equal(sandboxed.get('X-Frame-Options'), null);
+   assert.equal(sandboxed.get('X-Content-Type-Options'), 'nosniff');
+
+   // A loose policy that is not a sandbox, or a sandbox framable by anyone,
+   // is overwritten like every other response.
+   for (const policy of ["default-src *", 'sandbox allow-scripts', "sandbox allow-scripts; frame-ancestors *"]) {
+      const headers = new Headers({ 'Content-Security-Policy': policy });
+      applyStandardHeaders(headers, 'req_abc');
+      assert.equal(headers.get('Content-Security-Policy'), "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+      assert.equal(headers.get('X-Frame-Options'), 'DENY');
+   }
+});

@@ -73,7 +73,17 @@ const STANDARD_HEADERS: ReadonlyArray<readonly [string, string]> = [
 ];
 
 export function applyStandardHeaders(headers: Headers, requestId: string): void {
-   for (const [name, value] of STANDARD_HEADERS) headers.set(name, value);
+   // A response that sandboxes itself (an agent's page, opened as a preview)
+   // keeps its own policy: it has to load its stylesheet and scripts and be
+   // framed by Berry's task page, which `default-src 'none'` and DENY forbid.
+   // Only a policy that starts with `sandbox` and limits framing to Berry
+   // itself qualifies, so this cannot loosen any other route.
+   const own = headers.get('Content-Security-Policy') ?? '';
+   const sandboxed = /^sandbox\b/.test(own) && own.includes("frame-ancestors 'self'");
+   for (const [name, value] of STANDARD_HEADERS) {
+      if (sandboxed && (name === 'Content-Security-Policy' || name === 'X-Frame-Options')) continue;
+      headers.set(name, value);
+   }
    headers.set('X-Request-Id', requestId);
 }
 

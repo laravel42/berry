@@ -1,0 +1,248 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { Hono } from 'hono';
+import type { AuthVariables } from '../auth/middleware.ts';
+import type { IssueRepository } from '../core/issues.ts';
+import type { RunArtifactRepository } from '../core/run-artifacts.ts';
+import { json } from '../http/app.ts';
+import { ApiError } from '../http/errors.ts';
+import type { Mount } from '../http/registry.ts';
+import { Forbidden, NotFound } from '../identity/errors.ts';
+import { ObjectNotFound, type Storage } from '../storage/storage.ts';
+
+/**
+ * What an agent built on a task, opened as the thing it is: a page runs as a
+ * page, beside the stylesheet and script it links to by relative path.
+ *
+ * A single file can be shown from its download. A site cannot: `index.html`
+ * asks for `style.css` and `app.js` relative to itself, so every file has to
+ * be reachable at its own path under one base URL. That base is a signed,
+ * short-lived token rather than the session:
+ *
+ * - The page runs sandboxed (a CSP `sandbox` on every response, and the
+ *   iframe's own attribute), so it has an opaque origin. It cannot read Berry's
+ *   cookies or storage, and its requests carry no session — so the files it
+ *   loads could not authenticate with one anyway.
+ * - The token grants reading one task's agent files, for an hour, and nothing
+ *   else. Paths are looked up in `run_artifacts`, never on a filesystem, so
+ *   `..` finds nothing.
+ */
+
+const TOKEN_TTL_SECONDS = 60 * 60;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Agents write through `write_file`, which stores everything as text/plain, so
+ * the type a browser needs comes from the extension. Unknown types are served
+ * as plain text rather than guessed.
+ */
+const TYPES: Record<string, string> = {
+   html: 'text/html; charset=utf-8',
+   htm: 'text/html; charset=utf-8',
+   css: 'text/css; charset=utf-8',
+   js: 'text/javascript; charset=utf-8',
+   mjs: 'text/javascript; charset=utf-8',
+   json: 'application/json; charset=utf-8',
+   map: 'application/json; charset=utf-8',
+   svg: 'image/svg+xml',
+   png: 'image/png',
+   jpg: 'image/jpeg',
+   jpeg: 'image/jpeg',
+   gif: 'image/gif',
+   webp: 'image/webp',
+   avif: 'image/avif',
+   ico: 'image/x-icon',
+   mp4: 'video/mp4',
+   webm: 'video/webm',
+   mov: 'video/quicktime',
+   mp3: 'audio/mpeg',
+   wav: 'audio/wav',
+   ogg: 'audio/ogg',
+   pdf: 'application/pdf',
+   woff: 'font/woff',
+   woff2: 'font/woff2',
+   ttf: 'font/ttf',
+   otf: 'font/otf',
+   md: 'text/markdown; charset=utf-8',
+   txt: 'text/plain; charset=utf-8',
+   xml: 'application/xml; charset=utf-8',
+   wasm: 'application/wasm',
+};
+
+export function previewContentType(path: string, stored: string): string {
+   const dot = path.lastIndexOf('.');
+   const extension = dot === -1 ? '' : path.slice(dot + 1).toLowerCase();
+   const known = TYPES[extension];
+   if (known) return known;
+   // A type the uploader set deliberately (an attached image, a video) stands.
+   if (!/^text\/plain\b|^application\/octet-stream\b/i.test(stored)) return stored;
+   return 'text/plain; charset=utf-8';
+}
+
+/**
+ * The headers every preview response carries. `sandbox` makes even a page
+ * opened directly in a tab run in an opaque origin, so it can never act as
+ * Berry: scripts, forms and popups work, same-origin access does not.
+ */
+const SANDBOX_HEADERS = {
+   // `frame-ancestors 'self'`: only Berry's own pages may frame a preview.
+   'Content-Security-Policy':
+      "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads; frame-ancestors 'self'",
+   'X-Content-Type-Options': 'nosniff',
+   'Referrer-Policy': 'no-referrer',
+   'Cache-Control': 'private, max-age=60',
+   'Cross-Origin-Resource-Policy': 'cross-origin',
+   // A sandboxed page has the origin `null`, and module scripts, fonts and
+   // fetches are CORS requests: without this a built site's
+   // `<script type="module">` is refused and the page stays blank. Nothing
+   // here carries credentials, and the token already grants the read.
+   'Access-Control-Allow-Origin': '*',
+};
+
+export class PreviewTokens {
+   readonly #key: Buffer;
+   readonly #now: () => number;
+
+   /**
+    * Derived from the auth secret, so every API process agrees on a token.
+    * Without one (no cookie sessions configured) a per-process key is used:
+    * a token then works on the process that issued it until it restarts.
+    */
+   constructor(options: { secret: string | null; now?: () => number }) {
+      this.#key = options.secret
+         ? createHmac('sha256', options.secret).update('berry:artifact-preview:v1').digest()
+         : randomBytes(32);
+      this.#now = options.now ?? Date.now;
+   }
+
+   issue(issueId: string): { token: string; expiresAt: string } {
+      const expires = Math.floor(this.#now() / 1000) + TOKEN_TTL_SECONDS;
+      const body = `${issueId.toLowerCase()}.${expires.toString(36)}`;
+      return { token: `${body}.${this.#sign(body)}`, expiresAt: new Date(expires * 1000).toISOString() };
+   }
+
+   /** The issue a token reads, or null when it is malformed, forged or expired. */
+   verify(token: string): string | null {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const [issueId, expiresRaw, mac] = parts as [string, string, string];
+      if (!UUID.test(issueId)) return null;
+      const expected = Buffer.from(this.#sign(`${issueId}.${expiresRaw}`));
+      const given = Buffer.from(mac);
+      if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
+      const expires = Number.parseInt(expiresRaw, 36);
+      if (!Number.isFinite(expires) || expires * 1000 < this.#now()) return null;
+      return issueId;
+   }
+
+   #sign(body: string): string {
+      return createHmac('sha256', this.#key).update(body).digest('base64url').slice(0, 32);
+   }
+}
+
+/**
+ * `POST /issues/:issueRef/artifacts/preview`, nested under the issues mount:
+ * a token for this task's files, for a person who may read the task.
+ */
+export function issueArtifactPreviewRoutes(options: { issues: IssueRepository; tokens: PreviewTokens }) {
+   const route = new Hono<{ Variables: AuthVariables }>();
+   route.post('/:issueRef/artifacts/preview', async (context) => {
+      const issue = await options.issues.get(context.req.param('issueRef') ?? '').catch(() => {
+         throw ApiError.notFound('Issue');
+      });
+      await options.issues.authorize(context.get('user').id, issue.id, 'product.read').catch(rethrow);
+      const { token, expiresAt } = options.tokens.issue(issue.id);
+      return json({ baseUrl: `/api/v1/previews/${token}/`, expiresAt });
+   });
+   return route;
+}
+
+/** `GET /api/v1/previews/:token/<path>`: one of the task's files, sandboxed. No session. */
+export function artifactPreviewMounts(options: {
+   artifacts: RunArtifactRepository;
+   tokens: PreviewTokens;
+   storage: Storage | null;
+}): Mount[] {
+   const route = new Hono();
+   route.get('/:token/*', async (context) => {
+      const issueId = options.tokens.verify(context.req.param('token'));
+      if (!issueId) return notFound();
+      const prefix = `/api/v1/previews/${context.req.param('token')}/`;
+      const pathname = new URL(context.req.url).pathname;
+      let path: string;
+      try {
+         path = decodeURIComponent(pathname.startsWith(prefix) ? pathname.slice(prefix.length) : '');
+      } catch {
+         return notFound();
+      }
+      // A directory, or the base itself, is its index page — how a static
+      // host answers, and what a site's own links expect.
+      if (path === '' || path.endsWith('/')) path = `${path}index.html`;
+      const artifact = await options.artifacts.getByPath(issueId, path);
+      if (!artifact || !options.storage) return notFound();
+      const bytes = await options.storage.open(artifact.storageKey).catch((error: unknown) => {
+         if (error instanceof ObjectNotFound) return null;
+         throw error;
+      });
+      if (!bytes) return notFound();
+      const type = previewContentType(artifact.path, artifact.contentType);
+      let body: Uint8Array = bytes;
+      if (/^text\/(html|css)\b/.test(type)) {
+         const root = `${prefix}${await siteRoot(options.artifacts, issueId)}`;
+         body = new TextEncoder().encode(rootRelative(new TextDecoder().decode(bytes), type, root));
+      }
+      return new Response(body, {
+         status: 200,
+         headers: {
+            ...SANDBOX_HEADERS,
+            'Content-Type': type,
+            'Content-Length': String(body.byteLength),
+         },
+      });
+   });
+   return [{ prefix: '/api/v1/previews', handler: route }];
+}
+
+/**
+ * The folder a site lives in: where its shallowest `index.html` sits, so that
+ * `dist/index.html` makes `dist/` the site's `/`. Empty when there is none.
+ */
+async function siteRoot(artifacts: RunArtifactRepository, issueId: string): Promise<string> {
+   const pages = (await artifacts.listForIssue(issueId))
+      .map((artifact) => artifact.path)
+      .filter((path) => path === 'index.html' || path.endsWith('/index.html'))
+      .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b));
+   const entry = pages[0];
+   return entry ? entry.slice(0, entry.length - 'index.html'.length) : '';
+}
+
+/**
+ * Root-absolute URLs (`/assets/app.js`, `/favicon.svg`) pointed at the site's
+ * root inside the preview instead of Berry's own root. Built sites use them by
+ * default (Vite's `base: '/'`), and served as they are they would load Berry's
+ * pages, not the site's. Protocol-relative `//host` URLs are left alone.
+ */
+export function rootRelative(text: string, type: string, root: string): string {
+   if (type.startsWith('text/css')) {
+      return text.replace(/url\(\s*(["']?)\/(?!\/)/gi, (_match, quote: string) => `url(${quote}${root}`);
+   }
+   return text.replace(
+      /(\s(?:src|href|action|poster)\s*=\s*["'])\/(?!\/)/gi,
+      (_match, lead: string) => `${lead}${root}`
+   );
+}
+
+/** Plain, sandboxed and identical for every miss: a bad token and a missing file read the same. */
+function notFound(): Response {
+   return new Response('Not found', {
+      status: 404,
+      headers: { ...SANDBOX_HEADERS, 'Content-Type': 'text/plain; charset=utf-8' },
+   });
+}
+
+function rethrow(error: unknown): never {
+   if (error instanceof NotFound) throw ApiError.notFound('Issue');
+   if (error instanceof Forbidden) {
+      throw new ApiError(403, 'FORBIDDEN', 'You do not have permission to perform this action.');
+   }
+   throw error;
+}

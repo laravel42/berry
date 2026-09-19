@@ -47,6 +47,18 @@ export class RunArtifactRepository {
       return rows.map(toArtifact);
    }
 
+   /** The newest ready version of one path on an issue — how a site preview finds a file. */
+   async getByPath(issueId: string, path: string): Promise<RunArtifact | null> {
+      const [row] = await this.#sql`
+         SELECT id, issue_id, run_id, workspace_id, path, content_type, size_bytes, storage_key,
+                agent_name, created_at
+           FROM run_artifacts
+          WHERE issue_id = ${issueId} AND path = ${path} AND state = 'ready'
+          ORDER BY created_at DESC
+          LIMIT 1`;
+      return row ? toArtifact(row) : null;
+   }
+
    async get(id: string): Promise<RunArtifact | null> {
       const [row] = await this.#sql`
          SELECT id, issue_id, run_id, workspace_id, path, content_type, size_bytes, storage_key,

@@ -33,6 +33,7 @@ Every prefix `src/index.ts` registers today:
 /api/v1/search        /api/v1/skills        /api/v1/tokens        /api/v1/usage
 /api/v1/views         /api/v1/webhooks      /api/v1/work-proposals /api/v1/workspaces
 /api/webhooks/autopilots/:token   (public: signed autopilot webhook deliveries)
+/api/v1/previews/:token/*         (public: signed, sandboxed site previews of an issue's agent files)
 /health  /metrics  /ready  /readyz
 /v1                   (public API: personal and plugin tokens only)
 ```

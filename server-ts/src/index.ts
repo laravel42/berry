@@ -29,6 +29,7 @@ import { commentMounts, issueCommentRoutes } from './mounts/comments.ts';
 import { issueRelationRoutes } from './mounts/issue-relations.ts';
 import { issueAttachmentRoutes } from './mounts/issue-attachments.ts';
 import { artifactMounts, issueArtifactRoutes } from './mounts/artifacts.ts';
+import { artifactPreviewMounts, issueArtifactPreviewRoutes, PreviewTokens } from './mounts/artifact-preview.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
@@ -254,6 +255,8 @@ const secrets = new SecretsRepository(sql);
 const boards = new BoardRepository(sql);
 const issues = new IssueRepository(sql);
 const runArtifacts = new RunArtifactRepository(sql);
+// Signed, short-lived bases for opening an agent's output as a site.
+const previewTokens = new PreviewTokens({ secret: config.auth.secret });
 const comments = new CommentRepository(sql);
 const dependencies = new DependencyRepository(sql);
 const reviews = new ReviewRepository(sql);
@@ -695,7 +698,10 @@ registry.registerAll(
          hooks: workHooks,
          enqueue: quickActionEnqueue,
       }),
-      artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues }),
+      artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues }).route(
+         '/',
+         issueArtifactPreviewRoutes({ issues, tokens: previewTokens })
+      ),
       attachments: issueAttachmentRoutes({
          attachments,
          issues,
@@ -789,6 +795,7 @@ registry.registerAll(
 );
 registry.registerAll(attachmentMounts({ sessions, attachments, storage }));
 registry.registerAll(artifactMounts({ sessions, artifacts: runArtifacts, issues, storage }));
+registry.registerAll(artifactPreviewMounts({ artifacts: runArtifacts, tokens: previewTokens, storage }));
 registry.registerAll(
    projectMounts({
       sessions,

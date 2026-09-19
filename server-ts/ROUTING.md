@@ -27,13 +27,14 @@ Auth and identity:
 Work tracking:
 
 - `/api/v1/boards` — boards, including board runs
-- `/api/v1/issues` — issues plus comments, relations, attachments, artifacts, runs, and tracking routes (quick, batch, batch-delete, assignee-frequency, activity, children, labels, metadata, properties, reactions, subscribers, status, move, quick-actions)
+- `/api/v1/issues` — issues plus comments, relations, attachments, artifacts (and `POST …/artifacts/preview` for a site-preview token), runs, and tracking routes (quick, batch, batch-delete, assignee-frequency, activity, children, labels, metadata, properties, reactions, subscribers, status, move, quick-actions)
 - `/api/v1/comments` — comments, including comment tracking
 - `/api/v1/goals`, `/api/v1/projects`, `/api/v1/plans`
 - `/api/v1/reviews` — review queue and run diffs
 - `/api/v1/approvals`, `/api/v1/inbox`, `/api/v1/pins`
 - `/api/v1/catalogs`, `/api/v1/search`, `/api/v1/views`
 - `/api/v1/attachments`, `/api/v1/artifacts`
+- `/api/v1/previews/{token}/{path}` — an issue's agent files served at their own paths for the site preview, without a session: the token (from `POST /api/v1/issues/{ref}/artifacts/preview`, HMAC-signed, 1 h) names the issue. Responses carry a `sandbox` CSP with `frame-ancestors 'self'`, which the standard headers keep instead of `DENY`, and `Access-Control-Allow-Origin: *` so a null-origin page's module scripts load. Root-absolute URLs in HTML and CSS are rewritten to the site root (the folder of the shallowest `index.html`).
 
 Agents and runs:
 
