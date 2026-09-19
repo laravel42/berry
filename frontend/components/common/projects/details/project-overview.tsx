@@ -3,7 +3,6 @@
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
-import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { useProject } from '@/hooks/use-project';
 import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
@@ -23,7 +22,6 @@ interface ProjectOverviewProps {
 export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const inDrawer = useInDetailDrawer();
    const project = useProject(projectId);
-   useTabLabel(project?.name ?? null);
    const detail = getProjectDetail(projectId);
    const { issues: allIssues } = useIssuesStore();
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);

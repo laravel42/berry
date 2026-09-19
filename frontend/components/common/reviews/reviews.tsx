@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
@@ -19,7 +20,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReviewOutcome } from './review-decision-bar';
 import { ReviewDetail, type ReviewSection } from './review-detail';
 import { DiffStat, PeerVerdictChip, PrIcon } from './review-shared';
-import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 
 /** How a task at the gate reads in the list: what the last decision on it was. */
 export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
@@ -215,10 +215,6 @@ export default function Reviews({
    const [selectedId, setSelectedId] = useState(selectedReviewId);
    const caughtUpRef = useRef<HTMLHeadingElement>(null);
 
-   // The shell tab names the review under decision, not its id.
-   const selectedItem = selectedId ? (items?.find((item) => item.id === selectedId) ?? null) : null;
-   useTabLabel(selectedItem ? t('tabTitle', { identifier: selectedItem.issue.identifier }) : null);
-
    useEffect(() => {
       setSelectedId(selectedReviewId);
    }, [selectedReviewId]);
@@ -340,12 +336,9 @@ export default function Reviews({
                selectedId ? 'hidden md:flex' : 'flex w-full'
             )}
          >
-            <div className="flex h-10 shrink-0 items-center border-b px-4">
-               <h1>{t('title')}</h1>
-            </div>
-            <div className="shrink-0 px-4 py-2">
+            <div className="shrink-0 px-4 py-[6px]">
                <Tabs value={listTab} className="gap-0">
-                  <TabsList className="h-8">
+                  <TabsList className="h-9">
                      <TabsTrigger value="for-you" asChild>
                         <Link href={`/${orgId}/reviews`}>{t('tabs.waiting')}</Link>
                      </TabsTrigger>
@@ -379,17 +372,17 @@ export default function Reviews({
                   </ReviewGroup>
                ))}
                {items !== null && items.length === 0 && !error && (
-                  <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-                     <BerryMark
-                        size="lg"
-                        tone="neutral"
-                        state="hollow"
-                        label={state === 'open' ? t('empty.open') : t('empty.decided')}
-                     />
-                     <p className="max-w-[16rem] leading-relaxed text-muted-foreground">
+                  <EmptyState
+                     icon={
+                        <EmptyStateMark
+                           label={state === 'open' ? t('empty.open') : t('empty.decided')}
+                        />
+                     }
+                  >
+                     <EmptyStateText>
                         {state === 'open' ? t('empty.open') : t('empty.decided')}
-                     </p>
-                  </div>
+                     </EmptyStateText>
+                  </EmptyState>
                )}
             </div>
          </div>

@@ -4,7 +4,11 @@
       "search": "Search skills",
       "loading": "Loading skills…",
       "loadFailed": "Skills could not be loaded.",
-      "empty": "No skills yet. A skill is a set of instructions and files an agent carries into its tasks. Write one.",
+      "empty": {
+         "mark": "No skills",
+         "title": "No skills yet.",
+         "body": "A skill is a set of instructions and files an agent carries into its tasks."
+      },
       "noMatch": "No skill matches that.",
       "cancel": "Cancel",
       "columns": {
@@ -127,7 +131,11 @@
       "new": "New autopilot",
       "search": "Search autopilots",
       "loading": "Loading autopilots…",
-      "empty": "No autopilots yet. An autopilot hands an agent the same runbook on a schedule, on a webhook, or whenever you press run.",
+      "empty": {
+         "mark": "No autopilots",
+         "title": "No autopilots yet.",
+         "body": "An autopilot hands an agent the same runbook on a schedule, on a webhook, or whenever you press run."
+      },
       "noMatch": "No autopilot matches that.",
       "cancel": "Cancel",
       "columns": {
@@ -495,6 +503,8 @@
          "waiting": "queued {when}",
          "queuedMore": "{count, plural, one {# more queued} other {# more queued}}",
          "recent": "Recently finished",
+         "recentFailures": "Recent failures",
+         "noneFailedRecently": "Nothing failed in the recent window.",
          "noneRecent": "No run has finished yet.",
          "outcome_succeeded": "Succeeded",
          "outcome_failed": "Failed",

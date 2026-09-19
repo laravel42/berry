@@ -6,6 +6,7 @@ import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { PickerChipButton } from '@/components/common/pickers/option-picker';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { StatusPicker } from '@/components/common/pickers/status-picker';
+import { AgentDraftPanel } from '@/components/common/projects/create-project/agent-draft-panel';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import {
    defaultProjectCreateStatus,
@@ -28,13 +29,20 @@ import type { Status } from '@/data/status';
 import type { User } from '@/data/users';
 import { BerryApiError } from '@/lib/api';
 import { WORKSPACE_NAME } from '@/lib/config';
+import {
+   isProjectDraftPriority,
+   isProjectDraftStatus,
+   type ProjectDraftFields,
+   type ProjectDraftPatch,
+} from '@/lib/editor-ai';
 import { createWorkspaceProject } from '@/lib/projects';
+import { cn } from '@/lib/utils';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
-import { format } from 'date-fns';
-import { ChevronRight, User as UserIcon, X } from 'lucide-react';
+import { format, isValid, parseISO } from 'date-fns';
+import { ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -55,12 +63,52 @@ function toIsoDate(date?: Date): string | undefined {
    return date ? format(date, 'yyyy-MM-dd') : undefined;
 }
 
+function fromIsoDate(value: string): Date | undefined {
+   const date = parseISO(value);
+   return isValid(date) ? date : undefined;
+}
+
+/** The form in the assistant's terms: ids, not the picker objects. */
+function toDraftFields(form: ProjectFormState): ProjectDraftFields {
+   return {
+      name: form.name,
+      description: form.description,
+      status: isProjectDraftStatus(form.status.id) ? form.status.id : 'to-do',
+      priority: isProjectDraftPriority(form.priority.id) ? form.priority.id : 'no-priority',
+      startDate: toIsoDate(form.startDate) ?? null,
+      targetDate: toIsoDate(form.targetDate) ?? null,
+   };
+}
+
+/**
+ * The assistant's patch, applied to the form. Only fields the form has
+ * pickers for move; the lead and repository stay the person's to choose.
+ */
+function applyDraftPatch(form: ProjectFormState, patch: ProjectDraftPatch): ProjectFormState {
+   const next = { ...form };
+   if (patch.name) next.name = patch.name;
+   if (patch.description !== undefined) next.description = patch.description;
+   if (patch.status) {
+      const option = projectCreateStatusOptions.find((entry) => entry.status.id === patch.status);
+      if (option) next.status = option.status;
+   }
+   if (patch.priority) {
+      const priority = priorities.find((entry) => entry.id === patch.priority);
+      if (priority) next.priority = priority;
+   }
+   if (patch.startDate) next.startDate = fromIsoDate(patch.startDate) ?? next.startDate;
+   if (patch.targetDate) next.targetDate = fromIsoDate(patch.targetDate) ?? next.targetDate;
+   return next;
+}
+
 /** Shared create-project dialog — opened from the header or board column "+". */
 export function CreateProjectDialog() {
    const workspace = useSessionStore((state) => state.workspace);
    const addProject = useProjectsStore((state) => state.addProject);
    const { isOpen, defaultStatus, closeModal } = useCreateProjectStore();
    const [pending, setPending] = useState(false);
+   // Folded away by default: the form is the product, the assistant an offer.
+   const [assistant, setAssistant] = useState(false);
 
    const createDefaultForm = useCallback(
       (): ProjectFormState => ({
@@ -78,6 +126,7 @@ export function CreateProjectDialog() {
    useEffect(() => {
       if (isOpen) {
          setForm(createDefaultForm());
+         setAssistant(false);
       }
    }, [isOpen, createDefaultForm]);
 
@@ -127,142 +176,172 @@ export function CreateProjectDialog() {
       <Dialog open={isOpen} onOpenChange={(open) => !open && closeModal()}>
          <DialogContent
             showCloseButton={false}
-            className="flex w-full h-[min(42rem,calc(100vh-3.5rem))] flex-col gap-0 p-0 shadow-lg top-[5vh] translate-y-0 sm:max-w-[52rem]"
+            className={cn(
+               'flex w-full h-[min(42rem,calc(100vh-3.5rem))] flex-row gap-0 p-0 shadow-lg top-[5vh] translate-y-0 transition-[max-width]',
+               assistant ? 'sm:max-w-[63rem]' : 'sm:max-w-[52rem]'
+            )}
          >
-            <DialogHeader className="px-6 pt-5 pb-0">
-               <DialogTitle className="sr-only">New project</DialogTitle>
-               <DialogDescription className="sr-only">
-                  Name the project, set its properties, and add an optional description.
-               </DialogDescription>
-               <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
-                     <BerryMark size="sm" />
-                     <span className="font-medium text-foreground">{WORKSPACE_NAME}</span>
-                     <ChevronRight className="size-3.5 shrink-0" />
-                     <span className="truncate">New project</span>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+               <DialogHeader className="px-6 pt-5 pb-0">
+                  <DialogTitle className="sr-only">New project</DialogTitle>
+                  <DialogDescription className="sr-only">
+                     Name the project, set its properties, and add an optional description.
+                  </DialogDescription>
+                  <div className="flex items-center justify-between gap-3">
+                     <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                        <BerryMark size="sm" />
+                        <span className="font-medium text-foreground">{WORKSPACE_NAME}</span>
+                        <ChevronRight className="size-3.5 shrink-0" />
+                        <span className="truncate">New project</span>
+                     </div>
+                     {/* With the assistant open its panel carries Hide and Close,
+                      so the header does not show a second close. */}
+                     {assistant ? null : (
+                        <div className="flex shrink-0 items-center gap-1">
+                           <span className="ai-animated-border h-6">
+                              <Button
+                                 type="button"
+                                 variant="outline"
+                                 size="xxs"
+                                 className="h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
+                                 onClick={() => setAssistant(true)}
+                              >
+                                 <Sparkles className="size-3.5" aria-hidden="true" />
+                                 Create with agent
+                              </Button>
+                           </span>
+                           <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Close"
+                              onClick={closeModal}
+                           >
+                              <X className="size-4" />
+                           </Button>
+                        </div>
+                     )}
                   </div>
-                  <Button
-                     type="button"
-                     variant="ghost"
-                     size="icon"
-                     className="size-8 shrink-0"
-                     aria-label="Close"
-                     onClick={closeModal}
-                  >
-                     <X className="size-4" />
-                  </Button>
-               </div>
-            </DialogHeader>
+               </DialogHeader>
 
-            <form
-               className="flex min-h-0 flex-1 flex-col"
-               onSubmit={(event) => {
-                  event.preventDefault();
-                  void createProject();
-               }}
-            >
-               <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-5 pb-4">
-                  <label htmlFor="create-project-name" className="sr-only">
-                     Project name
-                  </label>
-                  <Input
-                     id="create-project-name"
-                     data-heading="h1"
-                     autoFocus
-                     className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-foreground/40"
-                     placeholder="Project name"
-                     value={form.name}
-                     onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  />
+               <form
+                  className="flex min-h-0 flex-1 flex-col"
+                  onSubmit={(event) => {
+                     event.preventDefault();
+                     void createProject();
+                  }}
+               >
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 pt-5 pb-4">
+                     <label htmlFor="create-project-name" className="sr-only">
+                        Project name
+                     </label>
+                     <Input
+                        id="create-project-name"
+                        data-heading="h1"
+                        autoFocus
+                        className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-foreground/40"
+                        placeholder="Project name"
+                        value={form.name}
+                        onChange={(event) => setForm({ ...form, name: event.target.value })}
+                     />
 
-                  <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                     <StatusPicker
-                        variant="chip"
-                        status={form.status}
-                        options={projectCreateStatusOptions}
-                        onChange={(status) => setForm({ ...form, status })}
-                     />
-                     <PriorityPicker
-                        variant="chip"
-                        priority={form.priority}
-                        onChange={(priority) => setForm({ ...form, priority })}
-                     />
-                     {/* Nothing is preselected: who leads is a decision, not a default. */}
-                     <LeadPicker
-                        lead={form.lead}
-                        candidates={leadCandidates(members, undefined)}
-                        onChange={(lead) => setForm({ ...form, lead })}
-                     >
-                        <PickerChipButton>
-                           {form.lead ? (
-                              <>
-                                 <ActorAvatar user={form.lead} size="sm" className="size-4" />
-                                 <span>{form.lead.name}</span>
-                              </>
-                           ) : (
-                              <>
-                                 <UserIcon className="size-3.5" />
-                                 <span>Project lead</span>
-                              </>
-                           )}
-                        </PickerChipButton>
-                     </LeadPicker>
-                     <ProjectDateSelector
-                        label="Start"
-                        date={form.startDate}
-                        onChange={(startDate) => setForm({ ...form, startDate })}
-                     />
-                     <ProjectDateSelector
-                        label="Target"
-                        date={form.targetDate}
-                        onChange={(targetDate) => setForm({ ...form, targetDate })}
-                     />
-                     {/* Held in form state rather than saved on selection: the
+                     <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                        <StatusPicker
+                           variant="chip"
+                           status={form.status}
+                           options={projectCreateStatusOptions}
+                           onChange={(status) => setForm({ ...form, status })}
+                        />
+                        <PriorityPicker
+                           variant="chip"
+                           priority={form.priority}
+                           onChange={(priority) => setForm({ ...form, priority })}
+                        />
+                        {/* Nothing is preselected: who leads is a decision, not a default. */}
+                        <LeadPicker
+                           lead={form.lead}
+                           candidates={leadCandidates(members, undefined)}
+                           onChange={(lead) => setForm({ ...form, lead })}
+                        >
+                           <PickerChipButton>
+                              {form.lead ? (
+                                 <>
+                                    <ActorAvatar user={form.lead} size="sm" className="size-4" />
+                                    <span>{form.lead.name}</span>
+                                 </>
+                              ) : (
+                                 <>
+                                    <UserIcon className="size-3.5" />
+                                    <span>Project lead</span>
+                                 </>
+                              )}
+                           </PickerChipButton>
+                        </LeadPicker>
+                        <ProjectDateSelector
+                           label="Start"
+                           date={form.startDate}
+                           onChange={(startDate) => setForm({ ...form, startDate })}
+                        />
+                        <ProjectDateSelector
+                           label="Target"
+                           date={form.targetDate}
+                           onChange={(targetDate) => setForm({ ...form, targetDate })}
+                        />
+                        {/* Held in form state rather than saved on selection: the
                          project does not exist yet, so there is nothing to link
                          until it is created. Styled like the sibling chips; the
                          width cap makes a long repository name truncate instead
                          of wrapping the property row. */}
-                     <RepositoryPicker
-                        value={form.githubRepo}
-                        placeholder="Repository"
-                        variant="secondary"
+                        <RepositoryPicker
+                           value={form.githubRepo}
+                           placeholder="Repository"
+                           variant="secondary"
+                           size="xs"
+                           className="max-w-56"
+                           onSelect={(githubRepo) =>
+                              setForm({ ...form, githubRepo: githubRepo ?? undefined })
+                           }
+                        />
+                     </div>
+
+                     <label htmlFor="create-project-description" className="sr-only">
+                        Description
+                     </label>
+                     <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
+                        <TiptapAiEditor
+                           data-heading="h3"
+                           value={form.description}
+                           onChange={(description) => setForm({ ...form, description })}
+                           placeholder="Write a description or collect the work…"
+                           aria-label="Project description"
+                           className="min-h-40"
+                           aiAssist={false}
+                        />
+                     </div>
+                  </div>
+
+                  <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
+                     <Button
+                        type="submit"
                         size="xs"
-                        className="max-w-56"
-                        onSelect={(githubRepo) =>
-                           setForm({ ...form, githubRepo: githubRepo ?? undefined })
-                        }
-                     />
-                  </div>
+                        className="h-9"
+                        disabled={pending || !form.name.trim() || !form.lead}
+                     >
+                        {pending ? 'Creating…' : 'Create project'}
+                     </Button>
+                  </DialogFooter>
+               </form>
+            </div>
 
-                  <label htmlFor="create-project-description" className="sr-only">
-                     Description
-                  </label>
-                  <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
-                     <TiptapAiEditor
-                        data-heading="h3"
-                        value={form.description}
-                        onChange={(description) => setForm({ ...form, description })}
-                        placeholder="Write a description or collect the work…"
-                        aria-label="Project description"
-                        className="min-h-40"
-                        aiAssist={false}
-                     />
-                  </div>
-               </div>
-
-               <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
-                  <Button type="button" variant="ghost" size="sm" onClick={closeModal}>
-                     Cancel
-                  </Button>
-                  <Button
-                     type="submit"
-                     size="sm"
-                     disabled={pending || !form.name.trim() || !form.lead}
-                  >
-                     {pending ? 'Creating…' : 'Create project'}
-                  </Button>
-               </DialogFooter>
-            </form>
+            {assistant ? (
+               <AgentDraftPanel
+                  draft={toDraftFields(form)}
+                  onPatch={(patch) => setForm((current) => applyDraftPatch(current, patch))}
+                  onHide={() => setAssistant(false)}
+                  onClose={closeModal}
+               />
+            ) : null}
          </DialogContent>
       </Dialog>
    );

@@ -46,18 +46,19 @@ export const Loaded: Story = {
    },
 };
 
-/** The window's runs by outcome: tiles for each, and a legend naming the stacked bars. */
+/** The window's runs by outcome: failure band first, then secondary figures. */
 export const Outcomes: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Runs by day')).toBeVisible();
+      await expect(canvas.getByRole('heading', { name: 'Failed runs' })).toBeVisible();
       for (const [label, value] of [
          ['Runs in window', '142'],
          ['Succeeded', '128'],
          ['Cancelled', '5'],
          ['Failure rate', '6%'],
       ] as const) {
-         const tile = canvas.getAllByText(label).find((node) => node.tagName === 'P');
-         await expect(tile?.nextElementSibling).toHaveTextContent(value);
+         const figure = canvas.getByText(label);
+         await expect(figure.nextElementSibling).toHaveTextContent(value);
       }
       // The legend names each bar and paints its swatch in that outcome's status tone.
       const heading = canvas.getByRole('heading', { name: 'Runs by day' });
@@ -81,7 +82,8 @@ export const NothingFailed: Story = {
       );
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findAllByText('Nothing failed in this window.')).toHaveLength(2);
+      await expect(await canvas.findByRole('heading', { name: 'Failed runs' })).toBeVisible();
+      await expect(canvas.getAllByText('Nothing failed in this window.').length).toBeGreaterThan(0);
    },
 };
 

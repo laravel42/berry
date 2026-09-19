@@ -376,7 +376,7 @@ export function FloatingChat() {
    // strip: `--shell-strip` is the strip's height, set by the shell.
    const sizeVars = {
       '--chat-w': `min(${size.width}px, calc(100vw - 2rem))`,
-      '--chat-h': `min(${size.height}px, calc(100dvh - var(--shell-strip) - 2rem))`,
+      '--chat-h': `min(${size.height}px, calc(100dvh - var(--shell-strip) - 5rem))`,
    } as CSSProperties;
 
    const group = (label: string, list: Agent[]) =>
@@ -408,9 +408,10 @@ export function FloatingChat() {
          // keeps the button that closes it.
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-4 sm:bottom-4 sm:rounded-lg',
+            // Bottom 4rem, not 1rem: the corner buttons live under it.
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-4 sm:bottom-16 sm:rounded-lg',
             expanded
-               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)]'
+               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-16'
                : minimised
                  ? 'sm:w-[var(--chat-w)]'
                  : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',

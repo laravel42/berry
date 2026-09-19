@@ -63,10 +63,7 @@ export const Empty: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findByRole('heading', { name: 'No proposals yet.' })).toBeVisible();
-      await expect(canvas.getByRole('link', { name: 'Go to autopilots' })).toHaveAttribute(
-         'href',
-         '/elian/autopilots'
-      );
+      await expect(canvas.queryByRole('link', { name: 'Go to autopilots' })).toBeNull();
    },
 };
 

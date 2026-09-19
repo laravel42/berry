@@ -6,28 +6,33 @@ import { useEffect, useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
 import { SegmentedControl } from '@/components/common/segmented-control';
-import { getWorkspaceUsage, usageQueryKey, weeklyBuckets, type UsageQuery } from '@/lib/usage';
+import {
+   formatCost,
+   formatDuration,
+   formatTokens,
+   getWorkspaceUsage,
+   usageQueryKey,
+   weeklyBuckets,
+   type UsageQuery,
+} from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
 import { UsageBreakdownTable } from './usage-breakdown-table';
 import { UsageDailyChart, type UsageMetric } from './usage-daily-chart';
-import { UsageTiles } from './usage-tiles';
+import { UrgencyBand, UrgencyFigures } from './usage-urgency-band';
 import { useUsage } from './use-usage';
 
 const METRICS: UsageMetric[] = ['cost', 'tokens', 'calls'];
 
 /**
- * The workspace's spend: what it cost, how it moved, and who spent it.
- *
- * The trend can be read as cost, tokens or runs, by day or by week, because
- * ninety days of daily bars says less than thirteen weekly ones.
+ * Spend as an urgency stack: cost leads, trend next, then a continuous ledger
+ * of who and what spent it — not a grid of equal tiles.
  */
 export default function UsageOverview({
    query,
    onState,
 }: {
    query: UsageQuery;
-   /** Lets the page's filter bar show when this read landed. */
    onState?: (state: { lastUpdated: Date | null; loading: boolean; reload: () => void }) => void;
 }) {
    const t = useTranslations('areas.usage');
@@ -40,8 +45,6 @@ export default function UsageOverview({
       workspaceId ? () => getWorkspaceUsage(workspaceId, query) : null,
       `${workspaceId}:${usageQueryKey(query)}`
    );
-   // Reported after render, not during it: a parent setState from inside a
-   // child's render is the React error Next flags on this page.
    useEffect(() => {
       onState?.({ lastUpdated, loading, reload });
    }, [onState, lastUpdated, loading, reload]);
@@ -50,12 +53,48 @@ export default function UsageOverview({
    if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
 
    const points = grain === 'weekly' ? weeklyBuckets(data.daily) : data.daily;
+   const totals = data.totals;
+   const runs = data.runs;
 
    return (
-      <div className="flex flex-col gap-8 px-6 py-6">
-         <UsageTiles totals={data.totals} runs={data.runs} />
+      <div className="flex flex-col gap-6 px-6 py-6">
+         <UrgencyBand
+            tone="info"
+            label={t('tiles.cost')}
+            value={formatCost(totals.costMicros)}
+            hint={
+               totals.unpricedEvents > 0
+                  ? t('tiles.unpriced', {
+                       unpriced: totals.unpricedEvents,
+                       events: totals.events,
+                    })
+                  : undefined
+            }
+         >
+            <UrgencyFigures
+               items={[
+                  {
+                     label: t('tiles.tokens'),
+                     value: formatTokens(totals.inputTokens + totals.outputTokens),
+                  },
+                  {
+                     label: t('tiles.cache'),
+                     value: `${formatTokens(totals.cacheReadTokens)} / ${formatTokens(totals.cacheWriteTokens)}`,
+                  },
+                  ...(runs
+                     ? [
+                          { label: t('tiles.runs'), value: String(runs.runs) },
+                          {
+                             label: t('tiles.runTime'),
+                             value: formatDuration(runs.runSeconds),
+                          },
+                       ]
+                     : []),
+               ]}
+            />
+         </UrgencyBand>
 
-         <section className="flex flex-col gap-2">
+         <section className="flex flex-col gap-3 border-t border-border/60 pt-6">
             <div className="flex flex-wrap items-center gap-2">
                <h2 className="mr-auto font-medium">{t('chart.title')}</h2>
                <SegmentedControl
@@ -80,7 +119,7 @@ export default function UsageOverview({
             <UsageDailyChart points={points} metric={metric} />
          </section>
 
-         <div className="grid gap-8 lg:grid-cols-2">
+         <div className="grid gap-8 border-t border-border/60 pt-6 lg:grid-cols-2">
             <UsageBreakdownTable
                title={t('leaderboard.agents')}
                ranked

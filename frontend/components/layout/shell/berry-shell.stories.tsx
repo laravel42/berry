@@ -1,18 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, within } from 'storybook/test';
-import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
+import { expect } from 'storybook/test';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { usePinsStore } from '@/store/pins-store';
 import { useShellStore } from '@/store/shell-store';
 import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
-import {
-   inboxItems,
-   seedSession,
-   shellHandlers,
-   shellTabs,
-   workspaceRoute,
-} from '../stories-fixtures';
+import { inboxItems, seedSession, shellHandlers, workspaceRoute } from '../stories-fixtures';
 import { BerryShell } from './berry-shell';
 
 const meta = {
@@ -22,9 +15,7 @@ const meta = {
       children: (
          <div className="p-8 text-foreground">
             <h1>Tasks</h1>
-            <p className="mt-2 text-muted-foreground">
-               The page renders here, under the tab strip.
-            </p>
+            <p className="mt-2 text-muted-foreground">The page renders here, under the top bar.</p>
          </div>
       ),
    },
@@ -37,14 +28,11 @@ const meta = {
       useSidebarPrefsStore.setState(useSidebarPrefsStore.getInitialState());
       useUiPrefsStore.setState({ floatingChat: true });
       useShellStore.setState({
-         tabs: shellTabs,
-         activeTabId: 'tab-2',
          railOpen: true,
          railOverlayOpen: false,
          chatWindow: 'closed',
          chatUnread: 0,
       });
-      useNotificationsDrawerStore.setState({ isOpen: false });
       useNotificationsStore.setState({
          notifications: inboxItems,
          status: 'ready',
@@ -60,12 +48,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await expect(canvas.getByRole('tablist', { name: 'Open views' })).toBeVisible();
-      // The bell opens the notifications drawer beside the page.
-      await userEvent.click(canvas.getByRole('button', { name: 'Notifications, 3 unread' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('dialog', { name: 'Notifications' })).toBeVisible();
+   play: async ({ canvas }) => {
+      // No tab strip: the bar holds the chat button only. Notifications live
+      // on Inbox in the rail.
+      await expect(canvas.queryByRole('tablist')).toBeNull();
+      await expect(canvas.queryByRole('button', { name: /notifications/i })).toBeNull();
+      await expect(canvas.getByRole('button', { name: /agents/i })).toBeVisible();
    },
 };
 
@@ -76,18 +64,15 @@ export const RailCollapsed: Story = {
    },
 };
 
-/** Settings swaps the rail's contents and selects no tab. */
+/** Settings swaps the rail's contents. */
 export const Settings: Story = {
    parameters: {
       nextjs: { navigation: workspaceRoute('/elian/settings/preferences') },
    },
-   play: async ({ canvas }) => {
-      await expect(canvas.queryByRole('tab', { selected: true })).toBeNull();
-   },
 };
 
 /**
- * Below `lg` the strip's menu button opens the rail over the page. The button
+ * Below `lg` the bar's menu button opens the rail over the page. The button
  * is `lg:hidden` (a viewport media query), so there is no play here: the test
  * browser is desktop-sized. Pick a mobile viewport in Storybook to try it.
  */
@@ -95,11 +80,10 @@ export const MobileMenu: Story = {
    globals: { viewport: { value: 'mobile2', isRotated: false } },
 };
 
-/** At `lg` the rail is a column that folds to its expand control and back. */
+/** At `lg` the rail is a column; the expand control restores it when folded. */
 export const CollapseAndExpandRail: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Collapse sidebar' }));
-      await expect(useShellStore.getState().railOpen).toBe(false);
+      useShellStore.setState({ railOpen: false });
       await expect(canvas.queryByRole('navigation', { name: 'Workspace' })).toBeNull();
       await userEvent.click(canvas.getByRole('button', { name: 'Expand sidebar' }));
       await expect(canvas.getByRole('navigation', { name: 'Workspace' })).toBeVisible();

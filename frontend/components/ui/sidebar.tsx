@@ -5,10 +5,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { VariantProps, cva } from 'class-variance-authority';
 import { PanelLeftIcon } from 'lucide-react';
 
-import {
-   useDetailDrawerClose,
-   useInDetailDrawer,
-} from '@/components/layout/detail-drawer-context';
+import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -136,7 +133,7 @@ function SidebarProvider({
                   } as React.CSSProperties
                }
                className={cn(
-                  'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex h-svh overflow-hidden w-full',
+                  'group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex h-full min-h-0 w-full overflow-hidden',
                   className
                )}
                {...props}
@@ -246,7 +243,11 @@ function Sidebar({
    );
 }
 
-function SidebarTriggerClose({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+function SidebarTriggerClose({
+   className,
+   onClick,
+   ...props
+}: React.ComponentProps<typeof Button>) {
    const router = useRouter();
    const onClose = useDetailDrawerClose();
 
@@ -273,7 +274,11 @@ function SidebarTriggerClose({ className, onClick, ...props }: React.ComponentPr
    );
 }
 
-function SidebarTriggerInner({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+function SidebarTriggerInner({
+   className,
+   onClick,
+   ...props
+}: React.ComponentProps<typeof Button>) {
    const { toggleSidebar } = useSidebar();
 
    return (

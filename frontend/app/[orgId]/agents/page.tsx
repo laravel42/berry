@@ -4,7 +4,7 @@ import MainLayout from '@/components/layout/main-layout';
 
 export default function AgentsPage() {
    return (
-      <MainLayout header={<Header />} headersNumber={2}>
+      <MainLayout header={<Header />} headersNumber={1}>
          <Agents />
       </MainLayout>
    );

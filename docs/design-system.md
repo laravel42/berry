@@ -47,7 +47,7 @@ consume semantic state names rather than raw colors.
 Berry Dark is the default product theme. Berry Light is an accessible print-like inversion;
 System selects between those two. The inherited `pure-light`, `magic-blue`, `classic-dark`,
 and custom theme variants are not Berry themes. Today `theme-provider.tsx` forces dark. The
-shell (rail and tab strip) is dark chrome in either theme and sets its own text colour, so
+shell (rail and top bar) is dark chrome in either theme and sets its own text colour, so
 `MainLayout` resets `text-foreground` at the page boundary: a page never inherits the
 shell's colour, which is what makes the light theme safe to enable without an audit.
 

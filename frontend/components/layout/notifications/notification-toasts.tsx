@@ -2,7 +2,6 @@
 
 import type { InboxItem } from '@/data/inbox';
 import { getNotificationIcon } from '@/lib/notification-utils';
-import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
@@ -19,7 +18,7 @@ import { useParams, useRouter } from 'next/navigation';
  *
  * Bounded at three. A burst — a plan compiling into fifteen tasks, an agent
  * finishing a run that touches several — would otherwise stack the corner of
- * the screen with a wall nobody reads, and the drawer already holds the rest.
+ * the screen with a wall nobody reads; the rest wait on Inbox in the rail.
  */
 const MAX_TOASTS = 3;
 
@@ -30,10 +29,13 @@ export function NotificationToasts() {
    const t = useTranslations('inbox');
    const arrivals = useNotificationsStore((state) => state.arrivals);
    const clearArrivals = useNotificationsStore((state) => state.clearArrivals);
-   const openDrawer = useNotificationsDrawerStore((state) => state.open);
 
    useEffect(() => {
       if (arrivals.length === 0) return;
+
+      const goInbox = () => {
+         if (orgId) router.push(`/${orgId}/inbox`);
+      };
 
       for (const item of arrivals.slice(0, MAX_TOASTS)) {
          toast(<NotificationToast item={item} />, {
@@ -45,7 +47,7 @@ export function NotificationToasts() {
                onClick: () => {
                   const href = inboxHref(item, orgId);
                   if (href) router.push(href);
-                  else openDrawer();
+                  else goInbox();
                },
             },
          });
@@ -56,12 +58,12 @@ export function NotificationToasts() {
          toast(t('toast.more', { count: rest }), {
             id: 'notification:overflow',
             duration: 6000,
-            action: { label: t('toast.open'), onClick: openDrawer },
+            action: { label: t('toast.open'), onClick: goInbox },
          });
       }
 
       clearArrivals();
-   }, [arrivals, clearArrivals, openDrawer, orgId, router, t]);
+   }, [arrivals, clearArrivals, orgId, router, t]);
 
    return null;
 }

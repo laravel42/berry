@@ -25,7 +25,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
 import { ShellBadge } from './shell-badge';
-import { ShellIcon, BerryMark, shellIconButton, shellNavRow } from './shell-icon';
+import { ShellIcon, BerryMark, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
@@ -43,8 +43,6 @@ interface ShellRailProps {
    columnOpen: boolean;
    /** Below `lg`: shown as an overlay over the page, or slid away. */
    overlayOpen: boolean;
-   /** The foot control at `lg` and above: collapse the column. */
-   onCollapse: () => void;
    /** The close control below `lg`: put the overlay away. */
    onDismiss: () => void;
    /** The shell moves focus into the rail when the overlay opens. */
@@ -60,11 +58,12 @@ interface ShellRailProps {
  * removes all three.
  *
  * One element, two shapes. At `lg` and above it is a 218px column in the
- * shell's grid, collapsible from its foot. Below `lg` it is a 260px overlay
- * that slides in from the left edge over the page, closed until the strip's
- * menu button opens it. The switch is made in CSS (`lg:` classes) so the
- * server's render and the first paint agree; the breakpoint hook only
- * governs behaviour that CSS cannot express, such as `inert`.
+ * shell's grid (collapsible via the shortcut and the expand control when
+ * folded). Below `lg` it is a 260px overlay that slides in from the left
+ * edge over the page, closed until the strip's menu button opens it. The
+ * switch is made in CSS (`lg:` classes) so the server's render and the first
+ * paint agree; the breakpoint hook only governs behaviour that CSS cannot
+ * express, such as `inert`.
  */
 export function ShellRail({
    orgId,
@@ -72,7 +71,6 @@ export function ShellRail({
    settingsMode,
    columnOpen,
    overlayOpen,
-   onCollapse,
    onDismiss,
    ref,
 }: ShellRailProps) {
@@ -179,8 +177,8 @@ export function ShellRail({
                {/* The brand opens the workspace menu, as it does throughout the app.
              The prototype wired this row to collapse the rail, but a
              chevrons-up-down glyph reads as a switcher everywhere else in the
-             product, and settings and log out have no other home. Collapse
-             moves to its own control at the foot of the rail. */}
+             product, and settings and log out have no other home. The rail
+             folds via the sidebar shortcut; the expand control restores it. */}
                <div className="flex items-center gap-1 px-3 pt-3">
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
@@ -328,28 +326,6 @@ export function ShellRail({
          )}
 
          <ShellPins orgId={orgId} />
-         {/* Collapse belongs to the column. The overlay closes from its own
-             control at the top, the backdrop, or Escape. */}
-         <div className="mt-auto hidden items-center gap-1.5 p-3.5 lg:flex">
-            <button
-               type="button"
-               onClick={onCollapse}
-               aria-label={t('rail.collapseSidebar')}
-               title={t('rail.collapseSidebar')}
-               className={`ml-auto size-[26px] ${shellIconButton}`}
-            >
-               <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.7}
-               >
-                  <path d="M14 6l-5 6 5 6" />
-               </svg>
-            </button>
-         </div>
       </nav>
    );
 }

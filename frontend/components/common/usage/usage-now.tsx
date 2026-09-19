@@ -12,7 +12,7 @@ import { localTimezone } from '@/lib/cron-schedule';
 import { formatCost, formatDuration, getDashboard, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
-import { StatTile } from './usage-tiles';
+import { UrgencyBand, UrgencyFigures } from './usage-urgency-band';
 import { useUsage } from './use-usage';
 
 /** The snapshot's API status keys, in workflow order, with the mark each draws. */
@@ -60,10 +60,9 @@ const seconds = (from: string, to: Date | string) =>
    Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000));
 
 /**
- * The Overview tab: what is happening now, whatever the time range. What is
- * running and waiting to run, what just finished, what is waiting on a
- * person, what today has cost so far, and where every task stands. What a
- * window of runs cost is the Spend tab; how they ended is the Runs tab.
+ * Overview as an urgency stack: awaiting people, recent failures, spend today,
+ * then the quieter in-flight and task distribution columns. Equal metric tiles
+ * are refused — the order is the design.
  */
 export default function UsageNow({
    query,
@@ -75,15 +74,12 @@ export default function UsageNow({
 }) {
    const t = useTranslations('areas.usage.overview');
    const format = useFormatter();
-   // Elapsed times keep moving between refreshes.
    const now = useNow({ updateInterval: 30_000 });
    const { orgId } = useParams<{ orgId: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? null);
    const projectId = query.projectId ?? null;
 
    const { data, error, loading, lastUpdated, reload } = useUsage(
-      // One day in the viewer's zone: that is what "today" means, and the live
-      // lists ignore the window.
       workspaceId
          ? () => getDashboard(workspaceId, { days: 1, timezone: localTimezone(), projectId })
          : null,
@@ -102,95 +98,19 @@ export default function UsageNow({
    const inReviewTotal = data.taskSnapshot.inReview ?? data.inReview.length;
    const waitingOnPeople = data.pendingApprovalCount + inReviewTotal;
    const taskTotal = TASK_STATUSES.reduce((sum, { key }) => sum + (data.taskSnapshot[key] ?? 0), 0);
+   const recentFailures = data.recentRuns.filter((row) => row.status === 'failed');
 
    return (
-      <div className="flex flex-col gap-8 px-6 py-6">
-         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-            <StatTile label={t('running')} value={data.runCounts.running} />
-            <StatTile label={t('queued')} value={data.runCounts.queued} />
-            <StatTile label={t('awaiting')} value={waitingOnPeople} />
-            <StatTile label={t('spentToday')} value={formatCost(data.today?.costMicros ?? 0)} />
-            <StatTile label={t('callsToday')} value={data.today?.events ?? 0} />
-         </div>
-
-         <div className="grid gap-x-8 gap-y-10 lg:grid-cols-2">
-            <div className="flex min-w-0 flex-col gap-10">
-               <Section title={t('inFlight')}>
-                  {data.workingAgents.length === 0 && data.queuedRuns.length === 0 ? (
-                     <p className="text-muted-foreground">{t('noneWorking')}</p>
-                  ) : (
-                     <ul className="flex flex-col gap-2">
-                        {data.workingAgents.map((row) => (
-                           <RunRow
-                              key={row.runId}
-                              orgId={orgId}
-                              run={row}
-                              mark="running"
-                              markLabel={t('running')}
-                              meta={
-                                 row.startedAt
-                                    ? t('runningFor', {
-                                         duration: formatDuration(seconds(row.startedAt, now)),
-                                      })
-                                    : null
-                              }
-                           />
-                        ))}
-                        {data.queuedRuns.map((row) => (
-                           <RunRow
-                              key={row.runId}
-                              orgId={orgId}
-                              run={row}
-                              mark="queued"
-                              markLabel={t('queued')}
-                              meta={t('waiting', { when: ago(row.createdAt) })}
-                           />
-                        ))}
-                     </ul>
-                  )}
-                  {moreQueued > 0 ? (
-                     <p className="text-muted-foreground">
-                        {t('queuedMore', { count: moreQueued })}
-                     </p>
-                  ) : null}
-               </Section>
-
-               <Section title={t('recent')}>
-                  {data.recentRuns.length === 0 ? (
-                     <p className="text-muted-foreground">{t('noneRecent')}</p>
-                  ) : (
-                     <ul className="flex flex-col gap-2">
-                        {data.recentRuns.map((row) => (
-                           <RunRow
-                              key={row.runId}
-                              orgId={orgId}
-                              run={row}
-                              mark={row.status}
-                              markLabel={t(`outcome_${row.status}`)}
-                              meta={
-                                 <>
-                                    {row.status === 'failed' && row.failureCode ? (
-                                       <span className="text-status-danger">{row.failureCode}</span>
-                                    ) : row.startedAt ? (
-                                       formatDuration(seconds(row.startedAt, row.completedAt))
-                                    ) : null}
-                                    <span aria-hidden> · </span>
-                                    {ago(row.completedAt)}
-                                 </>
-                              }
-                           />
-                        ))}
-                     </ul>
-                  )}
-               </Section>
-            </div>
-
-            <div className="flex min-w-0 flex-col gap-10">
-               <Section title={t('needsPerson')}>
-                  {waitingOnPeople === 0 ? (
-                     <p className="text-muted-foreground">{t('nothingWaiting')}</p>
-                  ) : null}
-
+      <div className="flex flex-col gap-6 px-6 py-6">
+         <UrgencyBand
+            tone="warning"
+            label={t('needsPerson')}
+            value={waitingOnPeople}
+            pulse={waitingOnPeople > 0}
+            hint={waitingOnPeople === 0 ? t('nothingWaiting') : undefined}
+         >
+            {waitingOnPeople > 0 ? (
+               <div className="flex flex-col gap-4">
                   {data.pendingApprovalCount > 0 ? (
                      <div className="flex flex-col gap-2">
                         <h3 className="text-muted-foreground">
@@ -262,53 +182,166 @@ export default function UsageNow({
                         ) : null}
                      </div>
                   ) : null}
-               </Section>
+               </div>
+            ) : null}
+         </UrgencyBand>
 
-               <Section title={t('tasksNow')}>
-                  {taskTotal > 0 ? (
-                     <div
-                        role="img"
-                        aria-label={t('distribution')}
-                        className="flex h-2 w-full gap-px overflow-hidden rounded-full"
-                     >
-                        {TASK_STATUSES.map(({ key, statusId }) => {
-                           const count = data.taskSnapshot[key] ?? 0;
-                           if (count === 0) return null;
-                           return (
-                              <span
-                                 key={key}
-                                 className="h-full"
-                                 style={{
-                                    flexGrow: count,
-                                    backgroundColor:
-                                       allStatus.find((entry) => entry.id === statusId)?.color ??
-                                       'var(--status-neutral)',
-                                 }}
-                              />
-                           );
-                        })}
-                     </div>
-                  ) : null}
-                  <ul className="flex flex-col gap-1.5">
+         <UrgencyBand
+            tone={recentFailures.length > 0 ? 'danger' : 'neutral'}
+            label={t('recentFailures')}
+            value={recentFailures.length}
+            hint={recentFailures.length === 0 ? t('noneFailedRecently') : undefined}
+         >
+            {recentFailures.length > 0 ? (
+               <ul className="flex flex-col gap-2">
+                  {recentFailures.map((row) => (
+                     <RunRow
+                        key={row.runId}
+                        orgId={orgId}
+                        run={row}
+                        mark="failed"
+                        markLabel={t('outcome_failed')}
+                        meta={
+                           <>
+                              {row.failureCode ? (
+                                 <span className="text-status-danger">{row.failureCode}</span>
+                              ) : null}
+                              {row.failureCode ? <span aria-hidden> · </span> : null}
+                              {ago(row.completedAt)}
+                           </>
+                        }
+                     />
+                  ))}
+               </ul>
+            ) : null}
+         </UrgencyBand>
+
+         <UrgencyBand
+            tone="info"
+            label={t('spentToday')}
+            value={formatCost(data.today?.costMicros ?? 0)}
+         >
+            <UrgencyFigures
+               items={[
+                  { label: t('callsToday'), value: data.today?.events ?? 0 },
+                  { label: t('running'), value: data.runCounts.running },
+                  { label: t('queued'), value: data.runCounts.queued },
+               ]}
+            />
+         </UrgencyBand>
+
+         <div className="grid gap-x-8 gap-y-8 border-t border-border/60 pt-6 lg:grid-cols-2">
+            <Section title={t('inFlight')}>
+               {data.workingAgents.length === 0 && data.queuedRuns.length === 0 ? (
+                  <p className="text-muted-foreground">{t('noneWorking')}</p>
+               ) : (
+                  <ul className="flex flex-col gap-2">
+                     {data.workingAgents.map((row) => (
+                        <RunRow
+                           key={row.runId}
+                           orgId={orgId}
+                           run={row}
+                           mark="running"
+                           markLabel={t('running')}
+                           meta={
+                              row.startedAt
+                                 ? t('runningFor', {
+                                      duration: formatDuration(seconds(row.startedAt, now)),
+                                   })
+                                 : null
+                           }
+                        />
+                     ))}
+                     {data.queuedRuns.map((row) => (
+                        <RunRow
+                           key={row.runId}
+                           orgId={orgId}
+                           run={row}
+                           mark="queued"
+                           markLabel={t('queued')}
+                           meta={t('waiting', { when: ago(row.createdAt) })}
+                        />
+                     ))}
+                  </ul>
+               )}
+               {moreQueued > 0 ? (
+                  <p className="text-muted-foreground">{t('queuedMore', { count: moreQueued })}</p>
+               ) : null}
+            </Section>
+
+            <Section title={t('tasksNow')}>
+               {taskTotal > 0 ? (
+                  <div
+                     role="img"
+                     aria-label={t('distribution')}
+                     className="flex h-2 w-full gap-px overflow-hidden rounded-full"
+                  >
                      {TASK_STATUSES.map(({ key, statusId }) => {
                         const count = data.taskSnapshot[key] ?? 0;
+                        if (count === 0) return null;
                         return (
-                           <li key={key} className="flex items-center gap-2">
-                              <StatusIcon statusId={statusId} />
-                              <span>{t(`task_${key}`)}</span>
-                              <span className="ml-auto tabular-nums text-muted-foreground">
-                                 {count}
-                              </span>
-                              <span className="w-10 text-right tabular-nums text-muted-foreground">
-                                 {taskTotal > 0 ? `${Math.round((count / taskTotal) * 100)}%` : ''}
-                              </span>
-                           </li>
+                           <span
+                              key={key}
+                              className="h-full"
+                              style={{
+                                 flexGrow: count,
+                                 backgroundColor:
+                                    allStatus.find((entry) => entry.id === statusId)?.color ??
+                                    'var(--status-neutral)',
+                              }}
+                           />
                         );
                      })}
-                  </ul>
-               </Section>
-            </div>
+                  </div>
+               ) : null}
+               <ul className="flex flex-col gap-1.5">
+                  {TASK_STATUSES.map(({ key, statusId }) => {
+                     const count = data.taskSnapshot[key] ?? 0;
+                     return (
+                        <li key={key} className="flex items-center gap-2">
+                           <StatusIcon statusId={statusId} />
+                           <span>{t(`task_${key}`)}</span>
+                           <span className="ml-auto tabular-nums text-muted-foreground">
+                              {count}
+                           </span>
+                           <span className="w-10 text-right tabular-nums text-muted-foreground">
+                              {taskTotal > 0 ? `${Math.round((count / taskTotal) * 100)}%` : ''}
+                           </span>
+                        </li>
+                     );
+                  })}
+               </ul>
+            </Section>
          </div>
+
+         <Section title={t('recent')}>
+            {data.recentRuns.length === 0 ? (
+               <p className="text-muted-foreground">{t('noneRecent')}</p>
+            ) : (
+               <ul className="flex flex-col gap-2">
+                  {data.recentRuns.map((row) => (
+                     <RunRow
+                        key={row.runId}
+                        orgId={orgId}
+                        run={row}
+                        mark={row.status}
+                        markLabel={t(`outcome_${row.status}`)}
+                        meta={
+                           <>
+                              {row.status === 'failed' && row.failureCode ? (
+                                 <span className="text-status-danger">{row.failureCode}</span>
+                              ) : row.startedAt ? (
+                                 formatDuration(seconds(row.startedAt, row.completedAt))
+                              ) : null}
+                              <span aria-hidden> · </span>
+                              {ago(row.completedAt)}
+                           </>
+                        }
+                     />
+                  ))}
+               </ul>
+            )}
+         </Section>
       </div>
    );
 }

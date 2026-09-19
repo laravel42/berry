@@ -10,7 +10,7 @@ import { SegmentedControl } from '@/components/common/segmented-control';
 import { getUsageErrors, usageQueryKey, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
-import { StatTile } from './usage-tiles';
+import { UrgencyBand, UrgencyFigures } from './usage-urgency-band';
 import { useUsage } from './use-usage';
 
 /** Below this, a rate says more about luck than about an agent. */
@@ -29,12 +29,8 @@ const OUTCOMES = [
 ] as const;
 
 /**
- * The Runs tab: how the window's runs ended, day by day, what failed and whose
- * it was.
- *
- * Offenders can be ranked by how many runs failed or by what share of their
- * runs failed, and a rate computed from a handful of runs is marked as such:
- * one failure out of one is not an agent that fails every time.
+ * Runs as an urgency stack: failures lead, outcomes chart next, then whose
+ * they were — not a six-tile metric wall.
  */
 export default function UsageErrors({
    query,
@@ -52,8 +48,6 @@ export default function UsageErrors({
       workspaceId ? () => getUsageErrors(workspaceId, query) : null,
       `errors:${workspaceId}:${usageQueryKey(query)}`
    );
-   // Reported after render, not during it: a parent setState from inside a
-   // child's render is the React error Next flags on this page.
    useEffect(() => {
       onState?.({ lastUpdated, loading, reload });
    }, [onState, lastUpdated, loading, reload]);
@@ -68,24 +62,26 @@ export default function UsageErrors({
    );
    const thin = offenders.some((row) => row.total < LOW_SAMPLE);
 
-   const tiles = [
-      { label: t('totalRuns'), value: String(data.totalRuns) },
-      { label: t('succeededRuns'), value: String(data.succeededRuns) },
-      { label: t('failedRuns'), value: String(data.failedRuns) },
-      { label: t('cancelledRuns'), value: String(data.cancelledRuns) },
-      { label: t('failureRate'), value: percent(data.failedRuns, data.totalRuns) },
-      { label: t('agentsAffected'), value: String(data.agentsAffected) },
-   ];
-
    return (
-      <div className="flex flex-col gap-8 px-6 py-6">
-         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {tiles.map((tile) => (
-               <StatTile key={tile.label} label={tile.label} value={tile.value} />
-            ))}
-         </div>
+      <div className="flex flex-col gap-6 px-6 py-6">
+         <UrgencyBand
+            tone={data.failedRuns > 0 ? 'danger' : 'success'}
+            label={t('failedRuns')}
+            value={data.failedRuns}
+            hint={data.failedRuns === 0 ? t('empty') : undefined}
+         >
+            <UrgencyFigures
+               items={[
+                  { label: t('failureRate'), value: percent(data.failedRuns, data.totalRuns) },
+                  { label: t('totalRuns'), value: String(data.totalRuns) },
+                  { label: t('succeededRuns'), value: String(data.succeededRuns) },
+                  { label: t('cancelledRuns'), value: String(data.cancelledRuns) },
+                  { label: t('agentsAffected'), value: String(data.agentsAffected) },
+               ]}
+            />
+         </UrgencyBand>
 
-         <section className="flex flex-col gap-2">
+         <section className="flex flex-col gap-3 border-t border-border/60 pt-6">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                <h2 className="mr-auto font-medium">{t('chart')}</h2>
                <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
@@ -134,7 +130,6 @@ export default function UsageErrors({
                            name={t(`legend_${outcome.key}`)}
                            stackId="runs"
                            fill={outcome.color}
-                           // Only the top of the stack is rounded.
                            radius={index === OUTCOMES.length - 1 ? [2, 2, 0, 0] : 0}
                         />
                      ))}
@@ -143,7 +138,7 @@ export default function UsageErrors({
             </div>
          </section>
 
-         <div className="grid gap-8 lg:grid-cols-2">
+         <div className="grid gap-8 border-t border-border/60 pt-6 lg:grid-cols-2">
             <section className="flex flex-col gap-2">
                <h2 className="font-medium">{t('byType')}</h2>
                {data.byType.length === 0 ? (

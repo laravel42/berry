@@ -1,6 +1,5 @@
 {
    "title": "Reviews",
-   "tabTitle": "{identifier} review",
    "tabs": {
       "waiting": "Waiting",
       "decided": "Decided"

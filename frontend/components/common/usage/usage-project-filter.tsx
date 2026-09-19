@@ -51,7 +51,7 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                variant="outline"
                role="combobox"
                aria-label={`${t('project')}: ${chosen ? chosen.name : t('allProjects')}`}
-               className="max-w-56 border-muted-foreground/15"
+               className="h-9 max-w-56 border-muted-foreground/15"
             >
                <Box className="size-4" />
                <span className="truncate">{chosen ? chosen.name : t('allProjects')}</span>

@@ -32,7 +32,6 @@ const meta = {
       settingsMode: false,
       columnOpen: true,
       overlayOpen: true,
-      onCollapse: fn(),
       onDismiss: fn(),
    },
    parameters: {

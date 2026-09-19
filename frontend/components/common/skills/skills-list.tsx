@@ -7,6 +7,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
+import {
+   EmptyState,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -100,6 +106,21 @@ export default function SkillsList({
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (skills === null) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
 
+   if (rows.length === 0) {
+      return (
+         <EmptyState icon={<EmptyStateMark label={narrowed ? t('noMatch') : t('empty.mark')} />}>
+            {narrowed ? (
+               <EmptyStateText>{t('noMatch')}</EmptyStateText>
+            ) : (
+               <>
+                  <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>
+                  <EmptyStateText>{t('empty.body')}</EmptyStateText>
+               </>
+            )}
+         </EmptyState>
+      );
+   }
+
    const toggle = (id: string) =>
       setSelection((current) =>
          current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
@@ -145,7 +166,7 @@ export default function SkillsList({
    return (
       <div className="flex h-full w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-container px-6 py-1 text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-container px-4 py-[6px] text-muted-foreground">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"
@@ -175,179 +196,171 @@ export default function SkillsList({
                <div className="w-6 shrink-0" />
             </div>
 
-            {rows.length === 0 ? (
-               <p className="px-6 py-8 text-muted-foreground">
-                  {narrowed ? t('noMatch') : t('empty')}
-               </p>
-            ) : (
-               rows.map((skill) => {
-                  const carried = skill.agents.filter((agent) => agent.enabled).length;
-                  return (
-                     <div
-                        key={skill.id}
-                        className={cn(
-                           'flex min-h-9 w-full items-center gap-2 border-b border-muted-foreground/5 px-6 py-1.5 hover:bg-sidebar/50',
-                           openId === skill.id && 'bg-sidebar/60'
-                        )}
+            {rows.map((skill) => {
+               const carried = skill.agents.filter((agent) => agent.enabled).length;
+               return (
+                  <div
+                     key={skill.id}
+                     className={cn(
+                        'flex min-h-9 w-full items-center gap-2 border-b border-muted-foreground/5 px-6 py-1.5 hover:bg-sidebar/50',
+                        openId === skill.id && 'bg-sidebar/60'
+                     )}
+                  >
+                     {canEdit ? (
+                        <Checkbox
+                           className="shrink-0"
+                           aria-label={t('bulk.select', { name: skill.name })}
+                           checked={selection.includes(skill.id)}
+                           onCheckedChange={() => toggle(skill.id)}
+                        />
+                     ) : null}
+                     <button
+                        type="button"
+                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+                        onClick={() => onOpen(skill.id)}
                      >
-                        {canEdit ? (
-                           <Checkbox
-                              className="shrink-0"
-                              aria-label={t('bulk.select', { name: skill.name })}
-                              checked={selection.includes(skill.id)}
-                              onCheckedChange={() => toggle(skill.id)}
-                           />
-                        ) : null}
-                        <button
-                           type="button"
-                           className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-                           onClick={() => onOpen(skill.id)}
-                        >
-                           <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium leading-none">
-                                 {skill.name}
-                              </span>
-                              {skill.description ? (
-                                 <span className="mt-0.5 line-clamp-1 block leading-snug text-muted-foreground">
-                                    {skill.description}
-                                 </span>
-                              ) : null}
+                        <span className="min-w-0 flex-1">
+                           <span className="block truncate font-medium leading-none">
+                              {skill.name}
                            </span>
-                           {shows('labels') ? (
-                              <div className="hidden w-52 min-w-0 shrink-0 flex-wrap items-center gap-1 overflow-hidden md:flex">
-                                 {skill.labels.map((label) => {
-                                    const color = colorForSkillLabel(label);
-                                    return (
-                                       <span
-                                          key={label}
-                                          title={label}
-                                          className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
-                                          style={{
-                                             backgroundColor: `${color}26`,
-                                             borderColor: color,
-                                             color,
-                                          }}
-                                       >
-                                          <span className="max-w-[140px] truncate">{label}</span>
-                                       </span>
-                                    );
-                                 })}
-                              </div>
+                           {skill.description ? (
+                              <span className="mt-0.5 line-clamp-1 block leading-snug text-muted-foreground">
+                                 {skill.description}
+                              </span>
                            ) : null}
-                           {shows('agents') ? (
-                              <div className="hidden w-20 shrink-0 text-muted-foreground sm:block">
-                                 {isSkillInUse(skill)
-                                    ? t('row.usedBy', { count: carried })
-                                    : t('row.unused')}
-                              </div>
-                           ) : null}
-                           {shows('creator') ? (
-                              <div className="hidden w-28 shrink-0 truncate text-muted-foreground lg:block">
-                                 {skill.creatorName ?? t('row.unknownCreator')}
-                              </div>
-                           ) : null}
-                           {shows('updated') ? (
-                              <div className="hidden w-24 shrink-0 text-muted-foreground lg:block">
-                                 {new Date(skill.updatedAt).toLocaleDateString()}
-                              </div>
-                           ) : null}
-                           {shows('files') ? (
-                              <div className="w-12 shrink-0 text-right text-muted-foreground">
-                                 {skill.files.length}
-                              </div>
-                           ) : null}
-                        </button>
+                        </span>
+                        {shows('labels') ? (
+                           <div className="hidden w-52 min-w-0 shrink-0 flex-wrap items-center gap-1 overflow-hidden md:flex">
+                              {skill.labels.map((label) => {
+                                 const color = colorForSkillLabel(label);
+                                 return (
+                                    <span
+                                       key={label}
+                                       title={label}
+                                       className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
+                                       style={{
+                                          backgroundColor: `${color}26`,
+                                          borderColor: color,
+                                          color,
+                                       }}
+                                    >
+                                       <span className="max-w-[140px] truncate">{label}</span>
+                                    </span>
+                                 );
+                              })}
+                           </div>
+                        ) : null}
+                        {shows('agents') ? (
+                           <div className="hidden w-20 shrink-0 text-muted-foreground sm:block">
+                              {isSkillInUse(skill)
+                                 ? t('row.usedBy', { count: carried })
+                                 : t('row.unused')}
+                           </div>
+                        ) : null}
+                        {shows('creator') ? (
+                           <div className="hidden w-28 shrink-0 truncate text-muted-foreground lg:block">
+                              {skill.creatorName ?? t('row.unknownCreator')}
+                           </div>
+                        ) : null}
+                        {shows('updated') ? (
+                           <div className="hidden w-24 shrink-0 text-muted-foreground lg:block">
+                              {new Date(skill.updatedAt).toLocaleDateString()}
+                           </div>
+                        ) : null}
+                        {shows('files') ? (
+                           <div className="w-12 shrink-0 text-right text-muted-foreground">
+                              {skill.files.length}
+                           </div>
+                        ) : null}
+                     </button>
 
-                        <div className="flex w-6 shrink-0 justify-end">
-                           {canEdit ? (
-                              <DropdownMenu>
-                                 <DropdownMenuTrigger asChild>
-                                    <Button
-                                       size="icon"
-                                       variant="ghost"
-                                       className="size-6"
-                                       aria-label={t('row.menu')}
-                                    >
-                                       <MoreHorizontal className="size-3.5" />
-                                    </Button>
-                                 </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="end" className="w-56">
-                                    <DropdownMenuSub>
-                                       <DropdownMenuSubTrigger>
-                                          {t('row.addToAgent')}
-                                       </DropdownMenuSubTrigger>
-                                       <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
-                                          {agents.length === 0 ? (
-                                             <DropdownMenuItem disabled>
-                                                {t('row.noAgents')}
-                                             </DropdownMenuItem>
-                                          ) : (
-                                             <>
-                                                <DropdownMenuLabel>
-                                                   {t('row.notCarrying')}
-                                                </DropdownMenuLabel>
-                                                {agents
-                                                   .filter(
-                                                      (agent) =>
-                                                         !skill.agents.some(
-                                                            (bound) =>
-                                                               bound.id === agent.id &&
-                                                               bound.enabled
-                                                         )
-                                                   )
-                                                   .map((agent) => (
-                                                      <DropdownMenuItem
-                                                         key={agent.id}
-                                                         onClick={() => void addTo(skill, agent)}
-                                                      >
-                                                         {agent.name}
-                                                      </DropdownMenuItem>
-                                                   ))}
-                                                <DropdownMenuSeparator />
-                                                <DropdownMenuLabel>
-                                                   {t('row.carrying')}
-                                                </DropdownMenuLabel>
-                                                {skill.agents
-                                                   .filter((bound) => bound.enabled)
-                                                   .map((bound) => (
-                                                      <DropdownMenuItem key={bound.id} disabled>
-                                                         {bound.name}
-                                                      </DropdownMenuItem>
-                                                   ))}
-                                             </>
-                                          )}
-                                       </DropdownMenuSubContent>
-                                    </DropdownMenuSub>
-                                    <DropdownMenuItem
-                                       disabled={
-                                          skill.source.kind !== 'github' ||
-                                          refreshingId === skill.id
-                                       }
-                                       onClick={() => void update(skill)}
-                                    >
-                                       {t('refresh.action')}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                       variant="destructive"
-                                       className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
-                                       onClick={() => setConfirming(skill)}
-                                    >
-                                       {t('row.delete')}
-                                    </DropdownMenuItem>
-                                 </DropdownMenuContent>
-                              </DropdownMenu>
-                           ) : (
-                              <Lock
-                                 className="size-4 text-muted-foreground"
-                                 aria-label={t('row.locked')}
-                              />
-                           )}
-                        </div>
+                     <div className="flex w-6 shrink-0 justify-end">
+                        {canEdit ? (
+                           <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                 <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="size-6"
+                                    aria-label={t('row.menu')}
+                                 >
+                                    <MoreHorizontal className="size-3.5" />
+                                 </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                 <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>
+                                       {t('row.addToAgent')}
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
+                                       {agents.length === 0 ? (
+                                          <DropdownMenuItem disabled>
+                                             {t('row.noAgents')}
+                                          </DropdownMenuItem>
+                                       ) : (
+                                          <>
+                                             <DropdownMenuLabel>
+                                                {t('row.notCarrying')}
+                                             </DropdownMenuLabel>
+                                             {agents
+                                                .filter(
+                                                   (agent) =>
+                                                      !skill.agents.some(
+                                                         (bound) =>
+                                                            bound.id === agent.id && bound.enabled
+                                                      )
+                                                )
+                                                .map((agent) => (
+                                                   <DropdownMenuItem
+                                                      key={agent.id}
+                                                      onClick={() => void addTo(skill, agent)}
+                                                   >
+                                                      {agent.name}
+                                                   </DropdownMenuItem>
+                                                ))}
+                                             <DropdownMenuSeparator />
+                                             <DropdownMenuLabel>
+                                                {t('row.carrying')}
+                                             </DropdownMenuLabel>
+                                             {skill.agents
+                                                .filter((bound) => bound.enabled)
+                                                .map((bound) => (
+                                                   <DropdownMenuItem key={bound.id} disabled>
+                                                      {bound.name}
+                                                   </DropdownMenuItem>
+                                                ))}
+                                          </>
+                                       )}
+                                    </DropdownMenuSubContent>
+                                 </DropdownMenuSub>
+                                 <DropdownMenuItem
+                                    disabled={
+                                       skill.source.kind !== 'github' || refreshingId === skill.id
+                                    }
+                                    onClick={() => void update(skill)}
+                                 >
+                                    {t('refresh.action')}
+                                 </DropdownMenuItem>
+                                 <DropdownMenuSeparator />
+                                 <DropdownMenuItem
+                                    variant="destructive"
+                                    className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
+                                    onClick={() => setConfirming(skill)}
+                                 >
+                                    {t('row.delete')}
+                                 </DropdownMenuItem>
+                              </DropdownMenuContent>
+                           </DropdownMenu>
+                        ) : (
+                           <Lock
+                              className="size-4 text-muted-foreground"
+                              aria-label={t('row.locked')}
+                           />
+                        )}
                      </div>
-                  );
-               })
-            )}
+                  </div>
+               );
+            })}
          </div>
 
          {canEdit ? (

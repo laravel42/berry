@@ -2,7 +2,14 @@
    "header": {
       "title": "Goals"
    },
+   "filter": {
+      "open": "Open",
+      "all": "All"
+   },
    "list": {
+      "search": "Search goals",
+      "noneMatch": "No goal matches this search.",
+      "noneOpen": "No open goals.",
       "goal": "Goal",
       "status": "Status",
       "progress": "Progress",
@@ -12,8 +19,7 @@
    "empty": {
       "mark": "No goals",
       "title": "No goals yet.",
-      "body": "A goal is the group of tasks one plan produced. Plan work in a project and the goal arrives with the tasks.",
-      "cta": "Go to projects"
+      "body": "A goal is the group of tasks one plan produced. Plan work in a project and the goal arrives with the tasks."
    },
    "plans": {
       "header": {
@@ -25,6 +31,8 @@
          "all": "All"
       },
       "list": {
+         "search": "Search plans",
+         "noneMatch": "No plan matches this search.",
          "plan": "Plan",
          "status": "Status",
          "tasks": "Tasks",
@@ -39,8 +47,7 @@
          "mark": "No plans",
          "title": "No open plans.",
          "titleAll": "No plans yet.",
-         "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat.",
-         "cta": "Go to projects"
+         "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat."
       }
    }
 }

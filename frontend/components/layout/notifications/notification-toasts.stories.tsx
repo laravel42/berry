@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, waitFor, within } from 'storybook/test';
-import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { inboxItems, workspaceRoute } from '../stories-fixtures';
 import { NotificationToasts } from './notification-toasts';
@@ -14,7 +13,6 @@ const meta = {
    tags: ['ai-generated', 'needs-work'],
    parameters: { nextjs: { navigation: workspaceRoute('/elian/tasks') } },
    beforeEach: () => {
-      useNotificationsDrawerStore.setState({ isOpen: false });
       useNotificationsStore.setState({ arrivals: [inboxItems[0]] });
    },
 } satisfies Meta<typeof NotificationToasts>;
@@ -39,14 +37,12 @@ export const Burst: Story = {
    beforeEach: () => {
       useNotificationsStore.setState({ arrivals: inboxItems.slice(0, 5) });
    },
-   play: async ({ canvasElement, userEvent }) => {
+   play: async ({ canvasElement }) => {
       const body = within(canvasElement.ownerDocument.body);
       const overflow = await body.findByText('and 2 more');
       await expect(overflow).toBeVisible();
       const toast = overflow.closest('li');
       if (!toast) throw new Error('The overflow toast is not in a list item');
-      // Its action opens the drawer rather than any one notification.
-      await userEvent.click(within(toast).getByRole('button', { name: 'Open' }));
-      await expect(useNotificationsDrawerStore.getState().isOpen).toBe(true);
+      await expect(within(toast).getByRole('button', { name: 'Open' })).toBeVisible();
    },
 };

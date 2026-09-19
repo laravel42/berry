@@ -1,6 +1,13 @@
 'use client';
 
-import { BerryMark, type BerryMarkState } from '@/components/brand/berry-mark';
+import type { BerryMarkState } from '@/components/brand/berry-mark';
+import {
+   EmptyState,
+   EmptyStateActions,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 
 interface InboxPanelProps {
@@ -19,15 +26,16 @@ interface InboxPanelProps {
  */
 export function InboxPanel({ title, body, state = 'hollow', action }: InboxPanelProps) {
    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-         <BerryMark size="lg" tone="neutral" state={state} label={title} />
-         <h2>{title}</h2>
-         {body ? <p className="max-w-sm leading-relaxed text-muted-foreground">{body}</p> : null}
+      <EmptyState icon={<EmptyStateMark label={title} state={state} />}>
+         <EmptyStateTitle variant="plain">{title}</EmptyStateTitle>
+         {body ? <EmptyStateText>{body}</EmptyStateText> : null}
          {action ? (
-            <Button variant="outline" size="sm" onClick={action.onClick}>
-               {action.label}
-            </Button>
+            <EmptyStateActions>
+               <Button variant="outline" size="sm" onClick={action.onClick}>
+                  {action.label}
+               </Button>
+            </EmptyStateActions>
          ) : null}
-      </div>
+      </EmptyState>
    );
 }

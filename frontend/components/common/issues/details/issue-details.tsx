@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getIssueDetail } from '@/data/issue-details';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
-import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { getBoardIssue } from '@/lib/issues';
 import { forgetIssue, rememberIssue } from '@/lib/recent-issues';
@@ -73,7 +72,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const detail = useMemo(() => (issue ? getIssueDetail(issue) : null), [issue]);
 
    // The shell tab takes the task's key and title once it is known.
-   useTabLabel(issue ? `${issue.identifier} ${issue.title}` : null);
 
    const afterDelete = useCallback(() => {
       if (closeDrawer) {

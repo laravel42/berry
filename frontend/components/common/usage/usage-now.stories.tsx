@@ -34,17 +34,22 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** A busy workspace: runs in flight, who is on what, and every task status with its mark. */
+/** A busy workspace: urgency bands first, then in-flight and task distribution. */
 export const Busy: Story = {
    play: async ({ canvas }) => {
       const run = await canvas.findByRole('link', {
          name: 'ELI-42 Persist project health to the database',
       });
       await expect(run).toHaveAttribute('href', '/elian/runs?run=run-301');
-      await expect(canvas.getByText('Running').nextElementSibling).toHaveTextContent('3');
-      await expect(canvas.getByText('In review').parentElement).toHaveTextContent(
-         String(dashboard.taskSnapshot.inReview)
-      );
+      // Urgency stack: needs a person leads, then failures, then spend.
+      await expect(canvas.getByRole('heading', { name: 'Needs a person' })).toBeVisible();
+      await expect(
+         canvas.getByRole('heading', { name: 'Needs a person' }).nextElementSibling
+      ).toHaveTextContent('7');
+      await expect(canvas.getByRole('heading', { name: 'Recent failures' })).toBeVisible();
+      await expect(
+         canvas.getByRole('heading', { name: 'Spent today' }).nextElementSibling
+      ).toHaveTextContent('$2.41');
       // In flight: running for a while, then the queue, each by task key.
       await expect(canvas.getByRole('link', { name: /^ELI-63 / })).toBeVisible();
       await expect(canvas.getAllByText(/^queued /).map((node) => node.textContent)).toEqual([
@@ -66,12 +71,10 @@ export const Busy: Story = {
          '/elian/issue/ELI-50'
       );
       await expect(canvas.getByText('high risk')).toBeVisible();
-      // Today, and the waiting total: 3 approvals + 4 reviews.
-      await expect(canvas.getByText('Spent today').nextElementSibling).toHaveTextContent('$2.41');
-      await expect(canvas.getByText('Awaiting a decision').nextElementSibling).toHaveTextContent(
-         '7'
-      );
       await expect(canvas.getByRole('img', { name: 'Tasks by status' })).toBeVisible();
+      await expect(canvas.getByText('In review').parentElement).toHaveTextContent(
+         String(dashboard.taskSnapshot.inReview)
+      );
       // Only the live part of the old dashboard: no spend, no failures list.
       await expect(canvas.queryByText('Cost by day')).not.toBeInTheDocument();
       await expect(canvas.queryByText('Failures by agent')).not.toBeInTheDocument();

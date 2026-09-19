@@ -2,7 +2,7 @@
 
 import { ArrowUpDown, Bot, Check, CircleDot, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import {
    agentFilterOption,
@@ -16,6 +16,7 @@ import {
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 
@@ -107,78 +108,100 @@ interface Props {
    criteria: AutopilotCriteria;
    onChange: (criteria: AutopilotCriteria) => void;
    filter: ListFilterController<Autopilot>;
+   query: string;
+   onQueryChange: (query: string) => void;
+   /** Trailing primary action (e.g. New autopilot), after Display-style controls. */
+   action?: ReactNode;
 }
 
-/** Filters, sort and columns for the autopilot list. */
-export default function AutopilotsFilters({ criteria, onChange, filter }: Props) {
+/** Search, filters, sort and columns for the autopilot list. */
+export default function AutopilotsFilters({
+   criteria,
+   onChange,
+   filter,
+   query,
+   onQueryChange,
+   action,
+}: Props) {
    const t = useTranslations('areas.autopilots');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
 
    return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
-         <ListFilterTrigger filter={filter} />
+      <div className="mb-1 flex w-full shrink-0 items-center gap-2 border-b px-4 py-[6px] [&_button]:!h-9 [&_button[aria-label='New autopilot']]:!h-[34px] [&_button[aria-label='New autopilot']]:!w-[42px] [&_input]:!h-9">
+         <Input
+            className="h-9 max-w-64"
+            placeholder={t('search')}
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+         />
 
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                  <Columns3 className="mr-1 size-4" />
-                  {t('filters.columns')}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="start">
-               <Command>
-                  <CommandList>
-                     <CommandGroup>
-                        {AUTOPILOT_COLUMNS.map((column) => (
-                           <CommandItem
-                              key={column}
-                              onSelect={() =>
-                                 set({
-                                    columns: criteria.columns.includes(column)
-                                       ? criteria.columns.filter((entry) => entry !== column)
-                                       : [...criteria.columns, column],
-                                 })
-                              }
-                              className="justify-between"
-                           >
-                              {t(`columns.${column}`)}
-                              {criteria.columns.includes(column) ? (
-                                 <Check className="size-4" />
-                              ) : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
+         <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
+            <ListFilterTrigger filter={filter} />
 
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                  <ArrowUpDown className="mr-1 size-4" />
-                  {t(`filters.sort_${criteria.sort}`)}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="end">
-               <Command>
-                  <CommandList>
-                     <CommandGroup>
-                        {AUTOPILOT_SORTS.map((sort) => (
-                           <CommandItem
-                              key={sort}
-                              onSelect={() => set({ sort })}
-                              className="justify-between"
-                           >
-                              {t(`filters.sort_${sort}`)}
-                              {criteria.sort === sort ? <Check className="size-4" /> : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
+            <Popover>
+               <PopoverTrigger asChild>
+                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                     <Columns3 className="size-4" />
+                     {t('filters.columns')}
+                  </Button>
+               </PopoverTrigger>
+               <PopoverContent className="w-52 p-0" align="start">
+                  <Command>
+                     <CommandList>
+                        <CommandGroup>
+                           {AUTOPILOT_COLUMNS.map((column) => (
+                              <CommandItem
+                                 key={column}
+                                 onSelect={() =>
+                                    set({
+                                       columns: criteria.columns.includes(column)
+                                          ? criteria.columns.filter((entry) => entry !== column)
+                                          : [...criteria.columns, column],
+                                    })
+                                 }
+                                 className="justify-between"
+                              >
+                                 {t(`columns.${column}`)}
+                                 {criteria.columns.includes(column) ? (
+                                    <Check className="size-4" />
+                                 ) : null}
+                              </CommandItem>
+                           ))}
+                        </CommandGroup>
+                     </CommandList>
+                  </Command>
+               </PopoverContent>
+            </Popover>
+
+            <Popover>
+               <PopoverTrigger asChild>
+                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                     <ArrowUpDown className="size-4" />
+                     {t(`filters.sort_${criteria.sort}`)}
+                  </Button>
+               </PopoverTrigger>
+               <PopoverContent className="w-52 p-0" align="end">
+                  <Command>
+                     <CommandList>
+                        <CommandGroup>
+                           {AUTOPILOT_SORTS.map((sort) => (
+                              <CommandItem
+                                 key={sort}
+                                 onSelect={() => set({ sort })}
+                                 className="justify-between"
+                              >
+                                 {t(`filters.sort_${sort}`)}
+                                 {criteria.sort === sort ? <Check className="size-4" /> : null}
+                              </CommandItem>
+                           ))}
+                        </CommandGroup>
+                     </CommandList>
+                  </Command>
+               </PopoverContent>
+            </Popover>
+
+            {action}
+         </div>
       </div>
    );
 }

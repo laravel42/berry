@@ -11,6 +11,7 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
 import { DeliveriesTable, RunsTable } from '@/components/common/autopilots/history-tabs';
 import TriggersTab from '@/components/common/autopilots/triggers-tab';
+import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -62,6 +63,8 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const searchParams = useSearchParams();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
+   const inDrawer = useInDetailDrawer();
+   const closeDrawer = useDetailDrawerClose();
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
    const agents = useAgentsStore((state) => state.agents);
 
@@ -122,9 +125,15 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
             <p className="max-w-sm text-muted-foreground" role="alert">
                {error ?? t('detail.loadFailed')}
             </p>
-            <Button asChild variant="secondary" size="sm">
-               <Link href={`/${orgId}/autopilots`}>{t('detail.back')}</Link>
-            </Button>
+            {closeDrawer ? (
+               <Button variant="secondary" size="sm" onClick={closeDrawer}>
+                  {t('detail.back')}
+               </Button>
+            ) : (
+               <Button asChild variant="secondary" size="sm">
+                  <Link href={`/${orgId}/autopilots`}>{t('detail.back')}</Link>
+               </Button>
+            )}
          </div>
       );
    }
@@ -182,13 +191,15 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
          <div className="border-b px-8 py-6">
-            <Link
-               href={`/${orgId}/autopilots`}
-               className="mb-4 inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-            >
-               <ChevronLeft className="size-3.5" aria-hidden />
-               {t('title')}
-            </Link>
+            {inDrawer ? null : (
+               <Link
+                  href={`/${orgId}/autopilots`}
+                  className="mb-4 inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
+               >
+                  <ChevronLeft className="size-3.5" aria-hidden />
+                  {t('title')}
+               </Link>
+            )}
 
             <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                <div className="flex min-w-0 gap-4">
@@ -363,7 +374,8 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                         void archiveAutopilot(autopilot.id)
                            .then(() => {
                               toast.success(t('row.deleted', { name: autopilot.name }));
-                              router.push(`/${orgId}/autopilots`);
+                              if (closeDrawer) closeDrawer();
+                              else router.push(`/${orgId}/autopilots`);
                            })
                            .catch((failure: unknown) =>
                               toast.error(describeAutopilotFailure(failure))

@@ -30,7 +30,7 @@ const isEmptyHeader = (header: React.ReactNode | undefined): boolean => {
 
 export default function MainLayout({ children, header }: MainLayoutProps) {
    return (
-      <SidebarProvider className="h-full max-h-full">
+      <SidebarProvider className="h-full min-h-0 max-h-full">
          <IssuesHydrator />
          <CreateIssueModalProvider />
          <CreatePlanModalProvider />
@@ -46,13 +46,13 @@ export default function MainLayout({ children, header }: MainLayoutProps) {
              same reason: the shell root is `font-light` (300) for its chrome,
              and pages that inherited it ran thinner than the 400 the body
              rule sets. */}
-         <div className="h-full w-full overflow-hidden bg-background text-foreground [font-weight:400]">
-            <div className="flex h-full w-full flex-col items-center justify-start overflow-hidden bg-container">
-               {header}
+         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground [font-weight:400]">
+            <div className="flex h-full min-h-0 w-full flex-col items-center justify-start overflow-hidden bg-container">
+               {header ? <div className="w-full shrink-0">{header}</div> : null}
                <div
                   className={cn(
-                     'w-full overflow-auto',
-                     isEmptyHeader(header) ? 'h-full' : 'min-h-0 flex-1'
+                     'w-full min-h-0',
+                     isEmptyHeader(header) ? 'h-full overflow-auto' : 'flex-1 overflow-auto'
                   )}
                >
                   {children}

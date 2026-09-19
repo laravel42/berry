@@ -29,17 +29,15 @@ import {
    type PlanRecord,
 } from '@/lib/plans';
 import { cn } from '@/lib/utils';
-import { useIssuesStore } from '@/store/issues-store';
 import { usePlanStore } from '@/store/plan-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { format, parseISO } from 'date-fns';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { PlanStatusBadge } from './plan-status-badge';
-import { PlanTranscript } from './plan-transcript';
+import { PlanExecutionLog } from './plan-execution-log';
 import { PlanApprovals, PlanAssumptions, PlanConnections, PlanIssues, Pill } from './plan-sections';
 import {
    PlanBlockedQuestions,
@@ -252,27 +250,14 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
                         · <PlanStatusBadge record={record} className="align-middle" />
                      </span>
                   </p>
-                  <div className="mt-3">
-                     <PlanTranscript record={record} />
-                  </div>
-
                   <PlanGenerationProgress record={record} />
                   <PlanGenerationFailure record={record} />
                   <PlanBlockedQuestions
                      record={record}
                      onAnswer={wizard.canAnswer ? () => wizard.setOpen(true) : undefined}
                   />
-                  <PlanOutcome record={record} orgId={orgId ?? WORKSPACE_SLUG} />
+                  <PlanOutcome record={record} />
                   <PlanFindings record={record} />
-
-                  {record.sourcePrompt && (
-                     <section className="mt-6">
-                        <h3 className="font-medium">You asked</h3>
-                        <blockquote className="mt-1.5 whitespace-pre-line border-l-2 border-border pl-3 leading-6 text-muted-foreground">
-                           {record.sourcePrompt}
-                        </blockquote>
-                     </section>
-                  )}
 
                   <PlanAnswers answers={answers} generating={generating} />
 
@@ -326,8 +311,7 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
 }
 
 /** What pressing Start did, once it has. */
-function PlanOutcome({ record, orgId }: { record: PlanRecord; orgId: string }) {
-   const issues = useIssuesStore((state) => state.issues);
+function PlanOutcome({ record }: { record: PlanRecord }) {
    const compilePlan = usePlanStore((state) => state.compilePlan);
    const busy = usePlanStore((state) => state.busy[record.id] ?? null);
 
@@ -379,61 +363,7 @@ function PlanOutcome({ record, orgId }: { record: PlanRecord; orgId: string }) {
       );
    }
 
-   if (compile.status === 'running') {
-      return (
-         <div
-            role="status"
-            className="mt-5 flex items-center gap-2 rounded-md border border-border/60 bg-background px-4 py-3"
-         >
-            <BerryMark size="sm" tone="working" pulse />
-            <span className="font-medium">Starting the plan…</span>
-         </div>
-      );
-   }
-
-   const created = compile.issueIds
-      .map((id) => issues.find((issue) => issue.id === id))
-      .filter((issue): issue is NonNullable<typeof issue> => Boolean(issue));
-
-   return (
-      <div
-         role="status"
-         className="mt-5 rounded-md border border-border/60 bg-background px-4 py-3"
-      >
-         <div className="flex items-center gap-2">
-            <BerryMark size="sm" tone="complete" />
-            <span className="font-medium">Plan started</span>
-            {compile.compiledAt && (
-               <span className="text-muted-foreground">· {whenText(compile.compiledAt)}</span>
-            )}
-         </div>
-         <p className="mt-1 text-muted-foreground">
-            {describePlanCounts({
-               tasks: compile.issueIds.length,
-               approvals: compile.approvalIds.length,
-            })}{' '}
-            created.
-         </p>
-         {created.length > 0 && (
-            <ul className="mt-2 flex flex-wrap gap-1.5">
-               {created.map((issue) => (
-                  <li key={issue.id}>
-                     <Link
-                        href={`/${orgId}/issue/${issue.identifier}`}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2 py-0.5 hover:bg-accent"
-                     >
-                        <span className="text-muted-foreground">{issue.identifier}</span>
-                        <span className="max-w-64 truncate">{issue.title}</span>
-                     </Link>
-                  </li>
-               ))}
-            </ul>
-         )}
-         <Button asChild size="xs" variant="secondary" className="mt-3">
-            <Link href={`/${orgId}/tasks`}>View tasks</Link>
-         </Button>
-      </div>
-   );
+   return <PlanExecutionLog record={record} />;
 }
 
 /** Start Plan and Reject, with the reason Start is disabled when it is. */

@@ -21,7 +21,10 @@ interface EmptyStateProps extends Omit<ComponentProps<'div'>, 'children'> {
 export function EmptyState({ icon, children, className, ...props }: EmptyStateProps) {
    return (
       <div
-         className={cn('flex min-h-64 w-full items-center justify-center px-6 py-12', className)}
+         className={cn(
+            'flex h-full min-h-64 w-full items-center justify-center px-6 py-12',
+            className
+         )}
          {...props}
       >
          <div className="flex max-w-sm flex-col items-center text-center">

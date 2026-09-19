@@ -8,25 +8,18 @@ import {
    EmptyStateTitle,
 } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
-import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useFilterStore } from '@/store/filter-store';
 import { useTranslations } from 'next-intl';
 
-/** Empty workspace queue — invite creating the first task. */
+/** Empty workspace queue. Create lives in the toolbar. */
 export function EmptyQueue() {
    const t = useTranslations('tasks.empty');
-   const { openModal } = useCreateIssueStore();
 
    return (
       <EmptyState icon={<EmptyStateMark label={t('mark')} />}>
-         <EmptyStateTitle variant="plain">{t('title')}</EmptyStateTitle>
+         <EmptyStateTitle>{t('title')}</EmptyStateTitle>
          <EmptyStateText>{t('body')}</EmptyStateText>
          <EmptyStateText>{t('next')}</EmptyStateText>
-         <EmptyStateActions>
-            <Button className="h-10 px-5" onClick={() => openModal()}>
-               {t('cta')}
-            </Button>
-         </EmptyStateActions>
       </EmptyState>
    );
 }

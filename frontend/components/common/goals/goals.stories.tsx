@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
+import { useGoalsListStore } from '@/store/goals-list-store';
 import { useGoalsStore } from '@/store/goals-store';
 import { seedGoalStores, seedProjectStores, storyGoals } from '../projects/stories-fixtures';
 import Goals from './goals';
+
+const openGoals = storyGoals.filter((goal) => goal.status !== 'completed');
 
 const meta = {
    component: Goals,
@@ -11,6 +14,7 @@ const meta = {
    beforeEach: () => {
       seedProjectStores();
       seedGoalStores();
+      useGoalsListStore.setState({ scope: 'open', query: '' });
    },
    decorators: [
       (Story) => (
@@ -26,7 +30,30 @@ type Story = StoryObj<typeof meta>;
 
 export const List: Story = {
    play: async ({ canvas }) => {
+      await expect(canvas.getAllByRole('link')).toHaveLength(openGoals.length);
+   },
+};
+
+export const All: Story = {
+   beforeEach: () => {
+      seedProjectStores();
+      seedGoalStores();
+      useGoalsListStore.setState({ scope: 'all', query: '' });
+   },
+   play: async ({ canvas }) => {
       await expect(canvas.getAllByRole('link')).toHaveLength(storyGoals.length);
+   },
+};
+
+export const Search: Story = {
+   beforeEach: () => {
+      seedProjectStores();
+      seedGoalStores();
+      useGoalsListStore.setState({ scope: 'all', query: 'zzz-no-match' });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByText('No goal matches this search.')).toBeVisible();
+      await expect(canvas.queryAllByRole('link')).toHaveLength(0);
    },
 };
 

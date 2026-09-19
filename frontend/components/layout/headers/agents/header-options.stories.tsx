@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, within } from 'storybook/test';
 import { useAgentsListStore } from '@/store/agents-list-store';
 import { useAgentsStore } from '@/store/agents-store';
-import { agents, workspaceRoute } from '../../stories-fixtures';
+import { agents, seedSession, workspaceRoute } from '../../stories-fixtures';
 import HeaderOptions from './header-options';
 
 const meta = {
@@ -13,6 +13,7 @@ const meta = {
       nextjs: { navigation: workspaceRoute('/elian/agents') },
    },
    beforeEach: () => {
+      seedSession('admin');
       useAgentsListStore.setState(useAgentsListStore.getInitialState());
       useAgentsStore.setState({ agents, archived: null });
    },

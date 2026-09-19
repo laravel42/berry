@@ -61,6 +61,7 @@ import { accountRoutes } from './mounts/account.ts';
 import { conversationMounts } from './mounts/conversations.ts';
 import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
+import { ProjectDraftAssist } from './editor/project-draft.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
 import { planMounts, type PlanOptions } from './mounts/plans.ts';
 import { registerPlanningTools } from './plans/agent-tools.ts';
@@ -978,6 +979,15 @@ registry.registerAll(
       assist:
          executor
          ? new EditorAssist({
+              completion,
+              defaultModel: config.runtime.defaultModel,
+           })
+         : null,
+      // The new-project assistant is a completion too, so it is offered
+      // exactly where the editor's rewrite is.
+      projectDraft:
+         executor
+         ? new ProjectDraftAssist({
               completion,
               defaultModel: config.runtime.defaultModel,
            })

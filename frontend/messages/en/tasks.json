@@ -1,6 +1,7 @@
 {
    "header": {
       "title": "Tasks",
+      "search": "Search tasks",
       "insights": "Insights",
       "breakdown": "Breakdown",
       "create": "Create task"
@@ -14,7 +15,6 @@
       "title": "No tasks yet.",
       "body": "A task can go to a person or to an agent, and either way the result comes back here for a person to review.",
       "next": "Create the first task to get started.",
-      "cta": "Create task",
       "mark": "Empty task list"
    },
    "discovery": {

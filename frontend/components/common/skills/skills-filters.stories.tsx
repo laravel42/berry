@@ -19,11 +19,18 @@ const creators = [
 function Toolbar({ initial }: { initial: SkillCriteria }) {
    const [criteria, setCriteria] = useState(initial);
    const [filters, setFilters] = useState<FiltersState>([]);
+   const [query, setQuery] = useState('');
    const columns = useSkillFilterColumns(skills, liveAgents, creators);
    const filter = useListFilters({ data: skills, columns, filters, onFiltersChange: setFilters });
    return (
       <div className="flex w-[720px] flex-col gap-2">
-         <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
+         <SkillsFilters
+            criteria={criteria}
+            onChange={setCriteria}
+            filter={filter}
+            query={query}
+            onQueryChange={setQuery}
+         />
          <p className="text-muted-foreground" data-testid="criteria">
             {criteria.sort} · {criteria.columns.join(', ')}
          </p>

@@ -102,14 +102,14 @@ export default function PromptLogs() {
 
    return (
       <div className="flex min-h-0 flex-1 flex-col">
-         <div className="flex flex-wrap items-center gap-2 border-b px-6 py-2">
+         <div className="flex flex-wrap items-center gap-2 border-b px-4 py-[6px]">
             <Select
                value={filter.kind ?? ANY}
                onValueChange={(value) =>
                   setFilter((f) => ({ ...f, kind: value === ANY ? null : (value as LogKind) }))
                }
             >
-               <SelectTrigger className="h-8 w-36" aria-label={t('filters.kind')}>
+               <SelectTrigger className="h-9 w-36" aria-label={t('filters.kind')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -127,7 +127,7 @@ export default function PromptLogs() {
                   setFilter((f) => ({ ...f, status: value === ANY ? null : (value as LogStatus) }))
                }
             >
-               <SelectTrigger className="h-8 w-40" aria-label={t('filters.status')}>
+               <SelectTrigger className="h-9 w-40" aria-label={t('filters.status')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -145,7 +145,7 @@ export default function PromptLogs() {
                   setFilter((f) => ({ ...f, purpose: value === ANY ? null : value }))
                }
             >
-               <SelectTrigger className="h-8 w-48" aria-label={t('filters.purpose')}>
+               <SelectTrigger className="h-9 w-48" aria-label={t('filters.purpose')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -166,7 +166,7 @@ export default function PromptLogs() {
                   }))
                }
             >
-               <SelectTrigger className="h-8 w-40" aria-label={t('filters.output')}>
+               <SelectTrigger className="h-9 w-40" aria-label={t('filters.output')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>

@@ -13,6 +13,22 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { localTimezone } from '@/lib/cron-schedule';
 import type { UsageQuery } from '@/lib/usage';
 
+/*
+ * DIRECTION CONTRACT (Impeccable surface b3f44305 · urgency-stack · code-led)
+ * THESIS: Usage reads top-to-bottom by what needs a person first — awaiting,
+ *   failures, spend — refusing the equal metric-tile dashboard.
+ * OWN-WORLD: Berry dark Operate shell; column-tint urgency bands; tabular mono
+ *   figures; semantic status tokens; BerryMark for run state.
+ * STORY: Operator sees who needs them, what failed, what it cost, then the rest.
+ * FIRST VIEWPORT: Title + Overview/Spend/Runs tabs + filters; stacked urgency
+ *   bands; quieter lists below a hairline.
+ * FORM: Urgency stack (seed deal index 5 of 7); signature: warning pulse on
+ *   awaiting when count > 0.
+ * FINISH: unreviewed and undocumented is unfinished; this build ends with the
+ *   finish review, the verdict, DESIGN.md, and every shipping raster carrying
+ *   its provenance.
+ */
+
 /**
  * One page for the workspace's activity and spend. Overview is what is
  * happening now; Spend is what a window of runs cost; Runs is how they ended.
@@ -46,8 +62,6 @@ function UsageScreen() {
       reload: () => void;
    }>({ lastUpdated: null, loading: false, reload: () => undefined });
 
-   // The tab's own read reports when it landed; keeping it in a ref-like state
-   // lets the filter bar above the tabs say so.
    const onState = useCallback(
       (next: { lastUpdated: Date | null; loading: boolean; reload: () => void }) => {
          setState((current) =>
@@ -68,9 +82,8 @@ function UsageScreen() {
    };
 
    const header = (
-      <div className="flex w-full flex-col gap-2 border-b px-6 py-3">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
-         <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-col items-center">
+         <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px]">
             <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
                <TabsList aria-label={t('tabs.label')}>
                   {TABS.map((name) => (
@@ -93,7 +106,7 @@ function UsageScreen() {
    );
 
    return (
-      <MainLayout header={header}>
+      <MainLayout header={header} headersNumber={1}>
          {tab === 'overview' ? <UsageNow query={query} onState={onState} /> : null}
          {tab === 'spend' ? <UsageOverview query={query} onState={onState} /> : null}
          {tab === 'runs' ? <UsageErrors query={query} onState={onState} /> : null}

@@ -19,7 +19,6 @@ import type { Approval } from '@/lib/approvals';
 import type { WorkProposal } from '@/lib/organization';
 import type { Pin } from '@/lib/pins';
 import type { RunRecord } from '@/lib/runs';
-import type { ShellTab } from '@/store/shell-store';
 import { useSessionStore, type SessionWorkspace } from '@/store/session-store';
 
 /* -------------------------------------------------------------------------- */
@@ -518,17 +517,6 @@ export const pins: Pin[] = [
 ];
 
 /** A working session's strip: the task list, a task, and the inbox. */
-export const shellTabs: ShellTab[] = [
-   { id: 'tab-1', href: '/tasks', label: 'Tasks' },
-   {
-      id: 'tab-2',
-      href: '/issue/BERR-42',
-      label: 'BERR-42',
-      title: 'BERR-42 Persist project health',
-   },
-   { id: 'tab-3', href: '/inbox', label: 'Inbox' },
-];
-
 export const runningRun: RunRecord = {
    id: 'run-1',
    issueId: 'issue-42',

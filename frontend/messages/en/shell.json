@@ -38,17 +38,12 @@
       "approvalsWaiting": "{count, plural, one {# approval waiting} other {# approvals waiting}}",
       "reviewsWaiting": "{count, plural, one {# review waiting} other {# reviews waiting}}"
    },
-   "tabs": {
-      "openViews": "Open views",
-      "newTab": "New tab",
-      "close": "Close {label}"
-   },
    "chat": {
-      "open": "Open chat",
-      "openUnread": "Open chat, {count} unread",
-      "close": "Close chat",
-      "onChatPage": "You are in chat",
-      "shortcutHint": "Chat anywhere with {keys}"
+      "open": "Open Agents",
+      "openUnread": "Open Agents, {count} unread",
+      "close": "Close Agents",
+      "onChatPage": "You are in Agents",
+      "shortcutHint": "Agents anywhere with {keys}"
    },
    "bell": {
       "notifications": "Notifications",

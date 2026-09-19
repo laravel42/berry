@@ -115,8 +115,8 @@ export function ChatSidebar({
             <h1 className="min-w-0 truncate">{t('title')}</h1>
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
-                  <Button size="xs" type="button" aria-label={t('newChat')}>
-                     <Plus className="size-3.5" />
+                  <Button size="xxs" type="button" aria-label={t('newChat')}>
+                     <Plus className="size-3" />
                   </Button>
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="max-h-96 min-w-60 overflow-y-auto">

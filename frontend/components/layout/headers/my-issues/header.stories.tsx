@@ -3,6 +3,7 @@ import { expect } from 'storybook/test';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
+import { useSearchStore } from '@/store/search-store';
 import { issues, seedSession, shellHandlers, workspaceRoute } from '../../stories-fixtures';
 import Header from './header';
 
@@ -25,6 +26,7 @@ const meta = {
       useIssuesStore.getState().hydrateIssues(issues);
       useRightPanelStore.setState({ openPanel: null });
       useCreateIssueStore.setState({ isOpen: false });
+      useSearchStore.setState({ isSearchOpen: false, searchQuery: '' });
       msw.use(...shellHandlers);
    },
 } satisfies Meta<typeof Header>;
@@ -53,5 +55,15 @@ export const Viewer: Story = {
 export const InsightsOpen: Story = {
    beforeEach: () => {
       useRightPanelStore.setState({ openPanel: 'insights' });
+   },
+};
+
+/** Typing into the toolbar search opens the shared search store. */
+export const Search: Story = {
+   play: async ({ canvas, userEvent }) => {
+      const search = canvas.getByPlaceholderText('Search tasks');
+      await userEvent.type(search, 'health');
+      await expect(useSearchStore.getState().searchQuery).toBe('health');
+      await expect(useSearchStore.getState().isSearchOpen).toBe(true);
    },
 };

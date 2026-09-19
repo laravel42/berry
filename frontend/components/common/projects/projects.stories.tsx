@@ -116,7 +116,8 @@ export const NoProjects: Story = {
       useProjectsStore.setState({ projects: [] });
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Create a project' }));
+      await expect(canvas.getByRole('heading', { name: 'No projects yet.' })).toBeVisible();
+      await userEvent.click(canvas.getByRole('button', { name: 'New project' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByRole('dialog', { name: 'New project' })).toBeVisible();
    },

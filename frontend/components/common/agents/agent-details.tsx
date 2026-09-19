@@ -20,7 +20,6 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useTabLabel } from '@/components/layout/shell/use-tab-label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
@@ -69,7 +68,6 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const upsertAgent = useAgentsStore((state) => state.upsertAgent);
 
    const [agent, setAgent] = useState<Agent | null>(storedAgent ?? null);
-   useTabLabel(agent?.name ?? null);
    const [status, setStatus] = useState<'loading' | 'ready' | 'missing' | 'forbidden'>(
       storedAgent ? 'ready' : 'loading'
    );

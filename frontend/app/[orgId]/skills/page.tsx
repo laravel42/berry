@@ -23,7 +23,6 @@ import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import SkillDetailHeader from '@/components/layout/headers/skills/detail-header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import { listSkills, type Skill } from '@/lib/skills';
@@ -115,28 +114,29 @@ function SkillsScreen() {
    };
 
    const header = (
-      <div className="flex w-full flex-col border-b">
-         <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
-            <h1 className="min-w-0 truncate">{t('title')}</h1>
-            {canEdit ? (
-               <Button size="xs" onClick={() => setCreating(true)}>
-                  <Plus className="size-3.5" />
-                  {t('create.title')}
-               </Button>
-            ) : null}
-         </div>
-         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-6 py-2">
-            <Input
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('search')}
-               aria-label={t('search')}
-               className="h-7 max-w-xs"
-            />
-            <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
-         </div>
-         <ListFilterBar filter={filter} className="border-b-0 border-t" />
-      </div>
+      <>
+         <SkillsFilters
+            criteria={criteria}
+            onChange={setCriteria}
+            filter={filter}
+            query={query}
+            onQueryChange={setQuery}
+            action={
+               canEdit ? (
+                  <Button
+                     size="xs"
+                     className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
+                     aria-label={t('create.title')}
+                     title={t('create.title')}
+                     onClick={() => setCreating(true)}
+                  >
+                     <Plus className="size-4" />
+                  </Button>
+               ) : null
+            }
+         />
+         <ListFilterBar filter={filter} />
+      </>
    );
 
    return (

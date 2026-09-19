@@ -6,8 +6,7 @@
    "empty": {
       "mark": "No projects",
       "title": "No projects yet.",
-      "body": "A project is a shared plan for related work — status, health, and a target date in one place.",
-      "cta": "Create a project"
+      "body": "A project is a shared plan for related work — status, health, and a target date in one place."
    },
    "states": {
       "hiddenByFilters": "{count, plural, =1 {1 project} other {# projects}} hidden by filters",

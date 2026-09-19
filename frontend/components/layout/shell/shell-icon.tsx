@@ -60,18 +60,6 @@ export const shellIconButton = [
 ].join(' ');
 
 /**
- * A 44px touch target for a 26px control in the tab strip, below `lg` only.
- *
- * The strip's icon buttons draw at 26px so they read as chrome rather than
- * as page buttons, but a fingertip needs 44. The pseudo-element extends the
- * hit area by 9px on every side without changing what is drawn; the strip
- * spaces the buttons 18px apart on narrow screens so two hit areas meet
- * rather than overlap.
- */
-export const shellStripHitArea =
-   "relative max-lg:before:absolute max-lg:before:-inset-[9px] max-lg:before:content-['']";
-
-/**
  * A rail row: icon plus label, highlighted when it is where you are.
  *
  * Shared by the workspace routes, Personal and the settings rail so the three

@@ -1,16 +1,13 @@
 'use client';
 
-import { shellIconButton, shellStripHitArea } from '@/components/layout/shell/shell-icon';
+import { shellIconButton } from '@/components/layout/shell/shell-icon';
 import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { Bell } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 /**
- * The bell at the right of the tab strip.
- *
- * Pinned outside the strip's scroll area: the tabs scroll when enough are
- * open, and a notification count that scrolls out of view is not a count.
+ * The bell in the shell's floating corner chrome.
  *
  * The badge is a number up to nine and a dot beyond it. Past a handful the
  * exact figure stops being information — what it is telling you is "more than
@@ -37,7 +34,7 @@ export function NotificationBell() {
             unread > 0 ? t('bell.notificationsUnread', { count: unread }) : t('bell.notifications')
          }
          aria-expanded={isOpen}
-         className={`mr-1.5 ml-1 size-[26px] self-center max-lg:mx-[9px] ${shellIconButton} ${shellStripHitArea}`}
+         className={`relative size-9 shadow-md ${shellIconButton}`}
       >
          <Bell size={15} strokeWidth={1.8} aria-hidden="true" />
          {unread > 0 ? (

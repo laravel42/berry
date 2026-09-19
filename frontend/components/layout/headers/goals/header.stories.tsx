@@ -13,11 +13,13 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: /Open/ })).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: /All/ })).toBeVisible();
+      await expect(canvas.getByPlaceholderText('Search goals')).toBeVisible();
    },
 };
 
-/** At phone width the title still sits alone in the row. */
+/** At phone width the scope tabs still fit. */
 export const Narrow: Story = {
    decorators: [
       (Story) => (

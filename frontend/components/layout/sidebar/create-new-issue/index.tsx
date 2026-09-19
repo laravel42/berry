@@ -653,7 +653,7 @@ export function CreateNewIssue() {
                   />
                   {t('createAnother')}
                </label>
-               <Button size="sm" disabled={pending} onClick={() => void create()}>
+               <Button size="xs" disabled={pending} onClick={() => void create()}>
                   {pending ? t('creating') : t('create')}
                </Button>
             </div>

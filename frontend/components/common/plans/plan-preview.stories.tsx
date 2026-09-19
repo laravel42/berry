@@ -71,7 +71,9 @@ export const ReadyToStart: Story = {
       await expect(canvas.getByText('2 milestones · 4 tasks · 2 approvals')).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Start Plan' }));
       // The approved record replaces the draft: the actions go, the outcome shows.
-      await expect(await canvas.findByText('4 tasks · 2 approvals created.')).toBeVisible();
+      await expect(
+         await canvas.findByText('Plan started · 4 tasks · 2 approvals created')
+      ).toBeVisible();
       await expect(canvas.queryByRole('button', { name: 'Start Plan' })).toBeNull();
    },
 };
@@ -108,10 +110,57 @@ export const WaitingForAdmin: Story = {
    },
 };
 
+/** A started plan tails what became of its tasks: routing, then each run. */
 export const Started: Story = {
    args: { planId: startedPlan.id },
    beforeEach: ({ msw }) => {
-      msw.use(servePlan(startedPlan));
+      msw.use(
+         servePlan(startedPlan),
+         http.get('*/api/v1/plans/:id/events', () =>
+            HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'ev-exec',
+                     sequence: 9,
+                     stage: 'execute',
+                     outcome: 'ok',
+                     detail: { assigned: 4, started: 2, unassigned: 0 },
+                     occurredAt: '2026-09-18T11:50:05Z',
+                  },
+               ],
+            })
+         ),
+         http.get('*/api/v1/issues/:issueId/runs', ({ params }) => {
+            const issueId = String(params.issueId);
+            const pageInfo = { hasNextPage: false, endCursor: null };
+            if (issueId !== 'issue-101') return HttpResponse.json({ nodes: [], pageInfo });
+            return HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'run-1',
+                     issueId,
+                     agentId: 'agent-1',
+                     status: 'running',
+                     sequence: 1,
+                     summary: null,
+                     usage: {
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        totalTokens: 0,
+                        costMicros: null,
+                        currency: null,
+                     },
+                     failure: null,
+                     source: 'assignment',
+                     createdAt: '2026-09-18T11:50:10Z',
+                     startedAt: '2026-09-18T11:50:12Z',
+                     completedAt: null,
+                  },
+               ],
+               pageInfo,
+            });
+         })
+      );
       // The created tasks are linked when the board already holds them.
       useIssuesStore.setState({
          issues: [
@@ -127,6 +176,14 @@ export const Started: Story = {
             },
          ] as never,
       });
+   },
+   play: async ({ canvas }) => {
+      const log = await canvas.findByRole('status', { name: 'Plan execution log' });
+      await expect(await within(log).findByText('Routed · 4 assigned · 2 started')).toBeVisible();
+      await expect(within(log).getByText('BERR-101')).toBeVisible();
+      await expect(within(log).getByText(/running/)).toBeVisible();
+      await expect(canvas.queryByRole('button', { name: 'View tasks' })).toBeNull();
+      await expect(canvas.queryByRole('button', { name: 'Transcript' })).toBeNull();
    },
 };
 

@@ -11,7 +11,7 @@ const meta = {
    parameters: { nextjs: { navigation: workspaceRoute('/elian/tasks') } },
    decorators: [
       (Story) => (
-         <div className="flex h-[34px] w-40 items-stretch justify-end bg-[var(--shell-rail)] px-2 text-[var(--shell-text)]">
+         <div className="flex h-12 w-48 items-center justify-center bg-[var(--shell-canvas)] text-[var(--shell-text)]">
             <Story />
          </div>
       ),
@@ -27,11 +27,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Closed: Story = {
    play: async ({ canvas, userEvent }) => {
-      const button = canvas.getByRole('button', { name: 'Open chat' });
+      const button = canvas.getByRole('button', { name: 'Open Agents' });
       await expect(button).toHaveAttribute('aria-expanded', 'false');
+      await expect(button).toHaveTextContent('Agents');
       await userEvent.click(button);
       await expect(useShellStore.getState().chatWindow).not.toBe('closed');
-      await expect(canvas.getByRole('button', { name: 'Close chat' })).toHaveAttribute(
+      await expect(canvas.getByRole('button', { name: 'Close Agents' })).toHaveAttribute(
          'aria-expanded',
          'true'
       );
@@ -43,7 +44,7 @@ export const Unread: Story = {
       useShellStore.setState({ chatUnread: 2 });
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('button', { name: 'Open chat, 2 unread' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Open Agents, 2 unread' })).toBeVisible();
    },
 };
 
@@ -51,7 +52,7 @@ export const Unread: Story = {
 export const OnChatPage: Story = {
    parameters: { nextjs: { navigation: workspaceRoute('/elian/chat') } },
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('button', { name: 'Open chat' })).toBeDisabled();
+      await expect(canvas.getByRole('button', { name: 'Open Agents' })).toBeDisabled();
    },
 };
 
@@ -59,7 +60,14 @@ export const TurnedOff: Story = {
    beforeEach: () => {
       useUiPrefsStore.setState({ floatingChat: false });
    },
-   play: async ({ canvas }) => {
-      await expect(canvas.queryByRole('button', { name: /chat/i })).toBeNull();
+   play: async ({ canvas, userEvent }) => {
+      // Launcher stays put when the panel preference is off; a click turns
+      // the panel back on so origins that disagree on the pref (Chrome vs
+      // Cursor's Simple Browser) do not lose the control.
+      const button = canvas.getByRole('button', { name: 'Open Agents' });
+      await expect(button).toBeVisible();
+      await userEvent.click(button);
+      await expect(useUiPrefsStore.getState().floatingChat).toBe(true);
+      await expect(useShellStore.getState().chatWindow).not.toBe('closed');
    },
 };

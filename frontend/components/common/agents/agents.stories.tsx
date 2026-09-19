@@ -93,10 +93,8 @@ export const EmptyWorkspace: Story = {
       );
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByRole('link', { name: 'Create an agent' })).toHaveAttribute(
-         'href',
-         '/berry/agents/new'
-      );
+      await expect(await canvas.findByRole('heading', { name: 'No agents yet.' })).toBeVisible();
+      await expect(canvas.queryByRole('link', { name: 'Create an agent' })).toBeNull();
    },
 };
 

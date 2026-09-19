@@ -37,6 +37,7 @@ export default function AutopilotsPage() {
    const [people, setPeople] = useState<User[]>([]);
    const [criteria, setCriteria] = useState<AutopilotCriteria>(DEFAULT_AUTOPILOT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
+   const [query, setQuery] = useState('');
    const [creating, setCreating] = useState(false);
    const [template, setTemplate] = useState<{ name: string; prompt: string } | null>(null);
 
@@ -84,31 +85,44 @@ export default function AutopilotsPage() {
    });
 
    /** The list arrives whole and is short, so it is narrowed here. */
-   const shown = useMemo(
-      () => applyListFilters(autopilots, filterColumns, filters),
-      [autopilots, filterColumns, filters]
-   );
+   const shown = useMemo(() => {
+      const filtered = applyListFilters(autopilots, filterColumns, filters);
+      const term = query.trim().toLowerCase();
+      if (!term) return filtered;
+      return filtered.filter((autopilot) => {
+         if (autopilot.name.toLowerCase().includes(term)) return true;
+         if ((autopilot.description ?? '').toLowerCase().includes(term)) return true;
+         return assigneeName(autopilot).toLowerCase().includes(term);
+      });
+   }, [autopilots, filterColumns, filters, query, assigneeName]);
 
    const header = (
-      <div className="flex w-full flex-col gap-2 border-b px-6 py-3">
-         <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="min-w-0 truncate">{t('title')}</h1>
-            {canEdit ? (
-               <Button
-                  size="xs"
-                  onClick={() => {
-                     setTemplate(null);
-                     setCreating(true);
-                  }}
-               >
-                  <Plus className="size-4" />
-                  {t('new')}
-               </Button>
-            ) : null}
-         </div>
-         <AutopilotsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
-         <ListFilterBar filter={filter} className="border-b-0 bg-transparent px-0 py-0" />
-      </div>
+      <>
+         <AutopilotsFilters
+            criteria={criteria}
+            onChange={setCriteria}
+            filter={filter}
+            query={query}
+            onQueryChange={setQuery}
+            action={
+               canEdit ? (
+                  <Button
+                     size="xs"
+                     className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
+                     aria-label={t('new')}
+                     title={t('new')}
+                     onClick={() => {
+                        setTemplate(null);
+                        setCreating(true);
+                     }}
+                  >
+                     <Plus className="size-4" />
+                  </Button>
+               ) : null
+            }
+         />
+         <ListFilterBar filter={filter} />
+      </>
    );
 
    return (
@@ -121,7 +135,7 @@ export default function AutopilotsPage() {
             assigneeName={assigneeName}
             canEdit={canEdit}
             onChanged={reload}
-            narrowed={filter.filters.length > 0}
+            narrowed={filter.filters.length > 0 || query.trim() !== ''}
             onUseTemplate={(chosen) => {
                setTemplate(chosen);
                setCreating(true);

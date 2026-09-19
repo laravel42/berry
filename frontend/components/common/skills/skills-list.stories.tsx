@@ -89,6 +89,12 @@ export const Loading: Story = { args: { skills: null } };
 
 export const NoMatch: Story = { args: { skills: [], narrowed: true } };
 
-export const Empty: Story = { args: { skills: [] } };
+export const Empty: Story = {
+   args: { skills: [] },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('heading', { name: 'No skills yet.' })).toBeVisible();
+      await expect(canvas.queryByRole('button', { name: 'Create a skill' })).toBeNull();
+   },
+};
 
 export const LoadFailed: Story = { args: { error: 'The skills catalogue could not be loaded.' } };

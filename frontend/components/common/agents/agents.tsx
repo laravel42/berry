@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -26,6 +25,12 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+   EmptyState,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
 import { BerryApiError } from '@/lib/api';
 import {
    archiveAgent,
@@ -273,59 +278,11 @@ export default function Agents() {
    };
 
    return (
-      <div className="flex h-full w-full flex-col">
-         <ListFilterBar filter={filter} />
+      <div className="flex h-full min-h-0 w-full flex-col">
+         <div className="w-full shrink-0">
+            <ListFilterBar filter={filter} />
+         </div>
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
-               <Checkbox
-                  checked={allSelected}
-                  onCheckedChange={() =>
-                     setSelected(allSelected ? [] : rows.map((agent) => agent.id))
-                  }
-                  aria-label={t('selectAll')}
-                  className="shrink-0"
-               />
-               <button
-                  type="button"
-                  onClick={() => sortBy('name')}
-                  className={cn(
-                     'min-w-0 flex-1 text-left hover:text-foreground',
-                     sortKey === 'name' && 'text-foreground'
-                  )}
-               >
-                  {t('colAgent')}
-                  {sortKey === 'name' ? (
-                     <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span>
-                  ) : null}
-               </button>
-               {header('activity', t('colActivity'))}
-               {header('lastActive', t('colLastActive'))}
-               {header('model', t('colModel'))}
-               {header('access', t('colAccess'))}
-               <span className="size-6 shrink-0" aria-hidden />
-            </div>
-
-            {bulkReport ? (
-               <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
-                  <div className="flex items-center gap-3">
-                     <span>
-                        {t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}
-                     </span>
-                     <Button size="xs" variant="ghost" onClick={() => setBulkReport(null)}>
-                        {common('close')}
-                     </Button>
-                  </div>
-                  {bulkReport.failures.length > 0 ? (
-                     <ul className="mt-1 text-muted-foreground">
-                        <li>{t('bulkFailed', { count: bulkReport.failures.length })}</li>
-                        {bulkReport.failures.map((failure) => (
-                           <li key={failure}>{failure}</li>
-                        ))}
-                     </ul>
-                  ) : null}
-               </div>
-            ) : null}
-
             {loading ? (
                <div className="flex flex-col gap-px p-6">
                   {[0, 1, 2, 3, 4].map((row) => (
@@ -345,49 +302,110 @@ export default function Agents() {
                   </Button>
                </div>
             ) : rows.length === 0 ? (
-               <div className="px-6 py-10 text-muted-foreground">
+               <EmptyState
+                  icon={
+                     <EmptyStateMark
+                        label={
+                           filter.filters.length > 0
+                              ? t('noMatch')
+                              : scope === 'archived'
+                                ? t('emptyArchived')
+                                : t('empty')
+                        }
+                     />
+                  }
+               >
                   {filter.filters.length > 0 ? (
-                     t('noMatch')
+                     <EmptyStateText>{t('noMatch')}</EmptyStateText>
                   ) : scope === 'archived' ? (
-                     t('emptyArchived')
+                     <EmptyStateText>{t('emptyArchived')}</EmptyStateText>
                   ) : (
-                     <div className="flex max-w-md flex-col items-start gap-3">
-                        <h2 className="text-foreground">{t('empty')}</h2>
-                        <p className="leading-relaxed">{t('emptyHint')}</p>
-                        <Button asChild>
-                           <Link href={`/${orgId}/agents/new`}>{t('emptyCta')}</Link>
-                        </Button>
-                     </div>
+                     <>
+                        <EmptyStateTitle>{t('empty')}</EmptyStateTitle>
+                        <EmptyStateText>{t('emptyHint')}</EmptyStateText>
+                     </>
                   )}
-               </div>
+               </EmptyState>
             ) : (
-               rows.map((agent) => (
-                  <AgentLine
-                     key={agent.id}
-                     agent={agent}
-                     roster={roster.get(agent.id)}
-                     columns={columns}
-                     selected={selected.includes(agent.id)}
-                     onToggleSelected={toggleSelected}
-                     actions={{
-                        onDuplicate: (target) =>
-                           router.push(`/${orgId}/agents/new?duplicate=${target.id}`),
-                        onCancelRuns: (target) => {
-                           const entry = roster.get(target.id);
-                           const running = entry?.running ?? 0;
-                           const queued = entry?.queued ?? 0;
-                           if (running + queued === 0) {
-                              toast.info(t('cancelRunsNone'));
-                              return;
-                           }
-                           setConfirm({ kind: 'cancel-runs', agent: target, running, queued });
-                        },
-                        onArchive: (target) =>
-                           setConfirm({ kind: 'archive', agent: target, running: 0, queued: 0 }),
-                        onRestore: (target) => void restore(target),
-                     }}
-                  />
-               ))
+               <>
+                  <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
+                     <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={() =>
+                           setSelected(allSelected ? [] : rows.map((agent) => agent.id))
+                        }
+                        aria-label={t('selectAll')}
+                        className="shrink-0"
+                     />
+                     <button
+                        type="button"
+                        onClick={() => sortBy('name')}
+                        className={cn(
+                           'min-w-0 flex-1 text-left hover:text-foreground',
+                           sortKey === 'name' && 'text-foreground'
+                        )}
+                     >
+                        {t('colAgent')}
+                        {sortKey === 'name' ? (
+                           <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span>
+                        ) : null}
+                     </button>
+                     {header('activity', t('colActivity'))}
+                     {header('lastActive', t('colLastActive'))}
+                     {header('model', t('colModel'))}
+                     {header('access', t('colAccess'))}
+                     <span className="size-6 shrink-0" aria-hidden />
+                  </div>
+
+                  {bulkReport ? (
+                     <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
+                        <div className="flex items-center gap-3">
+                           <span>
+                              {t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}
+                           </span>
+                           <Button size="xs" variant="ghost" onClick={() => setBulkReport(null)}>
+                              {common('close')}
+                           </Button>
+                        </div>
+                        {bulkReport.failures.length > 0 ? (
+                           <ul className="mt-1 text-muted-foreground">
+                              <li>{t('bulkFailed', { count: bulkReport.failures.length })}</li>
+                              {bulkReport.failures.map((failure) => (
+                                 <li key={failure}>{failure}</li>
+                              ))}
+                           </ul>
+                        ) : null}
+                     </div>
+                  ) : null}
+
+                  {rows.map((agent) => (
+                     <AgentLine
+                        key={agent.id}
+                        agent={agent}
+                        roster={roster.get(agent.id)}
+                        columns={columns}
+                        selected={selected.includes(agent.id)}
+                        onToggleSelected={toggleSelected}
+                        actions={{
+                           onDuplicate: (target) =>
+                              router.push(`/${orgId}/agents/new?duplicate=${target.id}`),
+                           onCancelRuns: (target) => {
+                              const entry = roster.get(target.id);
+                              const running = entry?.running ?? 0;
+                              const queued = entry?.queued ?? 0;
+                              if (running + queued === 0) {
+                                 toast.info(t('cancelRunsNone'));
+                                 return;
+                              }
+                              setConfirm({ kind: 'cancel-runs', agent: target, running, queued });
+                           },
+                           onArchive: (target) =>
+                              setConfirm({ kind: 'archive', agent: target, running: 0, queued: 0 }),
+                           onRestore: (target) => void restore(target),
+                        }}
+                     />
+                  ))}
+               </>
             )}
          </div>
 

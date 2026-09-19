@@ -3,26 +3,26 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { MessageSquare } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { formatCombo } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
 import { useShortcutBindings } from '@/store/shortcuts-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
-import { shellIconButton, shellStripHitArea } from './shell-icon';
 
 /**
- * The chat launcher, beside the bell at the right of the tab strip.
+ * Flat "Agents" launcher at the bottom-right of the body frame.
  *
- * It opens the floating chat window that `FloatingChat` draws. The window
- * used to launch from a berry-coloured circle fixed in the page's corner,
- * which covered whatever a page put there — Approve on a review, Send on a
- * comment. Chrome belongs in the chrome, and berry red belongs to the one
- * primary action on a view, so the launcher is a strip button like the bell.
+ * Opens the floating chat window that `FloatingChat` draws. Always rendered:
+ * Preferences → General can turn the floating *panel* off, and that preference
+ * is stored per browser origin. A click while the panel is off turns it back
+ * on and opens. Disabled on the chat page, which is this window's full-size
+ * counterpart.
  *
- * The same rules as the window: disabled on the chat page, which is this
- * window's full-size counterpart, and absent when Preferences → General has
- * turned the window off.
+ * Quiet `bg-container` chip with a thin rotating brand-colour border
+ * (same motion as `.ai-animated-border`).
  */
 export function ShellChatButton() {
    const t = useTranslations('shell');
@@ -31,6 +31,7 @@ export function ShellChatButton() {
    const toggleChat = useShellStore((state) => state.toggleChat);
    const unread = useShellStore((state) => state.chatUnread);
    const floatingEnabled = useUiPrefsStore((state) => state.floatingChat);
+   const setFloatingChat = useUiPrefsStore((state) => state.setFloatingChat);
    const combo = useShortcutBindings()['chat.toggleFloating'];
 
    // The glyph for `mod` depends on the platform, which the server cannot
@@ -40,10 +41,8 @@ export function ShellChatButton() {
       setHint(combo ? formatCombo(combo) : null);
    }, [combo]);
 
-   if (!floatingEnabled) return null;
-
    const onChatPage = pathname.includes('/chat');
-   const open = chatWindow !== 'closed';
+   const open = floatingEnabled && chatWindow !== 'closed';
    const label = open
       ? t('chat.close')
       : unread > 0
@@ -56,25 +55,31 @@ export function ShellChatButton() {
         : label;
 
    return (
-      <button
-         type="button"
-         onClick={toggleChat}
-         disabled={onChatPage}
-         aria-label={label}
-         aria-expanded={open}
-         title={title}
-         className={`ml-1 size-[26px] self-center max-lg:mx-[9px] ${shellIconButton} ${shellStripHitArea}`}
-      >
-         <MessageSquare size={15} strokeWidth={1.8} aria-hidden="true" />
-         {unread > 0 && !open ? (
-            // A dot, not a count: the rail's Chat row carries the number. Azure,
-            // the colour agents speak in, rather than the red the bell uses for
-            // things addressed to you.
-            <span
-               aria-hidden="true"
-               className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-[var(--brand-azure)] ring-2 ring-[var(--shell-rail)]"
-            />
-         ) : null}
-      </button>
+      <span className={cn('ai-animated-border h-6', onChatPage && 'opacity-40')}>
+         <Button
+            type="button"
+            variant="outline"
+            size="xxs"
+            onClick={() => {
+               if (!floatingEnabled) setFloatingChat(true);
+               toggleChat();
+            }}
+            disabled={onChatPage}
+            aria-label={label}
+            aria-expanded={open}
+            title={title}
+            data-open={open ? 'true' : undefined}
+            className="relative h-full min-h-0 border-0 bg-container shadow-none hover:bg-container hover:text-foreground data-[open=true]:bg-container data-[open=true]:text-foreground"
+         >
+            <Sparkles className="size-3.5" aria-hidden="true" />
+            {t('nav.agents')}
+            {unread > 0 && !open ? (
+               <span
+                  aria-hidden="true"
+                  className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--brand-azure)]"
+               />
+            ) : null}
+         </Button>
+      </span>
    );
 }

@@ -23,6 +23,7 @@ import {
    useListFilters,
 } from '@/components/common/filters/list-filters';
 import ProjectsBoard, { type ProjectBoardEntry } from './projects-board';
+import { CreateProjectButton } from './create-project-button';
 import { CreateProjectDialog } from './create-project-dialog';
 import { EmptyProjects } from './empty-projects';
 import { ProjectsDisplayOptions } from './projects-display-options';
@@ -216,17 +217,16 @@ export default function Projects() {
    return (
       <div className="w-full h-full flex flex-col overflow-hidden">
          <CreateProjectDialog />
-         <div className="w-full flex items-center gap-2 border-b py-1.5 px-6 h-10 shrink-0">
+         <div className="mb-1 flex w-full shrink-0 items-center gap-2 border-b px-4 py-[6px] [&_button]:!h-9 [&_button[aria-label='New project']]:!h-[34px] [&_button[aria-label='New project']]:!w-[42px] [&_input]:!h-9">
             <Input
-               className="h-7 max-w-64"
+               className="h-9 max-w-64"
                placeholder={lists('projects.search')}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
             />
-            <div className="ml-auto flex items-center gap-1">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
                {viewType === 'timeline' && <TimelineScaleControls />}
                <ListFilterTrigger filter={filter} />
-               <ProjectsDisplayOptions />
                <Button
                   size="xs"
                   variant="outline"
@@ -239,6 +239,8 @@ export default function Projects() {
                   <BarChart3 className="size-4" />
                   Insights
                </Button>
+               <ProjectsDisplayOptions />
+               <CreateProjectButton className="ml-1" />
             </div>
          </div>
 

@@ -19,12 +19,11 @@ const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
  * The rail's "personal" section: the three places that are about you rather
  * than about the workspace.
  *
- * Inbox is the notifications page. The bell in the tab strip still opens the
- * drawer beside whatever you were already doing. The unread counts on inbox
- * and chat follow the workspace event stream, so a task assigned to you while
- * you are reading something else shows up without a refresh. Chat's figure
- * is kept by `useChatUnreadSync` in the shell, which the strip's chat button
- * reads too.
+ * Inbox is the notifications page. Unread counts on the rail row are how you
+ * know something arrived without a floating drawer. Inbox and chat follow the
+ * workspace event stream, so a task assigned to you while you are reading
+ * something else shows up without a refresh. Chat's figure is kept by
+ * `useChatUnreadSync` in the shell, which the floating chat button reads too.
  */
 export function ShellPersonal({ orgId }: { orgId: string }) {
    const t = useTranslations('navigation.sidebar');
@@ -33,8 +32,8 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const serverUnreadCount = useNotificationsStore((state) => state.serverUnreadCount);
    const chatUnread = useShellStore((state) => state.chatUnread);
 
-   // The loaded list is what the drawer will show, so it is what the badge
-   // counts; the server figure stands in until the first load arrives.
+   // The loaded list is what Inbox shows, so it is what the badge counts;
+   // the server figure stands in until the first load arrives.
    const local = notifications.filter((item) => !item.read).length;
    const inboxUnread = notifications.length > 0 ? local : (serverUnreadCount ?? 0);
 

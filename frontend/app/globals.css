@@ -295,7 +295,7 @@
       lint rule is what keeps this block the single source of truth rather
       than merely the default. */
    body {
-      @apply bg-background text-foreground font-sans text-xs;
+      @apply text-foreground font-sans text-xs;
       --font-sans: var(--font-jetbrains-mono);
       --font-mono: var(--font-jetbrains-mono);
       --font-display: var(--font-dm-serif);
@@ -304,7 +304,7 @@
          small size. Now that text-xs is the body default, the weight it was
          paired with has to move with it or every label in the app thins out. */
       font-weight: 400;
-      min-height: 100svh;
+      min-height: 100vh;
    }
 
    /* Written against the tokens rather than with `@apply`, because `text-base`
@@ -495,6 +495,36 @@
    }
 }
 
+/* --- App frame ------------------------------------------------------------
+   Outside any @layer on purpose. Body's `@apply bg-background` lives in the
+   base layer; a near-identical void colour made the inset look like a no-op
+   when anything in utilities won. Unlayered rules beat layered ones.
+   BerryShell sizes and margins itself from the inset vars. */
+:root {
+   --app-inset-t: 8px;
+   --app-inset-r: 6px;
+   --app-inset-b: 30px; /* frame bottom */
+   --app-inset-l: 0px;
+   --app-frame: #111113;
+}
+
+html {
+   background: var(--app-frame);
+}
+
+/* Border, not padding: in-flow children paint over body padding (overflow
+   clips at the padding edge), so padding never reads as a frame. Border sits
+   outside the content box and stays visible. */
+body {
+   background: var(--app-frame);
+   box-sizing: border-box;
+   height: 100dvh;
+   border-style: solid;
+   border-color: var(--app-frame);
+   border-width: var(--app-inset-t) var(--app-inset-r) var(--app-inset-b) var(--app-inset-l);
+   overflow: hidden;
+}
+
 /*
  * Unlayered so typed text stays --foreground. Layered placeholder utilities
  * also set -webkit-text-fill-color on the control, which WebKit then uses
@@ -577,53 +607,24 @@ input[type='search'] {
    }
 }
 
-/* Berry scrollbars. Thin, hairline-toned, theme-aware via semantic tokens so
-   light and dark both get a quiet thumb that matches borders rather than the
-   OS chrome. `.no-scrollbar` and `.tabstrip` still opt out below. */
+/* Berry scrollbars. Hidden by default so lists and the canvas read as one
+   surface inside the framed shell; overflow still scrolls. `.no-scrollbar`
+   and `.tabstrip` stay as explicit aliases for the same treatment. */
 * {
-   scrollbar-width: thin;
-   scrollbar-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent) transparent;
+   scrollbar-width: none;
 }
 
 *::-webkit-scrollbar {
-   width: 8px;
-   height: 8px;
-}
-
-*::-webkit-scrollbar-track {
-   background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-   background-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
-   border-radius: 9999px;
-   border: 2px solid transparent;
-   background-clip: padding-box;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-   background-color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
-}
-
-*::-webkit-scrollbar-corner {
-   background: transparent;
-}
-
-/* The tab strip scrolls horizontally without advertising a scrollbar, matching
-   the prototype. `scrollbar-width` covers Firefox; the pseudo-element covers
-   WebKit. */
-.tabstrip {
-   scrollbar-width: none;
-}
-.tabstrip::-webkit-scrollbar {
    display: none;
+   width: 0;
+   height: 0;
 }
 
-/* Kanban columns (and other scroll regions) keep overflow without a visible
-   scrollbar. Firefox via scrollbar-width; WebKit via the pseudo-element. */
+.tabstrip,
 .no-scrollbar {
    scrollbar-width: none;
 }
+.tabstrip::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {
    display: none;
 }

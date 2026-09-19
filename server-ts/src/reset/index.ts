@@ -4,11 +4,12 @@ import { createLogger } from '../observability/log.ts';
 import { apply, assertBerryDatabase } from './reset.ts';
 
 /**
- * Empties a development database of its work.
+ * Empties a development database of everything but its setup.
  *
- * Projects, goals, tasks and runs go, along with everything that hangs off
- * them; workspaces, users, boards, agents and integrations stay, so the next
- * `pnpm dev` starts on a clean board rather than on an empty install.
+ * Users, workspaces, agents, skills and autopilots stay, with the rows they
+ * are made of; everything else goes — work, plans, runs, conversations,
+ * integrations, GitHub links, plugins and catalogues — so the next `pnpm dev`
+ * starts on a clean workspace rather than on an empty install.
  *
  * It refuses to run without `--yes`, refuses a database that has no Berry
  * schema, and prints the database it is about to empty before it does — a
@@ -42,8 +43,8 @@ try {
          run: 'pnpm reset:server yes',
          database: target?.db,
          server: target?.server,
-         removes: 'projects, goals, tasks, runs and everything that hangs off them',
-         keeps: 'workspaces, users, boards, agents, integrations',
+         removes: 'work, plans, runs, conversations, integrations, GitHub links, plugins, catalogues',
+         keeps: 'users, workspaces, agents, skills, autopilots',
       });
       await closeDatabase(sql);
       process.exit(1);
@@ -59,9 +60,16 @@ try {
    // about: they are GitHub's now, owned by the workspace's organization.
    // Deleting somebody's code because a development database was reset would
    // be unrecoverable, so the reset has no way to do it at all.
-   const counts = await apply(sql);
+   const { unlisted, ...counts } = await apply(sql);
 
    logger.info('reset complete', { ...counts });
+   if (unlisted.length > 0) {
+      // Emptied all the same, but the lists in reset.ts should name them.
+      logger.warn('tables not on either reset list were emptied by the sweep', {
+         tables: unlisted.join(', '),
+         fix: 'add each to KEPT_TABLES or EMPTIED_TABLES in src/reset/reset.ts',
+      });
+   }
 } catch (error) {
    logger.error('reset failed', { error: error instanceof Error ? error.message : String(error) });
    await closeDatabase(sql).catch(() => {});

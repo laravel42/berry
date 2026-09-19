@@ -71,6 +71,23 @@ const nextConfig: NextConfig = {
          },
       ];
    },
+   // Dev CSS/JS chunk names stay stable under Turbopack. Through the
+   // Cloudflare tunnel that becomes a 4h edge cache of a stale sheet, so
+   // `--app-inset-*` edits look like they never landed. Never cache them.
+   async headers() {
+      if (process.env.NODE_ENV === 'production') return [];
+      return [
+         {
+            source: '/_next/static/:path*',
+            headers: [
+               {
+                  key: 'Cache-Control',
+                  value: 'no-store, must-revalidate',
+               },
+            ],
+         },
+      ];
+   },
 };
 
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts');

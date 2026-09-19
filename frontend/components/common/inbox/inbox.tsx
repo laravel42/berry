@@ -257,7 +257,7 @@ export default function Inbox() {
                selectedId ? 'hidden md:flex' : 'flex'
             )}
          >
-            <div className="flex shrink-0 items-center gap-1.5 border-b px-4 py-2">
+            <div className="flex shrink-0 items-center gap-1.5 border-b px-4 py-[6px] [&_button]:!h-9">
                <InboxFilterBar
                   filter={filter}
                   show={show}

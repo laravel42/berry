@@ -63,10 +63,10 @@ export function InboxFilterBar({
    };
 
    return (
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 [&_button]:!h-9">
          <DropdownMenu>
             <DropdownMenuTrigger asChild>
-               <Button size="xs" variant="outline" className="border-muted-foreground/15">
+               <Button size="xs" variant="outline" className="h-9 border-muted-foreground/15">
                   {showLabel[listMode]}
                   <ChevronDown className="size-3.5" />
                </Button>

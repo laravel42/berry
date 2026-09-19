@@ -198,8 +198,15 @@ export class RuntimeCompletion {
       return this.structured({ ...input, schema: z.looseObject({}) });
    }
 
-   async structured<S extends z.ZodType>(input: Call & { user: string; schema: S }): Promise<CompletionResult<z.output<S>>> {
-      const result = await this.#run(input, input.user, input.schema);
+   /**
+    * A typed answer to the user turn. `transcript` is the exchange before it,
+    * for a caller that drafts across several turns and still wants a shape
+    * back rather than prose.
+    */
+   async structured<S extends z.ZodType>(
+      input: Call & { user: string; schema: S; transcript?: TranscriptMessage[] }
+   ): Promise<CompletionResult<z.output<S>>> {
+      const result = await this.#run(input, input.user, input.schema, input.transcript);
       return result as CompletionResult<z.output<S>>;
    }
 

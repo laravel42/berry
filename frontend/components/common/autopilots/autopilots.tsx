@@ -29,6 +29,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import {
+   EmptyState,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
+import {
    archiveAutopilot,
    describeAutopilotFailure,
    updateAutopilot,
@@ -155,35 +161,48 @@ export default function Autopilots({
    }
 
    if (rows.length === 0) {
+      if (narrowed) {
+         return (
+            <EmptyState icon={<EmptyStateMark label={t('noMatch')} />}>
+               <EmptyStateText>{t('noMatch')}</EmptyStateText>
+            </EmptyState>
+         );
+      }
       return (
-         <div className="px-6 py-10">
-            <p className="text-muted-foreground">{narrowed ? t('noMatch') : t('empty')}</p>
-            {!narrowed && canEdit ? (
-               <div className="mt-6">
-                  <p className="font-medium">{t('templates.title')}</p>
-                  <p className="text-muted-foreground">{t('templates.hint')}</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                     {TEMPLATES.map((key) => (
-                        <button
-                           key={key}
-                           type="button"
-                           className="cursor-pointer rounded-md border p-3 text-left hover:bg-sidebar/50"
-                           onClick={() =>
-                              onUseTemplate({
-                                 name: t(`templates.${key}_name`),
-                                 prompt: t(`templates.${key}_prompt`),
-                              })
-                           }
-                        >
-                           <span className="block font-medium">{t(`templates.${key}_name`)}</span>
-                           <span className="mt-0.5 block line-clamp-2 text-muted-foreground">
-                              {t(`templates.${key}_prompt`)}
-                           </span>
-                        </button>
-                     ))}
+         <div className="flex h-full min-h-64 w-full items-center justify-center px-6 py-12">
+            <div className="flex w-full max-w-2xl flex-col items-center text-center">
+               <EmptyStateMark label={t('empty.mark')} />
+               <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>
+               <EmptyStateText>{t('empty.body')}</EmptyStateText>
+               {canEdit ? (
+                  <div className="mt-10 w-full text-left">
+                     <p className="font-medium">{t('templates.title')}</p>
+                     <p className="text-muted-foreground">{t('templates.hint')}</p>
+                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {TEMPLATES.map((key) => (
+                           <button
+                              key={key}
+                              type="button"
+                              className="cursor-pointer rounded-md border p-3 text-left hover:bg-sidebar/50"
+                              onClick={() =>
+                                 onUseTemplate({
+                                    name: t(`templates.${key}_name`),
+                                    prompt: t(`templates.${key}_prompt`),
+                                 })
+                              }
+                           >
+                              <span className="block font-medium">
+                                 {t(`templates.${key}_name`)}
+                              </span>
+                              <span className="mt-0.5 block line-clamp-2 text-muted-foreground">
+                                 {t(`templates.${key}_prompt`)}
+                              </span>
+                           </button>
+                        ))}
+                     </div>
                   </div>
-               </div>
-            ) : null}
+               ) : null}
+            </div>
          </div>
       );
    }
@@ -191,7 +210,7 @@ export default function Autopilots({
    return (
       <div className="flex h-full w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"

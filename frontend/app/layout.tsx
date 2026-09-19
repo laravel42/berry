@@ -40,7 +40,7 @@ export default async function RootLayout({
       // provider: next-themes injected an inline script React 19 refuses to run.
       <html lang={locale} className="dark" suppressHydrationWarning>
          <body
-            className={`${dmSerifDisplay.variable} ${jetBrainsMono.variable} bg-background antialiased`}
+            className={`${dmSerifDisplay.variable} ${jetBrainsMono.variable} antialiased`}
             suppressHydrationWarning
          >
             <NextIntlClientProvider>

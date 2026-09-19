@@ -21,7 +21,7 @@ interface AuthCardProps {
  */
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
    return (
-      <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-background px-4 py-10">
+      <div className="flex min-h-full flex-col items-center justify-center gap-6 bg-background px-4 py-10">
          <BerryWordmark size="lg" />
          <Card className="w-full max-w-sm">
             <CardHeader className="text-center">

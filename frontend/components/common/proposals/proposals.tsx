@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 
 import {
    EmptyState,
-   EmptyStateActions,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -16,7 +15,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { decideProposal, listProposals, type WorkProposal } from '@/lib/organization';
 import { useSessionStore } from '@/store/session-store';
@@ -139,18 +137,11 @@ function ProposalCard({
 
 function EmptyProposals() {
    const t = useTranslations('organization.proposals.empty');
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
 
    return (
       <EmptyState icon={<EmptyStateMark label={t('mark')} />}>
          <EmptyStateTitle>{t('title')}</EmptyStateTitle>
          <EmptyStateText>{t('body')}</EmptyStateText>
-         <EmptyStateActions>
-            <Button asChild className="h-10 px-5">
-               <Link href={`/${orgId}/autopilots`}>{t('cta')}</Link>
-            </Button>
-         </EmptyStateActions>
       </EmptyState>
    );
 }

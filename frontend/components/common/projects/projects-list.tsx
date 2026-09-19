@@ -25,7 +25,7 @@ export default function ProjectsList({ groups, selected, onToggleSelected }: Pro
 
    return (
       <div className="w-full h-full overflow-y-auto">
-         <div className="sticky top-0 z-10 flex items-center border-b bg-container px-6 py-1.5 text-muted-foreground">
+         <div className="sticky top-0 z-10 flex items-center border-b bg-container px-4 py-[6px] text-muted-foreground">
             {onToggleSelected ? <span className={PROJECT_SELECT_SLOT} aria-hidden /> : null}
             <div className={PROJECT_NAME_SLOT}>Name</div>
             <div className="ml-auto flex min-w-0 items-center">
