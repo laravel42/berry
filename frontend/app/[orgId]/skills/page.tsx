@@ -151,6 +151,7 @@ function SkillsScreen() {
             onOpen={(id) => open(id)}
             onChanged={reload}
             narrowed={query.trim() !== '' || filter.filters.length > 0}
+            onCriteriaChange={setCriteria}
          />
          {view ? (
             <DetailDrawerShell

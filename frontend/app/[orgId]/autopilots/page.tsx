@@ -136,6 +136,7 @@ export default function AutopilotsPage() {
             canEdit={canEdit}
             onChanged={reload}
             narrowed={filter.filters.length > 0 || query.trim() !== ''}
+            onCriteriaChange={setCriteria}
             onUseTemplate={(chosen) => {
                setTemplate(chosen);
                setCreating(true);

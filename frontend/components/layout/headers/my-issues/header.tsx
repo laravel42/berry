@@ -34,9 +34,9 @@ export default function Header() {
                else openSearch();
             }}
          />
+         <IssueFilterTrigger />
          <IssueFilterBarActions />
          <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-            <IssueFilterTrigger />
             <Button
                size="xs"
                variant="outline"

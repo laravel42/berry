@@ -55,7 +55,7 @@ export const List: Story = {
 /** Every column, newest first. */
 export const AllColumns: Story = {
    args: {
-      criteria: { sort: 'created', columns: ['status', 'mode', 'quota', 'updated'] },
+      criteria: { sort: 'created', sortDescending: true, columns: ['status', 'mode', 'quota', 'updated'] },
    },
 };
 

@@ -1,9 +1,6 @@
 'use client';
 
-import { Lock, MoreHorizontal } from 'lucide-react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useTranslations, useFormatter } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -17,16 +14,8 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuSeparator,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Progress } from '@/components/ui/progress';
 import {
    EmptyState,
@@ -41,9 +30,10 @@ import {
    updateAutopilot,
    type Autopilot,
 } from '@/lib/autopilots';
-import { WORKSPACE_SLUG } from '@/lib/config';
+import { cn } from '@/lib/utils';
 
-import type { AutopilotCriteria } from './autopilots-filters';
+import AutopilotLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './autopilot-line';
+import type { AutopilotColumn, AutopilotCriteria } from './autopilots-filters';
 
 interface Props {
    autopilots: Autopilot[];
@@ -56,29 +46,54 @@ interface Props {
    onChanged: () => void;
    narrowed: boolean;
    onUseTemplate: (template: { name: string; prompt: string }) => void;
+   /** Updates sort when a sortable column heading is clicked. */
+   onCriteriaChange?: (criteria: AutopilotCriteria) => void;
 }
 
 /** Something to start from, so an empty workspace is not an empty page. */
 const TEMPLATES = ['standup', 'triage', 'sweep', 'digest', 'release', 'watch'] as const;
 
-function sortAutopilots(list: Autopilot[], sort: AutopilotCriteria['sort']): Autopilot[] {
-   const sorted = [...list];
-   if (sort === 'updated') {
-      sorted.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-   } else if (sort === 'created') {
-      sorted.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-   } else {
-      sorted.sort((left, right) => left.name.localeCompare(right.name));
-   }
-   return sorted;
+function sortAutopilots(
+   list: Autopilot[],
+   sort: AutopilotCriteria['sort'],
+   descending: boolean
+): Autopilot[] {
+   const direction = descending ? -1 : 1;
+   return [...list].sort((left, right) => {
+      let cmp = 0;
+      if (sort === 'status') {
+         cmp = left.status.localeCompare(right.status);
+      } else if (sort === 'mode') {
+         cmp = left.executionMode.localeCompare(right.executionMode);
+      } else if (sort === 'quota') {
+         cmp =
+            left.quotaPeriod.localeCompare(right.quotaPeriod) ||
+            (left.quotaMax ?? -1) - (right.quotaMax ?? -1);
+      } else if (sort === 'updated') {
+         cmp = left.updatedAt.localeCompare(right.updatedAt);
+      } else if (sort === 'created') {
+         cmp = left.createdAt.localeCompare(right.createdAt);
+      } else {
+         cmp = left.name.localeCompare(right.name);
+      }
+      return direction * cmp;
+   });
 }
+
+/** Every visible column heading sorts; the Autopilot name is the flex column. */
+const SORT_FOR_COLUMN: Record<AutopilotColumn | 'autopilot', AutopilotCriteria['sort']> = {
+   autopilot: 'name',
+   status: 'status',
+   mode: 'mode',
+   quota: 'quota',
+   updated: 'updated',
+};
 
 /**
  * The workspace's autopilots.
  *
- * Pausing and deleting are offered per row and over a selection; a delete of
- * either size asks first, because an autopilot is a standing instruction and
- * losing one silently means work simply stops happening.
+ * Same table shape as Agents: sticky header, checkbox, name, optional cells,
+ * hover menu. Pausing and deleting are offered per row and over a selection.
  */
 export default function Autopilots({
    autopilots,
@@ -90,23 +105,20 @@ export default function Autopilots({
    onChanged,
    narrowed,
    onUseTemplate,
+   onCriteriaChange,
 }: Props) {
    const t = useTranslations('areas.autopilots');
-   const format = useFormatter();
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
    const [selection, setSelection] = useState<string[]>([]);
    const [confirming, setConfirming] = useState<Autopilot | null>(null);
    const [confirmingBulk, setConfirmingBulk] = useState(false);
    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
    const rows = useMemo(
-      () => sortAutopilots(autopilots, criteria.sort),
-      [autopilots, criteria.sort]
+      () => sortAutopilots(autopilots, criteria.sort, criteria.sortDescending),
+      [autopilots, criteria.sort, criteria.sortDescending]
    );
-   const shows = (column: AutopilotCriteria['columns'][number]) =>
-      criteria.columns.includes(column);
    const selected = rows.filter((row) => selection.includes(row.id));
+   const allSelected = rows.length > 0 && selection.length === rows.length;
 
    const fail = (failure: unknown) => toast.error(describeAutopilotFailure(failure));
 
@@ -148,6 +160,59 @@ export default function Autopilots({
       setSelection([]);
       toast.success(done);
       onChanged();
+   };
+
+   const toggle = (id: string) =>
+      setSelection((current) =>
+         current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
+      );
+
+   const sortBy = (sort: AutopilotCriteria['sort']) => {
+      if (!onCriteriaChange) return;
+      if (criteria.sort === sort) {
+         onCriteriaChange({ ...criteria, sortDescending: !criteria.sortDescending });
+         return;
+      }
+      // Dates default newest-first; names and labels default A→Z.
+      onCriteriaChange({
+         ...criteria,
+         sort,
+         sortDescending: sort === 'updated' || sort === 'created',
+      });
+   };
+
+   const sortMark = (key: AutopilotCriteria['sort']) =>
+      criteria.sort === key ? (
+         <span aria-hidden>{criteria.sortDescending ? ' ↓' : ' ↑'}</span>
+      ) : null;
+
+   const header = (column: AutopilotColumn, label: string) => {
+      if (!criteria.columns.includes(column)) return null;
+      const key = SORT_FOR_COLUMN[column];
+      const classes = cn(
+         'shrink-0 items-center gap-1',
+         COLUMN_WIDTH[column],
+         COLUMN_BREAKPOINT[column] ?? 'flex'
+      );
+      if (!onCriteriaChange) {
+         return <div className={classes}>{label}</div>;
+      }
+      return (
+         <div className={classes}>
+            <button
+               type="button"
+               onClick={() => sortBy(key)}
+               aria-label={label}
+               className={cn(
+                  'truncate hover:text-foreground',
+                  criteria.sort === key && 'text-foreground'
+               )}
+            >
+               {label}
+               {sortMark(key)}
+            </button>
+         </div>
+      );
    };
 
    if (!loaded && !error) {
@@ -209,146 +274,56 @@ export default function Autopilots({
    }
 
    return (
-      <div className="flex h-full w-full flex-col">
+      <div className="flex h-full min-h-0 w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"
                      aria-label={t('bulk.selectAll')}
-                     checked={rows.length > 0 && selection.length === rows.length}
-                     onCheckedChange={(checked) =>
-                        setSelection(checked === true ? rows.map((row) => row.id) : [])
+                     checked={allSelected}
+                     onCheckedChange={() =>
+                        setSelection(allSelected ? [] : rows.map((row) => row.id))
                      }
                   />
                ) : null}
-               {/* Cap the name so it cannot eat the row; meta stays right. */}
-               <div className="min-w-0 max-w-sm flex-1 truncate">{t('columns.autopilot')}</div>
-               <div className="ml-auto flex items-center gap-3">
-                  {shows('status') ? (
-                     <div className="w-20 shrink-0">{t('columns.status')}</div>
-                  ) : null}
-                  {shows('mode') ? (
-                     <div className="hidden w-40 shrink-0 lg:block">{t('columns.mode')}</div>
-                  ) : null}
-                  {shows('quota') ? (
-                     <div className="hidden w-32 shrink-0 xl:block">{t('columns.quota')}</div>
-                  ) : null}
-                  {shows('updated') ? (
-                     <div className="hidden w-28 shrink-0 sm:block">{t('columns.updated')}</div>
-                  ) : null}
-                  <div className="w-7 shrink-0" />
-               </div>
+               {onCriteriaChange ? (
+                  <button
+                     type="button"
+                     onClick={() => sortBy('name')}
+                     className={cn(
+                        'min-w-0 flex-1 text-left hover:text-foreground',
+                        criteria.sort === 'name' && 'text-foreground'
+                     )}
+                  >
+                     {t('columns.autopilot')}
+                     {sortMark('name')}
+                  </button>
+               ) : (
+                  <div className="min-w-0 flex-1">{t('columns.autopilot')}</div>
+               )}
+               {header('status', t('columns.status'))}
+               {header('mode', t('columns.mode'))}
+               {header('quota', t('columns.quota'))}
+               {header('updated', t('columns.updated'))}
+               <span className="size-6 shrink-0" aria-hidden />
             </div>
 
-            {rows.map((autopilot) => {
-               const paused = autopilot.status === 'paused';
-               return (
-                  <div
-                     key={autopilot.id}
-                     className="flex w-full items-center gap-3 border-b px-6 py-2.5 hover:bg-accent/40"
-                  >
-                     {canEdit ? (
-                        <Checkbox
-                           className="shrink-0"
-                           aria-label={t('bulk.select', { name: autopilot.name })}
-                           checked={selection.includes(autopilot.id)}
-                           onCheckedChange={() =>
-                              setSelection((current) =>
-                                 current.includes(autopilot.id)
-                                    ? current.filter((id) => id !== autopilot.id)
-                                    : [...current, autopilot.id]
-                              )
-                           }
-                        />
-                     ) : null}
-                     <Link
-                        href={`/${orgId}/autopilot/${autopilot.id}`}
-                        className="min-w-0 max-w-sm flex-1 overflow-hidden"
-                     >
-                        <span className="block truncate font-medium">{autopilot.name}</span>
-                        <span className="block truncate text-muted-foreground">
-                           {assigneeName(autopilot)}
-                        </span>
-                     </Link>
-                     <div className="ml-auto flex items-center gap-3">
-                        {shows('status') ? (
-                           <div className="w-20 shrink-0">
-                              <Badge
-                                 variant="outline"
-                                 className={
-                                    paused
-                                       ? 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral'
-                                       : 'border-status-success/40 bg-status-success/10 text-status-success'
-                                 }
-                              >
-                                 {t(`status.${autopilot.status}`)}
-                              </Badge>
-                           </div>
-                        ) : null}
-                        {shows('mode') ? (
-                           <div className="hidden w-40 shrink-0 truncate text-muted-foreground lg:block">
-                              {t(`mode.${autopilot.executionMode}`)}
-                           </div>
-                        ) : null}
-                        {shows('quota') ? (
-                           <div className="hidden w-32 shrink-0 text-muted-foreground xl:block">
-                              {autopilot.quotaPeriod === 'none'
-                                 ? t('quota.none')
-                                 : t('quota.some', {
-                                      count: autopilot.quotaMax ?? 0,
-                                      period: t(`quota.${autopilot.quotaPeriod}`),
-                                   })}
-                           </div>
-                        ) : null}
-                        {shows('updated') ? (
-                           <div className="hidden w-28 shrink-0 text-muted-foreground sm:block">
-                              {format.relativeTime(new Date(autopilot.updatedAt))}
-                           </div>
-                        ) : null}
-                        <div className="flex w-7 shrink-0 justify-end">
-                           {canEdit ? (
-                              <DropdownMenu>
-                                 <DropdownMenuTrigger asChild>
-                                    <Button
-                                       size="icon"
-                                       variant="ghost"
-                                       className="size-7"
-                                       aria-label={t('row.menu')}
-                                    >
-                                       <MoreHorizontal className="size-4" />
-                                    </Button>
-                                 </DropdownMenuTrigger>
-                                 <DropdownMenuContent align="end">
-                                    <DropdownMenuItem asChild>
-                                       <Link href={`/${orgId}/autopilot/${autopilot.id}`}>
-                                          {t('row.open')}
-                                       </Link>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                       onClick={() =>
-                                          void setStatus(autopilot, paused ? 'active' : 'paused')
-                                       }
-                                    >
-                                       {paused ? t('row.resume') : t('row.pause')}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem onClick={() => setConfirming(autopilot)}>
-                                       {t('row.delete')}
-                                    </DropdownMenuItem>
-                                 </DropdownMenuContent>
-                              </DropdownMenu>
-                           ) : (
-                              <Lock
-                                 className="size-4 text-muted-foreground"
-                                 aria-label={t('row.locked')}
-                              />
-                           )}
-                        </div>
-                     </div>
-                  </div>
-               );
-            })}
+            {rows.map((autopilot) => (
+               <AutopilotLine
+                  key={autopilot.id}
+                  autopilot={autopilot}
+                  columns={criteria.columns}
+                  assigneeName={assigneeName(autopilot)}
+                  canEdit={canEdit}
+                  selected={selection.includes(autopilot.id)}
+                  onToggleSelected={toggle}
+                  onPauseOrResume={(row) =>
+                     void setStatus(row, row.status === 'paused' ? 'active' : 'paused')
+                  }
+                  onConfirmDelete={setConfirming}
+               />
+            ))}
          </div>
 
          {canEdit && selected.length > 0 ? (

@@ -37,7 +37,8 @@ function Toolbar({ initial }: { initial: AutopilotCriteria }) {
             onQueryChange={setQuery}
          />
          <p className="text-muted-foreground" data-testid="criteria">
-            {criteria.sort} · {criteria.columns.join(', ')}
+            {criteria.sort}
+            {criteria.sortDescending ? ' ↓' : ' ↑'} · {criteria.columns.join(', ')}
          </p>
       </div>
    );
@@ -59,7 +60,7 @@ export const Default: Story = {
 };
 
 export const NewestFirst: Story = {
-   args: { initial: { sort: 'created', columns: ['status', 'quota'] } },
+   args: { initial: { sort: 'created', sortDescending: true, columns: ['status', 'quota'] } },
    play: async ({ canvas }) => {
       await expect(canvas.getByTestId('criteria')).toHaveTextContent(/^created/);
    },

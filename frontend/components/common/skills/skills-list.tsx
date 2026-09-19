@@ -1,7 +1,5 @@
 'use client';
 
-import { colorForSkillLabel } from '@/lib/skill-labels';
-import { Lock, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -14,33 +12,16 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuLabel,
-   DropdownMenuSeparator,
-   DropdownMenuSub,
-   DropdownMenuSubContent,
-   DropdownMenuSubTrigger,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
-import {
-   deleteSkill,
-   isSkillInUse,
-   refreshSkill,
-   setSkillForAgent,
-   type Skill,
-} from '@/lib/skills';
+import { deleteSkill, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
 import SkillBulkBar from './skill-bulk-bar';
-import type { SkillCriteria } from './skills-filters';
+import SkillLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './skill-line';
+import type { SkillColumn, SkillCriteria } from './skills-filters';
 
 interface Props {
    skills: Skill[] | null;
@@ -54,6 +35,8 @@ interface Props {
    onChanged: () => void;
    /** True while any filter or the search box is narrowing the list. */
    narrowed: boolean;
+   /** Updates sort when a sortable column heading is clicked. */
+   onCriteriaChange?: (criteria: SkillCriteria) => void;
 }
 
 function sortSkills(skills: Skill[], sort: SkillCriteria['sort']): Skill[] {
@@ -71,13 +54,19 @@ function sortSkills(skills: Skill[], sort: SkillCriteria['sort']): Skill[] {
    return sorted;
 }
 
+/** Which column heading sorts by what; the rest are labels only. */
+const SORT_FOR_COLUMN: Partial<Record<SkillColumn | 'skill', SkillCriteria['sort']>> = {
+   skill: 'name',
+   updated: 'updated',
+   agents: 'usage',
+};
+
 /**
  * The workspace's skills.
  *
- * The rows are what a person acts on: one at a time through the row menu, or
- * several at once through the bar that appears with a selection. A role that
- * cannot change the catalogue gets a lock where the menu would be, rather than
- * a menu whose every item fails.
+ * Same table shape as Agents: sticky header, checkbox, name, optional cells,
+ * hover menu. Rows are acted on one at a time through the menu, or several at
+ * once through the bar that appears with a selection.
  */
 export default function SkillsList({
    skills,
@@ -89,6 +78,7 @@ export default function SkillsList({
    onOpen,
    onChanged,
    narrowed,
+   onCriteriaChange,
 }: Props) {
    const t = useTranslations('areas.skills');
    const setOrderedIds = useSkillsCatalogueStore((state) => state.setOrderedIds);
@@ -98,7 +88,7 @@ export default function SkillsList({
 
    const rows = useMemo(() => sortSkills(skills ?? [], criteria.sort), [skills, criteria.sort]);
    const selected = rows.filter((skill) => selection.includes(skill.id));
-   const shows = (column: SkillCriteria['columns'][number]) => criteria.columns.includes(column);
+   const allSelected = rows.length > 0 && selection.length === rows.length;
 
    useEffect(() => {
       setOrderedIds(rows.map((skill) => skill.id));
@@ -130,29 +120,6 @@ export default function SkillsList({
    const fail = (failure: unknown, fallback: string) =>
       toast.error(failure instanceof BerryApiError ? failure.message : fallback);
 
-   const addTo = async (skill: Skill, agent: Agent) => {
-      try {
-         await setSkillForAgent(skill.id, agent.id, true);
-         toast.success(t('row.added', { skill: skill.name, agent: agent.name }));
-         onChanged();
-      } catch (failure) {
-         fail(failure, t('row.addFailed'));
-      }
-   };
-
-   const update = async (skill: Skill) => {
-      setRefreshingId(skill.id);
-      try {
-         await refreshSkill(skill.id);
-         toast.success(t('refresh.done'));
-         onChanged();
-      } catch (failure) {
-         fail(failure, t('refresh.failed'));
-      } finally {
-         setRefreshingId(null);
-      }
-   };
-
    const remove = async (skill: Skill) => {
       try {
          await deleteSkill(skill.id);
@@ -164,204 +131,98 @@ export default function SkillsList({
       }
    };
 
+   const sortBy = (sort: SkillCriteria['sort']) => {
+      onCriteriaChange?.({ ...criteria, sort });
+   };
+
+   const header = (column: SkillColumn, label: string, align?: string) => {
+      if (!criteria.columns.includes(column)) return null;
+      const key = SORT_FOR_COLUMN[column];
+      const classes = cn(
+         'shrink-0 items-center gap-1',
+         COLUMN_WIDTH[column],
+         COLUMN_BREAKPOINT[column] ?? 'flex',
+         align
+      );
+      if (!key || !onCriteriaChange) {
+         return (
+            <div className={classes} title={label}>
+               {label}
+            </div>
+         );
+      }
+      return (
+         <div className={classes}>
+            <button
+               type="button"
+               onClick={() => sortBy(key)}
+               aria-label={label}
+               className={cn(
+                  'truncate hover:text-foreground',
+                  criteria.sort === key && 'text-foreground'
+               )}
+            >
+               {label}
+               {criteria.sort === key ? <span aria-hidden> ↓</span> : null}
+            </button>
+         </div>
+      );
+   };
+
    return (
-      <div className="flex h-full w-full flex-col">
+      <div className="flex h-full min-h-0 w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-container px-4 py-[6px] text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"
                      aria-label={t('bulk.selectAll')}
-                     checked={rows.length > 0 && selection.length === rows.length}
-                     onCheckedChange={(checked) =>
-                        setSelection(checked === true ? rows.map((skill) => skill.id) : [])
+                     checked={allSelected}
+                     onCheckedChange={() =>
+                        setSelection(allSelected ? [] : rows.map((skill) => skill.id))
                      }
                   />
                ) : null}
-               <div className="min-w-0 flex-1">{t('columns.skill')}</div>
-               {shows('labels') ? (
-                  <div className="hidden w-52 shrink-0 md:block">{t('columns.labels')}</div>
-               ) : null}
-               {shows('agents') ? (
-                  <div className="hidden w-20 shrink-0 sm:block">{t('columns.agents')}</div>
-               ) : null}
-               {shows('creator') ? (
-                  <div className="hidden w-28 shrink-0 lg:block">{t('columns.creator')}</div>
-               ) : null}
-               {shows('updated') ? (
-                  <div className="hidden w-24 shrink-0 lg:block">{t('columns.updated')}</div>
-               ) : null}
-               {shows('files') ? (
-                  <div className="w-12 shrink-0 text-right">{t('columns.files')}</div>
-               ) : null}
-               <div className="w-6 shrink-0" />
-            </div>
-
-            {rows.map((skill) => {
-               const carried = skill.agents.filter((agent) => agent.enabled).length;
-               return (
-                  <div
-                     key={skill.id}
+               {onCriteriaChange ? (
+                  <button
+                     type="button"
+                     onClick={() => sortBy('name')}
                      className={cn(
-                        'flex min-h-9 w-full items-center gap-2 border-b border-muted-foreground/5 px-6 py-1.5 hover:bg-sidebar/50',
-                        openId === skill.id && 'bg-sidebar/60'
+                        'min-w-0 flex-1 text-left hover:text-foreground',
+                        criteria.sort === 'name' && 'text-foreground'
                      )}
                   >
-                     {canEdit ? (
-                        <Checkbox
-                           className="shrink-0"
-                           aria-label={t('bulk.select', { name: skill.name })}
-                           checked={selection.includes(skill.id)}
-                           onCheckedChange={() => toggle(skill.id)}
-                        />
-                     ) : null}
-                     <button
-                        type="button"
-                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
-                        onClick={() => onOpen(skill.id)}
-                     >
-                        <span className="min-w-0 flex-1">
-                           <span className="block truncate font-medium leading-none">
-                              {skill.name}
-                           </span>
-                           {skill.description ? (
-                              <span className="mt-0.5 line-clamp-1 block leading-snug text-muted-foreground">
-                                 {skill.description}
-                              </span>
-                           ) : null}
-                        </span>
-                        {shows('labels') ? (
-                           <div className="hidden w-52 min-w-0 shrink-0 flex-wrap items-center gap-1 overflow-hidden md:flex">
-                              {skill.labels.map((label) => {
-                                 const color = colorForSkillLabel(label);
-                                 return (
-                                    <span
-                                       key={label}
-                                       title={label}
-                                       className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
-                                       style={{
-                                          backgroundColor: `${color}26`,
-                                          borderColor: color,
-                                          color,
-                                       }}
-                                    >
-                                       <span className="max-w-[140px] truncate">{label}</span>
-                                    </span>
-                                 );
-                              })}
-                           </div>
-                        ) : null}
-                        {shows('agents') ? (
-                           <div className="hidden w-20 shrink-0 text-muted-foreground sm:block">
-                              {isSkillInUse(skill)
-                                 ? t('row.usedBy', { count: carried })
-                                 : t('row.unused')}
-                           </div>
-                        ) : null}
-                        {shows('creator') ? (
-                           <div className="hidden w-28 shrink-0 truncate text-muted-foreground lg:block">
-                              {skill.creatorName ?? t('row.unknownCreator')}
-                           </div>
-                        ) : null}
-                        {shows('updated') ? (
-                           <div className="hidden w-24 shrink-0 text-muted-foreground lg:block">
-                              {new Date(skill.updatedAt).toLocaleDateString()}
-                           </div>
-                        ) : null}
-                        {shows('files') ? (
-                           <div className="w-12 shrink-0 text-right text-muted-foreground">
-                              {skill.files.length}
-                           </div>
-                        ) : null}
-                     </button>
+                     {t('columns.skill')}
+                     {criteria.sort === 'name' ? <span aria-hidden> ↓</span> : null}
+                  </button>
+               ) : (
+                  <div className="min-w-0 flex-1">{t('columns.skill')}</div>
+               )}
+               {header('labels', t('columns.labels'))}
+               {header('agents', t('columns.agents'))}
+               {header('creator', t('columns.creator'))}
+               {header('updated', t('columns.updated'))}
+               {header('files', t('columns.files'), 'justify-end')}
+               <span className="size-6 shrink-0" aria-hidden />
+            </div>
 
-                     <div className="flex w-6 shrink-0 justify-end">
-                        {canEdit ? (
-                           <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                 <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="size-6"
-                                    aria-label={t('row.menu')}
-                                 >
-                                    <MoreHorizontal className="size-3.5" />
-                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                 <DropdownMenuSub>
-                                    <DropdownMenuSubTrigger>
-                                       {t('row.addToAgent')}
-                                    </DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
-                                       {agents.length === 0 ? (
-                                          <DropdownMenuItem disabled>
-                                             {t('row.noAgents')}
-                                          </DropdownMenuItem>
-                                       ) : (
-                                          <>
-                                             <DropdownMenuLabel>
-                                                {t('row.notCarrying')}
-                                             </DropdownMenuLabel>
-                                             {agents
-                                                .filter(
-                                                   (agent) =>
-                                                      !skill.agents.some(
-                                                         (bound) =>
-                                                            bound.id === agent.id && bound.enabled
-                                                      )
-                                                )
-                                                .map((agent) => (
-                                                   <DropdownMenuItem
-                                                      key={agent.id}
-                                                      onClick={() => void addTo(skill, agent)}
-                                                   >
-                                                      {agent.name}
-                                                   </DropdownMenuItem>
-                                                ))}
-                                             <DropdownMenuSeparator />
-                                             <DropdownMenuLabel>
-                                                {t('row.carrying')}
-                                             </DropdownMenuLabel>
-                                             {skill.agents
-                                                .filter((bound) => bound.enabled)
-                                                .map((bound) => (
-                                                   <DropdownMenuItem key={bound.id} disabled>
-                                                      {bound.name}
-                                                   </DropdownMenuItem>
-                                                ))}
-                                          </>
-                                       )}
-                                    </DropdownMenuSubContent>
-                                 </DropdownMenuSub>
-                                 <DropdownMenuItem
-                                    disabled={
-                                       skill.source.kind !== 'github' || refreshingId === skill.id
-                                    }
-                                    onClick={() => void update(skill)}
-                                 >
-                                    {t('refresh.action')}
-                                 </DropdownMenuItem>
-                                 <DropdownMenuSeparator />
-                                 <DropdownMenuItem
-                                    variant="destructive"
-                                    className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
-                                    onClick={() => setConfirming(skill)}
-                                 >
-                                    {t('row.delete')}
-                                 </DropdownMenuItem>
-                              </DropdownMenuContent>
-                           </DropdownMenu>
-                        ) : (
-                           <Lock
-                              className="size-4 text-muted-foreground"
-                              aria-label={t('row.locked')}
-                           />
-                        )}
-                     </div>
-                  </div>
-               );
-            })}
+            {rows.map((skill) => (
+               <SkillLine
+                  key={skill.id}
+                  skill={skill}
+                  columns={criteria.columns}
+                  agents={agents}
+                  canEdit={canEdit}
+                  selected={selection.includes(skill.id)}
+                  open={openId === skill.id}
+                  onToggleSelected={toggle}
+                  onOpen={onOpen}
+                  onChanged={onChanged}
+                  refreshing={refreshingId === skill.id}
+                  onRefreshing={setRefreshingId}
+                  onConfirmDelete={setConfirming}
+               />
+            ))}
          </div>
 
          {canEdit ? (

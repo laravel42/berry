@@ -224,9 +224,9 @@ export default function Projects() {
                value={query}
                onChange={(event) => setQuery(event.target.value)}
             />
+            <ListFilterTrigger filter={filter} />
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
                {viewType === 'timeline' && <TimelineScaleControls />}
-               <ListFilterTrigger filter={filter} />
                <Button
                   size="xs"
                   variant="outline"

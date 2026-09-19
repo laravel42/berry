@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Bot, Check, CircleDot, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
+import { Bot, Check, CircleDot, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactNode } from 'react';
 
@@ -23,17 +23,27 @@ import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 
-export const AUTOPILOT_SORTS = ['name', 'updated', 'created'] as const;
+export const AUTOPILOT_SORTS = [
+   'name',
+   'status',
+   'mode',
+   'quota',
+   'updated',
+   'created',
+] as const;
 export type AutopilotSort = (typeof AUTOPILOT_SORTS)[number];
 
 /** How the list is laid out; what narrows it is the filter's. */
 export interface AutopilotCriteria {
    sort: AutopilotSort;
+   /** True = Z→A / newest first; false = A→Z / oldest first. */
+   sortDescending: boolean;
    columns: AutopilotColumn[];
 }
 
 export const DEFAULT_AUTOPILOT_CRITERIA: AutopilotCriteria = {
    sort: 'name',
+   sortDescending: false,
    columns: ['status', 'mode', 'updated'],
 };
 
@@ -114,7 +124,7 @@ interface Props {
    action?: ReactNode;
 }
 
-/** Search, filters, sort and columns for the autopilot list. */
+/** Search, filters and columns for the autopilot list. Sort is on the table headings. */
 export default function AutopilotsFilters({
    criteria,
    onChange,
@@ -134,74 +144,43 @@ export default function AutopilotsFilters({
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
          />
+         <ListFilterTrigger filter={filter} />
+         <Popover>
+            <PopoverTrigger asChild>
+               <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                  <Columns3 className="size-4" />
+                  {t('filters.columns')}
+               </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-0" align="start">
+               <Command>
+                  <CommandList>
+                     <CommandGroup>
+                        {AUTOPILOT_COLUMNS.map((column) => (
+                           <CommandItem
+                              key={column}
+                              onSelect={() =>
+                                 set({
+                                    columns: criteria.columns.includes(column)
+                                       ? criteria.columns.filter((entry) => entry !== column)
+                                       : [...criteria.columns, column],
+                                 })
+                              }
+                              className="justify-between"
+                           >
+                              {t(`columns.${column}`)}
+                              {criteria.columns.includes(column) ? (
+                                 <Check className="size-4" />
+                              ) : null}
+                           </CommandItem>
+                        ))}
+                     </CommandGroup>
+                  </CommandList>
+               </Command>
+            </PopoverContent>
+         </Popover>
 
-         <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-            <ListFilterTrigger filter={filter} />
-
-            <Popover>
-               <PopoverTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                     <Columns3 className="size-4" />
-                     {t('filters.columns')}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent className="w-52 p-0" align="start">
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           {AUTOPILOT_COLUMNS.map((column) => (
-                              <CommandItem
-                                 key={column}
-                                 onSelect={() =>
-                                    set({
-                                       columns: criteria.columns.includes(column)
-                                          ? criteria.columns.filter((entry) => entry !== column)
-                                          : [...criteria.columns, column],
-                                    })
-                                 }
-                                 className="justify-between"
-                              >
-                                 {t(`columns.${column}`)}
-                                 {criteria.columns.includes(column) ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               </PopoverContent>
-            </Popover>
-
-            <Popover>
-               <PopoverTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                     <ArrowUpDown className="size-4" />
-                     {t(`filters.sort_${criteria.sort}`)}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent className="w-52 p-0" align="end">
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           {AUTOPILOT_SORTS.map((sort) => (
-                              <CommandItem
-                                 key={sort}
-                                 onSelect={() => set({ sort })}
-                                 className="justify-between"
-                              >
-                                 {t(`filters.sort_${sort}`)}
-                                 {criteria.sort === sort ? <Check className="size-4" /> : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               </PopoverContent>
-            </Popover>
-
-            {action}
-         </div>
+         {action ? <div className="ml-auto flex items-center gap-1">{action}</div> : null}
       </div>
    );
 }
