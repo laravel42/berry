@@ -137,6 +137,13 @@ export const SourcePageNeedsBuild: Story = {
       msw.use(
          http.get('*/api/v1/artifacts/:id/download', ({ params }) =>
             HttpResponse.text(bodies[String(params.id)] ?? '')
+         ),
+         // A source page is built in a container before it is shown.
+         http.post('*/api/v1/issues/:ref/artifacts/preview/build', () =>
+            HttpResponse.json(
+               { available: true, state: 'building', log: '$ npm install\n', startedAt: null, finishedAt: null },
+               { status: 202 }
+            )
          )
       );
       return () => {
@@ -146,6 +153,6 @@ export const SourcePageNeedsBuild: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(await canvas.findByRole('button', { name: 'Preview site' }));
       const viewer = await dialog(canvasElement);
-      await expect(await viewer.findByRole('status')).toHaveTextContent(/build tool/);
+      await expect(await viewer.findByRole('status')).toHaveTextContent(/Building the site/);
    },
 };

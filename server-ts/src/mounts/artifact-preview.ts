@@ -8,6 +8,7 @@ import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import { ObjectNotFound, type Storage } from '../storage/storage.ts';
+import type { SiteBuilds } from '../previews/site-builds.ts';
 
 /**
  * What an agent built on a task, opened as the thing it is: a page runs as a
@@ -143,8 +144,40 @@ export class PreviewTokens {
  * `POST /issues/:issueRef/artifacts/preview`, nested under the issues mount:
  * a token for this task's files, for a person who may read the task.
  */
-export function issueArtifactPreviewRoutes(options: { issues: IssueRepository; tokens: PreviewTokens }) {
+export function issueArtifactPreviewRoutes(options: {
+   issues: IssueRepository;
+   tokens: PreviewTokens;
+   builds?: SiteBuilds | null;
+}) {
    const route = new Hono<{ Variables: AuthVariables }>();
+
+   const issueFor = async (context: { req: { param: (name: string) => string | undefined }; get: (key: 'user') => { id: string } }, permission: 'product.read' | 'product.write') => {
+      const issue = await options.issues.get(context.req.param('issueRef') ?? '').catch(() => {
+         throw ApiError.notFound('Issue');
+      });
+      await options.issues.authorize(context.get('user').id, issue.id, permission).catch(rethrow);
+      return issue;
+   };
+
+   /** Where the site build of this task stands, and whether this server can build at all. */
+   route.get('/:issueRef/artifacts/preview/build', async (context) => {
+      const issue = await issueFor(context, 'product.read');
+      if (!options.builds) return json({ available: false, state: 'idle', log: '', startedAt: null, finishedAt: null });
+      return json({ available: await options.builds.available(), ...(await options.builds.status(issue.id)) });
+   });
+
+   /**
+    * Builds the task's web project for its preview. Runs the agent's code, in a
+    * container, so it takes write access to the task rather than read.
+    */
+   route.post('/:issueRef/artifacts/preview/build', async (context) => {
+      const issue = await issueFor(context, 'product.write');
+      if (!options.builds || !(await options.builds.available())) {
+         throw new ApiError(503, 'BUILDS_UNAVAILABLE', 'This server cannot build sites: Docker is not available.');
+      }
+      return json({ available: true, ...(await options.builds.start(issue.id)) }, 202);
+   });
+
    route.post('/:issueRef/artifacts/preview', async (context) => {
       const issue = await options.issues.get(context.req.param('issueRef') ?? '').catch(() => {
          throw ApiError.notFound('Issue');
@@ -157,10 +190,14 @@ export function issueArtifactPreviewRoutes(options: { issues: IssueRepository; t
 }
 
 /** `GET /api/v1/previews/:token/<path>`: one of the task's files, sandboxed. No session. */
+/** Where a built site is served under a preview base. */
+export const BUILD_PREFIX = '__build__/';
+
 export function artifactPreviewMounts(options: {
    artifacts: RunArtifactRepository;
    tokens: PreviewTokens;
    storage: Storage | null;
+   builds?: SiteBuilds | null;
 }): Mount[] {
    const route = new Hono();
    route.get('/:token/*', async (context) => {
@@ -174,6 +211,12 @@ export function artifactPreviewMounts(options: {
       } catch {
          return notFound();
       }
+      // The built site, when the task's project has been built for preview.
+      if (path.startsWith(BUILD_PREFIX)) {
+         const built = options.builds ? await options.builds.file(issueId, path.slice(BUILD_PREFIX.length)) : null;
+         if (!built) return notFound();
+         return serve(built.bytes, previewContentType(built.path, 'application/octet-stream'), `${prefix}${BUILD_PREFIX}`);
+      }
       // A directory, or the base itself, is its index page — how a static
       // host answers, and what a site's own links expect.
       if (path === '' || path.endsWith('/')) path = `${path}index.html`;
@@ -185,21 +228,21 @@ export function artifactPreviewMounts(options: {
       });
       if (!bytes) return notFound();
       const type = previewContentType(artifact.path, artifact.contentType);
-      let body: Uint8Array = bytes;
-      if (/^text\/(html|css)\b/.test(type)) {
-         const root = `${prefix}${await siteRoot(options.artifacts, issueId)}`;
-         body = new TextEncoder().encode(rootRelative(new TextDecoder().decode(bytes), type, root));
-      }
-      return new Response(body, {
-         status: 200,
-         headers: {
-            ...SANDBOX_HEADERS,
-            'Content-Type': type,
-            'Content-Length': String(body.byteLength),
-         },
-      });
+      const root = /^text\/(html|css)\b/.test(type) ? `${prefix}${await siteRoot(options.artifacts, issueId)}` : '';
+      return serve(bytes, type, root);
    });
    return [{ prefix: '/api/v1/previews', handler: route }];
+}
+
+/** A preview file, sandboxed; HTML and CSS have their root-absolute URLs pointed at `root`. */
+function serve(bytes: Uint8Array, type: string, root: string): Response {
+   const body = /^text\/(html|css)\b/.test(type) && root
+      ? new TextEncoder().encode(rootRelative(new TextDecoder().decode(bytes), type, root))
+      : bytes;
+   return new Response(body, {
+      status: 200,
+      headers: { ...SANDBOX_HEADERS, 'Content-Type': type, 'Content-Length': String(body.byteLength) },
+   });
 }
 
 /**

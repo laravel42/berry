@@ -30,6 +30,7 @@ import { issueRelationRoutes } from './mounts/issue-relations.ts';
 import { issueAttachmentRoutes } from './mounts/issue-attachments.ts';
 import { artifactMounts, issueArtifactRoutes } from './mounts/artifacts.ts';
 import { artifactPreviewMounts, issueArtifactPreviewRoutes, PreviewTokens } from './mounts/artifact-preview.ts';
+import { SiteBuilds } from './previews/site-builds.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
@@ -291,6 +292,11 @@ const storage = config.storage
         ...(config.storage.sessionToken ? { sessionToken: config.storage.sessionToken } : {}),
         maxBytes: config.storage.maxBytes,
      })
+   : null;
+// Builds an agent's web project in a container so its preview shows the site.
+// Needs Docker on this host; without it the preview says so.
+const siteBuilds = storage
+   ? new SiteBuilds({ artifacts: runArtifacts, read: (artifact) => storage.open(artifact.storageKey) })
    : null;
 
 /**
@@ -700,7 +706,7 @@ registry.registerAll(
       }),
       artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues }).route(
          '/',
-         issueArtifactPreviewRoutes({ issues, tokens: previewTokens })
+         issueArtifactPreviewRoutes({ issues, tokens: previewTokens, builds: siteBuilds })
       ),
       attachments: issueAttachmentRoutes({
          attachments,
@@ -795,7 +801,7 @@ registry.registerAll(
 );
 registry.registerAll(attachmentMounts({ sessions, attachments, storage }));
 registry.registerAll(artifactMounts({ sessions, artifacts: runArtifacts, issues, storage }));
-registry.registerAll(artifactPreviewMounts({ artifacts: runArtifacts, tokens: previewTokens, storage }));
+registry.registerAll(artifactPreviewMounts({ artifacts: runArtifacts, tokens: previewTokens, storage, builds: siteBuilds }));
 registry.registerAll(
    projectMounts({
       sessions,

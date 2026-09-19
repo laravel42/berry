@@ -19,6 +19,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { SiteBuildFrame } from './site-build-frame';
 
 interface ArtifactViewerProps {
    issueRef: string;
@@ -162,28 +163,17 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
       if (failed) return <Message text={t('loadFailed')} />;
 
       if (kind === 'html' && !showsSource) {
-         if (!pageUrl) return <Message text={t('loading')} />;
+         // A build tool's source page is built in a container and the built
+         // site shown instead; a plain page shows as it is.
          return (
-            <div className="flex size-full flex-col">
-               {unbuilt ? (
-                  <p
-                     role="status"
-                     className="border-b bg-status-warning/10 px-4 py-2 text-status-warning"
-                  >
-                     {t('needsBuild')}
-                  </p>
-               ) : null}
-               <iframe
-                  key={`${pageUrl}#${reload}`}
-                  src={pageUrl}
-                  title={t('webview', { path: artifact.path })}
-                  // No allow-same-origin: the page gets an opaque origin and no
-                  // way to act as Berry, whatever its scripts do.
-                  sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                  referrerPolicy="no-referrer"
-                  className="min-h-0 w-full flex-1 border-0 bg-white"
-               />
-            </div>
+            <SiteBuildFrame
+               issueRef={issueRef}
+               pageUrl={pageUrl}
+               base={base}
+               unbuilt={unbuilt}
+               reload={reload}
+               title={t('webview', { path: artifact.path })}
+            />
          );
       }
       if (needsText) {

@@ -323,6 +323,35 @@ export async function artifactPreviewBase(issueRef: string): Promise<string> {
    return z.object({ baseUrl: z.string() }).parse(json).baseUrl;
 }
 
+/** Where a task's site build stands: built in a container so a source project previews. */
+export const siteBuildSchema = z.object({
+   available: z.boolean(),
+   state: z.enum(['idle', 'building', 'ready', 'failed']),
+   log: z.string(),
+   startedAt: z.string().nullable(),
+   finishedAt: z.string().nullable(),
+});
+export type SiteBuild = z.infer<typeof siteBuildSchema>;
+
+/** The built site's path under a preview base. */
+export const SITE_BUILD_PATH = '__build__/';
+
+export async function siteBuildStatus(issueRef: string): Promise<SiteBuild> {
+   const json: unknown = await apiFetch(
+      `/api/v1/issues/${encodeURIComponent(issueRef)}/artifacts/preview/build`
+   );
+   return siteBuildSchema.parse(json);
+}
+
+/** Starts building the task's site, unless its current files are already built or building. */
+export async function startSiteBuild(issueRef: string): Promise<SiteBuild> {
+   const json: unknown = await apiFetch(
+      `/api/v1/issues/${encodeURIComponent(issueRef)}/artifacts/preview/build`,
+      { method: 'POST', body: '{}' }
+   );
+   return siteBuildSchema.parse(json);
+}
+
 /** The URL of one file under a preview base, each path segment encoded. */
 export function artifactPreviewUrl(base: string, path: string): string {
    return `${base}${path.split('/').map(encodeURIComponent).join('/')}`;
