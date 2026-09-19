@@ -40,15 +40,27 @@ export function skillFileTree(skills: EnvelopeSkillLike[]): { path: string; cont
    return out;
 }
 
-export async function writeSkills(root: string, skills: EnvelopeSkillLike[]): Promise<string[]> {
+/** Writes one file, making its directories. The default is the runtime's own filesystem access. */
+export type SkillWriter = (target: string, content: string) => Promise<void>;
+
+const writeDirectly: SkillWriter = async (target, content) => {
+   await mkdir(dirname(target), { recursive: true });
+   await writeFile(target, content, 'utf8');
+};
+
+/**
+ * `write` is the session's own writer when sessions are isolated: the skills
+ * directory sits in a workspace the agent controls, and the runtime must not
+ * follow whatever is there with its own permissions.
+ */
+export async function writeSkills(root: string, skills: EnvelopeSkillLike[], write: SkillWriter = writeDirectly): Promise<string[]> {
    const base = resolve(root);
    const written: string[] = [];
    for (const file of skillFileTree(skills)) {
       const target = resolve(base, file.path);
       // Belt and braces over the patterns: resolved, it must still be inside root.
       if (!target.startsWith(base + sep)) throw new Error(`refusing to write outside ${base}`);
-      await mkdir(dirname(target), { recursive: true });
-      await writeFile(target, file.content, 'utf8');
+      await write(target, file.content);
       written.push(file.path);
    }
    return written;

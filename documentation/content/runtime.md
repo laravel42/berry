@@ -39,6 +39,13 @@ docker run --rm --name berry-agent-runtime   -p 127.0.0.1:8081:8080   --env-file
 ```
 Do not pass the whole product `.env` into the container. Model credentials can also be supplied through Berry's configured model connection; the runtime does not need database credentials. On Linux, configure a host gateway address appropriate to your container engine.
 
+### Launch scripts and session isolation
+`pnpm runtime:docker` does the above for you. It builds the image and passes the container only the variables the runtime reads, filtered out of `.env` (the list is in `scripts/runtime-docker.sh`); the database URL, auth secret and integration key never reach it. It publishes on loopback only.
+
+It starts one container that serves every session. Sessions are isolated inside it (`BERRY_RUNTIME_ISOLATE_SESSIONS=true`): the runtime runs as root stripped to six capabilities and gives each session its own unprivileged user and a private `0700` workspace. A command cannot read the runtime's environment, another session's files, or signal its processes. Sessions still share a kernel, the network, memory and CPU.
+
+None of this applies on AgentCore, where the image runs as `node` and the microVM is the boundary. Setting `BERRY_RUNTIME_ISOLATE_SESSIONS=true` without running as root is refused at start-up rather than ignored.
+
 ## Managed AgentCore
 Deploy the current runtime image using the repository's `server-ts/sandbox/agentcore/deploy.sh` after reviewing its account, role, region, and network inputs. Set the returned ARN on the product server. The runtime execution role needs model access. Its callback address must reach Berry from AWS.
 

@@ -3,6 +3,7 @@ import { bedrockModel, type AwsCredentials } from '../model.ts';
 import { setupTelemetry } from '../telemetry.ts';
 import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
+import { SessionIdentities, sealWorkRoot } from './session-identity.ts';
 import { SessionRegistry } from './sessions.ts';
 
 /**
@@ -21,6 +22,22 @@ const sessionToken = (env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
 const credentials: AwsCredentials | null =
    accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null;
 
+const workRoot = env.BERRY_RUNTIME_WORK_ROOT ?? '/mnt/workspace';
+
+// One container serving every session: each gets a Unix user of its own. That
+// needs root to hand out, and a setting that protects credentials must not
+// quietly do nothing, so anything else is a refusal to start.
+const isolate = (env.BERRY_RUNTIME_ISOLATE_SESSIONS ?? '').trim().toLowerCase() === 'true';
+if (isolate && process.getuid?.() !== 0) {
+   console.error(JSON.stringify({ level: 'ERROR', msg: 'BERRY_RUNTIME_ISOLATE_SESSIONS needs the runtime to run as root (docker run --user 0:0)' }));
+   process.exit(1);
+}
+
+if (isolate) {
+   const sealed = await sealWorkRoot(workRoot);
+   console.log(JSON.stringify({ msg: 'sessions are isolated: one user each', workRoot, sealedOlderWorkspaces: sealed }));
+}
+
 const server = createRuntimeServer({
    authMode: env.BERRY_RUNTIME_AUTH_MODE === 'agentcore' ? 'agentcore' : 'token',
    ...(env.BERRY_RUNTIME_AUTH_TOKEN ? { authToken: env.BERRY_RUNTIME_AUTH_TOKEN } : {}),
@@ -28,7 +45,8 @@ const server = createRuntimeServer({
    modelFactory: (spec) => bedrockModel({ ...spec, credentials: spec.credentials ?? credentials }),
    region,
    credentials,
-   workRoot: env.BERRY_RUNTIME_WORK_ROOT ?? '/mnt/workspace',
+   workRoot,
+   ...(isolate ? { identities: new SessionIdentities(workRoot) } : {}),
    repository: snapshotRepository(),
    localControl: (env.BERRY_RUNTIME_LOCAL_CONTROL ?? '').trim().toLowerCase() === 'true',
    videoOutput: /^s3:\/\//.test((env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim())

@@ -21,6 +21,7 @@ import { runCompletionTask } from './completion-task.ts';
 import { toConversation } from './conversation.ts';
 import { emitterSink, type Emit } from './emitter.ts';
 import { LocalSession } from './local-session.ts';
+import type { SessionIdentity } from './session-identity.ts';
 import { mediaTools, type VideoOutput } from '../tools/media.ts';
 import {
    RemoteToolsUnavailable,
@@ -80,6 +81,11 @@ export interface HandlerDeps {
    credentials?: AwsCredentials | null;
    /** Where session workspaces live: `/mnt/workspace` in the image. */
    workRoot: string;
+   /**
+    * A Unix user per session, when one runtime serves many sessions (a local
+    * container). Absent on AgentCore, where the microVM is the boundary.
+    */
+   identities?: { for(key: string): Promise<SessionIdentity> };
    fetch?: typeof fetch;
    loadTools?: (api: BerryApi, mirror?: WorkspaceMirror) => Promise<Tool[]>;
    repository?: RepositoryStep;
@@ -161,7 +167,8 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    const held = deps.registry.get(key);
    const warm = held !== undefined && held.fingerprint === fingerprint;
    // Files survive a warm turn; credentials and execution configuration do not.
-   const workspace = new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env, signal });
+   const identity = deps.identities ? await deps.identities.for(key) : undefined;
+   const workspace = new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env, signal, ...(identity ? { identity } : {}) });
    const sink = emitterSink(emit);
    const accounting = new AccountingPlugin();
    let usageEmitted = false;
@@ -178,7 +185,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    try {
       // The agent's skills, laid out where skill-aware tools look, and its
       // MCP servers as Strands clients beside Berry's own tools.
-      await writeSkills(join(deps.workRoot, key), envelope.agent.skills);
+      await writeSkills(join(deps.workRoot, key), envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
       // Injected loaders keep their single-arg shape; the production loader
       // bounds each connect and reports a server it had to drop.
       const warn = deps.warn ?? consoleWarn;

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, lchown, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import type {
    ExecEvent,
@@ -7,6 +7,7 @@ import type {
    ExecResult,
    ExecutionSession,
 } from '../../../execution/driver.ts';
+import type { SessionIdentity } from './session-identity.ts';
 
 /** How long output may keep arriving after the shell exits before its group is reaped. */
 const EXIT_DRAIN_MS = 500;
@@ -25,12 +26,50 @@ export class LocalSession implements ExecutionSession {
    readonly #env: Record<string, string>;
    readonly #signal: AbortSignal | undefined;
    readonly #groups = new Set<number>();
+   /**
+    * The Unix user this session's commands and files belong to, when the
+    * runtime isolates sessions (see `session-identity.ts`). Without one,
+    * everything runs as the runtime's own user, as it does in a microVM.
+    */
+   readonly #identity: SessionIdentity | undefined;
+   #opened: Promise<void> | null = null;
 
-   constructor(options: { id: string; root: string; env?: Record<string, string>; signal?: AbortSignal }) {
+   constructor(options: { id: string; root: string; env?: Record<string, string>; signal?: AbortSignal; identity?: SessionIdentity }) {
       this.id = options.id;
       this.root = options.root;
       this.#env = options.env ?? {};
       this.#signal = options.signal;
+      this.#identity = options.identity;
+   }
+
+   /**
+    * The workspace directory, existing and — for an isolated session — owned by
+    * its user and closed to every other one.
+    *
+    * A directory that predates isolation belongs to the runtime's old user; it
+    * is handed over whole, once. `-h` so a symlink is re-owned rather than
+    * followed out of the workspace.
+    */
+   open(): Promise<void> {
+      this.#opened ??= (async () => {
+         await mkdir(this.root, { recursive: true });
+         const identity = this.#identity;
+         if (!identity) return;
+         if ((await lstat(this.root)).uid !== identity.uid) {
+            await runAs(undefined, '/bin/chown', ['-R', '-h', `${identity.uid}:${identity.gid}`, this.root]);
+         }
+         await chmod(this.root, 0o700);
+      })();
+      return this.#opened;
+   }
+
+   /**
+    * Hands something the runtime itself created in the workspace (the checkout
+    * directory, the snapshot archive) to the session's user. Not recursive and
+    * never through a symlink: it is for what was made a moment ago.
+    */
+   async adopt(path: string): Promise<void> {
+      if (this.#identity) await lchown(this.#path(path), this.#identity.uid, this.#identity.gid);
    }
 
    async exec(command: string, options: ExecOptions = {}): Promise<ExecResult> {
@@ -56,7 +95,11 @@ export class LocalSession implements ExecutionSession {
       let seq = 0;
       yield { type: 'start', seq: seq++, command };
       const cwd = this.#path(options.cwd ?? '.');
-      await mkdir(cwd, { recursive: true });
+      await this.open();
+      // As the session's user, so a directory made here is one it can write in
+      // — and so root never creates anything along a path the agent laid out.
+      if (this.#identity) await runAs(this.#identity, '/bin/mkdir', ['-p', '--', cwd]);
+      else await mkdir(cwd, { recursive: true });
 
       const queue: ExecEvent[] = [];
       let done = false;
@@ -78,6 +121,7 @@ export class LocalSession implements ExecutionSession {
          // exposure; shell execution still requires an isolated OS trust boundary.
          env: { PATH: process.env.PATH, LANG: 'C.UTF-8', HOME: this.root, TMPDIR: this.root, ...this.#env, ...(options.env ?? {}) },
          detached: true,
+         ...(this.#identity ?? {}),
       });
       const pid = child.pid;
       if (pid !== undefined) this.#groups.add(pid);
@@ -127,13 +171,25 @@ export class LocalSession implements ExecutionSession {
       }
    }
 
+   /**
+    * For an isolated session the write is done by a process running as the
+    * session's user, not by the runtime. The runtime is root there, and the
+    * path is the agent's: a `server` that is a symlink to the runtime's own
+    * source would otherwise be followed with root's permissions.
+    */
    async writeFile(path: string, content: string): Promise<void> {
       const target = this.#path(path);
+      await this.open();
+      if (this.#identity) {
+         await runAs(this.#identity, '/bin/sh', ['-c', 'mkdir -p -- "$(dirname -- "$1")" && cat > "$1"', 'sh', target], content);
+         return;
+      }
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content, 'utf8');
    }
 
    async readFile(path: string): Promise<string> {
+      if (this.#identity) return (await runAs(this.#identity, '/bin/cat', ['--', this.#path(path)])).toString('utf8');
       return readFile(this.#path(path), 'utf8');
    }
 
@@ -142,6 +198,10 @@ export class LocalSession implements ExecutionSession {
          try { process.kill(-pid, 'SIGKILL'); } catch { /* Already exited. */ }
       }
       this.#groups.clear();
+      // A process that left its group (setsid, a daemon) outlived the kill
+      // above. With a user of its own, everything the session started can be
+      // named: `kill -1` as that user reaches all of it and nothing else.
+      if (this.#identity) await runAs(this.#identity, '/bin/sh', ['-c', 'kill -KILL -1']).catch(() => undefined);
    }
 
    /** The workspace outlives a run on purpose: the next run on the session reuses it. */
@@ -150,4 +210,31 @@ export class LocalSession implements ExecutionSession {
    #path(path: string): string {
       return isAbsolute(path) ? path : resolve(this.root, path);
    }
+}
+
+/**
+ * One short process, optionally as a session's user; resolves with its stdout.
+ * No shell unless the caller asks for one, and nothing of the runtime's
+ * environment goes with it.
+ */
+function runAs(identity: SessionIdentity | undefined, file: string, args: string[], stdin?: string): Promise<Buffer> {
+   return new Promise((resolveRun, reject) => {
+      const child = spawn(file, args, {
+         cwd: '/',
+         env: { PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', LANG: 'C.UTF-8' },
+         stdio: ['pipe', 'pipe', 'pipe'],
+         ...(identity ?? {}),
+      });
+      const out: Buffer[] = [];
+      let err = '';
+      child.stdout.on('data', (chunk: Buffer) => out.push(chunk));
+      child.stderr.on('data', (chunk: Buffer) => { err += chunk.toString('utf8'); });
+      child.on('error', reject);
+      child.on('close', (code, signal) => {
+         if (code === 0) resolveRun(Buffer.concat(out));
+         else reject(new Error(`${file} ${signal ? `ended by ${signal}` : `exited ${code}`}: ${err.trim().slice(0, 300)}`));
+      });
+      child.stdin.on('error', () => undefined);
+      child.stdin.end(stdin ?? '');
+   });
 }

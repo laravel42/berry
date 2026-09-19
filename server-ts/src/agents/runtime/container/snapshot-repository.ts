@@ -1,5 +1,5 @@
-import { mkdir, mkdtemp, readFile, readlink, lstat, writeFile, rm } from 'node:fs/promises';
-import { join, resolve, relative, isAbsolute } from 'node:path';
+import { mkdtemp, readFile, readlink, realpath, lstat, writeFile, rm } from 'node:fs/promises';
+import { join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { shellQuote } from '../../checkout.ts';
 import { parseNumstat } from '../../delivery.ts';
 import { verify } from '../../verification.ts';
@@ -17,8 +17,11 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          const repo = envelope.repo;
          if (!repo) return null;
          if (!repo.snapshotCommit) throw new Error('Repository snapshots require an updated Berry server');
-         await mkdir(session.root, { recursive: true });
+         await session.open();
+         // Made by the runtime, under a name nobody could have laid a link at,
+         // then handed to the session's user so its commands can work in it.
          const directory = await mkdtemp(join(session.root, 'repo-'));
+         await session.adopt(directory);
          const archive = `${directory}.tar.gz`;
          const response = await (options.fetch ?? fetch)(`${envelope.berry.apiUrl.replace(/\/+$/, '')}/api/v1/agent-tools/repository-snapshot`, {
             headers: { authorization: `Bearer ${envelope.berry.token}` }, redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(120_000)]) : AbortSignal.timeout(120_000),
@@ -32,6 +35,7 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
             chunks.push(chunk);
          }
          await writeFile(archive, Buffer.concat(chunks));
+         await session.adopt(archive);
          try {
             const extract = await session.exec(`tar -xzf ${shellQuote(archive)} --strip-components=1 -C ${shellQuote(directory)}`, { cwd: directory });
             if (extract.exitCode !== 0) throw new Error('Could not unpack repository snapshot');
@@ -67,6 +71,14 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
             try {
                const info = await lstat(full);
                if (!info.isFile() && !info.isSymbolicLink()) throw new Error('Unsupported candidate file');
+               // `lstat` sees a link at the leaf, not one in the directories above
+               // it. The runtime may be root here and the tree is the agent's, so a
+               // file is only read where it really is inside the checkout.
+               if (info.isFile()) {
+                  const real = await realpath(full);
+                  const home = await realpath(directory);
+                  if (real !== home && !real.startsWith(home + sep)) throw new Error('Candidate path escapes the repository');
+               }
                const bytes = info.isSymbolicLink() ? Buffer.from(await readlink(full)) : await readFile(full);
                files.push({ path, mode: info.isSymbolicLink() ? '120000' : (info.mode & 0o111) ? '100755' : '100644', content: bytes.toString('base64') });
             } catch (error) {
