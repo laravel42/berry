@@ -465,13 +465,13 @@ export function ArtifactViewer({
                      ) : null}
                      {onCommit ? (
                         <Button
-                           size="xs"
-                           className="h-7 shrink-0 cursor-pointer gap-1.5"
+                           size="xxs"
+                           className="shrink-0 cursor-pointer gap-1"
                            onClick={askToCommit}
                            disabled={!dirty || commit !== null}
                            title={`${t('commit')} (${saveKeys})`}
                         >
-                           <GitCommitHorizontal className="size-3.5" aria-hidden />
+                           <GitCommitHorizontal className="size-3" aria-hidden />
                            {t('commit')}
                         </Button>
                      ) : (

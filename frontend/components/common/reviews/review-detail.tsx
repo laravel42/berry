@@ -10,7 +10,7 @@ import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
 import { loadPreviewEnvironment } from '@/lib/preview-environment';
 import { preloadSitePreview } from '@/lib/site-preview';
 import { useSessionStore } from '@/store/session-store';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -192,7 +192,7 @@ export function ReviewDetail({
                ›
             </span>
             <PrIcon status={status} muted={waiting && !item.delivery.committed} />
-            <h2 className="min-w-0 truncate" title={item.issue.title}>
+            <h2 className="min-w-0 truncate text-[13px]" title={item.issue.title}>
                {item.issue.title}
             </h2>
             {item.delivery.committed && (
@@ -208,8 +208,9 @@ export function ReviewDetail({
                   href={item.pullRequest.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="shrink-0 rounded-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="inline-flex shrink-0 items-center gap-1 rounded-sm font-bold text-status-warning underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
                >
+                  <ExternalLink className="size-3.5" aria-hidden />
                   {t('detail.pullRequest', { number: item.pullRequest.number })}
                </a>
             )}
@@ -260,10 +261,7 @@ export function ReviewDetail({
             {showFiles && (
                // The repository at the branch under review when there is a pull
                // request; the files the agent saved on the task otherwise.
-               <TabsContent
-                  value="files"
-                  className="flex min-h-0 flex-1 flex-col overflow-hidden p-4"
-               >
+               <TabsContent value="files" className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   {hasRepository ? (
                      <RepositoryFiles issueRef={item.issue.identifier} runId={item.run.id} />
                   ) : (
@@ -272,7 +270,7 @@ export function ReviewDetail({
                         runId={item.run.id}
                         heading={null}
                         defaultOpen
-                        className="h-full min-h-0 flex-1"
+                        className="h-full min-h-0 flex-1 rounded-none"
                      />
                   )}
                </TabsContent>

@@ -11,6 +11,7 @@
       "sentBack": "Sent back"
    },
    "loading": "Loading reviews…",
+   "resizeList": "Resize the reviews list",
    "empty": {
       "open": "Nothing is waiting for review.",
       "decided": "Nothing has been decided yet."
@@ -112,7 +113,9 @@
       "noPullRequest": "This run opened no pull request.",
       "filter": "Filter files",
       "loading": "Loading the diff…",
-      "failed": "Could not load the diff"
+      "failed": "Could not load the diff",
+      "collapse": "Collapse this file",
+      "expand": "Expand this file"
    },
    "decision": {
       "noteLabel": "Note for the author",

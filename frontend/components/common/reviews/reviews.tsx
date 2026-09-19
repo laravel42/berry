@@ -21,7 +21,14 @@ import { X } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useEffect,
+   useRef,
+   useState,
+   type PointerEvent as ReactPointerEvent,
+   type ReactNode,
+} from 'react';
 import type { ReviewOutcome } from './review-decision-bar';
 import { ReviewDetail, type ReviewSection } from './review-detail';
 import { DiffStat, PeerVerdictChip, PrIcon } from './review-shared';
@@ -35,6 +42,14 @@ export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
 
 function rowId(reviewId: string): string {
    return `review-row-${reviewId}`;
+}
+
+const LIST_WIDTH = 360;
+const LIST_WIDTH_MIN = 240;
+const LIST_WIDTH_MAX = 560;
+
+function clampListWidth(width: number): number {
+   return Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, Math.round(width)));
 }
 
 /**
@@ -171,7 +186,7 @@ function ReviewGroup({
             >
                <path d="M1 3l3 3 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" />
             </svg>
-            <span className="ml-auto text-muted-foreground">{count}</span>
+            <span className="ml-auto text-status-success">{count}</span>
          </button>
          <div
             className={cn(
@@ -219,6 +234,27 @@ export default function Reviews({
    // would reload both sides).
    const [selectedId, setSelectedId] = useState(selectedReviewId);
    const caughtUpRef = useRef<HTMLHeadingElement>(null);
+   const [listWidth, setListWidth] = useState(LIST_WIDTH);
+
+   /** Drags the list's right edge. Pointer capture keeps the move over the detail pane. */
+   const resizeList = (event: ReactPointerEvent<HTMLElement>) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const target = event.currentTarget;
+      const start = listWidth;
+      const origin = event.clientX;
+      target.setPointerCapture(event.pointerId);
+      const move = (moved: PointerEvent) =>
+         setListWidth(clampListWidth(start + (moved.clientX - origin)));
+      const end = () => {
+         target.removeEventListener('pointermove', move);
+         target.removeEventListener('pointerup', end);
+         target.removeEventListener('pointercancel', end);
+      };
+      target.addEventListener('pointermove', move);
+      target.addEventListener('pointerup', end);
+      target.addEventListener('pointercancel', end);
+   };
 
    useEffect(() => {
       setSelectedId(selectedReviewId);
@@ -334,11 +370,15 @@ export default function Reviews({
    const caughtUp = items !== null && items.length === 0 && state === 'open';
 
    return (
-      <div className="flex h-full w-full overflow-hidden">
+      <div
+         className="flex h-full w-full overflow-hidden"
+         style={{ ['--reviews-list-w' as string]: `${listWidth}px` }}
+      >
          <div
             className={cn(
-               'flex h-full min-w-0 shrink-0 flex-col border-r bg-container md:w-[32%] md:max-w-[32%]',
-               selectedId ? 'hidden md:flex' : 'flex w-full'
+               'relative flex h-full min-w-0 shrink-0 flex-col border-r bg-container',
+               'w-full md:w-[var(--reviews-list-w)]',
+               selectedId ? 'hidden md:flex' : 'flex'
             )}
          >
             <div className="shrink-0 px-4 py-[6px]">
@@ -388,12 +428,23 @@ export default function Reviews({
                   </EmptyState>
                )}
             </div>
+            <span
+               className="absolute inset-y-0 right-0 z-10 hidden w-1.5 cursor-col-resize md:block"
+               style={{ touchAction: 'none' }}
+               onPointerDown={resizeList}
+               role="separator"
+               aria-orientation="vertical"
+               aria-valuenow={listWidth}
+               aria-valuemin={LIST_WIDTH_MIN}
+               aria-valuemax={LIST_WIDTH_MAX}
+               aria-label={t('resizeList')}
+            />
          </div>
 
          <div
             className={cn(
-               'flex h-full min-w-0 flex-col overflow-hidden md:w-[68%]',
-               selectedId ? 'flex w-full md:w-[68%]' : 'hidden md:flex'
+               'flex h-full min-w-0 flex-1 flex-col overflow-hidden',
+               selectedId ? 'flex w-full' : 'hidden md:flex'
             )}
          >
             {outcomeText && (
