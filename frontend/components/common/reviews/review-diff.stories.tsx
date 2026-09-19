@@ -34,6 +34,9 @@ export const FilterFiles: Story = {
 };
 
 export const LoadFailed: Story = {
+   // Its own run: diffs are kept per run, so reusing the delivered review's id
+   // would show the diff another story already loaded.
+   args: { item: { ...deliveredReview, run: { ...deliveredReview.run, id: 'run-diff-failed' } } },
    beforeEach: ({ msw }) => {
       msw.use(
          http.get('*/api/v1/reviews/:runId/diff', () =>

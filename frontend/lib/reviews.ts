@@ -89,8 +89,28 @@ export async function loadReviews(
 }
 
 /** The pull request's unified diff, as text. */
-export async function loadReviewDiff(runId: string): Promise<string> {
-   return apiText(`/api/v1/reviews/${encodeURIComponent(runId)}/diff`);
+/**
+ * A run's diff, fetched once. The review preloads it when an item is
+ * selected, so opening the Diff tab finds it loaded or already on its way; a
+ * failed fetch is forgotten, so the tab's own attempt tries again. A run's
+ * diff does not change once the run has ended, and a handful are kept.
+ */
+const diffs = new Map<string, Promise<string>>();
+const DIFFS_KEPT = 20;
+
+export function loadReviewDiff(runId: string): Promise<string> {
+   const held = diffs.get(runId);
+   if (held) return held;
+   const pending = apiText(`/api/v1/reviews/${encodeURIComponent(runId)}/diff`);
+   diffs.set(runId, pending);
+   pending.catch(() => diffs.delete(runId));
+   while (diffs.size > DIFFS_KEPT) diffs.delete(diffs.keys().next().value as string);
+   return pending;
+}
+
+/** Starts fetching a run's diff ahead of the Diff tab. */
+export function preloadReviewDiff(runId: string): void {
+   void loadReviewDiff(runId).catch(() => undefined);
 }
 
 /**

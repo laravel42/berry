@@ -156,7 +156,14 @@ export class SiteBuilds {
     */
    async #current(issueId: string): Promise<Build | undefined> {
       const held = this.#builds.get(issueId);
-      if (held) return held;
+      // A finished build whose output is gone (the cache folder was cleared
+      // under a running server) is forgotten, so the next start rebuilds it
+      // instead of serving "Not found" for good.
+      if (held?.state === 'ready' && (!held.outDir || !existsSync(join(held.outDir, 'index.html')))) {
+         this.#builds.delete(issueId);
+      } else if (held) {
+         return held;
+      }
       const key = await this.#key(issueId);
       try {
          const marker = JSON.parse(await readFile(join(this.#root, key, READY_MARKER), 'utf8')) as { outDir: string; log?: string };

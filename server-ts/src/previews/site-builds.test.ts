@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -22,7 +22,7 @@ const PROJECT: Record<string, string> = {
    '../escape.txt': 'nope',
 };
 
-function builds(files: Record<string, string>, run: (args: string[], work: string) => Promise<number | null>) {
+function builds_(files: Record<string, string>, run: (args: string[], work: string) => Promise<number | null>) {
    const listed = Object.keys(files).map((path) => artifact(path));
    return mkdtemp(join(tmpdir(), 'berry-builds-')).then((root) => ({
       root,
@@ -59,7 +59,7 @@ test('a Vite project is built with relative asset URLs; anything else runs its o
 
 test('the project is built in a locked-down container, and its output is served', async () => {
    let seen: string[] = [];
-   const { builds: sites, root } = await builds(PROJECT, async (args, work) => {
+   const { builds: sites, root } = await builds_(PROJECT, async (args, work) => {
       seen = args;
       await mkdir(join(work, '.berry-out', 'assets'), { recursive: true });
       await writeFile(join(work, '.berry-out', 'index.html'), '<script src="./assets/app.js"></script>');
@@ -103,7 +103,7 @@ test('the project is built in a locked-down container, and its output is served'
 });
 
 test('a failed build says why, and nothing is served', async () => {
-   const { builds: sites } = await builds(PROJECT, async () => 1);
+   const { builds: sites } = await builds_(PROJECT, async () => 1);
    await sites.start(ISSUE);
    const status = await settled(sites);
    assert.equal(status.state, 'failed');
@@ -112,9 +112,30 @@ test('a failed build says why, and nothing is served', async () => {
 });
 
 test('a task with no package.json has nothing to build', async () => {
-   const { builds: sites } = await builds({ 'index.html': '<h1>plain</h1>' }, async () => 0);
+   const { builds: sites } = await builds_({ 'index.html': '<h1>plain</h1>' }, async () => 0);
    await sites.start(ISSUE);
    const status = await settled(sites);
    assert.equal(status.state, 'failed');
    assert.match(status.log, /No package\.json/);
+});
+
+test('a ready build whose output was deleted is rebuilt, not served as missing', async () => {
+   let builds = 0;
+   const { builds: sites, root } = await builds_(PROJECT, async (_args, work) => {
+      builds += 1;
+      await mkdir(join(work, '.berry-out'), { recursive: true });
+      await writeFile(join(work, '.berry-out', 'index.html'), `build ${builds}`);
+      return 0;
+   });
+   await sites.start(ISSUE);
+   assert.equal((await settled(sites)).state, 'ready');
+
+   // The cache folder is cleared under the running server.
+   await rm(root, { recursive: true, force: true });
+   assert.equal((await sites.status(ISSUE)).state, 'idle');
+   assert.equal(await sites.file(ISSUE, ''), null);
+
+   await sites.start(ISSUE);
+   assert.equal((await settled(sites)).state, 'ready');
+   assert.equal(new TextDecoder().decode((await sites.file(ISSUE, ''))!.bytes), 'build 2');
 });

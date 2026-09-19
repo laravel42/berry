@@ -1,21 +1,12 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-   artifactPreviewBase,
-   artifactPreviewUrl,
-   artifactText,
-   loadIssueArtifacts,
-   siteEntry,
-   type RunArtifact,
-} from '@/lib/attachments';
+import { artifactPreviewUrl, type RunArtifact } from '@/lib/attachments';
+import { loadSitePreview } from '@/lib/site-preview';
 import { ArrowLeft, ArrowRight, RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SiteBuildFrame } from './site-build-frame';
-
-/** A page that loads source a browser cannot run as it is: TypeScript, JSX or a framework component. */
-const NEEDS_BUILD = /<script[^>]*\bsrc\s*=\s*["'][^"']+\.(?:tsx?|jsx|vue|svelte)["']/i;
 
 /** Messages between this bar and the page's navigation bridge (injected by the preview route). */
 const BRIDGE = 'berry-preview:';
@@ -65,21 +56,16 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
       let cancelled = false;
       setState('loading');
       const load = async () => {
-         const artifacts = await loadIssueArtifacts(issueRef);
-         const page =
-            (path && artifacts.find((artifact) => artifact.path === path)) || siteEntry(artifacts);
-         if (!page) {
-            if (!cancelled) setState('empty');
+         // Usually already in hand: the review preloads it on selection.
+         const target = await loadSitePreview(issueRef, { path });
+         if (cancelled) return;
+         if (!target) {
+            setState('empty');
             return;
          }
-         const [previewBase, html] = await Promise.all([
-            artifactPreviewBase(issueRef),
-            artifactText(page),
-         ]);
-         if (cancelled) return;
-         setEntry(page);
-         setBase(previewBase);
-         setUnbuilt(NEEDS_BUILD.test(html));
+         setEntry(target.entry);
+         setBase(target.base);
+         setUnbuilt(target.unbuilt);
          setState('ready');
       };
       load().catch(() => !cancelled && setState('failed'));

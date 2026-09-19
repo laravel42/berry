@@ -11,6 +11,7 @@ import { BerryApiError } from '@/lib/api';
 import { Hammer, Loader2, RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { knownSiteBuild, rememberSiteBuild } from '@/lib/site-preview';
 
 /** How often a running build is re-read. */
 const POLL_MS = 2000;
@@ -48,7 +49,17 @@ export function SiteBuildFrame({
    title,
 }: SiteBuildFrameProps) {
    const t = useTranslations('issueDetail.siteBuild');
-   const [build, setBuild] = useState<SiteBuild | null>(null);
+   // Starts from what the review's preload saw, so a site built in the
+   // background shows at once.
+   const [build, setBuildState] = useState<SiteBuild | null>(() => knownSiteBuild(issueRef));
+   // Every state seen is remembered, so the next opening starts from the latest.
+   const setBuild = useCallback(
+      (next: SiteBuild) => {
+         rememberSiteBuild(issueRef, next);
+         setBuildState(next);
+      },
+      [issueRef]
+   );
    const [error, setError] = useState<string | null>(null);
    const started = useRef<string | null>(null);
 
@@ -65,7 +76,7 @@ export function SiteBuildFrame({
                     : String(cause)
             );
          });
-   }, [issueRef, t]);
+   }, [issueRef, t, setBuild]);
 
    // Once per task: a page that needs a build asks for one as it opens.
    useEffect(() => {
@@ -83,7 +94,7 @@ export function SiteBuildFrame({
             .catch(() => undefined);
       }, POLL_MS);
       return () => clearInterval(timer);
-   }, [build?.state, issueRef]);
+   }, [build?.state, issueRef, setBuild]);
 
    const frame = (src: string, note?: React.ReactNode) => (
       <div className="flex size-full flex-col">
