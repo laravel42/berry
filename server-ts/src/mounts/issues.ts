@@ -211,6 +211,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
             assignee: input.assignee,
             project: input.project,
             createdBy: user.id,
+            autoGate: input.autoGate,
          })
          .catch(rethrowWrite('created'));
 
@@ -599,6 +600,7 @@ interface CreateInput {
    project: string | null;
    goal: string | null;
    goalSet: boolean;
+   autoGate: boolean;
 }
 
 function parseCreate(body: Record<string, unknown>): CreateInput {
@@ -652,6 +654,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
    const project = optionalUUID(body, 'projectId', 'projectId must be a UUID.', fields);
    const goal = goalChange(body, fields);
 
+   const autoGate = optionalFlag(body, 'autoGate', fields);
    assertValid(fields);
    return {
       boardId,
@@ -665,7 +668,18 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       project: project.value,
       goal: goal.value,
       goalSet: goal.set,
+      autoGate,
    };
+}
+
+/** A boolean field that may be absent (false). Anything but true or false is an error. */
+function optionalFlag(body: Record<string, unknown>, key: string, fields: FieldError[]): boolean {
+   if (!(key in body)) return false;
+   if (typeof body[key] !== 'boolean') {
+      fields.push(field(`/${key}`, 'invalid_type', `${key} must be true or false.`));
+      return false;
+   }
+   return body[key] as boolean;
 }
 
 export function parsePatch(body: Record<string, unknown>): {
@@ -979,9 +993,12 @@ const ISSUE_BODY_FIELDS = new Set([
    'assignee',
    'projectId',
    'goalId',
+   // Without this the allowlist refused every AutoGate change with a 422
+   // before `parsePatch` saw it.
+   'autoGate',
 ]);
 
-async function readBody(request: Request): Promise<Record<string, unknown>> {
+export async function readBody(request: Request): Promise<Record<string, unknown>> {
    const raw = await request.clone().text();
    if (Buffer.byteLength(raw, 'utf8') > MAX_ISSUE_BODY_BYTES) {
       throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large.');

@@ -948,6 +948,7 @@ function patchChanges(
    if (patch.dueDateSet) changed.push('dueDate');
    if (patch.assigneeSet) changed.push('assignee');
    if (patch.projectSet) changed.push('project');
+   if (patch.autoGate !== undefined) changed.push('autoGate');
    return { changed, previousStatus };
 }
 
@@ -967,6 +968,9 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
       project: issue.project,
+      // Carried so realtime readers keep the switch right: a client that
+      // parsed an event without it read every task as AutoGate off.
+      autoGate: issue.autoGate,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
