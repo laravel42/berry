@@ -236,6 +236,13 @@ export class SiteBuilds {
       await this.#slot();
       const folder = this.#taskDir(issueId);
       let locked = false;
+      // Released before the result is announced: a Rebuild clicked the moment
+      // a build finishes must not find that build's lock and wait on itself.
+      const unlock = async () => {
+         if (!locked) return;
+         locked = false;
+         await rm(`${folder}.lock`, { recursive: true, force: true }).catch(() => undefined);
+      };
       try {
          if (!(await this.available())) {
             throw new Error('Docker is not available on this server, so the site cannot be built.');
@@ -292,20 +299,23 @@ export class SiteBuilds {
          const out = OUTPUT_DIRS.map((dir) => join(project, dir)).find((dir) => existsSync(join(dir, 'index.html')));
          if (!out) throw new Error(`The build finished but produced no index.html (looked in ${OUTPUT_DIRS.join(', ')}).`);
          build.outDir = resolve(out);
-         build.state = 'ready';
-         // Remembered on disk, so a restarted server serves this build rather
-         // than installing and building the same files again.
+         // Remembered on disk first — a restarted server serves this build, and
+         // a server waiting on the lock reads it the moment the lock goes —
+         // then the lock released, then the build announced.
          await writeFile(
             join(folder, READY_MARKER),
             JSON.stringify({ key: build.key, outDir: build.outDir, log: build.log.slice(-4000) })
          );
+         await unlock();
+         build.state = 'ready';
          say('\nBuilt.\n');
          await this.#forgetOthers();
       } catch (error) {
+         await unlock();
          build.state = 'failed';
          say(`\n${error instanceof Error ? error.message : String(error)}\n`);
       } finally {
-         if (locked) await rm(`${folder}.lock`, { recursive: true, force: true }).catch(() => undefined);
+         await unlock();
          build.finishedAt = new Date().toISOString();
          this.#release();
       }

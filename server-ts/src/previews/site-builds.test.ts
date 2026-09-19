@@ -146,7 +146,7 @@ test('a ready build whose output was deleted is rebuilt, not served as missing',
 
 test('a forced build runs again on unchanged files, but never beside a running one', async () => {
    let runs = 0;
-   let release!: () => void;
+   let release: (() => void) | undefined;
    const { builds: sites } = await builds_(PROJECT, async (_args, work) => {
       runs += 1;
       if (runs === 2) await new Promise<void>((resolve) => (release = resolve));
@@ -162,8 +162,12 @@ test('a forced build runs again on unchanged files, but never beside a running o
    assert.equal((await sites.start(ISSUE, { force: true })).state, 'building');
    // A second Rebuild while one runs joins it.
    assert.equal((await sites.start(ISSUE, { force: true })).state, 'building');
-   await new Promise((resolve) => setTimeout(resolve, 20));
-   release();
+   // Released once the forced build is really running, however long the lock
+   // and the file sync take on a busy machine.
+   for (let i = 0; i < 1000 && typeof release !== 'function'; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+   }
+   release!();
    assert.equal((await settled(sites)).state, 'ready');
    assert.equal(runs, 2);
    assert.equal(new TextDecoder().decode((await sites.file(ISSUE, ''))!.bytes), 'build 2');
