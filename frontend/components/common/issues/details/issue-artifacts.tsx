@@ -476,13 +476,13 @@ export function IssueArtifacts({
                   }}
                >
                   {root ? (
-                     <div className="flex min-h-7 min-w-0 items-center gap-0.5 pr-1 text-muted-foreground">
+                     <div className="flex min-h-6 min-w-0 items-center gap-0.5 pr-1 text-muted-foreground">
                         <button
                            type="button"
                            onClick={() => toggle(ROOT)}
                            aria-expanded={!collapsed.has(ROOT)}
                            title={root}
-                           className="flex min-h-7 min-w-0 flex-1 items-center gap-1 rounded-sm pl-2 text-left font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                           className="flex min-h-6 min-w-0 flex-1 items-center gap-1 rounded-sm pl-2 text-left font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         >
                            {collapsed.has(ROOT) ? (
                               <ChevronRight className="size-3.5 shrink-0" aria-hidden />
@@ -595,7 +595,7 @@ function RootAction({
          type="button"
          variant="ghost"
          size="icon"
-         className={cn('size-7 shrink-0', pressed && 'bg-accent text-foreground')}
+         className={cn('size-6 shrink-0', pressed && 'bg-accent text-foreground')}
          aria-label={label}
          title={label}
          aria-pressed={pressed}
