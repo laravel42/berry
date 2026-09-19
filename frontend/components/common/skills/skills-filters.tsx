@@ -115,33 +115,6 @@ export default function SkillsFilters({ criteria, onChange, filter }: Props) {
          <Popover>
             <PopoverTrigger asChild>
                <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                  <ArrowUpDown className="mr-1 size-4" />
-                  {t(`filters.sort_${criteria.sort}`)}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="start">
-               <Command>
-                  <CommandList>
-                     <CommandGroup>
-                        {SKILL_SORTS.map((sort) => (
-                           <CommandItem
-                              key={sort}
-                              onSelect={() => set({ sort })}
-                              className="justify-between"
-                           >
-                              {t(`filters.sort_${sort}`)}
-                              {criteria.sort === sort ? <Check className="size-4" /> : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
-
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="outline" className="border-muted-foreground/15">
                   <Columns3 className="mr-1 size-4" />
                   {t('filters.columns')}
                </Button>
@@ -166,6 +139,33 @@ export default function SkillsFilters({ criteria, onChange, filter }: Props) {
                               {criteria.columns.includes(column) ? (
                                  <Check className="size-4" />
                               ) : null}
+                           </CommandItem>
+                        ))}
+                     </CommandGroup>
+                  </CommandList>
+               </Command>
+            </PopoverContent>
+         </Popover>
+
+         <Popover>
+            <PopoverTrigger asChild>
+               <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                  <ArrowUpDown className="mr-1 size-4" />
+                  {t(`filters.sort_${criteria.sort}`)}
+               </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-0" align="start">
+               <Command>
+                  <CommandList>
+                     <CommandGroup>
+                        {SKILL_SORTS.map((sort) => (
+                           <CommandItem
+                              key={sort}
+                              onSelect={() => set({ sort })}
+                              className="justify-between"
+                           >
+                              {t(`filters.sort_${sort}`)}
+                              {criteria.sort === sort ? <Check className="size-4" /> : null}
                            </CommandItem>
                         ))}
                      </CommandGroup>

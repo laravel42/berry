@@ -36,6 +36,7 @@ import {
 } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
 import AgentCapabilitiesTab from './agent-capabilities-tab';
+import { AgentModelChip } from './agent-model-chip';
 import AgentOverviewTab from './agent-overview-tab';
 import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
@@ -64,7 +65,6 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const t = useTranslations('agentsChat.detail');
    const coverage = useAgentCoverage();
    const listCopy = useTranslations('agentsChat.list');
-   const rosterCopy = useTranslations('agents.roster');
    const org = useTranslations('organization');
 
    const storedAgent = useAgentsStore((state) => state.getAgentById(agentId));
@@ -197,8 +197,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    }
 
    const presence = agentStatusDisplay(agent.status);
-   // Same rule as the roster: a presence dot is earned by a run in flight or
-   // on record. Before that, the honest word is that it has never run.
+   // A presence badge is earned by a run in flight or on record; otherwise the
+   // header shows which model the agent runs on.
    const hasPresence = roster !== undefined && (roster.running > 0 || roster.totalRuns > 0);
    const presenceLabel =
       presence.tone === 'online'
@@ -248,19 +248,13 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                            <PresenceDot tone={presence.tone} label={presenceLabel} />
                            {presenceLabel}
                         </span>
-                     ) : roster ? (
-                        <span className="inline-flex items-center rounded-md border border-border/70 px-2 py-1 text-muted-foreground">
-                           {rosterCopy('neverRan')}
-                        </span>
-                     ) : null}
+                     ) : (
+                        <AgentModelChip agent={agent} />
+                     )}
                      {level !== null ? (
                         <Tooltip>
                            <TooltipTrigger asChild>
-                              <AutonomyLevelChip
-                                 level={level}
-                                 tabIndex={0}
-                                 className="inline-flex items-center rounded-md px-2 py-1"
-                              />
+                              <AutonomyLevelChip level={level} tabIndex={0} />
                            </TooltipTrigger>
                            <TooltipContent side="bottom">{org('levelHint')}</TooltipContent>
                         </Tooltip>

@@ -14,7 +14,7 @@ export function asAutonomyLevel(value: number | null | undefined): AutonomyLevel
 export const AUTONOMY_LEVEL_STYLE: Record<AutonomyLevel, string> = {
    1: 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral',
    2: 'border-status-info/40 bg-status-info/10 text-status-info',
-   3: 'border-status-warning/40 bg-status-warning/10 text-status-warning',
+   3: 'border-status-success/40 bg-status-success/10 text-status-success',
    4: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
-   5: 'border-status-success/40 bg-status-success/10 text-status-success',
+   5: 'border-primary/40 bg-primary/10 text-primary',
 };
