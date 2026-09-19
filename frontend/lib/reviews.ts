@@ -129,15 +129,21 @@ export function stoppedWithoutDelivering(
 export type ReviewDecision = 'approve' | 'send-back';
 
 /**
- * Approve moves the task to done; send back moves it to todo. A note becomes
- * a comment first, so the reason is on the task before its status changes —
+ * Approve merges the run's pull request and then moves the task to done; send
+ * back moves it to todo. A note becomes a comment before the status changes —
  * the order a person reading the timeline expects.
+ *
+ * The merge goes first: a task marked done over an unmerged pull request is
+ * the board saying shipped while main does not have it, which is how every
+ * approved task used to end. When GitHub refuses (a conflict, a required
+ * check), this throws with its reason and nothing else happens.
  */
 export async function decideReview(
    item: ReviewItem,
    decision: ReviewDecision,
    note: string
 ): Promise<void> {
+   if (decision === 'approve' && item.pullRequest) await mergeReviewPullRequest(item.run.id);
    const trimmed = note.trim();
    if (trimmed !== '') {
       await createIssueComment(
@@ -147,6 +153,14 @@ export async function decideReview(
    }
    await patchBoardIssue(item.issue.identifier, {
       status: decision === 'approve' ? 'done' : 'todo',
+   });
+}
+
+/** Merges the pull request a run opened. Already merged counts as merged. */
+export async function mergeReviewPullRequest(runId: string): Promise<void> {
+   await apiFetch(`/api/v1/reviews/${encodeURIComponent(runId)}/merge`, {
+      method: 'POST',
+      body: '{}',
    });
 }
 

@@ -366,6 +366,15 @@ export class GitHubClient {
     * they come back as `{ merged: false, reason }` instead of as a throw. A
     * transport failure or a bad credential still throws.
     */
+   /** Whether a pull request is merged, and whether it is still open. */
+   async pullRequestState(owner: string, name: string, number: number): Promise<{ merged: boolean; open: boolean }> {
+      const pull = await this.#json<{ merged?: boolean; state?: string }>(
+         'GET',
+         `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`
+      );
+      return { merged: pull.merged === true, open: pull.state === 'open' };
+   }
+
    async mergePullRequest(input: {
       owner: string;
       name: string;

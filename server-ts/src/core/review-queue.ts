@@ -209,7 +209,13 @@ export class ReviewQueue {
    /** The repository and pull request a run delivered, for the diff read. */
    async pullRequestOf(runId: string): Promise<{ workspaceId: string; repository: string; number: number } | null> {
       const [row] = await this.#sql`
-         SELECT board.workspace_id, run.pull_request_number, project.github_repo_full_name AS repository
+         SELECT board.workspace_id, project.github_repo_full_name AS repository,
+                COALESCE(run.pull_request_number, (
+                   SELECT (e.payload->'pullRequest'->>'number')::int FROM run_events e
+                    WHERE e.run_id = run.id AND e.event_type = 'run.delivered'
+                      AND e.payload->'pullRequest'->>'number' IS NOT NULL
+                    ORDER BY e.occurred_at DESC LIMIT 1
+                )) AS pull_request_number
            FROM runs AS run
            JOIN issues AS issue ON issue.id = run.issue_id
            JOIN boards AS board ON board.id = issue.board_id

@@ -2,7 +2,7 @@ import type { Sql } from '../db/pool.ts';
 import { GitHubError, type GitHubClient } from '../integrations/github.ts';
 import { repositoryForIssue } from '../agents/repository-context.ts';
 import { parseRepository } from '../agents/checkout.ts';
-import { RunLedger } from './ledger.ts';
+import { RunLedger, RunTerminal } from './ledger.ts';
 
 /**
  * Puts the files a run saved into its repository, as a branch and a pull request.
@@ -150,6 +150,17 @@ export async function publishRunArtifacts(
          body: pullRequestBodyFor(run.identifier, run.summary, files.map((file) => file.path)),
       });
 
+      // On the run as well as in its event: the review's diff, its merge and
+      // the task's pull request link all read these columns. Without them a
+      // pull request opened here existed on GitHub and nowhere in Berry.
+      await deps.sql`
+         UPDATE runs SET branch = ${branch}, head_commit = ${published.commit},
+                pull_request_number = ${pull.number}, updated_at = now()
+          WHERE id = ${runId}`;
+      // The run has ended by the time its files are published, and the ledger
+      // takes no events for an ended run: this refusal is expected, and must
+      // not report the publish (which succeeded) as failed. The columns above
+      // are what Berry reads.
       await new RunLedger({ sql: deps.sql }).appendDelivered(runId, {
          committed: true,
          commit: published.commit,
@@ -160,6 +171,8 @@ export async function publishRunArtifacts(
          files: published.files,
          pullRequest: { number: pull.number, url: pull.url, created: pull.created },
          mergeRequiresApproval: true,
+      }).catch((error: unknown) => {
+         if (!(error instanceof RunTerminal)) throw error;
       });
 
       return { branch, commit: published.commit, files: published.files, pullRequest: pull.number };
