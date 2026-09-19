@@ -19,6 +19,7 @@ import type {
    ProjectPatch,
    ProjectRepository,
    ProjectResource,
+   ProjectUpdate,
    ResourcePatch,
 } from '../core/projects.ts';
 import type { ScmProvisioning } from '../scm/provisioning.ts';
@@ -42,6 +43,19 @@ import type { Mount } from '../http/registry.ts';
 
 const STATUSES = new Set(['planned', 'active', 'paused', 'completed', 'cancelled']);
 const PRIORITIES = new Set(['none', 'low', 'medium', 'high', 'urgent']);
+const HEALTHS = new Set(['noUpdate', 'onTrack', 'atRisk', 'offTrack']);
+const HEALTH_TO_STORE: Record<string, string> = {
+   noUpdate: 'no_update',
+   onTrack: 'on_track',
+   atRisk: 'at_risk',
+   offTrack: 'off_track',
+};
+const HEALTH_TO_WIRE: Record<string, string> = {
+   no_update: 'noUpdate',
+   on_track: 'onTrack',
+   at_risk: 'atRisk',
+   off_track: 'offTrack',
+};
 const RESOURCE_KINDS = new Set(['link', 'document', 'repository']);
 
 /** `owner/name`, and nothing that could be a path or a URL. */
@@ -55,12 +69,16 @@ const PROJECT_BODY_FIELDS = new Set([
    'description',
    'status',
    'priority',
+   'health',
    'startDate',
    'targetDate',
    'githubRepo',
    'lead',
 ]);
 const RESOURCE_BODY_FIELDS = new Set(['kind', 'url', 'label', 'description', 'sortOrder']);
+const UPDATE_BODY_FIELDS = new Set(['body', 'health']);
+/** Health values a posted update may carry — `noUpdate` is not a status of an update. */
+const UPDATE_HEALTHS = new Set(['onTrack', 'atRisk', 'offTrack']);
 
 export interface ProjectOptions {
    sessions: SessionService;
@@ -147,6 +165,7 @@ export function projectMounts(options: ProjectOptions): Mount[] {
             description: input.description,
             status: input.status,
             priority: input.priority,
+            health: input.health,
             startDate: input.startDate,
             targetDate: input.targetDate,
             githubRepoId: repository?.githubRepoId ?? null,
@@ -258,6 +277,48 @@ export function projectMounts(options: ProjectOptions): Mount[] {
       return new Response(null, { status: 204 });
    });
 
+   route.get('/:projectId/updates', async (context) => {
+      const { workspaceId, projectId } = await scopeOf(context, projects, 'product.read');
+      const url = new URL(context.req.url);
+      const page = parsePage(url, []);
+      const scope = cursorScope('projects.updates', [projectId]);
+      const after = page.after === '' ? null : decodeUpdateCursor(page.after, scope);
+
+      const rows = await projects
+         .listUpdates(workspaceId, projectId, after, page.first + 1)
+         .catch(rethrow);
+      const hasNextPage = rows.length > page.first;
+      const nodes = hasNextPage ? rows.slice(0, page.first) : rows;
+      const last = nodes.at(-1);
+      return json({
+         nodes: nodes.map(serializeUpdate),
+         pageInfo: {
+            hasNextPage,
+            endCursor: last
+               ? encodeCursor(scope, { createdAt: last.createdAt, id: last.id })
+               : null,
+         },
+      });
+   });
+
+   route.post('/:projectId/updates', idempotent(options.idempotency), async (context) => {
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const input = parseCreateUpdate(await readBody(context.req.raw, UPDATE_BODY_FIELDS));
+
+      const created = await projects
+         .createUpdate({
+            workspaceId,
+            projectId,
+            authorId: userId,
+            body: input.body,
+            health: input.health,
+         })
+         .catch(rethrow);
+      const response = json(serializeUpdate(created), 201);
+      response.headers.set('Location', `/api/v1/projects/${projectId}/updates/${created.id}`);
+      return response;
+   });
+
    return [{ prefix: '/api/v1/projects', handler: route }];
 }
 
@@ -293,6 +354,7 @@ interface CreateInput {
    description: string | null;
    status: string;
    priority: string;
+   health: string;
    startDate: string | null;
    targetDate: string | null;
    githubRepo: string | null;
@@ -349,6 +411,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
    const description = optionalText(body, 'description', 'Description', 20000, fields);
    const status = enumField(body, 'status', 'planned', STATUSES, 'Status', fields);
    const priority = enumField(body, 'priority', 'none', PRIORITIES, 'Priority', fields);
+   const health = HEALTH_TO_STORE[enumField(body, 'health', 'noUpdate', HEALTHS, 'Health', fields)] ?? 'no_update';
    const startDate = optionalDate(body, 'startDate', fields);
    const targetDate = optionalDate(body, 'targetDate', fields);
 
@@ -378,6 +441,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       description,
       status,
       priority,
+      health,
       startDate,
       targetDate,
       githubRepo,
@@ -426,6 +490,14 @@ function parsePatch(body: Record<string, unknown>): ProjectPatch {
          fields.push(field('/priority', 'invalid_enum_value', 'Priority is not supported.'));
       } else {
          patch.priority = String(body.priority);
+      }
+   }
+   if ('health' in body) {
+      provided += 1;
+      if (body.health === null || !HEALTHS.has(String(body.health))) {
+         fields.push(field('/health', 'invalid_enum_value', 'Health is not supported.'));
+      } else {
+         patch.health = HEALTH_TO_STORE[String(body.health)] ?? 'no_update';
       }
    }
    if ('startDate' in body) {
@@ -636,6 +708,29 @@ function decodeResourceCursor(after: string, scope: string): SortOrderCursor {
    } catch {
       throw invalidCursor();
    }
+}
+
+function decodeUpdateCursor(after: string, scope: string): { createdAt: string; id: string } {
+   try {
+      return decodeCursor<{ createdAt: string; id: string }>(after, scope, ['createdAt', 'id']);
+   } catch {
+      throw invalidCursor();
+   }
+}
+
+function parseCreateUpdate(body: Record<string, unknown>): { body: string; health: string } {
+   const fields: FieldError[] = [];
+   const textBody = requiredText(body, 'body', 'Body', 1, 100_000, fields);
+   let health = 'on_track';
+   if (!('health' in body) || body.health === null || body.health === undefined) {
+      fields.push(field('/health', 'required', 'Health is required.'));
+   } else if (!UPDATE_HEALTHS.has(String(body.health))) {
+      fields.push(field('/health', 'invalid_enum_value', 'Health is not supported.'));
+   } else {
+      health = HEALTH_TO_STORE[String(body.health)] ?? 'on_track';
+   }
+   assertValid(fields);
+   return { body: textBody, health };
 }
 
 // ---- field helpers ---------------------------------------------------------
@@ -1007,6 +1102,7 @@ function serializeProject(project: Project, link?: ScmLink | null): Record<strin
       description: project.description,
       status: project.status,
       priority: project.priority,
+      health: HEALTH_TO_WIRE[project.health] ?? 'noUpdate',
       startDate: project.startDate,
       targetDate: project.targetDate,
       githubRepo: project.githubRepo,
@@ -1021,6 +1117,7 @@ function serializeProject(project: Project, link?: ScmLink | null): Record<strin
             : project.lead.type === 'user'
               ? { type: 'user', id: project.lead.userId }
               : { type: 'aiWorkflow' },
+      createdBy: project.createdBy ? { type: 'user', id: project.createdBy } : null,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,
    };
@@ -1037,5 +1134,17 @@ function serializeResource(resource: ProjectResource): Record<string, unknown> {
       sortOrder: resource.sortOrder,
       createdAt: resource.createdAt,
       updatedAt: resource.updatedAt,
+   };
+}
+
+function serializeUpdate(update: ProjectUpdate): Record<string, unknown> {
+   return {
+      id: update.id,
+      projectId: update.projectId,
+      body: update.body,
+      health: HEALTH_TO_WIRE[update.health] ?? 'onTrack',
+      author: update.author,
+      createdAt: update.createdAt,
+      updatedAt: update.updatedAt,
    };
 }

@@ -14,13 +14,18 @@ import type { Scope } from './boards.ts';
  */
 
 const PROJECT_COLUMNS = `project.id, project.workspace_id, project.name, project.description,
-   project.status, project.priority, project.start_date, project.target_date,
+   project.status, project.priority, project.health, project.start_date, project.target_date,
    project.github_repo_id, project.github_repo_full_name, project.git_repo, project.created_by,
    project.lead_type, project.lead_user_id, project.created_at, project.updated_at`;
 
 const RESOURCE_COLUMNS = `resource.id, resource.workspace_id, resource.project_id,
    resource.kind, resource.url, resource.label, resource.description,
    resource.sort_order, resource.created_by, resource.created_at, resource.updated_at`;
+
+const UPDATE_COLUMNS = `update_row.id, update_row.workspace_id, update_row.project_id,
+   update_row.body, update_row.health, update_row.author_id,
+   author.name AS author_name, author.avatar_url AS author_avatar,
+   update_row.created_at, update_row.updated_at`;
 
 /**
  * Who leads a project.
@@ -39,12 +44,15 @@ export interface Project {
    description: string | null;
    status: string;
    priority: string;
+   health: string;
    startDate: string | null;
    targetDate: string | null;
    githubRepo: string | null;
    /** Berry's own bare repository for this project, relative to the repos root. */
    gitRepo: string | null;
    lead: ProjectLead | null;
+   /** Who created the project, or null for rows that predate the column. */
+   createdBy: string | null;
    createdAt: string;
    updatedAt: string;
 }
@@ -61,12 +69,24 @@ export interface ProjectResource {
    updatedAt: string;
 }
 
+/** One activity-tab update posted against a project. */
+export interface ProjectUpdate {
+   id: string;
+   projectId: string;
+   body: string;
+   health: string;
+   author: { type: 'user'; id: string; name: string; avatarUrl: string | null };
+   createdAt: string;
+   updatedAt: string;
+}
+
 export interface ProjectPatch {
    name?: string;
    descriptionSet: boolean;
    description?: string | null;
    status?: string;
    priority?: string;
+   health?: string;
    startDateSet: boolean;
    startDate?: string | null;
    targetDateSet: boolean;
@@ -183,6 +203,7 @@ export class ProjectRepository {
       description: string | null;
       status: string;
       priority: string;
+      health?: string;
       startDate: string | null;
       targetDate: string | null;
       githubRepoId: string | null;
@@ -196,12 +217,13 @@ export class ProjectRepository {
       const lead = leadColumns(params.lead ?? null);
       const rows = await this.sql`
          INSERT INTO projects AS project (
-            id, workspace_id, name, description, status, priority,
+            id, workspace_id, name, description, status, priority, health,
             start_date, target_date, github_repo_id, github_repo_full_name,
             created_by, lead_type, lead_user_id, created_at, updated_at
          ) VALUES (
             ${this.newId()}, ${params.workspaceId}, ${params.name}, ${params.description},
-            ${params.status}, ${params.priority}, ${params.startDate}, ${params.targetDate},
+            ${params.status}, ${params.priority}, ${params.health ?? 'no_update'},
+            ${params.startDate}, ${params.targetDate},
             ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy},
             ${lead.type}, ${lead.userId}, ${now}, ${now}
          )
@@ -216,6 +238,7 @@ export class ProjectRepository {
                 description = CASE WHEN ${patch.descriptionSet} THEN ${patch.description ?? null}::text ELSE project.description END,
                 status = CASE WHEN ${patch.status !== undefined} THEN ${patch.status ?? null}::text ELSE project.status END,
                 priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::text ELSE project.priority END,
+                health = CASE WHEN ${patch.health !== undefined} THEN ${patch.health ?? null}::text ELSE project.health END,
                 start_date = CASE WHEN ${patch.startDateSet} THEN ${patch.startDate ?? null}::date ELSE project.start_date END,
                 target_date = CASE WHEN ${patch.targetDateSet} THEN ${patch.targetDate ?? null}::date ELSE project.target_date END,
                 -- Both columns move together or neither does, which is what the
@@ -371,6 +394,89 @@ export class ProjectRepository {
             AND project.deleted_at IS NULL`;
       if (archived.count !== 1) throw new NotFound();
    }
+
+   /**
+    * Activity updates for a live project, newest first.
+    *
+    * Newest first so the overview's Activity tab can render the page it gets
+    * without reversing it — a refresh should put the latest post at the top.
+    */
+   async listUpdates(
+      workspaceId: string,
+      projectId: string,
+      after: { createdAt: string; id: string } | null,
+      limit: number
+   ): Promise<ProjectUpdate[]> {
+      const rows = await this.sql`
+         SELECT ${this.sql.unsafe(UPDATE_COLUMNS)}
+           FROM project_updates AS update_row
+           JOIN projects AS project
+             ON project.workspace_id = update_row.workspace_id
+            AND project.id = update_row.project_id
+            AND project.deleted_at IS NULL
+           JOIN users AS author ON author.id = update_row.author_id
+          WHERE update_row.workspace_id = ${workspaceId}
+            AND update_row.project_id = ${projectId}
+            AND (
+                ${after?.createdAt ?? null}::timestamptz IS NULL
+                OR (update_row.created_at, update_row.id)
+                   < (${after?.createdAt ?? null}, ${after?.id ?? null}::uuid)
+            )
+          ORDER BY update_row.created_at DESC, update_row.id DESC
+          LIMIT ${limit}`;
+      return rows.map(toUpdate);
+   }
+
+   /**
+    * Posts an update and records the project's health from it.
+    *
+    * Both writes share a transaction so a posted update never disagrees with
+    * the health chip: the chip is the status of the latest update, not a
+    * separate fact that can drift.
+    */
+   async createUpdate(params: {
+      workspaceId: string;
+      projectId: string;
+      authorId: string;
+      body: string;
+      health: string;
+   }): Promise<ProjectUpdate> {
+      return this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const now = this.now();
+         const id = this.newId();
+         const inserted = await tx`
+            INSERT INTO project_updates AS update_row (
+               id, workspace_id, project_id, author_id, body, health,
+               created_at, updated_at
+            )
+            SELECT ${id}, ${params.workspaceId}, project.id, ${params.authorId},
+                   ${params.body}, ${params.health}, ${now}, ${now}
+              FROM projects AS project
+             WHERE project.workspace_id = ${params.workspaceId}
+               AND project.id = ${params.projectId}
+               AND project.deleted_at IS NULL
+            RETURNING update_row.id`.catch(classifyWrite);
+         if (inserted.length === 0) throw new NotFound();
+
+         await tx`
+            UPDATE projects
+               SET health = ${params.health}, updated_at = ${now}
+             WHERE workspace_id = ${params.workspaceId}
+               AND id = ${params.projectId}
+               AND deleted_at IS NULL`;
+
+         const [row] = await tx`
+            SELECT ${tx.unsafe(UPDATE_COLUMNS)}
+              FROM project_updates AS update_row
+              JOIN users AS author ON author.id = update_row.author_id
+             WHERE update_row.workspace_id = ${params.workspaceId}
+               AND update_row.project_id = ${params.projectId}
+               AND update_row.id = ${id}`;
+         if (!row) throw new NotFound();
+         return toUpdate(row);
+      });
+   }
 }
 
 /** `%` and `_` are ILIKE wildcards; a search for them must match literally. */
@@ -393,11 +499,13 @@ function toProject(row: Record<string, unknown>): Project {
       description: (row.description as string | null) ?? null,
       status: row.status as string,
       priority: row.priority as string,
+      health: (row.health as string | null) ?? 'no_update',
       startDate: formatDate(row.start_date),
       targetDate: formatDate(row.target_date),
       githubRepo: (row.github_repo_full_name as string | null) ?? null,
       gitRepo: (row.git_repo as string | null) ?? null,
       lead: toLead(row.lead_type, row.lead_user_id),
+      createdBy: (row.created_by as string | null) ?? null,
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
    };
@@ -435,6 +543,23 @@ function toResource(row: Record<string, unknown>): ProjectResource {
       label: (row.label as string | null) ?? null,
       description: (row.description as string | null) ?? null,
       sortOrder: row.sort_order as number,
+      createdAt: toRFC3339(row.created_at as string) ?? '',
+      updatedAt: toRFC3339(row.updated_at as string) ?? '',
+   };
+}
+
+function toUpdate(row: Record<string, unknown>): ProjectUpdate {
+   return {
+      id: row.id as string,
+      projectId: row.project_id as string,
+      body: row.body as string,
+      health: row.health as string,
+      author: {
+         type: 'user',
+         id: row.author_id as string,
+         name: (row.author_name as string | null) ?? 'Unknown',
+         avatarUrl: (row.author_avatar as string | null) ?? null,
+      },
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
    };

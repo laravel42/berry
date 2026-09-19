@@ -1,0 +1,2 @@
+ALTER TABLE projects DROP CONSTRAINT IF EXISTS projects_health_ck;
+ALTER TABLE projects DROP COLUMN IF EXISTS health;
