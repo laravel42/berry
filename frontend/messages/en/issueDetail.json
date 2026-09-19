@@ -436,5 +436,22 @@
       "title": "Preview of {path}",
       "back": "Back",
       "forward": "Forward"
+   },
+   "environmentPreview": {
+      "loading": "Loading…",
+      "loadFailed": "The preview could not be opened.",
+      "unavailableHere": "This server cannot run previews: Docker is not available on it.",
+      "nothingYet": "Nothing to preview yet. A preview runs the task's pull request, and no run has delivered a commit.",
+      "stopped": "The preview is stopped.",
+      "start": "Start the preview",
+      "fetching": "Fetching the pull request's code…",
+      "starting": "Installing, building and starting. The first time takes a few minutes; after that the dependencies are kept.",
+      "failed": "The preview did not start.",
+      "commit": "The commit this preview runs",
+      "open": "Open in a new tab",
+      "reload": "Reload the page",
+      "rebuild": "Rebuild and restart from the latest commit",
+      "stop": "Stop the preview",
+      "title": "Preview of {app}"
    }
 }

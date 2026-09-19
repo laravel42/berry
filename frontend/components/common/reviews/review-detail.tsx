@@ -3,9 +3,11 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
+import { EnvironmentPreview } from '@/components/common/issues/details/environment-preview';
 import { SitePreview } from '@/components/common/issues/details/site-preview';
 import { loadIssueArtifacts, siteEntry } from '@/lib/attachments';
 import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
+import { loadPreviewEnvironment } from '@/lib/preview-environment';
 import { preloadSitePreview } from '@/lib/site-preview';
 import { useSessionStore } from '@/store/session-store';
 import { ArrowLeft } from 'lucide-react';
@@ -61,6 +63,10 @@ export function ReviewDetail({
    const [active, setActive] = useState<ReviewSection>(section);
    // Whether the task's output holds a page, so the Preview tab has a site to run.
    const [hasSite, setHasSite] = useState(false);
+   // Whether the task has a pull request the server can run. When it does, the
+   // Preview is the running app — a Next.js site has no page file to find — and
+   // the saved files are only the fallback for a task without a repository.
+   const [hasEnvironment, setHasEnvironment] = useState(false);
 
    useEffect(() => {
       setActive(section);
@@ -93,6 +99,12 @@ export function ReviewDetail({
             if (site) preloadSitePreview(issueRef, artifacts);
          })
          .catch(() => !cancelled && setHasSite(false));
+      loadPreviewEnvironment(issueRef)
+         .then(
+            (environment) =>
+               !cancelled && setHasEnvironment(environment.available && environment.previewable)
+         )
+         .catch(() => !cancelled && setHasEnvironment(false));
       return () => {
          cancelled = true;
       };
@@ -133,7 +145,7 @@ export function ReviewDetail({
       (active === 'guide' && !item.issue.autoGate) ||
       (active === 'diff' && !item.pullRequest) ||
       (active === 'files' && !hasFiles) ||
-      (active === 'preview' && !hasSite)
+      (active === 'preview' && !hasSite && !hasEnvironment)
          ? 'overview'
          : active;
 
@@ -212,7 +224,9 @@ export function ReviewDetail({
                   )}
                   {item.pullRequest && <TabsTrigger value="diff">{t('sections.diff')}</TabsTrigger>}
                   {hasFiles && <TabsTrigger value="files">{t('sections.files')}</TabsTrigger>}
-                  {hasSite && <TabsTrigger value="preview">{t('sections.preview')}</TabsTrigger>}
+                  {(hasSite || hasEnvironment) && (
+                     <TabsTrigger value="preview">{t('sections.preview')}</TabsTrigger>
+                  )}
                </TabsList>
             </div>
             <TabsContent value="overview" className="min-h-0 flex-1 overflow-hidden">
@@ -246,11 +260,15 @@ export function ReviewDetail({
                   />
                </TabsContent>
             )}
-            {hasSite && (
-               // The task's site, built first when it is a build tool's source,
-               // running across the whole pane.
+            {(hasSite || hasEnvironment) && (
+               // The pull request running as it would deployed, when there is one;
+               // otherwise the task's saved site, built first when it needs building.
                <TabsContent value="preview" className="min-h-0 flex-1 overflow-hidden">
-                  <SitePreview issueRef={item.issue.identifier} />
+                  {hasEnvironment ? (
+                     <EnvironmentPreview issueRef={item.issue.identifier} />
+                  ) : (
+                     <SitePreview issueRef={item.issue.identifier} />
+                  )}
                </TabsContent>
             )}
          </Tabs>
