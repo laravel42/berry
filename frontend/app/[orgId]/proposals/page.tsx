@@ -1,10 +1,7 @@
-import Proposals from '@/components/common/proposals/proposals';
-import MainLayout from '@/components/layout/main-layout';
+import { redirect } from 'next/navigation';
 
-export default function ProposalsPage() {
-   return (
-      <MainLayout>
-         <Proposals />
-      </MainLayout>
-   );
+/** Proposals are work-proposal approvals; they surface in Inbox. */
+export default async function ProposalsPage({ params }: { params: Promise<{ orgId: string }> }) {
+   const { orgId } = await params;
+   redirect(`/${orgId}/inbox`);
 }

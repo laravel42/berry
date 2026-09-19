@@ -15,7 +15,6 @@ import type { InboxItem } from '@/data/inbox';
 import { fetchInbox } from '@/lib/inbox';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
-import { useMembersStore } from '@/store/members-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useSessionStore } from '@/store/session-store';
 import { MoreHorizontal } from 'lucide-react';
@@ -30,10 +29,9 @@ import { InboxRow } from './inbox-row';
 import { InboxPanel } from './inbox-states';
 import {
    applyInboxFilters,
-   SENDER_AGENT,
-   SENDER_SYSTEM,
    selectionAfterRemoval,
    senderKey,
+   useInboxApprovalDeepLink,
    useInboxFilterColumns,
    useInboxKeyboard,
    useInboxSelection,
@@ -59,13 +57,13 @@ export default function Inbox() {
 
    const [view, setView] = useInboxView();
    const [selectedId, setSelectedId] = useInboxSelection();
+   const [approvalDeepLink, setApprovalDeepLink] = useInboxApprovalDeepLink();
    const [show, setShow] = useState<InboxShowFilter>('all');
    const [filters, setFilters] = useState<FiltersState>([]);
 
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const user = useSessionStore((state) => state.user);
    const issues = useIssuesStore((state) => state.issues);
-   const members = useMembersStore((state) => state.members);
 
    const notifications = useNotificationsStore((state) => state.notifications);
    const archivedItems = useNotificationsStore((state) => state.archived);
@@ -161,6 +159,16 @@ export default function Inbox() {
       if (!visible.some((item) => item.id === selectedId)) void setSelectedId(null);
    }, [selectedId, visible, listReady, setSelectedId]);
 
+   // `?approval=` opens the matching inbox row once the list is ready.
+   useEffect(() => {
+      if (!approvalDeepLink || !listReady) return;
+      const match = source.find((item) => item.approval?.id === approvalDeepLink);
+      if (!match) return;
+      clearFilters();
+      void setSelectedId(match.id);
+      void setApprovalDeepLink(null);
+   }, [approvalDeepLink, listReady, source, clearFilters, setSelectedId, setApprovalDeepLink]);
+
    // Opening a notification is reading it, unless the reader deliberately put
    // it back to unread.
    useEffect(() => {
@@ -173,15 +181,6 @@ export default function Inbox() {
       const row = document.querySelector(`[data-inbox-row="${selectedId}"]`);
       row?.scrollIntoView({ block: 'nearest' });
    }, [selectedId, visible]);
-
-   const senderName = useCallback(
-      (key: string): string => {
-         if (key === SENDER_AGENT) return t('filters.agents');
-         if (key === SENDER_SYSTEM) return t('filters.system');
-         return members.find((member) => member.id === key)?.name ?? t('filters.unknownSender');
-      },
-      [members, t]
-   );
 
    const report = useCallback(
       (ok: boolean, message: string) => {
@@ -254,7 +253,7 @@ export default function Inbox() {
       <div className="flex h-full min-h-0 w-full">
          <div
             className={cn(
-               'flex h-full min-h-0 w-full flex-col border-r bg-container md:w-[380px] md:shrink-0 lg:w-[420px]',
+               'flex h-full min-h-0 w-full shrink-0 flex-col border-r bg-container md:w-[40%]',
                selectedId ? 'hidden md:flex' : 'flex'
             )}
          >
@@ -325,7 +324,6 @@ export default function Inbox() {
                   handled={archivedStatus === 'ready' && archivedItems.length > 0}
                   selectedId={selectedId}
                   orgId={orgId}
-                  senderName={senderName}
                   onSelect={(id) => void setSelectedId(id)}
                   onToggleRead={(item) => {
                      void (item.read ? markAsUnread(item.id) : markAsRead(item.id));
@@ -372,7 +370,6 @@ interface InboxListProps {
    handled: boolean;
    selectedId: string | null;
    orgId: string;
-   senderName: (key: string) => string;
    onSelect: (id: string) => void;
    onToggleRead: (item: InboxItem) => void;
    onMoveOut: (item: InboxItem) => void;
@@ -390,7 +387,6 @@ function InboxList({
    handled,
    selectedId,
    orgId,
-   senderName,
    onSelect,
    onToggleRead,
    onMoveOut,
@@ -438,7 +434,6 @@ function InboxList({
                selected={item.id === selectedId}
                archived={archivedView}
                href={inboxHref(item, orgId)}
-               sender={item.actor ? senderName(senderKey(item)) : null}
                onSelect={() => onSelect(item.id)}
                onToggleRead={() => onToggleRead(item)}
                onArchive={() => onMoveOut(item)}

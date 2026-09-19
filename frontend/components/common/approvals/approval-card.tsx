@@ -28,6 +28,9 @@ import {
    rejectApproval,
    splitEscalationOptions,
    summarizeApprovalTitle,
+   approvalHeadline,
+   decodeApprovalText,
+   splitApprovalSections,
    type Approval,
    type ApprovalDecisionKind,
 } from '@/lib/approvals';
@@ -204,13 +207,34 @@ export function ApprovalCard({
    const look = statusLook(APPROVAL_STATUS, approval.status);
    const expiry = describeApprovalExpiry(approval.expiresAt);
    const page = layout === 'page';
+   const displayTitle = decodeApprovalText(approval.title);
 
    const request = useMemo(
       () =>
          escalation
-            ? splitEscalationOptions(approval.description)
-            : { body: approval.description ?? '', options: [] },
+            ? splitEscalationOptions(decodeApprovalText(approval.description ?? ''))
+            : { body: decodeApprovalText(approval.description ?? ''), options: [] },
       [escalation, approval.description]
+   );
+   const sections = useMemo(
+      () => (compact && request.body ? splitApprovalSections(request.body) : []),
+      [compact, request.body]
+   );
+   const proposedBy = useMemo(() => {
+      for (const section of sections) {
+         if (section.body || !section.title) continue;
+         const match = section.title.match(/^Proposed by\s+(.+)$/i);
+         if (match?.[1]) return match[1].trim();
+      }
+      return null;
+   }, [sections]);
+   const contentSections = useMemo(
+      () =>
+         sections.filter((section) => {
+            if (section.body || !section.title) return true;
+            return !/^Proposed by\s+/i.test(section.title);
+         }),
+      [sections]
    );
 
    // An escalation's decline note is its own: the answer drafted above must
@@ -261,15 +285,18 @@ export function ApprovalCard({
 
    const links: { href: string; label: string }[] = [];
    if (approval.issue) {
+      const issueTitle = decodeApprovalText(approval.issue.title);
       links.push({
          href: `/${orgId}/issue/${approval.issue.identifier}`,
-         label: `${approval.issue.identifier} ${approval.issue.title}`,
+         // Compact inbox already shows the request; the chip is a jump target,
+         // so the key alone is enough and a long title cannot blow the row.
+         label: compact ? approval.issue.identifier : `${approval.issue.identifier} ${issueTitle}`,
       });
    }
    if (approval.goalId) {
       links.push({
          href: `/${orgId}/goal/${approval.goalId}/overview`,
-         label: goalTitle ?? 'goal',
+         label: goalTitle ? decodeApprovalText(goalTitle) : 'goal',
       });
    }
    if (approval.planId) {
@@ -277,16 +304,18 @@ export function ApprovalCard({
    }
 
    // An escalation is never folded: the question and its options are the
-   // decision. Proposals and task starts fold after a screen.
-   const clamp = escalation
-      ? undefined
-      : { lines: compact ? 6 : 12, moreLabel: t('more'), lessLabel: t('less') };
+   // decision. Full cards fold long proposals; the inbox pane shows the
+   // whole request so a person can decide without expanding.
+   const clamp =
+      escalation || compact ? undefined : { lines: 12, moreLabel: t('more'), lessLabel: t('less') };
    const Title = page ? 'h2' : 'h3';
    const confirmTitle =
       kind === 'issueStart'
-         ? t('decision.issueStart.confirmTitle', { title: approval.issue?.title ?? approval.title })
+         ? t('decision.issueStart.confirmTitle', {
+              title: approval.issue?.title ?? displayTitle,
+           })
          : kind === 'default'
-           ? t('decision.default.confirmTitle', { title: approval.title })
+           ? t('decision.default.confirmTitle', { title: displayTitle })
            : t(`decision.${kind}.confirmTitle`);
    const size = compact ? 'xs' : 'sm';
    const locked = busy !== null || refusal !== null;
@@ -437,12 +466,31 @@ export function ApprovalCard({
          )}
          {failureLine}
          {buttons}
-         <p className="max-w-prose text-muted-foreground">{t(`decision.${kind}.explain`)}</p>
+         <p className={cn('w-full min-w-0 text-muted-foreground', !compact && 'max-w-prose')}>
+            {t(`decision.${kind}.explain`)}
+         </p>
       </div>
    );
 
    const essentials = (
-      <dl className="mt-3 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1">
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+         {proposedBy ? (
+            <Fact label={t('proposedBy')}>
+               <span className="text-actor-agent">{proposedBy}</span>
+            </Fact>
+         ) : null}
+         <Fact label={t('kind')}>{describeApprovalKind(approval.kind)}</Fact>
+         <Fact label={t('riskLabel')}>
+            <span
+               className={cn(
+                  approval.risk === 'high' && 'text-status-danger',
+                  approval.risk === 'medium' && 'text-status-warning'
+               )}
+            >
+               {t('risk', { risk: approval.risk })}
+            </span>
+         </Fact>
+         {!pending && <Fact label={t('status')}>{outcomeLabel(kind, approval.status)}</Fact>}
          <Fact label={t('askedOf')}>{describeRequestedFrom(approval.requestedFrom, members)}</Fact>
          <Fact label={t('requestedAt')}>
             <time dateTime={approval.requestedAt}>{whenText(approval.requestedAt)}</time>
@@ -462,9 +510,9 @@ export function ApprovalCard({
                   <Link
                      key={link.href}
                      href={link.href}
-                     className="inline-flex max-w-full items-center rounded-md border border-border/60 px-2 py-0.5 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                     className="underline-offset-2 hover:underline"
                   >
-                     <span className="truncate">{link.label}</span>
+                     {link.label}
                   </Link>
                ))}
             </Fact>
@@ -476,86 +524,110 @@ export function ApprovalCard({
       <article
          className={cn(
             page ? 'flex flex-col' : 'rounded-md border border-border/60 bg-background',
-            !page && (compact ? 'px-3 py-2.5' : 'px-4 py-3'),
+            !page && (compact ? 'w-full min-w-0 p-6' : 'px-4 py-3'),
             className
          )}
       >
-         <div className="flex items-start gap-3">
-            <BerryMark size="sm" tone={look.tone} state={look.state} className="mt-1" />
-            <div className="min-w-0 flex-1">
-               <Title className="line-clamp-3 text-balance" title={approval.title}>
-                  {summarizeApprovalTitle(approval.title, 120)}
-               </Title>
-               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <Pill>{describeApprovalKind(approval.kind)}</Pill>
-                  <Pill tone={RISK_TONE[approval.risk]}>{t('risk', { risk: approval.risk })}</Pill>
-                  {!pending && (
-                     <Pill tone={approval.status === 'approved' ? 'complete' : 'danger'}>
-                        {outcomeLabel(kind, approval.status)}
-                     </Pill>
-                  )}
-               </div>
-               {compact ? (
-                  <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
-                     <span>
-                        {t('row.askedOf', {
-                           who: describeRequestedFrom(approval.requestedFrom, members),
-                        })}
-                     </span>
-                     <span>{whenText(approval.requestedAt)}</span>
-                     {pending && expiry && (
-                        <span
-                           className={
-                              expiry === 'expired' ? 'text-status-danger' : 'text-status-warning'
-                           }
+         {compact ? (
+            <div className="flex w-full min-w-0 flex-col gap-6">
+               <p className="flex w-full min-w-0 items-start gap-2">
+                  <BerryMark
+                     size="sm"
+                     tone={look.tone}
+                     state={look.state}
+                     className="mt-0.5 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1 break-words">
+                     {approvalHeadline(displayTitle)}
+                  </span>
+               </p>
+
+               {essentials}
+
+               {contentSections.length > 0 ? (
+                  contentSections.map((section, index) =>
+                     section.body ? (
+                        <section
+                           key={`${section.title ?? 'lead'}-${index}`}
+                           className="flex min-w-0 flex-col gap-2"
                         >
-                           {expiry}
-                        </span>
-                     )}
-                  </p>
-               ) : (
-                  essentials
-               )}
-               {request.body &&
-                  (compact ? (
+                           {section.title ? <h3>{section.title}</h3> : null}
+                           <AgentMarkdown
+                              body={section.body}
+                              className="w-full max-w-none text-muted-foreground"
+                           />
+                        </section>
+                     ) : section.title ? (
+                        <p key={`${section.title}-${index}`} className="text-muted-foreground">
+                           {section.title}
+                        </p>
+                     ) : null
+                  )
+               ) : request.body ? (
+                  <section className="flex min-w-0 flex-col gap-2">
+                     <h3>{t('request')}</h3>
                      <AgentMarkdown
                         body={request.body}
-                        className="mt-2 max-w-prose text-muted-foreground"
-                        clamp={clamp}
+                        className="w-full max-w-none text-muted-foreground"
                      />
-                  ) : (
-                     <section className="mt-4 flex flex-col gap-2">
-                        <h3>{t('request')}</h3>
-                        <AgentMarkdown body={request.body} className="max-w-prose" clamp={clamp} />
-                     </section>
-                  ))}
+                  </section>
+               ) : null}
+
                {answerBlock}
-               {compact && links.length > 0 && (
-                  <ul className="mt-2 flex flex-wrap gap-1.5">
-                     {links.map((link) => (
-                        <li key={link.href}>
-                           <Link
-                              href={link.href}
-                              className="inline-flex max-w-full items-center rounded-md border border-border/60 px-2 py-0.5 hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                           >
-                              <span className="truncate">{link.label}</span>
-                           </Link>
-                        </li>
-                     ))}
-                  </ul>
-               )}
                {!pending && (approval.resolvedAt || approval.decisionNote) && (
-                  <p className="mt-3 max-w-prose text-muted-foreground">
+                  <p className="text-muted-foreground">
                      {outcomeLabel(kind, approval.status)}
                      {approval.resolvedAt && ` · ${whenText(approval.resolvedAt)}`}
                      {approval.decisionNote && ` · “${approval.decisionNote}”`}
                   </p>
                )}
-               {!page && decisionBlock}
+               {decisionBlock}
             </div>
-         </div>
-         {page && decisionBlock}
-         {page && !pending && <div className="pb-6" />}
+         ) : (
+            <>
+               <div className="flex items-start gap-3">
+                  <BerryMark size="sm" tone={look.tone} state={look.state} className="mt-1" />
+                  <div className="min-w-0 flex-1">
+                     <Title className="line-clamp-3 text-balance" title={displayTitle}>
+                        {summarizeApprovalTitle(displayTitle, 120)}
+                     </Title>
+                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <Pill>{describeApprovalKind(approval.kind)}</Pill>
+                        <Pill tone={RISK_TONE[approval.risk]}>
+                           {t('risk', { risk: approval.risk })}
+                        </Pill>
+                        {!pending && (
+                           <Pill tone={approval.status === 'approved' ? 'complete' : 'danger'}>
+                              {outcomeLabel(kind, approval.status)}
+                           </Pill>
+                        )}
+                     </div>
+                     <div className="mt-3">{essentials}</div>
+                     {request.body ? (
+                        <section className="mt-4 flex flex-col gap-2">
+                           <h3>{t('request')}</h3>
+                           <AgentMarkdown
+                              body={request.body}
+                              className="max-w-prose"
+                              clamp={clamp}
+                           />
+                        </section>
+                     ) : null}
+                     {answerBlock}
+                     {!pending && (approval.resolvedAt || approval.decisionNote) && (
+                        <p className="mt-3 max-w-prose text-muted-foreground">
+                           {outcomeLabel(kind, approval.status)}
+                           {approval.resolvedAt && ` · ${whenText(approval.resolvedAt)}`}
+                           {approval.decisionNote && ` · “${approval.decisionNote}”`}
+                        </p>
+                     )}
+                     {!page && decisionBlock}
+                  </div>
+               </div>
+               {page && decisionBlock}
+               {page && !pending && <div className="pb-6" />}
+            </>
+         )}
       </article>
    );
 }

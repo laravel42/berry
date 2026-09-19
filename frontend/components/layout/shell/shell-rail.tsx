@@ -19,7 +19,6 @@ import {
    type SidebarSection,
 } from '@/store/sidebar-prefs-store';
 import { isTerminalRunStatus } from '@/lib/runs';
-import { selectPendingCount, useApprovalsStore } from '@/store/approvals-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
@@ -86,16 +85,13 @@ export function ShellRail({
    const runsLive = useRunsStore((state) =>
       state.runs.some((run) => !isTerminalRunStatus(run.status))
    );
-   // Hydrated workspace-wide on boot and refreshed on `approval.*` events by
-   // the workspace event stream; the rail only reads it.
-   const pendingApprovals = useApprovalsStore(selectPendingCount);
-   // Kept current by `useOpenReviewsSync`; null until the first load, and a
-   // count nobody has yet is not a count worth showing.
+   // Reviews badge only — approvals land in Inbox, so the rail no longer
+   // reads the approvals store. Kept current by `useOpenReviewsSync`; null
+   // until the first load, and a count nobody has yet is not worth showing.
    const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
 
    /** What a route's badge currently says, for the badge and for "show when badged". */
    const badgeCount = (route: ShellRouteDef): number => {
-      if (route.badge === 'approvals') return pendingApprovals;
       if (route.badge === 'reviews') return openReviews;
       return 0;
    };
@@ -245,12 +241,6 @@ export function ShellRail({
                                        aria-label={t('rail.runsInProgress')}
                                        title={t('rail.runsInProgress')}
                                        className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
-                                    />
-                                 ) : null}
-                                 {route.badge === 'approvals' ? (
-                                    <ShellBadge
-                                       count={count}
-                                       label={t('rail.approvalsWaiting', { count })}
                                     />
                                  ) : null}
                                  {route.badge === 'reviews' ? (

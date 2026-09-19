@@ -53,7 +53,7 @@ export function ShellShortcuts({ orgId }: { orgId: string }) {
    useShortcut('goto.projects', () => go('/projects'));
    useShortcut('goto.goals', () => go('/goals'));
    useShortcut('goto.reviews', () => go('/reviews'));
-   useShortcut('goto.approvals', () => go('/approvals'));
+   useShortcut('goto.approvals', () => go('/inbox'));
    useShortcut('goto.views', () => go('/views'));
    useShortcut('goto.agents', () => go('/agents'));
    useShortcut('goto.runtimes', () => go('/settings/runtimes'));

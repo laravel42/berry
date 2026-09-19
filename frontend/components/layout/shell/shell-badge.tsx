@@ -21,8 +21,10 @@ export function ShellBadge({ count, label }: { count: number; label: string }) {
       <span
          // Smaller than anything the base type scale sizes, so the size is set
          // here rather than with a text utility the project keeps in globals.
-         style={{ fontSize: '10px', lineHeight: '16px' }}
-         className="ml-auto min-w-[18px] rounded-full bg-[var(--shell-line-strong)] px-1.5 py-px text-center leading-4 text-[var(--shell-text)]"
+         // Darker berry red (#a8384c) — not a black mix; chalk/white stays
+         // readable at 10px without muddying the hue.
+         style={{ fontSize: '10px', lineHeight: '16px', backgroundColor: '#a8384c' }}
+         className="ml-auto min-w-[18px] rounded-full px-1.5 py-px text-center font-medium leading-4 text-[var(--primary-foreground)]"
       >
          <span aria-hidden="true">{badgeText(count)}</span>
          <span className="sr-only">{label}</span>

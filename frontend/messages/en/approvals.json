@@ -27,6 +27,10 @@
       "askedOf": "asked of {who}"
    },
    "risk": "{risk} risk",
+   "kind": "Kind",
+   "riskLabel": "Risk",
+   "status": "Status",
+   "proposedBy": "Proposed by",
    "askedOf": "Asked of",
    "requestedAt": "Requested",
    "expires": "Expires",

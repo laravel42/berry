@@ -4,6 +4,7 @@ import type { User } from '@/data/users';
 import { z } from 'zod';
 import { apiFetch } from './api';
 import { connectionSchema } from './api-schemas';
+import { decodeApprovalText, isWorkProposalKind } from './approvals';
 import { catalogPriority, catalogStatus, uiStatusFromApi } from './catalog';
 
 const inboxSchema = z.object({
@@ -73,6 +74,7 @@ function notificationType(item: ApiInboxItem): NotificationType {
       return 'runCompleted';
    }
    if (item.approvalId || category === 'approvals' || event.startsWith('approval.')) {
+      if (isProposalNotification(item)) return 'proposal';
       return 'approval';
    }
    if (item.planId || event.startsWith('plan.')) return 'plan';
@@ -96,6 +98,17 @@ function notificationType(item: ApiInboxItem): NotificationType {
       return typeof details.field === 'string' ? 'fieldChange' : 'edited';
    }
    return 'created';
+}
+
+/**
+ * Work proposals are stored as approvals, but they are a different decision.
+ * `details.kind` is the authority when the row recorded it; titles that
+ * still use the `Proposal:` prefix cover rows written before that field.
+ */
+function isProposalNotification(item: ApiInboxItem): boolean {
+   const kind = item.details?.kind;
+   if (typeof kind === 'string' && isWorkProposalKind(kind)) return true;
+   return /^\s*proposal\s*:/i.test(decodeApprovalText(item.title));
 }
 
 function actorOf(item: ApiInboxItem): InboxActor | null {
@@ -147,11 +160,13 @@ function issueSnapshot(item: ApiInboxItem): Issue | undefined {
 function toInboxItem(item: ApiInboxItem, actor: User): InboxItem {
    const issue = issueSnapshot(item);
    const details = item.details ?? {};
+   const title = decodeApprovalText(item.title);
+   const body = item.body ? decodeApprovalText(item.body) : item.body;
    return {
       id: item.id,
       identifier: issue?.identifier ?? '',
-      title: item.title,
-      content: item.body ?? item.title,
+      title,
+      content: body ?? title,
       type: notificationType(item),
       category: item.category,
       eventType: item.eventType,

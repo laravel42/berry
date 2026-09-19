@@ -26,10 +26,8 @@ import {
    GitPullRequest,
    GripVertical,
    LayoutDashboard,
-   Lightbulb,
    LucideIcon,
    MessageSquare,
-   ShieldCheck,
    Sparkles,
    Target,
    Timer,
@@ -47,11 +45,9 @@ interface ItemConfig {
 export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
    { key: 'reviews', label: 'Reviews', icon: GitPullRequest, badged: true },
-   { key: 'approvals', label: 'Approvals', icon: ShieldCheck, badged: true },
    { key: 'chat', label: 'Chat', icon: MessageSquare },
    { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
-   { key: 'proposals', label: 'Proposals', icon: Lightbulb },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [

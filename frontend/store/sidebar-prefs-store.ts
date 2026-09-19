@@ -11,9 +11,7 @@ export type SidebarItemKey =
    | 'meetings'
    | 'my-issues'
    | 'goals'
-   | 'proposals'
    | 'autopilot'
-   | 'approvals'
    | 'projects'
    | 'views'
    | 'agents'
@@ -57,9 +55,7 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'meetings': 'always',
    'my-issues': 'always',
    'goals': 'always',
-   'proposals': 'always',
    'autopilot': 'always',
-   'approvals': 'always',
    'projects': 'always',
    'views': 'always',
    'agents': 'always',
@@ -76,10 +72,9 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
 const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    personal: [],
    // Goals sits under projects because that is where a goal comes from: it
-   // groups the tasks one plan compiled inside a project.
-   // Approvals sits under reviews: both are queues of delivered work waiting
-   // on a person, and the rail reads them together.
-   workspace: ['projects', 'goals', 'my-issues', 'reviews', 'approvals', 'chat', 'proposals'],
+   // groups the tasks one plan compiled inside a project. Approvals and
+   // proposals land in Inbox now, not as their own Work rail entries.
+   workspace: ['projects', 'goals', 'my-issues', 'reviews', 'chat'],
    automate: [],
    // No runtimes entry: Runtimes lives in Settings. A stored `agent` key from
    // before the move is dropped by resolveOrder, which keeps only known keys.

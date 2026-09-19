@@ -27,7 +27,7 @@
    "states": {
       "loading": "Loading your notifications…",
       "empty": "Nothing has reached you yet.",
-      "emptyBody": "Berry sends you what happens on tasks you follow: mentions, assignments, comments, review requests and agent runs. You follow a task when you create it, take it, comment on it or are mentioned in it, or when you press Follow.",
+      "emptyBody": "Berry sends you what happens on tasks you follow: mentions, assignments, comments, review requests and agent runs — and the approvals and proposals that need your decision. You follow a task when you create it, take it, comment on it or are mentioned in it, or when you press Follow.",
       "noMatches": "No notifications match these filters.",
       "emptyArchive": "The archive is empty.",
       "emptyArchiveBody": "Notifications you archive are kept here.",
@@ -35,7 +35,7 @@
       "errorBody": "The request did not come back. Nothing was lost.",
       "retry": "Try again",
       "caughtUp": "You’re caught up.",
-      "caughtUpBody": "Everything you handled is in the archive. New mentions, assignments, comments, reviews and runs on tasks you follow land here."
+      "caughtUpBody": "Everything you handled is in the archive. New mentions, assignments, comments, reviews, runs, approvals and proposals land here."
    },
    "actions": {
       "markRead": "Mark read",
@@ -58,6 +58,9 @@
       "noBody": "This notification carries no further detail.",
       "issueDeleted": "That task is gone.",
       "issueDeletedBody": "The task this notification is about has been deleted.",
+      "loadingApproval": "Loading the decision…",
+      "approvalMissing": "That approval is gone.",
+      "approvalMissingBody": "The decision this notification points at could not be loaded.",
       "backToInbox": "Back to the inbox"
    },
    "toasts": {
@@ -71,11 +74,11 @@
    },
    "drawer": {
       "title": "Notifications",
-      "description": "Mentions, assignments, comments, reviews and runs on tasks you follow.",
+      "description": "Mentions, assignments, comments, reviews, approvals and runs on tasks you follow.",
       "empty": "Nothing waiting for you.",
       "unread": "Unread",
       "openInbox": "Open the inbox",
-      "emptyBody": "Mentions, assignments, comments, reviews and runs on tasks you follow land here."
+      "emptyBody": "Mentions, assignments, comments, reviews, approvals, proposals and runs land here."
    },
    "toast": {
       "open": "Open",
@@ -97,6 +100,7 @@
       "created": "Created",
       "upload": "File attached",
       "approval": "Approval",
+      "proposal": "Proposal",
       "goal": "Goal",
       "workflow": "Workflow",
       "plan": "Plan",

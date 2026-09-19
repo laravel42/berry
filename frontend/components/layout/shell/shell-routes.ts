@@ -12,12 +12,10 @@ export type ShellRoute =
    | 'issues'
    | 'runs'
    | 'reviews'
-   | 'approvals'
    | 'chat'
    | 'inbox'
    | 'projects'
    | 'goals'
-   | 'proposals'
    | 'members'
    | 'skills'
    | 'autopilots'
@@ -29,10 +27,8 @@ export type ShellLabelKey =
    | 'tasks'
    | 'chat'
    | 'reviews'
-   | 'approvals'
    | 'goals'
    | 'projects'
-   | 'proposals'
    | 'runtimes'
    | 'agents'
    | 'analytics'
@@ -77,11 +73,11 @@ export interface ShellRouteDef {
    live?: 'runs';
    /**
     * Show a count at the end of this item, the way Personal's Inbox row
-    * counts unread: decisions waiting in approvals, reviews waiting for a
-    * person. Named here for the same reason as `live`: the rail asks the
-    * route what it carries, and the route table stays the one answer.
+    * counts unread: reviews waiting for a person. Named here for the same
+    * reason as `live`: the rail asks the route what it carries, and the
+    * route table stays the one answer. Approvals land in Inbox now.
     */
-   badge?: 'approvals' | 'reviews';
+   badge?: 'reviews';
 }
 
 const WORK: ShellRouteDef[] = [
@@ -107,17 +103,6 @@ const WORK: ShellRouteDef[] = [
       icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
    },
    {
-      // Risky steps wait here for a person to decide. Directly under Reviews:
-      // both are queues of work that stops until somebody says so.
-      id: 'approvals',
-      label: 'approvals',
-      labelKey: 'approvals',
-      href: '/approvals',
-      prefsKey: 'approvals',
-      badge: 'approvals',
-      icon: '<path d="M12 3l7 3v6c0 4.3-3 7.6-7 9-4-1.4-7-4.7-7-9V6z" /><path d="M9 12l2 2 4-4" />',
-   },
-   {
       id: 'goals',
       label: 'goals',
       labelKey: 'goals',
@@ -134,14 +119,6 @@ const WORK: ShellRouteDef[] = [
       match: ['/project/'],
       prefsKey: 'projects',
       icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
-   },
-   {
-      id: 'proposals',
-      label: 'proposals',
-      labelKey: 'proposals',
-      href: '/proposals',
-      prefsKey: 'proposals',
-      icon: '<path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2V17h5v-1.1c0-.8.4-1.5 1-2A6 6 0 0012 3z" />',
    },
 ];
 

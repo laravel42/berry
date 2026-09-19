@@ -22,11 +22,7 @@ import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
 import { IssueProjectProperty } from './issue-project-property';
 import { IssueQuickActions } from './issue-quick-actions';
-import {
-   IssueApprovalSection,
-   IssueDependenciesSection,
-   IssueGoalSection,
-} from './issue-relations';
+import { IssueDependenciesSection, IssueGoalSection } from './issue-relations';
 import { Section } from './panel-section';
 import { ReviewerProperty } from './reviewer-property';
 import { IssueUsageSection } from '@/components/common/usage/issue-usage-section';
@@ -162,7 +158,6 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
             <IssueParentSection issue={issue} />
             <IssueQuickActions issueRef={issue.identifier} />
-            <IssueApprovalSection issue={issue} />
             <IssueGoalSection issue={issue} />
             <IssueDependenciesSection issue={issue} />
             <IssueLinkedPullRequests issueRef={issue.identifier} />

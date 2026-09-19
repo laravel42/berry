@@ -25,6 +25,7 @@ export type NotificationType =
    | 'created'
    | 'upload'
    | 'approval'
+   | 'proposal'
    | 'goal'
    | 'workflow'
    | 'plan'
@@ -51,6 +52,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
    'created',
    'upload',
    'approval',
+   'proposal',
    'goal',
    'workflow',
    'plan',

@@ -47,7 +47,17 @@ function parseApproval(json: unknown): Approval {
    if (!parsed.success) {
       throw new Error('Approval response was not recognized');
    }
-   return parsed.data;
+   const approval = parsed.data;
+   return {
+      ...approval,
+      title: decodeApprovalText(approval.title),
+      description: approval.description
+         ? decodeApprovalText(approval.description)
+         : approval.description,
+      decisionNote: approval.decisionNote
+         ? decodeApprovalText(approval.decisionNote)
+         : approval.decisionNote,
+   };
 }
 
 export interface ApprovalsQuery {
@@ -305,8 +315,21 @@ export function approvalDecisionKind(kind: string): ApprovalDecisionKind {
    }
 }
 
+/** True for a work-proposal gate, whichever spelling the payload used. */
+export function isWorkProposalKind(kind: string): boolean {
+   return approvalDecisionKind(kind) === 'workProposal';
+}
+
 const TITLE_PREFIX =
    /^\s*(?:decision needed|decision required|escalation|question|proposal|approval needed|approval)\s*:\s*/i;
+
+/**
+ * The approval title with the agent prefix dropped, kept in full so a wide
+ * pane can wrap it instead of cutting at the first sentence.
+ */
+export function approvalHeadline(title: string): string {
+   return decodeApprovalText(title).replace(/\s+/g, ' ').trim().replace(TITLE_PREFIX, '');
+}
 
 /** Sentence-initial agent phrasing, rewritten so the row reads as a fact. */
 const FIRST_PERSON: [RegExp, string][] = [
@@ -325,12 +348,39 @@ function capitalise(text: string): string {
 }
 
 /**
+ * Agents sometimes escape quotes as `&quot;` (and similar) in titles they
+ * write. The card shows plain text, so those must become real characters
+ * before we summarise or put the string in `title=`.
+ */
+export function decodeApprovalText(text: string): string {
+   if (!text.includes('&')) return text;
+   return text
+      .replace(/&quot;/gi, '"')
+      .replace(/&#0*34;/g, '"')
+      .replace(/&apos;/gi, "'")
+      .replace(/&#0*39;/g, "'")
+      .replace(/&lt;/gi, '<')
+      .replace(/&#0*60;/g, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&#0*62;/g, '>')
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
+         const code = Number.parseInt(hex, 16);
+         return Number.isFinite(code) ? String.fromCodePoint(code) : _;
+      })
+      .replace(/&#(\d+);/g, (_, digits: string) => {
+         const code = Number(digits);
+         return Number.isFinite(code) ? String.fromCodePoint(code) : _;
+      })
+      .replace(/&amp;/gi, '&');
+}
+
+/**
  * The agent's title as one line for a list row: the "Decision needed:" prefix
  * and first-person framing dropped, the first sentence kept, and cut at a
  * word before `max` characters. The full title belongs in `title=`.
  */
 export function summarizeApprovalTitle(title: string, max = 80): string {
-   let text = title.replace(/\s+/g, ' ').trim().replace(TITLE_PREFIX, '');
+   let text = decodeApprovalText(title).replace(/\s+/g, ' ').trim().replace(TITLE_PREFIX, '');
    for (const [pattern, replacement] of FIRST_PERSON) {
       if (pattern.test(text)) {
          text = capitalise(text.replace(pattern, replacement));
@@ -361,6 +411,49 @@ export interface EscalationRequest {
    body: string;
    /** The choices the agent offered, in its order; empty when it offered none. */
    options: string[];
+}
+
+/**
+ * One labelled block of an approval request. Proposal bodies are written as
+ * `**Heading**` sections; splitting them lets the inbox card render a tree
+ * instead of one undifferentiated markdown slab.
+ */
+export interface ApprovalSection {
+   /** Heading without the markdown stars; null for a lead-in with no label. */
+   title: string | null;
+   body: string;
+}
+
+/**
+ * Split an approval description into labelled sections.
+ *
+ * A block that is only a bold sentence (`**Proposed by X.**`) becomes a
+ * section whose title is that sentence and whose body is empty. Blocks that
+ * start with `**Heading**` keep the rest as the body. Unlabelled leading text
+ * becomes a section with no title.
+ */
+export function splitApprovalSections(text: string): ApprovalSection[] {
+   const source = decodeApprovalText(text).replace(/\r\n/g, '\n').trim();
+   if (!source) return [];
+
+   const heading = /^\*\*([^*]+?)\*\*\s*/;
+   const chunks = source.split(/\n(?=\*\*[^*\n]+\*\*)/);
+   const sections: ApprovalSection[] = [];
+
+   for (const chunk of chunks) {
+      const trimmed = chunk.trim();
+      if (!trimmed) continue;
+      const match = trimmed.match(heading);
+      if (!match) {
+         sections.push({ title: null, body: trimmed });
+         continue;
+      }
+      const title = match[1]!.replace(/[.：:]\s*$/, '').trim();
+      const body = trimmed.slice(match[0].length).trim();
+      sections.push({ title: title || null, body });
+   }
+
+   return sections.length > 0 ? sections : [{ title: null, body: source }];
 }
 
 const OPTIONS_HEADING = /^(.*?)\s*(?:\*\*|__)?options?(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*$/i;

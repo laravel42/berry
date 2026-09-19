@@ -1,6 +1,5 @@
 'use client';
 
-import { ApprovalCard } from '@/components/common/approvals/approval-card';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -12,7 +11,6 @@ import {
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Issue, IssueDependencyRef } from '@/data/issues';
-import { isApprovalPending } from '@/lib/approvals';
 import { GOAL_STATUS, statusLook, uiStatusFromApi } from '@/lib/catalog';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import {
@@ -24,7 +22,6 @@ import {
    setIssueGoal,
    type IssueDependencyLists,
 } from '@/lib/issues';
-import { useApprovalsStore } from '@/store/approvals-store';
 import { useGoalsStore } from '@/store/goals-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { BerryMark } from '@/components/brand/berry-mark';
@@ -331,9 +328,6 @@ export function IssueDependenciesSection({ issue }: { issue: Issue }) {
                   ))}
                </ul>
             )}
-            {dependsOn.some((entry) => entry.status !== 'done' && entry.status !== 'cancelled') && (
-               <p className="mt-1 text-muted-foreground">Starts once every task above is done.</p>
-            )}
          </Section>
          {blocks.length > 0 && (
             <Section title="Blocks">
@@ -350,20 +344,5 @@ export function IssueDependenciesSection({ issue }: { issue: Issue }) {
             </Section>
          )}
       </>
-   );
-}
-
-/** The gate holding a task before it may start, with the decision inline. */
-export function IssueApprovalSection({ issue }: { issue: Issue }) {
-   const approval = useApprovalsStore((state) =>
-      state.approvals.find(
-         (candidate) => candidate.issueId === issue.id && isApprovalPending(candidate)
-      )
-   );
-   if (!approval) return null;
-   return (
-      <Section title="Waiting for approval">
-         <ApprovalCard approval={approval} compact />
-      </Section>
    );
 }

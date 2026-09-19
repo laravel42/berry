@@ -1,14 +1,17 @@
 'use client';
 
+import { ApprovalCard } from '@/components/common/approvals/approval-card';
 import IssueDetails from '@/components/common/issues/details/issue-details';
 import { Button } from '@/components/ui/button';
 import type { InboxItem } from '@/data/inbox';
+import { getApproval, type Approval } from '@/lib/approvals';
 import { createIssueRun } from '@/lib/runs';
 import { getNotificationIcon } from '@/lib/notification-utils';
 import { cn } from '@/lib/utils';
+import { useApprovalsStore } from '@/store/approvals-store';
 import { Archive, ArchiveRestore, ArrowLeft, ExternalLink, RotateCcw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { inboxHref, isAgentOutcome, relativeTime } from './inbox-format';
 import { InboxPanel } from './inbox-states';
@@ -30,8 +33,10 @@ interface InboxDetailProps {
  *
  * A notification about a task shows the task, because a notification is a
  * pointer and reading it without what it points at is half the story. One
- * about anything else shows what it recorded, and an agent outcome also shows
- * the instructions the agent was given, with the offer to run them again.
+ * about an approval shows the decision card itself — approvals and proposals
+ * live here now, not on their own rail pages. Anything else shows what it
+ * recorded, and an agent outcome also shows the instructions the agent was
+ * given, with the offer to run them again.
  */
 export function InboxDetail({
    item,
@@ -75,6 +80,7 @@ export function InboxDetail({
    const href = inboxHref(item, orgId);
    const showPrompt = isAgentOutcome(item) && Boolean(item.prompt);
    const canRetry = isAgentOutcome(item) && Boolean(item.issueId);
+   const approvalId = item.approval?.id;
 
    const retry = async () => {
       if (!item.issueId) return;
@@ -135,7 +141,11 @@ export function InboxDetail({
          ) : null}
 
          <div className="min-h-0 flex-1 overflow-hidden">
-            {item.identifier ? (
+            {approvalId ? (
+               <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
+                  <ApprovalInboxBody approvalId={approvalId} />
+               </div>
+            ) : item.identifier ? (
                /* F2 owns the task detail. Until its component lands this is
                   the one already in the tree, addressed by task key rather
                   than by route. */
@@ -158,6 +168,49 @@ export function InboxDetail({
          </div>
       </div>
    );
+}
+
+/** The decision card for an approval inbox row, from the store or a fetch. */
+function ApprovalInboxBody({ approvalId }: { approvalId: string }) {
+   const t = useTranslations('inbox');
+   const fromStore = useApprovalsStore((state) => state.getApprovalById(approvalId));
+   const upsertApproval = useApprovalsStore((state) => state.upsertApproval);
+   const [loaded, setLoaded] = useState<Approval | null>(null);
+   const [failed, setFailed] = useState(false);
+
+   useEffect(() => {
+      if (fromStore) {
+         setLoaded(null);
+         setFailed(false);
+         return;
+      }
+      const controller = new AbortController();
+      setFailed(false);
+      void getApproval(approvalId, controller.signal)
+         .then((approval) => {
+            setLoaded(approval);
+            upsertApproval(approval);
+         })
+         .catch(() => {
+            if (!controller.signal.aborted) setFailed(true);
+         });
+      return () => controller.abort();
+   }, [approvalId, fromStore, upsertApproval]);
+
+   const approval = fromStore ?? loaded;
+   if (failed) {
+      return (
+         <InboxPanel
+            state="crossed"
+            title={t('detail.approvalMissing')}
+            body={t('detail.approvalMissingBody')}
+         />
+      );
+   }
+   if (!approval) {
+      return <div className="text-muted-foreground">{t('detail.loadingApproval')}</div>;
+   }
+   return <ApprovalCard approval={approval} compact />;
 }
 
 interface DetailBarProps {

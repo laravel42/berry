@@ -34,6 +34,11 @@ export function useInboxSelection() {
    return useQueryState('issue');
 }
 
+/** Deep link to an approval waiting in the inbox (`?approval=`). */
+export function useInboxApprovalDeepLink() {
+   return useQueryState('approval');
+}
+
 /** Which slice of the inbox the list is showing (Archived is a view, not a filter). */
 export const INBOX_SHOW = ['all', 'unread', 'archived'] as const;
 export type InboxShow = (typeof INBOX_SHOW)[number];
