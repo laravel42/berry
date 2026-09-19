@@ -4,6 +4,7 @@ import {
    LifecycleStreamError,
    encodeLifecycle,
    isTerminal,
+   lifecycleEventSchema,
    parseLifecycleStream,
    type LifecycleEvent,
 } from './lifecycle.ts';
@@ -54,4 +55,16 @@ test('only completed and failed are terminal', () => {
    assert.equal(isTerminal({ type: 'task.started' }), false);
    assert.equal(isTerminal({ type: 'task.failed', failure: { code: 'X', message: 'm', retryable: true } }), true);
    assert.equal(isTerminal(events[4]!), true);
+});
+
+test('a failure may carry a checkpoint of the work already done, and need not', () => {
+   const failure = { code: 'RUN_LIMIT_REACHED', message: 'Stopped.', retryable: false };
+   const delivery = {
+      committed: false, commit: null, branch: 'b', filesChanged: 1, insertions: 1, deletions: 0,
+      files: ['a.ts'], candidate: [{ path: 'a.ts', mode: '100644', content: 'eA==' }],
+   };
+   const withCheckpoint = lifecycleEventSchema.parse({ type: 'task.failed', failure, delivery });
+   assert.ok(withCheckpoint.type === 'task.failed' && withCheckpoint.delivery?.files[0] === 'a.ts');
+   const plain = lifecycleEventSchema.parse({ type: 'task.failed', failure });
+   assert.ok(plain.type === 'task.failed' && plain.delivery === undefined);
 });

@@ -124,7 +124,16 @@ export const lifecycleEventSchema = z.discriminatedUnion('type', [
    z.object({ type: z.literal('task.message'), message: taskMessageSchema }),
    z.object({ type: z.literal('task.usage'), usage: taskUsageSchema }),
    z.object({ type: z.literal('task.completed'), result: taskResultSchema }),
-   z.object({ type: z.literal('task.failed'), failure: taskFailureSchema }),
+   z.object({
+      type: z.literal('task.failed'),
+      failure: taskFailureSchema,
+      /**
+       * Work a run stopped at a limit had already done, submitted as a
+       * checkpoint: the control plane publishes it to the task's branch (no
+       * pull request), and the next run on the task starts from there.
+       */
+      delivery: taskDeliverySchema.optional(),
+   }),
 ]);
 
 export type TaskUsage = z.infer<typeof taskUsageSchema>;

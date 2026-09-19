@@ -34,6 +34,12 @@
   `src/index.ts` builds the default target only from
   `BERRY_AGENTCORE_RUNTIME_ARN` or `BERRY_AGENT_RUNTIME_URL`. The HTTP
   fallback is `BERRY_AGENT_RUNTIME_URL`; see `server-ts/sandbox/docker/README.md`.
+- A run stopped at its step or output limit (`RUN_LIMIT_REACHED`) hands back
+  its repository work as a checkpoint: `task.failed` may carry a `delivery`,
+  collected without running the verify commands. Berry publishes it to the
+  task's branch through the same trusted path as a finished run, without a
+  pull request, and names the branch and commit in the failure. The next run
+  on the task starts from that branch head. (Added 2026-09-19.)
 - For the current wiring end to end, `server-ts/ARCHITECTURE.md` is the
   fuller reference; this ADR states the decision, not the full mechanism.
 

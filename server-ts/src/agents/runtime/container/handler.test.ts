@@ -330,11 +330,21 @@ test('warm workspaces replace rotated and removed environment values', async () 
    assert.deepEqual(observed, ['old', 'new', 'absent']);
 });
 
-test('turn exhaustion fails visibly and never delivers incomplete work', async () => {
-   let delivered = false;
+test('turn exhaustion fails visibly and hands back its work as an unverified checkpoint', async () => {
+   const seen: Array<{ checkpoint: boolean | undefined }> = [];
+   const candidate = {
+      committed: false, commit: null, branch: 'b', filesChanged: 1, insertions: 3, deletions: 0,
+      files: ['src/App.tsx'], candidate: [{ path: 'src/App.tsx', mode: '100644' as const, content: 'eA==' }],
+   };
    const { run } = harness([call('probe', {}), say('must not run')], {
       loadTools: async () => [tool({ name: 'probe', description: 'probe', inputSchema: z.object({}), callback: () => 'ok' })],
-      repository: { prepare: async () => '.', deliver: async () => { delivered = true; return null; } },
+      repository: {
+         prepare: async () => '.',
+         deliver: async (input) => {
+            seen.push({ checkpoint: input.checkpoint });
+            return candidate;
+         },
+      },
    });
    const sample = envelope();
    const events = await run(envelope({ agent: { ...sample.agent, maxTurns: 1 } }));
@@ -345,7 +355,37 @@ test('turn exhaustion fails visibly and never delivers incomplete work', async (
    // with a failure and no next move.
    assert.match(last.failure.message, /after 1 step,/);
    assert.match(last.failure.message, /step limit/);
-   // It must not claim the lost work survived.
-   assert.match(last.failure.message, /not delivered/);
-   assert.equal(delivered, false);
+   // The work goes back, marked as a checkpoint so it is not verified.
+   assert.deepEqual(seen, [{ checkpoint: true }]);
+   assert.deepEqual(last.delivery, candidate);
+});
+
+test('a limit stop whose checkpoint cannot be collected still fails on the limit', async () => {
+   const { run } = harness([call('probe', {}), say('must not run')], {
+      loadTools: async () => [tool({ name: 'probe', description: 'probe', inputSchema: z.object({}), callback: () => 'ok' })],
+      repository: {
+         prepare: async () => '.',
+         deliver: async () => {
+            throw new Error('Candidate exceeds the bounded delivery size; split the change');
+         },
+      },
+   });
+   const sample = envelope();
+   const events = await run(envelope({ agent: { ...sample.agent, maxTurns: 1 } }));
+   const last = events.at(-1);
+   assert.ok(last?.type === 'task.failed');
+   assert.equal(last.failure.code, 'RUN_LIMIT_REACHED');
+   assert.equal(last.delivery, undefined);
+});
+
+test('a limit stop with no repository says its Berry work stands', async () => {
+   const { run } = harness([call('probe', {}), say('must not run')], {
+      loadTools: async () => [tool({ name: 'probe', description: 'probe', inputSchema: z.object({}), callback: () => 'ok' })],
+   });
+   const sample = envelope();
+   const events = await run(envelope({ agent: { ...sample.agent, maxTurns: 1 } }));
+   const last = events.at(-1);
+   assert.ok(last?.type === 'task.failed');
+   assert.match(last.failure.message, /through Berry stands/);
+   assert.equal(last.delivery, undefined);
 });

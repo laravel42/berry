@@ -57,6 +57,8 @@ export interface RepositoryStep {
       summary: string | null;
       emit: Emit;
       signal?: AbortSignal;
+      /** A checkpoint of unfinished work: collected as-is, without running the verify commands. */
+      checkpoint?: boolean;
    }): Promise<TaskDelivery | null>;
 }
 
@@ -102,7 +104,7 @@ const LIMIT_STOPS: readonly string[] = ['limitTurns', 'limitOutputTokens', 'limi
  * progress lines. Say the number instead, and say that the work already done
  * stands: a run cut on its last turn has usually finished the job.
  */
-function limitMessage(stopReason: string, agent: TaskEnvelope['agent']): string {
+function limitMessage(stopReason: string, agent: TaskEnvelope['agent'], checkpointed: boolean): string {
    const turns = stopReason === 'limitTurns';
    const ceiling = turns ? agent.maxTurns : agent.maxOutputTokens;
    const raise = turns ? 'step limit' : 'output limit';
@@ -111,13 +113,12 @@ function limitMessage(stopReason: string, agent: TaskEnvelope['agent']): string 
       : turns
         ? `Stopped after ${ceiling} step${ceiling === 1 ? '' : 's'}, this agent's limit`
         : `Stopped after ${ceiling} tokens written, this agent's limit`;
-   // Honest about what survives: incomplete work is never delivered, so
-   // repository changes from this run are gone, while what it did through
-   // Berry (comments, task updates, links) was written as it happened.
-   return (
-      `${reached}. Its uncommitted repository changes were not delivered — incomplete work never is — ` +
-      `but what it did through Berry stands. Raise the ${raise} on the agent, or split the task into smaller ones.`
-   );
+   // Honest about what survives. Work done through Berry (comments, task
+   // updates, links) was written as it happened. Repository work goes back as
+   // a checkpoint, and the control plane says where it landed; without one
+   // there was nothing to save.
+   const kept = checkpointed ? '' : ' What it did through Berry stands.';
+   return `${reached}.${kept} Raise the ${raise} on the agent, or split the task into smaller ones.`;
 }
 
 export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps: HandlerDeps): Promise<void> {
@@ -244,9 +245,25 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       flushUsage();
       if (LIMIT_STOPS.includes(result.stopReason)) {
          deps.registry.drop(key);
+         // The work so far goes back as a checkpoint rather than dying with the
+         // workspace: a run stopped mid-scaffold otherwise loses every file it
+         // wrote, and the next run on the task starts from the branch this
+         // lands on. A checkpoint that cannot be collected is not a second
+         // failure — the limit is still what ended the run.
+         const checkpoint =
+            deps.repository && directory
+               ? await deps.repository
+                    .deliver({ envelope, session: workspace, directory, summary: null, emit, signal, checkpoint: true })
+                    .catch(() => null)
+               : null;
          emit({
             type: 'task.failed',
-            failure: { code: 'RUN_LIMIT_REACHED', message: limitMessage(result.stopReason, envelope.agent), retryable: false },
+            failure: {
+               code: 'RUN_LIMIT_REACHED',
+               message: limitMessage(result.stopReason, envelope.agent, checkpoint !== null),
+               retryable: false,
+            },
+            ...(checkpoint ? { delivery: checkpoint } : {}),
          });
          return;
       }

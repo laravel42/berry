@@ -42,16 +42,20 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          await emitterSink(emit).appendRepositoryReady(envelope.runId, { repository: repo.fullName, branch: repo.branch, baseCommit: repo.snapshotCommit });
          return directory;
       },
-      async deliver({ envelope, session, directory, emit }) {
+      async deliver({ envelope, session, directory, emit, checkpoint }) {
          const repo = envelope.repo;
          if (!repo || repo.readOnly) return null;
          const baseline = baselines.get(session);
          if (!baseline || !/^[0-9a-f]{40,64}$/.test(baseline)) throw new Error('Repository baseline is missing');
-         const report = await verify({ session, directory, commands: repo.verifyCommands });
-         await emitterSink(emit).appendVerified(envelope.runId, {
-            passed: report.passed, complete: report.complete, durationMs: report.durationMs,
-            results: report.results.map((r) => ({ command: r.command, exitCode: r.exitCode, passed: r.passed, durationMs: r.durationMs, error: r.error })),
-         });
+         // Unfinished work is saved, not judged: its checks would fail for the
+         // plain reason that it is not done.
+         if (!checkpoint) {
+            const report = await verify({ session, directory, commands: repo.verifyCommands });
+            await emitterSink(emit).appendVerified(envelope.runId, {
+               passed: report.passed, complete: report.complete, durationMs: report.durationMs,
+               results: report.results.map((r) => ({ command: r.command, exitCode: r.exitCode, passed: r.passed, durationMs: r.durationMs, error: r.error })),
+            });
+         }
          const diff = await session.exec(`${git} add -A && ${git} diff --cached --numstat -z --no-renames ${shellQuote(baseline)}`, { cwd: directory });
          if (diff.exitCode !== 0) throw new Error('Could not read the complete candidate');
          const stat = parseNumstat(diff.stdout);

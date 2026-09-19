@@ -9,7 +9,7 @@ import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
 import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
-import { LifecycleStreamError, type TaskMessage, type TaskResult } from './lifecycle.ts';
+import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
 import { RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
 import { scheduleReview } from '../runs/followups.ts';
@@ -172,7 +172,11 @@ export class RuntimeTaskExecutor implements Executor {
                      throw new RuntimeUnavailable('Usage could not be recorded; execution accounting is incomplete');
                   });
             } else if (event.type === 'task.failed') {
-               return await this.#fail(task, recorder, usage, event.failure);
+               const failure =
+                  event.delivery && delivery
+                     ? await this.#checkpoint(task, delivery, event.delivery, event.failure)
+                     : event.failure;
+               return await this.#fail(task, recorder, usage, failure);
             } else if (event.type === 'task.completed') {
                return await this.#succeed(task, recorder, usage, event.result, delivery, verified);
             }
@@ -248,6 +252,56 @@ export class RuntimeTaskExecutor implements Executor {
          }
       }
       return { runId: task.runId, status: 'succeeded', summary, usage, result };
+   }
+
+   /**
+    * Publishes the work a failed run had done — a run stopped at its step or
+    * output limit — to the task's branch, and says where it went.
+    *
+    * The same trusted path as a finished run, with one difference: no pull
+    * request. Unfinished work is kept, not proposed. The next run on the task
+    * starts from the branch head (see the repository snapshot), so it carries
+    * on instead of starting over. Must run before the run is marked failed:
+    * publication is only allowed while the run is still running.
+    */
+   async #checkpoint(
+      task: TaskRow,
+      plan: NonNullable<Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery']>,
+      candidate: TaskDelivery,
+      failure: Failure
+   ): Promise<Failure> {
+      try {
+         const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId) : null;
+         const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
+         if (!github) throw new Error('repository delivery is not configured');
+         const published = await publishTrustedDelivery(this.#o.sql, task.runId, github, candidate);
+         if (!published.committed || !published.commit) {
+            return { ...failure, message: `${failure.message} It had not changed any files yet.` };
+         }
+         await recordDelivery({
+            sql: this.#o.sql,
+            ledger: this.#ledger,
+            github: null,
+            runId: task.runId,
+            plan: { ...plan, mayOpenPullRequest: false },
+            delivery: published,
+            summary: null,
+            verified: null,
+         });
+         const count = published.filesChanged;
+         return {
+            ...failure,
+            message:
+               `${failure.message} Its work so far is saved on branch ${plan.branch} ` +
+               `(${count} file${count === 1 ? '' : 's'}, commit ${published.commit.slice(0, 7)}); ` +
+               'running the task again continues from there.',
+         };
+      } catch (error) {
+         return {
+            ...failure,
+            message: `${failure.message} Its repository work could not be saved: ${error instanceof Error ? error.message : String(error)}`,
+         };
+      }
    }
 
    async #fail(task: TaskRow, recorder: TaskRecorder, usage: Usage, failure: Failure): Promise<TaskOutcome> {
