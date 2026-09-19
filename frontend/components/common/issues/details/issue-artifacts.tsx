@@ -476,42 +476,42 @@ export function IssueArtifacts({
                   }}
                >
                   {root ? (
-                     <div className="flex min-h-5 min-w-0 items-center gap-0.5 pr-1 text-muted-foreground">
+                     <div className="flex min-h-7 min-w-0 items-center gap-0.5 pr-1 text-muted-foreground">
                         <button
                            type="button"
                            onClick={() => toggle(ROOT)}
                            aria-expanded={!collapsed.has(ROOT)}
                            title={root}
-                           className="flex min-h-5 min-w-0 flex-1 items-center gap-1 rounded-sm pl-2 text-left font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                           className="flex min-h-7 min-w-0 flex-1 items-center gap-1 rounded-sm pl-2 text-left font-mono outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         >
                            {collapsed.has(ROOT) ? (
                               <ChevronRight className="size-3.5 shrink-0" aria-hidden />
                            ) : (
                               <ChevronDown className="size-3.5 shrink-0" aria-hidden />
                            )}
-                           <span className="truncate">{root}</span>
+                           <span className="truncate text-[14px] font-bold">{root}</span>
                         </button>
                         {create ? (
                            <>
                               <RootAction label={t('newFile')} onClick={() => startDraft('file')}>
-                                 <FilePlus className="size-3.5" aria-hidden />
+                                 <FilePlus className="size-4" aria-hidden />
                               </RootAction>
                               <RootAction
                                  label={t('newFolder')}
                                  onClick={() => startDraft('folder')}
                               >
-                                 <FolderPlus className="size-3.5" aria-hidden />
+                                 <FolderPlus className="size-4" aria-hidden />
                               </RootAction>
                            </>
                         ) : null}
                         <RootAction label={t('refresh')} onClick={refresh} disabled={!loaded}>
                            <RefreshCw
-                              className={cn('size-3.5', !loaded && 'animate-spin')}
+                              className={cn('size-4', !loaded && 'animate-spin')}
                               aria-hidden
                            />
                         </RootAction>
                         <RootAction label={t('collapseAll')} onClick={collapseAll}>
-                           <CopyMinus className="size-3.5" aria-hidden />
+                           <CopyMinus className="size-4" aria-hidden />
                         </RootAction>
                         {marked ? (
                            <RootAction
@@ -519,7 +519,7 @@ export function IssueArtifacts({
                               onClick={toggleChangesOnly}
                               pressed={changesOnly}
                            >
-                              <GitCompare className="size-3.5" aria-hidden />
+                              <GitCompare className="size-4" aria-hidden />
                            </RootAction>
                         ) : null}
                      </div>
@@ -595,7 +595,7 @@ function RootAction({
          type="button"
          variant="ghost"
          size="icon"
-         className={cn('size-5 shrink-0', pressed && 'bg-accent text-foreground')}
+         className={cn('size-7 shrink-0', pressed && 'bg-accent text-foreground')}
          aria-label={label}
          title={label}
          aria-pressed={pressed}
