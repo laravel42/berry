@@ -7,6 +7,7 @@ import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledg
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
+import { LIMIT_CODE, continuationNote, continueAfterLimit, type ContinuationOutcome } from '../runs/continuation.ts';
 import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
@@ -60,6 +61,9 @@ export interface RuntimeTaskExecutorOptions {
    onCancelError?: (error: unknown) => void;
    /** The runtime's maxLifetime: a token never outlives the microVM it was minted for. */
    tokenTtlSeconds?: number;
+   /** How many times a task stopped at its step limit is continued unattended. Zero turns it off. */
+   maxContinuations?: number;
+   onContinuationError?: (error: unknown) => void;
    clock?: () => Date;
    newId?: () => string;
 }
@@ -306,11 +310,14 @@ export class RuntimeTaskExecutor implements Executor {
 
    async #fail(task: TaskRow, recorder: TaskRecorder, usage: Usage, failure: Failure): Promise<TaskOutcome> {
       await recorder.failed({ failure, usage });
+      // After the run is recorded as ended, because a task admits one run at a
+      // time; before the comment, so the comment can say what happens next.
+      const next = await this.#continue(task, failure);
       if (task.issueId) {
          if (!failure.retryable) {
             await postRunResult(this.#o.sql, {
                issueId: task.issueId, agentId: task.agentId,
-               text: `This run failed (${failure.code}). ${failure.message}`, cut: false,
+               text: `This run failed (${failure.code}). ${failure.message}${next ? continuationNote(next) : ''}`, cut: false,
                occurredAt: new Date().toISOString(),
             }).catch(() => null);
          }
@@ -320,6 +327,24 @@ export class RuntimeTaskExecutor implements Executor {
          });
       }
       return { runId: task.runId, status: 'failed', summary: null, usage, failure };
+   }
+
+   /**
+    * Queues the next segment of a task that was stopped at its limit while it
+    * was still getting somewhere. Never fails the failure: a continuation that
+    * cannot be queued leaves the run exactly as it was, for a person to rerun.
+    */
+   async #continue(task: TaskRow, failure: Failure): Promise<ContinuationOutcome | null> {
+      if (failure.code !== LIMIT_CODE || !task.issueId) return null;
+      try {
+         return await continueAfterLimit(this.#o.sql, {
+            runId: task.runId,
+            ...(this.#o.maxContinuations === undefined ? {} : { maxContinuations: this.#o.maxContinuations }),
+         });
+      } catch (error) {
+         this.#o.onContinuationError?.(error);
+         return null;
+      }
    }
 
    async #cancel(task: TaskRow, recorder: TaskRecorder, usage: Usage, target: RuntimeTarget, session: string): Promise<TaskOutcome> {

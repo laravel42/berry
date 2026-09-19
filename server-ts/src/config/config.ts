@@ -678,6 +678,8 @@ export interface RuntimeConfig {
    defaultModel: string;
    /** How many tasks this process dispatches at once. */
    concurrency: number;
+   /** Unattended continuations of a task stopped at its step limit. Zero is off. */
+   maxContinuations: number;
    /** A task token's lifetime: the runtime's maxLifetime. */
    tokenTtlSeconds: number;
    /**
@@ -699,9 +701,19 @@ function runtime(env: NodeJS.ProcessEnv): RuntimeConfig {
       maxTokens: env.BERRY_AGENT_MAX_TOKENS ? positive(env.BERRY_AGENT_MAX_TOKENS, 32_000) : null,
       defaultModel: (env.BERRY_AGENT_DEFAULT_MODEL ?? '').trim() || 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
       concurrency: positive(env.BERRY_RUN_CONCURRENCY, 2),
+      maxContinuations: continuations(env.BERRY_RUN_MAX_CONTINUATIONS),
       tokenTtlSeconds: Math.min(positive(env.BERRY_TASK_TOKEN_TTL_SECONDS, 28_800), 28_800),
       callbackUrl: origin(env.BERRY_RUNTIME_CALLBACK_URL),
    };
+}
+
+/**
+ * How many times a task stopped at its step limit carries on unattended.
+ * Unlike the other counts here, zero is a value: it turns continuation off.
+ */
+function continuations(value: string | undefined): number {
+   const parsed = Number.parseInt((value ?? '').trim(), 10);
+   return Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 10) : 3;
 }
 
 function positive(value: string | undefined, fallback: number): number {

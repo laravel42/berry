@@ -557,6 +557,11 @@ const executor = defaultTarget
               error: error instanceof Error ? error.message : String(error),
            }),
         tokenTtlSeconds: config.runtime.tokenTtlSeconds,
+        maxContinuations: config.runtime.maxContinuations,
+        onContinuationError: (error) =>
+           logger.error('a run stopped at its limit could not be continued', {
+              error: error instanceof Error ? error.message : String(error),
+           }),
      })
    : null;
 
