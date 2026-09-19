@@ -27,6 +27,9 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
    // What the page says it can do. It has no origin of its own, so its history
    // is asked for by message, not read.
    const [nav, setNav] = useState({ canBack: false, canForward: false });
+   // Where a built app was when the browser reloaded one of its routes from
+   // Berry's host: the frame is reopened on the site at that route.
+   const [route, setRoute] = useState<string | null>(null);
    const frameArea = useRef<HTMLDivElement>(null);
 
    const frame = useCallback(
@@ -38,7 +41,17 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
       const onMessage = (event: MessageEvent) => {
          // Only the page in this preview; anything else on the window is not ours.
          if (!event.source || event.source !== frame()) return;
-         const data = event.data as { type?: unknown; canBack?: unknown; canForward?: unknown };
+         const data = event.data as {
+            type?: unknown;
+            canBack?: unknown;
+            canForward?: unknown;
+            path?: unknown;
+         };
+         if (data?.type === `${BRIDGE}lost`) {
+            setRoute(typeof data.path === 'string' && data.path.startsWith('/') ? data.path : '/');
+            setReload((value) => value + 1);
+            return;
+         }
          if (data?.type !== `${BRIDGE}state`) return;
          setNav({ canBack: data.canBack === true, canForward: data.canForward === true });
       };
@@ -121,6 +134,7 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
                   base={base}
                   unbuilt={unbuilt}
                   reload={reload}
+                  route={route}
                   title={t('title', { path: entry.path })}
                />
             ) : (

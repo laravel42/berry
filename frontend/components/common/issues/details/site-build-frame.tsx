@@ -27,6 +27,8 @@ interface SiteBuildFrameProps {
    /** Bumped by the viewer's reload button. */
    reload: number;
    title: string;
+   /** The route a built app reopens on, when the preview lost its place (see proxy.ts). */
+   route?: string | null;
 }
 
 /**
@@ -47,6 +49,7 @@ export function SiteBuildFrame({
    unbuilt,
    reload,
    title,
+   route = null,
 }: SiteBuildFrameProps) {
    const t = useTranslations('issueDetail.siteBuild');
    // Starts from what the review's preload saw, so a site built in the
@@ -160,7 +163,9 @@ export function SiteBuildFrame({
          // built site's relative asset paths resolve against this URL.
          // The build's end time in the address, so a rebuilt site loads fresh
          // (a new frame, and no page cached from the build before).
-         `${base}${SITE_BUILD_PATH}index.html?v=${encodeURIComponent(build.finishedAt ?? '')}`,
+         `${base}${SITE_BUILD_PATH}index.html?v=${encodeURIComponent(build.finishedAt ?? '')}${
+            route ? `&berry-route=${encodeURIComponent(route)}` : ''
+         }`,
          <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-muted-foreground">
             <Hammer className="size-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1 truncate">{t('built')}</span>

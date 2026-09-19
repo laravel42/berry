@@ -125,6 +125,14 @@ test('the storage stand-ins go first in the head, before the page\'s own scripts
 
 test('a built app is shown at / with its assets resolving from the build folder', () => {
    const page = asAppRoot('<html><head><script type="module" src="./assets/app.js"></script></head></html>', '/api/v1/previews/t/__build__/');
-   assert.match(page, /^<html><head><base href="\/api\/v1\/previews\/t\/__build__\/"><script>try\{history\.replaceState/);
+   assert.match(page, /^<html><head><base href="\/api\/v1\/previews\/t\/__build__\/"><script>try\{[^<]*history\.replaceState/);
    assert.ok(page.indexOf('<base') < page.indexOf('./assets/app.js'));
+});
+
+test('a built app reopened by the preview starts on the route it was on, and only a route on this host', () => {
+   const page = asAppRoot('<html><head></head></html>', '/api/v1/previews/t/__build__/');
+   // The address the app's router reads is the route when one is given…
+   assert.match(page, /get\("berry-route"\)/);
+   // …and only a same-host path: not "//evil.test", not "https://…".
+   assert.match(page, /r\.charAt\(0\)==="\/"&&r\.charAt\(1\)!=="\/"/);
 });

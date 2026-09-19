@@ -292,7 +292,9 @@ export function withSandboxShim(html: string): string {
  * keeps its relative assets and lazily loaded chunks resolving from the build.
  */
 export function asAppRoot(html: string, root: string): string {
-   const base = `<base href="${root.replace(/"/g, '&quot;')}"><script>try{history.replaceState(history.state,"","/"+location.search+location.hash)}catch(e){}</script>`;
+   // `berry-route` is the route the app was on before the preview had to
+   // reopen it (see frontend/proxy.ts); only a path on this host is taken.
+   const base = `<base href="${root.replace(/"/g, '&quot;')}"><script>try{var r=new URLSearchParams(location.search).get("berry-route");history.replaceState(history.state,"",r&&r.charAt(0)==="/"&&r.charAt(1)!=="/"?r:"/"+location.search+location.hash)}catch(e){}</script>`;
    const head = /<head\b[^>]*>/i.exec(html);
    if (head) return html.slice(0, head.index + head[0].length) + base + html.slice(head.index + head[0].length);
    return base + html;
