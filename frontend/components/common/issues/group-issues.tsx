@@ -6,7 +6,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { cn } from '@/lib/utils';
 import { useVirtualRows } from '@/lib/use-virtual-rows';
-import { ChevronDown, EyeOff, Plus } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { FC, ReactNode, useRef } from 'react';
 import { useDrop } from 'react-dnd';
 import { AnimatePresence, motion } from 'motion/react';
@@ -40,8 +40,6 @@ interface GroupIssuesProps {
    /** Issues of the group, already sorted upstream. */
    issues: Issue[];
    count: number;
-   /** Board only: take this column off the board until it is restored. */
-   onHide?: () => void;
    /**
     * Applies this group's value to a task dropped into it — the status of a
     * status column, the person of an assignee column, and so on. Set by the
@@ -89,14 +87,12 @@ function GroupHeaderBar({
    isViewTypeGrid,
    showChevron,
    canCollapse,
-   onHide,
 }: {
    group: IssueGroupDescriptor;
    count: number;
    isViewTypeGrid: boolean;
    showChevron: boolean;
    canCollapse: boolean;
-   onHide?: () => void;
 }) {
    const { openModal } = useCreateIssueStore();
 
@@ -144,24 +140,7 @@ function GroupHeaderBar({
             )}
          >
             <div className="flex min-w-0 items-center gap-2">{label}</div>
-            <div className="flex shrink-0 items-center">
-               {onHide ? (
-                  <Button
-                     className="size-5"
-                     size="icon"
-                     variant="ghost"
-                     aria-label={`Hide ${group.name}`}
-                     title={`Hide ${group.name}`}
-                     onClick={(event) => {
-                        event.stopPropagation();
-                        onHide();
-                     }}
-                  >
-                     <EyeOff className="size-3.5" />
-                  </Button>
-               ) : null}
-               {createButton}
-            </div>
+            <div className="flex shrink-0 items-center">{createButton}</div>
          </div>
       );
    }
@@ -225,7 +204,7 @@ const IssueLineList: FC<{
    );
 };
 
-export function GroupIssues({ group, issues, count, onHide, onDropIssue }: GroupIssuesProps) {
+export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesProps) {
    // The URL's `layout` wins over the stored preference, as it does for the
    // view around this group; a shared `?layout=grid` link shows the board.
    const { mode } = useIssueListView();
@@ -240,7 +219,6 @@ export function GroupIssues({ group, issues, count, onHide, onDropIssue }: Group
          isViewTypeGrid={isViewTypeGrid}
          showChevron={showChevron}
          canCollapse={canCollapse}
-         onHide={onHide}
       />
    );
 

@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
    Command,
@@ -32,7 +31,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useLabelsStore } from '@/store/labels-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
-import { ChevronDown, ChevronRight, Columns3, Download, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -100,10 +99,6 @@ function readLayout(): StoredLayout | null {
    } catch {
       return null;
    }
-}
-
-function csvCell(value: string): string {
-   return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -441,7 +436,6 @@ export function IssueTable({
       hidden: ['created', 'updated', 'progress', 'labels'],
       calculation: 'count',
    });
-   const [search, setSearch] = useState('');
    const [dragging, setDragging] = useState<Column | null>(null);
    const [collapsed, setCollapsed] = useState<string[]>([]);
 
@@ -490,19 +484,9 @@ export function IssueTable({
       return map[column as BuiltInColumn];
    };
 
-   const searched = useMemo(() => {
-      const query = search.trim().toLowerCase();
-      if (!query) return issues;
-      return issues.filter(
-         (issue) =>
-            issue.title.toLowerCase().includes(query) ||
-            issue.identifier.toLowerCase().includes(query)
-      );
-   }, [issues, search]);
-
    const groups = useIssueGroups({
-      issues: searched,
-      totalIssues: totalIssues ?? searched,
+      issues,
+      totalIssues: totalIssues ?? issues,
       statuses,
       grouping: view.grouping,
       property: propertyGrouping,
@@ -573,54 +557,6 @@ export function IssueTable({
       [entries]
    );
    const virtual = useVirtualRows(entries.length, ROW_HEIGHT);
-
-   const exportCsv = (rows: Issue[]) => {
-      const header = ['Identifier', 'Title', ...visible.map(labelOf)];
-      const cellOf = (issue: Issue, column: Column): string => {
-         if (column.startsWith('property:')) {
-            return propertyValues.get(`${column}|${issue.id}`) ?? '';
-         }
-         switch (column as BuiltInColumn) {
-            case 'identifier':
-               return issue.identifier;
-            case 'status':
-               return issue.status.name;
-            case 'priority':
-               return issue.priority.name;
-            case 'assignee':
-               return issue.assignee?.name ?? '';
-            case 'project':
-               return issue.project?.name ?? '';
-            case 'labels':
-               return issue.labels.map((label) => label.name).join(' ');
-            case 'dueDate':
-               return issue.dueDate?.slice(0, 10) ?? '';
-            case 'created':
-               return issue.createdAt.slice(0, 10);
-            case 'updated':
-               return (issue.updatedAt ?? issue.createdAt).slice(0, 10);
-            case 'progress':
-               return issue.childProgress
-                  ? `${issue.childProgress.done}/${issue.childProgress.total}`
-                  : '';
-            default:
-               return '';
-         }
-      };
-      const body = rows.map((issue) =>
-         [issue.identifier, issue.title, ...visible.map((column) => cellOf(issue, column))]
-            .map(csvCell)
-            .join(',')
-      );
-      const csv = [header.map(csvCell).join(','), ...body].join('\n');
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = 'tasks.csv';
-      anchor.click();
-      URL.revokeObjectURL(url);
-      toast.success(t('table.exported', { count: rows.length }));
-   };
 
    // One grouped query per field column gives every row its value without a
    // request per task; the same query already backs grouping by a field.
@@ -702,104 +638,6 @@ export function IssueTable({
 
    return (
       <div className="flex h-full flex-col">
-         {/* Toolbar */}
-         <div className="flex items-center gap-2 border-b px-4 py-1.5">
-            <Input
-               className="h-7 max-w-64"
-               placeholder={t('table.search')}
-               value={search}
-               onChange={(event) => setSearch(event.target.value)}
-            />
-            <div className="ml-auto flex items-center gap-1">
-               <Select
-                  value={layout.calculation}
-                  onValueChange={(value) =>
-                     persist({ ...layout, calculation: value as Calculation })
-                  }
-               >
-                  <SelectTrigger className="h-7 w-28">
-                     <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                     <SelectItem value="count">{t('table.count')}</SelectItem>
-                     <SelectItem value="sum">{t('table.sum')}</SelectItem>
-                     <SelectItem value="average">{t('table.average')}</SelectItem>
-                  </SelectContent>
-               </Select>
-               <Popover>
-                  <PopoverTrigger asChild>
-                     <Button size="xs" variant="ghost">
-                        <Columns3 className="mr-1 size-3.5" />
-                        {t('table.columns')}
-                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="w-60 p-0">
-                     <Command>
-                        <CommandInput placeholder={t('table.searchColumns')} />
-                        <CommandList>
-                           <CommandEmpty>{t('table.none')}</CommandEmpty>
-                           <CommandGroup>
-                              {allColumns.map((column) => (
-                                 <CommandItem
-                                    key={column}
-                                    value={labelOf(column)}
-                                    onSelect={() =>
-                                       persist({
-                                          ...layout,
-                                          hidden: layout.hidden.includes(column)
-                                             ? layout.hidden.filter((entry) => entry !== column)
-                                             : [...layout.hidden, column],
-                                       })
-                                    }
-                                 >
-                                    <Checkbox
-                                       checked={!layout.hidden.includes(column)}
-                                       className="pointer-events-none"
-                                    />
-                                    {labelOf(column)}
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  </PopoverContent>
-               </Popover>
-               <Popover>
-                  <PopoverTrigger asChild>
-                     <Button size="xs" variant="ghost">
-                        <Download className="mr-1 size-3.5" />
-                        {t('table.export')}
-                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="end" className="flex w-52 flex-col gap-1 p-1">
-                     <Button
-                        size="xs"
-                        variant="ghost"
-                        className="justify-start"
-                        onClick={() => exportCsv(flatRows.map((row) => row.issue))}
-                     >
-                        {t('table.exportAll')}
-                     </Button>
-                     <Button
-                        size="xs"
-                        variant="ghost"
-                        className="justify-start"
-                        disabled={selected.length === 0}
-                        onClick={() =>
-                           exportCsv(
-                              flatRows
-                                 .map((row) => row.issue)
-                                 .filter((issue) => selected.includes(issue.id))
-                           )
-                        }
-                     >
-                        {t('table.exportSelected')}
-                     </Button>
-                  </PopoverContent>
-               </Popover>
-            </div>
-         </div>
-
          {/* Header */}
          <div
             className="grid border-b px-4 py-1.5 text-muted-foreground"

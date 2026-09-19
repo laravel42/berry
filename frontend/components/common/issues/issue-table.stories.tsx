@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, within } from 'storybook/test';
+import { expect } from 'storybook/test';
 import { status as allStatus } from '@/data/status';
 import { useIssueSelectionStore } from '@/store/issue-selection-store';
 import { IssueTable } from './issue-table';
@@ -35,7 +35,6 @@ type Story = StoryObj<typeof meta>;
 export const GroupedByStatus: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('Persist project health and updates')).toBeInTheDocument();
-      await expect(canvas.getByPlaceholderText('Search title or ID')).toBeInTheDocument();
    },
 };
 
@@ -47,23 +46,12 @@ export const GroupedByAssignee: Story = {
    decorators: [withUrlFilters([], { group: 'assignee' })],
 };
 
-export const SearchNarrowsRows: Story = {
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.type(canvas.getByPlaceholderText('Search title or ID'), 'BERR-46');
-      await expect(canvas.getByText('Rotate the integration encryption key')).toBeInTheDocument();
-      await expect(canvas.queryByText('Persist project health and updates')).toBeNull();
-   },
-};
-
 export const WithSelection: Story = {
    beforeEach: () => {
       useIssueSelectionStore.setState({ selected: ['issue-42', 'issue-44'], anchor: 'issue-44' });
    },
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: /Export CSV/ }));
-      const body = within(canvasElement.ownerDocument.body);
-      // Two rows are selected, so exporting just those is on offer.
-      await expect(await body.findByRole('button', { name: 'Export selected rows' })).toBeEnabled();
+   play: async ({ canvas }) => {
+      await expect(canvas.getByText('Persist project health and updates')).toBeInTheDocument();
    },
 };
 

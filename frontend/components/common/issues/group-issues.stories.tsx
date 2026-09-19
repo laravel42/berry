@@ -64,18 +64,16 @@ export const CreateInGroup: Story = {
 export const EmptyListGroup: Story = { args: { issues: [], count: 0 } };
 
 export const BoardColumn: Story = {
-   args: { onHide: fn() },
    beforeEach: () => {
       useViewStore.setState({ viewType: 'grid' });
    },
-   play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Hide Todo' }));
-      await expect(args.onHide).toHaveBeenCalled();
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('button', { name: 'Create task in Todo' })).toBeInTheDocument();
    },
 };
 
 export const EmptyBoardColumn: Story = {
-   args: { issues: [], count: 0, onHide: fn() },
+   args: { issues: [], count: 0 },
    beforeEach: () => {
       useViewStore.setState({ viewType: 'grid' });
    },

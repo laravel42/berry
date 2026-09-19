@@ -67,7 +67,9 @@ export const Board: Story = {
    args: { isViewTypeGrid: true },
    decorators: [withUrlFilters([], { layout: 'grid' })],
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('button', { name: 'Hide Blocked' })).toBeInTheDocument();
+      await expect(
+         canvas.getByRole('button', { name: 'Create task in Blocked' })
+      ).toBeInTheDocument();
       await expect(
          canvas.getByRole('heading', { level: 4, name: rotateKey.title })
       ).toBeInTheDocument();

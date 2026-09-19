@@ -6,7 +6,6 @@ import { IssueFilterBarActions } from '@/components/common/issues/issue-filter-b
 import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { isPropertyColumnId, useIssueFilterColumns } from './issue-filter-columns';
-import { WorkingAgentsChip } from './working-agents-chip';
 
 /**
  * The applied-filters row: chips wrap on the left. Clear / save actions can
@@ -35,17 +34,10 @@ export function IssueFilterBar({
       onFiltersChange: setFilters,
    });
 
-   if (filters.length === 0) {
-      return (
-         <div className="w-full px-6 py-2 empty:hidden">
-            <WorkingAgentsChip />
-         </div>
-      );
-   }
+   if (filters.length === 0) return null;
 
    return (
       <div className="flex w-full items-start gap-2 border-b border-border/60 bg-container px-6 py-2">
-         <WorkingAgentsChip />
          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <ActiveFilters
                columns={columns}

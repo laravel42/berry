@@ -146,7 +146,6 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    const view = useIssueListView();
    const {
       hiddenBoardColumns,
-      hideBoardColumn,
       restoreBoardColumn,
       restoreAllBoardColumns,
       showSubIssues,
@@ -320,7 +319,6 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                            group={entry.group}
                            issues={entry.issues}
                            count={entry.issues.length}
-                           onHide={() => hideBoardColumn(entry.group.id)}
                            onDropIssue={applyGroupValue(entry.group.id)}
                         />
                      ))}

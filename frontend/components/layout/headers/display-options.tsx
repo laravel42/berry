@@ -31,7 +31,6 @@ import {
    ArrowDownWideNarrow,
    ArrowUpDown,
    ArrowUpNarrowWide,
-   CalendarRange,
    ChevronRight,
    LayoutGrid,
    LayoutList,
@@ -44,7 +43,6 @@ const LAYOUTS: { value: ViewType; icon: React.ElementType }[] = [
    { value: 'list', icon: LayoutList },
    { value: 'grid', icon: LayoutGrid },
    { value: 'table', icon: Table2 },
-   { value: 'gantt', icon: CalendarRange },
 ];
 
 /** A control in the popover is at least 44px tall where a finger taps it. */
@@ -156,7 +154,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                <div
                   role="group"
                   aria-label={mode('label')}
-                  className="grid w-full grid-cols-4 gap-1 rounded-md bg-accent/50 p-1"
+                  className="grid w-full grid-cols-3 gap-1 rounded-md bg-accent/50 p-1"
                >
                   {LAYOUTS.map((layout) => {
                      const on = view.mode === layout.value;
