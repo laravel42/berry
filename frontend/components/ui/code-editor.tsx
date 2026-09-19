@@ -1,7 +1,13 @@
 'use client';
 
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { css } from '@codemirror/legacy-modes/mode/css';
+import { javascript, json, typescript } from '@codemirror/legacy-modes/mode/javascript';
+import { python } from '@codemirror/legacy-modes/mode/python';
 import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { standardSQL } from '@codemirror/legacy-modes/mode/sql';
+import { html } from '@codemirror/legacy-modes/mode/xml';
+import { yaml } from '@codemirror/legacy-modes/mode/yaml';
 import { EditorView } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import CodeMirror from '@uiw/react-codemirror';
@@ -9,11 +15,21 @@ import { useMemo } from 'react';
 
 import { cn } from '@/lib/utils';
 
-type CodeEditorLanguage = 'bash';
+export type CodeEditorLanguage =
+   | 'bash'
+   | 'javascript'
+   | 'typescript'
+   | 'json'
+   | 'css'
+   | 'html'
+   | 'yaml'
+   | 'python'
+   | 'sql'
+   | 'plain';
 
 interface CodeEditorProps {
    value: string;
-   /** Shell grammar covers bash; the only language the transcript needs today. */
+   /** Bash by default, which is what the run transcript shows; `plain` has no grammar. */
    language?: CodeEditorLanguage;
    className?: string;
    /** Cap the scroller, e.g. `10rem` / `18rem`. Omit for natural height. */
@@ -23,9 +39,64 @@ interface CodeEditorProps {
 const languageExtension = (language: CodeEditorLanguage) => {
    switch (language) {
       case 'bash':
-         return StreamLanguage.define(shell);
+         return [StreamLanguage.define(shell)];
+      case 'javascript':
+         return [StreamLanguage.define(javascript)];
+      case 'typescript':
+         return [StreamLanguage.define(typescript)];
+      case 'json':
+         return [StreamLanguage.define(json)];
+      case 'css':
+         return [StreamLanguage.define(css)];
+      case 'html':
+         return [StreamLanguage.define(html)];
+      case 'yaml':
+         return [StreamLanguage.define(yaml)];
+      case 'python':
+         return [StreamLanguage.define(python)];
+      case 'sql':
+         return [StreamLanguage.define(standardSQL)];
+      case 'plain':
+         return [];
    }
 };
+
+/** The grammar for a file, from its extension; `plain` when there is none worth having. */
+export function languageForPath(path: string): CodeEditorLanguage {
+   const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+   switch (extension) {
+      case 'js':
+      case 'mjs':
+      case 'cjs':
+      case 'jsx':
+         return 'javascript';
+      case 'ts':
+      case 'tsx':
+      case 'mts':
+         return 'typescript';
+      case 'json':
+         return 'json';
+      case 'css':
+         return 'css';
+      case 'html':
+      case 'htm':
+      case 'svg':
+      case 'xml':
+         return 'html';
+      case 'yml':
+      case 'yaml':
+         return 'yaml';
+      case 'py':
+         return 'python';
+      case 'sql':
+         return 'sql';
+      case 'sh':
+      case 'bash':
+         return 'bash';
+      default:
+         return 'plain';
+   }
+}
 
 /** Token colours for void chrome — chalk body, soft accents, never light-theme reds. */
 const berryDarkHighlight = HighlightStyle.define([
@@ -58,7 +129,7 @@ const berryDarkHighlight = HighlightStyle.define([
 export function CodeEditor({ value, language = 'bash', className, maxHeight }: CodeEditorProps) {
    const extensions = useMemo(
       () => [
-         languageExtension(language),
+         ...languageExtension(language),
          syntaxHighlighting(berryDarkHighlight),
          EditorView.lineWrapping,
          EditorView.editable.of(false),

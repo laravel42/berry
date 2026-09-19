@@ -5,15 +5,27 @@ import { Button } from '@/components/ui/button';
 import {
    type ArtifactTreeNode,
    type RunArtifact,
+   artifactView,
    buildArtifactTree,
    downloadArtifact,
    formatFileSize,
    loadIssueArtifacts,
+   siteEntry,
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronRight, Download, FileCode2, Folder, Loader2 } from 'lucide-react';
+import {
+   ChevronDown,
+   ChevronRight,
+   Download,
+   Eye,
+   FileCode2,
+   Folder,
+   Globe,
+   Loader2,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArtifactViewer } from './artifact-viewer';
 
 /**
  * What the agents on this issue produced, as the tree they wrote.
@@ -63,6 +75,8 @@ export function IssueArtifacts({
    const [error, setError] = useState<string | null>(null);
    const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
    const [open, setOpen] = useState(defaultOpen);
+   /** The file open in the viewer, as an index into `ordered`. */
+   const [viewing, setViewing] = useState<number | null>(null);
 
    // The latest callback, read when the fetch lands: a caller re-rendering
    // with a new closure must not trigger another fetch.
@@ -102,6 +116,14 @@ export function IssueArtifacts({
    }, [loaded, artifacts]);
 
    const tree = useMemo(() => buildArtifactTree(artifacts), [artifacts]);
+   // The files in the order the tree shows them, so the viewer's arrows walk
+   // the tree rather than the order the server happened to send.
+   const ordered = useMemo(() => flatten(tree), [tree]);
+   const site = useMemo(() => siteEntry(artifacts), [artifacts]);
+   const view = useCallback(
+      (artifact: RunArtifact) => setViewing(ordered.findIndex((file) => file.id === artifact.id)),
+      [ordered]
+   );
 
    const download = useCallback(
       async (artifact: RunArtifact) => {
@@ -154,10 +176,22 @@ export function IssueArtifacts({
                      </span>
                   </span>
                ) : null}
+               {site ? (
+                  <Button
+                     variant="secondary"
+                     size="xs"
+                     className="ml-auto"
+                     title={site.path}
+                     onClick={() => view(site)}
+                  >
+                     <Globe className="mr-1 size-3.5" aria-hidden />
+                     {t('previewSite')}
+                  </Button>
+               ) : null}
                <Button
                   variant="ghost"
                   size="xs"
-                  className="ml-auto text-muted-foreground"
+                  className={cn(!site && 'ml-auto', 'text-muted-foreground')}
                   aria-expanded={open}
                   aria-controls={treeId}
                   onClick={() => setOpen((value) => !value)}
@@ -172,6 +206,19 @@ export function IssueArtifacts({
             </div>
          )}
 
+         {heading === null && site ? (
+            <Button
+               variant="secondary"
+               size="xs"
+               className="mb-2 self-start"
+               title={site.path}
+               onClick={() => view(site)}
+            >
+               <Globe className="mr-1 size-3.5" aria-hidden />
+               {t('previewSite')}
+            </Button>
+         ) : null}
+
          {showTree ? (
             <div id={treeId} className="flex flex-col">
                {tree.map((node) => (
@@ -182,11 +229,19 @@ export function IssueArtifacts({
                      collapsed={collapsed}
                      onToggle={toggle}
                      onDownload={download}
+                     onView={view}
                      pending={pending}
                   />
                ))}
             </div>
          ) : null}
+
+         <ArtifactViewer
+            issueRef={issueRef}
+            artifacts={ordered}
+            index={viewing}
+            onIndexChange={setViewing}
+         />
 
          {error ? (
             <p className="mt-2 text-status-danger" role="alert">
@@ -203,6 +258,7 @@ function TreeRow({
    collapsed,
    onToggle,
    onDownload,
+   onView,
    pending,
 }: {
    node: ArtifactTreeNode;
@@ -210,6 +266,7 @@ function TreeRow({
    collapsed: Set<string>;
    onToggle: (path: string) => void;
    onDownload: (artifact: RunArtifact) => void;
+   onView: (artifact: RunArtifact) => void;
    pending: string | null;
 }) {
    const t = useTranslations('issueDetail.artifacts');
@@ -219,20 +276,44 @@ function TreeRow({
 
    if (node.file) {
       const artifact = node.file;
+      const viewable = artifactView(artifact).kind !== 'unsupported';
       return (
          <div
             className="flex min-w-0 items-center gap-2 border-b border-border/50 py-1.5"
             style={indent}
          >
             <FileCode2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="truncate">{node.name}</span>
+            {viewable ? (
+               <button
+                  type="button"
+                  onClick={() => onView(artifact)}
+                  title={t('preview', { path: artifact.path })}
+                  className="min-w-0 truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+               >
+                  {node.name}
+               </button>
+            ) : (
+               <span className="truncate">{node.name}</span>
+            )}
             <span className="shrink-0 text-muted-foreground">
                {formatFileSize(artifact.sizeBytes)}
             </span>
+            {viewable ? (
+               <Button
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto size-7 shrink-0"
+                  aria-label={t('preview', { path: artifact.path })}
+                  title={t('preview', { path: artifact.path })}
+                  onClick={() => onView(artifact)}
+               >
+                  <Eye className="size-4" aria-hidden />
+               </Button>
+            ) : null}
             <Button
                variant="ghost"
                size="icon"
-               className={cn('ml-auto size-7 shrink-0')}
+               className={cn(!viewable && 'ml-auto', 'size-7 shrink-0')}
                aria-label={t('download', { path: artifact.path })}
                title={artifact.path}
                disabled={pending === artifact.id}
@@ -277,11 +358,17 @@ function TreeRow({
                     collapsed={collapsed}
                     onToggle={onToggle}
                     onDownload={onDownload}
+                    onView={onView}
                     pending={pending}
                  />
               ))}
       </>
    );
+}
+
+/** Every file under the given nodes, in tree order. */
+function flatten(nodes: ArtifactTreeNode[]): RunArtifact[] {
+   return nodes.flatMap((node) => (node.file ? [node.file] : flatten(node.children)));
 }
 
 function countFiles(node: ArtifactTreeNode): number {

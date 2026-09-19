@@ -373,7 +373,9 @@
       "show": "Show files",
       "hide": "Hide files",
       "download": "Download {path}",
-      "downloadFailed": "{name} could not be downloaded."
+      "downloadFailed": "{name} could not be downloaded.",
+      "preview": "Preview {path}",
+      "previewSite": "Preview site"
    },
    "attachments": {
       "title": "Files",
@@ -386,5 +388,24 @@
    },
    "pullRequests": {
       "title": "Pull requests"
+   },
+   "artifactViewer": {
+      "title": "Preview of {path}",
+      "webview": "Page preview of {path}",
+      "modeLabel": "Show as",
+      "page": "Page",
+      "document": "Document",
+      "source": "Source",
+      "reload": "Reload the page",
+      "openInNewTab": "Open the page in a new tab",
+      "download": "Download",
+      "close": "Close",
+      "previous": "Previous file",
+      "next": "Next file",
+      "loading": "Loading…",
+      "loadFailed": "This file could not be loaded.",
+      "tooLarge": "This file is too large to preview ({size}). Download it instead.",
+      "unsupported": "This kind of file has no preview. Download it instead.",
+      "needsBuild": "This page is source code for a build tool: it loads TypeScript or JSX that a browser cannot run until the project is built, so the preview may stay blank. Ask the agent to build the project and save the output folder (for example dist/) as task files, then preview that."
    }
 }
