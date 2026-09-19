@@ -449,3 +449,35 @@ test('a plan wrapped in a key the model chose is still the plan', () => {
    assert.equal(plan.goal.title, 'Ship it');
    assert.equal(plan.issues.length, 1);
 });
+
+test('a dependency named bare, not in a list, still links the tasks', () => {
+   const { plan } = readPlan({
+      goal: { tempId: 'g1', title: 'Ship it' },
+      issues: [
+         { tempId: 't1', title: 'Design it' },
+         { tempId: 't2', title: 'Build it', dependsOn: 't1' },
+         { tempId: 't3', title: 'Launch it', dependsOn: 't1, t2' },
+      ],
+   });
+   assert.deepEqual(plan.issues[1]!.dependsOn, ['t1']);
+   assert.deepEqual(plan.issues[2]!.dependsOn, ['t1', 't2']);
+});
+
+test('an approval that names its task as "issue" gates that task', () => {
+   const { plan } = readPlan({
+      goal: { tempId: 'g1', title: 'Ship it' },
+      issues: [{ tempId: 't1', title: 'Launch it' }],
+      approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', issue: 't1' }],
+   });
+   assert.equal(plan.approvals[0]!.target.tempId, 't1');
+   assert.equal(validatePlan(plan).status, 'valid');
+});
+
+test('an approval naming a task that does not exist is still an error', () => {
+   const { plan } = readPlan({
+      goal: { tempId: 'g1', title: 'Ship it' },
+      issues: [{ tempId: 'issue-0', title: 'Launch it' }],
+      approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', issue: 'issue-12' }],
+   });
+   assert.equal(validatePlan(plan).status, 'invalid');
+});

@@ -232,12 +232,21 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       (entry, index) => {
          const item = isRecord(entry) ? entry : {};
          const target = isRecord(item.target) ? item.target : {};
+         // Models name the gated task in more than one way — `"issue": "t3"`,
+         // `"target": "t3"` — and the task is what matters, not the spelling.
+         // A reference to a task that does not exist is still an error.
+         const named =
+            text(target.tempId) ||
+            (typeof item.target === 'string' ? text(item.target) : '') ||
+            text(item.issue) ||
+            text(item.issueTempId) ||
+            text(item.taskTempId);
          return {
             tempId: text(item.tempId) || `approval-${index + 1}`,
             title: text(item.title) || 'Approval',
             description: text(item.description) || null,
             reason: text(item.reason) || 'This step needs a person to say yes.',
-            target: { kind: text(target.kind) || 'issue', tempId: text(target.tempId) },
+            target: { kind: text(target.kind) || 'issue', tempId: named },
             approver: { type: 'role', role: 'admin' },
             timeout: null,
          };
@@ -563,8 +572,19 @@ function text(value: unknown): string {
    return typeof value === 'string' ? value.trim() : '';
 }
 
+/**
+ * A list of names. One name given bare (`"dependsOn": "t1"`) or as a comma
+ * list is still that list: dropping it would quietly unlink a task from the one
+ * it waits on.
+ */
 function strings(value: unknown): string[] {
-   return Array.isArray(value)
-      ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim() !== '')
-      : [];
+   const entries = Array.isArray(value)
+      ? value
+      : typeof value === 'string'
+        ? value.split(',')
+        : [];
+   return entries
+      .filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry !== '');
 }

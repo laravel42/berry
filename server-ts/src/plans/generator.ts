@@ -27,11 +27,12 @@ import { readPlan, validatePlan, type FieldProblem, type Plan, type ValidationRe
  * "should it be" and is allowed to be wrong. Only the first can block a plan.
  */
 
-const GENERATE_SYSTEM = `You turn a request into a Berry plan: the milestones a
-team would deliver it in, the tasks that reach each milestone, and the order
-they depend on each other in.
-
-The shape of the answer is:
+/**
+ * The document the planner and the repair role both answer with. Shared, so
+ * the repair role — which may be rebuilding a plan the planner left half
+ * written — knows every field a task carries, `dependsOn` among them.
+ */
+const PLAN_FORMAT = `The shape of the answer is:
 
 {
   "goal": { "tempId": "goal-1", "title": "...", "description": "..." },
@@ -51,8 +52,13 @@ The shape of the answer is:
     { "tempId": "ap1", "title": "...", "reason": "...",
       "target": { "kind": "issue", "tempId": "t1" } }
   ]
-}
+}`;
 
+const GENERATE_SYSTEM = `You turn a request into a Berry plan: the milestones a
+team would deliver it in, the tasks that reach each milestone, and the order
+they depend on each other in.
+
+${PLAN_FORMAT}
 Rules:
 - The goal is the whole request in one line. It is not a milestone and it
   has no tasks of its own.
@@ -101,7 +107,14 @@ Fix exactly the problems listed. Do not restructure the plan, rename tasks that
 are fine, or add work nobody asked for: someone is going to read the difference
 between what they asked for and what you produced.
 
-The paths in the problems are JSON pointers into the plan you were given.`;
+The paths in the problems are JSON pointers into the plan you were given.
+
+${PLAN_FORMAT}
+Keep every field a task already has — its \`milestone\`, \`dependsOn\`,
+capabilities and flags — unless a problem is about that field. When you add or
+split tasks, give each one its \`milestone\` and the \`dependsOn\` it needs: a
+task that can only start after another names it, by \`tempId\`. An approval
+points at its task through \`target.tempId\`, and that task must exist.`;
 
 const CRITIC_SYSTEM = `You are reviewing a Berry plan before a person is asked
 to start it. The plan is already known to be structurally valid; your job is
@@ -132,12 +145,49 @@ An empty problem list with "accept" is a good answer, and the common one.`;
  * names what is wrong, and the repair loop is built on those names. A strict
  * schema here would refuse the document the repair role exists to fix.
  */
-const PLAN_SHAPE = z.looseObject({
+// Named fields stay forgiving: the answer is parsed against this schema, and
+// a number where a string was expected must reach `readPlan` (which names the
+// problem for the repair role) rather than fail the whole call.
+const TEXT = z.union([z.string(), z.number(), z.null()]).optional();
+const FLAG = z.union([z.boolean(), z.string(), z.null()]).optional();
+const LIST = z.union([z.array(z.string()), z.string(), z.null()]).optional();
+
+export const PLAN_SHAPE = z.looseObject({
    goal: z.looseObject({}).optional(),
    milestones: z.array(z.looseObject({})).optional(),
    assumptions: z.array(z.looseObject({})).optional(),
-   issues: z.array(z.looseObject({})).optional(),
-   approvals: z.array(z.looseObject({})).optional(),
+   // A task's fields are named, every one optional, so the tool advertises
+   // them. An empty item schema left `dependsOn` to the prompt alone, and a
+   // repair answering through the tool dropped it: plans compiled with every
+   // task startable at once.
+   issues: z
+      .array(
+         z.looseObject({
+            tempId: TEXT,
+            title: TEXT,
+            description: TEXT,
+            milestone: TEXT,
+            dependsOn: LIST.describe('tempIds of the tasks in this plan that must finish before this one starts'),
+            requiredCapabilities: LIST,
+            requiresReview: FLAG,
+            requiresApproval: FLAG,
+            priority: TEXT,
+         })
+      )
+      .optional(),
+   approvals: z
+      .array(
+         z.looseObject({
+            tempId: TEXT,
+            title: TEXT,
+            reason: TEXT,
+            target: z
+               .union([z.looseObject({ kind: TEXT, tempId: TEXT }), z.string(), z.null()])
+               .optional()
+               .describe('the task this approval gates: { "kind": "issue", "tempId": "<task tempId>" }'),
+         })
+      )
+      .optional(),
 });
 
 const CRITIQUE_SHAPE = z.looseObject({
@@ -305,12 +355,16 @@ export class PlanGenerator {
 
          if (validation.status === 'valid') {
             let rounds = 0;
+            // The last verdict, as given. Reporting `accept` after a critic
+            // asked for changes that could not be made hid its problems.
+            let critique: Critique = { verdict: 'accept', problems: [] };
             while (rounds < this.#maxCriticRounds) {
                rounds += 1;
                input.onStage?.('critic');
                const reviewed = await this.#critique(scope, plan, input.signal);
                account(usage, reviewed.result);
                stages.push(reviewed.record);
+               critique = reviewed.critique;
                if (reviewed.critique.verdict === 'accept') {
                   return {
                      plan,
@@ -337,17 +391,30 @@ export class PlanGenerator {
                );
                account(usage, repaired.result);
                stages.push(repaired.record);
-               // A revision that breaks the document is worse than the
+               // A revision usually breaks on something small — an approval
+               // pointing one task past the end — while carrying the changes
+               // the critic asked for. It gets the same bounded repairs a first
+               // draft does before it is given up on.
+               let revised = repaired;
+               let fixes = 0;
+               while (revised.validation.status === 'invalid' && fixes < this.#maxRepairs) {
+                  fixes += 1;
+                  input.onStage?.('repair');
+                  revised = await this.#repair(scope, revised.plan, revised.validation.errors, input.signal);
+                  account(usage, revised.result);
+                  stages.push(revised.record);
+               }
+               // A revision that still breaks the document is worse than the
                // document that was merely criticised, so the valid one wins.
-               if (repaired.validation.status === 'valid') {
-                  plan = repaired.plan;
-                  validation = repaired.validation;
+               if (revised.validation.status === 'valid') {
+                  plan = revised.plan;
+                  validation = revised.validation;
                }
             }
             return {
                plan,
                validation,
-               critique: { verdict: 'accept', problems: [] },
+               critique,
                usage,
                model: planner.model,
                provider: planner.provider,

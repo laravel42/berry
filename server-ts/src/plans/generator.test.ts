@@ -260,3 +260,61 @@ test('a model that will not answer in the schema names the stage', async () => {
          /did not answer with a plan/.test(error.message)
    );
 });
+
+test('a revision that breaks on something small is repaired, and its dependencies kept', async () => {
+   // What happened for real: the critic asked for ordering, the revision
+   // added it, and one approval pointed past the last task. Discarding the
+   // revision threw the dependencies away with it.
+   const revise = {
+      verdict: 'revise',
+      problems: [{ code: 'ordering', path: '/issues', message: 'Nothing waits on the design.', severity: 'error' }],
+   };
+   const ordered = {
+      goal: { tempId: 'g1', title: 'Ship it' },
+      issues: [
+         { tempId: 't1', title: 'Design it' },
+         { tempId: 't2', title: 'Build it', dependsOn: ['t1'] },
+      ],
+   };
+   const offByOne = {
+      ...ordered,
+      approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', target: { kind: 'issue', tempId: 't3' } }],
+   };
+   const fixed = {
+      ...ordered,
+      approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', target: { kind: 'issue', tempId: 't2' } }],
+   };
+   const { planner, script } = generator([GOOD, revise, offByOne, fixed], { maxCriticRounds: 1 });
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+
+   assert.equal(result.validation.status, 'valid');
+   assert.deepEqual(result.plan.issues[1]!.dependsOn, ['t1']);
+   assert.deepEqual(
+      result.stages.map((stage) => stage.stage),
+      ['generate', 'critic', 'repair', 'repair']
+   );
+   assert.match(script.prompts[3]!.user, /gates nothing/);
+});
+
+test('a critique that could not be applied is reported as given, not as an accept', async () => {
+   const revise = {
+      verdict: 'revise',
+      problems: [{ code: 'too_big', path: '/issues/0', message: 'Split it.', severity: 'error' }],
+   };
+   const { planner } = generator([GOOD, revise, BROKEN, BROKEN, BROKEN], {
+      maxCriticRounds: 1,
+      maxRepairs: 2,
+   });
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+
+   assert.equal(result.plan.issues[0]!.title, 'Do the work', 'the valid plan is kept');
+   assert.equal(result.critique?.verdict, 'revise');
+   assert.equal(result.critique?.problems[0]?.message, 'Split it.');
+});
+
+test('the repair role is shown the whole plan format, dependencies included', async () => {
+   const { planner, script } = generator([BROKEN, GOOD, ACCEPT]);
+   await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+   assert.match(script.prompts[1]!.system, /"dependsOn"/);
+   assert.match(script.prompts[1]!.system, /target\.tempId/);
+});
