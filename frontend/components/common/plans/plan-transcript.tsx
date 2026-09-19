@@ -4,7 +4,7 @@ import { ScrollText } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
-import { LogStatusBadge, PromptLogSheet } from '@/components/common/logs/prompt-logs';
+import { LogStatusBadge, PromptLogSheet } from '@/components/common/logs/prompt-log-sheet';
 import { Button } from '@/components/ui/button';
 import {
    Sheet,
