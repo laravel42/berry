@@ -27,6 +27,7 @@ import {
    collectFileTool,
    loadRemoteTools,
    type BerryApi,
+   type WorkspaceMirror,
 } from './remote-tools.ts';
 import { CallerGone, type SessionRegistry } from './sessions.ts';
 import {
@@ -79,7 +80,7 @@ export interface HandlerDeps {
    /** Where session workspaces live: `/mnt/workspace` in the image. */
    workRoot: string;
    fetch?: typeof fetch;
-   loadTools?: (api: BerryApi) => Promise<Tool[]>;
+   loadTools?: (api: BerryApi, mirror?: WorkspaceMirror) => Promise<Tool[]>;
    repository?: RepositoryStep;
    /** Where the video job writes. Absent means agents get no video tool. */
    videoOutput?: VideoOutput | undefined;
@@ -185,13 +186,13 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          : await loadMcpClients(envelope.agent.mcpServers, undefined, warn);
       // Whatever the loader threw, a task that cannot read its tools never
       // runs toolless: it fails retryable, as Berry being unreachable.
-      const remote = await (deps.loadTools ?? loadRemoteTools)(api).catch((cause: unknown) => {
+      const session = async (): Promise<ExecutionSession> => workspace;
+      const remote = await (deps.loadTools ?? loadRemoteTools)(api, { session, warn }).catch((cause: unknown) => {
          if (cause instanceof RemoteToolsUnavailable) throw cause;
          throw new RemoteToolsUnavailable(
             `could not load Berry's tools: ${cause instanceof Error ? cause.message : String(cause)}`
          );
       });
-      const session = async (): Promise<ExecutionSession> => workspace;
       const tools: Tool[] = [
          runCommandTool({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          collectFileTool(api, session),

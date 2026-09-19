@@ -2,6 +2,7 @@ import { tool, type JSONSchema, type JSONValue, type Tool, type ToolContext } fr
 import { z } from 'zod';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { FileTooLarge, getBytes } from '../../../execution/bytes.ts';
+import { insideDirectory } from '../../workspace-files.ts';
 import { WORKDIR_KEY } from '../command-tool.ts';
 
 /**
@@ -31,7 +32,22 @@ const manifestSchema = z.object({
 
 const MAX_COLLECT_BYTES = 10 * 1024 * 1024;
 
-export async function loadRemoteTools(api: BerryApi): Promise<Tool[]> {
+/**
+ * The run's workspace, for the one remote tool whose effect belongs in it too.
+ *
+ * `write_file` saves on the task, in Berry's bucket; commands run in the
+ * checkout. An agent that saved sixteen files and then ran `cd server` found
+ * nothing there and wrote them all again through a heredoc. With this, a saved
+ * file is also written into the workspace at the same path, so the next
+ * command sees it and the delivery commit carries it.
+ */
+export interface WorkspaceMirror {
+   session: () => Promise<ExecutionSession>;
+   /** Where a file that was saved but could not be mirrored is reported. */
+   warn?: (message: string, fields: Record<string, unknown>) => void;
+}
+
+export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): Promise<Tool[]> {
    const doFetch = api.fetch ?? fetch;
    const response = await doFetch(`${base(api)}/api/v1/agent-tools`, {
       headers: { authorization: `Bearer ${api.token}` },
@@ -46,9 +62,48 @@ export async function loadRemoteTools(api: BerryApi): Promise<Tool[]> {
          name: entry.name,
          description: entry.description,
          inputSchema: entry.inputSchema as JSONSchema,
-         callback: async (input: unknown) => callBerry(api, entry.name, input),
+         callback: async (input: unknown, context?: ToolContext) => {
+            const result = await callBerry(api, entry.name, input);
+            if (entry.name !== 'write_file' || !mirror || refused(result)) return result;
+            return { ...(isRecord(result) ? result : {}), ...(await mirrorWrite(mirror, input, context)) };
+         },
       })
    );
+}
+
+/**
+ * Writes a saved file into the workspace; reports where, or why not.
+ *
+ * Never throws: the file is already safe on the task, so a workspace that
+ * refuses it is something the model is told, not a failed tool call.
+ */
+async function mirrorWrite(
+   mirror: WorkspaceMirror,
+   input: unknown,
+   context?: ToolContext
+): Promise<{ workspacePath: string } | { workspaceError: string }> {
+   const { path, content } = (isRecord(input) ? input : {}) as { path?: unknown; content?: unknown };
+   if (typeof path !== 'string' || typeof content !== 'string') return { workspaceError: 'no path or content to write' };
+   const relative = insideDirectory(path);
+   if (relative === null) return { workspaceError: `${path} is outside the workspace; saved on the task only` };
+   // The checkout when the run has one, else the workspace root — where run_command runs.
+   const workdir = context?.agent.appState.get(WORKDIR_KEY);
+   const target = typeof workdir === 'string' ? `${workdir}/${relative}` : relative;
+   try {
+      await (await mirror.session()).writeFile(target, content);
+      return { workspacePath: relative };
+   } catch (cause) {
+      mirror.warn?.('write_file saved on the task but not in the workspace', { path: relative, error: message(cause) });
+      return { workspaceError: `saved on the task, but not written to the workspace: ${message(cause)}` };
+   }
+}
+
+function refused(result: JSONValue): boolean {
+   return isRecord(result) && 'error' in result;
+}
+
+function isRecord(value: unknown): value is Record<string, JSONValue> {
+   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 export function collectFileTool(api: BerryApi, session: () => Promise<ExecutionSession>): Tool {
