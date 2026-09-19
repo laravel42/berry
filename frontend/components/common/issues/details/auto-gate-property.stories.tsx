@@ -28,7 +28,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Off by default: the task waits for a person. The switch saves at once. */
+/** Off by default: the task waits for a person. The control saves at once. */
 export const TurnOn: Story = {
    beforeEach: ({ msw }) => {
       msw.use(
@@ -39,14 +39,14 @@ export const TurnOn: Story = {
       );
    },
    play: async ({ canvas, userEvent }) => {
-      const toggle = canvas.getByRole('switch', { name: 'AutoGate' });
-      await expect(toggle).not.toBeChecked();
-      await userEvent.click(toggle);
+      const control = canvas.getByRole('button', { name: 'AutoGate' });
+      await expect(control).toHaveAttribute('aria-pressed', 'false');
+      await userEvent.click(control);
       await waitFor(() => expect(sent).toEqual([{ autoGate: true }]));
    },
 };
 
-/** A refused save puts the switch back, so it never claims a state the task is not in. */
+/** A refused save puts the control back, so it never claims a state the task is not in. */
 export const RefusedSaveReverts: Story = {
    args: { issue: { ...persistHealth, autoGate: true } },
    beforeEach: ({ msw }) => {
@@ -58,7 +58,7 @@ export const RefusedSaveReverts: Story = {
       );
    },
    play: async ({ args, userEvent, canvas }) => {
-      await userEvent.click(canvas.getByRole('switch', { name: 'AutoGate' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'AutoGate' }));
       await waitFor(() =>
          expect(
             useIssuesStore.getState().issues.find((issue) => issue.id === args.issue.id)?.autoGate

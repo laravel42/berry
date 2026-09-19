@@ -42,20 +42,23 @@ export const ApproveADelivery: Story = {
    },
 };
 
-/** Nothing was delivered, so Send back leads, and it will not go without a note. */
+/** Nothing was delivered, so Reject leads, and it will not go without a note. */
 export const SendBackNeedsANote: Story = {
    args: { item: stoppedReview },
-   play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Send back' }));
-      await expect(canvas.getByRole('alert')).toHaveTextContent(
+   play: async ({ args, canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Reject' }));
+      const body = within(canvasElement.ownerDocument.body);
+      const dialog = within(await body.findByRole('dialog', { name: 'Reject with a note' }));
+      await userEvent.click(dialog.getByRole('button', { name: 'Reject' }));
+      await expect(dialog.getByRole('alert')).toHaveTextContent(
          'Add a note so the agent knows what to change.'
       );
-      const note = canvas.getByRole('textbox', { name: 'Note for the author' });
+      const note = dialog.getByRole('textbox', { name: 'Note for the author' });
       await expect(note).toHaveFocus();
       await expect(note).toHaveAttribute('aria-invalid', 'true');
 
       await userEvent.type(note, 'Approvals belong on the inbox page; move them there.');
-      await userEvent.click(canvas.getByRole('button', { name: 'Send back' }));
+      await userEvent.click(dialog.getByRole('button', { name: 'Reject' }));
       await waitFor(() =>
          expect(args.onDecided).toHaveBeenCalledWith(
             expect.objectContaining({ decision: 'send-back' })

@@ -42,6 +42,7 @@
       "logoDescription": "An image address Berry can load. Berry does not host uploads yet.",
       "logoLabel": "Workspace logo address",
       "name": "Workspace name",
+      "nameDescription": "Shown wherever this workspace appears in Berry.",
       "slug": "Address",
       "slugDescription": "Fixed. It is in every link to this workspace, and Berry has no redirect from an old one.",
       "description": "Description",

@@ -134,7 +134,7 @@
       "title": "Execution log",
       "empty": "No runs yet.",
       "active": "Running now",
-      "pastCount": "{count, plural, =1 {1 past run} other {# past runs}}",
+      "past": "Past runs",
       "by": "asked by {name}",
       "bySystem": "started automatically",
       "cancel": "Cancel",
@@ -375,7 +375,8 @@
       "download": "Download {path}",
       "downloadFailed": "{name} could not be downloaded.",
       "preview": "Preview {path}",
-      "previewSite": "Preview site"
+      "previewSite": "Preview site",
+      "tree": "Produced files"
    },
    "attachments": {
       "title": "Files",
@@ -399,6 +400,13 @@
       "reload": "Reload the page",
       "openInNewTab": "Open the page in a new tab",
       "download": "Download",
+      "undo": "Undo",
+      "redo": "Redo",
+      "save": "Save",
+      "footerLineCol": "Ln {line}, Col {column}",
+      "footerCharset": "UTF-8",
+      "footerSaved": "Saved",
+      "footerModified": "Modified",
       "close": "Close",
       "previous": "Previous file",
       "next": "Next file",
@@ -406,6 +414,7 @@
       "loadFailed": "This file could not be loaded.",
       "tooLarge": "This file is too large to preview ({size}). Download it instead.",
       "unsupported": "This kind of file has no preview. Download it instead.",
+      "pickFile": "Pick a file in the tree to preview it here.",
       "needsBuild": "This page is source code for a build tool: it loads TypeScript or JSX that a browser cannot run until the project is built, so the preview may stay blank. Ask the agent to build the project and save the output folder (for example dist/) as task files, then preview that."
    },
    "siteBuild": {

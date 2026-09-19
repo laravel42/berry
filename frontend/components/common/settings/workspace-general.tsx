@@ -33,7 +33,6 @@ import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './sha
 import { useAutosave } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
-const CONTEXT_MAX = 10_000;
 const PREFIX_MAX = 10;
 
 /**
@@ -51,10 +50,6 @@ const PREFIX_PATTERN = /^[A-Z][A-Z0-9]{1,9}$/;
  * issue identifiers are derived from it at read time, so saving it renames
  * every task reference in the workspace at once. That earns a confirm and an
  * example of what the references will look like afterwards.
- *
- * The slug is shown and not editable. It is in every URL anyone has
- * bookmarked, and Berry has no redirect from the old one — so offering a field
- * that silently breaks links would be worse than not offering it.
  *
  * Owners and admins edit; everyone else reads. The server enforces this with
  * `workspace.update`, and the page reflects it rather than letting someone
@@ -120,20 +115,6 @@ export default function WorkspaceGeneral() {
       equals: (a, b) => a.trim() === b.trim(),
       save: (next) => write({ description: next.trim() === '' ? null : next.trim() }),
    });
-
-   const logo = useAutosave<string>({
-      saved: record?.logoUrl ?? '',
-      equals: (a, b) => a.trim() === b.trim(),
-      save: (next) => write({ logoUrl: next.trim() === '' ? null : next.trim() }),
-   });
-
-   const context = useAutosave<string>({
-      saved: record?.agentContext ?? '',
-      equals: (a, b) => a.trim() === b.trim(),
-      save: (next) => write({ agentContext: next.trim() === '' ? null : next.trim() }),
-   });
-
-   const contextText = context.value ?? '';
 
    // ------------------------------------------------------------ issue prefix
 
@@ -217,60 +198,28 @@ export default function WorkspaceGeneral() {
 
    return (
       <SettingsShell title={t('title')} description={t('subtitle')}>
-         <SettingsSection description={workspace.error ?? (canEdit ? undefined : t('readOnly'))}>
-            <SettingsCard>
-               <SettingsRow
-                  title={t('logo')}
-                  description={t('logoDescription')}
-                  trailing={
-                     <span className="flex items-center gap-2">
-                        <SaveIndicator state={logo.state} error={logo.error} onRetry={logo.retry} />
-                        <Input
-                           value={logo.value ?? ''}
-                           aria-label={t('logoLabel')}
-                           placeholder="https://"
-                           inputMode="url"
-                           disabled={!canEdit || workspace.loading}
-                           className="h-8 w-52"
-                           onChange={(event) => logo.change(event.target.value)}
-                           onBlur={logo.flush}
-                           onKeyDown={(event) => {
-                              if (event.key === 'Enter') event.currentTarget.blur();
-                              if (event.key === 'Escape') logo.revert();
-                           }}
-                        />
-                     </span>
-                  }
-               />
-               <SettingsRow
-                  title={t('name')}
-                  trailing={
-                     <span className="flex items-center gap-2">
-                        <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
-                        <Input
-                           value={name.value ?? ''}
-                           aria-label={t('name')}
-                           disabled={!canEdit || workspace.loading}
-                           className="h-8 w-52"
-                           onChange={(event) => name.change(event.target.value)}
-                           onBlur={() =>
-                              (name.value ?? '').trim() === '' ? name.revert() : name.flush()
-                           }
-                           onKeyDown={(event) => {
-                              if (event.key === 'Enter') event.currentTarget.blur();
-                              if (event.key === 'Escape') name.revert();
-                           }}
-                        />
-                     </span>
-                  }
-               />
-               <SettingsRow
-                  title={t('slug')}
-                  description={t('slugDescription')}
-                  trailing={
-                     <span className="font-mono text-foreground">{record?.slug ?? '—'}</span>
-                  }
-               />
+         <SettingsSection
+            title={t('name')}
+            description={workspace.error ?? (canEdit ? t('nameDescription') : t('readOnly'))}
+         >
+            <SettingsCard className="p-4">
+               <div className="flex items-center gap-2">
+                  <Input
+                     value={name.value ?? ''}
+                     aria-label={t('name')}
+                     disabled={!canEdit || workspace.loading}
+                     className="h-8 max-w-sm flex-1"
+                     onChange={(event) => name.change(event.target.value)}
+                     onBlur={() =>
+                        (name.value ?? '').trim() === '' ? name.revert() : name.flush()
+                     }
+                     onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.currentTarget.blur();
+                        if (event.key === 'Escape') name.revert();
+                     }}
+                  />
+                  <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
+               </div>
             </SettingsCard>
          </SettingsSection>
 
@@ -292,31 +241,6 @@ export default function WorkspaceGeneral() {
                      error={description.error}
                      onRetry={description.retry}
                   />
-               </div>
-            </SettingsCard>
-         </SettingsSection>
-
-         <SettingsSection title={t('context')} description={t('contextDescription')}>
-            <SettingsCard className="p-4">
-               <Textarea
-                  value={contextText}
-                  rows={6}
-                  maxLength={CONTEXT_MAX}
-                  aria-label={t('context')}
-                  placeholder={t('contextPlaceholder')}
-                  disabled={!canEdit || workspace.loading}
-                  onChange={(event) => context.change(event.target.value)}
-                  onBlur={context.flush}
-               />
-               <div className="mt-2 flex items-center justify-between gap-3">
-                  <SaveIndicator
-                     state={context.state}
-                     error={context.error}
-                     onRetry={context.retry}
-                  />
-                  <span className="text-muted-foreground tabular-nums">
-                     {t('counter', { count: contextText.length, max: CONTEXT_MAX })}
-                  </span>
                </div>
             </SettingsCard>
          </SettingsSection>

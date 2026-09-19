@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
 import { planRecordSchema, type PlanRecord } from '@/lib/plans';
-import { useCreatePlanStore } from '@/store/create-plan-store';
 import { usePlanStore } from '@/store/plan-store';
 import Header from './header';
 
@@ -29,7 +28,6 @@ const meta = {
    parameters: { layout: 'fullscreen' },
    beforeEach: () => {
       usePlanStore.setState({ records: { 'plan-1': record() } });
-      useCreatePlanStore.setState({ isOpen: false });
    },
 } satisfies Meta<typeof Header>;
 
@@ -37,11 +35,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Draft: Story = {
-   play: async ({ canvas, userEvent }) => {
+   play: async ({ canvas }) => {
       await expect(canvas.getByText(/^Move approvals and proposals/)).toBeVisible();
-      // Below `sm` the button is its icon alone, so it is found by role only.
-      await userEvent.click(canvas.getByRole('button'));
-      await expect(useCreatePlanStore.getState().isOpen).toBe(true);
+      await expect(canvas.queryByRole('button', { name: /new plan/i })).toBeNull();
    },
 };
 

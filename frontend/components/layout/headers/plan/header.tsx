@@ -1,22 +1,19 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { PlanStatusBadge, planLook } from '@/components/common/plans/plan-status-badge';
-import { Button } from '@/components/ui/button';
-import { useCreatePlanStore } from '@/store/create-plan-store';
+import { planLook } from '@/components/common/plans/plan-status-badge';
 import { usePlanStore } from '@/store/plan-store';
 import { WORKSPACE_SLUG } from '@/lib/config';
-import { ChevronRight, Sparkles } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 
 /**
- * Plan page header: crumb (plans › mark + goal title), the plan's state, and
- * the way to ask for another plan. "Plans" goes back to the Plans list.
+ * Plan page header: crumb (plans › mark + goal title). "Plans" goes back to
+ * the Plans list. Status lives on the plan body, not here.
  */
 export default function Header({ planId }: { planId: string }) {
    const record = usePlanStore((state) => state.records[planId]);
-   const openCreatePlan = useCreatePlanStore((state) => state.openModal);
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
 
@@ -40,13 +37,6 @@ export default function Header({ planId }: { planId: string }) {
                pulse={look?.pulse}
             />
             <span className="truncate font-medium">{title}</span>
-         </div>
-         <div className="flex shrink-0 items-center gap-2">
-            {record && <PlanStatusBadge record={record} className="hidden sm:inline-flex" />}
-            <Button size="xs" variant="secondary" onClick={() => openCreatePlan()}>
-               <Sparkles className="size-4" />
-               <span className="hidden sm:inline">New plan</span>
-            </Button>
          </div>
       </div>
    );

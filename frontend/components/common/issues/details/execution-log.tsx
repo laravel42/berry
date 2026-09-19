@@ -200,9 +200,6 @@ function RunRow({
    );
 }
 
-const reviewsLinkClass =
-   'inline-flex h-7 items-center rounded-sm underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50';
-
 /**
  * The latest finished run, highlighted, while the task waits on a person —
  * and the decision itself.
@@ -270,9 +267,15 @@ function LatestOutcome({
 
    const reviewsHref = review ? `/${orgId}/review/${review.id}` : `/${orgId}/reviews`;
    const reviewsLink = (
-      <Link href={reviewsHref} className={reviewsLinkClass}>
-         {t('openInReviews')}
-      </Link>
+      <Button asChild variant="ghost" size="xs" className="border border-input">
+         <Link href={reviewsHref}>{t('openInReviews')}</Link>
+      </Button>
+   );
+   const transcriptButton = (
+      <Button variant="secondary" size="xs" onClick={() => onTranscript(run)}>
+         <ScrollText className="mr-1 size-3.5" aria-hidden />
+         {t('transcript')}
+      </Button>
    );
 
    return (
@@ -283,39 +286,45 @@ function LatestOutcome({
                tone={stopped ? 'attention' : markTone(run.status)}
                className="mt-0.5"
             />
-            <p className="min-w-0">
-               <span className="sr-only">{t('latest')}: </span>
-               {sentence}
-               {run.status === 'succeeded' ? (
-                  <span className="text-muted-foreground"> {t('awaitingReview')}</span>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+               <p className="min-w-0">
+                  <span className="sr-only">{t('latest')}: </span>
+                  {sentence}
+                  {run.status === 'succeeded' ? (
+                     <span className="text-muted-foreground"> {t('awaitingReview')}</span>
+                  ) : null}
+               </p>
+               {pullRequest ? (
+                  <a
+                     href={pullRequest.url}
+                     target="_blank"
+                     rel="noreferrer"
+                     title={`${pullRequest.repoFullName}#${pullRequest.number}`}
+                     className="inline-flex h-7 items-center gap-1 rounded-sm underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                     <GitPullRequestArrow className="size-3.5 text-status-info" aria-hidden />
+                     {t('pullRequest', { number: pullRequest.number })}
+                  </a>
                ) : null}
-            </p>
-         </div>
-         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pl-6">
-            {pullRequest ? (
-               <a
-                  href={pullRequest.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  title={`${pullRequest.repoFullName}#${pullRequest.number}`}
-                  className="inline-flex h-7 items-center gap-1 rounded-sm underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-               >
-                  <GitPullRequestArrow className="size-3.5 text-status-info" aria-hidden />
-                  {t('pullRequest', { number: pullRequest.number })}
-               </a>
-            ) : null}
-            <Button variant="ghost" size="xs" onClick={() => onTranscript(run)}>
-               <ScrollText className="mr-1 size-3.5" aria-hidden />
-               {t('transcript')}
-            </Button>
-            {review ? null : reviewsLink}
+               {review ? null : (
+                  <>
+                     {transcriptButton}
+                     {reviewsLink}
+                  </>
+               )}
+            </div>
          </div>
          {review ? (
             <ReviewDecisionBar
                key={review.id}
                item={review}
                onDecided={onDecided}
-               aside={reviewsLink}
+               aside={
+                  <span className="inline-flex flex-wrap items-center gap-2">
+                     {transcriptButton}
+                     {reviewsLink}
+                  </span>
+               }
                className="mt-1 border-t border-border/60 pt-3"
             />
          ) : null}
@@ -446,9 +455,9 @@ export function ExecutionLog({
                {older.length > 0 ? (
                   <>
                      {active.length > 0 || latest ? (
-                        <div className="mb-0.5 text-muted-foreground">
-                           {t('pastCount', { count: older.length })}
-                        </div>
+                        <h2 data-heading="label" className="mt-5 mb-1 pb-1 text-muted-foreground">
+                           {t('past')}
+                        </h2>
                      ) : null}
                      <ul className="flex flex-col">
                         {older.map((run) => (

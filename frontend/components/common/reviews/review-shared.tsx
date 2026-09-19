@@ -10,7 +10,7 @@ import { useTranslations } from 'next-intl';
  * as pending (amber), an approved one as approved (green) and a returned one
  * as changes requested (red), in both themes.
  */
-const PR_ICON_TONE: Record<ReviewStatus, string> = {
+export const PR_STATUS_TONE: Record<ReviewStatus, string> = {
    open: 'text-review-pending',
    merged: 'text-review-approved',
    closed: 'text-review-changes',
@@ -38,7 +38,7 @@ export function PrIcon({
       <span
          className={cn(
             'inline-flex shrink-0',
-            muted ? 'text-status-neutral' : PR_ICON_TONE[status],
+            muted ? 'text-status-neutral' : PR_STATUS_TONE[status],
             className
          )}
       >

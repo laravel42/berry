@@ -1,14 +1,18 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { loadReviews, type ReviewItem } from '@/lib/reviews';
+import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
+import { SitePreview } from '@/components/common/issues/details/site-preview';
+import { loadIssueArtifacts, siteEntry } from '@/lib/attachments';
+import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
+import { preloadSitePreview } from '@/lib/site-preview';
 import { useSessionStore } from '@/store/session-store';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { ReviewDecisionBar, type ReviewOutcome } from './review-decision-bar';
+import { type ReviewOutcome } from './review-decision-bar';
 import { ReviewDiff } from './review-diff';
 import { ReviewVerdicts } from './review-guide';
 import { ReviewOverview } from './review-overview';
@@ -17,12 +21,14 @@ import { reviewStatusOf } from './reviews';
 
 export type { ReviewOutcome } from './review-decision-bar';
 
-export type ReviewSection = 'overview' | 'guide' | 'diff';
+export type ReviewSection = 'overview' | 'guide' | 'diff' | 'files' | 'preview';
 
 const SECTION_PATH: Record<ReviewSection, string> = {
    overview: '',
    guide: '/review',
    diff: '/changes',
+   files: '/files',
+   preview: '/preview',
 };
 
 /**
@@ -52,6 +58,12 @@ export function ReviewDetail({
    // Switching sections is local: a route change per tab would remount this
    // pane and refetch both review lists for what is only a different view.
    const [active, setActive] = useState<ReviewSection>(section);
+   // Whether the task's output holds a page, so the Preview tab has a site to run.
+   const [hasSite, setHasSite] = useState(false);
+
+   useEffect(() => {
+      setActive(section);
+   }, [section]);
 
    const load = useCallback(async () => {
       if (!workspace) return;
@@ -65,6 +77,31 @@ export function ReviewDetail({
    useEffect(() => {
       void load();
    }, [load]);
+
+   const issueRef = item?.issue.identifier;
+   useEffect(() => {
+      if (!issueRef) return;
+      let cancelled = false;
+      loadIssueArtifacts(issueRef)
+         .then((artifacts) => {
+            if (cancelled) return;
+            const site = siteEntry(artifacts) !== null;
+            setHasSite(site);
+            // Ready before it is asked for: the preview's target, and the
+            // container build when the site is a build tool's source.
+            if (site) preloadSitePreview(issueRef, artifacts);
+         })
+         .catch(() => !cancelled && setHasSite(false));
+      return () => {
+         cancelled = true;
+      };
+   }, [issueRef]);
+
+   // The diff too, so the Diff tab opens on it instead of on "Loading".
+   const diffRun = item?.pullRequest ? item.run.id : null;
+   useEffect(() => {
+      if (diffRun) preloadReviewDiff(diffRun);
+   }, [diffRun]);
 
    const decided = useCallback(
       async (outcome: ReviewOutcome) => {
@@ -91,11 +128,15 @@ export function ReviewDetail({
 
    const status = reviewStatusOf(item);
    const waiting = item.issue.status === 'in_review';
-   // Verdicts exist only where AutoGate asked agents to review, and a diff
-   // only where a pull request was opened; a task without either has no such
-   // tab, and an old link to one opens the overview.
+   const hasFiles = item.delivery.producedFiles > 0;
+   // Verdicts exist only where AutoGate asked agents to review, a diff only
+   // where a pull request was opened, and files only when the run produced
+   // some; a task without one has no such tab, and an old link opens overview.
    const shown: ReviewSection =
-      (active === 'guide' && !item.issue.autoGate) || (active === 'diff' && !item.pullRequest)
+      (active === 'guide' && !item.issue.autoGate) ||
+      (active === 'diff' && !item.pullRequest) ||
+      (active === 'files' && !hasFiles) ||
+      (active === 'preview' && !hasSite)
          ? 'overview'
          : active;
 
@@ -173,10 +214,16 @@ export function ReviewDetail({
                      </TabsTrigger>
                   )}
                   {item.pullRequest && <TabsTrigger value="diff">{t('sections.diff')}</TabsTrigger>}
+                  {hasFiles && <TabsTrigger value="files">{t('sections.files')}</TabsTrigger>}
+                  {hasSite && <TabsTrigger value="preview">{t('sections.preview')}</TabsTrigger>}
                </TabsList>
             </div>
             <TabsContent value="overview" className="min-h-0 flex-1 overflow-hidden">
-               <ReviewOverview item={item} />
+               <ReviewOverview
+                  item={item}
+                  onOpenFiles={() => selectSection('files')}
+                  onDecided={decided}
+               />
             </TabsContent>
             {item.issue.autoGate && (
                <TabsContent value="guide" className="min-h-0 flex-1 overflow-hidden">
@@ -188,15 +235,28 @@ export function ReviewDetail({
                   <ReviewDiff item={item} />
                </TabsContent>
             )}
+            {hasFiles && (
+               <TabsContent
+                  value="files"
+                  className="flex min-h-0 flex-1 flex-col overflow-hidden p-4"
+               >
+                  <IssueArtifacts
+                     issueRef={item.issue.identifier}
+                     runId={item.run.id}
+                     heading={null}
+                     defaultOpen
+                     className="h-full min-h-0 flex-1"
+                  />
+               </TabsContent>
+            )}
+            {hasSite && (
+               // The task's site, built first when it is a build tool's source,
+               // running across the whole pane.
+               <TabsContent value="preview" className="min-h-0 flex-1 overflow-hidden">
+                  <SitePreview issueRef={item.issue.identifier} />
+               </TabsContent>
+            )}
          </Tabs>
-         {waiting && (
-            <ReviewDecisionBar
-               key={item.id}
-               item={item}
-               onDecided={decided}
-               className="shrink-0 border-t border-border/60 bg-container px-4 py-3"
-            />
-         )}
       </div>
    );
 }

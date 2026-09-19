@@ -229,8 +229,9 @@ const VIEW_BY_EXTENSION: Record<string, { kind: ArtifactViewKind; mime: string }
    ogg: { kind: 'audio', mime: 'audio/ogg' },
    m4a: { kind: 'audio', mime: 'audio/mp4' },
    pdf: { kind: 'pdf', mime: 'application/pdf' },
-   html: { kind: 'html', mime: 'text/html' },
-   htm: { kind: 'html', mime: 'text/html' },
+   // HTML is source in the file viewer; the Preview tab runs the site.
+   html: { kind: 'code', mime: 'text/plain' },
+   htm: { kind: 'code', mime: 'text/plain' },
 };
 
 const CODE_EXTENSIONS = new Set([
@@ -323,34 +324,13 @@ export async function artifactPreviewBase(issueRef: string): Promise<string> {
    return z.object({ baseUrl: z.string() }).parse(json).baseUrl;
 }
 
-/** Where a task's site build stands: built in a container so a source project previews. */
-export const siteBuildSchema = z.object({
-   available: z.boolean(),
-   state: z.enum(['idle', 'building', 'ready', 'failed']),
-   log: z.string(),
-   startedAt: z.string().nullable(),
-   finishedAt: z.string().nullable(),
-});
-export type SiteBuild = z.infer<typeof siteBuildSchema>;
-
-/** The built site's path under a preview base. */
-export const SITE_BUILD_PATH = '__build__/';
-
-export async function siteBuildStatus(issueRef: string): Promise<SiteBuild> {
-   const json: unknown = await apiFetch(
-      `/api/v1/issues/${encodeURIComponent(issueRef)}/artifacts/preview/build`
-   );
-   return siteBuildSchema.parse(json);
-}
-
-/** Starts building the task's site, unless its current files are already built or building. */
-export async function startSiteBuild(issueRef: string): Promise<SiteBuild> {
-   const json: unknown = await apiFetch(
-      `/api/v1/issues/${encodeURIComponent(issueRef)}/artifacts/preview/build`,
-      { method: 'POST', body: '{}' }
-   );
-   return siteBuildSchema.parse(json);
-}
+export {
+   SITE_BUILD_PATH,
+   siteBuildSchema,
+   siteBuildStatus,
+   startSiteBuild,
+   type SiteBuild,
+} from './site-build';
 
 /** The URL of one file under a preview base, each path segment encoded. */
 export function artifactPreviewUrl(base: string, path: string): string {
@@ -362,7 +342,10 @@ export function artifactPreviewUrl(base: string, path: string): string {
  * shallowest HTML file. Null when the output has no page.
  */
 export function siteEntry(artifacts: RunArtifact[]): RunArtifact | null {
-   const pages = artifacts.filter((artifact) => artifactView(artifact).kind === 'html');
+   const pages = artifacts.filter((artifact) => {
+      const ext = extensionOf(artifact.path);
+      return ext === 'html' || ext === 'htm';
+   });
    const depth = (artifact: RunArtifact) => artifact.path.split('/').length;
    const byDepth = (a: RunArtifact, b: RunArtifact) =>
       depth(a) - depth(b) || a.path.localeCompare(b.path);

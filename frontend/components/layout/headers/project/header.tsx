@@ -4,14 +4,23 @@ import {
    DeleteProjectDialog,
    useProjectDeletion,
 } from '@/components/common/projects/delete-project';
-import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
 import { useDetailDrawerClose } from '@/components/layout/detail-drawer-context';
 import { Button } from '@/components/ui/button';
+import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuSeparator,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trigger';
 import { DisplayOptions } from '@/components/layout/headers/display-options';
 import { useProject } from '@/hooks/use-project';
 import { WORKSPACE_SLUG } from '@/lib/config';
-import { ChevronRight, Link as LinkIcon, Trash2 } from 'lucide-react';
+import { pinTarget, unpinTarget } from '@/lib/pins';
+import { usePinsStore } from '@/store/pins-store';
+import { useSessionStore } from '@/store/session-store';
+import { ChevronRight, Link as LinkIcon, MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback } from 'react';
@@ -29,6 +38,8 @@ export default function Header({
    const router = useRouter();
    const closeDrawer = useDetailDrawerClose();
    const project = useProject(projectId);
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   const { pins, add, remove } = usePinsStore();
 
    const afterDelete = useCallback(() => {
       if (closeDrawer) {
@@ -47,6 +58,24 @@ export default function Header({
          </div>
       );
    }
+
+   const pin = pins.find(
+      (entry) => entry.targetType === 'project' && entry.targetId === project.id
+   );
+
+   const togglePin = () => {
+      const write = pin
+         ? unpinTarget(workspaceId, pin.id).then(() => remove(pin.id))
+         : pinTarget(workspaceId, 'project', project.id).then(add);
+      void write.catch(() => toast.error('The pin could not be changed.'));
+   };
+
+   const copyLink = () => {
+      void navigator.clipboard.writeText(
+         `${window.location.origin}/${orgId ?? WORKSPACE_SLUG}/project/${project.id}/overview`
+      );
+      toast.success('Link copied to clipboard');
+   };
 
    return (
       <>
@@ -71,31 +100,37 @@ export default function Header({
                      <DisplayOptions />
                   </>
                ) : null}
-               <PinToggle targetType="project" targetId={project.id} />
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8"
-                  aria-label="Copy link"
-                  title="Copy link"
-                  onClick={() => {
-                     void navigator.clipboard.writeText(
-                        `${window.location.origin}/${orgId ?? WORKSPACE_SLUG}/project/${project.id}/overview`
-                     );
-                     toast.success('Link copied to clipboard');
-                  }}
-               >
-                  <LinkIcon className="size-4" />
-               </Button>
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  aria-label="Delete project"
-                  onClick={() => deletion.request(project)}
-               >
-                  <Trash2 className="size-4" />
-               </Button>
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground"
+                        aria-label="Project actions"
+                     >
+                        <MoreHorizontal className="size-4" />
+                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                     <DropdownMenuItem onClick={togglePin}>
+                        {pin ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                        {pin ? 'Unpin' : 'Pin'}
+                     </DropdownMenuItem>
+                     <DropdownMenuItem onClick={copyLink}>
+                        <LinkIcon className="size-4" />
+                        Copy link
+                     </DropdownMenuItem>
+                     <DropdownMenuSeparator />
+                     <DropdownMenuItem
+                        variant="destructive"
+                        className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
+                        onClick={() => deletion.request(project)}
+                     >
+                        <Trash2 className="size-4" />
+                        Delete
+                     </DropdownMenuItem>
+                  </DropdownMenuContent>
+               </DropdownMenu>
             </div>
          </div>
          <DeleteProjectDialog deletion={deletion} />

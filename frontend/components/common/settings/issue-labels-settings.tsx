@@ -21,7 +21,7 @@ import {
    type WorkspaceLabel,
 } from '@/lib/settings';
 import { useSessionStore } from '@/store/session-store';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -149,83 +149,78 @@ export default function IssueLabelsSettings() {
 
             {labels.error ? <p className="py-6 text-status-danger">{labels.error}</p> : null}
 
-            <div className="flex items-center border-b px-2 py-1.5 text-muted-foreground">
-               <div className="min-w-0 flex-1">{t('name')}</div>
-               <div className="w-24 text-right">{t('usage')}</div>
-               <div className="w-22.5" />
-            </div>
-
-            {rows.map((label) => (
-               <div
-                  key={label.id}
-                  className="flex items-center gap-2 border-b border-muted-foreground/5 px-2 py-2 hover:bg-sidebar/50"
-               >
-                  <Popover>
-                     <PopoverTrigger
-                        aria-label={t('changeColour', { name: label.name })}
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: label.color }}
-                     />
-                     <PopoverContent align="start" className="w-auto p-3">
-                        <div className="grid grid-cols-4 gap-2">
-                           {PALETTE.map((colour) => (
-                              <button
-                                 key={colour}
-                                 type="button"
-                                 aria-label={colour}
-                                 className="size-6 rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring"
-                                 style={{ backgroundColor: colour }}
-                                 onClick={() => recolour(label, colour)}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+               {rows.map((label) => (
+                  <div
+                     key={label.id}
+                     className="flex min-w-0 items-center gap-2 rounded-md border bg-container px-2.5 py-1.5"
+                  >
+                     <Popover>
+                        <PopoverTrigger
+                           aria-label={t('changeColour', { name: label.name })}
+                           className="size-3.5 shrink-0 rounded-full"
+                           style={{ backgroundColor: label.color }}
+                        />
+                        <PopoverContent align="start" className="w-auto p-3">
+                           <div className="grid grid-cols-4 gap-2">
+                              {PALETTE.map((colour) => (
+                                 <button
+                                    key={colour}
+                                    type="button"
+                                    aria-label={colour}
+                                    className="size-6 rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring"
+                                    style={{ backgroundColor: colour }}
+                                    onClick={() => recolour(label, colour)}
+                                 />
+                              ))}
+                           </div>
+                           {/* Any colour, not only the eight: a team with a
+                               palette of its own should not have to pick
+                               the nearest one Berry happens to ship. */}
+                           <label className="mt-3 flex items-center gap-2">
+                              <input
+                                 type="color"
+                                 value={label.color}
+                                 aria-label={t('customColour')}
+                                 className="size-7 cursor-pointer rounded border bg-transparent"
+                                 onChange={(event) =>
+                                    recolour(label, event.target.value.toLowerCase())
+                                 }
                               />
-                           ))}
-                        </div>
-                        {/* Any colour, not only the eight: a team with a
-                            palette of its own should not have to pick
-                            the nearest one Berry happens to ship. */}
-                        <label className="mt-3 flex items-center gap-2">
-                           <input
-                              type="color"
-                              value={label.color}
-                              aria-label={t('customColour')}
-                              className="size-7 cursor-pointer rounded border bg-transparent"
-                              onChange={(event) =>
-                                 recolour(label, event.target.value.toLowerCase())
-                              }
-                           />
-                           <span className="text-muted-foreground">{t('customColour')}</span>
-                        </label>
-                     </PopoverContent>
-                  </Popover>
-                  <Input
-                     defaultValue={label.name}
-                     className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1 hover:border-border"
-                     onBlur={(event) => rename(label, event.target.value)}
-                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
-                        if (event.key === 'Escape') {
-                           event.currentTarget.value = label.name;
-                           event.currentTarget.blur();
-                        }
-                     }}
-                  />
-                  <span className="w-24 text-right text-muted-foreground">
-                     {label.usageCount === undefined
-                        ? '—'
-                        : t('usageCount', { count: label.usageCount })}
-                  </span>
-                  <span className="w-22.5 text-right">
+                              <span className="text-muted-foreground">{t('customColour')}</span>
+                           </label>
+                        </PopoverContent>
+                     </Popover>
+                     <Input
+                        defaultValue={label.name}
+                        className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1 hover:border-border"
+                        onBlur={(event) => rename(label, event.target.value)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Enter') event.currentTarget.blur();
+                           if (event.key === 'Escape') {
+                              event.currentTarget.value = label.name;
+                              event.currentTarget.blur();
+                           }
+                        }}
+                     />
+                     <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {label.usageCount === undefined
+                           ? '—'
+                           : t('usageCount', { count: label.usageCount })}
+                     </span>
                      <Button
                         size="xs"
                         variant="ghost"
-                        className="text-status-danger hover:text-status-danger"
+                        className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
                         disabled={labels.saving}
+                        aria-label={t('remove')}
                         onClick={() => setRemoving(label)}
                      >
-                        {t('remove')}
+                        <Trash2 className="size-3.5" aria-hidden />
                      </Button>
-                  </span>
-               </div>
-            ))}
+                  </div>
+               ))}
+            </div>
 
             {!labels.loading && rows.length === 0 && !labels.error ? (
                <p className="py-6 text-muted-foreground">

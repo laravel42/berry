@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './activity-feed';
 import { ExecutionLog } from './execution-log';
 import { FindInIssue } from './find-in-issue';
-import { IssueArtifacts } from './issue-artifacts';
 import { IssueAttachments } from './issue-attachments';
 import { IssueDescription } from './issue-description';
 import { IssuePropertiesPanel } from './issue-properties-panel';
@@ -257,11 +256,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                      onCommentPosted={activity.addComment}
                      onRunChanged={activity.upsertRun}
                   />
-
-                  {/* After the conversation, not before it: the agent's final
-                      message is a comment, and the files it produced are the
-                      evidence behind that message rather than the headline. */}
-                  <IssueArtifacts issueRef={issue.identifier} />
 
                   <ExecutionLog
                      issueId={issue.id}

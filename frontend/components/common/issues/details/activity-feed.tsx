@@ -151,7 +151,7 @@ function CommentBody({
 
 function EventRow({ item }: { item: EventItem }) {
    return (
-      <div className="flex items-center gap-2.5 py-1.5 text-muted-foreground">
+      <div className="flex items-center gap-2.5 py-0.5 text-muted-foreground">
          <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
             {item.actor.role === 'Application' ? (
                <BerryMark

@@ -96,8 +96,9 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
       <div className="flex size-full min-h-0 flex-col">
          <div className="flex items-center gap-2 border-b px-4 py-1.5">
             <Button
-               variant="ghost"
+               variant="outline"
                size="xs"
+               className="size-7 cursor-pointer border-muted-foreground/15 bg-muted/40 p-0 shadow-none hover:bg-muted"
                aria-label={t('back')}
                title={t('back')}
                disabled={!nav.canBack}
@@ -106,8 +107,9 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
                <ArrowLeft className="size-3.5" aria-hidden />
             </Button>
             <Button
-               variant="ghost"
+               variant="outline"
                size="xs"
+               className="size-7 cursor-pointer border-muted-foreground/15 bg-muted/40 p-0 shadow-none hover:bg-muted"
                aria-label={t('forward')}
                title={t('forward')}
                disabled={!nav.canForward}
@@ -117,8 +119,9 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
             </Button>
             <span className="flex-1" />
             <Button
-               variant="ghost"
+               variant="outline"
                size="xs"
+               className="size-7 cursor-pointer border-muted-foreground/15 bg-muted/40 p-0 shadow-none hover:bg-muted"
                aria-label={t('reload')}
                title={t('reload')}
                onClick={() => setReload((value) => value + 1)}

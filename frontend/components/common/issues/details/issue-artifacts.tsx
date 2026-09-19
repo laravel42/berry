@@ -8,24 +8,15 @@ import {
    artifactView,
    buildArtifactTree,
    downloadArtifact,
-   formatFileSize,
    loadIssueArtifacts,
    siteEntry,
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
-import {
-   ChevronDown,
-   ChevronRight,
-   Download,
-   Eye,
-   FileCode2,
-   Folder,
-   Globe,
-   Loader2,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Folder, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArtifactViewer } from './artifact-viewer';
+import { FileKindMark } from './file-kind-mark';
 
 /**
  * What the agents on this issue produced, as the tree they wrote.
@@ -41,8 +32,9 @@ import { ArtifactViewer } from './artifact-viewer';
  * files it touched on request, not four levels of folders between the title
  * and what was said. The fold remembers nothing, so every visit starts small.
  *
- * The review pane embeds the same tree under its own heading, unfolded and
- * narrowed to the run under review; the optional props exist for that.
+ * When open, the layout is a file tree on the left and a preview pane on the
+ * right — pick a file, see it; no overlay. The review pane embeds the same
+ * tree under its own heading, unfolded and narrowed to the run under review.
  */
 export interface IssueArtifactsProps {
    issueRef: string;
@@ -58,11 +50,8 @@ export interface IssueArtifactsProps {
    onLoaded?: (artifacts: RunArtifact[]) => void;
    /** Show only what this run produced. */
    runId?: string;
-   /**
-    * Where "Preview site" goes. The review sends it to its Preview section;
-    * without it the site opens in the viewer.
-    */
-   onPreviewSite?: () => void;
+   /** Applied to the split tree + preview shell when the tree is shown. */
+   className?: string;
 }
 
 export function IssueArtifacts({
@@ -71,7 +60,7 @@ export function IssueArtifacts({
    defaultOpen = false,
    onLoaded,
    runId,
-   onPreviewSite,
+   className,
 }: IssueArtifactsProps) {
    const t = useTranslations('issueDetail.artifacts');
    const treeId = useId();
@@ -131,6 +120,14 @@ export function IssueArtifacts({
       [ordered]
    );
 
+   // Open on the site entry, or the first viewable file, once the tree is up.
+   useEffect(() => {
+      if (!open && heading !== null) return;
+      if (viewing !== null || ordered.length === 0) return;
+      const first = site ?? ordered.find((file) => artifactView(file).kind !== 'unsupported');
+      if (first) setViewing(ordered.findIndex((file) => file.id === first.id));
+   }, [open, heading, ordered, site, viewing]);
+
    const download = useCallback(
       async (artifact: RunArtifact) => {
          setPending(artifact.id);
@@ -161,9 +158,10 @@ export function IssueArtifacts({
 
    const agents = [...new Set(artifacts.map((artifact) => artifact.agentName))].filter(Boolean);
    const showTree = heading === null || open;
+   const selectedId = viewing === null ? null : (ordered[viewing]?.id ?? null);
 
    return (
-      <section>
+      <section className={cn(className && 'flex h-full min-h-0 flex-col')}>
          {heading === null ? null : (
             <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 pb-[7px]">
                <h2 data-heading="label" className="text-muted-foreground">
@@ -182,22 +180,10 @@ export function IssueArtifacts({
                      </span>
                   </span>
                ) : null}
-               {site ? (
-                  <Button
-                     variant="secondary"
-                     size="xs"
-                     className="ml-auto"
-                     title={site.path}
-                     onClick={() => (onPreviewSite ? onPreviewSite() : view(site))}
-                  >
-                     <Globe className="mr-1 size-3.5" aria-hidden />
-                     {t('previewSite')}
-                  </Button>
-               ) : null}
                <Button
                   variant="ghost"
                   size="xs"
-                  className={cn(!site && 'ml-auto', 'text-muted-foreground')}
+                  className="ml-auto text-muted-foreground"
                   aria-expanded={open}
                   aria-controls={treeId}
                   onClick={() => setOpen((value) => !value)}
@@ -212,42 +198,45 @@ export function IssueArtifacts({
             </div>
          )}
 
-         {heading === null && site ? (
-            <Button
-               variant="secondary"
-               size="xs"
-               className="mb-2 self-start"
-               title={site.path}
-               onClick={() => (onPreviewSite ? onPreviewSite() : view(site))}
-            >
-               <Globe className="mr-1 size-3.5" aria-hidden />
-               {t('previewSite')}
-            </Button>
-         ) : null}
-
          {showTree ? (
-            <div id={treeId} className="flex flex-col">
-               {tree.map((node) => (
-                  <TreeRow
-                     key={node.path}
-                     node={node}
-                     depth={0}
-                     collapsed={collapsed}
-                     onToggle={toggle}
-                     onDownload={download}
-                     onView={view}
-                     pending={pending}
+            <div
+               id={treeId}
+               className={cn(
+                  'flex h-[min(32rem,70vh)] min-h-80 overflow-hidden rounded-md border',
+                  className && 'min-h-0 flex-1',
+                  className
+               )}
+            >
+               <aside
+                  aria-label={t('tree')}
+                  className="flex w-[280px] shrink-0 flex-col overflow-y-auto border-r bg-background py-1"
+                  style={{ fontSize: '13px', lineHeight: '16px', minWidth: 280 }}
+               >
+                  {tree.map((node) => (
+                     <TreeRow
+                        key={node.path}
+                        node={node}
+                        depth={0}
+                        collapsed={collapsed}
+                        selectedId={selectedId}
+                        onToggle={toggle}
+                        onDownload={download}
+                        onView={view}
+                        pending={pending}
+                     />
+                  ))}
+               </aside>
+               <div className="min-w-0 flex-1">
+                  <ArtifactViewer
+                     layout="pane"
+                     issueRef={issueRef}
+                     artifacts={ordered}
+                     index={viewing}
+                     onIndexChange={setViewing}
                   />
-               ))}
+               </div>
             </div>
          ) : null}
-
-         <ArtifactViewer
-            issueRef={issueRef}
-            artifacts={ordered}
-            index={viewing}
-            onIndexChange={setViewing}
-         />
 
          {error ? (
             <p className="mt-2 text-status-danger" role="alert">
@@ -262,6 +251,7 @@ function TreeRow({
    node,
    depth,
    collapsed,
+   selectedId,
    onToggle,
    onDownload,
    onView,
@@ -270,6 +260,7 @@ function TreeRow({
    node: ArtifactTreeNode;
    depth: number;
    collapsed: Set<string>;
+   selectedId: string | null;
    onToggle: (path: string) => void;
    onDownload: (artifact: RunArtifact) => void;
    onView: (artifact: RunArtifact) => void;
@@ -278,57 +269,47 @@ function TreeRow({
    const t = useTranslations('issueDetail.artifacts');
    // Indent by nesting rather than by a computed class name, so Tailwind's
    // scanner sees every padding it has to emit.
-   const indent = { paddingLeft: `${depth * 14}px` };
+   const indent = { paddingLeft: `${8 + depth * 12}px` };
 
    if (node.file) {
       const artifact = node.file;
       const viewable = artifactView(artifact).kind !== 'unsupported';
+      const selected = selectedId === artifact.id;
       return (
          <div
-            className="flex min-w-0 items-center gap-2 border-b border-border/50 py-1.5"
+            className={cn(
+               'group flex min-w-0 items-center gap-1.5 py-0.5 pr-1 hover:bg-accent',
+               selected && 'bg-accent'
+            )}
             style={indent}
          >
-            <FileCode2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <FileKindMark name={node.name} />
             {viewable ? (
                <button
                   type="button"
                   onClick={() => onView(artifact)}
                   title={t('preview', { path: artifact.path })}
-                  className="min-w-0 truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  aria-current={selected ? 'true' : undefined}
+                  className="min-w-0 flex-1 truncate rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                >
                   {node.name}
                </button>
             ) : (
-               <span className="truncate">{node.name}</span>
+               <span className="min-w-0 flex-1 truncate">{node.name}</span>
             )}
-            <span className="shrink-0 text-muted-foreground">
-               {formatFileSize(artifact.sizeBytes)}
-            </span>
-            {viewable ? (
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-auto size-7 shrink-0"
-                  aria-label={t('preview', { path: artifact.path })}
-                  title={t('preview', { path: artifact.path })}
-                  onClick={() => onView(artifact)}
-               >
-                  <Eye className="size-4" aria-hidden />
-               </Button>
-            ) : null}
             <Button
                variant="ghost"
                size="icon"
-               className={cn(!viewable && 'ml-auto', 'size-7 shrink-0')}
+               className="size-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                aria-label={t('download', { path: artifact.path })}
                title={artifact.path}
                disabled={pending === artifact.id}
                onClick={() => void onDownload(artifact)}
             >
                {pending === artifact.id ? (
-                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden />
                ) : (
-                  <Download className="size-4" aria-hidden />
+                  <Download className="size-3.5" aria-hidden />
                )}
             </Button>
          </div>
@@ -342,7 +323,7 @@ function TreeRow({
             type="button"
             onClick={() => onToggle(node.path)}
             aria-expanded={!isCollapsed}
-            className="flex min-w-0 items-center gap-1.5 rounded-sm py-1.5 text-left outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="flex min-w-0 items-center gap-1 rounded-sm py-0.5 pr-2 text-left outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
             style={indent}
          >
             {isCollapsed ? (
@@ -350,9 +331,8 @@ function TreeRow({
             ) : (
                <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
             )}
-            <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="truncate font-medium">{node.name}</span>
-            <span className="shrink-0 text-muted-foreground">{countFiles(node)}</span>
+            <Folder className="size-3.5 shrink-0 text-status-warning" aria-hidden />
+            <span className="truncate">{node.name}</span>
          </button>
          {isCollapsed
             ? null
@@ -362,6 +342,7 @@ function TreeRow({
                     node={child}
                     depth={depth + 1}
                     collapsed={collapsed}
+                    selectedId={selectedId}
                     onToggle={onToggle}
                     onDownload={onDownload}
                     onView={onView}
@@ -375,8 +356,4 @@ function TreeRow({
 /** Every file under the given nodes, in tree order. */
 function flatten(nodes: ArtifactTreeNode[]): RunArtifact[] {
    return nodes.flatMap((node) => (node.file ? [node.file] : flatten(node.children)));
-}
-
-function countFiles(node: ArtifactTreeNode): number {
-   return node.children.reduce((total, child) => total + (child.file ? 1 : countFiles(child)), 0);
 }

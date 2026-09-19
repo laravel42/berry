@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, within } from 'storybook/test';
+import { expect } from 'storybook/test';
 import type { RunArtifact } from '@/lib/attachments';
 import { IssueArtifacts } from './issue-artifacts';
 
@@ -48,7 +48,7 @@ const meta = {
    args: { issueRef: 'BER-7', defaultOpen: true },
    decorators: [
       (Story) => (
-         <div className="w-[720px]">
+         <div className="w-[960px]">
             <Story />
          </div>
       ),
@@ -76,47 +76,36 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const dialog = async (canvasElement: HTMLElement) =>
-   within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
-
 /** A markdown document opens formatted — tables included — and flips to its source. */
 export const MarkdownDocument: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
+   play: async ({ canvas, userEvent }) => {
       await userEvent.click(await canvas.findByRole('button', { name: 'Preview docs/README.md' }));
-      const viewer = await dialog(canvasElement);
-      await expect(await viewer.findByRole('heading', { name: 'Landing page' })).toBeVisible();
-      await expect(viewer.getByRole('cell', { name: 'Pricing' })).toBeVisible();
-      await userEvent.click(viewer.getByRole('button', { name: 'Source' }));
-      await expect(await viewer.findByText(/# Landing page/)).toBeVisible();
+      await expect(await canvas.findByRole('heading', { name: 'Landing page' })).toBeVisible();
+      await expect(canvas.getByRole('cell', { name: 'Pricing' })).toBeVisible();
+      await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
+      await expect(await canvas.findByText(/# Landing page/)).toBeVisible();
    },
 };
 
-/** A site opens its entry page in a sandboxed webview under the preview base. */
+/** An HTML file opens as source, like other code — the site runs on the Preview tab. */
 export const SitePreview: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Preview site' }));
-      const viewer = await dialog(canvasElement);
-      const frame = (await viewer.findByTitle(
-         'Page preview of site/index.html'
-      )) as HTMLIFrameElement;
-      await expect(frame.getAttribute('src')).toBe('/api/v1/previews/token-abc/site/index.html');
-      // Scripts run; same-origin access never does.
-      await expect(frame.getAttribute('sandbox')).toContain('allow-scripts');
-      await expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+   play: async ({ canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'Preview site/index.html' }));
+      await expect(await canvas.findByText(/<!doctype html>/i)).toBeVisible();
+      await expect(canvas.queryByTitle('Page preview of site/index.html')).toBeNull();
    },
 };
 
 /** An SVG stored as text still shows as an image; code gets the code view; the arrows walk the tree. */
 export const ImageAndCode: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
+   play: async ({ canvas, userEvent }) => {
       await userEvent.click(await canvas.findByRole('button', { name: 'Preview site/logo.svg' }));
-      const viewer = await dialog(canvasElement);
-      const image = (await viewer.findByRole('img', { name: 'site/logo.svg' })) as HTMLImageElement;
+      const image = (await canvas.findByRole('img', { name: 'site/logo.svg' })) as HTMLImageElement;
       await expect(image.src).toMatch(/^blob:/);
       // The tree lists a folder's files by name: after logo.svg comes style.css.
-      await userEvent.click(viewer.getByRole('button', { name: 'Next file' }));
-      await expect(await viewer.findByTitle('site/style.css')).toBeVisible();
-      await expect(await viewer.findByText(/tomato/)).toBeVisible();
+      await userEvent.click(canvas.getByRole('button', { name: 'Next file' }));
+      await expect(await canvas.findByTitle('site/style.css')).toBeVisible();
+      await expect(await canvas.findByText(/tomato/)).toBeVisible();
    },
 };
 
@@ -126,33 +115,5 @@ export const NoPreviewForBinary: Story = {
       await canvas.findByText('output.bin');
       await expect(canvas.queryByRole('button', { name: 'Preview build/output.bin' })).toBeNull();
       await expect(canvas.getByRole('button', { name: 'Download build/output.bin' })).toBeVisible();
-   },
-};
-
-/** A build tool's source page says why it may render blank, instead of showing a white frame. */
-export const SourcePageNeedsBuild: Story = {
-   beforeEach: ({ msw }) => {
-      bodies.page =
-         '<!doctype html><div id="root"></div><script type="module" src="/src/main.tsx"></script>';
-      msw.use(
-         http.get('*/api/v1/artifacts/:id/download', ({ params }) =>
-            HttpResponse.text(bodies[String(params.id)] ?? '')
-         ),
-         // A source page is built in a container before it is shown.
-         http.post('*/api/v1/issues/:ref/artifacts/preview/build', () =>
-            HttpResponse.json(
-               { available: true, state: 'building', log: '$ npm install\n', startedAt: null, finishedAt: null },
-               { status: 202 }
-            )
-         )
-      );
-      return () => {
-         bodies.page = '<!doctype html><link rel="stylesheet" href="style.css"><h1>Hello</h1>';
-      };
-   },
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Preview site' }));
-      const viewer = await dialog(canvasElement);
-      await expect(await viewer.findByRole('status')).toHaveTextContent(/Building the site/);
    },
 };

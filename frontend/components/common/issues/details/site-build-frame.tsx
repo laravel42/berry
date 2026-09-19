@@ -1,13 +1,8 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-   SITE_BUILD_PATH,
-   siteBuildStatus,
-   startSiteBuild,
-   type SiteBuild,
-} from '@/lib/attachments';
 import { BerryApiError } from '@/lib/api';
+import { SITE_BUILD_PATH, siteBuildStatus, startSiteBuild, type SiteBuild } from '@/lib/site-build';
 import { Hammer, Loader2, RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -169,7 +164,13 @@ export function SiteBuildFrame({
          <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-muted-foreground">
             <Hammer className="size-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1 truncate">{t('built')}</span>
-            <Button size="xs" variant="ghost" onClick={rebuild} title={t('rebuildHint')}>
+            <Button
+               size="xs"
+               variant="outline"
+               className="border-muted-foreground/15 shadow-none"
+               onClick={rebuild}
+               title={t('rebuildHint')}
+            >
                {t('rebuild')}
             </Button>
          </div>

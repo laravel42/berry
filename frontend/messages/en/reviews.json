@@ -44,15 +44,17 @@
       "notOptedIn": "This task did not opt into peer review."
    },
    "delivery": {
-      "stopped": "{agent} stopped without delivering.",
-      "pullRequest": "{agent} delivered PR #{number}.",
-      "committed": "{agent} committed changes but opened no pull request.",
-      "produced": "{agent} delivered {count, plural, one {# file} other {# files}} without a commit."
+      "stopped": "<name>{agent}</name> stopped without delivering.",
+      "pullRequest": "<name>{agent}</name> delivered <pr>PR #{number}</pr>.",
+      "committed": "<name>{agent}</name> committed changes but opened no pull request.",
+      "produced": "<name>{agent}</name> delivered {count, plural, one {# file} other {# files}} without a commit."
    },
    "sections": {
       "overview": "Overview",
       "verdicts": "Verdicts",
-      "diff": "Diff"
+      "diff": "Diff",
+      "files": "Files",
+      "preview": "Preview"
    },
    "detail": {
       "loading": "Loading review…",
@@ -117,14 +119,17 @@
    "decision": {
       "noteLabel": "Note for the author",
       "notePlaceholder": "What should change, or what was good about it.",
-      "noteHelp": "A note is required to send back and optional to approve; the agent reads it on its next run.",
+      "noteHelp": "Reject asks for a note the agent reads on its next run. Approve does not need one.",
       "noteRequired": "Add a note so the agent knows what to change.",
-      "explain": "Approve marks the task done. Send back returns it to To do with your note.",
-      "explainStopped": "Send back returns it to To do with your note so the agent can try again. Approve marks it done as it is.",
+      "explain": "Approve marks the task done. Reject returns it to To do with your note.",
+      "explainStopped": "Reject returns it to To do with your note so the agent can try again. Approve marks it done as it is.",
       "approve": "Approve",
       "approving": "Approving…",
-      "sendBack": "Send back",
-      "sendingBack": "Sending back…",
+      "sendBack": "Reject",
+      "sendingBack": "Rejecting…",
+      "sendBackTitle": "Reject with a note",
+      "sendBackBody": "The agent reads this on its next run. Without a note it would try the same thing again.",
+      "cancelSendBack": "Cancel",
       "retry": "Try again",
       "failed": "The decision was not saved. {reason}",
       "confirmTitle": "Mark {identifier} done?",
@@ -136,11 +141,12 @@
       "keysMac": "⌘ Enter",
       "keysOther": "Ctrl+Enter",
       "shortcutApprove": "{keys} approves.",
-      "shortcutSendBack": "{keys} sends back."
+      "shortcutSendBack": "{keys} rejects.",
+      "help": "How decisions work"
    },
    "outcome": {
       "approved": "{identifier} approved and moved to Done.",
-      "sentBack": "{identifier} sent back to To do with your note.",
+      "sentBack": "{identifier} rejected and moved to To do with your note.",
       "caughtUp": "All caught up",
       "caughtUpBody": "Nothing else is waiting for a decision.",
       "dismiss": "Dismiss"

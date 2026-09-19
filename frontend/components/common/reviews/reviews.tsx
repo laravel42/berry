@@ -336,8 +336,8 @@ export default function Reviews({
       <div className="flex h-full w-full overflow-hidden">
          <div
             className={cn(
-               'flex h-full w-full shrink-0 flex-col border-r bg-container md:w-[40%]',
-               selectedId && 'hidden md:flex'
+               'flex h-full min-w-0 shrink-0 flex-col border-r bg-container md:w-[32%] md:max-w-[32%]',
+               selectedId ? 'hidden md:flex' : 'flex w-full'
             )}
          >
             <div className="flex h-10 shrink-0 items-center border-b px-4">
@@ -396,8 +396,8 @@ export default function Reviews({
 
          <div
             className={cn(
-               'flex h-full w-full min-w-0 flex-col overflow-hidden md:w-[60%]',
-               !selectedId && 'hidden md:flex'
+               'flex h-full min-w-0 flex-col overflow-hidden md:w-[68%]',
+               selectedId ? 'flex w-full md:w-[68%]' : 'hidden md:flex'
             )}
          >
             {outcomeText && (

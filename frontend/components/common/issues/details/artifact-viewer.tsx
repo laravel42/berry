@@ -1,7 +1,8 @@
 'use client';
 
+import { redo, undo } from '@codemirror/commands';
 import { SegmentedControl } from '@/components/common/segmented-control';
-import { CodeEditor, languageForPath } from '@/components/ui/code-editor';
+import { CodeEditor, languageForPath, type EditorView } from '@/components/ui/code-editor';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import {
    PREVIEW_SIZE_LIMIT,
@@ -10,24 +11,41 @@ import {
    artifactPreviewUrl,
    artifactText,
    artifactView,
-   downloadArtifact,
    formatFileSize,
    type RunArtifact,
 } from '@/lib/attachments';
-import { ChevronLeft, ChevronRight, Download, ExternalLink, RotateCw, X } from 'lucide-react';
+import { formatCombo, isApplePlatform } from '@/lib/shortcuts';
+import { cn } from '@/lib/utils';
+import {
+   ChevronLeft,
+   ChevronRight,
+   ExternalLink,
+   Redo2,
+   RotateCw,
+   Save,
+   Undo2,
+   X,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SiteBuildFrame } from './site-build-frame';
+import { FileKindMark } from './file-kind-mark';
 
 interface ArtifactViewerProps {
    issueRef: string;
    /** The files the arrows move through, in the order the tree shows them. */
    artifacts: RunArtifact[];
-   /** The file on screen; null closes the viewer. */
+   /** The file on screen; null closes the viewer (dialog) or shows the empty pane. */
    index: number | null;
    onIndexChange: (index: number | null) => void;
+   /**
+    * `dialog` opens over the page (task page, default). `pane` fills its parent
+    * — the split layout beside the file tree.
+    */
+   layout?: 'dialog' | 'pane';
+   className?: string;
 }
 
 type Mode = 'rendered' | 'source';
@@ -45,29 +63,63 @@ type Mode = 'rendered' | 'source';
  * server's CSP both withhold same-origin access, so an agent's script cannot
  * reach Berry's session, storage or pages.
  */
-export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: ArtifactViewerProps) {
+export function ArtifactViewer({
+   issueRef,
+   artifacts,
+   index,
+   onIndexChange,
+   layout = 'dialog',
+   className,
+}: ArtifactViewerProps) {
    const t = useTranslations('issueDetail.artifactViewer');
    const artifact = index === null ? undefined : artifacts[index];
    const view = artifact ? artifactView(artifact) : null;
    const [mode, setMode] = useState<Mode>('rendered');
    const [text, setText] = useState<string | null>(null);
+   /** Last loaded or saved bytes — compared to `text` for the Save control. */
+   const [savedText, setSavedText] = useState<string | null>(null);
    const [objectUrl, setObjectUrl] = useState<string | null>(null);
    const [base, setBase] = useState<string | null>(null);
    const [failed, setFailed] = useState(false);
    const [reload, setReload] = useState(0);
    /** Set when the page loads source a browser cannot run (TypeScript, JSX). */
    const [unbuilt, setUnbuilt] = useState(false);
+   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+   const editorViewRef = useRef<EditorView | null>(null);
+   const [historyState, setHistoryState] = useState({ canUndo: false, canRedo: false });
+   // Same on the server and the first client paint; Mac glyphs land after hydrate.
+   const [undoKeys, setUndoKeys] = useState(() => formatCombo('mod+z', false));
+   const [redoKeys, setRedoKeys] = useState(() => formatCombo('mod+y', false));
+   const [saveKeys, setSaveKeys] = useState(() => formatCombo('mod+s', false));
 
    const kind = view?.kind ?? 'unsupported';
    const showsSource = mode === 'source' && (kind === 'markdown' || kind === 'html');
    const needsText = kind === 'markdown' || kind === 'code' || showsSource;
+   /** CodeMirror is on screen — undo / redo apply here, not in rendered markdown. */
+   const editing = kind === 'code' || showsSource;
    const needsBlob = kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'pdf';
    const tooLarge = Boolean(
       artifact && artifact.sizeBytes > PREVIEW_SIZE_LIMIT && (needsText || needsBlob)
    );
+   const language = artifact
+      ? kind === 'markdown'
+         ? 'plain'
+         : languageForPath(artifact.path)
+      : 'plain';
+
+   useEffect(() => {
+      setUndoKeys(formatCombo('mod+z'));
+      setRedoKeys(formatCombo(isApplePlatform() ? 'mod+shift+z' : 'mod+y'));
+      setSaveKeys(formatCombo('mod+s'));
+   }, []);
 
    // A new file opens rendered.
-   useEffect(() => setMode('rendered'), [artifact?.id]);
+   useEffect(() => {
+      setMode('rendered');
+      setCursor({ line: 1, column: 1 });
+      setHistoryState({ canUndo: false, canRedo: false });
+      editorViewRef.current = null;
+   }, [artifact?.id]);
 
    // A base lives an hour; the next opening asks for a fresh one.
    useEffect(() => {
@@ -106,6 +158,7 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
    useEffect(() => {
       setFailed(false);
       setText(null);
+      setSavedText(null);
       setObjectUrl(null);
       if (!artifact || tooLarge || (!needsText && !needsBlob)) return;
       let cancelled = false;
@@ -114,7 +167,10 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
          try {
             if (needsText) {
                const body = await artifactText(artifact);
-               if (!cancelled) setText(body);
+               if (!cancelled) {
+                  setText(body);
+                  setSavedText(body);
+               }
             } else {
                created = await artifactObjectUrl(artifact);
                if (cancelled) URL.revokeObjectURL(created);
@@ -131,6 +187,31 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
       };
    }, [artifact, needsText, needsBlob, tooLarge]);
 
+   const dirty = text !== null && savedText !== null && text !== savedText;
+
+   const save = useCallback(() => {
+      if (!artifact || text === null || !dirty) return;
+      const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = artifact.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setSavedText(text);
+   }, [artifact, text, dirty]);
+
+   const runUndo = useCallback(() => {
+      const view = editorViewRef.current;
+      if (view) undo(view);
+   }, []);
+
+   const runRedo = useCallback(() => {
+      const view = editorViewRef.current;
+      if (view) redo(view);
+   }, []);
+
    const move = useCallback(
       (step: number) => {
          if (index === null || artifacts.length === 0) return;
@@ -142,15 +223,39 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
    useEffect(() => {
       if (index === null) return;
       const onKeyDown = (event: KeyboardEvent) => {
-         // A page in the webview keeps its own keys; these only apply outside it.
-         if (event.isComposing || (event.target as HTMLElement | null)?.closest('input, textarea'))
+         // Keep CodeMirror (and any other text field) on its own keys so
+         // multi-line selection and caret motion are not stolen by file nav.
+         const target = event.target as HTMLElement | null;
+         if (
+            event.isComposing ||
+            target?.closest('input, textarea, [contenteditable="true"], .cm-editor')
+         ) {
             return;
+         }
          if (event.key === 'ArrowLeft') move(-1);
          if (event.key === 'ArrowRight') move(1);
+         // Save downloads the buffer; CodeMirror already owns undo / redo chords.
+         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && needsText) {
+            event.preventDefault();
+            save();
+         }
       };
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-   }, [index, move]);
+   }, [index, move, needsText, save]);
+
+   if (layout === 'pane' && (index === null || !artifact || !view)) {
+      return (
+         <div
+            className={cn(
+               'flex size-full items-center justify-center bg-muted/20 text-muted-foreground',
+               className
+            )}
+         >
+            <p>{t('pickFile')}</p>
+         </div>
+      );
+   }
 
    if (index === null || !artifact || !view) return null;
 
@@ -190,20 +295,27 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
          return (
             <CodeEditor
                value={text}
-               language={kind === 'markdown' ? 'plain' : languageForPath(artifact.path)}
-               className="size-full overflow-auto"
+               language={language}
+               className="size-full min-h-0"
+               readOnly={false}
+               onChange={setText}
+               onCursorChange={setCursor}
+               viewRef={editorViewRef}
+               onHistoryChange={setHistoryState}
             />
          );
       }
       if (!objectUrl) return <Message text={t('loading')} />;
       if (kind === 'image') {
          return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-               src={objectUrl}
-               alt={artifact.path}
-               className="max-h-full max-w-full object-contain"
-            />
+            <div className="absolute inset-0 flex items-center justify-center py-5">
+               {/* eslint-disable-next-line @next/next/no-img-element */}
+               <img
+                  src={objectUrl}
+                  alt={artifact.path}
+                  className="max-h-full max-w-[80%] object-contain"
+               />
+            </div>
          );
       }
       if (kind === 'video') {
@@ -213,22 +325,41 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
       return <iframe src={objectUrl} title={artifact.path} className="size-full border-0" />;
    };
 
-   return (
-      <Dialog open onOpenChange={(open) => !open && onIndexChange(null)}>
-         <DialogContent
-            showCloseButton={false}
-            className="flex h-[88vh] w-[94vw] max-w-7xl flex-col gap-0 overflow-hidden p-0 sm:max-w-7xl"
-         >
-            <DialogTitle className="sr-only">{t('title', { path: artifact.path })}</DialogTitle>
-            <DialogDescription className="sr-only">{artifact.path}</DialogDescription>
-
-            <div className="flex items-center gap-2 border-b px-3 py-2">
-               <span className="min-w-0 flex-1 truncate font-mono" title={artifact.path}>
-                  {artifact.path}
-               </span>
-               <span className="shrink-0 text-muted-foreground">
-                  {formatFileSize(artifact.sizeBytes)} · {artifact.agentName}
-               </span>
+   const chrome = (
+      <>
+         <div className="flex items-center gap-2 border-b px-3 py-1">
+            <nav
+               aria-label={artifact.path}
+               title={artifact.path}
+               className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden font-mono text-muted-foreground"
+               style={{ fontSize: '12px', lineHeight: '16px' }}
+            >
+               {artifact.path
+                  .split('/')
+                  .filter(Boolean)
+                  .map((segment, index, segments) => {
+                     const last = index === segments.length - 1;
+                     return (
+                        <span
+                           key={`${index}-${segment}`}
+                           className="inline-flex min-w-0 items-center gap-1"
+                        >
+                           {index > 0 ? (
+                              <ChevronRight className="size-3 shrink-0 opacity-50" aria-hidden />
+                           ) : null}
+                           {last ? (
+                              <>
+                                 <FileKindMark name={segment} />
+                                 <span className="truncate text-foreground">{segment}</span>
+                              </>
+                           ) : (
+                              <span className="shrink-0">{segment}</span>
+                           )}
+                        </span>
+                     );
+                  })}
+            </nav>
+            <div className="flex shrink-0 items-center gap-0.5">
                {kind === 'markdown' || kind === 'html' ? (
                   <SegmentedControl
                      aria-label={t('modeLabel')}
@@ -260,35 +391,122 @@ export function ArtifactViewer({ issueRef, artifacts, index, onIndexChange }: Ar
                      <ExternalLink className="size-4" />
                   </a>
                ) : null}
-               <ToolbarButton label={t('download')} onClick={() => void downloadArtifact(artifact)}>
-                  <Download className="size-4" />
-               </ToolbarButton>
-               <ToolbarButton label={t('close')} onClick={() => onIndexChange(null)}>
-                  <X className="size-4" />
-               </ToolbarButton>
+               {needsText ? (
+                  <>
+                     {editing ? (
+                        <>
+                           <ToolbarButton
+                              label={`${t('undo')} (${undoKeys})`}
+                              onClick={runUndo}
+                              disabled={!historyState.canUndo}
+                           >
+                              <Undo2 className="size-4" />
+                           </ToolbarButton>
+                           <ToolbarButton
+                              label={`${t('redo')} (${redoKeys})`}
+                              onClick={runRedo}
+                              disabled={!historyState.canRedo}
+                           >
+                              <Redo2 className="size-4" />
+                           </ToolbarButton>
+                        </>
+                     ) : null}
+                     <ToolbarButton
+                        label={`${t('save')} (${saveKeys})`}
+                        onClick={save}
+                        disabled={!dirty}
+                     >
+                        <Save className="size-4" />
+                     </ToolbarButton>
+                  </>
+               ) : null}
+               {layout === 'dialog' ? (
+                  <ToolbarButton label={t('close')} onClick={() => onIndexChange(null)}>
+                     <X className="size-4" />
+                  </ToolbarButton>
+               ) : null}
             </div>
+         </div>
 
-            <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-muted/30">
-               {artifacts.length > 1 ? (
-                  <ToolbarButton
-                     label={t('previous')}
-                     onClick={() => move(-1)}
-                     className="absolute left-2 top-1/2 z-10 -translate-y-1/2 bg-background/80"
-                  >
-                     <ChevronLeft className="size-5" />
-                  </ToolbarButton>
-               ) : null}
-               {body()}
-               {artifacts.length > 1 ? (
-                  <ToolbarButton
-                     label={t('next')}
-                     onClick={() => move(1)}
-                     className="absolute right-2 top-1/2 z-10 -translate-y-1/2 bg-background/80"
-                  >
-                     <ChevronRight className="size-5" />
-                  </ToolbarButton>
-               ) : null}
-            </div>
+         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--brand-void)]">
+            {layout === 'dialog' && artifacts.length > 1 ? (
+               <ToolbarButton
+                  label={t('previous')}
+                  onClick={() => move(-1)}
+                  className="absolute left-2 top-1/2 z-10 -translate-y-1/2 bg-background/80"
+               >
+                  <ChevronLeft className="size-5" />
+               </ToolbarButton>
+            ) : null}
+            <div className="relative min-h-0 flex-1 overflow-hidden">{body()}</div>
+            {layout === 'dialog' && artifacts.length > 1 ? (
+               <ToolbarButton
+                  label={t('next')}
+                  onClick={() => move(1)}
+                  className="absolute right-2 top-1/2 z-10 -translate-y-1/2 bg-background/80"
+               >
+                  <ChevronRight className="size-5" />
+               </ToolbarButton>
+            ) : null}
+         </div>
+
+         <div
+            className="flex h-6 shrink-0 items-center gap-x-2 border-t px-3 text-muted-foreground"
+            style={{ fontSize: '11.5px', lineHeight: '16px' }}
+         >
+            <span className="shrink-0">
+               {t('footerLineCol', { line: cursor.line, column: cursor.column })}
+            </span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0">{t('footerCharset')}</span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex min-w-0 items-center gap-1 truncate">
+               <FileKindMark name={artifact.name} />
+               <span className="truncate">{languageLabel(language)}</span>
+            </span>
+            <span aria-hidden>·</span>
+            <span className="shrink-0">
+               {formatFileSize(
+                  dirty && text !== null
+                     ? new TextEncoder().encode(text).length
+                     : artifact.sizeBytes
+               )}
+            </span>
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1.5">
+               <span
+                  className="size-2 shrink-0 rounded-full"
+                  style={{
+                     backgroundColor: dirty ? 'var(--status-danger)' : 'var(--status-success)',
+                  }}
+                  aria-hidden
+               />
+               {dirty ? t('footerModified') : t('footerSaved')}
+            </span>
+         </div>
+      </>
+   );
+
+   if (layout === 'pane') {
+      return (
+         <div
+            role="region"
+            aria-label={t('title', { path: artifact.path })}
+            className={cn('flex size-full min-h-0 flex-col overflow-hidden', className)}
+         >
+            {chrome}
+         </div>
+      );
+   }
+
+   return (
+      <Dialog open onOpenChange={(open) => !open && onIndexChange(null)}>
+         <DialogContent
+            showCloseButton={false}
+            className="flex h-[88vh] w-[94vw] max-w-7xl flex-col gap-0 overflow-hidden p-0 sm:max-w-7xl"
+         >
+            <DialogTitle className="sr-only">{t('title', { path: artifact.path })}</DialogTitle>
+            <DialogDescription className="sr-only">{artifact.path}</DialogDescription>
+            {chrome}
          </DialogContent>
       </Dialog>
    );
@@ -314,7 +532,40 @@ const MARKDOWN = [
 ].join(' ');
 
 function Message({ text }: { text: string }) {
-   return <p className="max-w-sm px-6 text-center text-muted-foreground">{text}</p>;
+   return (
+      <div className="flex size-full items-center justify-center bg-muted/30">
+         <p className="max-w-sm px-6 text-center text-muted-foreground">{text}</p>
+      </div>
+   );
+}
+
+function languageLabel(language: ReturnType<typeof languageForPath>): string {
+   switch (language) {
+      case 'bash':
+         return 'Shell';
+      case 'javascript':
+         return 'JavaScript';
+      case 'typescript':
+         return 'TypeScript';
+      case 'json':
+         return 'JSON';
+      case 'css':
+         return 'CSS';
+      case 'html':
+         return 'HTML';
+      case 'xml':
+         return 'XML';
+      case 'yaml':
+         return 'YAML';
+      case 'python':
+         return 'Python';
+      case 'sql':
+         return 'SQL';
+      case 'markdown':
+         return 'Markdown';
+      case 'plain':
+         return 'Plain text';
+   }
 }
 
 function ToolbarButton({
@@ -322,21 +573,25 @@ function ToolbarButton({
    onClick,
    className,
    children,
+   disabled = false,
 }: {
    label: string;
    onClick: () => void;
    className?: string;
    children: ReactNode;
+   disabled?: boolean;
 }) {
    return (
       <button
          type="button"
          onClick={onClick}
+         disabled={disabled}
          aria-label={label}
          title={label}
          className={[
             'inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground',
             'transition-colors hover:bg-accent hover:text-foreground',
+            'disabled:pointer-events-none disabled:opacity-40',
             className ?? '',
          ].join(' ')}
       >

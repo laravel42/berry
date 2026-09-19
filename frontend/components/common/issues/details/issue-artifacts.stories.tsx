@@ -67,8 +67,8 @@ export const FoldedByDefault: Story = {
 export const Unfolded: Story = {
    args: { defaultOpen: true },
    play: async ({ canvas, userEvent }) => {
-      // Folders fold on their own, and say how many files are inside.
-      const folder = await canvas.findByRole('button', { name: /server-ts\s*3/ });
+      // Folders fold on their own.
+      const folder = await canvas.findByRole('button', { name: /server-ts/ });
       await userEvent.click(folder);
       await expect(folder).toHaveAttribute('aria-expanded', 'false');
       await expect(canvas.queryByText('projects.test.ts')).toBeNull();
