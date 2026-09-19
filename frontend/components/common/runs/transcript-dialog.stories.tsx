@@ -34,8 +34,25 @@ export const Succeeded: Story = {
       // The ledger is streamed from MSW and folded into steps.
       // The command is the step's title, and its input again in the code view.
       await expect((await dialog.findAllByText('pnpm lint'))[0]).toBeVisible();
-      await expect(await dialog.findByText('Frontend Engineer · completed')).toBeVisible();
+      await expect(await dialog.findByText('Frontend Engineer · succeeded')).toBeVisible();
       await expect(dialog.getByText('6 files changed', { exact: false })).toBeVisible();
+   },
+};
+
+/** Every row says how long it took; file tools say which file and how big, or how many. */
+export const StepDetails: Story = {
+   play: async ({ canvasElement }) => {
+      const body = within(canvasElement.ownerDocument.body);
+      const dialog = within(await body.findByRole('dialog'));
+      await expect(await dialog.findByText(/· 12 files/)).toBeVisible();
+      await expect(dialog.getByText(/· frontend\/app\/inbox\/page\.tsx · 4\.7 KB/)).toBeVisible();
+      await expect(
+         dialog.getByText(/· frontend\/components\/inbox\/inbox\.tsx · 812 B/)
+      ).toBeVisible();
+      // Measured by the runtime when it says so…
+      await expect(dialog.getByText('0.3 s')).toBeVisible();
+      // …and from the step's own timestamps when it does not: the lint ran 31 s.
+      await expect(dialog.getByText('31.0 s')).toBeVisible();
    },
 };
 

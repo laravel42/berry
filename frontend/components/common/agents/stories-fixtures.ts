@@ -796,6 +796,16 @@ export function succeededRunEvents(runId = 'run-9c1d5e77') {
       runEvent(runId, 'run.output.delta', '2026-09-18T08:02:13Z', {
          text: 'I will move both into the inbox and delete the tab.',
       }),
+      runEvent(runId, 'run.tool.started', '2026-09-18T08:02:18Z', {
+         name: 'list_files',
+         toolCallId: 'call-0',
+      }),
+      runEvent(runId, 'run.tool.completed', '2026-09-18T08:02:18Z', {
+         toolCallId: 'call-0',
+         status: 'succeeded',
+         durationMs: 180,
+         detail: { count: 12 },
+      }),
       runEvent(runId, 'run.tool.started', '2026-09-18T08:02:20Z', {
          name: 'read_file',
          toolCallId: 'call-1',
@@ -803,6 +813,8 @@ export function succeededRunEvents(runId = 'run-9c1d5e77') {
       runEvent(runId, 'run.tool.completed', '2026-09-18T08:02:21Z', {
          toolCallId: 'call-1',
          status: 'succeeded',
+         durationMs: 240,
+         detail: { path: 'frontend/app/inbox/page.tsx', bytes: 4812 },
       }),
       runEvent(runId, 'run.command.started', '2026-09-18T08:04:00Z', {
          commandId: 'cmd-1',
@@ -818,12 +830,14 @@ export function succeededRunEvents(runId = 'run-9c1d5e77') {
          exitCode: 0,
       }),
       runEvent(runId, 'run.tool.started', '2026-09-18T08:05:00Z', {
-         name: 'edit_file',
+         name: 'write_file',
          toolCallId: 'call-2',
       }),
       runEvent(runId, 'run.tool.completed', '2026-09-18T08:05:02Z', {
          toolCallId: 'call-2',
          status: 'succeeded',
+         durationMs: 310,
+         detail: { path: 'frontend/components/inbox/inbox.tsx', bytes: 812 },
       }),
       runEvent(runId, 'run.delivered', '2026-09-18T08:09:40Z', {
          committed: true,

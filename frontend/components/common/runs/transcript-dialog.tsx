@@ -54,6 +54,37 @@ export interface TranscriptStep {
    at: string;
    /** Set once the step finishes; null while it is still open. */
    ok: boolean | null;
+   /** How long the step took, once it finished. */
+   durationMs: number | null;
+   /** What a file tool touched: its path and size, or how many files it listed. */
+   detail: StepDetail | null;
+}
+
+export interface StepDetail {
+   path?: string;
+   bytes?: number;
+   count?: number;
+}
+
+/** Milliseconds from one ISO instant to another; null when either is unreadable. */
+function elapsed(from: string, to: string): number | null {
+   const ms = Date.parse(to) - Date.parse(from);
+   return Number.isFinite(ms) && ms >= 0 ? ms : null;
+}
+
+function detailOf(value: unknown): StepDetail | null {
+   if (!value || typeof value !== 'object') return null;
+   const raw = value as Record<string, unknown>;
+   const detail: StepDetail = {};
+   if (typeof raw.path === 'string' && raw.path) detail.path = raw.path;
+   if (typeof raw.bytes === 'number') detail.bytes = raw.bytes;
+   if (typeof raw.count === 'number') detail.count = raw.count;
+   return Object.keys(detail).length > 0 ? detail : null;
+}
+
+/** A thinking passage ends when the next step begins: that is its duration. */
+function closeThinking(step: TranscriptStep, at: string): TranscriptStep {
+   return { ...step, ok: true, durationMs: elapsed(step.at, at) };
 }
 
 const FILTERS: StepKind[] = ['tool', 'thinking', 'error', 'command', 'edit', 'read'];
@@ -106,6 +137,8 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             result: text,
             at: event.occurredAt,
             ok: null,
+            durationMs: null,
+            detail: null,
          });
          return next;
       }
@@ -114,7 +147,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const cwd = typeof payload.cwd === 'string' ? payload.cwd : '';
          const commandId = typeof payload.commandId === 'string' ? payload.commandId : event.id;
          if (last && last.kind === 'thinking' && last.ok === null) {
-            next[next.length - 1] = { ...last, ok: true };
+            next[next.length - 1] = closeThinking(last, event.occurredAt);
          }
          next.push({
             id: `command:${commandId}`,
@@ -124,6 +157,8 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             result: '',
             at: event.occurredAt,
             ok: null,
+            durationMs: null,
+            detail: null,
          });
          return next;
       }
@@ -147,6 +182,10 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const truncated = payload.truncated === true ? '\n[output truncated]' : '';
          next[next.indexOf(target)] = {
             ...target,
+            durationMs:
+               typeof payload.durationMs === 'number'
+                  ? payload.durationMs
+                  : elapsed(target.at, event.occurredAt),
             ok: code === 0,
             result: `${target.result}${truncated}\n[${code === null ? 'did not finish' : `exit ${code}`}]`,
          };
@@ -156,7 +195,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const name = typeof payload.name === 'string' ? payload.name : 'tool';
          const callId = typeof payload.toolCallId === 'string' ? payload.toolCallId : event.id;
          if (last && last.kind === 'thinking' && last.ok === null) {
-            next[next.length - 1] = { ...last, ok: true };
+            next[next.length - 1] = closeThinking(last, event.occurredAt);
          }
          next.push({
             id: `tool:${callId}`,
@@ -168,6 +207,8 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             result: '',
             at: event.occurredAt,
             ok: null,
+            durationMs: null,
+            detail: null,
          });
          return next;
       }
@@ -177,11 +218,28 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             next.findLast((step) => step.id === `tool:${callId}`) ??
             next.findLast((step) => step.ok === null);
          if (!target) return steps;
-         next[next.indexOf(target)] = { ...target, ok: payload.status === 'succeeded' };
+         next[next.indexOf(target)] = {
+            ...target,
+            ok: payload.status === 'succeeded',
+            // Measured in the runtime when it says; the two timestamps otherwise.
+            durationMs:
+               typeof payload.durationMs === 'number'
+                  ? payload.durationMs
+                  : elapsed(target.at, event.occurredAt),
+            detail: detailOf(payload.detail),
+         };
+         return next;
+      }
+      case 'run.completed': {
+         if (!last || last.kind !== 'thinking' || last.ok !== null) return steps;
+         next[next.length - 1] = closeThinking(last, event.occurredAt);
          return next;
       }
       case 'run.failed': {
          const message = typeof payload.message === 'string' ? payload.message : '';
+         if (last && last.kind === 'thinking' && last.ok === null) {
+            next[next.length - 1] = closeThinking(last, event.occurredAt);
+         }
          next.push({
             id: `error:${event.id}`,
             kind: 'error',
@@ -190,12 +248,32 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             result: message,
             at: event.occurredAt,
             ok: false,
+            durationMs: null,
+            detail: null,
          });
          return next;
       }
       default:
          return steps;
    }
+}
+
+/** "2.4 KB" — binary units, one decimal under ten. */
+export function formatBytes(bytes: number): string {
+   if (bytes < 1024) return `${bytes} B`;
+   const units = ['KB', 'MB', 'GB'];
+   let value = bytes / 1024;
+   let unit = 0;
+   while (value >= 1024 && unit < units.length - 1) {
+      value /= 1024;
+      unit += 1;
+   }
+   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/** Seconds with one decimal, the unit the row reads in: "0.3 s", "12.4 s". */
+export function formatSeconds(ms: number): string {
+   return `${(ms / 1000).toFixed(1)} s`;
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
@@ -246,7 +324,26 @@ function StepCard({
             </span>
             <span className="min-w-0 flex-1 truncate font-mono">
                <Highlighted text={step.title} query={highlight} />
+               {step.detail ? (
+                  <span className="text-muted-foreground">
+                     {[
+                        step.detail.path,
+                        step.detail.bytes === undefined ? null : formatBytes(step.detail.bytes),
+                        step.detail.count === undefined
+                           ? null
+                           : t('fileCount', { count: step.detail.count }),
+                     ]
+                        .filter(Boolean)
+                        .map((part) => ` · ${part}`)
+                        .join('')}
+                  </span>
+               ) : null}
             </span>
+            {step.durationMs !== null ? (
+               <span className="shrink-0 tabular-nums text-muted-foreground" title={t('duration')}>
+                  {formatSeconds(step.durationMs)}
+               </span>
+            ) : null}
             {step.ok === false ? (
                <span className="shrink-0 text-muted-foreground">✕</span>
             ) : step.ok === true ? (
@@ -383,7 +480,11 @@ export function RunTranscriptDialog({
                if (delivered) setDelivery(delivered);
                if (event.type === 'run.started') setStatus('running');
                if (isTerminalRunEvent(event.type)) {
-                  setStatus(event.type.replace('run.', ''));
+                  // In the run's own words: the stream ends on `run.completed`
+                  // but the run reads `succeeded`, and showing whichever
+                  // arrived last made the header flip between the two.
+                  const ended = event.type.replace('run.', '');
+                  setStatus(ended === 'completed' ? 'succeeded' : ended);
                   // The totals only settle at the end, so the run is re-read
                   // rather than left showing the usage it had when opened.
                   void getRun(runId).then(

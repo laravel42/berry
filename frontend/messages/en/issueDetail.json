@@ -226,7 +226,9 @@
       "cost": "Cost",
       "tokens": "Tokens",
       "close": "Close",
-      "newestFirst": "Newest first"
+      "newestFirst": "Newest first",
+      "fileCount": "{count, plural, one {# file} other {# files}}",
+      "duration": "How long this step took"
    },
    "activity": {
       "title": "Activity",
