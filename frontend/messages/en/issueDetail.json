@@ -424,6 +424,8 @@
       "loadFailed": "The preview could not be opened.",
       "loading": "Loading…",
       "reload": "Reload the page",
-      "title": "Preview of {path}"
+      "title": "Preview of {path}",
+      "back": "Back",
+      "forward": "Forward"
    }
 }

@@ -9,13 +9,16 @@ import {
    siteEntry,
    type RunArtifact,
 } from '@/lib/attachments';
-import { RotateCw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SiteBuildFrame } from './site-build-frame';
 
 /** A page that loads source a browser cannot run as it is: TypeScript, JSX or a framework component. */
 const NEEDS_BUILD = /<script[^>]*\bsrc\s*=\s*["'][^"']+\.(?:tsx?|jsx|vue|svelte)["']/i;
+
+/** Messages between this bar and the page's navigation bridge (injected by the preview route). */
+const BRIDGE = 'berry-preview:';
 
 /**
  * What an agent built on a task, running as a site, filling its container —
@@ -30,6 +33,32 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
    const [unbuilt, setUnbuilt] = useState(false);
    const [state, setState] = useState<'loading' | 'ready' | 'empty' | 'failed'>('loading');
    const [reload, setReload] = useState(0);
+   // What the page says it can do. It has no origin of its own, so its history
+   // is asked for by message, not read.
+   const [nav, setNav] = useState({ canBack: false, canForward: false });
+   const frameArea = useRef<HTMLDivElement>(null);
+
+   const frame = useCallback(
+      () => frameArea.current?.querySelector('iframe')?.contentWindow ?? null,
+      []
+   );
+
+   useEffect(() => {
+      const onMessage = (event: MessageEvent) => {
+         // Only the page in this preview; anything else on the window is not ours.
+         if (!event.source || event.source !== frame()) return;
+         const data = event.data as { type?: unknown; canBack?: unknown; canForward?: unknown };
+         if (data?.type !== `${BRIDGE}state`) return;
+         setNav({ canBack: data.canBack === true, canForward: data.canForward === true });
+      };
+      window.addEventListener('message', onMessage);
+      return () => window.removeEventListener('message', onMessage);
+   }, [frame]);
+
+   // A reloaded or rebuilt frame starts over and reports again.
+   useEffect(() => setNav({ canBack: false, canForward: false }), [reload, entry?.id]);
+
+   const go = (dir: -1 | 1) => frame()?.postMessage({ type: `${BRIDGE}go`, dir }, '*');
 
    useEffect(() => {
       if (!issueRef) return;
@@ -62,9 +91,27 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
    return (
       <div className="flex size-full min-h-0 flex-col">
          <div className="flex items-center gap-2 border-b px-4 py-1.5">
-            <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
-               {entry?.path ?? ''}
-            </span>
+            <Button
+               variant="ghost"
+               size="xs"
+               aria-label={t('back')}
+               title={t('back')}
+               disabled={!nav.canBack}
+               onClick={() => go(-1)}
+            >
+               <ArrowLeft className="size-3.5" aria-hidden />
+            </Button>
+            <Button
+               variant="ghost"
+               size="xs"
+               aria-label={t('forward')}
+               title={t('forward')}
+               disabled={!nav.canForward}
+               onClick={() => go(1)}
+            >
+               <ArrowRight className="size-3.5" aria-hidden />
+            </Button>
+            <span className="flex-1" />
             <Button
                variant="ghost"
                size="xs"
@@ -75,7 +122,7 @@ export function SitePreview({ issueRef, path }: { issueRef: string; path?: strin
                <RotateCw className="size-3.5" aria-hidden />
             </Button>
          </div>
-         <div className="min-h-0 flex-1">
+         <div ref={frameArea} className="min-h-0 flex-1">
             {state === 'ready' && entry ? (
                <SiteBuildFrame
                   issueRef={issueRef}

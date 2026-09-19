@@ -250,13 +250,27 @@ export function artifactPreviewMounts(options: {
  */
 export const SANDBOX_SHIM = `<script>(function(){function m(){var d={};return{get length(){return Object.keys(d).length},key:function(i){return Object.keys(d)[i]??null},getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].getItem("x")}catch(e){try{Object.defineProperty(window,n,{value:m(),configurable:true})}catch(_){}}});try{void document.cookie}catch(e){var c="";try{Object.defineProperty(document,"cookie",{get:function(){return c},set:function(v){var p=String(v).split(";")[0];c=c?c+"; "+p:p},configurable:true})}catch(_){}}})();</script>`;
 
-/** The stand-ins, first thing in the page, before any of its own scripts. */
+/**
+ * Back and forward for a page Berry cannot reach into.
+ *
+ * The page has no origin, so Berry's Preview bar cannot read or drive its
+ * history; it asks by message instead, and the page reports what it can do.
+ * The position is counted here — client-side route changes (`pushState`) and
+ * full page loads alike — and kept in `window.name`, which survives a page
+ * load inside the frame. A step asked for is recorded as pending and applied
+ * once: on `popstate` for a route change, on the next page's load otherwise. A step back is only taken when the page knows it has
+ * somewhere to go: stepping past its first entry would move Berry itself.
+ */
+export const NAV_BRIDGE = `<script>(function(){var K="berry-preview:",s={i:0,m:0,p:null};try{var o=JSON.parse(window.name||"{}");if(o&&o.b===1)s={i:o.i|0,m:o.m|0,p:o.p||null}}catch(e){}var t=(performance.getEntriesByType&&performance.getEntriesByType("navigation")[0]||{}).type;if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);else if(t==="navigate"&&window.name){s.i++;s.m=s.i}s.p=null;function save(){try{window.name=JSON.stringify({b:1,i:s.i,m:s.m,p:s.p})}catch(e){}}function post(){save();try{parent.postMessage({type:K+"state",canBack:s.i>0,canForward:s.i<s.m},"*")}catch(e){}}var ps=history.pushState;history.pushState=function(){ps.apply(history,arguments);s.i++;s.m=s.i;post()};addEventListener("message",function(e){if(e.source!==parent||!e.data||e.data.type!==K+"go")return;if(e.data.dir<0&&s.i>0){s.p="back";save();history.back()}else if(e.data.dir>0&&s.i<s.m){s.p="forward";save();history.forward()}});addEventListener("popstate",function(){if(s.p==="back")s.i=Math.max(0,s.i-1);else if(s.p==="forward")s.i=Math.min(s.m,s.i+1);s.p=null;post()});addEventListener("pagehide",save);if(document.readyState==="loading")addEventListener("DOMContentLoaded",post);else post();save()})();</script>`;
+
+/** The stand-ins and the navigation bridge, first thing in the page, before any of its own scripts. */
 export function withSandboxShim(html: string): string {
+   const SHIMS = SANDBOX_SHIM + NAV_BRIDGE;
    const head = /<head\b[^>]*>/i.exec(html);
-   if (head) return html.slice(0, head.index + head[0].length) + SANDBOX_SHIM + html.slice(head.index + head[0].length);
+   if (head) return html.slice(0, head.index + head[0].length) + SHIMS + html.slice(head.index + head[0].length);
    const doctype = /<!doctype[^>]*>/i.exec(html);
-   if (doctype) return html.slice(0, doctype.index + doctype[0].length) + SANDBOX_SHIM + html.slice(doctype.index + doctype[0].length);
-   return SANDBOX_SHIM + html;
+   if (doctype) return html.slice(0, doctype.index + doctype[0].length) + SHIMS + html.slice(doctype.index + doctype[0].length);
+   return SHIMS + html;
 }
 
 /**

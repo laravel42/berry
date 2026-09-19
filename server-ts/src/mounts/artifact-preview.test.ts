@@ -4,7 +4,10 @@ import type { RunArtifact, RunArtifactRepository } from '../core/run-artifacts.t
 import { createApp } from '../http/app.ts';
 import { Registry } from '../http/registry.ts';
 import type { Storage } from '../storage/storage.ts';
-import { artifactPreviewMounts, PreviewTokens, previewContentType, rootRelative, SANDBOX_SHIM, withSandboxShim, asAppRoot } from './artifact-preview.ts';
+import { artifactPreviewMounts, NAV_BRIDGE, PreviewTokens, previewContentType, rootRelative, SANDBOX_SHIM as STORAGE_SHIM, withSandboxShim, asAppRoot } from './artifact-preview.ts';
+
+/** Everything injected ahead of a preview page's own markup. */
+const SANDBOX_SHIM = STORAGE_SHIM + NAV_BRIDGE;
 
 const ISSUE = '6f1c0c52-2c6e-4d7c-9a47-0f7f3c1c9b10';
 const OTHER = '7a2d1d63-3d7f-4e8d-8b58-1a8a4d2dac21';
