@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
 import {
    execInPreview,
@@ -21,12 +22,23 @@ import {
 import { cn } from '@/lib/utils';
 import { ExternalLink, Hammer, PanelBottom, RotateCw, Sparkles, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PreviewPanel, type PanelAction } from './preview-panel';
 
 const TOOL =
    'size-7 cursor-pointer border-muted-foreground/15 bg-muted/40 p-0 shadow-none hover:bg-muted';
+
+function ToolTip({ label, children }: { label: string; children: ReactNode }) {
+   return (
+      <Tooltip>
+         <TooltipTrigger asChild>
+            <span className="inline-flex">{children}</span>
+         </TooltipTrigger>
+         <TooltipContent side="bottom">{label}</TooltipContent>
+      </Tooltip>
+   );
+}
 
 /**
  * A task's pull request, running: its apps and the services they need, started
@@ -222,6 +234,7 @@ export function EnvironmentPreview({
                workdir: env?.plan?.root ?? (candidate.workdir ? '/work' : null),
             })),
          ]}
+         issueRef={issueRef}
          host={issueRef.toLowerCase()}
          status={t('panel.statusLine', {
             state: env?.state ?? 'idle',
@@ -254,63 +267,62 @@ export function EnvironmentPreview({
    const tools = (
       <>
          {ready && shown && (
+            <ToolTip label={t('open')}>
+               <Button asChild variant="outline" size="xs" className={TOOL} aria-label={t('open')}>
+                  <a href={shown.url} target="_blank" rel="noreferrer">
+                     <ExternalLink className="size-3.5" aria-hidden />
+                  </a>
+               </Button>
+            </ToolTip>
+         )}
+         <ToolTip label={t('panel.toggle')}>
             <Button
-               asChild
+               variant="outline"
+               size="xs"
+               className={cn(TOOL, terminalOpen && panelAvailable && 'bg-muted')}
+               aria-label={t('panel.toggle')}
+               disabled={!panelAvailable}
+               onClick={() => setTerminalOpen((open) => !open)}
+            >
+               <PanelBottom className="size-3.5" aria-hidden />
+            </Button>
+         </ToolTip>
+         <ToolTip label={t('reload')}>
+            <Button
                variant="outline"
                size="xs"
                className={TOOL}
-               aria-label={t('open')}
-               title={t('open')}
+               aria-label={t('reload')}
+               disabled={!ready}
+               onClick={() => setReload((value) => value + 1)}
             >
-               <a href={shown.url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="size-3.5" aria-hidden />
-               </a>
+               <RotateCw className="size-3.5" aria-hidden />
             </Button>
-         )}
-         <Button
-            variant="outline"
-            size="xs"
-            className={cn(TOOL, terminalOpen && panelAvailable && 'bg-muted')}
-            aria-label={t('panel.toggle')}
-            title={t('panel.toggle')}
-            disabled={!panelAvailable}
-            onClick={() => setTerminalOpen((open) => !open)}
-         >
-            <PanelBottom className="size-3.5" aria-hidden />
-         </Button>
-         <Button
-            variant="outline"
-            size="xs"
-            className={TOOL}
-            aria-label={t('reload')}
-            title={t('reload')}
-            disabled={!ready}
-            onClick={() => setReload((value) => value + 1)}
-         >
-            <RotateCw className="size-3.5" aria-hidden />
-         </Button>
-         <Button
-            variant="outline"
-            size="xs"
-            className={TOOL}
-            aria-label={t('rebuild')}
-            title={t('rebuild')}
-            disabled={!env?.previewable || (state !== undefined && isStarting(state))}
-            onClick={() => start(true)}
-         >
-            <Hammer className="size-3.5" aria-hidden />
-         </Button>
-         <Button
-            variant="outline"
-            size="xs"
-            className={TOOL}
-            aria-label={t('stop')}
-            title={t('stop')}
-            disabled={!state || state === 'idle'}
-            onClick={stop}
-         >
-            <Square className="size-3.5" aria-hidden />
-         </Button>
+         </ToolTip>
+         <ToolTip label={t('rebuild')}>
+            <Button
+               variant="outline"
+               size="xs"
+               className={TOOL}
+               aria-label={t('rebuild')}
+               disabled={!env?.previewable || (state !== undefined && isStarting(state))}
+               onClick={() => start(true)}
+            >
+               <Hammer className="size-3.5" aria-hidden />
+            </Button>
+         </ToolTip>
+         <ToolTip label={t('stop')}>
+            <Button
+               variant="outline"
+               size="xs"
+               className={TOOL}
+               aria-label={t('stop')}
+               disabled={!state || state === 'idle'}
+               onClick={stop}
+            >
+               <Square className="size-3.5" aria-hidden />
+            </Button>
+         </ToolTip>
       </>
    );
 

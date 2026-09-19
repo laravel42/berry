@@ -155,3 +155,25 @@ export async function execInPreview(
    }
    return result ?? { exitCode: null, cwd: null, stopped: null };
 }
+
+/** The variables a project's builds are given, as the `.env` text a person wrote. Kept sealed on the server. */
+export interface PreviewEnvFile {
+   /** False when the server has no key to seal secrets with. */
+   available: boolean;
+   /** The project they belong to; null for a task in no project, which has nowhere to keep them. */
+   project: { id: string; name: string } | null;
+   text: string;
+   updatedAt: string | null;
+}
+
+export function loadPreviewEnv(issueRef: string): Promise<PreviewEnvFile> {
+   return apiFetch<PreviewEnvFile>(`${path(issueRef)}/env`);
+}
+
+/** Refused with the line's number when a line is not `NAME=value`. Applies to the next build. */
+export function savePreviewEnv(issueRef: string, text: string): Promise<PreviewEnvFile> {
+   return apiFetch<PreviewEnvFile>(`${path(issueRef)}/env`, {
+      method: 'PUT',
+      body: JSON.stringify({ text }),
+   });
+}

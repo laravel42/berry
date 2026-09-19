@@ -9,6 +9,7 @@ import {
    forApp,
    indexed,
    loadTerminalPrefs,
+   missingVariable,
    parseCommand,
    problemsFrom,
    saveTerminalPrefs,
@@ -22,6 +23,7 @@ import {
    type TerminalThemeName,
 } from '@/lib/terminal';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
    ChevronDown,
    ChevronUp,
@@ -34,6 +36,7 @@ import {
    X,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { PreviewEnv } from './preview-env';
 import {
    useCallback,
    useEffect,
@@ -47,7 +50,7 @@ import {
 /** What the panel asks its owner to do; everything else it answers itself. */
 export type PanelAction = 'rebuild' | 'start' | 'stop' | 'fix' | 'open';
 
-type PanelTab = 'problems' | 'console' | 'terminal';
+type PanelTab = 'problems' | 'console' | 'terminal' | 'env';
 
 interface PreviewPanelProps {
    /** The preview's log and, after it, an agent's run: real output, shown as it grows. */
@@ -59,6 +62,8 @@ interface PreviewPanelProps {
       /** Where the repository is mounted in the process's container, where a shell opens; null for a service, which has none. */
       workdir: string | null;
    }>;
+   /** The task, for the ENV tab: the build variables are read and kept through it. */
+   issueRef: string;
    /** The left half of the prompt: the task the preview belongs to. */
    host: string;
    /** One line for `status`. */
@@ -119,7 +124,7 @@ function appendOutput(lines: Shell['lines'], text: string): Shell['lines'] {
 
 const MAX_LINES = 3000;
 /** The panel reduced to its row of tabs: the header's own height. */
-const BAR_HEIGHT = 36;
+const BAR_HEIGHT = 40;
 
 type Translate = ReturnType<typeof useTranslations<'issueDetail.environmentPreview.panel'>>;
 
@@ -145,6 +150,7 @@ const DID: Record<PanelAction, (t: Translate) => string> = {
 export function PreviewPanel({
    log,
    processes,
+   issueRef,
    host,
    status,
    running,
@@ -500,7 +506,18 @@ export function PreviewPanel({
                  ? theme.heading
                  : theme.foreground;
 
+   /** The variable the ENV tab is asked to put the cursor on. */
+   const [wanted, setWanted] = useState<{ name: string; nonce: number } | null>(null);
+
    const openProblem = (problem: Problem) => {
+      // A missing variable is not fixed in the log: the ENV tab opens on its line.
+      const variable = missingVariable(problem.message);
+      if (variable) {
+         picked.current = true;
+         setWanted((current) => ({ name: variable, nonce: (current?.nonce ?? 0) + 1 }));
+         setTab('env');
+         return;
+      }
       following.current = false;
       setHiddenBefore(0);
       if (problem.app) {
@@ -510,11 +527,11 @@ export function PreviewPanel({
       setFocusLine(problem.index);
    };
 
-   const errors = problems.filter((problem) => problem.severity === 'error').length;
    const tabs: Array<{ id: PanelTab; label: string; count?: number }> = [
       { id: 'problems', label: t('tabs.problems'), count: problems.length },
       { id: 'console', label: t('tabs.console') },
       { id: 'terminal', label: t('tabs.terminal') },
+      { id: 'env', label: t('tabs.env') },
    ];
 
    return (
@@ -538,44 +555,33 @@ export function PreviewPanel({
             />
          )}
          <div
-            className="flex h-9 shrink-0 select-none items-center gap-4 px-4"
-            role="tablist"
+            className="flex h-10 shrink-0 select-none items-center gap-2 border-b px-4"
             onDoubleClick={() => !collapsed && setMaximized((current) => !current)}
          >
-            {tabs.map((entry) => (
-               <button
-                  key={entry.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === entry.id}
-                  className={cn(
-                     'flex h-full cursor-pointer items-center gap-1.5 border-b border-transparent uppercase tracking-wide text-muted-foreground hover:text-foreground',
-                     tab === entry.id && 'border-foreground text-foreground'
-                  )}
-                  onClick={() => {
-                     picked.current = true;
-                     setTab(entry.id);
-                     setFocusLine(null);
-                     following.current = true;
-                     // A tab chosen on the bar is a tab the person wants to see.
-                     if (prefs.minimized) remember({ minimized: false });
-                  }}
-               >
-                  {entry.label}
-                  {entry.count ? (
-                     <span
-                        className={cn(
-                           'rounded-full px-1.5 tabular-nums',
-                           errors > 0
-                              ? 'bg-destructive/15 text-destructive'
-                              : 'bg-muted text-muted-foreground'
-                        )}
-                     >
-                        {entry.count}
-                     </span>
-                  ) : null}
-               </button>
-            ))}
+            <Tabs
+               value={tab}
+               onValueChange={(value) => {
+                  picked.current = true;
+                  setTab(value as PanelTab);
+                  setFocusLine(null);
+                  following.current = true;
+                  // A tab chosen on the bar is a tab the person wants to see.
+                  if (prefs.minimized) remember({ minimized: false });
+               }}
+            >
+               <TabsList className="h-8" aria-label={t('label')}>
+                  {tabs.map((entry) => (
+                     <TabsTrigger key={entry.id} value={entry.id} className="gap-1.5">
+                        {entry.label}
+                        {entry.count ? (
+                           <span className="rounded-full bg-status-danger/15 px-1.5 tabular-nums text-status-danger">
+                              {entry.count}
+                           </span>
+                        ) : null}
+                     </TabsTrigger>
+                  ))}
+               </TabsList>
+            </Tabs>
             <span className="flex-1" />
             {tab === 'terminal' && !collapsed && (
                <button
@@ -644,7 +650,11 @@ export function PreviewPanel({
                         type="button"
                         className="flex w-full cursor-pointer items-baseline gap-2 rounded px-2 py-1 text-left hover:bg-muted"
                         onClick={() => openProblem(problem)}
-                        title={t('goToLine')}
+                        title={
+                           missingVariable(problem.message)
+                              ? t('env.setVariable', { name: missingVariable(problem.message)! })
+                              : t('goToLine')
+                        }
                      >
                         {problem.severity === 'error' ? (
                            <CircleX
@@ -669,6 +679,8 @@ export function PreviewPanel({
                   ))
                )}
             </div>
+         ) : tab === 'env' ? (
+            <PreviewEnv issueRef={issueRef} wanted={wanted} onRebuild={() => onAction('rebuild')} />
          ) : (
             <div className="flex min-h-0 flex-1" role="tabpanel">
                <div

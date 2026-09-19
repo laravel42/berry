@@ -490,7 +490,22 @@
          "tabs": {
             "problems": "Problems",
             "console": "Debug Console",
-            "terminal": "Terminal"
+            "terminal": "Terminal",
+            "env": "Environment"
+         },
+         "env": {
+            "label": "Build variables",
+            "loading": "Loading the variables…",
+            "loadFailed": "The variables could not be loaded.",
+            "unavailable": "This server has no INTEGRATION_ENCRYPTION_KEY, so it cannot keep secrets.",
+            "noProject": "Build variables belong to a project, and this task is in none. Add it to a project to keep them.",
+            "scope": "Encrypted",
+            "unsaved": "Unsaved changes",
+            "saved": "Saved. Rebuild to apply.",
+            "save": "Save",
+            "saveAndRebuild": "Save and rebuild",
+            "saveFailed": "The variables could not be saved.",
+            "setVariable": "Set {name} in ENV"
          },
          "close": "Close the panel",
          "minimize": "Minimize the panel to a bar",

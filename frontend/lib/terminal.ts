@@ -227,6 +227,26 @@ export function problemsFrom(lines: IndexedLine[]): Problem[] {
    );
 }
 
+const MISSING_VARIABLE = [
+   /\bmissing (?:required )?env(?:ironment)? var(?:iable)?s?:?\s+["'`]?([A-Za-z_][A-Za-z0-9_]*)/i,
+   /\benv(?:ironment)? var(?:iable)?\s+["'`]?([A-Za-z_][A-Za-z0-9_]*)["'`]?\s+(?:is|was)\s+(?:required|missing|not set|not defined|undefined)/i,
+   /\b([A-Z][A-Z0-9_]{2,})\s+(?:env(?:ironment)? var(?:iable)? )?(?:(?:is|was)\s+(?:required|missing|not set|not defined|undefined)|must be (?:set|defined|provided))/,
+];
+
+/**
+ * The variable a problem says is missing, in the forms programs actually
+ * print ("Missing required environment variable: OPENAI_API_KEY", "env var
+ * FOO is not set", "DATABASE_URL is required"), or null. Such a problem is
+ * fixed in the ENV tab rather than in the log.
+ */
+export function missingVariable(message: string): string | null {
+   for (const pattern of MISSING_VARIABLE) {
+      const match = pattern.exec(message);
+      if (match) return match[1]!;
+   }
+   return null;
+}
+
 /** One process's own output. What the preview itself says lives in the Debug Console. */
 export function forApp<T extends TerminalLine>(lines: T[], app: string | null): T[] {
    return app === null ? lines : lines.filter((line) => line.app === app);
