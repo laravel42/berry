@@ -61,7 +61,10 @@ export class SessionRouter {
 
    constructor(options: RouterOptions) {
       this.#containers = options.containers;
-      this.#idleMs = options.idleMs ?? 15 * 60_000;
+      // Short on purpose. What follows a run on the same session — a continuation,
+      // rework after a review — starts within seconds, and a finished task stops
+      // its sessions itself; minutes of idling beyond that only hold memory.
+      this.#idleMs = options.idleMs ?? 5 * 60_000;
       this.#max = Math.max(1, options.maxContainers ?? 8);
       this.#clock = options.clock ?? Date.now;
       this.#log = options.log ?? (() => undefined);

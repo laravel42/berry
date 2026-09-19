@@ -196,6 +196,12 @@ export interface ReviewGateOptions {
    clock?: () => Date;
    newId?: () => string;
    onError?: (message: string, error: unknown) => void;
+   /**
+    * What a released task held that nothing will use again: its runtime
+    * sessions, its preview. The gate closes a task through the repository, so
+    * the work-tracking hook that does this for a person's change never fires.
+    */
+   release?: (issueId: string) => Promise<unknown>;
 }
 
 const DEFAULT_MAX_ATTEMPTS = 2;
@@ -232,6 +238,7 @@ export class ReviewGate {
    readonly #clock: () => Date;
    readonly #newId: () => string;
    readonly #onError: (message: string, error: unknown) => void;
+   readonly #releaseHeld: (issueId: string) => Promise<unknown>;
 
    constructor(options: ReviewGateOptions) {
       this.#sql = options.sql;
@@ -246,6 +253,7 @@ export class ReviewGate {
       this.#clock = options.clock ?? (() => new Date());
       this.#newId = options.newId ?? (() => crypto.randomUUID());
       this.#onError = options.onError ?? (() => {});
+      this.#releaseHeld = options.release ?? (async () => undefined);
    }
 
    /**
@@ -744,6 +752,7 @@ export class ReviewGate {
          this.#onError('releasing the reviewed task failed', error);
          return false;
       }
+      void this.#releaseHeld(material.issue.id).catch((error: unknown) => this.#onError('releasing the closed task\'s sessions failed', error));
       await this.#advance(material, reviewerId);
       return true;
    }

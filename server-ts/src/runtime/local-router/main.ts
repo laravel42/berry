@@ -31,7 +31,7 @@ const router = new SessionRouter({
       cpus: env.BERRY_ROUTER_CPUS ?? '2',
       pidsLimit: number(env.BERRY_ROUTER_PIDS, 2048),
    }),
-   idleMs: number(env.BERRY_ROUTER_IDLE_MINUTES, 15) * 60_000,
+   idleMs: number(env.BERRY_ROUTER_IDLE_MINUTES, 5) * 60_000,
    maxContainers: number(env.BERRY_ROUTER_MAX_CONTAINERS, 8),
    log,
 });

@@ -75,6 +75,8 @@ export function workTrackingHooks(options: {
    sql: Sql;
    issues: IssueRepository;
    dispatch?: Pick<RunRepository, 'admit'> | undefined;
+   /** What a finished task held that nothing will use again: its runtime sessions, its preview. */
+   release?: ((issueId: string) => Promise<unknown>) | undefined;
 }): WorkTrackingHooks {
    const { sql, issues } = options;
    const gate = stageGate(sql);
@@ -121,6 +123,9 @@ export function workTrackingHooks(options: {
 
          const finishing =
             write.previousStatus !== null && !FINISHED.has(write.previousStatus) && FINISHED.has(issue.status);
+         // Not awaited: releasing containers is slower than anything else here,
+         // and the person who closed the task is waiting on this request.
+         if (finishing) void options.release?.(issue.id).catch(() => undefined);
          if (options.dispatch && finishing) {
             for (const siblingId of await nextStageReady(sql, issue.id)) {
                const sibling = await issues.get(siblingId);

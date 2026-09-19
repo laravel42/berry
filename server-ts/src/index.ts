@@ -34,6 +34,7 @@ import { SiteBuilds } from './previews/site-builds.ts';
 import { PreviewEnvironments } from './previews/environments.ts';
 import { previewOrigin, previewProxy } from './previews/proxy.ts';
 import { pullRequestSource } from './previews/source.ts';
+import { releaseTaskResources } from './runs/session-teardown.ts';
 import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
@@ -144,7 +145,7 @@ import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
 import { httpTransport } from './runtime/http-transport.ts';
-import { RuntimeTaskExecutor, type UsageRecorder } from './runtime/task-executor.ts';
+import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
@@ -491,8 +492,26 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
  * opted in — and on request for any task with a pull request. Its decision is
  * a completion task, so it exists wherever tasks can run.
  */
+/**
+ * A finished task gives back what it held: every runtime session an agent ran
+ * on it and its preview environment. `transport` is declared further down and
+ * read only when a task closes, long after start-up.
+ */
+const releaseTask = (issueId: string) =>
+   releaseTaskResources(
+      {
+         sql,
+         transport: { stop: (input) => transport.stop(input) },
+         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, defaultTarget),
+         previews: previewEnvironments,
+         report: (message, fields) => logger.info(message, fields),
+      },
+      issueId
+   );
+
 const reviewGate = defaultTarget
    ? new ReviewGate({
+        release: releaseTask,
         sql,
         issues,
         runs: new RunRepository(sql),
@@ -676,7 +695,7 @@ registry.registerAll(
 // Work tracking: subscriptions and inbox rows after writes, and the stage
 // barrier on sub-issues. Dispatch only where runs can execute, as below.
 const workDispatch = executor ? runOptions.runs : undefined;
-const workHooks = workTrackingHooks({ sql, issues, dispatch: workDispatch });
+const workHooks = workTrackingHooks({ sql, issues, dispatch: workDispatch, release: releaseTask });
 const commentOptions = {
    sessions,
    comments,
