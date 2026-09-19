@@ -18,7 +18,7 @@ const RUN = '6f1c0c52-2c6e-4d7c-9a47-0f7f3c1c9b10';
 const SHA = 'a'.repeat(40);
 const user = { id: 'u1', email: 'ada@example.test', name: 'Ada <Lovelace>', avatarUrl: null, role: 'member', currentWorkspaceId: null, createdAt: '', updatedAt: '' } as unknown as User;
 
-function app(options: { canWrite?: boolean; activeRun?: boolean; open?: boolean; conflict?: boolean } = {}) {
+function app(options: { canWrite?: boolean; activeRun?: boolean; open?: boolean; conflict?: boolean; exists?: boolean } = {}) {
    const written: Array<Record<string, unknown>> = [];
    const registry = new Registry();
    registry.registerAll(
@@ -40,6 +40,7 @@ function app(options: { canWrite?: boolean; activeRun?: boolean; open?: boolean;
                pullRequestHead: async () => ({ commit: 'c'.repeat(40), branch: 'agent/l42-448' }),
                putFile: async (input: Record<string, unknown>) => {
                   if (options.conflict) throw new GitHubError('GitHub PUT … failed: 409', 409);
+                  if (options.exists) throw new GitHubError('GitHub PUT … failed: 422', 422);
                   written.push(input);
                   return { commit: 'd'.repeat(40), blob: 'e'.repeat(40) };
                },
@@ -93,4 +94,16 @@ test('paths that run with the repository’s secrets, or leave it, are never wri
    assert.equal((await commit({ ...edit, sha: 'not-a-sha' })).status, 400);
    assert.equal((await commit({ ...edit, content: 'x'.repeat(1024 * 1024 + 1) })).status, 413);
    assert.equal(written.length, 0);
+});
+
+test('no blob id is a new file, and a path that already has one is refused rather than overwritten', async () => {
+   const { commit, written } = app();
+   const response = await commit({ path: 'docs/notes.md', content: '', sha: null });
+   assert.equal(response.status, 201);
+   assert.equal(written[0]!.sha, null);
+   assert.match(String(written[0]!.message), /^Create docs\/notes\.md/);
+
+   const taken = await app({ exists: true }).commit({ path: 'docs/notes.md', content: '', sha: null });
+   assert.equal(taken.status, 409);
+   assert.equal(((await taken.json()) as { error: { code: string } }).error.code, 'FILE_EXISTS');
 });

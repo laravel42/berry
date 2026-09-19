@@ -35,7 +35,7 @@ export interface ReviewMountOptions {
       token: string
    ) => Pick<GitHubClient, 'pullRequestDiff' | 'pullRequestState' | 'mergePullRequest' | 'updatePullRequestBranch'> &
       // What a reviewer's commit needs. Optional, so a fake written for merging is still one.
-      Partial<Pick<GitHubClient, 'pullRequestHead' | 'putFile'>>;
+      Partial<Pick<GitHubClient, 'pullRequestHead' | 'putFile' | 'branchHead'>>;
    /** What returns a conflicting pull request's task to its author. Absent: the conflict is only reported. */
    sendBack?: Pick<SendBackDeps, 'issues' | 'runs'> | null;
    onError?: (message: string, error: unknown) => void;
@@ -118,7 +118,12 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
       try {
          const { pullRequestHead, putFile } = client;
          if (!pullRequestHead || !putFile) throw new ApiError(412, 'GITHUB_UNAVAILABLE', 'This deployment cannot commit to the repository.');
-         const head = await pullRequestHead.call(client, owner, name, target.number);
+         const listed = await pullRequestHead.call(client, owner, name, target.number);
+         // GitHub brings a pull request's record up to its branch a moment after a
+         // push. The branch itself is never behind, so a commit made from this page
+         // is in the tree that is read straight after it.
+         const tip = listed.branch && client.branchHead ? await client.branchHead.call(client, owner, name, listed.branch).catch(() => null) : null;
+         const head = { branch: listed.branch, commit: tip ?? listed.commit };
          const [entries, changes] = await Promise.all([
             client.treeEntries(owner, name, head.commit),
             client.pullRequestChanges(owner, name, target.number).catch(() => []),
@@ -204,8 +209,10 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
 
       const body = (await context.req.json().catch(() => null)) as { path?: unknown; content?: unknown; sha?: unknown; message?: unknown } | null;
       const path = typeof body?.path === 'string' ? insideDirectory(body.path) : null;
-      if (!body || path === null || typeof body.content !== 'string' || typeof body.sha !== 'string' || !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(body.sha)) {
-         throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository, the new content and the file\'s current blob id are required.');
+      // No blob id is a new file: GitHub refuses the write when the path already has one, so nothing is overwritten unseen.
+      const sha = body?.sha === null || body?.sha === undefined ? null : body.sha;
+      if (!body || path === null || typeof body.content !== 'string' || (sha !== null && (typeof sha !== 'string' || !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(sha)))) {
+         throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository, the new content and the file\'s current blob id (none for a new file) are required.');
       }
       if (Buffer.byteLength(body.content, 'utf8') > MAX_FILE_BYTES) throw new ApiError(413, 'FILE_TOO_LARGE', 'This file is too large to commit from here.');
       const refused = refusedPaths([path]);
@@ -214,7 +221,7 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          throw new ApiError(409, 'RUN_ACTIVE', 'An agent is working on this task, and its branch is that run\'s to change. Commit when the run has finished.');
       }
 
-      const subject = (typeof body.message === 'string' ? body.message : '').replace(/\r/g, '').trim().slice(0, 2000) || `Update ${path}`;
+      const subject = (typeof body.message === 'string' ? body.message : '').replace(/\r/g, '').trim().slice(0, 2000) || `${sha === null ? 'Create' : 'Update'} ${path}`;
       const trailer = coAuthorTrailer({ enabled: true, coAuthorTrailer: true }, { name: user.name, email: user.email });
       const { owner, name } = parseRepository(target.repository);
       const client = clientFor(options, (await options.gitCredential(target.workspaceId)).password);
@@ -225,10 +232,11 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          if (!pullRequestHead || !putFile) throw new ApiError(412, 'GITHUB_UNAVAILABLE', 'This deployment cannot commit to the repository.');
          const head = await pullRequestHead.call(client, owner, name, target.number);
          if (!head.branch) throw new ApiError(409, 'PULL_REQUEST_CLOSED', 'The pull request has no branch to commit to.');
-         const written = await putFile.call(client, { owner, name, branch: head.branch, path, content: body.content, message: withTrailers(subject, trailer ? [trailer] : []), sha: body.sha });
+         const written = await putFile.call(client, { owner, name, branch: head.branch, path, content: body.content, message: withTrailers(subject, trailer ? [trailer] : []), sha });
          return json({ commit: written.commit, sha: written.blob, branch: head.branch, path }, 201);
       } catch (error) {
          if (error instanceof GitHubError) {
+            if (sha === null && error.status === 422) throw new ApiError(409, 'FILE_EXISTS', `${path} already exists on the branch. Open it to change it.`);
             if (error.status === 409) throw new ApiError(409, 'FILE_CHANGED', 'This file changed on the branch since you opened it. Reload the file, and make your edit again.');
             throw new ApiError(502, 'GITHUB_UNAVAILABLE', `GitHub did not accept the commit: ${error.detail || error.message}`);
          }
