@@ -113,12 +113,25 @@ async function inheritsAutoGate(context: AgentToolContext): Promise<boolean> {
  * repository at all, which is exactly what an agent blocking itself with "no
  * repository or project resources are attached" was telling us.
  */
-async function inheritedProject(context: AgentToolContext): Promise<string | null> {
+export async function inheritedProject(context: AgentToolContext): Promise<string | null> {
+   // The task's own project, else the nearest ancestor's. A task filed from a
+   // task that was itself filed without one (a decision, a proposal) would
+   // otherwise pass "no project" down to everything under it, and code written
+   // there has no repository to land in: it stays on the task as files.
    const [row] = await context.sql`
+      WITH RECURSIVE lineage AS (
+         SELECT issue.id, issue.parent_id, 0 AS depth
+           FROM runs AS run JOIN issues AS issue ON issue.id = run.issue_id
+          WHERE run.id = ${context.task.runId}
+         UNION ALL
+         SELECT parent.id, parent.parent_id, lineage.depth + 1
+           FROM lineage JOIN issues AS parent ON parent.id = lineage.parent_id
+          WHERE lineage.depth < 8
+      )
       SELECT link.project_id
-        FROM runs AS run
-        JOIN issue_project_links AS link ON link.issue_id = run.issue_id
-       WHERE run.id = ${context.task.runId}`;
+        FROM lineage JOIN issue_project_links AS link ON link.issue_id = lineage.id
+       ORDER BY lineage.depth
+       LIMIT 1`;
    return (row?.project_id as string | null) ?? null;
 }
 

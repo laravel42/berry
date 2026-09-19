@@ -14,7 +14,7 @@ import { withinTx, type Sql } from '../db/pool.ts';
 import { ApiError } from '../http/errors.ts';
 import { notifyApprovalRequested } from '../approvals/notify.ts';
 import { enqueueTask } from '../runs/queue.ts';
-import { taskOf } from '../runtime/agent-tools/core-tools.ts';
+import { inheritedProject, taskOf } from '../runtime/agent-tools/core-tools.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from '../runtime/agent-tools/registry.ts';
 import { ActiveRunExists } from '../runs/repository.ts';
 import { postRunResult } from '../runs/result-comment.ts';
@@ -113,7 +113,10 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             sortOrder: 0,
             dueDate: null,
             assignee: { type: 'agent', id: target.id },
-            project: null,
+            // The project it was carved out of, and so its repository. Delegated
+            // code with no project is written to the task's files and never
+            // reaches a branch: it is reviewed, approved, and not in main.
+            project: await inheritedProject(context),
             createdBy: parent.requested_by,
          });
          await setParent(context.sql, { workspaceId: context.task.workspaceId, issueId: issue.id, parentId, stage: null });
@@ -487,7 +490,8 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
                sortOrder: 0,
                dueDate: null,
                assignee: decision === 'auto_accept' ? { type: 'agent', id: owner.id } : null,
-               project: null,
+               // Work proposed from inside a project belongs to it, for the same reason delegated work does.
+               project: await inheritedProject(context),
                createdBy: requester?.requested_by ?? null,
             });
 
