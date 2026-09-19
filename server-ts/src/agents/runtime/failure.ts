@@ -95,7 +95,36 @@ export function isContentBlocked(error: unknown): boolean {
    return cause !== undefined && cause !== error && isContentBlocked(cause);
 }
 
+/**
+ * The model exists but this account may not use it yet: covered models
+ * (Claude Fable 5 and later) require 30-day data retention, and on Bedrock the
+ * account's retention setting — not the request — decides. Every run on the
+ * model fails the same way until a person changes that setting or the agent's
+ * model, so the message says both.
+ */
+const RETENTION = /data retention/i;
+
+/** The first message in the cause chain that names data retention, if any. */
+function retentionMessage(error: unknown): string | null {
+   const message = (error as { message?: unknown })?.message;
+   if (typeof message === 'string' && RETENTION.test(message)) return message;
+   const cause = (error as { cause?: unknown })?.cause;
+   return cause !== undefined && cause !== error ? retentionMessage(cause) : null;
+}
+
 export function classify(error: unknown): Failure {
+   const text = retentionMessage(error);
+   if (text !== null) {
+      return {
+         code: 'UPSTREAM_REJECTED',
+         message:
+            "This model can't be used by this account yet: it requires data retention (30 days for Claude Fable models), " +
+            "and the provider account's retention setting doesn't allow it. Every run on this model will fail the same " +
+            "way. Enable data retention for the model in the provider console (on Bedrock, per AWS account), or pick a " +
+            `different model for this agent. Provider message: ${truncateUtf8(text, 500)}`,
+         retryable: false,
+      };
+   }
    if (isContentBlocked(error)) {
       return {
          code: 'CONTENT_BLOCKED',

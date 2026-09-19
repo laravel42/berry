@@ -8,7 +8,9 @@
       "build:check": "NEXT_DIST_DIR=.next-verify next build",
       "start": "next start",
       "lint": "eslint .",
-      "format": "prettier --write ."
+      "format": "prettier --write .",
+      "storybook": "storybook dev -p 6006",
+      "build-storybook": "storybook build"
    },
    "dependencies": {
       "@codemirror/language": "^6.12.4",
@@ -55,7 +57,6 @@
       "motion": "^13.4.0",
       "next": "16.3.5",
       "next-intl": "^4.14.5",
-      "next-themes": "^0.4.6",
       "nuqs": "^2.10.1",
       "platejs": "^53.3.11",
       "react": "^19.3.0",
@@ -77,20 +78,41 @@
       "zustand": "^5.0.15"
    },
    "devDependencies": {
+      "@chromatic-com/storybook": "latest",
+      "@storybook/addon-a11y": "^10.6.0",
+      "@storybook/addon-docs": "^10.6.0",
+      "@storybook/addon-mcp": "^10.6.0",
+      "@storybook/addon-vitest": "^10.6.0",
+      "@storybook/nextjs-vite": "^10.6.0",
       "@tailwindcss/postcss": "^4.3.3",
       "@types/node": "^22.20.3",
       "@types/react": "^19.3.0",
       "@types/react-dom": "^19.3.0",
+      "@vitest/browser-playwright": "latest",
+      "@vitest/coverage-v8": "latest",
       "eslint": "^10.10.0",
       "eslint-config-next": "16.3.5",
       "eslint-config-prettier": "^10.1.8",
+      "eslint-plugin-storybook": "^10.6.0",
       "lint-staged": "^17.5.1",
+      "mockdate": "^3.0.5",
+      "msw": "^2.15.0",
+      "msw-storybook-addon": "^3.0.3",
+      "playwright": "latest",
       "prettier": "^3.9.7",
+      "storybook": "^10.6.0",
       "tailwindcss": "^4.3.3",
-      "typescript": "^5.9.3"
+      "typescript": "^5.9.3",
+      "vite": "latest",
+      "vitest": "latest"
    },
    "trustedDependencies": [
       "unrs-resolver"
    ],
-   "license": "MIT"
+   "license": "MIT",
+   "msw": {
+      "workerDirectory": [
+         "public"
+      ]
+   }
 }

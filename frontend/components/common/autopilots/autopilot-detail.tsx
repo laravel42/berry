@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, Play, X } from 'lucide-react';
+import { ChevronLeft, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -22,52 +22,38 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-   Command,
-   CommandEmpty,
-   CommandGroup,
-   CommandInput,
-   CommandItem,
-   CommandList,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { User } from '@/data/users';
 import { useAutopilot } from '@/hooks/use-autopilot';
 import {
    archiveAutopilot,
    describeAutopilotFailure,
    runAutopilot,
-   setAutopilotMembers,
    updateAutopilot,
    type AutopilotDetail as Autopilot,
 } from '@/lib/autopilots';
 import { listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
-import { loadWorkspaceMembers } from '@/lib/members';
 import { agentHasRuntime, getAgentCoverage, type AgentCoverage } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 
-type Member = { userId: string; role: 'collaborator' | 'subscriber' };
-
-const TABS = ['overview', 'triggers', 'runs', 'deliveries', 'access'] as const;
+const TABS = ['overview', 'triggers', 'runs', 'deliveries'] as const;
 type DetailTab = (typeof TABS)[number];
 
 const isTab = (value: string | null): value is DetailTab =>
    value !== null && (TABS as readonly string[]).includes(value);
 
 /**
- * One autopilot: whether it is on, what it will do, who hears about it, and
- * everything it has already done.
+ * One autopilot: whether it is on, what it will do, and everything it has
+ * already done.
  *
  * Identity and the one primary action stay above the fold. Tabs carry the
- * work of configuring triggers, reading history, and managing access — never
- * the fact of what this autopilot is.
+ * work of configuring triggers and reading history — never the fact of what
+ * this autopilot is.
  */
 export default function AutopilotDetail({ autopilotId }: { autopilotId: string }) {
    const t = useTranslations('areas.autopilots');
@@ -76,7 +62,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const searchParams = useSearchParams();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
-   const workspaceId = useSessionStore((state) => state.workspace?.id);
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
    const agents = useAgentsStore((state) => state.agents);
 
@@ -85,7 +70,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const [archiving, setArchiving] = useState(false);
    const [coverage, setCoverage] = useState<AgentCoverage | null>(null);
    const [boards, setBoards] = useState<BoardSummary[]>([]);
-   const [people, setPeople] = useState<User[]>([]);
    const [busy, setBusy] = useState(false);
 
    const view: DetailTab = isTab(searchParams?.get('view') ?? null)
@@ -118,20 +102,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          cancelled = true;
       };
    }, []);
-
-   useEffect(() => {
-      if (!workspaceId) return;
-      let cancelled = false;
-      void loadWorkspaceMembers(workspaceId).then(
-         (found) => {
-            if (!cancelled) setPeople(found);
-         },
-         () => undefined
-      );
-      return () => {
-         cancelled = true;
-      };
-   }, [workspaceId]);
 
    if (loading) {
       return (
@@ -183,10 +153,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       }
    };
 
-   const members: Member[] = autopilot.members.map(({ userId, role }) => ({ userId, role }));
-   const writeMembers = (next: Member[]) =>
-      act(() => setAutopilotMembers(autopilot.id, next), t('detail.accessSaved'));
-
    const runNow = () =>
       act(async () => {
          const outcome = await runAutopilot(autopilot.id);
@@ -211,7 +177,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       triggers: t('detail.tabTriggers'),
       runs: t('detail.tabRuns'),
       deliveries: t('detail.tabDeliveries'),
-      access: t('detail.tabAccess'),
    };
 
    return (
@@ -354,6 +319,9 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                      assigneeName={assigneeName}
                      boardName={board?.name}
                      quotaLabel={quotaLabel}
+                     canEdit={canEdit}
+                     busy={busy}
+                     onArchive={() => setArchiving(true)}
                   />
                ) : null}
                {view === 'triggers' ? (
@@ -366,16 +334,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                      deliveries={deliveries}
                      canReplay={canEdit}
                      onReplayed={reload}
-                  />
-               ) : null}
-               {view === 'access' ? (
-                  <AccessPanel
-                     members={members}
-                     people={people}
-                     canEdit={canEdit}
-                     busy={busy}
-                     onWrite={writeMembers}
-                     onArchive={() => setArchiving(true)}
                   />
                ) : null}
             </div>
@@ -426,11 +384,17 @@ function OverviewPanel({
    assigneeName,
    boardName,
    quotaLabel,
+   canEdit,
+   busy,
+   onArchive,
 }: {
    autopilot: Autopilot;
    assigneeName: string;
    boardName: string | undefined;
    quotaLabel: string;
+   canEdit: boolean;
+   busy: boolean;
+   onArchive: () => void;
 }) {
    const t = useTranslations('areas.autopilots');
 
@@ -463,133 +427,30 @@ function OverviewPanel({
             </div>
          </dl>
 
-         <section className="min-w-0">
-            <h2 className="font-medium">{t('detail.runbook')}</h2>
-            <pre className="mt-3 max-h-[min(28rem,60vh)] overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-muted/20 p-4 leading-relaxed text-muted-foreground">
-               {autopilot.promptTemplate}
-            </pre>
-         </section>
-      </div>
-   );
-}
-
-function AccessPanel({
-   members,
-   people,
-   canEdit,
-   busy,
-   onWrite,
-   onArchive,
-}: {
-   members: Member[];
-   people: User[];
-   canEdit: boolean;
-   busy: boolean;
-   onWrite: (next: Member[]) => void;
-   onArchive: () => void;
-}) {
-   const t = useTranslations('areas.autopilots');
-
-   return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-8 px-8 py-6">
-         <section className="flex flex-col gap-3">
-            <div>
-               <h2 className="font-medium">{t('detail.access')}</h2>
-               <p className="mt-1 text-muted-foreground">{t('detail.accessHint')}</p>
-            </div>
-            {members.length === 0 ? (
-               <p className="text-muted-foreground">{t('detail.noAccess')}</p>
-            ) : (
-               <ul className="flex flex-col divide-y divide-border/60">
-                  {members.map((member) => (
-                     <li
-                        key={member.userId}
-                        className="flex items-center justify-between gap-3 py-2.5"
-                     >
-                        <span className="truncate">
-                           {people.find((person) => person.id === member.userId)?.name ??
-                              member.userId}
-                        </span>
-                        <span className="flex items-center gap-2">
-                           <span className="text-muted-foreground">
-                              {t(`detail.role_${member.role}`)}
-                           </span>
-                           {canEdit ? (
-                              <Button
-                                 size="icon"
-                                 variant="ghost"
-                                 className="size-7"
-                                 disabled={busy}
-                                 aria-label={t('detail.removePerson')}
-                                 onClick={() =>
-                                    onWrite(
-                                       members.filter((entry) => entry.userId !== member.userId)
-                                    )
-                                 }
-                              >
-                                 <X className="size-3.5" />
-                              </Button>
-                           ) : null}
-                        </span>
-                     </li>
-                  ))}
-               </ul>
-            )}
-            {canEdit ? (
-               <Popover>
-                  <PopoverTrigger asChild>
-                     <Button size="sm" variant="secondary" className="w-fit">
-                        {t('detail.addPerson')}
-                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-0" align="start">
-                     <Command>
-                        <CommandInput placeholder={t('detail.searchPeople')} />
-                        <CommandList>
-                           <CommandEmpty>{t('detail.noneFound')}</CommandEmpty>
-                           <CommandGroup>
-                              {people
-                                 .filter(
-                                    (person) =>
-                                       !members.some((member) => member.userId === person.id)
-                                 )
-                                 .map((person) => (
-                                    <CommandItem
-                                       key={person.id}
-                                       value={person.name}
-                                       onSelect={() =>
-                                          onWrite([
-                                             ...members,
-                                             { userId: person.id, role: 'subscriber' },
-                                          ])
-                                       }
-                                    >
-                                       {person.name}
-                                    </CommandItem>
-                                 ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  </PopoverContent>
-               </Popover>
-            ) : null}
-         </section>
-
-         {canEdit ? (
-            <section className="border-t border-border/70 pt-6">
-               <h2 className="font-medium">{t('detail.danger')}</h2>
-               <p className="mt-1 text-muted-foreground">{t('detail.dangerHint')}</p>
-               <Button
-                  size="sm"
-                  variant="secondary"
-                  className="mt-3"
-                  disabled={busy}
-                  onClick={onArchive}
-               >
-                  {t('row.delete')}
-               </Button>
+         <div className="flex min-w-0 flex-col gap-8">
+            <section className="min-w-0">
+               <h2 className="font-medium">{t('detail.runbook')}</h2>
+               <pre className="mt-3 max-h-[min(28rem,60vh)] overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-muted/20 p-4 leading-relaxed text-muted-foreground">
+                  {autopilot.promptTemplate}
+               </pre>
             </section>
-         ) : null}
+
+            {canEdit ? (
+               <section className="border-t border-border/70 pt-6">
+                  <h2 className="font-medium">{t('detail.danger')}</h2>
+                  <p className="mt-1 text-muted-foreground">{t('detail.dangerHint')}</p>
+                  <Button
+                     size="sm"
+                     variant="secondary"
+                     className="mt-3"
+                     disabled={busy}
+                     onClick={onArchive}
+                  >
+                     {t('row.delete')}
+                  </Button>
+               </section>
+            ) : null}
+         </div>
       </div>
    );
 }

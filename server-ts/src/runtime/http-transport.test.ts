@@ -41,3 +41,24 @@ test('stop deletes the local session', async () => {
    await httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl }).stop({ target, runtimeSessionId: 'berry-x' });
    assert.deepEqual(seen, ['DELETE http://agent-runtime:8080/sessions/berry-x']);
 });
+
+test('invoke tells an observer the request it sent and the status that came back', async () => {
+   const fakeFetch = (async () =>
+      new Response(encodeLifecycle({ type: 'task.started' }), { status: 200, headers: { 'content-type': 'text/event-stream' } })) as unknown as typeof fetch;
+   const seen: { request?: { method: string; url: string; headers: Record<string, string> }; status?: number; type?: string | undefined } = {};
+   const observe = {
+      request: (request: { method: string; url: string; headers: Record<string, string> }) => void (seen.request = request),
+      response: (response: { status: number; headers: Record<string, string> }) => {
+         seen.status = response.status;
+         seen.type = response.headers['content-type'];
+      },
+   };
+   for await (const _ of httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl }).invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal, observe })) {
+      // drain
+   }
+   assert.equal(seen.request?.method, 'POST');
+   assert.equal(seen.request?.url, 'http://agent-runtime:8080/invocations');
+   assert.equal(seen.request?.headers.accept, 'text/event-stream');
+   assert.equal(seen.status, 200);
+   assert.equal(seen.type, 'text/event-stream');
+});

@@ -2,11 +2,10 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { AlertTriangle, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
    DropdownMenu,
@@ -17,12 +16,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { colorForAgent } from '@/lib/agent-color';
 import { cn } from '@/lib/utils';
-import { agentModelDisplay, useAgentAvatarSrc, type Agent, type AgentRoster } from '@/lib/agents';
-import { agentHasRuntime, type AgentCoverage } from '@/lib/runtimes';
+import { useAgentAvatarSrc, type Agent, type AgentRoster } from '@/lib/agents';
 import type { AgentColumn } from '@/store/agents-list-store';
+import { AgentModelChip } from './agent-model-chip';
 import { AgentSparkline } from './agent-sparkline';
-import { AutonomyLevelChip } from './autonomy-level-chip';
-import { agentModelName } from './model-name';
+import { AgentWorkloadChip } from './agent-workload-chip';
 
 export interface AgentRowActions {
    onDuplicate: (agent: Agent) => void;
@@ -33,10 +31,8 @@ export interface AgentRowActions {
 
 interface AgentLineProps {
    agent: Agent;
-   /** Load, runtime and recent activity; absent while the roster is loading. */
+   /** Load and recent activity; absent while the roster is loading. */
    roster: AgentRoster | undefined;
-   /** Which runtime is the workspace default; null while it loads. */
-   coverage: AgentCoverage | null;
    columns: AgentColumn[];
    selected: boolean;
    onToggleSelected: (id: string) => void;
@@ -45,24 +41,17 @@ interface AgentLineProps {
 
 /** The widths every cell shares with its header, so the two line up. */
 export const COLUMN_WIDTH: Record<AgentColumn, string> = {
-   workload: 'w-24',
-   runtime: 'w-32',
    activity: 'w-24',
-   runs: 'w-14',
    lastActive: 'w-28',
    model: 'w-40',
-   owner: 'w-28',
    access: 'w-28',
 };
 
 /** Columns that drop out before the row starts crowding the name. */
 export const COLUMN_BREAKPOINT: Partial<Record<AgentColumn, string>> = {
-   workload: 'hidden md:flex',
-   runtime: 'hidden lg:flex',
    activity: 'hidden md:flex',
    lastActive: 'hidden lg:flex',
    model: 'hidden xl:flex',
-   owner: 'hidden xl:flex',
    access: 'hidden 2xl:flex',
 };
 
@@ -95,7 +84,6 @@ function Cell({
 export default function AgentLine({
    agent,
    roster,
-   coverage,
    columns,
    selected,
    onToggleSelected,
@@ -104,31 +92,12 @@ export default function AgentLine({
    const { orgId } = useParams<{ orgId: string }>();
    const t = useTranslations('agentsChat.list');
    const format = useFormatter();
-   const model = agentModelDisplay(agent);
-   const level = agent.contract?.autonomy_level ?? agent.autonomyLevel ?? null;
    const avatarSrc = useAgentAvatarSrc(agent.avatarUrl);
    const href = `/${orgId}/agents/${agent.id}`;
    const archived = Boolean(agent.archivedAt);
    // The orchestrator is the one agent a workspace cannot do without, and the
    // server refuses to archive it. Saying so here beats a 409 after the click.
    const isProtected = agent.capabilities.includes('orchestrate');
-
-   const workload = roster
-      ? roster.running > 0
-         ? t('workloadWorking')
-         : roster.queued > 0
-           ? t('workloadQueued', { count: roster.queued })
-           : t('workloadIdle')
-      : '';
-
-   const runtimeStatusLabel =
-      roster?.runtimeStatus === 'active'
-         ? t('runtimeHealthy')
-         : roster?.runtimeStatus === 'unreachable'
-           ? t('runtimeUnreachable')
-           : roster?.runtimeStatus === 'disabled'
-             ? t('runtimeDisabled')
-             : '';
 
    const accessLabel =
       agent.access?.assign === 'admins'
@@ -137,17 +106,9 @@ export default function AgentLine({
            ? t('accessListed')
            : t('accessEveryone');
 
-   // The runtime cell earns a pill only when it says something: a binding to a
-   // runtime other than the workspace default, a bound runtime that is not
-   // healthy, or no runtime at all. Twenty rows on the default would otherwise
-   // repeat the same green pill twenty times.
-   const onDefault =
-      coverage !== null &&
-      roster?.runtimeId !== null &&
-      roster?.runtimeId === coverage.defaultRuntimeId;
-   const runtimeHealthy = roster?.runtimeStatus === 'active';
-   const noRuntime =
-      roster !== undefined && !roster.runtimeId && !agentHasRuntime(coverage, agent.id);
+   const weekRuns = roster?.activity.reduce((sum, point) => sum + point.runs, 0) ?? 0;
+   const weekFailed = roster?.activity.reduce((sum, point) => sum + point.failed, 0) ?? 0;
+   const weekFailRate = weekRuns === 0 ? 0 : Math.round((weekFailed / weekRuns) * 100);
 
    return (
       <div
@@ -179,17 +140,13 @@ export default function AgentLine({
                )}
             </span>
             <div className="min-w-0 flex-1 overflow-hidden">
-               {/* Wrapping, not shrinking: on a phone the chip drops under the
-                   name rather than squeezing the name to nothing. */}
                <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <span className="min-w-0 max-w-full truncate font-medium leading-none">
                      {agent.name}
                   </span>
-                  {level !== null ? <AutonomyLevelChip level={level} /> : null}
+                  <AgentWorkloadChip roster={roster} className="px-1.5 py-px" />
                </span>
                {agent.description ? (
-                  // Its own line, the full width of the name column: beside
-                  // the level chip it was ten characters and an ellipsis.
                   <p className="mt-0.5 truncate text-muted-foreground" title={agent.description}>
                      {agent.description}
                   </p>
@@ -197,46 +154,17 @@ export default function AgentLine({
             </div>
          </Link>
 
-         <Cell column="workload" columns={columns}>
-            <span className="truncate">{workload}</span>
-         </Cell>
-
-         <Cell column="runtime" columns={columns}>
-            {roster?.runtimeId && (!onDefault || !runtimeHealthy) ? (
-               <Badge
-                  variant="outline"
-                  title={runtimeStatusLabel}
-                  className={cn(
-                     'max-w-full overflow-hidden px-2 py-0.5 font-normal',
-                     roster.runtimeStatus === 'active' &&
-                        'border-status-success/50 text-status-success',
-                     roster.runtimeStatus === 'unreachable' &&
-                        'border-status-warning/50 text-status-warning',
-                     roster.runtimeStatus === 'disabled' && 'border-border text-muted-foreground'
-                  )}
-               >
-                  {roster.runtimeName}
-               </Badge>
-            ) : noRuntime ? (
-               <Badge
-                  variant="outline"
-                  className="max-w-full overflow-hidden border-status-warning/50 px-2 py-0.5 font-normal text-status-warning"
-               >
-                  <AlertTriangle className="size-3 shrink-0" aria-hidden />
-                  {t('runtimeNone')}
-               </Badge>
-            ) : roster && coverage ? (
-               <span className="truncate" title={roster.runtimeName ?? undefined}>
-                  {t('runtimeDefault')}
-               </span>
-            ) : null}
-         </Cell>
-
          <Cell column="activity" columns={columns}>
             {roster ? (
                <AgentSparkline
                   activity={roster.activity}
                   emptyLabel={t('sparkEmptyShort')}
+                  weekTitle={t('sparkWeekTitle')}
+                  weekSummary={t('sparkWeekSummary', {
+                     runs: weekRuns,
+                     failed: weekFailed,
+                     percent: weekFailRate,
+                  })}
                   describe={(point) =>
                      t('sparkTooltip', {
                         day: point.day,
@@ -247,10 +175,6 @@ export default function AgentLine({
                   }
                />
             ) : null}
-         </Cell>
-
-         <Cell column="runs" columns={columns} className="justify-end tabular-nums">
-            {roster ? roster.totalRuns : null}
          </Cell>
 
          <Cell column="lastActive" columns={columns}>
@@ -264,13 +188,7 @@ export default function AgentLine({
          </Cell>
 
          <Cell column="model" columns={columns}>
-            <span className="truncate" title={model.title}>
-               {agentModelName(agent)}
-            </span>
-         </Cell>
-
-         <Cell column="owner" columns={columns}>
-            <span className="truncate">{roster?.ownerName ?? t('ownerWorkspace')}</span>
+            <AgentModelChip agent={agent} className="max-w-full truncate" />
          </Cell>
 
          <Cell column="access" columns={columns}>

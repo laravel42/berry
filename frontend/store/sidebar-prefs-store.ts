@@ -16,8 +16,8 @@ export type SidebarItemKey =
    | 'views'
    | 'agents'
    | 'skills'
-   | 'dashboard'
-   | 'usage';
+   | 'usage'
+   | 'logs';
 
 export type SidebarSection = 'personal' | 'workspace' | 'automate' | 'configure';
 
@@ -60,8 +60,8 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'views': 'always',
    'agents': 'always',
    'skills': 'always',
-   'dashboard': 'always',
    'usage': 'always',
+   'logs': 'always',
 };
 
 /**
@@ -78,7 +78,9 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    automate: [],
    // No runtimes entry: Runtimes lives in Settings. A stored `agent` key from
    // before the move is dropped by resolveOrder, which keeps only known keys.
-   configure: ['dashboard', 'agents', 'skills', 'autopilot', 'usage'],
+   // No dashboard entry: it merged into Usage. A stored `dashboard` key is
+   // dropped by resolveOrder like the old `agent` one.
+   configure: ['agents', 'skills', 'autopilot', 'usage', 'logs'],
 };
 
 /** The key the previous shape was persisted under; read once, when v7 has nothing. */
@@ -127,9 +129,9 @@ function previousPrefs(): StoredPrefs | undefined {
       const parsed = JSON.parse(raw) as { state?: Partial<SidebarPrefsState> };
       const state = parsed.state;
       if (!state) return undefined;
-      // Order is not carried over. Dashboard is now the first Manage item by
-      // default; keeping a v6 order would leave it near the bottom forever.
-      // Visibility and badge style survive the upgrade.
+      // Order is not carried over: the v7 Manage defaults were reordered, and
+      // keeping a v6 order would pin the old one forever. Visibility and badge
+      // style survive the upgrade.
       const carried: StoredPrefs = { ...state };
       delete carried.order;
       return carried;

@@ -8,7 +8,8 @@ import type { Mount } from '../../http/registry.ts';
 import type { Storage } from '../../storage/storage.ts';
 import { agentToolAllowlist } from '../../organization/enforcement.ts';
 import { registerCoreAgentTools } from './core-tools.ts';
-import { getAgentTool, listAgentTools } from './registry.ts';
+import type { FetchLimits } from './fetch-url.ts';
+import { getAgentTool, listAgentTools, type RepositoryLinker } from './registry.ts';
 import { resolveTaskToken, type TaskClaims } from './tokens.ts';
 import type { GitHubClient } from '../../integrations/github.ts';
 import { parseRepository } from '../../agents/checkout.ts';
@@ -26,6 +27,10 @@ export function agentToolMounts(options: {
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
    github?: (workspaceId: string) => Promise<GitHubClient>;
+   /** `link_project_repository`'s resolver and writer; absent without a GitHub integration. */
+   repositories?: RepositoryLinker | null;
+   /** Test seam: `fetch_url`'s bounds. */
+   fetchLimits?: FetchLimits;
 }): Mount[] {
    registerCoreAgentTools();
    const route = new Hono<{ Variables: { task: TaskClaims; allowed: Set<string> | null } }>();
@@ -36,7 +41,7 @@ export function agentToolMounts(options: {
       const claims = match?.[1] ? await resolveTaskToken(options.sql, match[1]).catch(() => null) : null;
       if (!claims) throw ApiError.unauthorized();
       context.set('task', claims);
-      context.set('allowed', await agentToolAllowlist(options.sql, claims.agentId));
+      context.set('allowed', await agentToolAllowlist(options.sql, claims.agentId, claims.runId));
       await next();
    });
 
@@ -80,7 +85,15 @@ export function agentToolMounts(options: {
          throw ApiError.badRequest('the request body must be JSON');
       }
       const outcome = await tool.run(
-         { sql: options.sql, storage: options.storage, issues: options.issues, projects: options.projects, task },
+         {
+            sql: options.sql,
+            storage: options.storage,
+            issues: options.issues,
+            projects: options.projects,
+            task,
+            repositories: options.repositories ?? null,
+            fetchLimits: options.fetchLimits,
+         },
          body
       );
       if (!outcome.ok) throw ApiError.badRequest('the tool input is not valid', { issues: outcome.issues });

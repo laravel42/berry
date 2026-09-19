@@ -886,11 +886,16 @@ function assertValid(fields: FieldError[]): void {
  *     the caller's — a different repository, or a broader connection.
  *   - A transient provider failure → 502 PROVIDER_ERROR, worth retrying.
  */
-async function resolveRepository(
-   options: ProjectOptions,
+export async function resolveRepository(
+   options: Pick<ProjectOptions, 'connections' | 'githubApp' | 'userAccess'>,
    workspaceId: string,
    fullName: string,
-   userId: string
+   /**
+    * Whose own GitHub sign-in to fall back to when the workspace has neither an
+    * App nor a connection. Null for an agent run nobody asked for: there is then
+    * no one's sign-in to borrow.
+    */
+   userId: string | null
 ): Promise<{ githubRepoId: string; githubRepoFullName: string }> {
    // No encryption key means no credential can be sealed, so none can be held.
    if (!options.connections) {
@@ -925,7 +930,7 @@ async function resolveRepository(
       }
       // No App and no connection: resolve through the person's own sign-in,
       // which is what listed the repository in the picker.
-      if (error instanceof ConnectionUnavailable && error.reason === 'missing' && options.userAccess) {
+      if (error instanceof ConnectionUnavailable && error.reason === 'missing' && options.userAccess && userId) {
          return resolveWithSignIn(options.userAccess, userId, owner, name);
       }
       if (error instanceof ConnectionUnavailable) {

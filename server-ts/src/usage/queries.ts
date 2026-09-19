@@ -1,4 +1,5 @@
 import type { ScopedQuery } from '../identity/workspace-context.ts';
+import { formatIdentifier } from '../core/issues.ts';
 import { issueStatusToApi } from '../runs/ledger.ts';
 
 /**
@@ -111,8 +112,20 @@ export interface UsageFilter {
    agentId?: string | undefined;
    /** `{ id: null }` is the workspace-default runtime. Absent means every runtime. */
    runtime?: { id: string | null } | undefined;
-   /** One project (board). Only the raw rows know it, so it changes the source. */
+   /** One board. Only the raw rows know it, so it changes the source. */
    boardId?: string | undefined;
+   /**
+    * One project: the tasks linked to it through `issue_project_links`. Like a
+    * board, only the raw rows name the task, so it changes the source too.
+    */
+   projectId?: string | undefined;
+}
+
+/** The ids of the tasks linked to the filter's project, for an `IN (…)` clause. */
+function projectIssues(q: ScopedQuery, projectId: string) {
+   return q.sql`
+      SELECT l.issue_id FROM issue_project_links AS l
+       WHERE l.workspace_id = ${q.workspaceId} AND l.project_id = ${projectId}`;
 }
 
 function sums(q: ScopedQuery) {
@@ -129,13 +142,20 @@ function sums(q: ScopedQuery) {
 /**
  * Where a usage read gets its rows.
  *
- * Without a project filter it is the hourly rollup, which is what it is for.
- * With one it is `task_usage`, shaped into the same columns — one row is one
- * report, so `events` is 1 and an unpriced report is 1 — because only the raw
- * row names the task, and only the task names the board.
+ * Without a board or project filter it is the hourly rollup, which is what it
+ * is for. With one it is `task_usage`, shaped into the same columns — one row
+ * is one report, so `events` is 1 and an unpriced report is 1 — because only
+ * the raw row names the task, and only the task names its board and project.
  */
 function usageSource(q: ScopedQuery, filter: UsageFilter) {
-   if (filter.boardId === undefined) return q.sql`task_usage_hourly`;
+   if (filter.boardId === undefined && filter.projectId === undefined) {
+      return q.sql`task_usage_hourly`;
+   }
+   const board = filter.boardId === undefined ? q.sql`` : q.sql`AND i.board_id = ${filter.boardId}`;
+   const project =
+      filter.projectId === undefined
+         ? q.sql``
+         : q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})`;
    return q.sql`(
       SELECT u.workspace_id, u.occurred_at AS bucket, u.agent_id, u.runtime_id, u.model,
              1 AS events,
@@ -144,7 +164,7 @@ function usageSource(q: ScopedQuery, filter: UsageFilter) {
              COALESCE(u.cost_micros, 0) AS cost_micros
         FROM task_usage AS u
         JOIN issues AS i ON i.id = u.issue_id
-       WHERE i.board_id = ${filter.boardId}
+       WHERE TRUE ${board} ${project}
    )`;
 }
 
@@ -266,9 +286,12 @@ async function usageByDayModel(
    }));
 }
 
-/** Runs scoped to the workspace, and to one project when the read asks for one. */
+/** Runs scoped to the workspace, and to one board or project when the read asks for one. */
 function runsInScope(q: ScopedQuery, filter: UsageFilter) {
    const board = filter.boardId ? q.sql`AND r.board_id = ${filter.boardId}` : q.sql``;
+   const project = filter.projectId
+      ? q.sql`AND r.issue_id IN (${projectIssues(q, filter.projectId)})`
+      : q.sql``;
    const agent = filter.agentId ? q.sql`AND r.agent_id = ${filter.agentId}` : q.sql``;
    const runtime =
       filter.runtime === undefined
@@ -280,7 +303,7 @@ function runsInScope(q: ScopedQuery, filter: UsageFilter) {
       SELECT r.id, r.agent_id, r.issue_id, r.status, r.failure_code, r.created_at,
              r.started_at, r.completed_at
         FROM runs AS r
-       WHERE r.workspace_id = ${q.workspaceId} ${board} ${agent} ${runtime}`;
+       WHERE r.workspace_id = ${q.workspaceId} ${board} ${project} ${agent} ${runtime}`;
 }
 
 async function runTotals(
@@ -365,10 +388,18 @@ export async function issueInWorkspace(q: ScopedQuery, issueId: string): Promise
    return rows.length > 0;
 }
 
-/** The project filter names a board; a board of another workspace is not one. */
+/** The board filter names a board; a board of another workspace is not one. */
 export async function boardInWorkspace(q: ScopedQuery, boardId: string): Promise<boolean> {
    const rows = await q.sql`
       SELECT 1 FROM boards AS b WHERE b.id = ${boardId} AND b.workspace_id = ${q.workspaceId}`;
+   return rows.length > 0;
+}
+
+/** A live project of this workspace; another workspace's, or a deleted one, is not. */
+export async function projectInWorkspace(q: ScopedQuery, projectId: string): Promise<boolean> {
+   const rows = await q.sql`
+      SELECT 1 FROM projects AS p
+       WHERE p.id = ${projectId} AND p.workspace_id = ${q.workspaceId} AND p.deleted_at IS NULL`;
    return rows.length > 0;
 }
 
@@ -409,16 +440,25 @@ export async function issueUsage(q: ScopedQuery, issueId: string) {
 
 export interface ErrorsOverview {
    failedRuns: number;
+   succeededRuns: number;
+   cancelledRuns: number;
    totalRuns: number;
    agentsAffected: number;
-   daily: Array<{ day: string; total: number; failed: number }>;
+   /** Every run of the day by outcome; queued and running ones count only in `total`. */
+   daily: Array<{
+      day: string;
+      total: number;
+      succeeded: number;
+      failed: number;
+      cancelled: number;
+   }>;
    byType: Array<{ code: string; count: number }>;
    /** Ranked by failures; `total` is the sample each rate is computed from. */
    offenders: Array<{ agentId: string; agentName: string; failed: number; total: number }>;
 }
 
 /**
- * The errors tab: how much of the window failed, when, of what, and whose.
+ * The runs tab: how the window's runs ended, when, what failed, and whose.
  *
  * The rate is deliberately not computed here. An agent that failed one of one
  * run is not "100% failing", and only a reader who can see the sample size can
@@ -434,13 +474,17 @@ export async function errorsOverview(
       q.sql`
          SELECT COUNT(*)::bigint AS total,
                 COUNT(*) FILTER (WHERE r.status = 'failed')::bigint AS failed,
+                COUNT(*) FILTER (WHERE r.status = 'succeeded')::bigint AS succeeded,
+                COUNT(*) FILTER (WHERE r.status = 'cancelled')::bigint AS cancelled,
                 COUNT(DISTINCT r.agent_id) FILTER (WHERE r.status = 'failed')::bigint AS agents
            FROM (${scope}) AS r
           WHERE r.created_at >= ${window.from}`,
       q.sql`
          SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
                 COUNT(r.id)::bigint AS total,
-                COUNT(r.id) FILTER (WHERE r.status = 'failed')::bigint AS failed
+                COUNT(r.id) FILTER (WHERE r.status = 'succeeded')::bigint AS succeeded,
+                COUNT(r.id) FILTER (WHERE r.status = 'failed')::bigint AS failed,
+                COUNT(r.id) FILTER (WHERE r.status = 'cancelled')::bigint AS cancelled
            FROM ${localDays(q, window)} AS d(day)
            LEFT JOIN (${scope}) AS r
              ON r.created_at >= d.day AT TIME ZONE ${window.timezone}
@@ -469,12 +513,16 @@ export async function errorsOverview(
    const head = totals[0];
    return {
       failedRuns: Number(head?.failed ?? 0),
+      succeededRuns: Number(head?.succeeded ?? 0),
+      cancelledRuns: Number(head?.cancelled ?? 0),
       totalRuns: Number(head?.total ?? 0),
       agentsAffected: Number(head?.agents ?? 0),
       daily: daily.map((row) => ({
          day: String(row.day),
          total: Number(row.total),
+         succeeded: Number(row.succeeded),
          failed: Number(row.failed),
+         cancelled: Number(row.cancelled),
       })),
       byType: byType.map((row) => ({ code: String(row.code), count: Number(row.count) })),
       offenders: offenders.map((row) => ({
@@ -496,31 +544,147 @@ export interface DashboardOverview {
    runsDaily: Array<{ day: string; total: number; succeeded: number; failed: number; cancelled: number }>;
    failuresByAgent: Array<{ agentId: string; agentName: string; failed: number; total: number }>;
    runCounts: Record<RunStatus, number>;
-   workingAgents: Array<{
-      runId: string;
-      agentId: string;
-      agentName: string;
-      issueId: string;
-      issueTitle: string;
-      startedAt: string | null;
-   }>;
+   workingAgents: Array<LiveRun & { startedAt: string | null }>;
    taskSnapshot: Record<string, number>;
+   /** Waiting for the runtime, oldest first. */
+   queuedRuns: Array<LiveRun & { createdAt: string }>;
+   /** The latest runs to end, newest first. */
+   recentRuns: Array<
+      LiveRun & {
+         status: 'succeeded' | 'failed' | 'cancelled';
+         failureCode: string | null;
+         startedAt: string | null;
+         completedAt: string;
+      }
+   >;
+   /** Decisions only a person can make: pending approvals, oldest first, and their total. */
+   pendingApprovals: Array<{
+      id: string;
+      title: string;
+      risk: string;
+      requestedAt: string;
+      issueIdentifier: string | null;
+   }>;
+   pendingApprovalCount: number;
+   /** Tasks waiting in review, longest waiting first; the total is `taskSnapshot.inReview`. */
+   inReview: Array<{ issueId: string; identifier: string; title: string; since: string }>;
+   /** What today (local midnight in the read's zone, until now) has cost so far. */
+   today: UsageBucket;
 }
+
+/** A run named for a person: who is on it, and which task, by key and title. */
+interface LiveRun {
+   runId: string;
+   agentId: string;
+   agentName: string;
+   issueId: string;
+   issueIdentifier: string;
+   issueTitle: string;
+}
+
+/** How many rows each live list carries; the page shows counts for the rest. */
+const LIVE_LIST_LIMIT = 8;
+
+function liveRun(row: Record<string, unknown>): LiveRun {
+   return {
+      runId: String(row.run_id),
+      agentId: String(row.agent_id),
+      agentName: String(row.agent_name),
+      issueId: String(row.issue_id),
+      issueIdentifier: formatIdentifier(String(row.issue_prefix ?? ''), Number(row.issue_number)),
+      issueTitle: String(row.issue_title),
+   };
+}
+
+const isoOrNull = (value: unknown): string | null =>
+   value === null || value === undefined ? null : new Date(String(value)).toISOString();
 
 /**
  * The workspace at a glance. Runs are scoped through their board, the way the
  * board-bound ledger reads them; the task snapshot is every live task now, not
- * only the window's.
+ * only the window's. A board or project filter narrows every part of it: the
+ * spend, the runs, who is working and the task snapshot.
  */
-export async function dashboardOverview(q: ScopedQuery, window: UsageWindow): Promise<DashboardOverview> {
+export async function dashboardOverview(
+   q: ScopedQuery,
+   window: UsageWindow,
+   filter: Pick<UsageFilter, 'boardId' | 'projectId'> = {}
+): Promise<DashboardOverview> {
+   const runBoard = filter.boardId ? q.sql`AND r.board_id = ${filter.boardId}` : q.sql``;
+   const runProject = filter.projectId
+      ? q.sql`AND r.issue_id IN (${projectIssues(q, filter.projectId)})`
+      : q.sql``;
    const boardRuns = q.sql`
-      SELECT r.id, r.agent_id, r.issue_id, r.status, r.created_at, r.started_at
+      SELECT r.id, r.agent_id, r.issue_id, r.status, r.failure_code, r.created_at,
+             r.started_at, r.completed_at
         FROM runs AS r
         JOIN boards AS b ON b.id = r.board_id
-       WHERE b.workspace_id = ${q.workspaceId}`;
+       WHERE b.workspace_id = ${q.workspaceId} ${runBoard} ${runProject}`;
+   const taskBoard = filter.boardId ? q.sql`AND i.board_id = ${filter.boardId}` : q.sql``;
+   const taskProject = filter.projectId
+      ? q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})`
+      : q.sql``;
+
+   const liveRunColumns = q.sql`
+      r.id AS run_id, r.agent_id::text AS agent_id,
+      COALESCE(a.name, 'Removed agent') AS agent_name,
+      r.issue_id::text AS issue_id, i.title AS issue_title, i.number AS issue_number,
+      w.settings->>'issuePrefix' AS issue_prefix`;
+   const liveRunJoins = q.sql`
+      JOIN issues AS i ON i.id = r.issue_id
+      JOIN workspaces AS w ON w.id = ${q.workspaceId}
+      LEFT JOIN agents AS a ON a.id = r.agent_id`;
+   const approvalProject = filter.projectId
+      ? q.sql`AND ap.issue_id IN (${projectIssues(q, filter.projectId)})`
+      : q.sql``;
+   const approvalBoard = filter.boardId
+      ? q.sql`AND ap.issue_id IN (SELECT id FROM issues WHERE board_id = ${filter.boardId})`
+      : q.sql``;
+
+   const [queued, recent, approvals, approvalCount, reviewing, today] = await Promise.all([
+      q.sql`
+         SELECT ${liveRunColumns}, r.created_at
+           FROM (${boardRuns}) AS r ${liveRunJoins}
+          WHERE r.status = 'queued'
+          ORDER BY r.created_at
+          LIMIT ${LIVE_LIST_LIMIT}`,
+      q.sql`
+         SELECT ${liveRunColumns}, r.status::text AS status, r.failure_code,
+                r.started_at, r.completed_at
+           FROM (${boardRuns}) AS r ${liveRunJoins}
+          WHERE r.status IN ('succeeded', 'failed', 'cancelled') AND r.completed_at IS NOT NULL
+          ORDER BY r.completed_at DESC
+          LIMIT ${LIVE_LIST_LIMIT}`,
+      q.sql`
+         SELECT ap.id::text AS id, ap.title, ap.risk, ap.requested_at,
+                i.number AS issue_number, w.settings->>'issuePrefix' AS issue_prefix
+           FROM approvals AS ap
+           JOIN workspaces AS w ON w.id = ap.workspace_id
+           LEFT JOIN issues AS i ON i.id = ap.issue_id
+          WHERE ap.workspace_id = ${q.workspaceId} AND ap.status = 'pending'
+                ${approvalProject} ${approvalBoard}
+          ORDER BY ap.requested_at
+          LIMIT ${LIVE_LIST_LIMIT}`,
+      q.sql`
+         SELECT COUNT(*)::bigint AS count
+           FROM approvals AS ap
+          WHERE ap.workspace_id = ${q.workspaceId} AND ap.status = 'pending'
+                ${approvalProject} ${approvalBoard}`,
+      q.sql`
+         SELECT i.id::text AS issue_id, i.number AS issue_number, i.title, i.updated_at,
+                w.settings->>'issuePrefix' AS issue_prefix
+           FROM issues AS i
+           JOIN boards AS b ON b.id = i.board_id
+           JOIN workspaces AS w ON w.id = b.workspace_id
+          WHERE b.workspace_id = ${q.workspaceId} AND i.deleted_at IS NULL
+                AND i.status = 'in_review' ${taskBoard} ${taskProject}
+          ORDER BY i.updated_at
+          LIMIT ${LIVE_LIST_LIMIT}`,
+      usageTotals(q, usageWindow(1, new Date(), window.timezone), filter),
+   ]);
 
    const [spendDaily, runsDaily, failures, counts, working, tasks] = await Promise.all([
-      usageDaily(q, window, {}),
+      usageDaily(q, window, filter),
       q.sql`
          SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
                 COUNT(r.id)::bigint AS total,
@@ -550,12 +714,8 @@ export async function dashboardOverview(q: ScopedQuery, window: UsageWindow): Pr
           WHERE r.created_at >= ${window.from} OR r.status IN ('queued', 'running')
           GROUP BY r.status`,
       q.sql`
-         SELECT r.id AS run_id, r.agent_id::text AS agent_id,
-                COALESCE(a.name, 'Removed agent') AS agent_name,
-                r.issue_id::text AS issue_id, i.title AS issue_title, r.started_at
-           FROM (${boardRuns}) AS r
-           JOIN issues AS i ON i.id = r.issue_id
-           LEFT JOIN agents AS a ON a.id = r.agent_id
+         SELECT ${liveRunColumns}, r.started_at
+           FROM (${boardRuns}) AS r ${liveRunJoins}
           WHERE r.status = 'running'
           ORDER BY r.started_at NULLS LAST
           LIMIT 50`,
@@ -564,6 +724,7 @@ export async function dashboardOverview(q: ScopedQuery, window: UsageWindow): Pr
            FROM issues AS i
            JOIN boards AS b ON b.id = i.board_id
           WHERE b.workspace_id = ${q.workspaceId} AND i.deleted_at IS NULL
+                ${taskBoard} ${taskProject}
           GROUP BY i.status`,
    ]);
 
@@ -602,14 +763,36 @@ export async function dashboardOverview(q: ScopedQuery, window: UsageWindow): Pr
          total: Number(row.total),
       })),
       runCounts,
-      workingAgents: working.map((row) => ({
-         runId: String(row.run_id),
-         agentId: String(row.agent_id),
-         agentName: String(row.agent_name),
-         issueId: String(row.issue_id),
-         issueTitle: String(row.issue_title),
-         startedAt: row.started_at === null ? null : new Date(String(row.started_at)).toISOString(),
-      })),
+      workingAgents: working.map((row) => ({ ...liveRun(row), startedAt: isoOrNull(row.started_at) })),
       taskSnapshot,
+      queuedRuns: queued.map((row) => ({
+         ...liveRun(row),
+         createdAt: new Date(String(row.created_at)).toISOString(),
+      })),
+      recentRuns: recent.map((row) => ({
+         ...liveRun(row),
+         status: String(row.status) as 'succeeded' | 'failed' | 'cancelled',
+         failureCode: row.failure_code === null ? null : String(row.failure_code),
+         startedAt: isoOrNull(row.started_at),
+         completedAt: new Date(String(row.completed_at)).toISOString(),
+      })),
+      pendingApprovals: approvals.map((row) => ({
+         id: String(row.id),
+         title: String(row.title),
+         risk: String(row.risk),
+         requestedAt: new Date(String(row.requested_at)).toISOString(),
+         issueIdentifier:
+            row.issue_number === null
+               ? null
+               : formatIdentifier(String(row.issue_prefix ?? ''), Number(row.issue_number)),
+      })),
+      pendingApprovalCount: Number(approvalCount[0]?.count ?? 0),
+      inReview: reviewing.map((row) => ({
+         issueId: String(row.issue_id),
+         identifier: formatIdentifier(String(row.issue_prefix ?? ''), Number(row.issue_number)),
+         title: String(row.title),
+         since: new Date(String(row.updated_at)).toISOString(),
+      })),
+      today,
    };
 }

@@ -1,22 +1,15 @@
 'use client';
 
 import { AlertTriangle } from 'lucide-react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 import { agentHasRuntime } from '@/lib/runtimes';
 import { useTranslations } from 'next-intl';
 
+import { AgentActivityChart } from '@/components/common/agents/agent-activity-chart';
 import AgentActivityTab from '@/components/common/agents/agent-activity-tab';
-import { AgentSparkline } from '@/components/common/agents/agent-sparkline';
 import AgentWorkTab from '@/components/common/agents/agent-work-tab';
 import { Button } from '@/components/ui/button';
-import { agentTaskDurationMs, type Agent, type AgentRoster, type AgentTask } from '@/lib/agents';
-import { formatRunDuration } from '@/lib/runs';
-import { listSkills, type Skill } from '@/lib/skills';
-import { cn } from '@/lib/utils';
-import { agentModelName } from './model-name';
+import { type Agent, type AgentRoster, type AgentTask } from '@/lib/agents';
 
 interface AgentOverviewTabProps {
    agent: Agent;
@@ -33,31 +26,10 @@ interface AgentOverviewTabProps {
    onOpenSettings: () => void;
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-   return (
-      <div className="flex items-start justify-between gap-3 py-2">
-         <span className="shrink-0 text-muted-foreground">{label}</span>
-         <div className="min-w-0 text-right">{children}</div>
-      </div>
-   );
-}
-
-function Stat({ value, label }: { value: string; label: string }) {
-   return (
-      <div>
-         <p className="font-medium tabular-nums">{value}</p>
-         <p className="text-muted-foreground">{label}</p>
-      </div>
-   );
-}
-
 /**
- * What this agent is, how it has been doing, what it is assigned, and what it
- * is running.
+ * How this agent has been doing, what it is assigned, and what it is running.
  *
- * Counts come from the roster, which aggregates every run the agent has;
- * durations come from the page of tasks already loaded, because how long work
- * takes is not something a daily count can answer. Assignments and run lists
+ * Daily counts come from the roster (up to 30 days). Assignments and run lists
  * used to be their own tabs; they live here so one glance covers the agent.
  */
 export default function AgentOverviewTab({
@@ -70,66 +42,18 @@ export default function AgentOverviewTab({
    onActivityChanged,
    onOpenSettings,
 }: AgentOverviewTabProps) {
-   const { orgId } = useParams<{ orgId: string }>();
    const t = useTranslations('agentsChat.detail');
    const coverage = useAgentCoverage();
-   const list = useTranslations('agentsChat.list');
-   const common = useTranslations('agentsChat.common');
-   const [skills, setSkills] = useState<Skill[] | null>(null);
-
-   useEffect(() => {
-      let cancelled = false;
-      setSkills(null);
-      void listSkills({ agentId: agent.id })
-         .then((found) => {
-            if (!cancelled) setSkills(found.filter((skill) => skill.agentEnabled === true));
-         })
-         .catch(() => {
-            if (!cancelled) setSkills([]);
-         });
-      return () => {
-         cancelled = true;
-      };
-   }, [agent.id]);
-
-   const runs = roster?.activity.reduce((sum, point) => sum + point.runs, 0) ?? 0;
-   const failed = roster?.activity.reduce((sum, point) => sum + point.failed, 0) ?? 0;
-   const succeeded = runs === 0 ? null : Math.round(((runs - failed) / runs) * 100);
-
-   const durations = (tasks ?? [])
-      .filter((task) => task.status === 'succeeded')
-      .map(agentTaskDurationMs)
-      .filter((value): value is number => value !== null);
-   const average =
-      durations.length === 0
-         ? null
-         : durations.reduce((sum, value) => sum + value, 0) / durations.length;
-
-   const runtimeHealth =
-      roster?.runtimeStatus === 'active'
-         ? list('runtimeHealthy')
-         : roster?.runtimeStatus === 'unreachable'
-           ? list('runtimeUnreachable')
-           : roster?.runtimeStatus === 'disabled'
-             ? list('runtimeDisabled')
-             : null;
 
    // Work is waiting and nothing can pick it up. Said here rather than left to
-   // the runtime cell, because a queue that cannot drain is the one fact on
-   // this page somebody has to act on.
+   // settings, because a queue that cannot drain is the one fact on this page
+   // somebody has to act on.
    // Only a bound runtime's status is known here; an agent on the workspace
    // default is stalled only when there is no runtime for it at all.
    const stalled =
       (roster?.queued ?? 0) > 0 &&
       (!agentHasRuntime(coverage, agent.id) ||
          (roster?.runtimeId !== null && roster?.runtimeStatus !== 'active'));
-
-   const accessLabel =
-      agent.access?.assign === 'admins'
-         ? list('accessAdmins')
-         : agent.access?.assign === 'listed'
-           ? list('accessListed')
-           : list('accessEveryone');
 
    return (
       <div className="flex flex-col gap-8 px-8 py-6">
@@ -145,94 +69,7 @@ export default function AgentOverviewTab({
             </div>
          ) : null}
 
-         <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:items-stretch">
-            <section className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 p-4">
-               <h2 className="font-medium">{t('overviewStats')}</h2>
-               <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Stat value={String(runs)} label={t('statRuns')} />
-                  <Stat
-                     value={succeeded === null ? common('none') : `${succeeded}%`}
-                     label={t('statSucceeded')}
-                  />
-                  <Stat
-                     value={average === null ? common('none') : formatRunDuration(average)}
-                     label={t('statAvg')}
-                  />
-                  <Stat value={String(failed)} label={t('statFailed')} />
-               </div>
-               {roster ? (
-                  <div className="mt-auto pt-4">
-                     <AgentSparkline
-                        activity={roster.activity.slice(-7)}
-                        emptyLabel={list('sparkEmpty')}
-                        describe={(point) =>
-                           list('sparkTooltip', {
-                              day: point.day,
-                              runs: point.runs,
-                              failed: point.failed,
-                              percent: point.percent,
-                           })
-                        }
-                     />
-                  </div>
-               ) : null}
-            </section>
-
-            <div className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 p-4">
-               <Row label={t('overviewOwner')}>{roster?.ownerName ?? list('ownerWorkspace')}</Row>
-               <Row label={t('overviewAccess')}>{accessLabel}</Row>
-               <Row label={t('overviewRuntime')}>
-                  {roster?.runtimeId ? (
-                     <span className="inline-flex items-center gap-1.5">
-                        <span
-                           className={cn(
-                              'size-1.5 rounded-full',
-                              roster.runtimeStatus === 'active'
-                                 ? 'bg-status-success'
-                                 : 'bg-status-warning'
-                           )}
-                        />
-                        <span className="truncate">{roster.runtimeName}</span>
-                        {runtimeHealth ? (
-                           <span className="text-muted-foreground">{runtimeHealth}</span>
-                        ) : null}
-                     </span>
-                  ) : (
-                     <button
-                        type="button"
-                        onClick={onOpenSettings}
-                        className="text-status-warning underline-offset-2 hover:underline"
-                     >
-                        {list('runtimeNone')}
-                     </button>
-                  )}
-               </Row>
-               <Row label={t('overviewModel')}>{agentModelName(agent)}</Row>
-               <Row label={t('overviewConcurrency')}>{agent.maxConcurrency ?? common('none')}</Row>
-            </div>
-
-            <div className="flex h-full min-h-0 flex-col rounded-lg border border-border/70 p-4">
-               <h3 className="font-medium">{t('overviewSkills')}</h3>
-               {skills === null ? (
-                  <p className="mt-2 text-muted-foreground">{t('overviewSkillsLoading')}</p>
-               ) : skills.length === 0 ? (
-                  <p className="mt-2 text-muted-foreground">{t('overviewNoSkills')}</p>
-               ) : (
-                  <div className="mt-2 flex min-h-0 flex-1 flex-wrap content-start gap-1.5 overflow-y-auto">
-                     {skills.map((skill) => (
-                        <Link
-                           key={skill.id}
-                           href={`/${orgId}/skills/${skill.id}`}
-                           title={skill.description || skill.name}
-                           className="inline-flex min-w-0 max-w-full items-center rounded-full border border-border bg-secondary px-2 py-0.5 text-secondary-foreground transition-opacity hover:opacity-80"
-                        >
-                           <span className="truncate">{skill.name}</span>
-                        </Link>
-                     ))}
-                  </div>
-               )}
-            </div>
-         </div>
+         <AgentActivityChart activity={roster?.activity} />
 
          <AgentWorkTab agentId={agent.id} embedded />
          <AgentActivityTab

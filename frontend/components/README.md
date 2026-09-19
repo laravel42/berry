@@ -25,7 +25,7 @@ for, and what replaced it.
 | [`ConfirmAction`](#confirmaction)                                                    | `common/confirm-action.tsx`                                                                   | Confirming anything irreversible                        |
 | [`PageTitleBar`](#pagetitlebar)                                                      | `layout/headers/page-title-bar.tsx`                                                           | A list page's title row                                 |
 | [`Section`, `DetailSectionLabel`](#section-labels)                                   | `common/issues/details/panel-section.tsx`, `common/projects/details/detail-section-label.tsx` | Labelled blocks on detail pages                         |
-| [`StatTile`](#stattile)                                                              | `common/usage/usage-tiles.tsx`                                                                | One figure in a usage or dashboard summary              |
+| [`StatTile`](#stattile)                                                              | `common/usage/usage-tiles.tsx`                                                                | One figure in a usage summary                           |
 | [`timeAgo`](#timeago)                                                                | `lib/time-ago.ts`                                                                             | "3 minutes ago"                                         |
 
 ## Pickers
@@ -253,7 +253,7 @@ It replaced seven hand-rolled strips:
 - `usage-overview` (two strips)
 - `runtime-usage-panel`
 - `usage-errors`
-- `dashboard-overview`
+- `dashboard-overview` (since merged into the Usage page)
 - `runtime-detail`
 
 None of them told assistive tech which segment was on. Their names come from new catalogue
@@ -264,7 +264,7 @@ keys:
 - `areas.usage.chart.grainLabel`
 - `areas.usage.runtime.splitLabel`
 - `areas.usage.errors.rankLabel`
-- `areas.dashboard.range`
+- `areas.dashboard.range` (since removed with the Dashboard)
 
 ## `StatusBadge`
 
@@ -292,7 +292,7 @@ contract requires for deletes. Both still close at once and report progress in t
 stays on screen at phone width. It renders a `<header>`. Pages sit inside the shell's
 `<main>`, so this `<header>` is not a banner landmark.
 
-It is used by the dashboard, goals, runtimes, projects, agents, my-issues and new-agent
+It is used by the goals, runtimes, projects, agents, my-issues and new-agent
 headers.
 
 A detail page uses a breadcrumb bar instead.
@@ -315,7 +315,7 @@ same classes and lower-cased their text in JS.
 
 `StatTile` is one figure and what it counts, in a bordered tile. It takes `label` and
 `value`, and the value uses tabular figures. Lay tiles out in a grid. It is used by
-`UsageTiles`, the usage errors summary and the dashboard's run counts.
+`UsageTiles`, the Runs tab's outcome counts and the Overview tab's live run counts.
 
 ## `timeAgo`
 

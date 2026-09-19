@@ -25,7 +25,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
 import {
-   agentStatusDisplay,
    getWorkspaceAgent,
    listAgentTasks,
    loadAgentRoster,
@@ -41,7 +40,7 @@ import AgentOverviewTab from './agent-overview-tab';
 import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
 import { AutonomyLevelChip } from './autonomy-level-chip';
-import { PresenceDot } from './presence-dot';
+import { AgentWorkloadChip } from './agent-workload-chip';
 
 const TABS = ['overview', 'role', 'capabilities', 'settings'] as const;
 type DetailTab = (typeof TABS)[number];
@@ -64,7 +63,6 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const searchParams = useSearchParams();
    const t = useTranslations('agentsChat.detail');
    const coverage = useAgentCoverage();
-   const listCopy = useTranslations('agentsChat.list');
    const org = useTranslations('organization');
 
    const storedAgent = useAgentsStore((state) => state.getAgentById(agentId));
@@ -196,18 +194,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
       );
    }
 
-   const presence = agentStatusDisplay(agent.status);
-   // A presence badge is earned by a run in flight or on record; otherwise the
-   // header shows which model the agent runs on.
-   const hasPresence = roster !== undefined && (roster.running > 0 || roster.totalRuns > 0);
-   const presenceLabel =
-      presence.tone === 'online'
-         ? listCopy('availabilityAvailable')
-         : presence.tone === 'busy'
-           ? listCopy('availabilityBusy')
-           : presence.tone === 'offline'
-             ? listCopy('availabilityOffline')
-             : listCopy('availabilityUnknown');
+   // Workload from the roster: runs in flight, queued, or idle. The stored
+   // agent.status (Online/Busy/Offline) is not shown here.
    // The level lives on the contract; the agent row carries a copy for lists.
    // Only an organization role has one: a plain agent's permissions govern it.
    const level = agent.roleKey
@@ -243,14 +231,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                      <h1 className="leading-none">{agent.name}</h1>
-                     {hasPresence ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-border/70 px-2 py-1 text-muted-foreground">
-                           <PresenceDot tone={presence.tone} label={presenceLabel} />
-                           {presenceLabel}
-                        </span>
-                     ) : (
-                        <AgentModelChip agent={agent} />
-                     )}
+                     <AgentWorkloadChip roster={roster} />
+                     <AgentModelChip agent={agent} />
                      {level !== null ? (
                         <Tooltip>
                            <TooltipTrigger asChild>

@@ -25,9 +25,9 @@ import {
    FolderKanban,
    GitPullRequest,
    GripVertical,
-   LayoutDashboard,
    LucideIcon,
    MessageSquare,
+   ScrollText,
    Sparkles,
    Target,
    Timer,
@@ -51,11 +51,11 @@ export const WORKSPACE_ITEMS: ItemConfig[] = [
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [
-   { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
    { key: 'agents', label: 'Agents', icon: Sparkles },
    { key: 'skills', label: 'Skills', icon: BookOpen },
    { key: 'autopilot', label: 'Autopilots', icon: Timer },
    { key: 'usage', label: 'Usage', icon: Coins },
+   { key: 'logs', label: 'Logs', icon: ScrollText },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

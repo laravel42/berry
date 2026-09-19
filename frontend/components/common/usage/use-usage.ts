@@ -16,15 +16,23 @@ export interface UsageState<T> {
 /** A busy workspace reports usage on every model call; refresh at most this often. */
 const REFRESH_DEBOUNCE_MS = 2000;
 
+/** A usage read changes when usage is recorded, and not otherwise. */
+const onUsageRecorded = (type: string) => type === 'usage.recorded';
+
 /**
- * Loads one usage read and reloads it when the workspace stream says usage
- * was recorded. `key` names the read, so changing the window or the subject
- * refetches; `load` may be null until the workspace is known.
+ * Loads one usage read and reloads it when the workspace stream carries an
+ * event `refreshOn` accepts: by default, usage being recorded. `key` names the
+ * read, so changing the window or the subject refetches; `load` may be null
+ * until the workspace is known.
  *
  * The time of the last successful read is kept, because a number that quietly
  * went stale is worse than a number with a timestamp beside it.
  */
-export function useUsage<T>(load: (() => Promise<T>) | null, key: string): UsageState<T> {
+export function useUsage<T>(
+   load: (() => Promise<T>) | null,
+   key: string,
+   refreshOn: (eventType: string) => boolean = onUsageRecorded
+): UsageState<T> {
    const [data, setData] = useState<T | null>(null);
    const [error, setError] = useState<string | null>(null);
    const [loading, setLoading] = useState(false);
@@ -32,6 +40,8 @@ export function useUsage<T>(load: (() => Promise<T>) | null, key: string): Usage
    const [tick, setTick] = useState(0);
    const loadRef = useRef(load);
    loadRef.current = load;
+   const refreshOnRef = useRef(refreshOn);
+   refreshOnRef.current = refreshOn;
    const reload = useCallback(() => setTick((value) => value + 1), []);
 
    useEffect(() => {
@@ -62,7 +72,7 @@ export function useUsage<T>(load: (() => Promise<T>) | null, key: string): Usage
    useEffect(() => {
       let timer: ReturnType<typeof setTimeout> | null = null;
       const unsubscribe = subscribeWorkspaceEvents((event) => {
-         if (event.type !== 'usage.recorded' || timer) return;
+         if (!refreshOnRef.current(event.type) || timer) return;
          timer = setTimeout(() => {
             timer = null;
             reload();

@@ -40,7 +40,6 @@ import { toast } from 'sonner';
 
 interface ProjectFormState {
    name: string;
-   summary: string;
    description: string;
    status: Status;
    priority: (typeof priorities)[number];
@@ -50,11 +49,6 @@ interface ProjectFormState {
    targetDate?: Date;
    /** owner/name, or undefined for a project that delivers nowhere yet. */
    githubRepo?: string;
-}
-
-function composeDescription(summary: string, description: string): string | undefined {
-   const parts = [summary.trim(), description.trim()].filter(Boolean);
-   return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
 function toIsoDate(date?: Date): string | undefined {
@@ -71,7 +65,6 @@ export function CreateProjectDialog() {
    const createDefaultForm = useCallback(
       (): ProjectFormState => ({
          name: '',
-         summary: '',
          description: '',
          status: defaultStatus ?? defaultProjectCreateStatus.status,
          priority: priorities.find((entry) => entry.id === 'no-priority')!,
@@ -112,7 +105,7 @@ export function CreateProjectDialog() {
          const project = await createWorkspaceProject({
             workspaceId: workspace.id,
             name: trimmed,
-            description: composeDescription(form.summary, form.description),
+            description: form.description.trim() || undefined,
             statusId: form.status.id,
             priorityId: form.priority.id,
             startDate: toIsoDate(form.startDate),
@@ -139,7 +132,7 @@ export function CreateProjectDialog() {
             <DialogHeader className="px-6 pt-5 pb-0">
                <DialogTitle className="sr-only">New project</DialogTitle>
                <DialogDescription className="sr-only">
-                  Name the project, set its properties, and add an optional summary and description.
+                  Name the project, set its properties, and add an optional description.
                </DialogDescription>
                <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
@@ -180,18 +173,6 @@ export function CreateProjectDialog() {
                      placeholder="Project name"
                      value={form.name}
                      onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  />
-
-                  <label htmlFor="create-project-summary" className="sr-only">
-                     Short summary
-                  </label>
-                  <Input
-                     id="create-project-summary"
-                     data-heading="h3"
-                     className="mt-1 h-auto border-none bg-transparent px-0 text-foreground shadow-none placeholder:text-foreground/40"
-                     placeholder="Add a short summary…"
-                     value={form.summary}
-                     onChange={(event) => setForm({ ...form, summary: event.target.value })}
                   />
 
                   <div className="mt-4 flex flex-wrap items-center gap-1.5">

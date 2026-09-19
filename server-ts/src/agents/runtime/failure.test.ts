@@ -121,3 +121,15 @@ test('the strategy retries a throttle and gives up on a rejection', async () => 
    await assert.rejects(stubborn.invoke('go'), /invalid/);
    assert.equal(rejected.calls, 1);
 });
+
+test('a model the account may not use for want of data retention says how to fix it, and is final', () => {
+   const rejected = Object.assign(
+      new Error("The model returned the following errors: data retention mode 'default' is not available for this model"),
+      { $metadata: { httpStatusCode: 400 } }
+   );
+   const failure = classify(new Error('model call failed', { cause: rejected }));
+   assert.equal(failure.code, 'UPSTREAM_REJECTED');
+   assert.equal(failure.retryable, false);
+   assert.match(failure.message, /requires data retention/);
+   assert.match(failure.message, /pick a different model for this agent/);
+});

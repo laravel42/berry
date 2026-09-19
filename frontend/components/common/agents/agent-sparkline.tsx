@@ -1,5 +1,6 @@
 'use client';
 
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
 interface ActivityPoint {
@@ -11,10 +12,14 @@ interface ActivityPoint {
 
 interface AgentSparklineProps {
    activity: ActivityPoint[];
-   /** Per-day tooltip, already formatted by the caller's message catalogue. */
+   /** Per-day line in the week tooltip, already formatted by the caller. */
    describe: (point: ActivityPoint & { percent: number }) => string;
    /** What a row with no runs at all says. */
    emptyLabel: string;
+   /** Week tooltip heading, e.g. "Last 7 days". */
+   weekTitle: string;
+   /** Week totals line under the heading. */
+   weekSummary: string;
    className?: string;
 }
 
@@ -35,92 +40,117 @@ const percentOf = (point: ActivityPoint) =>
  * a gap on a chart rather than as a dash; a week with no runs at all is said
  * in words, because a bare baseline looks like a broken glyph.
  *
- * Tooltips are SVG `<title>` elements, one per column. They need no JavaScript,
- * they survive a table that re-renders under the pointer, and a screen reader
- * gets the same numbers from the group label. The fade on mount is skipped
- * for readers who asked for less motion.
+ * Hover opens a week summary (totals + each day). The chart's accessible name
+ * carries the same numbers for a screen reader.
  */
-export function AgentSparkline({ activity, describe, emptyLabel, className }: AgentSparklineProps) {
+export function AgentSparkline({
+   activity,
+   describe,
+   emptyLabel,
+   weekTitle,
+   weekSummary,
+   className,
+}: AgentSparklineProps) {
    const total = activity.reduce((sum, point) => sum + point.runs, 0);
+   const dayLines = activity.map((point) => describe({ ...point, percent: percentOf(point) }));
+
+   const tip = (
+      <div className="flex flex-col gap-1.5 text-left">
+         <p className="font-medium text-foreground">{weekTitle}</p>
+         <p>{weekSummary}</p>
+         {dayLines.length > 0 ? (
+            <ul className="space-y-0.5 border-t border-border/60 pt-1.5 tabular-nums">
+               {dayLines.map((line) => (
+                  <li key={line}>{line}</li>
+               ))}
+            </ul>
+         ) : null}
+      </div>
+   );
 
    if (activity.length === 0 || total === 0) {
-      return <span className={cn('truncate text-muted-foreground', className)}>{emptyLabel}</span>;
+      return (
+         <Tooltip>
+            <TooltipTrigger asChild>
+               <span className={cn('truncate text-muted-foreground', className)}>{emptyLabel}</span>
+            </TooltipTrigger>
+            <TooltipContent side="top">{tip}</TooltipContent>
+         </Tooltip>
+      );
    }
 
    const width = activity.length * BAR + (activity.length - 1) * GAP;
    const peak = Math.max(1, ...activity.map((point) => point.runs));
 
    return (
-      <span
-         className={cn(
-            'inline-flex items-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300',
-            className
-         )}
-      >
-         <svg
-            width={width}
-            height={HEIGHT}
-            viewBox={`0 0 ${width} ${HEIGHT}`}
-            role="img"
-            aria-label={activity
-               .map((point) => describe({ ...point, percent: percentOf(point) }))
-               .join('. ')}
-         >
-            <rect
-               x={0}
-               y={HEIGHT - 1}
-               width={width}
-               height={1}
-               className="fill-muted-foreground/25"
-            />
-            {activity.map((point, index) => {
-               const x = index * (BAR + GAP);
-               const label = describe({ ...point, percent: percentOf(point) });
-               if (point.runs === 0) {
-                  // Nothing to draw, but the day still answers a hover.
-                  return (
-                     <g key={point.day}>
-                        <title>{label}</title>
-                        <rect
-                           x={x}
-                           y={0}
-                           width={BAR}
-                           height={HEIGHT}
-                           className="fill-transparent"
-                        />
-                     </g>
-                  );
-               }
-               const full = Math.max(2, Math.round((point.runs / peak) * (HEIGHT - 2)));
-               const failed =
-                  point.failed === 0
-                     ? 0
-                     : Math.max(2, Math.round((point.failed / peak) * (HEIGHT - 2)));
-               return (
-                  <g key={point.day}>
-                     <title>{label}</title>
-                     <rect
-                        x={x}
-                        y={HEIGHT - full}
-                        width={BAR}
-                        height={full}
-                        rx={1}
-                        className="fill-status-info/80"
-                     />
-                     {failed > 0 ? (
-                        <rect
-                           x={x}
-                           y={HEIGHT - failed}
-                           width={BAR}
-                           height={failed}
-                           rx={1}
-                           className="fill-status-danger"
-                        />
-                     ) : null}
-                  </g>
-               );
-            })}
-         </svg>
-      </span>
+      <Tooltip>
+         <TooltipTrigger asChild>
+            <span
+               className={cn(
+                  'inline-flex cursor-default items-center motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300',
+                  className
+               )}
+            >
+               <svg
+                  width={width}
+                  height={HEIGHT}
+                  viewBox={`0 0 ${width} ${HEIGHT}`}
+                  role="img"
+                  aria-label={`${weekTitle}. ${weekSummary}. ${dayLines.join('. ')}`}
+               >
+                  <rect
+                     x={0}
+                     y={HEIGHT - 1}
+                     width={width}
+                     height={1}
+                     className="fill-muted-foreground/25"
+                  />
+                  {activity.map((point, index) => {
+                     const x = index * (BAR + GAP);
+                     if (point.runs === 0) {
+                        return (
+                           <rect
+                              key={point.day}
+                              x={x}
+                              y={0}
+                              width={BAR}
+                              height={HEIGHT}
+                              className="fill-transparent"
+                           />
+                        );
+                     }
+                     const full = Math.max(2, Math.round((point.runs / peak) * (HEIGHT - 2)));
+                     const failed =
+                        point.failed === 0
+                           ? 0
+                           : Math.max(2, Math.round((point.failed / peak) * (HEIGHT - 2)));
+                     return (
+                        <g key={point.day}>
+                           <rect
+                              x={x}
+                              y={HEIGHT - full}
+                              width={BAR}
+                              height={full}
+                              rx={1}
+                              className="fill-status-info/80"
+                           />
+                           {failed > 0 ? (
+                              <rect
+                                 x={x}
+                                 y={HEIGHT - failed}
+                                 width={BAR}
+                                 height={failed}
+                                 rx={1}
+                                 className="fill-status-danger"
+                              />
+                           ) : null}
+                        </g>
+                     );
+                  })}
+               </svg>
+            </span>
+         </TooltipTrigger>
+         <TooltipContent side="top">{tip}</TooltipContent>
+      </Tooltip>
    );
 }

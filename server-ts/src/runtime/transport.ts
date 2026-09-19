@@ -12,8 +12,35 @@ export interface RuntimeTarget {
    endpointUrl: string | null;
 }
 
+/** An HTTP message as it crossed the wire; header names lower-cased, values unredacted. */
+export interface WireRequest {
+   method: string;
+   url: string;
+   headers: Record<string, string>;
+}
+
+export interface WireResponse {
+   status: number;
+   headers: Record<string, string>;
+}
+
+/**
+ * Told what an invoke put on the wire and what came back, for the prompt log.
+ * Called by the transport, never awaited: observing must not slow or fail a
+ * task. Values arrive unredacted; the observer redacts before it keeps them.
+ */
+export interface ExchangeObserver {
+   request(request: WireRequest): void;
+   response(response: WireResponse): void;
+}
+
 export interface RuntimeTransport {
-   invoke(input: { target: RuntimeTarget; envelope: TaskEnvelope; signal: AbortSignal }): AsyncIterable<LifecycleEvent>;
+   invoke(input: {
+      target: RuntimeTarget;
+      envelope: TaskEnvelope;
+      signal: AbortSignal;
+      observe?: ExchangeObserver | undefined;
+   }): AsyncIterable<LifecycleEvent>;
    /** Ends the session. Never throws: a session already gone is the goal. */
    stop(input: { target: RuntimeTarget; runtimeSessionId: string }): Promise<void>;
 }

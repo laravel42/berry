@@ -45,7 +45,12 @@ export function ProjectsSortMenu() {
    return (
       <Popover>
          <PopoverTrigger asChild>
-            <Button size="xs" variant="outline" className="border-muted-foreground/15">
+            <Button
+               size="xs"
+               variant="outline"
+               className="border-muted-foreground/15"
+               aria-label="Sort"
+            >
                <ArrowUpDown className="size-4" />
                <span className="hidden sm:inline">Sort</span>
             </Button>

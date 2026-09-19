@@ -75,17 +75,9 @@ export default function AutopilotsPage() {
       });
    }, [autopilots, people, t]);
 
-   const scoped = useMemo(
-      () =>
-         criteria.scope === 'all'
-            ? autopilots
-            : autopilots.filter((autopilot) => autopilot.status === criteria.scope),
-      [autopilots, criteria.scope]
-   );
-
    const filterColumns = useAutopilotFilterColumns(assignees, creators);
    const filter = useListFilters({
-      data: scoped,
+      data: autopilots,
       columns: filterColumns,
       filters,
       onFiltersChange: setFilters,
@@ -93,8 +85,8 @@ export default function AutopilotsPage() {
 
    /** The list arrives whole and is short, so it is narrowed here. */
    const shown = useMemo(
-      () => applyListFilters(scoped, filterColumns, filters),
-      [scoped, filterColumns, filters]
+      () => applyListFilters(autopilots, filterColumns, filters),
+      [autopilots, filterColumns, filters]
    );
 
    const header = (

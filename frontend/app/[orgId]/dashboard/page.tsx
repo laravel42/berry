@@ -1,15 +1,11 @@
-import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 
-import DashboardOverview from '@/components/common/usage/dashboard-overview';
-import Header from '@/components/layout/headers/dashboard/header';
-import MainLayout from '@/components/layout/main-layout';
-
-export default function DashboardPage() {
-   return (
-      <MainLayout header={<Header />} headersNumber={1}>
-         <Suspense>
-            <DashboardOverview />
-         </Suspense>
-      </MainLayout>
-   );
+/**
+ * The Dashboard merged into Usage, whose Overview tab now shows what it did
+ * (live runs, who is working, tasks by status). Old links and pinned tabs land
+ * there instead of on a 404.
+ */
+export default async function DashboardPage({ params }: { params: Promise<{ orgId: string }> }) {
+   const { orgId } = await params;
+   redirect(`/${orgId}/usage`);
 }

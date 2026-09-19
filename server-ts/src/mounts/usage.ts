@@ -14,10 +14,12 @@ import {
    errorsOverview,
    issueInWorkspace,
    issueUsage,
+   projectInWorkspace,
    runtimeUsage,
    runtimeVisible,
    usageWindow,
    workspaceUsage,
+   type UsageFilter,
    type UsageWindow,
 } from '../usage/queries.ts';
 import { mountWorkspaceScope, pathId, type ScopedVariables } from './shared.ts';
@@ -28,8 +30,11 @@ import { mountWorkspaceScope, pathId, type ScopedVariables } from './shared.ts';
  * Read-only projections of `task_usage_hourly`, `task_usage`, `runs` and
  * `issues`. Both sit under `/:workspaceId/…`, so the workspace guard confirms
  * membership before a handler runs. Every nested id (agent, task, runtime,
- * project) is checked against that workspace too, so a foreign id is the same
- * 404 as an absent one.
+ * board, project) is checked against that workspace too, so a foreign id is the
+ * same 404 as an absent one.
+ *
+ * The workspace summary, the errors read and the dashboard take `boardId` and
+ * `projectId` filters; `projectId` narrows to the tasks linked to that project.
  */
 
 const DEFAULT_DAYS = 30;
@@ -54,20 +59,16 @@ function usageRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVariabl
 
    route.get('/:workspaceId/summary', async (context) => {
       const db = context.get('scoped');
-      const { window, boardId } = await readWindow(context.req.url, db);
-      const body = await scopedRead(db, (q) =>
-         workspaceUsage(q, window, boardId ? { boardId } : {})
-      );
-      return json({ ...windowFields(window, boardId), ...body });
+      const { window, scope } = await readWindow(context.req.url, db);
+      const body = await scopedRead(db, (q) => workspaceUsage(q, window, filterOf(scope)));
+      return json({ ...windowFields(window, scope), ...body });
    });
 
    route.get('/:workspaceId/errors', async (context) => {
       const db = context.get('scoped');
-      const { window, boardId } = await readWindow(context.req.url, db);
-      const body = await scopedRead(db, (q) =>
-         errorsOverview(q, window, boardId ? { boardId } : {})
-      );
-      return json({ ...windowFields(window, boardId), ...body });
+      const { window, scope } = await readWindow(context.req.url, db);
+      const body = await scopedRead(db, (q) => errorsOverview(q, window, filterOf(scope)));
+      return json({ ...windowFields(window, scope), ...body });
    });
 
    route.get('/:workspaceId/agents/:agentId', async (context) => {
@@ -80,7 +81,7 @@ function usageRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVariabl
          throw toApiError(error, 'Agent');
       }
       const body = await scopedRead(db, (q) => agentUsage(q, agentId, window));
-      return json({ ...windowFields(window, null), ...body });
+      return json({ ...windowFields(window, NO_SCOPE), ...body });
    });
 
    route.get('/:workspaceId/runtimes/:runtimeId', async (context) => {
@@ -92,7 +93,7 @@ function usageRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVariabl
          throw ApiError.notFound('Runtime');
       }
       const body = await scopedRead(db, (q) => runtimeUsage(q, runtimeId, window));
-      return json({ ...windowFields(window, null), ...body });
+      return json({ ...windowFields(window, NO_SCOPE), ...body });
    });
 
    route.get('/:workspaceId/issues/:issueId', async (context) => {
@@ -115,22 +116,38 @@ function dashboardRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVar
 
    route.get('/:workspaceId/overview', async (context) => {
       const db = context.get('scoped');
-      const { window } = await readWindow(context.req.url, db);
-      const body = await scopedRead(db, (q) => dashboardOverview(q, window));
-      return json({ ...windowFields(window, null), ...body });
+      const { window, scope } = await readWindow(context.req.url, db);
+      const body = await scopedRead(db, (q) => dashboardOverview(q, window, filterOf(scope)));
+      return json({ ...windowFields(window, scope), ...body });
    });
 
    return route;
 }
 
-function windowFields(window: UsageWindow, boardId: string | null) {
+/** Which board and project a read was narrowed to; `null` is every one. */
+interface ReadScope {
+   boardId: string | null;
+   projectId: string | null;
+}
+
+const NO_SCOPE: ReadScope = { boardId: null, projectId: null };
+
+function filterOf(scope: ReadScope): UsageFilter {
+   return {
+      ...(scope.boardId ? { boardId: scope.boardId } : {}),
+      ...(scope.projectId ? { projectId: scope.projectId } : {}),
+   };
+}
+
+function windowFields(window: UsageWindow, scope: ReadScope) {
    return {
       currency: 'USD',
       days: window.days,
       from: window.from,
       to: window.to,
       timezone: window.timezone,
-      boardId,
+      boardId: scope.boardId,
+      projectId: scope.projectId,
    };
 }
 
@@ -144,20 +161,21 @@ function knownTimezone(name: string): boolean {
    }
 }
 
-interface WindowQuery {
+interface WindowQuery extends ReadScope {
    days: number;
    timezone: string;
-   boardId: string | null;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * The parameters of a windowed read: how far back, in whose days, and on which
- * project. An unrecognised parameter is a typo, and a read that ignored it
+ * board and project. An unrecognised parameter is a typo, and a read that ignored it
  * would answer a question nobody asked.
  */
 function parseQuery(rawUrl: string, windowed: boolean): WindowQuery {
    const params = new URL(rawUrl).searchParams;
-   const allowed = new Set(windowed ? ['days', 'tz', 'boardId'] : []);
+   const allowed = new Set(windowed ? ['days', 'tz', 'boardId', 'projectId'] : []);
    const errors: FieldError[] = [];
    for (const name of new Set(params.keys())) {
       if (!allowed.has(name)) {
@@ -186,36 +204,42 @@ function parseQuery(rawUrl: string, windowed: boolean): WindowQuery {
       }
    }
 
-   let boardId: string | null = null;
-   const rawBoard = windowed ? params.get('boardId') : null;
-   if (rawBoard !== null) {
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawBoard)) {
-         errors.push(fieldError('/boardId', 'invalid_value', 'boardId names one project.'));
-      } else {
-         boardId = rawBoard.toLowerCase();
+   const idParam = (name: 'boardId' | 'projectId', what: string): string | null => {
+      const raw = windowed ? params.get(name) : null;
+      if (raw === null) return null;
+      if (!UUID.test(raw)) {
+         errors.push(fieldError(`/${name}`, 'invalid_value', `${name} names one ${what}.`));
+         return null;
       }
-   }
+      return raw.toLowerCase();
+   };
+   const boardId = idParam('boardId', 'board');
+   const projectId = idParam('projectId', 'project');
 
    assertValid(errors);
-   return { days, timezone, boardId };
+   return { days, timezone, boardId, projectId };
 }
 
 /**
- * The window a read asked for, with its project confirmed to be this
- * workspace's — a board from another one is the same 404 as one that is not
- * there, like every other id a route names.
+ * The window a read asked for, with its board and project confirmed to be this
+ * workspace's — one from another workspace (or a deleted project) is the same
+ * 404 as one that is not there, like every other id a route names.
  */
 async function readWindow(
    rawUrl: string,
    db: ScopedDb
-): Promise<{ window: UsageWindow; boardId: string | null }> {
+): Promise<{ window: UsageWindow; scope: ReadScope }> {
    const query = parseQuery(rawUrl, true);
-   if (query.boardId && !(await scopedRead(db, (q) => boardInWorkspace(q, query.boardId as string)))) {
+   const { boardId, projectId } = query;
+   if (boardId && !(await scopedRead(db, (q) => boardInWorkspace(q, boardId)))) {
+      throw ApiError.notFound('Project');
+   }
+   if (projectId && !(await scopedRead(db, (q) => projectInWorkspace(q, projectId)))) {
       throw ApiError.notFound('Project');
    }
    return {
       window: usageWindow(query.days, new Date(), query.timezone),
-      boardId: query.boardId,
+      scope: { boardId, projectId },
    };
 }
 

@@ -11,6 +11,7 @@ import {
    DropdownMenuLabel,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentFilterColumns } from '@/components/common/agents/agent-filter-columns';
 import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ const SORTS: AgentsSortKey[] = ['activity', 'name', 'runs', 'created'];
  */
 export default function HeaderOptions() {
    const t = useTranslations('agentsChat.list');
+   const tHeader = useTranslations('agents.header');
    const agents = useAgentsStore((state) => state.agents);
    const archived = useAgentsStore((state) => state.archived);
    const {
@@ -69,13 +71,9 @@ export default function HeaderOptions() {
    };
 
    const columnLabel: Record<AgentColumn, string> = {
-      workload: t('colWorkload'),
-      runtime: t('colRuntime'),
       activity: t('colActivity'),
-      runs: t('colRuns'),
       lastActive: t('colLastActive'),
       model: t('colModel'),
-      owner: t('colOwner'),
       access: t('colAccess'),
    };
 
@@ -89,29 +87,20 @@ export default function HeaderOptions() {
    return (
       <div className="flex min-h-10 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-1.5">
          <div className="flex shrink-0 items-center gap-3">
-            <div className="flex shrink-0 items-center gap-1">
-               {SCOPES.map((entry) => (
-                  <button
-                     key={entry}
-                     type="button"
-                     aria-pressed={scope === entry}
-                     onClick={() => setScope(entry)}
-                     className={cn(
-                        'inline-flex h-7 items-center rounded-sm border px-3 font-medium transition-colors',
-                        scope === entry
-                           ? 'border-azure/50 bg-azure/20 text-foreground'
-                           : 'border-transparent text-muted-foreground hover:border-border/40 hover:bg-accent/50 hover:text-foreground'
-                     )}
-                  >
-                     {scopeLabel[entry]}
-                     {counts[entry] === null ? null : (
-                        <span className="ml-1.5 tabular-nums text-muted-foreground">
-                           {counts[entry]}
-                        </span>
-                     )}
-                  </button>
-               ))}
-            </div>
+            <Tabs value={scope} onValueChange={(value) => setScope(value as AgentsScope)}>
+               <TabsList aria-label={tHeader('title')}>
+                  {SCOPES.map((entry) => (
+                     <TabsTrigger key={entry} value={entry}>
+                        {scopeLabel[entry]}
+                        {counts[entry] === null ? null : (
+                           <span className="tabular-nums text-muted-foreground">
+                              {counts[entry]}
+                           </span>
+                        )}
+                     </TabsTrigger>
+                  ))}
+               </TabsList>
+            </Tabs>
          </div>
 
          <div className="flex shrink-0 items-center gap-1">

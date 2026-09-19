@@ -1,29 +1,20 @@
 'use client';
 
-import { Check, Globe, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
 
 import { SegmentedControl } from '@/components/common/segmented-control';
 import { Button } from '@/components/ui/button';
-import {
-   Command,
-   CommandGroup,
-   CommandInput,
-   CommandItem,
-   CommandList,
-} from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { listBoards, type BoardSummary } from '@/lib/boards';
-import { knownTimezones, localTimezone } from '@/lib/cron-schedule';
 import { USAGE_DAY_OPTIONS, type UsageQuery } from '@/lib/usage';
 
-/** `America/Mexico_City` → `America / Mexico City`: the id, as words. */
-function readableZone(zone: string): string {
-   return zone.replace(/_/g, ' ').replace(/\//g, ' / ');
-}
+import { UsageProjectFilter } from './usage-project-filter';
 
 interface Props {
+   /**
+    * `window` (Spend and Runs): the time range and the project. `live`
+    * (Overview): the project only, because nothing there is windowed.
+    */
+   timeframe: 'window' | 'live';
    query: UsageQuery;
    onChange: (query: UsageQuery) => void;
    lastUpdated: Date | null;
@@ -32,106 +23,39 @@ interface Props {
 }
 
 /**
- * What every usage read is asking: how far back, on which project, and in
- * whose days — plus when the answer on screen arrived, and a way to ask again.
+ * What every usage read is asking: how far back and on which project —
+ * plus when the answer on screen arrived, and a way to ask again.
  */
-export default function UsageFilters({ query, onChange, lastUpdated, loading, onRefresh }: Props) {
+export default function UsageFilters({
+   timeframe,
+   query,
+   onChange,
+   lastUpdated,
+   loading,
+   onRefresh,
+}: Props) {
    const t = useTranslations('areas.usage.filters');
-   const [boards, setBoards] = useState<BoardSummary[]>([]);
-   const zones = useMemo(knownTimezones, []);
 
-   useEffect(() => {
-      let cancelled = false;
-      void listBoards().then(
-         (found) => {
-            if (!cancelled) setBoards(found);
-         },
-         () => undefined
-      );
-      return () => {
-         cancelled = true;
-      };
-   }, []);
-
-   const project = boards.find((board) => board.id === query.boardId);
-
+   // A 20rem basis: beside the tabs when there is room, on its own line when
+   // there is not, so the range control never shrinks past its buttons.
    return (
-      <div className="flex flex-wrap items-center gap-2">
-         <SegmentedControl
-            aria-label={t('range')}
-            value={query.days}
-            onValueChange={(days) => onChange({ ...query, days })}
-            options={USAGE_DAY_OPTIONS.map((days) => ({
-               value: days,
-               label: t('days', { count: days }),
-            }))}
+      <div className="flex flex-[1_1_20rem] flex-wrap items-center gap-2">
+         {timeframe === 'window' ? (
+            <SegmentedControl
+               aria-label={t('range')}
+               value={query.days}
+               onValueChange={(days) => onChange({ ...query, days })}
+               options={USAGE_DAY_OPTIONS.map((days) => ({
+                  value: days,
+                  label: t('days', { count: days }),
+               }))}
+            />
+         ) : null}
+
+         <UsageProjectFilter
+            projectId={query.projectId ?? null}
+            onChange={(projectId) => onChange({ ...query, projectId })}
          />
-
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="ghost">
-                  {project ? project.name : t('allProjects')}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-0" align="start">
-               <Command>
-                  <CommandInput placeholder={t('searchProjects')} />
-                  <CommandList>
-                     <CommandGroup>
-                        <CommandItem
-                           onSelect={() => onChange({ ...query, boardId: null })}
-                           className="justify-between"
-                        >
-                           {t('allProjects')}
-                           {!query.boardId ? <Check className="size-4" /> : null}
-                        </CommandItem>
-                        {boards.map((board) => (
-                           <CommandItem
-                              key={board.id}
-                              value={board.name}
-                              onSelect={() => onChange({ ...query, boardId: board.id })}
-                              className="justify-between"
-                           >
-                              {board.name}
-                              {query.boardId === board.id ? <Check className="size-4" /> : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
-
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="ghost">
-                  <Globe className="mr-1 size-4" />
-                  {t('timesShownIn', { zone: readableZone(query.timezone ?? 'UTC') })}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
-               <Command>
-                  <CommandInput placeholder={t('searchZones')} />
-                  <CommandList>
-                     <CommandGroup>
-                        {['UTC', localTimezone(), ...zones].map((zone, index) => (
-                           <CommandItem
-                              key={`${zone}-${index}`}
-                              value={`${zone} ${readableZone(zone)}`}
-                              onSelect={() => onChange({ ...query, timezone: zone })}
-                              className="justify-between"
-                           >
-                              {readableZone(zone)}
-                              {(query.timezone ?? 'UTC') === zone ? (
-                                 <Check className="size-4" />
-                              ) : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
 
          <span className="ml-auto flex items-center gap-2 text-muted-foreground">
             {lastUpdated ? t('updated', { when: lastUpdated.toLocaleTimeString() }) : t('never')}

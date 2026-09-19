@@ -97,8 +97,30 @@ export const taskFailureSchema = z.object({
    retryable: z.boolean(),
 });
 
+/**
+ * What the model itself returned on a completion, before Berry reads it: every
+ * message of this call in the provider's own block shape (`text`, `toolUse`
+ * with its raw input, `reasoning`, ...) and why it stopped. A structured
+ * answer arrives as a `toolUse`, so `task.completed.result.text` is empty and
+ * only this shows what was actually said. Emitted for the prompt log; the
+ * server keeps it and decides nothing from it.
+ */
+export const taskModelResponseSchema = z.object({
+   stopReason: z.string(),
+   messages: z.array(
+      // Loose: the provider's per-message metadata (its token usage) rides along.
+      z.looseObject({
+         role: z.enum(['user', 'assistant']),
+         content: z.array(z.record(z.string(), z.unknown())),
+      })
+   ),
+   /** True when the messages were cut to stay inside one frame. */
+   truncated: z.boolean(),
+});
+
 export const lifecycleEventSchema = z.discriminatedUnion('type', [
    z.object({ type: z.literal('task.started') }),
+   z.object({ type: z.literal('task.model'), response: taskModelResponseSchema }),
    z.object({ type: z.literal('task.message'), message: taskMessageSchema }),
    z.object({ type: z.literal('task.usage'), usage: taskUsageSchema }),
    z.object({ type: z.literal('task.completed'), result: taskResultSchema }),
@@ -110,6 +132,7 @@ export type TaskMessage = z.infer<typeof taskMessageSchema>;
 export type TaskDelivery = z.infer<typeof taskDeliverySchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
 export type TaskFailure = z.infer<typeof taskFailureSchema>;
+export type TaskModelResponse = z.infer<typeof taskModelResponseSchema>;
 export type LifecycleEvent = z.infer<typeof lifecycleEventSchema>;
 
 export class LifecycleStreamError extends Error {

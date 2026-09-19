@@ -46,3 +46,41 @@ test('a conversation in the transcript is the history before the prompt', async 
    await run(completion(null, [{ role: 'user', text: 'hi' }, { role: 'assistant', text: 'hello' }]), model);
    assert.equal(model.received[0]!.length, 3);
 });
+
+function modelEvent(events: LifecycleEvent[]) {
+   const found = events.find((event) => event.type === 'task.model');
+   assert.ok(found?.type === 'task.model', 'a task.model event was emitted');
+   return found.response;
+}
+
+test('the model’s own answer is reported, with a structured reply’s raw toolUse', async () => {
+   const schema = z.toJSONSchema(z.object({ label: z.enum(['bug', 'feature']) })) as Record<string, unknown>;
+   const events = await run(completion(schema), new ScriptedModel([call('strands_structured_output', { label: 'bug' }), say('done')]));
+   const response = modelEvent(events);
+   assert.equal(response.truncated, false);
+   assert.equal(response.messages[0]?.role, 'user');
+   const toolUse = response.messages
+      .filter((message) => message.role === 'assistant')
+      .flatMap((message) => message.content)
+      .find((block) => 'toolUse' in block)?.toolUse as { name: string; input: unknown } | undefined;
+   assert.equal(toolUse?.name, 'strands_structured_output');
+   assert.deepEqual(toolUse?.input, { label: 'bug' });
+   // Reported before the verdict, so the stream reads in the order it happened.
+   assert.ok(events.findIndex((event) => event.type === 'task.model') < events.findIndex((event) => event.type === 'task.completed'));
+});
+
+test('a free-text reply is reported as the model’s text and stop reason', async () => {
+   const response = modelEvent(await run(completion(null), new ScriptedModel([say('a tidy answer')])));
+   assert.equal(response.stopReason, 'endTurn');
+   const last = response.messages.at(-1);
+   assert.equal(last?.role, 'assistant');
+   assert.deepEqual(last?.content, [{ text: 'a tidy answer' }]);
+});
+
+test('an answer that never fits the schema still shows what the model said', async () => {
+   const schema = z.toJSONSchema(z.object({ label: z.enum(['bug', 'feature']) })) as Record<string, unknown>;
+   const events = await run(completion(schema), new ScriptedModel([say('I refuse to use the tool'), say('still no')]));
+   assert.equal(events.at(-1)?.type, 'task.failed');
+   const said = JSON.stringify(modelEvent(events).messages);
+   assert.ok(said.includes('I refuse to use the tool'), said);
+});

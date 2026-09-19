@@ -3,6 +3,7 @@ import type { Sql } from '../../db/pool.ts';
 import type { IssueRepository } from '../../core/issues.ts';
 import type { ProjectRepository } from '../../core/projects.ts';
 import type { Storage } from '../../storage/storage.ts';
+import type { FetchLimits } from './fetch-url.ts';
 import type { TaskClaims, TaskScope } from './tokens.ts';
 
 /**
@@ -20,6 +21,24 @@ export interface AgentToolContext {
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
    task: TaskClaims;
+   /**
+    * Resolving and linking a GitHub repository through the workspace's
+    * credential. Absent where the deployment has no GitHub integration.
+    */
+   repositories?: RepositoryLinker | null | undefined;
+   /** `fetch_url`'s bounds. Tests loosen them to reach a loopback server; production never sets it. */
+   fetchLimits?: FetchLimits | undefined;
+}
+
+export interface ResolvedRepository {
+   githubRepoId: string;
+   githubRepoFullName: string;
+}
+
+export interface RepositoryLinker {
+   /** Resolves `owner/name` as the project picker would, or throws the same ApiError it would. */
+   resolve(workspaceId: string, fullName: string, requesterId: string | null): Promise<ResolvedRepository>;
+   link(workspaceId: string, projectId: string, repository: ResolvedRepository): Promise<void>;
 }
 
 export interface AgentToolDefinition<S extends z.ZodObject> {

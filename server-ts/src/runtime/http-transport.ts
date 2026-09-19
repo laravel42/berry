@@ -17,12 +17,15 @@ export function httpTransport(options: { fetch?: typeof fetch; token?: string | 
       return { authorization: `Bearer ${options.token}` };
    };
    return {
-      async *invoke({ target, envelope, signal }): AsyncIterable<LifecycleEvent> {
+      async *invoke({ target, envelope, signal, observe }): AsyncIterable<LifecycleEvent> {
          let response: Response;
          try {
-            response = await doFetch(`${base(target.endpointUrl)}/invocations`, {
+            const url = `${base(target.endpointUrl)}/invocations`;
+            const sent = { ...headers(target.endpointUrl), 'content-type': 'application/json', accept: 'text/event-stream', [SESSION_HEADER]: envelope.runtimeSessionId };
+            observe?.request({ method: 'POST', url, headers: sent });
+            response = await doFetch(url, {
                method: 'POST',
-               headers: { ...headers(target.endpointUrl), 'content-type': 'application/json', accept: 'text/event-stream', [SESSION_HEADER]: envelope.runtimeSessionId },
+               headers: sent,
                redirect: 'error',
                body: JSON.stringify(envelope),
                signal,
@@ -30,6 +33,7 @@ export function httpTransport(options: { fetch?: typeof fetch; token?: string | 
          } catch (cause) {
             throw new RuntimeUnavailable(`could not reach the runtime: ${cause instanceof Error ? cause.message : String(cause)}`);
          }
+         observe?.response({ status: response.status, headers: Object.fromEntries(response.headers) });
          if (!response.ok || !response.body) throw new RuntimeUnavailable(`the runtime answered ${response.status}`);
          yield* parseLifecycleStream(response.body);
       },

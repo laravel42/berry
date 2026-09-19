@@ -74,6 +74,14 @@ describe('the Berry organization catalog', () => {
       }
    });
 
+   test('only the orchestrator and the product lead file goals and plans', () => {
+      for (const role of CATALOG) {
+         const planner = role.id === 'orchestrator' || role.id === 'product-lead';
+         assert.equal(role.allowed_tools.includes('create_goal'), planner, role.id);
+         assert.equal(role.allowed_tools.includes('create_plan'), planner, role.id);
+      }
+   });
+
    test('models are the three tiers the spec fixes', () => {
       assert.equal(catalogRole('cto')?.preferred_model, MODELS.opus);
       assert.equal(catalogRole('software-architect')?.preferred_model, MODELS.opus);

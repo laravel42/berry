@@ -50,8 +50,6 @@ export interface ProjectResource {
 
 export interface ProjectDetail {
    projectId: string;
-   /** One-line summary shown under the project name. */
-   summary: string;
    description: ContentBlock[];
    resources: ProjectResource[];
    milestones: ProjectMilestone[];
@@ -71,7 +69,6 @@ export interface ProjectDetail {
 export function getProjectDetail(projectId: string): ProjectDetail {
    return {
       projectId,
-      summary: '',
       description: [],
       resources: [],
       milestones: [],

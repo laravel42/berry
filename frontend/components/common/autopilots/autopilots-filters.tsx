@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpDown, Bot, Check, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
+import { ArrowUpDown, Bot, Check, CircleDot, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 
@@ -25,15 +25,13 @@ export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 export const AUTOPILOT_SORTS = ['name', 'updated', 'created'] as const;
 export type AutopilotSort = (typeof AUTOPILOT_SORTS)[number];
 
-/** Which autopilots and how they are laid out; what narrows them is the filter's. */
+/** How the list is laid out; what narrows it is the filter's. */
 export interface AutopilotCriteria {
-   scope: 'all' | 'active' | 'paused';
    sort: AutopilotSort;
    columns: AutopilotColumn[];
 }
 
 export const DEFAULT_AUTOPILOT_CRITERIA: AutopilotCriteria = {
-   scope: 'all',
    sort: 'name',
    columns: ['status', 'mode', 'updated'],
 };
@@ -52,6 +50,17 @@ export function useAutopilotFilterColumns(
    return useMemo(() => {
       const dtf = createColumnConfigHelper<Autopilot>();
       return [
+         dtf
+            .option()
+            .id('status')
+            .accessor((autopilot: Autopilot) => autopilot.status)
+            .displayName(t('filters.status'))
+            .icon(CircleDot)
+            .options([
+               { value: 'active', label: t('status.active') },
+               { value: 'paused', label: t('status.paused') },
+            ])
+            .build(),
          dtf
             .option()
             .id('assignee')
@@ -100,91 +109,76 @@ interface Props {
    filter: ListFilterController<Autopilot>;
 }
 
-/** Scope, filters, sort and columns for the autopilot list. */
+/** Filters, sort and columns for the autopilot list. */
 export default function AutopilotsFilters({ criteria, onChange, filter }: Props) {
    const t = useTranslations('areas.autopilots');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
 
    return (
-      <div className="flex flex-wrap items-center gap-2">
-         <div className="flex items-center gap-1 rounded-md border p-0.5">
-            {(['all', 'active', 'paused'] as const).map((scope) => (
-               <Button
-                  key={scope}
-                  size="xxs"
-                  variant={criteria.scope === scope ? 'secondary' : 'ghost'}
-                  onClick={() => set({ scope })}
-               >
-                  {t(`filters.scope_${scope}`)}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+         <ListFilterTrigger filter={filter} />
+
+         <Popover>
+            <PopoverTrigger asChild>
+               <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                  <ArrowUpDown className="mr-1 size-4" />
+                  {t(`filters.sort_${criteria.sort}`)}
                </Button>
-            ))}
-         </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-0" align="start">
+               <Command>
+                  <CommandList>
+                     <CommandGroup>
+                        {AUTOPILOT_SORTS.map((sort) => (
+                           <CommandItem
+                              key={sort}
+                              onSelect={() => set({ sort })}
+                              className="justify-between"
+                           >
+                              {t(`filters.sort_${sort}`)}
+                              {criteria.sort === sort ? <Check className="size-4" /> : null}
+                           </CommandItem>
+                        ))}
+                     </CommandGroup>
+                  </CommandList>
+               </Command>
+            </PopoverContent>
+         </Popover>
 
-         <div className="ml-auto flex flex-wrap items-center gap-1">
-            <ListFilterTrigger filter={filter} />
-
-            <Popover>
-               <PopoverTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                     <ArrowUpDown className="mr-1 size-4" />
-                     {t(`filters.sort_${criteria.sort}`)}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent className="w-52 p-0" align="start">
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           {AUTOPILOT_SORTS.map((sort) => (
-                              <CommandItem
-                                 key={sort}
-                                 onSelect={() => set({ sort })}
-                                 className="justify-between"
-                              >
-                                 {t(`filters.sort_${sort}`)}
-                                 {criteria.sort === sort ? <Check className="size-4" /> : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               </PopoverContent>
-            </Popover>
-
-            <Popover>
-               <PopoverTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                     <Columns3 className="mr-1 size-4" />
-                     {t('filters.columns')}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent className="w-52 p-0" align="start">
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           {AUTOPILOT_COLUMNS.map((column) => (
-                              <CommandItem
-                                 key={column}
-                                 onSelect={() =>
-                                    set({
-                                       columns: criteria.columns.includes(column)
-                                          ? criteria.columns.filter((entry) => entry !== column)
-                                          : [...criteria.columns, column],
-                                    })
-                                 }
-                                 className="justify-between"
-                              >
-                                 {t(`columns.${column}`)}
-                                 {criteria.columns.includes(column) ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               </PopoverContent>
-            </Popover>
-         </div>
+         <Popover>
+            <PopoverTrigger asChild>
+               <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                  <Columns3 className="mr-1 size-4" />
+                  {t('filters.columns')}
+               </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-0" align="start">
+               <Command>
+                  <CommandList>
+                     <CommandGroup>
+                        {AUTOPILOT_COLUMNS.map((column) => (
+                           <CommandItem
+                              key={column}
+                              onSelect={() =>
+                                 set({
+                                    columns: criteria.columns.includes(column)
+                                       ? criteria.columns.filter((entry) => entry !== column)
+                                       : [...criteria.columns, column],
+                                 })
+                              }
+                              className="justify-between"
+                           >
+                              {t(`columns.${column}`)}
+                              {criteria.columns.includes(column) ? (
+                                 <Check className="size-4" />
+                              ) : null}
+                           </CommandItem>
+                        ))}
+                     </CommandGroup>
+                  </CommandList>
+               </Command>
+            </PopoverContent>
+         </Popover>
       </div>
    );
 }

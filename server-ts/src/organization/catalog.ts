@@ -9,7 +9,7 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 6;
+export const CATALOG_VERSION = 8;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
@@ -59,6 +59,10 @@ interface RoleSpec {
    code: boolean;
 }
 
+/** The roles that file goals and plans; the tools sit in the level 2 ceiling but belong to planning. */
+const PLANNING_TOOLS = ['create_goal', 'create_plan'];
+const PLANNERS: RoleKey[] = ['orchestrator', 'product-lead'];
+
 const CODE_PATHS = {
    security: ['**/auth/**', '**/integrations/**', '**/*secret*', '**/Dockerfile', '.github/**', '**/iam/**', '**/sealing*'],
    architecture: ['server-ts/src/index.ts', '**/migrations/**', 'server-ts/src/http/**', 'server-ts/src/runtime/**'],
@@ -80,6 +84,7 @@ const SPECS: RoleSpec[] = [
          'Select the named workflow that fits, without requiring every role.',
          'Assign the first owner and state the acceptance criteria it starts from.',
          'Pick up work nobody else holds and route it, rather than doing it.',
+         'When a person asks for a goal or a plan, create it with create_goal or create_plan rather than describing one.',
       ],
       capabilities: ['orchestrate', 'triage', 'routing'],
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
@@ -679,7 +684,9 @@ function build(): RoleContract[] {
    let discoveryIndex = 0;
    return SPECS.map((spec) => {
       const ceiling = toolCeiling(spec.level);
-      const allowed = ceiling.filter((tool) => spec.code || (tool !== 'run_command' && tool !== 'collect_file'));
+      const allowed = ceiling
+         .filter((tool) => spec.code || (tool !== 'run_command' && tool !== 'collect_file'))
+         .filter((tool) => PLANNERS.includes(spec.id) || !PLANNING_TOOLS.includes(tool));
       const withoutPrompt: Omit<RoleContract, 'system_prompt'> = {
          id: spec.id,
          name: spec.name,

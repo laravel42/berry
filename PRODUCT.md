@@ -16,7 +16,7 @@ Your team runs Berry on its own infrastructure. The agents run in a separate, is
 - **Agent.** An AI worker in the workspace. It has a name, instructions, a model, skills and permissions. You can assign it tasks, mention it and chat with it, just like a teammate.
 - **Run.** One attempt by an agent to work on a task. A run is queued, starts, reports progress, and then finishes, fails or is cancelled. Every step is recorded.
 - **Runtime.** The separate, isolated place where agent runs happen. Berry hands the runtime a task and records what comes back. Berry's standard runtime is Amazon Bedrock AgentCore Runtime.
-- **Autonomy level.** A number from 1 to 5, given to each agent in the built-in organization, that caps which tools it may use. Level 1 can only read, comment and escalate. Level 5 can also submit a review verdict. Whether that verdict can send work back or only advises depends on the role contract of the agent whose work is reviewed. No level can merge code or close a task.
+- **Autonomy level.** A number from 1 to 5, given to each agent in the built-in organization, that caps which tools it may use. Level 1 can only read (including public web pages), comment and escalate. Level 2 adds creating, assigning and handing over tasks, and linking a repository Berry's GitHub access can already see. Level 5 can also submit a review verdict. Whether that verdict can send work back or only advises depends on the role contract of the agent whose work is reviewed. No level can merge code or close a task.
 - **Review gate.** The point where delivered work stops and waits for a person to approve it or send it back.
 - **Approval.** A yes-or-no decision a person must make before something goes ahead, such as starting a risky task.
 - **Pull request.** A proposed code change on GitHub, which a person can read and merge.
@@ -352,9 +352,15 @@ The Runs page lists recent runs from the workspace's main board, up to the lates
 
 An agent's Activity tab shows what it's doing now, with a cancel button, and what it finished recently. Failures come with a plain-language reason: timed out, runtime unreachable, cancelled or unknown. The roster adds a status dot, a workload badge and a seven-day chart for every agent.
 
-### Usage, cost and the dashboard
+### Usage and cost
 
-The Usage page shows the workspace's model spending over time, by day or by week: cost, tokens, cache use, number of runs and run time. It also breaks the numbers down by agent and by model. If a model has no published price, Berry flags that usage instead of inventing a cost. An Errors tab covers the failed-run rate and which agents fail most. A separate Dashboard shows runs per day, cost per day and live counts of tasks by status. You can filter the Usage page by date range and by project, and the Dashboard by date range.
+The Usage page has three tabs.
+
+- **Overview** shows what is happening now: which agent is running or waiting to run on which task and for how long, the runs that just finished and how, the approvals and reviews waiting on a person, what today has cost so far, and how many tasks are in each status.
+- **Spend** shows the workspace's model spending over time, by day or by week: cost, tokens, cache use, number of runs and run time. It also breaks the numbers down by agent and by model. If a model has no published price, Berry flags that usage instead of inventing a cost.
+- **Runs** shows how runs ended: runs per day by outcome (succeeded, failed or cancelled), the failure rate, the kinds of failure, and which agents fail most.
+
+You can filter every tab by project, and Spend and Runs by date range. Overview is always live, so the date range doesn't apply to it. The old Dashboard address now opens this page.
 
 > **Partly working:** the pages work, but the numbers come from real runs. They stay empty until agents have actually run, which needs a runtime.
 
@@ -818,7 +824,7 @@ Everything a run does is recorded as an ordered, append-only list of events. A r
 
 ### Usage and cost per run
 
-Every model call a run makes is recorded with its tokens and priced, giving a cost per run that adds up per agent and per workspace on the Usage and Dashboard pages.
+Every model call a run makes is recorded with its tokens and priced, giving a cost per run that adds up per agent and per workspace on the Usage page.
 
 > **Needs setup:** fills in only once real runs happen.
 

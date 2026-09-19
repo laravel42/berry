@@ -38,6 +38,7 @@ const windowSchema = z.object({
    to: z.string(),
    timezone: z.string().default('UTC'),
    boardId: z.string().nullable().default(null),
+   projectId: z.string().nullable().default(null),
 });
 
 const workspaceUsageSchema = windowSchema.extend({
@@ -82,9 +83,20 @@ const issueUsageSchema = z.object({
 
 const errorsSchema = windowSchema.extend({
    failedRuns: z.number(),
+   succeededRuns: z.number().default(0),
+   cancelledRuns: z.number().default(0),
    totalRuns: z.number(),
    agentsAffected: z.number(),
-   daily: z.array(z.object({ day: z.string(), total: z.number(), failed: z.number() })),
+   /** Each day's runs by outcome; queued and running ones count only in `total`. */
+   daily: z.array(
+      z.object({
+         day: z.string(),
+         total: z.number(),
+         succeeded: z.number().default(0),
+         failed: z.number(),
+         cancelled: z.number().default(0),
+      })
+   ),
    byType: z.array(z.object({ code: z.string(), count: z.number() })),
    offenders: z.array(
       z.object({
@@ -94,6 +106,16 @@ const errorsSchema = windowSchema.extend({
          total: z.number(),
       })
    ),
+});
+
+/** A run named for a person: who is on it, and which task, by key and title. */
+const liveRunSchema = z.object({
+   runId: z.string(),
+   agentId: z.string(),
+   agentName: z.string(),
+   issueId: z.string(),
+   issueIdentifier: z.string().default(''),
+   issueTitle: z.string(),
 });
 
 const dashboardSchema = windowSchema.extend({
@@ -122,17 +144,42 @@ const dashboardSchema = windowSchema.extend({
       failed: z.number(),
       cancelled: z.number(),
    }),
-   workingAgents: z.array(
-      z.object({
-         runId: z.string(),
-         agentId: z.string(),
-         agentName: z.string(),
-         issueId: z.string(),
-         issueTitle: z.string(),
-         startedAt: z.string().nullable(),
-      })
-   ),
+   workingAgents: z.array(liveRunSchema.extend({ startedAt: z.string().nullable() })),
    taskSnapshot: z.record(z.string(), z.number()),
+   queuedRuns: z.array(liveRunSchema.extend({ createdAt: z.string() })).default([]),
+   recentRuns: z
+      .array(
+         liveRunSchema.extend({
+            status: z.enum(['succeeded', 'failed', 'cancelled']),
+            failureCode: z.string().nullable(),
+            startedAt: z.string().nullable(),
+            completedAt: z.string(),
+         })
+      )
+      .default([]),
+   pendingApprovals: z
+      .array(
+         z.object({
+            id: z.string(),
+            title: z.string(),
+            risk: z.string(),
+            requestedAt: z.string(),
+            issueIdentifier: z.string().nullable(),
+         })
+      )
+      .default([]),
+   pendingApprovalCount: z.number().default(0),
+   inReview: z
+      .array(
+         z.object({
+            issueId: z.string(),
+            identifier: z.string(),
+            title: z.string(),
+            since: z.string(),
+         })
+      )
+      .default([]),
+   today: bucketSchema.nullable().default(null),
 });
 
 export type UsageBucket = z.infer<typeof bucketSchema>;
@@ -150,11 +197,19 @@ export const USAGE_DAY_OPTIONS = [7, 30, 90] as const;
 /** A runtime's own page reaches back further: the heatmap wants 26 weeks. */
 export const RUNTIME_DAY_OPTIONS = [7, 30, 90, 180] as const;
 
-/** How far back, in whose days, and on which project. */
+/** How far back, in whose days, and on which board or project. */
 export interface UsageQuery {
    days: number;
    timezone?: string | undefined;
+   /** A board (the workspace's issue container). The UI filters by project instead. */
    boardId?: string | null | undefined;
+   /** A project: narrows every read to the tasks linked to it. */
+   projectId?: string | null | undefined;
+}
+
+/** A stable cache key for a read of `query`: every field that changes the answer. */
+export function usageQueryKey(query: UsageQuery): string {
+   return [query.days, query.timezone ?? '', query.boardId ?? '', query.projectId ?? ''].join(':');
 }
 
 function base(workspaceId: string): string {
@@ -165,6 +220,7 @@ function search(query: UsageQuery): string {
    const params = new URLSearchParams({ days: String(query.days) });
    if (query.timezone) params.set('tz', query.timezone);
    if (query.boardId) params.set('boardId', query.boardId);
+   if (query.projectId) params.set('projectId', query.projectId);
    return `?${params.toString()}`;
 }
 

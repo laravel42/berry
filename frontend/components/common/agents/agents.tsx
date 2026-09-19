@@ -6,8 +6,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { useAgentCoverage } from '@/hooks/use-agent-coverage';
-
 import {
    AlertDialog,
    AlertDialogAction,
@@ -52,12 +50,11 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
-import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
 import { useAgentFilterColumns } from './agent-filter-columns';
+import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
 
 /** Which column heading sorts by what; the rest are labels only. */
 const SORT_FOR_COLUMN: Partial<Record<AgentColumn, AgentsSortKey>> = {
-   runs: 'runs',
    lastActive: 'activity',
 };
 
@@ -90,7 +87,6 @@ export default function Agents() {
    const common = useTranslations('agentsChat.common');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
-   const coverage = useAgentCoverage();
 
    const agents = useAgentsStore((state) => state.agents);
    const archived = useAgentsStore((state) => state.archived);
@@ -302,13 +298,9 @@ export default function Agents() {
                      <span aria-hidden>{sortDescending ? ' ↓' : ' ↑'}</span>
                   ) : null}
                </button>
-               {header('workload', t('colWorkload'))}
-               {header('runtime', t('colRuntime'))}
                {header('activity', t('colActivity'))}
-               {header('runs', t('colRuns'), 'justify-end')}
                {header('lastActive', t('colLastActive'))}
                {header('model', t('colModel'))}
-               {header('owner', t('colOwner'))}
                {header('access', t('colAccess'))}
                <span className="size-6 shrink-0" aria-hidden />
             </div>
@@ -374,7 +366,6 @@ export default function Agents() {
                      key={agent.id}
                      agent={agent}
                      roster={roster.get(agent.id)}
-                     coverage={coverage}
                      columns={columns}
                      selected={selected.includes(agent.id)}
                      onToggleSelected={toggleSelected}

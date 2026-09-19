@@ -52,8 +52,10 @@ const SECTION_KEYS: Record<string, TabLabelKey> = {
    'skills': 'skills',
    'autopilot': 'autopilots',
    'autopilots': 'autopilots',
-   'dashboard': 'dashboard',
+   // The Dashboard merged into Usage; a tab saved on it reads as Usage.
+   'dashboard': 'usage',
    'usage': 'usage',
+   'logs': 'logs',
    'attachments': 'attachments',
    'plugins': 'plugins',
    'profiles': 'profiles',

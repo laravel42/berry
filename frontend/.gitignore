@@ -48,3 +48,6 @@ next-env.d.ts
 
 # editors
 .idea/
+
+*storybook.log
+storybook-static

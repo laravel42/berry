@@ -490,10 +490,14 @@ export class IssueRepository {
          if (updated.count !== 1) throw new NotFound();
 
          if (patch.assigneeSet && patch.assignee) {
+            // `assigned_by` names a person (users.id). An agent assigning work is
+            // not one: the row records no person, and the event's actor still
+            // names the agent.
+            const assignedBy = params.actorType === 'agent' ? null : params.actorId;
             await tx`
                INSERT INTO assignments (id, issue_id, assignee_type, assignee_id, assigned_by, created_at)
                VALUES (${this.newId()}, ${params.issueId}, ${patch.assignee.type}::assignee_type,
-                       ${patch.assignee.id}, ${params.actorId}, ${now})`.catch(classifyWrite);
+                       ${patch.assignee.id}, ${assignedBy}, ${now})`.catch(classifyWrite);
          }
          if (patch.projectSet) {
             await setIssueProject(tx, params.issueId, patch.project ?? null, params.actorId);

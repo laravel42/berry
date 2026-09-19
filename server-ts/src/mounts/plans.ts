@@ -142,47 +142,16 @@ export function planMounts(options: PlanOptions): Mount[] {
       if (problems.length > 0) assertValid(problems);
 
       await authorizeWorkspace(context, options, body.workspaceId!, 'product.write');
-      if (!options.generator) {
-         throw new ApiError(
-            412,
-            'PLANNER_UNAVAILABLE',
-            'This deployment has no model credential, so it cannot plan.'
-         );
-      }
-
-      // The oldest board, when none was named: a plan has to land somewhere,
-      // and the workspace's first board is the one a person means.
-      const boardId = body.boardId ?? (await oldestBoard(options.sql, body.workspaceId!));
-      if (!boardId) {
-         throw new ApiError(409, 'BOARD_REQUIRED', 'This workspace has no board to plan into.');
-      }
-
-      let record: PlanRecord;
-      try {
-         record = await plans.open({
-            workspaceId: body.workspaceId!,
-            goalId: body.goalId ?? null,
-            projectId: body.projectId ?? null,
-            boardId,
-            prompt,
-            createdBy: context.get('user').id,
-            ...(body.autoGate === undefined ? {} : { autoGate: body.autoGate }),
-         });
-      } catch (error) {
-         if (error instanceof OpenPlanExists) {
-            throw new ApiError(409, 'PLAN_OPEN_EXISTS', 'This goal already has an open plan.', {
-               planId: error.planId,
-            });
-         }
-         // A project in another workspace, or one that is gone.
-         if (error instanceof NotFound) throw ApiError.notFound('Project');
-         throw error;
-      }
-
-      // Deliberately not awaited. The row is durable and the caller has its
-      // id; holding the request open for a model call would lose the plan the
-      // moment the connection dropped.
-      void generate(options, record, prompt, context.get('user').id, body.autoStart === true);
+      const record = await startPlan(options, {
+         workspaceId: body.workspaceId!,
+         prompt,
+         goalId: body.goalId ?? null,
+         projectId: body.projectId ?? null,
+         boardId: body.boardId ?? null,
+         createdBy: context.get('user').id,
+         ...(body.autoGate === undefined ? {} : { autoGate: body.autoGate }),
+         autoStart: body.autoStart === true,
+      });
 
       const response = json(serializePlan(record), 202);
       response.headers.set('Location', `/api/v1/plans/${record.id}`);
@@ -609,6 +578,64 @@ export function serializePlan(record: PlanRecord): Record<string, unknown> {
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
    };
+}
+
+export interface PlanStartInput {
+   workspaceId: string;
+   prompt: string;
+   goalId: string | null;
+   projectId: string | null;
+   boardId: string | null;
+   /** The person the plan is for: they are the one who presses Start Plan. */
+   createdBy: string;
+   autoGate?: boolean;
+   autoStart?: boolean;
+}
+
+/**
+ * Opens a plan and starts generating it: what `POST /generate` does once the
+ * caller is authorized, shared with the agent tool that plans from a chat.
+ * The caller has already decided `createdBy` may plan in the workspace.
+ */
+export async function startPlan(options: PlanOptions, input: PlanStartInput): Promise<PlanRecord> {
+   if (!options.generator) {
+      throw new ApiError(412, 'PLANNER_UNAVAILABLE', 'This deployment has no model credential, so it cannot plan.');
+   }
+
+   // The oldest board, when none was named: a plan has to land somewhere,
+   // and the workspace's first board is the one a person means.
+   const boardId = input.boardId ?? (await oldestBoard(options.sql, input.workspaceId));
+   if (!boardId) {
+      throw new ApiError(409, 'BOARD_REQUIRED', 'This workspace has no board to plan into.');
+   }
+
+   let record: PlanRecord;
+   try {
+      record = await options.plans.open({
+         workspaceId: input.workspaceId,
+         goalId: input.goalId,
+         projectId: input.projectId,
+         boardId,
+         prompt: input.prompt,
+         createdBy: input.createdBy,
+         ...(input.autoGate === undefined ? {} : { autoGate: input.autoGate }),
+      });
+   } catch (error) {
+      if (error instanceof OpenPlanExists) {
+         throw new ApiError(409, 'PLAN_OPEN_EXISTS', 'This goal already has an open plan.', {
+            planId: error.planId,
+         });
+      }
+      // A project in another workspace, or one that is gone.
+      if (error instanceof NotFound) throw ApiError.notFound('Project');
+      throw error;
+   }
+
+   // Deliberately not awaited. The row is durable and the caller has its
+   // id; holding the request open for a model call would lose the plan the
+   // moment the connection dropped.
+   void generate(options, record, input.prompt, input.createdBy, input.autoStart === true);
+   return record;
 }
 
 async function oldestBoard(sql: Sql, workspaceId: string): Promise<string | null> {

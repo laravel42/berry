@@ -5,7 +5,12 @@ import {
 } from '@aws-sdk/client-bedrock-agentcore';
 import type { TaskEnvelope } from './envelope.ts';
 import { parseLifecycleStream, type LifecycleEvent } from './lifecycle.ts';
-import { RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
+import {
+   RuntimeUnavailable,
+   type ExchangeObserver,
+   type RuntimeTarget,
+   type RuntimeTransport,
+} from './transport.ts';
 
 /**
  * `InvokeAgentRuntime` with the task envelope; the response body is the
@@ -34,21 +39,30 @@ export function agentCoreTransport(options: {
    };
 
    return {
-      async *invoke({ target, envelope, signal }: { target: RuntimeTarget; envelope: TaskEnvelope; signal: AbortSignal }): AsyncIterable<LifecycleEvent> {
+      async *invoke({
+         target,
+         envelope,
+         signal,
+         observe,
+      }: {
+         target: RuntimeTarget;
+         envelope: TaskEnvelope;
+         signal: AbortSignal;
+         observe?: ExchangeObserver | undefined;
+      }): AsyncIterable<LifecycleEvent> {
          if (!target.arn) throw new RuntimeUnavailable('this runtime has no ARN');
          let body: AsyncIterable<Uint8Array>;
          try {
-            const response = await clientFor(target.region).send(
-               new InvokeAgentRuntimeCommand({
-                  agentRuntimeArn: target.arn,
-                  qualifier: target.qualifier,
-                  runtimeSessionId: envelope.runtimeSessionId,
-                  contentType: 'application/json',
-                  accept: 'text/event-stream',
-                  payload: new TextEncoder().encode(JSON.stringify(envelope)),
-               }),
-               { abortSignal: signal as never }
-            );
+            const command = new InvokeAgentRuntimeCommand({
+               agentRuntimeArn: target.arn,
+               qualifier: target.qualifier,
+               runtimeSessionId: envelope.runtimeSessionId,
+               contentType: 'application/json',
+               accept: 'text/event-stream',
+               payload: new TextEncoder().encode(JSON.stringify(envelope)),
+            });
+            if (observe) observeWire(command, observe);
+            const response = await clientFor(target.region).send(command, { abortSignal: signal as never });
             if (response.response === undefined || response.response === null) throw new Error('the runtime returned no body');
             body = toByteStream(response.response);
          } catch (cause) {
@@ -64,6 +78,51 @@ export function agentCoreTransport(options: {
             .catch(() => undefined);
       },
    };
+}
+
+/**
+ * The request as signed and the response as received, read in the deserialize
+ * step: by then the SDK has built the URL and added SigV4, and the response is
+ * the raw HTTP one before its body is turned into a stream.
+ */
+function observeWire(command: InvokeAgentRuntimeCommand, observe: ExchangeObserver): void {
+   command.middlewareStack.add(
+      (next) => async (args) => {
+         const request = args.request as {
+            method?: string;
+            protocol?: string;
+            hostname?: string;
+            port?: number;
+            path?: string;
+            query?: Record<string, string | string[] | null>;
+            headers?: Record<string, string>;
+         };
+         if (request?.hostname) {
+            const query = new URLSearchParams();
+            for (const [key, value] of Object.entries(request.query ?? {})) {
+               for (const item of Array.isArray(value) ? value : [value ?? '']) query.append(key, item);
+            }
+            const port = request.port ? `:${request.port}` : '';
+            const search = query.size > 0 ? `?${query.toString()}` : '';
+            observe.request({
+               method: request.method ?? 'POST',
+               url: `${request.protocol ?? 'https:'}//${request.hostname}${port}${request.path ?? '/'}${search}`,
+               headers: lowerKeys(request.headers ?? {}),
+            });
+         }
+         const output = await next(args);
+         const response = output.response as { statusCode?: number; headers?: Record<string, string> } | undefined;
+         if (response?.statusCode !== undefined) {
+            observe.response({ status: response.statusCode, headers: lowerKeys(response.headers ?? {}) });
+         }
+         return output;
+      },
+      { step: 'deserialize', name: 'berryExchangeObserver' }
+   );
+}
+
+function lowerKeys(headers: Record<string, string>): Record<string, string> {
+   return Object.fromEntries(Object.entries(headers).map(([key, value]) => [key.toLowerCase(), String(value)]));
 }
 
 function message(cause: unknown): string {

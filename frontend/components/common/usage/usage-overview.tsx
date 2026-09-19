@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
 import { SegmentedControl } from '@/components/common/segmented-control';
-import { getWorkspaceUsage, weeklyBuckets, type UsageQuery } from '@/lib/usage';
+import { getWorkspaceUsage, usageQueryKey, weeklyBuckets, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
 import { UsageBreakdownTable } from './usage-breakdown-table';
@@ -38,7 +38,7 @@ export default function UsageOverview({
 
    const { data, error, loading, lastUpdated, reload } = useUsage(
       workspaceId ? () => getWorkspaceUsage(workspaceId, query) : null,
-      `${workspaceId}:${query.days}:${query.timezone ?? ''}:${query.boardId ?? ''}`
+      `${workspaceId}:${usageQueryKey(query)}`
    );
    // Reported after render, not during it: a parent setState from inside a
    // child's render is the React error Next flags on this page.

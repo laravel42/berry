@@ -254,7 +254,14 @@ export default function Autopilots({
                      <div className="ml-auto flex items-center gap-3">
                         {shows('status') ? (
                            <div className="w-20 shrink-0">
-                              <Badge variant={paused ? 'secondary' : 'outline'}>
+                              <Badge
+                                 variant="outline"
+                                 className={
+                                    paused
+                                       ? 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral'
+                                       : 'border-status-success/40 bg-status-success/10 text-status-success'
+                                 }
+                              >
                                  {t(`status.${autopilot.status}`)}
                               </Badge>
                            </div>

@@ -32,7 +32,7 @@ import { artifactMounts, issueArtifactRoutes } from './mounts/artifacts.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
-import { projectMounts } from './mounts/projects.ts';
+import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
 import { integrationMounts } from './mounts/integrations.ts';
 import { PlanTriage } from './plans/triage.ts';
@@ -60,7 +60,8 @@ import { conversationMounts } from './mounts/conversations.ts';
 import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
-import { planMounts } from './mounts/plans.ts';
+import { planMounts, type PlanOptions } from './mounts/plans.ts';
+import { registerPlanningTools } from './plans/agent-tools.ts';
 import { PlanAnswerRepository } from './plans/answers.ts';
 import { PlanRepository } from './plans/repository.ts';
 import { PlanGenerator } from './plans/generator.ts';
@@ -89,6 +90,7 @@ import { commentTriggers } from './agents/triggers.ts';
 import { registerChatReplies } from './conversations/chat-tasks.ts';
 import { AgentCoreIdentity } from './agentcore/identity.ts';
 import { agentMounts } from './mounts/agents.ts';
+import { logsMounts } from './mounts/logs.ts';
 import { usageMounts } from './mounts/usage.ts';
 import { PriceBook } from './agents/pricing.ts';
 import { configureUsagePricing, recordTaskUsage } from './usage/record.ts';
@@ -540,6 +542,10 @@ const executor = defaultTarget
            logger.error('usage was not recorded', {
               error: error instanceof Error ? error.message : String(error),
            }),
+        onExchangeLogError: (error) =>
+           logger.warn('a prompt log was not kept', {
+              error: error instanceof Error ? error.message : String(error),
+           }),
         tokenTtlSeconds: config.runtime.tokenTtlSeconds,
      })
    : null;
@@ -796,9 +802,65 @@ registry.registerAll(
    })
 );
 registry.registerAll(runMounts(runOptions));
+const planOptions: PlanOptions = {
+   sessions,
+   plans: new PlanRepository(sql),
+   answers: new PlanAnswerRepository(sql),
+   // Reading a plan works without a model credential; only generating one
+   // needs it, and a null generator answers PLANNER_UNAVAILABLE rather
+   // than opening a plan nothing will ever fill in.
+   generator:
+      executor
+      ? new PlanGenerator({
+           sql,
+           completion,
+           defaultModel: config.runtime.defaultModel,
+           maxRepairs: config.agents?.maxRepairs ?? 2,
+           maxCriticRounds: config.agents?.maxCriticRounds ?? 1,
+        })
+      : null,
+   // Routing needs the same credential planning does: it is the
+   // orchestrator reading the roster and deciding, not a lookup table.
+   triage:
+      executor
+      ? new PlanTriage({
+           sql,
+           completion,
+           defaultModel: config.runtime.defaultModel,
+        })
+      : null,
+   // Its own repository rather than the request path's: a routed task is
+   // admitted outside any request, after the response has gone.
+   runs: new RunRepository(sql),
+   boards,
+   idempotency,
+   sql,
+   logger,
+};
+// `create_goal` and `create_plan`: the same planner a person's request reaches.
+registerPlanningTools({ sql, goals, boards, plans: planOptions, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    ...(scm.provisioning ? { github: async (workspaceId: string) => new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }) } : {}),
+   // `link_project_repository`: the same resolution a person's repository
+   // picker goes through, so an agent can link exactly what a person could.
+   repositories: connections
+      ? {
+           resolve: (workspaceId, fullName, requesterId) =>
+              resolveRepository({ connections, githubApp, userAccess: githubUserAccess }, workspaceId, fullName, requesterId),
+           link: async (workspaceId, projectId, repository) => {
+              await projects.update(workspaceId, projectId, {
+                 descriptionSet: false,
+                 startDateSet: false,
+                 targetDateSet: false,
+                 leadSet: false,
+                 githubRepoSet: true,
+                 githubRepoId: repository.githubRepoId,
+                 githubRepoFullName: repository.githubRepoFullName,
+              });
+           },
+        }
+      : null,
 }));
 const agentCore = config.agentCore;
 registry.registerAll(
@@ -868,43 +930,7 @@ registry.registerAll(
 );
 registry.registerAll(pinMounts({ sessions, sql }));
 registry.registerAll(joinLinkMounts({ sessions, sql }));
-registry.registerAll(
-   planMounts({
-      sessions,
-      plans: new PlanRepository(sql),
-      answers: new PlanAnswerRepository(sql),
-      // Reading a plan works without a model credential; only generating one
-      // needs it, and a null generator answers PLANNER_UNAVAILABLE rather
-      // than opening a plan nothing will ever fill in.
-      generator:
-         executor
-         ? new PlanGenerator({
-              sql,
-              completion,
-              defaultModel: config.runtime.defaultModel,
-              maxRepairs: config.agents?.maxRepairs ?? 2,
-              maxCriticRounds: config.agents?.maxCriticRounds ?? 1,
-           })
-         : null,
-      // Routing needs the same credential planning does: it is the
-      // orchestrator reading the roster and deciding, not a lookup table.
-      triage:
-         executor
-         ? new PlanTriage({
-              sql,
-              completion,
-              defaultModel: config.runtime.defaultModel,
-           })
-         : null,
-      // Its own repository rather than the request path's: a routed task is
-      // admitted outside any request, after the response has gone.
-      runs: new RunRepository(sql),
-      boards,
-      idempotency,
-      sql,
-      logger,
-   })
-);
+registry.registerAll(planMounts(planOptions));
 const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
@@ -1031,6 +1057,7 @@ registry.registerAll(
    })
 );
 registry.registerAll(usageMounts({ sessions, sql }));
+registry.registerAll(logsMounts({ sessions, sql }));
 registry.registerAll(
    eventMounts({ sessions, replay: new ReplayRepository(sql), boards, broadcaster })
 );

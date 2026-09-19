@@ -89,7 +89,8 @@ export class DependencyRepository {
       workspaceId: string;
       issueId: string;
       dependsOnIssueId: string;
-      createdBy: string;
+      /** The person who made the link; null when an agent did and no person asked for its run. */
+      createdBy: string | null;
       createdAt: string;
    }): Promise<void> {
       if (params.issueId === params.dependsOnIssueId) throw new DependencyCycle();

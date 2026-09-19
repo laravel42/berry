@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import { SegmentedControl } from '@/components/common/segmented-control';
-import { getUsageErrors, type UsageQuery } from '@/lib/usage';
+import { getUsageErrors, usageQueryKey, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
 import { StatTile } from './usage-tiles';
@@ -21,8 +21,16 @@ function percent(part: number, whole: number): string {
    return `${Math.round((part / whole) * 100)}%`;
 }
 
+/** Run outcomes, bottom of the stack first, each in its status tone. */
+const OUTCOMES = [
+   { key: 'succeeded', color: 'var(--status-success)' },
+   { key: 'failed', color: 'var(--status-danger)' },
+   { key: 'cancelled', color: 'var(--status-neutral)' },
+] as const;
+
 /**
- * What failed in the window, and whose it was.
+ * The Runs tab: how the window's runs ended, day by day, what failed and whose
+ * it was.
  *
  * Offenders can be ranked by how many runs failed or by what share of their
  * runs failed, and a rate computed from a handful of runs is marked as such:
@@ -42,7 +50,7 @@ export default function UsageErrors({
 
    const { data, error, loading, lastUpdated, reload } = useUsage(
       workspaceId ? () => getUsageErrors(workspaceId, query) : null,
-      `errors:${workspaceId}:${query.days}:${query.timezone ?? ''}:${query.boardId ?? ''}`
+      `errors:${workspaceId}:${usageQueryKey(query)}`
    );
    // Reported after render, not during it: a parent setState from inside a
    // child's render is the React error Next flags on this page.
@@ -61,22 +69,38 @@ export default function UsageErrors({
    const thin = offenders.some((row) => row.total < LOW_SAMPLE);
 
    const tiles = [
+      { label: t('totalRuns'), value: String(data.totalRuns) },
+      { label: t('succeededRuns'), value: String(data.succeededRuns) },
       { label: t('failedRuns'), value: String(data.failedRuns) },
+      { label: t('cancelledRuns'), value: String(data.cancelledRuns) },
       { label: t('failureRate'), value: percent(data.failedRuns, data.totalRuns) },
       { label: t('agentsAffected'), value: String(data.agentsAffected) },
-      { label: t('totalRuns'), value: String(data.totalRuns) },
    ];
 
    return (
       <div className="flex flex-col gap-8 px-6 py-6">
-         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
             {tiles.map((tile) => (
                <StatTile key={tile.label} label={tile.label} value={tile.value} />
             ))}
          </div>
 
          <section className="flex flex-col gap-2">
-            <h2 className="font-medium">{t('chart')}</h2>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+               <h2 className="mr-auto font-medium">{t('chart')}</h2>
+               <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+                  {OUTCOMES.map((outcome) => (
+                     <li key={outcome.key} className="flex items-center gap-1.5">
+                        <span
+                           aria-hidden
+                           className="size-2 rounded-[2px]"
+                           style={{ backgroundColor: outcome.color }}
+                        />
+                        {t(`legend_${outcome.key}`)}
+                     </li>
+                  ))}
+               </ul>
+            </div>
             <div className="h-48 w-full text-foreground/70">
                <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -103,7 +127,17 @@ export default function UsageErrors({
                         itemStyle={{ color: 'var(--popover-foreground)' }}
                         labelStyle={{ color: 'var(--muted-foreground)' }}
                      />
-                     <Bar dataKey="failed" fill="currentColor" radius={[2, 2, 0, 0]} />
+                     {OUTCOMES.map((outcome, index) => (
+                        <Bar
+                           key={outcome.key}
+                           dataKey={outcome.key}
+                           name={t(`legend_${outcome.key}`)}
+                           stackId="runs"
+                           fill={outcome.color}
+                           // Only the top of the stack is rounded.
+                           radius={index === OUTCOMES.length - 1 ? [2, 2, 0, 0] : 0}
+                        />
+                     ))}
                   </BarChart>
                </ResponsiveContainer>
             </div>

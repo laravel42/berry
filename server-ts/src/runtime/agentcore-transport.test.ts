@@ -97,3 +97,42 @@ test('stop is StopRuntimeSession on the same session, and never throws', async (
    await agentCoreTransport({ region: 'us-east-1', client: client as never }).stop({ target, runtimeSessionId: `berry-${'0'.repeat(64)}` });
    assert.ok(sent[0] instanceof StopRuntimeSessionCommand);
 });
+
+test('an observer sees the signed request and the raw response of a real SDK client', async () => {
+   const { BedrockAgentCoreClient } = await import('@aws-sdk/client-bedrock-agentcore');
+   const { Readable } = await import('node:stream');
+   const client = new BedrockAgentCoreClient({
+      region: 'us-east-1',
+      credentials: { accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret-example', sessionToken: 'session-example' },
+      // The network is replaced, not the SDK: signing and the middleware stack run as in production.
+      requestHandler: {
+         handle: async () => ({
+            response: {
+               statusCode: 200,
+               headers: { 'content-type': 'text/event-stream', 'x-amzn-requestid': 'req-1' },
+               body: Readable.from([encodeLifecycle({ type: 'task.started' })]),
+            },
+         }),
+      } as never,
+   });
+   const seen: { url?: string; headers?: Record<string, string>; status?: number; requestId?: string | undefined } = {};
+   const observe = {
+      request: (request: { url: string; headers: Record<string, string> }) => {
+         seen.url = request.url;
+         seen.headers = request.headers;
+      },
+      response: (response: { status: number; headers: Record<string, string> }) => {
+         seen.status = response.status;
+         seen.requestId = response.headers['x-amzn-requestid'];
+      },
+   };
+   const envelope = sampleEnvelope();
+   for await (const _ of agentCoreTransport({ region: 'us-east-1', client }).invoke({ target, envelope, signal: new AbortController().signal, observe })) {
+      // drain
+   }
+   assert.match(seen.url ?? '', /^https:\/\/bedrock-agentcore\.us-east-1\.amazonaws\.com\/runtimes\/.+\/invocations\?qualifier=DEFAULT$/);
+   assert.match(seen.headers?.authorization ?? '', /^AWS4-HMAC-SHA256 /);
+   assert.equal(seen.headers?.['x-amzn-bedrock-agentcore-runtime-session-id'], envelope.runtimeSessionId);
+   assert.equal(seen.status, 200);
+   assert.equal(seen.requestId, 'req-1');
+});

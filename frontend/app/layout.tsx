@@ -24,7 +24,6 @@ export const metadata: Metadata = {
       'Berry — a team workspace where humans and AI coding agents share one board. Tasks, projects, cycles and review gates in one place.',
 };
 
-import { ThemeProvider } from '@/components/layout/theme-provider';
 import { SessionGate } from '@/components/layout/session-gate';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { NextIntlClientProvider } from 'next-intl';
@@ -37,19 +36,19 @@ export default async function RootLayout({
 }>) {
    const locale = await getLocale();
    return (
-      <html lang={locale} suppressHydrationWarning>
+      // Berry is dark only, so the theme is a static class rather than a
+      // provider: next-themes injected an inline script React 19 refuses to run.
+      <html lang={locale} className="dark" suppressHydrationWarning>
          <body
             className={`${dmSerifDisplay.variable} ${jetBrainsMono.variable} bg-background antialiased`}
             suppressHydrationWarning
          >
             <NextIntlClientProvider>
                <NuqsAdapter>
-                  <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark" enableSystem={false}>
-                     <SessionGate>
-                        {children}
-                        <Toaster />
-                     </SessionGate>
-                  </ThemeProvider>
+                  <SessionGate>
+                     {children}
+                     <Toaster />
+                  </SessionGate>
                </NuqsAdapter>
             </NextIntlClientProvider>
          </body>

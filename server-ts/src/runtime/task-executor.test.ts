@@ -151,4 +151,45 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const events = await sql`SELECT 1 FROM run_events WHERE run_id = ${runId}`;
       assert.equal(events.length, 0);
    });
+
+   test('a completion keeps its exchange for the Logs page, with the secrets redacted', async () => {
+      const { runId } = await enqueueTask(sql, {
+         workspaceId: fixture!.workspaceId, agentId: fixture!.orchestratorId, kind: 'completion', source: 'completion', prompt: 'x',
+      });
+      await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose: 't', system: 's', jsonSchema: null, model: null } as never)} WHERE id = ${runId}`;
+      let sentToken = '';
+      const transport: RuntimeTransport = {
+         async *invoke({ envelope, observe }) {
+            sentToken = envelope.berry.token;
+            observe?.request({
+               method: 'POST', url: 'http://runtime.test/invocations',
+               headers: { 'authorization': `Bearer ${'s'.repeat(40)}`, 'content-type': 'application/json' },
+            });
+            observe?.response({ status: 200, headers: { 'content-type': 'text/event-stream' } });
+            yield { type: 'task.started' };
+            yield { type: 'task.completed', result: { text: 'hi', truncated: false, structured: null, delivery: null } };
+         },
+         stop: async () => undefined,
+      };
+      assert.equal((await executor(transport).execute(runId)).status, 'succeeded');
+      const [row] = await sql`SELECT request, payload, response, events FROM run_exchanges WHERE run_id = ${runId}`;
+      const request = row!.request as { url: string; headers: Record<string, string> };
+      assert.equal(request.url, 'http://runtime.test/invocations');
+      assert.equal(request.headers.authorization, '[redacted]');
+      assert.equal(request.headers['content-type'], 'application/json');
+      assert.equal((row!.response as { status: number }).status, 200);
+      const payload = row!.payload as { berry: { token: string }; task: { prompt: string } };
+      assert.equal(payload.berry.token, '[redacted]');
+      assert.equal(payload.task.prompt, 'x');
+      assert.ok(sentToken !== '' && !JSON.stringify(row).includes(sentToken));
+      const kept = row!.events as Array<{ at: string; event: { type: string } }>;
+      assert.deepEqual(kept.map((entry) => entry.event.type), ['task.started', 'task.completed']);
+      assert.ok(kept.every((entry) => !Number.isNaN(Date.parse(entry.at))));
+   });
+
+   test('an agent task keeps no exchange', async () => {
+      const { runId } = await issueTask();
+      await executor(scripted([{ type: 'task.failed', failure: { code: 'X', message: 'no', retryable: false } }])).execute(runId);
+      assert.equal((await sql`SELECT 1 FROM run_exchanges WHERE run_id = ${runId}`).length, 0);
+   });
 });

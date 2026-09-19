@@ -9,12 +9,15 @@ import {
    type ReviewGate,
    type SubmittedVerdict,
 } from '../agents/review-gate.ts';
-import { InvalidTransition, type IssueRepository } from '../core/issues.ts';
+import { InvalidTransition, canTransition, type IssueRepository } from '../core/issues.ts';
 import { withinTx, type Sql } from '../db/pool.ts';
 import { ApiError } from '../http/errors.ts';
 import { notifyApprovalRequested } from '../approvals/notify.ts';
 import { enqueueTask } from '../runs/queue.ts';
+import { taskOf } from '../runtime/agent-tools/core-tools.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from '../runtime/agent-tools/registry.ts';
+import { ActiveRunExists } from '../runs/repository.ts';
+import { postRunResult } from '../runs/result-comment.ts';
 import { defaultBoardId } from '../work/batch.ts';
 import { setParent } from '../work/hierarchy.ts';
 import { callerContract, canDelegate, roleAgent } from './delegation.ts';
@@ -128,6 +131,134 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             // Assigned but not started (e.g. the runtime refuses): the task is visible and can be started.
          }
          return { id: issue.id, identifier: issue.identifier, assignedTo: input.role, runId };
+      },
+   });
+
+   registerAgentTool('assign_task', {
+      description:
+         'Hand an existing task to another role, along your delegation list: it becomes that role\'s agent\'s ' +
+         'task. It starts now unless tasks it depends on are unfinished; then it waits as blocked and starts by ' +
+         'itself when they finish. Use delegate_to_agent to carve out a new sub-task instead.',
+      scope: 'task:write',
+      inputSchema: z.object({
+         task: z.string().trim().min(1).max(80).describe('The task: a key like L42-341, or a task id.'),
+         role: z.string().regex(/^[a-z][a-z0-9-]{1,48}$/),
+         message: z
+            .string()
+            .max(20_000)
+            .optional()
+            .describe('Context for the assignee, posted on the task as your comment and given to its run.'),
+         start: z.boolean().default(true).describe('False assigns without starting a run.'),
+      }),
+      handler: async (context, input) => {
+         const caller = await requireContract(context);
+         const target = await roleAgent(context.sql, context.task.workspaceId, input.role);
+         if (!target) throw ApiError.notFound('Role');
+         if (target.id === context.task.agentId) throw ApiError.badRequest('An agent cannot hand work to itself');
+         if (!canDelegate(caller, target.contract)) {
+            throw new ApiError(403, 'DELEGATION_NOT_ALLOWED', `${caller.id} cannot hand work to ${input.role}`);
+         }
+         const issueId = await taskOf(context, input.task);
+         const [task] = await context.sql<Array<{ status: string; identifier: string }>>`
+            SELECT i.status::text AS status, berry_issue_identifier(b.workspace_id, i.number) AS identifier
+              FROM issues AS i JOIN boards AS b ON b.id = i.board_id
+             WHERE i.id = ${issueId}`;
+         if (!task) throw ApiError.notFound('Task');
+         // Released work is a person's decision; an agent does not reopen it.
+         if (task.status === 'done' || task.status === 'cancelled') {
+            throw new ApiError(409, 'TASK_CLOSED', `${task.identifier} is ${task.status}; a person reopens it, not an agent`);
+         }
+         const waitingOn = await context.sql<Array<{ identifier: string }>>`
+            SELECT berry_issue_identifier(bb.workspace_id, blocker.number) AS identifier
+              FROM issue_dependencies AS edge
+              JOIN issues AS blocker ON blocker.id = edge.depends_on_issue_id AND blocker.deleted_at IS NULL
+              JOIN boards AS bb ON bb.id = blocker.board_id
+             WHERE edge.issue_id = ${issueId} AND blocker.status NOT IN ('done', 'cancelled')
+             ORDER BY blocker.number`;
+         const [escalation] = await context.sql`
+            SELECT 1 FROM approvals
+             WHERE issue_id = ${issueId} AND kind = 'escalation' AND status = 'pending' LIMIT 1`;
+
+         // Parked as blocked while it waits, which is what the dependency
+         // release looks for: when the last prerequisite finishes, the task
+         // moves to todo and its agent starts, with no one here to do it.
+         // Otherwise it is made ready: backlog, or a blocked task no longer
+         // waiting on anything (or anyone), goes to todo.
+         const waiting = waitingOn.length > 0;
+         let next = task.status;
+         if (waiting && (task.status === 'backlog' || task.status === 'todo')) next = 'blocked';
+         if (!waiting && !escalation && (task.status === 'backlog' || task.status === 'blocked')) next = 'todo';
+         // Backlog reaches blocked only through todo: take the legal steps
+         // rather than refuse a move a person would make.
+         const steps =
+            next === task.status
+               ? []
+               : canTransition(task.status, next)
+                 ? [next]
+                 : canTransition(task.status, 'todo') && canTransition('todo', next)
+                   ? ['todo', next]
+                   : [];
+         if (steps.length === 0) next = task.status;
+
+         const write = (status: string | null, assign: boolean) =>
+            deps.issues.update({
+               issueId,
+               patch: {
+                  ...(status ? { status } : {}),
+                  assigneeSet: assign,
+                  ...(assign ? { assignee: { type: 'agent' as const, id: target.id } } : {}),
+                  descriptionSet: false,
+                  dueDateSet: false,
+                  projectSet: false,
+               },
+               actorId: context.task.agentId,
+               actorType: 'agent',
+            });
+         await write(steps[0] ?? null, true);
+         for (const step of steps.slice(1)) await write(step, false);
+         if (input.message) {
+            await postRunResult(context.sql, {
+               issueId,
+               agentId: context.task.agentId,
+               text: input.message,
+               cut: false,
+               occurredAt: new Date().toISOString(),
+            });
+         }
+
+         let runId: string | null = null;
+         let note: string | null = null;
+         if (!input.start) note = 'assigned without starting';
+         else if (waiting) note = `waits for ${waitingOn.map((row) => row.identifier).join(', ')} to finish`;
+         else if (escalation) note = 'blocked on a pending escalation until a person answers it';
+         else if (next !== 'todo' && next !== 'in_progress') note = `not started: the task is ${next}`;
+         else {
+            const [run] = await context.sql`SELECT requested_by FROM runs WHERE id = ${context.task.runId}`;
+            const requestedBy = (run?.requested_by as string | null) ?? null;
+            try {
+               ({ runId } = await enqueueTask(context.sql, {
+                  workspaceId: context.task.workspaceId,
+                  agentId: target.id,
+                  issueId,
+                  kind: 'agent',
+                  source: 'assignment',
+                  ...(input.message ? { prompt: input.message } : {}),
+                  ...(requestedBy ? { requestedBy } : {}),
+               }));
+            } catch (error) {
+               if (!(error instanceof ActiveRunExists)) throw error;
+               note = 'a run is already in progress on this task';
+            }
+         }
+         return {
+            task: task.identifier,
+            assignedTo: input.role,
+            status: next,
+            started: runId !== null,
+            runId,
+            waitingOn: waitingOn.map((row) => row.identifier),
+            ...(note ? { note } : {}),
+         };
       },
    });
 

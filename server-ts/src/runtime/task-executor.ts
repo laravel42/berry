@@ -8,6 +8,7 @@ import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
 import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
+import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type TaskMessage, type TaskResult } from './lifecycle.ts';
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
 import { RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
@@ -53,6 +54,8 @@ export interface RuntimeTaskExecutorOptions {
    reviewGate?: { review(runId: string): Promise<unknown> };
    onGateError?: (error: unknown) => void;
    onUsageError?: (error: unknown) => void;
+   /** Where a prompt-log write that failed is reported. The task is unaffected. */
+   onExchangeLogError?: (error: unknown) => void;
    /** Where a refused session stop is reported. The cancellation still stands. */
    onCancelError?: (error: unknown) => void;
    /** The runtime's maxLifetime: a token never outlives the microVM it was minted for. */
@@ -105,6 +108,7 @@ export class RuntimeTaskExecutor implements Executor {
       }
 
       let envelopeSession = '';
+      let log: ExchangeLog | null = null;
       try {
          const token = await mintTaskToken(sql, {
             runId, workspaceId: task.workspaceId, agentId: task.agentId,
@@ -124,10 +128,25 @@ export class RuntimeTaskExecutor implements Executor {
          const { envelope, delivery, model } = built;
          envelopeSession = envelope.runtimeSessionId;
          await sql`UPDATE runs SET runtime_session_id = ${envelope.runtimeSessionId} WHERE id = ${runId}`;
+         // Kept for the Logs page: what was sent to the runtime and what came
+         // back. A completion keeps its whole exchange. An agent run keeps the
+         // envelope — the system prompt, instructions, transcript and tools its
+         // model starts from — and the shape of its stream, not the thousands
+         // of text deltas its own run log already holds (`agentLogEvent`).
+         log = exchangeLog(
+            sql,
+            { runId, workspaceId: task.workspaceId, envelope },
+            {
+               ...(this.#o.clock ? { clock: this.#o.clock } : {}),
+               ...(this.#o.onExchangeLogError ? { onError: this.#o.onExchangeLogError } : {}),
+               ...(task.kind === 'completion' ? {} : { keep: agentLogEvent }),
+            }
+         );
 
          let verified: Extract<TaskMessage, { kind: 'verified' }> | null = null;
          const usageEvents = new Set<string>();
-         for await (const event of this.#o.transport.invoke({ target, envelope, signal: abort })) {
+         for await (const event of this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer })) {
+            log?.event(event);
             if (abort.aborted) break;
             if (event.type === 'task.started') await recorder.started();
             else if (event.type === 'task.message') {
@@ -163,14 +182,17 @@ export class RuntimeTaskExecutor implements Executor {
       } catch (error) {
          if (abort.aborted) return await this.#cancel(task, recorder, usage, target, envelopeSession);
          if (error instanceof RuntimeUnavailable) {
+            log?.failed(error.message);
             return await this.#fail(task, recorder, usage, { code: 'RUNTIME_UNAVAILABLE', message: error.message, retryable: true });
          }
          if (error instanceof LifecycleStreamError) {
+            log?.failed(error.message);
             return await this.#fail(task, recorder, usage, { code: 'RUNTIME_PROTOCOL', message: error.message, retryable: true });
          }
          throw error;
       } finally {
          await revokeTaskTokens(sql, runId).catch(() => undefined);
+         await log?.flush();
       }
    }
 

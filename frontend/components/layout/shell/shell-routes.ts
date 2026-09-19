@@ -19,8 +19,8 @@ export type ShellRoute =
    | 'members'
    | 'skills'
    | 'autopilots'
-   | 'dashboard'
-   | 'usage';
+   | 'usage'
+   | 'logs';
 
 /** Key under `shell.nav` in the message catalogues. */
 export type ShellLabelKey =
@@ -34,8 +34,8 @@ export type ShellLabelKey =
    | 'analytics'
    | 'skills'
    | 'autopilots'
-   | 'dashboard'
-   | 'usage';
+   | 'usage'
+   | 'logs';
 
 export interface ShellRouteDef {
    /** Stable identifier, also the tab key. */
@@ -126,14 +126,6 @@ const WORK: ShellRouteDef[] = [
 // Runtimes, /settings/runtimes), beside the other workspace configuration.
 const MANAGE: ShellRouteDef[] = [
    {
-      id: 'dashboard',
-      label: 'dashboard',
-      labelKey: 'dashboard',
-      href: '/dashboard',
-      prefsKey: 'dashboard',
-      icon: '<rect x="4" y="4" width="7" height="9" rx="1" /><rect x="13" y="4" width="7" height="5" rx="1" /><rect x="13" y="11" width="7" height="9" rx="1" /><rect x="4" y="15" width="7" height="5" rx="1" />',
-   },
-   {
       id: 'members',
       label: 'agents',
       labelKey: 'agents',
@@ -166,6 +158,16 @@ const MANAGE: ShellRouteDef[] = [
       href: '/usage',
       prefsKey: 'usage',
       icon: '<circle cx="12" cy="12" r="8.5" /><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7c0 2.6-5 1.3-5 4 0 1.1 1 1.8 2.5 1.8s2.5-.5 2.5-1.5" />',
+   },
+   {
+      // Every model call Berry made: the structured prompt it sent and what
+      // came back. Last, because it is where a person goes to debug, not to work.
+      id: 'logs',
+      label: 'logs',
+      labelKey: 'logs',
+      href: '/logs',
+      prefsKey: 'logs',
+      icon: '<path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" />',
    },
 ];
 
