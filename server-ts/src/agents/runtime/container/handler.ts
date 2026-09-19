@@ -28,7 +28,7 @@ import {
    loadRemoteTools,
    type BerryApi,
 } from './remote-tools.ts';
-import type { SessionRegistry } from './sessions.ts';
+import { CallerGone, type SessionRegistry } from './sessions.ts';
 import {
    loadMcpClients,
    mcpToolPermissions,
@@ -121,7 +121,13 @@ function limitMessage(stopReason: string, agent: TaskEnvelope['agent'], checkpoi
    return `${reached}.${kept} Raise the ${raise} on the agent, or split the task into smaller ones.`;
 }
 
-export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps: HandlerDeps): Promise<void> {
+export async function handleInvocation(
+   envelope: TaskEnvelope,
+   emit: Emit,
+   deps: HandlerDeps,
+   /** Aborted when the caller disconnects: the run is then stopped, or never started. */
+   caller?: AbortSignal
+): Promise<void> {
    let ended = false;
    const say: Emit = (event) => {
       if (ended) return;
@@ -130,10 +136,20 @@ export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps:
    };
    if (envelope.kind === 'completion') {
       // Fresh by construction: no registry, so nothing warm is read or kept.
-      await deps.registry.exclusive(envelope.runtimeSessionId, (signal) => runCompletionTask(envelope, say, deps, signal));
+      await deps.registry
+         .exclusive(envelope.runtimeSessionId, (signal) => runCompletionTask(envelope, say, deps, signal), caller)
+         .catch(ignoreCallerGone);
       return;
    }
-   await deps.registry.exclusive(envelope.runtimeSessionId, (signal) => runAgentTask(envelope, say, deps, signal));
+   await deps.registry
+      .exclusive(envelope.runtimeSessionId, (signal) => runAgentTask(envelope, say, deps, signal), caller)
+      .catch(ignoreCallerGone);
+}
+
+/** Nobody is listening for an invocation whose caller left before it started. */
+function ignoreCallerGone(error: unknown): void {
+   if (error instanceof CallerGone) return;
+   throw error;
 }
 
 async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDeps, signal: AbortSignal): Promise<void> {

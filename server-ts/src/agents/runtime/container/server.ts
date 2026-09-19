@@ -79,13 +79,21 @@ export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean
                }, KEEPALIVE_MS);
                keepalive.unref();
                touch();
+               // The caller hanging up — the API restarting, a dispatcher
+               // stopping — ends this invocation. `close` also fires after a
+               // normal end, when there is nothing left to stop.
+               const caller = new AbortController();
+               response.on('close', () => {
+                  if (!response.writableFinished) caller.abort();
+               });
                void handleInvocation(
                   envelope,
                   (event) => {
                      touch();
                      if (!response.writableEnded && !response.destroyed) response.write(encodeLifecycle(event));
                   },
-                  deps
+                  deps,
+                  caller.signal
                ).finally(() => {
                   clearInterval(keepalive);
                   touch();
