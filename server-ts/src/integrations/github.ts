@@ -455,6 +455,59 @@ export class GitHubClient {
       }
    }
 
+   /**
+    * Writes one file to a branch as a commit of its own.
+    *
+    * `sha` is the blob being replaced, which makes the write conditional: if the
+    * file on the branch is no longer that blob — someone pushed, an agent
+    * delivered — GitHub answers 409 and nothing is written. Without it the file
+    * is expected not to exist yet.
+    */
+   async putFile(input: { owner: string; name: string; branch: string; path: string; content: string; message: string; sha: string | null }): Promise<{ commit: string; blob: string }> {
+      const path = input.path.split('/').map(encode).join('/');
+      const value = await this.#json<{ commit?: { sha?: unknown }; content?: { sha?: unknown } }>(
+         'PUT',
+         `/repos/${encode(input.owner)}/${encode(input.name)}/contents/${path}`,
+         {
+            message: input.message,
+            content: Buffer.from(input.content, 'utf8').toString('base64'),
+            branch: input.branch,
+            ...(input.sha ? { sha: input.sha } : {}),
+         }
+      );
+      if (typeof value.commit?.sha !== 'string' || typeof value.content?.sha !== 'string') throw new GitHubError('GitHub did not confirm the commit', 0);
+      return { commit: value.commit.sha, blob: value.content.sha };
+   }
+
+   /** Where a pull request's branch stands: the commit a reviewer is looking at, and its name. */
+   async pullRequestHead(owner: string, name: string, number: number): Promise<{ commit: string; branch: string | null }> {
+      const pull = await this.#json<{ head?: { sha?: unknown; ref?: unknown } }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
+      if (typeof pull.head?.sha !== 'string') throw new GitHubError('GitHub returned a pull request with no head commit', 0);
+      return { commit: pull.head.sha, branch: typeof pull.head.ref === 'string' ? pull.head.ref : null };
+   }
+
+   /**
+    * What a pull request does to each path, up to GitHub's listing limit of
+    * 3000. A rename is the new path, modified. `sha` is the file's blob: for a
+    * deleted file the last one it had, which is how it can still be read.
+    */
+   async pullRequestChanges(owner: string, name: string, number: number): Promise<Array<{ path: string; status: 'added' | 'modified' | 'deleted'; sha: string | null }>> {
+      const changes: Array<{ path: string; status: 'added' | 'modified' | 'deleted'; sha: string | null }> = [];
+      for (let page = 1; page <= 30; page += 1) {
+         const files = await this.#json<Array<{ filename?: unknown; status?: unknown; sha?: unknown }>>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}/files?per_page=100&page=${page}`);
+         for (const file of files) {
+            if (typeof file.filename !== 'string') continue;
+            changes.push({
+               path: file.filename,
+               status: file.status === 'added' ? 'added' : file.status === 'removed' ? 'deleted' : 'modified',
+               sha: typeof file.sha === 'string' ? file.sha : null,
+            });
+         }
+         if (files.length < 100) break;
+      }
+      return changes;
+   }
+
    /** Every file of a commit's tree, by path. Throws when GitHub cuts the listing short. */
    async treeEntries(owner: string, name: string, commit: string): Promise<Map<string, TreeEntry>> {
       const root = `/repos/${encode(owner)}/${encode(name)}`;

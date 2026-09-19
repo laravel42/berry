@@ -218,6 +218,12 @@ export class ReviewQueue {
    }
 
    /** The repository and pull request a run delivered, for the diff read. */
+   /** Whether an agent is working the task right now: its branch is then the run's to move, not a person's. */
+   async hasActiveRun(issueId: string): Promise<boolean> {
+      const [row] = await this.#sql`SELECT 1 FROM runs WHERE issue_id = ${issueId} AND status IN ('queued', 'running') LIMIT 1`;
+      return row !== undefined;
+   }
+
    async pullRequestOf(runId: string): Promise<PullRequestTarget | null> {
       const [row] = await this.#sql`
          SELECT board.workspace_id, project.github_repo_full_name AS repository,
