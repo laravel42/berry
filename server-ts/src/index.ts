@@ -36,6 +36,7 @@ import { previewOrigin, previewProxy } from './previews/proxy.ts';
 import { pullRequestSource } from './previews/source.ts';
 import { releaseTaskResources } from './runs/session-teardown.ts';
 import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
+import { PreviewEnvStore } from './previews/env-store.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
@@ -757,6 +758,7 @@ registry.registerAll(
             issuePreviewEnvironmentRoutes({
                issues,
                environments: previewEnvironments,
+               env: config.integrationKey ? new PreviewEnvStore({ sql, sealer: sealerFromKey(config.integrationKey) }) : null,
                // The agent the task is assigned to, else the last one that worked it:
                // a task in review is often a person's by then. Queued like any other
                // task, so it is the dispatcher that starts it.

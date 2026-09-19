@@ -123,7 +123,8 @@ const EXEC_CONCURRENT = 4;
  */
 const EXEC_SCRIPT = `echo $$ > "$BERRY_PIDFILE" 2>/dev/null; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 && nvm use >/dev/null 2>&1; eval "$BERRY_CMD"; berry_status=$?; rm -f "$BERRY_PIDFILE" 2>/dev/null; printf '\\036BERRY_CWD %s\\036' "$PWD"; exit $berry_status`;
 
-export type DockerRunner = (args: string[], options?: { timeoutMs?: number }) => Promise<{ code: number | null; output: string }>;
+/** `env` is added to the docker client's own environment: how a secret reaches `--env NAME` without being an argument. */
+export type DockerRunner = (args: string[], options?: { timeoutMs?: number; env?: Record<string, string> }) => Promise<{ code: number | null; output: string }>;
 
 interface RunningApp {
    app: PreviewApp;
@@ -233,7 +234,7 @@ export class PreviewEnvironments {
     * commit. A new commit, or `force`, replaces it. Returns at once: the work is
     * followed through `status`.
     */
-   start(issueId: string, source: PreviewSource, options: { force?: boolean } = {}): EnvironmentStatus {
+   start(issueId: string, source: PreviewSource, options: { force?: boolean; variables?: Record<string, string> } = {}): EnvironmentStatus {
       const current = this.#byIssue.get(issueId);
       const reusable = current && current.commit === source.commit && current.state !== 'failed' && current.state !== 'unavailable';
       if (current && reusable && !options.force) {
@@ -262,7 +263,7 @@ export class PreviewEnvironments {
       this.#byId.set(env.id, env);
       void replaced
          .then(() => this.#makeRoom(env))
-         .then(() => this.#run(env, source))
+         .then(() => this.#run(env, source, options.variables ?? {}))
          .catch((error: unknown) => this.#fail(env, error));
       return this.status(issueId);
    }
@@ -388,11 +389,16 @@ export class PreviewEnvironments {
       while (others.length >= max) await this.#stop(others.shift()!);
    }
 
-   async #run(env: Environment, source: PreviewSource): Promise<void> {
+   async #run(env: Environment, source: PreviewSource, variables: Record<string, string>): Promise<void> {
       const generation = env.generation;
       const live = () => env.generation === generation && this.#byId.get(env.id) === env;
+      // A project's variables are secrets as a rule, and a build that fails often
+      // prints its environment. What is long enough to be one is never kept in the log.
+      const secrets = Object.values(variables).filter((value) => value.length >= 8).sort((a, b) => b.length - a.length);
       const say = (text: string) => {
-         env.log = (env.log + text).slice(-LOG_LIMIT);
+         let shown = text;
+         for (const secret of secrets) shown = shown.split(secret).join('••••••');
+         env.log = (env.log + shown).slice(-LOG_LIMIT);
       };
 
       if (!(await this.available())) throw new Error('This server cannot run previews: Docker is not available.');
@@ -450,8 +456,10 @@ export class PreviewEnvironments {
          const container = `berry-pv-${env.id}-${app.name}`;
          env.containers.push(container);
          await this.#must(
-            appArgs({ id: env.id, owner: this.#owner, network, container, app, image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), services: plan.services }),
-            `start ${app.name}`
+            appArgs({ id: env.id, owner: this.#owner, network, container, app, image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), variables: Object.keys(variables), services: plan.services }),
+            `start ${app.name}`,
+            60_000,
+            variables
          );
          const running: RunningApp = { app, container, port: null, ready: false };
          env.apps.push(running);
@@ -527,8 +535,8 @@ export class PreviewEnvironments {
       return result.code === 0 && found ? Number(found) : null;
    }
 
-   async #must(args: string[], what: string, timeoutMs = 60_000): Promise<void> {
-      const result = await this.#docker(args, { timeoutMs });
+   async #must(args: string[], what: string, timeoutMs = 60_000, env?: Record<string, string>): Promise<void> {
+      const result = await this.#docker(args, { timeoutMs, ...(env ? { env } : {}) });
       if (result.code !== 0) throw new Error(`Could not ${what}: ${result.output.trim().slice(-400) || `docker exited ${result.code}`}`);
    }
 
@@ -598,6 +606,8 @@ export function appArgs(input: {
    tree: string;
    modulesVolume: string;
    env: Record<string, string>;
+   /** The project's own variables, by name only: docker reads each value from its client's environment. They win over the plan's. */
+   variables?: string[];
    services: PreviewService[];
 }): string[] {
    const { app } = input;
@@ -615,7 +625,8 @@ export function appArgs(input: {
       // Every manager's download cache in the one volume that outlives the container.
       '--env', 'npm_config_store_dir=/root/.npm/_pnpm-store', '--env', 'YARN_CACHE_FOLDER=/root/.npm/_yarn', '--env', 'BUN_INSTALL_CACHE_DIR=/root/.npm/_bun',
       '--env', 'COREPACK_ENABLE_DOWNLOAD_PROMPT=0',
-      ...Object.entries(input.env).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+      ...Object.entries(input.env).filter(([key]) => !input.variables?.includes(key)).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+      ...(input.variables ?? []).flatMap((key) => ['--env', key]),
       '--volume', `${input.tree}:/work`,
       // Kept per task and app in Docker's own storage: a restart of the same dependencies skips the install.
       '--volume', `${input.modulesVolume}:${workdir}/node_modules`,
@@ -689,9 +700,9 @@ function extract(archive: string, into: string): Promise<void> {
    });
 }
 
-function runDocker(args: string[], options: { timeoutMs?: number } = {}): Promise<{ code: number | null; output: string }> {
+function runDocker(args: string[], options: { timeoutMs?: number; env?: Record<string, string> } = {}): Promise<{ code: number | null; output: string }> {
    return new Promise((resolve) => {
-      const child = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'], ...(options.env ? { env: { ...process.env, ...options.env } } : {}) });
       let output = '';
       const take = (chunk: Buffer) => { output = (output + chunk.toString('utf8')).slice(-8_000); };
       child.stdout.on('data', take);

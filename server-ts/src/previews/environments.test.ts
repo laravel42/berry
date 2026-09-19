@@ -255,3 +255,29 @@ test('a command is refused for a process the plan does not have, a stopped previ
    await assert.rejects(attempt('issue-y', { target: 'web', command: 'id', cwd: '../../etc' }), /not a directory/);
    assert.equal(ran, 0);
 });
+
+test('a project’s variables reach the app by name, never as an argument, and never stay in the log', async () => {
+   const given: Array<Record<string, string> | undefined> = [];
+   const calls: string[][] = [];
+   const { docker } = fakeDocker();
+   const watching: DockerRunner = async (args, options) => {
+      calls.push(args);
+      if (args[0] === 'run') given.push(options?.env);
+      return docker(args, options);
+   };
+   const envs = environments(watching, {
+      follow: (_container, onOutput) => {
+         onOutput('connecting with sk-secret-value-123\n');
+         return () => undefined;
+      },
+   });
+   envs.start('issue-env', archiveOf({ 'package.json': JSON.stringify({ dependencies: { next: '15' } }) }), { variables: { OPENAI_API_KEY: 'sk-secret-value-123' } });
+   const status = await settled(envs, 'issue-env');
+   assert.equal(status.state, 'ready');
+   const run = calls.find((args) => args[0] === 'run' && args.some((arg) => /^berry-pv-.*-web$/.test(arg)))!;
+   assert.ok(run.some((arg, index) => arg === 'OPENAI_API_KEY' && run[index - 1] === '--env'));
+   assert.ok(!calls.flat().some((arg) => arg.includes('sk-secret-value-123')));
+   assert.deepEqual(given.at(-1), { OPENAI_API_KEY: 'sk-secret-value-123' });
+   assert.ok(!status.log.includes('sk-secret-value-123'));
+   assert.match(status.log, /connecting with ••••••/);
+});

@@ -4,6 +4,8 @@ import type { IssueRepository } from '../core/issues.ts';
 import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
+import { SealingFailed, SealingUnavailable } from '../integrations/sealing.ts';
+import { EnvInvalid, type PreviewEnvStore } from '../previews/env-store.ts';
 import { ExecRefused, type PreviewEnvironments, type PreviewSource } from '../previews/environments.ts';
 import { fixInstructions } from '../previews/fix.ts';
 import { ActiveRunExists } from '../runs/repository.ts';
@@ -25,6 +27,8 @@ export function issuePreviewEnvironmentRoutes(options: {
    issues: IssueRepository;
    environments: PreviewEnvironments | null;
    source: (issue: { id: string; workspaceId: string }) => Promise<PreviewSource | null>;
+   /** The project's sealed build variables. Null when this server has no key to seal them with. */
+   env?: PreviewEnvStore | null;
    /**
     * Queues a run on the task for the agent that works it, with these
     * instructions. Null when no agent has worked the task, so there is nobody
@@ -70,7 +74,41 @@ export function issuePreviewEnvironmentRoutes(options: {
          throw new ApiError(409, 'NOTHING_TO_PREVIEW', 'This task has no repository work to preview yet: no run has delivered a commit.');
       }
       const body = (await context.req.json().catch(() => ({}))) as { force?: unknown };
-      return json({ available: true, previewable: true, ...environments.start(issue.id, source, { force: body?.force === true }) }, 202);
+      // What the project's builds are given. Stored text always parses; a key that
+      // no longer opens it is said rather than started without.
+      const variables = options.env ? await options.env.variablesFor(issue.id).catch(sealed) : {};
+      return json({ available: true, previewable: true, ...environments.start(issue.id, source, { force: body?.force === true, variables }) }, 202);
+   });
+
+   /**
+    * The variables the project's builds are given, as the `.env` text a person
+    * wrote. Write access to read as well as to change: these are secrets, and
+    * whoever may start the build that receives them may see them.
+    */
+   route.get('/:issueRef/preview-environment/env', async (context) => {
+      const issue = await issueFor(context, 'product.write');
+      if (!options.env) return json({ available: false, project: null, text: '', updatedAt: null });
+      const project = await options.env.projectOf(issue.id);
+      if (!project) return json({ available: true, project: null, text: '', updatedAt: null });
+      const held = await options.env.read(project.id).catch(sealed);
+      return json({ available: true, project: { id: project.id, name: project.name }, ...held });
+   });
+
+   route.put('/:issueRef/preview-environment/env', async (context) => {
+      const issue = await issueFor(context, 'product.write');
+      if (!options.env) throw new ApiError(412, 'SEALING_UNAVAILABLE', 'This server has no INTEGRATION_ENCRYPTION_KEY, so it cannot keep secrets.');
+      const body = (await context.req.json().catch(() => null)) as { text?: unknown } | null;
+      if (!body || typeof body.text !== 'string') throw new ApiError(400, 'VALIDATION_FAILED', 'The environment text is required.');
+      const project = await options.env.projectOf(issue.id);
+      if (!project) throw new ApiError(409, 'NO_PROJECT', 'Build variables belong to a project, and this task is in none. Add it to a project first.');
+      try {
+         await options.env.write(project, body.text, context.get('user').id);
+      } catch (error) {
+         if (error instanceof EnvInvalid) throw new ApiError(400, 'ENV_INVALID', error.message, { line: error.line });
+         sealed(error);
+      }
+      const held = await options.env.read(project.id);
+      return json({ available: true, project: { id: project.id, name: project.name }, ...held });
    });
 
    /**
@@ -153,6 +191,14 @@ export function issuePreviewEnvironmentRoutes(options: {
    });
 
    return route;
+}
+
+/** A key that is missing or no longer opens what was stored, in words; anything else as it was. */
+function sealed(error: unknown): never {
+   if (error instanceof SealingUnavailable || error instanceof SealingFailed) {
+      throw new ApiError(412, 'SEALING_UNAVAILABLE', 'The stored build variables cannot be opened with this server\'s INTEGRATION_ENCRYPTION_KEY.');
+   }
+   throw error;
 }
 
 function rethrow(error: unknown): never {
