@@ -2,8 +2,10 @@ import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { PlanRefused, planFor, resolveEnv, type PreviewApp, type PreviewPlan, type PreviewService, type RepositoryView } from './plan.ts';
@@ -26,6 +28,14 @@ import { NPM_CACHE_VOLUME } from './site-builds.ts';
  */
 
 export const PREVIEW_LABEL = 'berry.preview';
+/** Which Berry server started it. Two servers on one machine each clear only what is theirs. */
+export const PREVIEW_OWNER_LABEL = 'berry.preview.owner';
+
+/** Berry's own preview image (sandbox/preview/Dockerfile): Node with pnpm, yarn, bun and nvm, on Debian. Built on first use. */
+export const PREVIEW_IMAGE = 'berry-preview:node22';
+/** What a server without that Dockerfile falls back to: the same base, without the extra managers. */
+const STOCK_IMAGE = 'node:22-bookworm-slim';
+const PREVIEW_IMAGE_SOURCE = fileURLToPath(new URL('../../sandbox/preview', import.meta.url));
 
 export type EnvironmentState = 'idle' | 'fetching' | 'starting' | 'ready' | 'failed' | 'unavailable';
 
@@ -33,7 +43,14 @@ export interface EnvironmentStatus {
    state: EnvironmentState;
    /** The commit the environment runs, when it has got as far as knowing. */
    commit: string | null;
-   plan: { source: PreviewPlan['source']; apps: Array<{ name: string; kind: string; primary: boolean; url: string; ready: boolean }>; services: string[] } | null;
+   plan: {
+      source: PreviewPlan['source'];
+      /** Where the repository is mounted in every app's container: where a shell opens. */
+      root: string;
+      /** `workdir` is where the app's folder of the repository is mounted in its container: where a shell opens. */
+      apps: Array<{ name: string; kind: string; primary: boolean; url: string; ready: boolean; workdir: string }>;
+      services: string[];
+   } | null;
    /** Where the primary app answers, once it does. */
    url: string | null;
    log: string;
@@ -51,6 +68,12 @@ export interface PreviewSource {
 export interface PreviewEnvironmentsOptions {
    /** The public origin of an app: `http://p-<id>-<app>.preview.localhost:4000`. */
    origin(id: string, app: string): string;
+   /**
+    * This server, among the ones that may share the machine's Docker: its listen
+    * address. What an earlier process of the same server left running is
+    * removed at start-up; what another server is running is not.
+    */
+   owner?: string;
    root?: string;
    image?: string;
    idleMs?: number;
@@ -62,8 +85,43 @@ export interface PreviewEnvironmentsOptions {
    follow?: (container: string, onOutput: (text: string) => void) => () => void;
    /** Whether an app answers on its published port. Injected by tests. */
    answers?: (port: number) => Promise<boolean>;
+   /** Runs `docker exec …`, streaming. Injected by tests. */
+   exec?: ExecRunner;
    clock?: () => number;
 }
+
+/** One command in one of a preview's containers, its output as it comes. Injected by tests. */
+export type ExecRunner = (
+   args: string[],
+   options: { signal: AbortSignal; onOutput: (text: string) => void }
+) => Promise<number | null>;
+
+export interface ExecResult {
+   exitCode: number | null;
+   /** Where the shell was when the command ended: the next command's starting point. */
+   cwd: string | null;
+   /** Set when Berry ended it: it ran too long, or wrote too much. */
+   stopped: 'timeout' | 'output' | null;
+}
+
+export class ExecRefused extends Error {
+   override readonly name = 'ExecRefused';
+}
+
+const EXEC_TIMEOUT_SECONDS = 300;
+const EXEC_OUTPUT_LIMIT = 1024 * 1024;
+const EXEC_CONCURRENT = 4;
+
+/**
+ * What the container's shell runs. Fixed text: the person's command arrives in
+ * `BERRY_CMD`, an environment variable, and is `eval`ed by the shell inside the
+ * container — it is never spliced into a string a shell on this machine reads.
+ * `eval` rather than a child shell so a `cd` moves this shell, whose directory
+ * is reported on the way out and becomes the session's next starting point.
+ * Where the image has nvm it is loaded first and pointed at the repository's
+ * `.nvmrc`, so a terminal runs the same Node the app does.
+ */
+const EXEC_SCRIPT = `echo $$ > "$BERRY_PIDFILE" 2>/dev/null; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null 2>&1 && nvm use >/dev/null 2>&1; eval "$BERRY_CMD"; berry_status=$?; rm -f "$BERRY_PIDFILE" 2>/dev/null; printf '\\036BERRY_CWD %s\\036' "$PWD"; exit $berry_status`;
 
 export type DockerRunner = (args: string[], options?: { timeoutMs?: number }) => Promise<{ code: number | null; output: string }>;
 
@@ -88,6 +146,8 @@ interface Environment {
    startedAt: number;
    lastUsed: number;
    stops: Array<() => void>;
+   /** Commands people are running in its containers right now. */
+   execs: number;
    /** Bumped when the environment is stopped, so a start still in flight gives up. */
    generation: number;
 }
@@ -99,9 +159,13 @@ const MAX_READ_BYTES = 256 * 1024;
 export class PreviewEnvironments {
    readonly #o: PreviewEnvironmentsOptions;
    readonly #root: string;
-   readonly #image: string;
+   readonly #image: string | null;
+   #imageReady: Promise<string> | null = null;
+   /** An image check or build is in flight: whoever arrives now is waiting on it. */
+   #imagePending = false;
    readonly #docker: DockerRunner;
    readonly #clock: () => number;
+   readonly #owner: string;
    readonly #byIssue = new Map<string, Environment>();
    readonly #byId = new Map<string, Environment>();
    #available: Promise<boolean> | null = null;
@@ -110,9 +174,11 @@ export class PreviewEnvironments {
       this.#o = options;
       // Under the home directory: Docker Desktop and Colima share only that with their VM.
       this.#root = options.root ?? join(homedir(), '.cache', 'berry', 'previews');
-      this.#image = options.image ?? 'node:22-alpine';
+      // Null means Berry's own image, built when first needed; a caller that names one gets exactly that.
+      this.#image = options.image ?? null;
       this.#docker = options.docker ?? runDocker;
       this.#clock = options.clock ?? Date.now;
+      this.#owner = (options.owner ?? 'berry').replace(/[^A-Za-z0-9_.:-]/g, '_');
    }
 
    available(): Promise<boolean> {
@@ -125,10 +191,11 @@ export class PreviewEnvironments {
    /** Removes what an earlier server process left running. Called once at start-up. */
    async removeOrphans(): Promise<void> {
       if (!(await this.available())) return;
-      const containers = await this.#docker(['ps', '-aq', '--filter', `label=${PREVIEW_LABEL}`]);
+      const mine = `label=${PREVIEW_OWNER_LABEL}=${this.#owner}`;
+      const containers = await this.#docker(['ps', '-aq', '--filter', mine]);
       const ids = containers.output.split('\n').map((line) => line.trim()).filter(Boolean);
       if (ids.length > 0) await this.#docker(['rm', '--force', ...ids]);
-      const networks = await this.#docker(['network', 'ls', '-q', '--filter', `label=${PREVIEW_LABEL}`]);
+      const networks = await this.#docker(['network', 'ls', '-q', '--filter', mine]);
       for (const network of networks.output.split('\n').map((line) => line.trim()).filter(Boolean)) {
          await this.#docker(['network', 'rm', network]);
       }
@@ -143,12 +210,14 @@ export class PreviewEnvironments {
          commit: env.commit,
          plan: env.plan && {
             source: env.plan.source,
+            root: REPOSITORY_ROOT,
             apps: env.plan.apps.map((app) => ({
                name: app.name,
                kind: app.kind,
                primary: app.primary,
                url: this.#o.origin(env.id, app.name),
                ready: env.apps.find((running) => running.app.name === app.name)?.ready ?? false,
+               workdir: workdirOf(app),
             })),
             services: env.plan.services.map((service) => service.name),
          },
@@ -186,6 +255,7 @@ export class PreviewEnvironments {
          startedAt: this.#clock(),
          lastUsed: this.#clock(),
          stops: [],
+         execs: 0,
          generation: 0,
       };
       this.#byIssue.set(issueId, env);
@@ -210,6 +280,88 @@ export class PreviewEnvironments {
       env.lastUsed = this.#clock();
       const running = appName === null ? env.apps.find((entry) => entry.app.primary) : env.apps.find((entry) => entry.app.name === appName);
       return running?.port ?? null;
+   }
+
+   /**
+    * Runs a person's command in one of the environment's containers: an app's,
+    * where the repository is mounted, or a service's (`psql` in the database).
+    *
+    * The container is named from the plan — `target` only selects among the
+    * processes the plan has — and it is the same locked-down container the app
+    * runs in: no capabilities, bounded memory, CPU and processes, a private
+    * network. A command cannot outlive its limit (`timeout` inside the
+    * container, since killing the Docker client leaves the process running),
+    * and one that is abandoned is killed by the pid it recorded.
+    */
+   async exec(
+      issueId: string,
+      input: { target: string; command: string; cwd?: string | null },
+      options: { signal: AbortSignal; onOutput: (text: string) => void }
+   ): Promise<ExecResult> {
+      const env = this.#byIssue.get(issueId);
+      if (!env?.plan || (env.state !== 'ready' && env.state !== 'starting')) throw new ExecRefused('The preview is not running, so there is no container to run a command in.');
+      const app = env.plan.apps.find((candidate) => candidate.name === input.target);
+      const service = env.plan.services.find((candidate) => candidate.name === input.target);
+      if (!app && !service) throw new ExecRefused(`This preview has no process called ${input.target}.`);
+      const command = input.command.trim();
+      if (command === '' || command.length > 4000 || command.includes('\u0000')) throw new ExecRefused('That is not a command this terminal can run.');
+      // A shell starts at the top of the checkout, like a terminal opened on a repository; the app's own folder is one `cd` away.
+      const cwd = input.cwd ?? (app ? REPOSITORY_ROOT : null);
+      if (cwd !== null && (!cwd.startsWith('/') || cwd.length > 1000 || /[\u0000\n]/.test(cwd))) throw new ExecRefused('That is not a directory.');
+      if (env.execs >= EXEC_CONCURRENT) throw new ExecRefused('Too many commands are already running in this preview. Wait for one to finish, or stop it.');
+
+      env.execs += 1;
+      env.lastUsed = this.#clock();
+      const container = `berry-pv-${env.id}-${input.target}`;
+      const pidfile = `/tmp/.berry-exec-${randomBytes(6).toString('hex')}`;
+      let written = 0;
+      let tail = '';
+      let stopped: ExecResult['stopped'] = null;
+      const limit = new AbortController();
+      const signal = AbortSignal.any([options.signal, limit.signal]);
+      try {
+         const exitCode = await (this.#o.exec ?? execDocker)(
+            [
+               'exec', '--interactive=false',
+               ...(cwd === null ? [] : ['--workdir', cwd]),
+               '--env', `BERRY_CMD=${command}`, '--env', `BERRY_PIDFILE=${pidfile}`, '--env', 'TERM=dumb', '--env', 'NO_COLOR=1',
+               container, 'sh', '-c',
+               // `timeout` is in busybox and in coreutils, which covers every image a preview runs.
+               `if command -v timeout >/dev/null 2>&1; then exec timeout -s KILL ${EXEC_TIMEOUT_SECONDS} sh -c '${EXEC_SCRIPT.replaceAll("'", `'\\''`)}'; else exec sh -c '${EXEC_SCRIPT.replaceAll("'", `'\\''`)}'; fi`,
+            ],
+            {
+               signal,
+               onOutput: (text) => {
+                  written += text.length;
+                  if (written > EXEC_OUTPUT_LIMIT) {
+                     stopped = 'output';
+                     limit.abort();
+                     return;
+                  }
+                  // The trailer may arrive split across chunks: hold back what could be its start.
+                  const joined = tail + text;
+                  const mark = joined.indexOf('\u001e');
+                  if (mark === -1) {
+                     tail = '';
+                     options.onOutput(joined);
+                  } else {
+                     tail = joined.slice(mark);
+                     if (mark > 0) options.onOutput(joined.slice(0, mark));
+                  }
+               },
+            }
+         );
+         const reported = /^\u001eBERRY_CWD ([^\u001e]*)\u001e?$/.exec(tail)?.[1] ?? null;
+         if (reported === null && tail !== '') options.onOutput(tail);
+         if (exitCode === 137 && stopped === null && !options.signal.aborted) stopped = 'timeout';
+         return { exitCode, cwd: reported && reported.startsWith('/') ? reported : null, stopped };
+      } finally {
+         env.execs -= 1;
+         if (signal.aborted) {
+            // The Docker client is gone; the process it started is not. Its children first, then it.
+            void this.#docker(['exec', container, 'sh', '-c', `p=$(cat ${pidfile} 2>/dev/null) && { pkill -KILL -P "$p" 2>/dev/null; kill -KILL "$p" 2>/dev/null; rm -f ${pidfile}; }`], { timeoutMs: 10_000 }).catch(() => undefined);
+         }
+      }
    }
 
    async stop(issueId: string): Promise<void> {
@@ -277,23 +429,28 @@ export class PreviewEnvironments {
       say(`Preview plan (${plan.source === 'manifest' ? 'from .berry/preview.json' : 'detected'}): ${plan.apps.map((app) => `${app.name} [${app.kind}] in ${app.dir}`).join(', ')}${plan.services.length ? `; services: ${plan.services.map((service) => service.image).join(', ')}` : ''}\n`);
 
       const network = `berry-pv-${env.id}`;
-      await this.#must(['network', 'create', '--label', `${PREVIEW_LABEL}=${env.id}`, network], 'create the private network');
+      await this.#must(['network', 'create', '--label', `${PREVIEW_LABEL}=${env.id}`, '--label', `${PREVIEW_OWNER_LABEL}=${this.#owner}`, network], 'create the private network');
       env.network = network;
       for (const service of plan.services) {
          const container = `berry-pv-${env.id}-${service.name}`;
          env.containers.push(container);
          say(`Starting ${service.name} (${service.image})…\n`);
-         await this.#must(serviceArgs({ id: env.id, network, container, service }), `start ${service.name}`, 5 * 60_000);
+         await this.#must(serviceArgs({ id: env.id, owner: this.#owner, network, container, service }), `start ${service.name}`, 5 * 60_000);
+         // A service's own output, under its name like an app's: a database that
+         // refuses connections or a search node that runs out of memory says so there.
+         env.stops.push((this.#o.follow ?? followLogs)(container, (text) => say(prefixLines(service.name, text))));
       }
       if (!live()) return;
 
+      const image = await this.#appImage(say);
+      if (!live()) return;
       const addresses = { url: (app: string) => this.#o.origin(env.id, app) };
       const modulesKey = env.issueId.replace(/[^a-z0-9]/gi, '').slice(0, 24).toLowerCase();
       for (const app of plan.apps) {
          const container = `berry-pv-${env.id}-${app.name}`;
          env.containers.push(container);
          await this.#must(
-            appArgs({ id: env.id, network, container, app, image: this.#image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), services: plan.services }),
+            appArgs({ id: env.id, owner: this.#owner, network, container, app, image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), services: plan.services }),
             `start ${app.name}`
          );
          const running: RunningApp = { app, container, port: null, ready: false };
@@ -327,6 +484,41 @@ export class PreviewEnvironments {
          if (this.#clock() > deadline) throw new Error('The preview did not start in time. The log above shows how far it got.');
          await new Promise((resolve) => setTimeout(resolve, 1_000));
       }
+   }
+
+   /**
+    * The image apps run in. Berry's own is built the first time a preview
+    * needs it — a few minutes, once per machine — and said so in the log, so
+    * the wait is not a mystery. One build at a time, shared by every preview
+    * that arrives meanwhile; a build that fails is tried again by the next.
+    */
+   #appImage(say: (text: string) => void): Promise<string> {
+      if (this.#image !== null) return Promise.resolve(this.#image);
+      // Another preview got here first and may be building it: this one's log should not just stop.
+      if (this.#imagePending) say('Waiting for the preview image, which another preview is getting ready…\n');
+      this.#imagePending = true;
+      this.#imageReady ??= (async () => {
+         const present = await this.#docker(['image', 'inspect', '--format', '{{.Id}}', PREVIEW_IMAGE], { timeoutMs: 20_000 });
+         if (present.code === 0) return PREVIEW_IMAGE;
+         if (!existsSync(join(PREVIEW_IMAGE_SOURCE, 'Dockerfile'))) {
+            say(`Berry's preview image is not on this server; using ${STOCK_IMAGE}, which has npm only.\n`);
+            return STOCK_IMAGE;
+         }
+         say('Building the preview image (Node with pnpm, yarn, bun, nvm and Python). This happens once per machine and takes a few minutes…\n');
+         const built = await this.#docker(['build', '--tag', PREVIEW_IMAGE, PREVIEW_IMAGE_SOURCE], { timeoutMs: 20 * 60_000 });
+         if (built.code !== 0) throw new Error(`The preview image could not be built: ${built.output.trim().slice(-400)}`);
+         say('The preview image is built.\n');
+         return PREVIEW_IMAGE;
+      })();
+      const pending = this.#imageReady;
+      pending
+         .catch(() => {
+            if (this.#imageReady === pending) this.#imageReady = null;
+         })
+         .finally(() => {
+            this.#imagePending = false;
+         });
+      return pending;
    }
 
    async #publishedPort(container: string, port: number): Promise<number | null> {
@@ -366,14 +558,23 @@ export class PreviewEnvironments {
    }
 }
 
+/** Where the repository is mounted in an app's container. */
+export const REPOSITORY_ROOT = '/work';
+
+/** The app's folder of the repository, inside its container: where it installs, builds and starts. */
+export function workdirOf(app: Pick<PreviewApp, 'dir'>): string {
+   return app.dir === '.' ? REPOSITORY_ROOT : `${REPOSITORY_ROOT}/${app.dir}`;
+}
+
 const LIMITS = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '--pids-limit', '512'];
 
 /** A backing store: the image's own entrypoint, the few capabilities an init script needs, nothing published. */
-export function serviceArgs(input: { id: string; network: string; container: string; service: PreviewService }): string[] {
+export function serviceArgs(input: { id: string; owner?: string; network: string; container: string; service: PreviewService }): string[] {
    const { service } = input;
    return [
       'run', '--detach', '--rm', '--name', input.container,
       '--label', `${PREVIEW_LABEL}=${input.id}`,
+      ...(input.owner ? ['--label', `${PREVIEW_OWNER_LABEL}=${input.owner}`] : []),
       '--network', input.network, '--network-alias', service.name,
       '--cap-drop', 'ALL',
       // What an official image's entrypoint does before dropping to its own user: own its data directory.
@@ -389,6 +590,7 @@ export function serviceArgs(input: { id: string; network: string; container: str
 
 export function appArgs(input: {
    id: string;
+   owner?: string;
    network: string;
    container: string;
    app: PreviewApp;
@@ -399,16 +601,20 @@ export function appArgs(input: {
    services: PreviewService[];
 }): string[] {
    const { app } = input;
-   const workdir = app.dir === '.' ? '/work' : `/work/${app.dir}`;
+   const workdir = workdirOf(app);
    return [
       'run', '--detach', '--rm', '--init', '--name', input.container,
       '--label', `${PREVIEW_LABEL}=${input.id}`,
+      ...(input.owner ? ['--label', `${PREVIEW_OWNER_LABEL}=${input.owner}`] : []),
       '--network', input.network, '--network-alias', app.name,
       // Loopback, on a port Docker picks: only the preview proxy reaches it.
       '--publish', `127.0.0.1::${app.port}`,
       ...LIMITS, '--memory', '2g', '--cpus', '2',
       '--env', 'CI=true', '--env', 'NO_COLOR=1', '--env', 'FORCE_COLOR=0', '--env', 'npm_config_update_notifier=false',
       '--env', 'NEXT_TELEMETRY_DISABLED=1', '--env', `PORT=${app.port}`,
+      // Every manager's download cache in the one volume that outlives the container.
+      '--env', 'npm_config_store_dir=/root/.npm/_pnpm-store', '--env', 'YARN_CACHE_FOLDER=/root/.npm/_yarn', '--env', 'BUN_INSTALL_CACHE_DIR=/root/.npm/_bun',
+      '--env', 'COREPACK_ENABLE_DOWNLOAD_PROMPT=0',
       ...Object.entries(input.env).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
       '--volume', `${input.tree}:/work`,
       // Kept per task and app in Docker's own storage: a restart of the same dependencies skips the install.
@@ -427,16 +633,20 @@ export function appArgs(input: {
 export function appScript(app: PreviewApp, services: PreviewService[]): string {
    const lines = ['set -e'];
    for (const service of services) {
-      lines.push(
-         `echo "Waiting for ${service.name}…"`,
-         `i=0; until nc -z ${service.name} ${service.port} 2>/dev/null; do i=$((i+1)); if [ $i -gt 240 ]; then echo "${service.name} never answered on ${service.port}"; exit 1; fi; sleep 0.5; done`
-      );
+      lines.push(`echo "Waiting for ${service.name}…"`, waitFor(service.name, service.port));
    }
+   // The Node the repository pins, when the image has nvm to fetch it with.
+   lines.push('if [ -f .nvmrc ] && [ -s "${NVM_DIR:-/nonexistent}/nvm.sh" ]; then echo "Using the Node version in .nvmrc…"; . "$NVM_DIR/nvm.sh"; nvm install; fi');
    lines.push('echo "Installing…"', app.install);
    if (app.build) lines.push('echo "Building…"', app.build);
    if (app.migrate) lines.push('echo "Migrating…"', app.migrate);
    lines.push(`echo "Starting: ${app.start.replaceAll('"', '\\"').replaceAll('$', '\\$')}"`, `exec ${app.start}`);
    return lines.join('\n');
+}
+
+/** Waits for a port with Node, which every image an app runs in has; `nc` is not in all of them. */
+function waitFor(host: string, port: number): string {
+   return `node -e 'const net=require("net");let n=0;(function go(){const s=net.connect(${port},"${host}");s.on("connect",()=>process.exit(0));s.on("error",()=>{s.destroy();if(++n>240){console.error("${host} never answered on ${port}");process.exit(1)}setTimeout(go,500)})})()'`;
 }
 
 function prefixLines(name: string, text: string): string {
@@ -503,4 +713,21 @@ function followLogs(container: string, onOutput: (text: string) => void): () => 
 /** Any HTTP answer counts — a 404 from a server is a server. */
 async function answersOn(port: number): Promise<boolean> {
    return fetch(`http://127.0.0.1:${port}/`, { redirect: 'manual', signal: AbortSignal.timeout(3_000) }).then(() => true).catch(() => false);
+}
+
+/** `docker exec`, its output streamed, ended with the signal. Resolves with the exit code. */
+function execDocker(args: string[], options: { signal: AbortSignal; onOutput: (text: string) => void }): Promise<number | null> {
+   return new Promise((resolve) => {
+      const child = spawn('docker', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      child.stdout.on('data', (chunk: Buffer) => options.onOutput(chunk.toString('utf8')));
+      child.stderr.on('data', (chunk: Buffer) => options.onOutput(chunk.toString('utf8')));
+      const end = () => child.kill('SIGKILL');
+      options.signal.addEventListener('abort', end, { once: true });
+      if (options.signal.aborted) end();
+      child.on('error', () => resolve(null));
+      child.on('close', (code) => {
+         options.signal.removeEventListener('abort', end);
+         resolve(code);
+      });
+   });
 }

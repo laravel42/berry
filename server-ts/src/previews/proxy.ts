@@ -98,8 +98,16 @@ export function previewProxy(targets: PreviewTargets, domain: string, doFetch: t
       upstream.headers.forEach((value, key) => {
          if (!HOP.has(key.toLowerCase())) answer.append(key, value);
       });
-      // Shown inside Berry's review page: an app that forbids framing forbids its own preview.
+      // Shown inside Berry's review page: an app that forbids framing forbids its
+      // own preview. Both ways of saying so go — helmet's defaults send the CSP one.
       answer.delete('x-frame-options');
+      for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
+         const policy = answer.get(name);
+         if (!policy) continue;
+         const kept = policy.split(';').map((part) => part.trim()).filter((part) => part !== '' && !/^frame-ancestors(\s|$)/i.test(part));
+         if (kept.length > 0) answer.set(name, kept.join('; '));
+         else answer.delete(name);
+      }
       return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: answer });
    };
 }

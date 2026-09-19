@@ -306,7 +306,11 @@ const storage = config.storage
  * containers, each app at a host name of its own. In memory, so whatever an
  * earlier process left behind is removed before the first one starts.
  */
-const previewEnvironments = new PreviewEnvironments({ origin: (id, appName) => previewOrigin(config.previews, id, appName) });
+const previewEnvironments = new PreviewEnvironments({
+   origin: (id, appName) => previewOrigin(config.previews, id, appName),
+   // Its listen address: a second server on this machine (a test instance on another port) keeps its own previews.
+   owner: `${config.apiAddr.host}:${config.apiAddr.port}`,
+});
 void previewEnvironments.removeOrphans().catch((error: unknown) =>
    logger.warn('previews left by an earlier process were not removed', { error: error instanceof Error ? error.message : String(error) })
 );
@@ -753,6 +757,21 @@ registry.registerAll(
             issuePreviewEnvironmentRoutes({
                issues,
                environments: previewEnvironments,
+               // The agent the task is assigned to, else the last one that worked it:
+               // a task in review is often a person's by then. Queued like any other
+               // task, so it is the dispatcher that starts it.
+               ...(executor
+                  ? {
+                       fix: async (issue, instructions, userId) => {
+                          const [last] = issue.assigneeAgentId
+                             ? []
+                             : await sql`SELECT agent_id FROM runs WHERE issue_id = ${issue.id} AND kind = 'agent' ORDER BY created_at DESC LIMIT 1`;
+                          const agentId = issue.assigneeAgentId ?? (last?.agent_id as string | undefined) ?? null;
+                          if (!agentId) return null;
+                          return quickActionEnqueue(sql, { workspaceId: issue.workspaceId, issueId: issue.id, agentId, kind: 'agent', source: 'quick_action', prompt: instructions, requestedBy: userId });
+                       },
+                    }
+                  : {}),
                source: (issue) =>
                   scm.provisioning
                      ? pullRequestSource(

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MANIFEST_PATH, PlanRefused, allowedServiceImage, planFor, planFromManifest, resolveEnv, safeDir, type RepositoryView } from './plan.ts';
+import { MANIFEST_PATH, PlanRefused, allowedServiceImage, installCommand, packageManagerFor, planFor, planFromManifest, resolveEnv, safeDir, type RepositoryView } from './plan.ts';
 
 function repo(files: Record<string, string | object>): RepositoryView {
    const text = (value: string | object) => (typeof value === 'string' ? value : JSON.stringify(value));
@@ -11,10 +11,10 @@ function repo(files: Record<string, string | object>): RepositoryView {
 const gallery = repo({
    'LICENSE': '',
    'web/package.json': { scripts: { build: 'next build', start: 'next start' }, dependencies: { next: '15', react: '19' } },
-   'web/.env.example': 'NEXT_PUBLIC_API_URL=http://localhost:3001\n',
+   'web/.env.example': 'NEXT_PUBLIC_API_URL=http://localhost:3001/api\n',
    'web/app/page.tsx': '',
-   'server/package.json': { scripts: { build: 'tsc', start: 'node dist/index.js', migrate: 'node dist/db/migrate.js' }, dependencies: { express: '4', pg: '8' } },
-   'server/.env.example': 'PORT=3001\nDATABASE_URL=postgres://localhost/app\nCORS_ORIGIN=http://localhost:3000\n',
+   'server/package.json': { scripts: { build: 'tsc', start: 'node dist/index.js', migrate: 'node dist/db/migrate.js' }, dependencies: { express: '4', pg: '8', '@elastic/elasticsearch': '8' } },
+   'server/.env.example': 'PORT=3001\nDATABASE_URL=postgres://localhost/app\nCORS_ORIGIN=http://localhost:3000\nELASTICSEARCH_NODE=http://localhost:9200\n',
    'server/node_modules/x/package.json': { scripts: { start: 'nope' } },
 });
 
@@ -29,16 +29,42 @@ test('a Next.js site with no index.html is an app to run, not a page to find', (
 test('a frontend, its API and the database it needs are found and wired together', () => {
    const plan = planFor(gallery)!;
    assert.deepEqual(plan.apps.map((app) => [app.name, app.kind, app.primary]), [['server', 'node', false], ['web', 'next', true]]);
-   assert.deepEqual(plan.services, [{ name: 'db', image: 'postgres:16-alpine', port: 5432, env: { POSTGRES_PASSWORD: 'preview', POSTGRES_DB: 'app' } }]);
+   assert.deepEqual(plan.services, [
+      { name: 'db', image: 'postgres:16-alpine', port: 5432, env: { POSTGRES_PASSWORD: 'preview', POSTGRES_DB: 'app' } },
+      { name: 'search', image: 'docker.elastic.co/elasticsearch/elasticsearch:8.15.0', port: 9200, env: {} },
+   ]);
+   assert.equal(plan.apps[0]!.env.ELASTICSEARCH_NODE, 'http://search:9200');
    const [server, web] = plan.apps;
    assert.equal(server!.env.DATABASE_URL, 'postgres://postgres:preview@db:5432/app');
    assert.equal(server!.migrate, 'npm run migrate');
    assert.notEqual(server!.port, web!.port);
    const addresses = { url: (app: string) => `http://p-abc-${app}.preview.localhost:4000` };
    // The browser reaches the API at its public address; the API allows the page that calls it.
-   assert.equal(resolveEnv(plan, web!, addresses).NEXT_PUBLIC_API_URL, 'http://p-abc-server.preview.localhost:4000');
+   // …under the path the project's own example calls it at: without `/api` every request is a 404.
+   assert.equal(resolveEnv(plan, web!, addresses).NEXT_PUBLIC_API_URL, 'http://p-abc-server.preview.localhost:4000/api');
    assert.equal(resolveEnv(plan, server!, addresses).CORS_ORIGIN, 'http://p-abc-web.preview.localhost:4000');
    assert.equal(resolveEnv(plan, server!, addresses).PORT, String(server!.port));
+});
+
+test('the schema is applied under whatever name the project gives its migrations', () => {
+   const server = (scripts: Record<string, string>, dependencies: Record<string, string> = { pg: '8' }) =>
+      planFor(repo({ 'package.json': { scripts: { start: 'node .', ...scripts }, dependencies }, '.env.example': 'DATABASE_URL=\n' }))!.apps[0]!.migrate;
+   assert.equal(server({ 'migrate:up': 'tsx src/db/migrate.ts up', 'migrate:down': 'x' }), 'npm run migrate:up');
+   assert.equal(server({ migrate: 'x', 'migrate:up': 'y' }), 'npm run migrate');
+   assert.equal(server({}, { '@prisma/client': '6' }), 'npx prisma migrate deploy');
+   assert.equal(server({}), null);
+});
+
+test('a repository is installed, built and started with the package manager it committed a lockfile for', () => {
+   const paths = ['pnpm-lock.yaml', 'apps/site/package.json', 'server/package.json', 'server/yarn.lock', 'tool/package.json', 'tool/bun.lock'];
+   assert.deepEqual(['apps/site', 'server', 'tool', '.'].map((dir) => packageManagerFor(paths, dir)), ['pnpm', 'yarn', 'bun', 'pnpm']);
+   assert.equal(packageManagerFor(['package.json'], '.'), 'npm');
+   const plan = planFor(repo({ 'pnpm-lock.yaml': '', 'package.json': { scripts: { build: 'tsc', start: 'node .', 'migrate:up': 'x' }, dependencies: { pg: '8' } }, '.env.example': 'DATABASE_URL=\n' }))!;
+   const app = plan.apps[0]!;
+   assert.match(app.install, /^pnpm install --frozen-lockfile --prod=false/);
+   assert.deepEqual([app.build, app.start, app.migrate], ['pnpm run build', 'pnpm run start', 'pnpm run migrate:up']);
+   // Dev dependencies are installed under every manager: the build tool is one.
+   for (const manager of ['npm', 'pnpm', 'yarn', 'bun'] as const) assert.doesNotMatch(installCommand(manager), /--production(?!=false)|--prod(?!=false)/);
 });
 
 test('a Vite project, a static page and a repository with nothing to run', () => {

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { PREVIEW_LABEL, PreviewEnvironments, appArgs, appScript, serviceArgs, type DockerRunner, type PreviewSource } from './environments.ts';
+import { PREVIEW_IMAGE, PREVIEW_LABEL, PREVIEW_OWNER_LABEL, PreviewEnvironments, appArgs, appScript, serviceArgs, type DockerRunner, type PreviewSource } from './environments.ts';
 import type { PreviewApp, PreviewService } from './plan.ts';
 
 const db: PreviewService = { name: 'db', image: 'postgres:16-alpine', port: 5432, env: { POSTGRES_PASSWORD: 'preview' } };
@@ -39,6 +39,7 @@ function environments(docker: DockerRunner, extra: Partial<ConstructorParameters
    return new PreviewEnvironments({
       origin: (id, app) => `http://p-${id}-${app}.preview.localhost:4000`,
       root: mkdtempSync(join(tmpdir(), 'berry-pv-root-')),
+      image: 'node:test',
       docker,
       follow: () => () => undefined,
       answers: async () => true,
@@ -64,6 +65,7 @@ test('an app runs the repository’s code with nothing but its source, a network
    assert.ok(line.includes('--volume /home/u/src:/work') && line.includes('--workdir /work/server'));
    assert.ok(line.includes('--volume nm:/work/server/node_modules'));
    assert.ok(line.includes(`--label ${PREVIEW_LABEL}=x1`) && line.includes('--network-alias api'));
+   assert.ok(appArgs({ id: 'x1', owner: 'h:4000', network: 'net', container: 'c', app: api, image: 'i', tree: '/t', modulesVolume: 'nm', env: {}, services: [] }).join(' ').includes(`--label ${PREVIEW_OWNER_LABEL}=h:4000`));
    assert.ok(!line.includes('--privileged') && !line.includes('docker.sock') && !line.includes('--network host'));
 });
 
@@ -76,7 +78,7 @@ test('a service is a backing store on the private network and is never published
 
 test('an app waits for its services, then installs, builds, migrates and becomes the server', () => {
    const script = appScript(api, [db]);
-   const order = ['nc -z db 5432', 'npm ci', 'npm run build', 'npm run migrate', 'exec npm start'].map((step) => script.indexOf(step));
+   const order = ['net.connect(5432,"db")', '.nvmrc', 'npm ci', 'npm run build', 'npm run migrate', 'exec npm start'].map((step) => script.indexOf(step));
    assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]!)), script);
    assert.ok(script.startsWith('set -e'));
 });
@@ -167,8 +169,89 @@ test('what an earlier process left running is removed by label', async () => {
       if (args[0] === 'network' && args[1] === 'ls') return { code: 0, output: 'n1\n' };
       return { code: 0, output: '' };
    };
-   await environments(docker).removeOrphans();
-   assert.ok(calls.some((args) => args.join(' ') === `ps -aq --filter label=${PREVIEW_LABEL}`));
+   await environments(docker, { owner: '0.0.0.0:4000' }).removeOrphans();
+   // Its own only: another server on this machine keeps the previews it is running.
+   assert.ok(calls.some((args) => args.join(' ') === `ps -aq --filter label=${PREVIEW_OWNER_LABEL}=0.0.0.0:4000`));
+   assert.ok(calls.some((args) => args.join(' ') === `network ls -q --filter label=${PREVIEW_OWNER_LABEL}=0.0.0.0:4000`));
+   assert.ok(!calls.some((args) => args.join(' ').endsWith(`label=${PREVIEW_LABEL}`)));
    assert.ok(calls.some((args) => args.join(' ') === 'rm --force c1 c2'));
    assert.ok(calls.some((args) => args.join(' ') === 'network rm n1'));
+});
+
+test('Berry’s own image is built once when it is missing, and a named image is used as given', async () => {
+   const { docker, calls } = fakeDocker();
+   // The image is absent and takes a moment to build, as a real one does: long enough for a second preview to arrive meanwhile.
+   const missing: DockerRunner = async (args) => {
+      if (args[0] === 'image') return { code: 1, output: 'No such image' };
+      if (args[0] === 'build') await new Promise((resolve) => setTimeout(resolve, 400));
+      return docker(args);
+   };
+   const envs = new PreviewEnvironments({
+      origin: (id, app) => `http://p-${id}-${app}.preview.localhost:4000`,
+      root: mkdtempSync(join(tmpdir(), 'berry-pv-root-')),
+      docker: missing,
+      follow: () => () => undefined,
+      answers: async () => true,
+   });
+   const page = () => archiveOf({ 'index.html': '<h1>x</h1>' });
+   envs.start('one', page());
+   envs.start('two', page());
+   const [one, two] = [await settled(envs, 'one'), await settled(envs, 'two')];
+   assert.deepEqual([one.state, two.state], ['ready', 'ready'], one.log + two.log);
+   assert.equal(calls.filter((args) => args[0] === 'build').length, 1, 'two previews arriving together share one build');
+   // Whichever arrived first builds and says so; the other says what it is waiting for.
+   const logs = [one.log, two.log];
+   assert.equal(logs.filter((log) => /Building the preview image/.test(log)).length, 1);
+   assert.equal(logs.filter((log) => /Waiting for the preview image/.test(log)).length, 1);
+   assert.ok(calls.filter((args) => args[0] === 'run').every((args) => args.includes(PREVIEW_IMAGE)));
+
+   const named = fakeDocker();
+   const given = environments(named.docker);
+   given.start('three', page());
+   await settled(given, 'three');
+   assert.equal(named.calls.filter((args) => args[0] === 'build' || args[0] === 'image').length, 0);
+});
+
+test('a command runs in the plan’s own container, handed over as data and never spliced into a shell string', async () => {
+   const { docker } = fakeDocker();
+   const seen: string[][] = [];
+   const envs = environments(docker, {
+      exec: async (args, { onOutput }) => {
+         seen.push(args);
+         onOutput('hello\n');
+         onOutput('\u001eBERRY_');
+         onOutput('CWD /work/web/src\u001e');
+         return 3;
+      },
+   });
+   envs.start('issue-x', archiveOf({ 'web/package.json': JSON.stringify({ dependencies: { next: '15' } }) }));
+   const status = await settled(envs, 'issue-x');
+   const id = /p-([0-9a-f]{20})-/.exec(status.url!)![1]!;
+   let out = '';
+   const nasty = `echo hi'; rm -rf / #"$(reboot)`;
+   const result = await envs.exec('issue-x', { target: 'web', command: nasty }, { signal: new AbortController().signal, onOutput: (text) => (out += text) });
+   assert.deepEqual(result, { exitCode: 3, cwd: '/work/web/src', stopped: null });
+   assert.equal(out, 'hello\n', 'the directory trailer is not output, even split across chunks');
+   const args = seen[0]!;
+   assert.equal(args[args.indexOf('sh') - 1], `berry-pv-${id}-web`);
+   // At the top of the checkout, not the app's own folder: a terminal opened on a repository.
+   assert.equal(args[args.indexOf('--workdir') + 1], '/work');
+   assert.ok(args.includes(`BERRY_CMD=${nasty}`), 'the command travels as one environment value');
+   assert.ok(!args.at(-1)!.includes('rm -rf'), 'and is absent from the script the shell is given');
+   assert.ok(args.at(-1)!.includes('timeout -s KILL'));
+});
+
+test('a command is refused for a process the plan does not have, a stopped preview, or nonsense', async () => {
+   const { docker } = fakeDocker();
+   let ran = 0;
+   const envs = environments(docker, { exec: async () => (ran += 1, 0) });
+   const signal = new AbortController().signal;
+   const attempt = (issue: string, input: { target: string; command: string; cwd?: string }) => envs.exec(issue, input, { signal, onOutput: () => undefined });
+   await assert.rejects(attempt('nothing-here', { target: 'web', command: 'id' }), /not running/);
+   envs.start('issue-y', archiveOf({ 'index.html': '<h1>x</h1>' }));
+   await settled(envs, 'issue-y');
+   await assert.rejects(attempt('issue-y', { target: 'db; rm -rf /', command: 'id' }), /no process called/);
+   await assert.rejects(attempt('issue-y', { target: 'web', command: '   ' }), /not a command/);
+   await assert.rejects(attempt('issue-y', { target: 'web', command: 'id', cwd: '../../etc' }), /not a directory/);
+   assert.equal(ran, 0);
 });

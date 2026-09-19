@@ -105,9 +105,50 @@ export function allowedServiceImage(image: string): boolean {
    return SERVICE_IMAGES.test(image);
 }
 
-// With dev dependencies, whatever NODE_ENV says: the build tool (vite, tsc, next's
-// own compiler plugins) is one, and a production install leaves it out.
-const DEFAULT_INSTALL = 'if [ -f package-lock.json ]; then npm ci --include=dev || npm install --include=dev; else npm install --include=dev; fi';
+export type PackageManager = 'npm' | 'pnpm' | 'yarn' | 'bun';
+
+/**
+ * The manager a folder was written for, from the lockfile it committed: the
+ * app's own, else the repository's (a workspace keeps one at the root).
+ * Installing a pnpm or yarn project with npm ignores its lockfile and resolves
+ * a different tree than the one the agent tested.
+ */
+export function packageManagerFor(paths: readonly string[], dir: string): PackageManager {
+   for (const folder of dir === '.' ? ['.'] : [dir, '.']) {
+      const has = (file: string) => paths.includes(folder === '.' ? file : `${folder}/${file}`);
+      if (has('pnpm-lock.yaml')) return 'pnpm';
+      if (has('yarn.lock')) return 'yarn';
+      if (has('bun.lock') || has('bun.lockb')) return 'bun';
+      if (has('package-lock.json')) return 'npm';
+   }
+   return 'npm';
+}
+
+/**
+ * With dev dependencies, whatever NODE_ENV says: the build tool (vite, tsc,
+ * next's own compiler plugins) is one, and a production install leaves it out.
+ * The lockfile is honoured first and relaxed only if it cannot be.
+ */
+export function installCommand(manager: PackageManager): string {
+   switch (manager) {
+      case 'pnpm':
+         return 'pnpm install --frozen-lockfile --prod=false || pnpm install --prod=false';
+      case 'yarn':
+         // Berry's flag first, then classic's: the repository decides which yarn this is.
+         return 'NODE_ENV=development yarn install --immutable 2>/dev/null || NODE_ENV=development yarn install --frozen-lockfile || NODE_ENV=development yarn install';
+      case 'bun':
+         return 'bun install --frozen-lockfile || bun install';
+      default:
+         return 'if [ -f package-lock.json ]; then npm ci --include=dev || npm install --include=dev; else npm install --include=dev; fi';
+   }
+}
+
+/** `npm run build`, in the repository's manager. */
+export function runScript(manager: PackageManager, script: string): string {
+   return manager === 'yarn' ? `yarn run ${script}` : `${manager} run ${script}`;
+}
+
+const DEFAULT_INSTALL = installCommand('npm');
 
 /** A manifest, checked and completed. Throws `PlanRefused` with a sentence a person can act on. */
 export function planFromManifest(text: string): PreviewPlan {
@@ -212,7 +253,7 @@ function detect(view: RepositoryView): PreviewPlan | null {
       if (text !== null) {
          try { pkg = JSON.parse(text) as PackageJson; } catch { pkg = null; }
       }
-      const app = pkg ? appFromPackage(pkg) : view.paths.includes(at('index.html')) ? STATIC_SITE : null;
+      const app = pkg ? appFromPackage(pkg, packageManagerFor(view.paths, dir)) : view.paths.includes(at('index.html')) ? STATIC_SITE : null;
       if (!app) continue;
       let appName = (dir === '.' ? (app.frontend ? 'web' : 'app') : dir.split('/').at(-1)!).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^[^a-z]+/, '') || 'app';
       appName = appName.slice(0, 24);
@@ -236,7 +277,8 @@ function detect(view: RepositoryView): PreviewPlan | null {
    for (const app of apps) {
       const deps = { ...(app.pkg?.dependencies ?? {}), ...(app.pkg?.devDependencies ?? {}) };
       const example = view.read(app.dir === '.' ? '.env.example' : `${app.dir}/.env.example`) ?? '';
-      const keys = new Set([...example.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/gm)].map((match) => match[1]!));
+      const examples = new Map([...example.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=[ \t]*(.*)$/gm)].map((match) => [match[1]!, match[2]!.trim().replace(/^["']|["']$/g, '')]));
+      const keys = new Set(examples.keys());
       app.env.PORT = String(app.port);
       app.env.NODE_ENV = 'production';
       app.env.HOST = '0.0.0.0';
@@ -245,8 +287,14 @@ function detect(view: RepositoryView): PreviewPlan | null {
             services.push({ name: 'db', image: 'postgres:16-alpine', port: 5432, env: { POSTGRES_PASSWORD: 'preview', POSTGRES_DB: 'app' } });
          }
          app.env.DATABASE_URL = 'postgres://postgres:preview@db:5432/app';
-         const scripts = app.pkg?.scripts ?? {};
-         app.migrate = scripts.migrate ? 'npm run migrate' : scripts['db:migrate'] ? 'npm run db:migrate' : null;
+         app.migrate = migrateCommand(app.pkg?.scripts ?? {}, deps, packageManagerFor(view.paths, app.dir));
+      }
+      const searchKey = ['ELASTICSEARCH_NODE', 'ELASTICSEARCH_URL', 'ELASTIC_URL'].find((key) => keys.has(key));
+      if (searchKey && '@elastic/elasticsearch' in deps) {
+         if (!services.some((service) => service.name === 'search')) {
+            services.push({ name: 'search', image: 'docker.elastic.co/elasticsearch/elasticsearch:8.15.0', port: 9200, env: {} });
+         }
+         app.env[searchKey] = 'http://search:9200';
       }
       if (keys.has('REDIS_URL') && ['redis', 'ioredis', 'bullmq'].some((dep) => dep in deps)) {
          if (!services.some((service) => service.name === 'redis')) services.push({ name: 'redis', image: 'redis:7-alpine', port: 6379, env: {} });
@@ -256,9 +304,13 @@ function detect(view: RepositoryView): PreviewPlan | null {
       if (app.frontend && backends.length === 1) {
          for (const key of keys) {
             if (/(^|_)API_(URL|BASE|BASE_URL|ORIGIN|HOST)$/.test(key)) {
-               app.env[key] = key.startsWith('NEXT_PUBLIC_') || key.startsWith('VITE_') || key.startsWith('PUBLIC_')
+               const address = key.startsWith('NEXT_PUBLIC_') || key.startsWith('VITE_') || key.startsWith('PUBLIC_')
                   ? `\${apps.${backends[0]!.name}.url}`
                   : `\${apps.${backends[0]!.name}.internal}`;
+               // The example says where under the API the app expects to call:
+               // `http://localhost:3001/api` is the API's address and `/api`.
+               // Without the path every request the page makes is a 404.
+               app.env[key] = `${address}${pathOf(examples.get(key) ?? '')}`;
             }
          }
       }
@@ -274,6 +326,30 @@ function detect(view: RepositoryView): PreviewPlan | null {
    };
 }
 
+/**
+ * How the project applies its schema, by the names projects give it. A
+ * database that starts empty and is never migrated answers every real request
+ * with "relation does not exist", which reads as a broken server.
+ */
+const MIGRATE_SCRIPTS = ['migrate', 'db:migrate', 'migrate:up', 'migrate:latest', 'migrate:deploy', 'db:migrate:up', 'migration:run', 'db:push', 'prisma:migrate'];
+
+function migrateCommand(scripts: Record<string, string>, deps: Record<string, string>, manager: PackageManager): string | null {
+   const script = MIGRATE_SCRIPTS.find((name) => name in scripts);
+   if (script) return runScript(manager, script);
+   if ('prisma' in deps || '@prisma/client' in deps) return 'npx prisma migrate deploy';
+   return null;
+}
+
+/** The path of an example URL, without a trailing slash; empty when it has none or is not a URL. */
+function pathOf(value: string): string {
+   try {
+      const path = new URL(value).pathname.replace(/\/+$/, '');
+      return /^[A-Za-z0-9/_.~-]*$/.test(path) ? path : '';
+   } catch {
+      return '';
+   }
+}
+
 const STATIC_SITE = {
    kind: 'static',
    frontend: true,
@@ -284,18 +360,18 @@ const STATIC_SITE = {
    port: 3000,
 };
 
-function appFromPackage(pkg: PackageJson): Omit<PreviewApp, 'name' | 'dir' | 'env' | 'primary'> & { frontend: boolean } | null {
+function appFromPackage(pkg: PackageJson, manager: PackageManager): Omit<PreviewApp, 'name' | 'dir' | 'env' | 'primary'> & { frontend: boolean } | null {
    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
    const scripts = pkg.scripts ?? {};
-   const build = scripts.build ? 'npm run build' : null;
-   const base = { install: DEFAULT_INSTALL, migrate: null, port: 3000 };
+   const build = scripts.build ? runScript(manager, 'build') : null;
+   const base = { install: installCommand(manager), migrate: null, port: 3000 };
    if ('next' in deps) return { ...base, kind: 'next', frontend: true, build: build ?? 'npx next build', start: 'npx next start -H 0.0.0.0 -p $PORT' };
    if ('astro' in deps) return { ...base, kind: 'astro', frontend: true, build: build ?? 'npx astro build', start: 'npx astro preview --host 0.0.0.0 --port $PORT' };
    if ('@sveltejs/kit' in deps || 'vite' in deps) {
       return { ...base, kind: 'vite', frontend: true, build: build ?? 'npx vite build', start: 'npx vite preview --host 0.0.0.0 --port $PORT --strictPort' };
    }
    if ('react-scripts' in deps) return { ...base, kind: 'cra', frontend: true, build: build ?? 'npx react-scripts build', start: 'npx --yes serve@14 -s build -l tcp://0.0.0.0:$PORT' };
-   if (scripts.start) return { ...base, kind: 'node', frontend: false, build, start: 'npm start' };
+   if (scripts.start) return { ...base, kind: 'node', frontend: false, build, start: runScript(manager, 'start') };
    return null;
 }
 

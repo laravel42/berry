@@ -24,7 +24,7 @@ test('a preview request reaches its app with the path intact, without Berry’s 
    const seen: Array<{ url: string; headers: Headers; body: string }> = [];
    const upstream = (async (url: string, init: RequestInit) => {
       seen.push({ url, headers: new Headers(init.headers), body: init.body ? await new Response(init.body as ReadableStream).text() : '' });
-      return new Response('<h1>app</h1>', { status: 201, headers: { 'content-type': 'text/html', 'x-frame-options': 'DENY', 'set-cookie': 'cart=1; Path=/', 'content-encoding': 'gzip' } });
+      return new Response('<h1>app</h1>', { status: 201, headers: { 'content-type': 'text/html', 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'self';frame-ancestors 'self';img-src *", 'set-cookie': 'cart=1; Path=/', 'content-encoding': 'gzip' } });
    }) as unknown as typeof fetch;
    const asked: Array<[string, string | null]> = [];
    const proxy = previewProxy({ target: (id, app) => (asked.push([id, app]), 49200) }, DOMAIN, upstream);
@@ -43,6 +43,8 @@ test('a preview request reaches its app with the path intact, without Berry’s 
    assert.equal(response.status, 201);
    assert.equal(await response.text(), '<h1>app</h1>');
    assert.equal(response.headers.get('x-frame-options'), null);
+   // helmet's way of forbidding frames goes too; the rest of the app's policy stays.
+   assert.equal(response.headers.get('content-security-policy'), "default-src 'self'; img-src *");
    assert.equal(response.headers.get('content-encoding'), null);
    assert.equal(response.headers.get('set-cookie'), 'cart=1; Path=/');
 });
