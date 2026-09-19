@@ -11,6 +11,7 @@ import { useTranslations } from 'next-intl';
 import { useRef } from 'react';
 import { toast } from 'sonner';
 import { AssigneeUser } from '../assignee-user';
+import { AutoGateProperty } from './auto-gate-property';
 import { IssuePriorityPicker, IssueStatusPicker } from '../issue-pickers';
 import { IssueRefRow } from './content-blocks';
 import { CustomStatusSelect } from './custom-status-select';
@@ -110,6 +111,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                      )}
                   </div>
                   <ReviewerProperty issueRef={issue.identifier} />
+                  <AutoGateProperty issue={issue} />
 
                   <div className="flex items-center gap-2">
                      <button

@@ -89,6 +89,7 @@ const issueSchema = z.object({
    parentId: z.string().nullish(),
    stage: z.number().nullish(),
    statusId: z.string().nullish(),
+   autoGate: z.boolean().default(false),
    childProgress: z.object({ total: z.number(), done: z.number() }).nullish(),
 });
 
@@ -228,6 +229,7 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
    issue.parentId = apiIssue.parentId ?? null;
    issue.stage = apiIssue.stage ?? null;
    issue.statusId = apiIssue.statusId ?? null;
+   issue.autoGate = apiIssue.autoGate;
    issue.childProgress = apiIssue.childProgress ?? { total: 0, done: 0 };
    // Both were parsed and dropped. The detail page's "created by / created /
    // updated" block is the only thing that reads them, and without them it
@@ -401,6 +403,19 @@ export async function setIssueProject(issueRef: string, projectId: string | null
    await apiFetch(`/api/v1/issues/${encodeURIComponent(issueRef)}`, {
       method: 'PATCH',
       body: JSON.stringify({ projectId }),
+   });
+}
+
+/**
+ * Turn AutoGate on or off for one task. Raised rather than swallowed, like the
+ * project link: a switch that silently failed would claim a task closes by
+ * itself when it waits for a person, or the reverse. Turning it on for a task
+ * already in review also asks the review gate to review it now.
+ */
+export async function setIssueAutoGate(issueRef: string, autoGate: boolean): Promise<void> {
+   await apiFetch(`/api/v1/issues/${encodeURIComponent(issueRef)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ autoGate }),
    });
 }
 

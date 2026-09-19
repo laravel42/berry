@@ -60,6 +60,11 @@ export interface Issue {
    /** A workspace status refining `status`. */
    statusId?: string | null;
    /**
+    * AutoGate: a passing agent review closes the task (merging its pull
+    * request) without a person. Absent on a task built locally.
+    */
+   autoGate?: boolean;
+   /**
     * Who filed the task. Null for one the server did not attribute — a task
     * created before authorship was recorded, or by something that is not a
     * person — and absent on a task this client built locally.

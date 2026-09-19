@@ -107,7 +107,11 @@
       "archivedHint": "This field was archived and can no longer be changed.",
       "saveFailed": "The change could not be saved.",
       "members": "People",
-      "agents": "Agents"
+      "agents": "Agents",
+      "autoGate": "AutoGate",
+      "autoGateOn": "On: an agent reviews this task when it finishes. If the review passes, Berry merges its pull request, closes the task and starts whatever it was blocking, without waiting for you.",
+      "autoGateOff": "Off: when this task finishes it waits in review until you close it.",
+      "autoGateReviewing": "AutoGate is on. The waiting review starts now."
    },
    "quickActions": {
       "title": "Quick actions",
