@@ -108,7 +108,7 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
                  ${input.kind}, ${input.source}, ${input.prompt ?? null},
                  ${input.chatSessionId ?? null}, ${input.autopilotRunId ?? null},
                  ${input.priority ?? 0}, ${runtimeId}, ${input.kind === 'agent' ? (input.prompt ?? null) : null},
-                 ${input.requestedBy ?? null}, ${input.origin ? tx.json(input.origin as never) : null})`;
+                 ${input.requestedBy ?? null}, ${tx.json((input.origin ?? {}) as never)})`;
 
       if (input.chatSessionId) {
          // The first queued task becomes the session's active one; the reply
