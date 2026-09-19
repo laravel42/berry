@@ -380,7 +380,7 @@ function CommentCard({
       <div
          data-comment-id={comment.id}
          className={cn(
-            'rounded-sm border border-border/60 bg-container p-3.5 transition-colors',
+            'rounded-sm border border-border/60 bg-container px-3.5 py-2 transition-colors',
             isAgent && 'border-actor-agent/40',
             highlighted && 'border-status-warning bg-status-warning/5'
          )}
@@ -404,51 +404,53 @@ function CommentCard({
             />
          </div>
 
-         <CommentBody
-            body={comment.body}
-            clamp={
-               isAgent
-                  ? { lines: 12, moreLabel: t('readRest'), lessLabel: t('showLess') }
-                  : undefined
-            }
-         />
+         <div className="flex flex-col gap-[6px]">
+            <CommentBody
+               body={comment.body}
+               clamp={
+                  isAgent
+                     ? { lines: 12, moreLabel: t('readRest'), lessLabel: t('showLess') }
+                     : undefined
+               }
+            />
 
-         <div className="mt-1 flex flex-wrap items-center gap-2">
-            <ReactionBar target="comment" id={comment.id} />
-            <Button
-               variant="ghost"
-               size="xs"
-               className="text-muted-foreground"
-               onClick={() => setReplying((value) => !value)}
-            >
-               {t('reply')}
-            </Button>
-            {!comment.parentId ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+               <ReactionBar target="comment" id={comment.id} />
                <Button
                   variant="ghost"
-                  size="xs"
+                  size="xxs"
                   className="text-muted-foreground"
-                  onClick={() => (comment.resolvedAt ? resolve(false, '') : setResolving(true))}
+                  onClick={() => setReplying((value) => !value)}
                >
-                  {comment.resolvedAt ? t('unresolve') : t('resolve')}
+                  {t('reply')}
                </Button>
-            ) : null}
-            {replies.length > 0 ? (
-               <Button
-                  variant="ghost"
-                  size="xs"
-                  className="text-muted-foreground"
-                  aria-expanded={!collapsed}
-                  onClick={() => setCollapsed((value) => !value)}
-               >
-                  {collapsed ? (
-                     <ChevronRight className="mr-1 size-3.5" />
-                  ) : (
-                     <ChevronDown className="mr-1 size-3.5" />
-                  )}
-                  {t('replies', { count: replies.length })}
-               </Button>
-            ) : null}
+               {!comment.parentId ? (
+                  <Button
+                     variant="ghost"
+                     size="xxs"
+                     className="text-muted-foreground"
+                     onClick={() => (comment.resolvedAt ? resolve(false, '') : setResolving(true))}
+                  >
+                     {comment.resolvedAt ? t('unresolve') : t('resolve')}
+                  </Button>
+               ) : null}
+               {replies.length > 0 ? (
+                  <Button
+                     variant="ghost"
+                     size="xxs"
+                     className="text-muted-foreground"
+                     aria-expanded={!collapsed}
+                     onClick={() => setCollapsed((value) => !value)}
+                  >
+                     {collapsed ? (
+                        <ChevronRight className="mr-1 size-3" />
+                     ) : (
+                        <ChevronDown className="mr-1 size-3" />
+                     )}
+                     {t('replies', { count: replies.length })}
+                  </Button>
+               ) : null}
+            </div>
          </div>
 
          {runs.map((run) => (

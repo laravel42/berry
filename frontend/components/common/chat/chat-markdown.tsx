@@ -196,7 +196,7 @@ export function ChatMarkdown({
                return (
                   <pre
                      key={key}
-                     className={`overflow-x-auto rounded-md px-3 py-2 font-mono ${tones.code}`}
+                     className={`w-full min-w-0 overflow-x-auto rounded-md px-2.5 py-1.5 font-mono text-[10px] leading-4 ${tones.code}`}
                   >
                      <code>{block.lines.join('\n')}</code>
                   </pre>

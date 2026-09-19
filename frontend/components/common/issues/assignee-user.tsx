@@ -15,7 +15,7 @@ import { agentToUser } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
-import { CheckIcon, Send, UserRound } from 'lucide-react';
+import { CheckIcon, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { ActorAvatar, ActorName } from './actor-avatar';
@@ -222,14 +222,6 @@ export function AssigneeUser({
                         ) : null}
                      </>
                   ) : null}
-
-                  <CommandSeparator />
-                  <CommandGroup>
-                     <CommandItem value={t('invite')} className="flex items-center gap-2">
-                        <Send className="size-4 text-muted-foreground" />
-                        <span>{t('invite')}</span>
-                     </CommandItem>
-                  </CommandGroup>
                </CommandList>
             </Command>
          </PopoverContent>

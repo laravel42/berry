@@ -21,7 +21,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
-   CompletedIssuesFilter,
    DISPLAY_PROPERTIES,
    GroupingKey,
    OrderingKey,
@@ -300,25 +299,20 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
 
                   {/* What counts as visible */}
                   <div className="flex flex-col gap-2.5 border-t px-3 py-3">
-                     <div className={cn('flex items-center justify-between gap-2', touchRow)}>
-                        <span className="text-muted-foreground">{t('completedTasks')}</span>
-                        <Select
-                           value={completedIssues}
-                           onValueChange={(value) =>
-                              setCompletedIssues(value as CompletedIssuesFilter)
-                           }
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-completed-tasks"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
                         >
-                           <SelectTrigger
-                              aria-label={t('completedTasks')}
-                              className="h-7 w-36 max-lg:h-11"
-                           >
-                              <SelectValue />
-                           </SelectTrigger>
-                           <SelectContent>
-                              <SelectItem value="all">{t('completedAll')}</SelectItem>
-                              <SelectItem value="none">{t('completedNone')}</SelectItem>
-                           </SelectContent>
-                        </Select>
+                           {t('completedTasks')}
+                        </Label>
+                        <Switch
+                           id="show-completed-tasks"
+                           checked={completedIssues === 'all'}
+                           onCheckedChange={(checked) =>
+                              setCompletedIssues(checked ? 'all' : 'none')
+                           }
+                        />
                      </div>
 
                      <div className={cn('flex items-center justify-between', touchRow)}>

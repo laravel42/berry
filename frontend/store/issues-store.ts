@@ -110,7 +110,7 @@ function commitPatch(
                  description: createElement(
                     Link,
                     {
-                       href: `/${WORKSPACE_SLUG}/approvals?approval=${encodeURIComponent(approvalId)}`,
+                       href: `/${WORKSPACE_SLUG}/inbox?approval=${encodeURIComponent(approvalId)}`,
                        className: 'underline underline-offset-2',
                     },
                     'View the approval'

@@ -12,8 +12,7 @@ export type OrderingKey =
 export type SortDirection = 'asc' | 'desc';
 export type CompletedIssuesFilter = 'all' | 'none';
 
-export type DisplayPropertyKey =
-   'id' | 'status' | 'priority' | 'assignee' | 'labels' | 'project' | 'dueDate' | 'created';
+export type DisplayPropertyKey = 'id' | 'status' | 'priority' | 'assignee' | 'labels' | 'created';
 
 export const DISPLAY_PROPERTIES: { key: DisplayPropertyKey; label: string }[] = [
    { key: 'id', label: 'ID' },
@@ -21,8 +20,6 @@ export const DISPLAY_PROPERTIES: { key: DisplayPropertyKey; label: string }[] = 
    { key: 'assignee', label: 'Assignee' },
    { key: 'priority', label: 'Priority' },
    { key: 'labels', label: 'Labels' },
-   { key: 'project', label: 'Project' },
-   { key: 'dueDate', label: 'Due date' },
    { key: 'created', label: 'Created' },
 ];
 
@@ -32,8 +29,6 @@ const DEFAULT_DISPLAY_PROPERTIES: Record<DisplayPropertyKey, boolean> = {
    priority: true,
    assignee: true,
    labels: true,
-   project: true,
-   dueDate: false,
    created: true,
 };
 

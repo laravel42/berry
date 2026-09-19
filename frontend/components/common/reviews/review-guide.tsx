@@ -18,7 +18,7 @@ export function ReviewVerdicts({ item }: { item: ReviewItem }) {
    const clamp = { lines: 12, moreLabel: t('summary.more'), lessLabel: t('summary.less') };
    return (
       <div className="h-full overflow-y-auto">
-         <ul className="flex w-full max-w-[75ch] flex-col gap-4 px-6 py-6">
+         <ul className="flex w-full flex-col gap-4 px-6 py-6">
             {item.verdicts.map((verdict) => (
                <li
                   key={verdict.id}
@@ -39,7 +39,11 @@ export function ReviewVerdicts({ item }: { item: ReviewItem }) {
                      )}
                   </div>
                   {verdict.reason && (
-                     <AgentMarkdown body={verdict.reason} className="mt-2" clamp={clamp} />
+                     <AgentMarkdown
+                        body={verdict.reason}
+                        className="mt-2 max-w-none"
+                        clamp={clamp}
+                     />
                   )}
                </li>
             ))}

@@ -12,7 +12,6 @@ import { AssigneeUser } from './assignee-user';
 import { IssueDragType } from './issue-grid';
 import { LabelBadge } from './label-badge';
 import { PrioritySelector } from './priority-selector';
-import { ProjectBadge } from './project-badge';
 import { SelectionCheckbox } from './selection-checkbox';
 import { StatusSelector } from './status-selector';
 import { motion } from 'motion/react';
@@ -37,8 +36,6 @@ interface IssueLineProps {
     * unless asked for.
     */
    draggable?: boolean;
-   /** Off on surfaces that already name the project (goal work, project tasks). */
-   showProject?: boolean;
 }
 
 /**
@@ -57,7 +54,6 @@ function IssueLineView({
    issue,
    layoutId = false,
    order = [],
-   showProject = true,
    rowRef,
    isDragging,
 }: IssueLineProps & {
@@ -121,22 +117,16 @@ function IssueLineView({
                </Link>
                <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:w-fit">
                   <div className="w-3 shrink-0"></div>
-                  <div
-                     className={cn(
-                        'hidden items-center justify-end -space-x-5 transition-all duration-200 hover:space-x-1 sm:flex lg:space-x-1',
-                        CONTROL
-                     )}
-                  >
-                     {displayProperties.labels && <LabelBadge label={issue.labels} />}
-                     {showProject && displayProperties.project && issue.project && (
-                        <ProjectBadge project={issue.project} />
-                     )}
-                  </div>
-                  {displayProperties.dueDate && issue.dueDate && (
-                     <span className="hidden shrink-0 text-status-warning sm:inline-block">
-                        due {format(new Date(issue.dueDate), 'MMM dd')}
-                     </span>
-                  )}
+                  {displayProperties.labels ? (
+                     <div
+                        className={cn(
+                           'hidden items-center justify-end -space-x-5 transition-all duration-200 hover:space-x-1 sm:flex lg:space-x-1',
+                           CONTROL
+                        )}
+                     >
+                        <LabelBadge label={issue.labels} />
+                     </div>
+                  ) : null}
                   {displayProperties.created && (
                      <span className="hidden shrink-0 text-muted-foreground sm:inline-block">
                         {format(new Date(issue.createdAt), 'MMM dd')}
@@ -160,12 +150,7 @@ function IssueLineView({
    );
 }
 
-function DraggableIssueLine({
-   issue,
-   layoutId = false,
-   order = [],
-   showProject = true,
-}: IssueLineProps) {
+function DraggableIssueLine({ issue, layoutId = false, order = [] }: IssueLineProps) {
    const rowRef = useRef<HTMLDivElement>(null);
 
    // Rows drag for the same reason cards do: on the list layout, moving a task
@@ -185,7 +170,6 @@ function DraggableIssueLine({
          issue={issue}
          layoutId={layoutId}
          order={order}
-         showProject={showProject}
          rowRef={rowRef}
          isDragging={isDragging}
       />
@@ -197,24 +181,15 @@ export function IssueLine({
    layoutId = false,
    order = [],
    draggable = false,
-   showProject = true,
 }: IssueLineProps) {
    if (draggable) {
-      return (
-         <DraggableIssueLine
-            issue={issue}
-            layoutId={layoutId}
-            order={order}
-            showProject={showProject}
-         />
-      );
+      return <DraggableIssueLine issue={issue} layoutId={layoutId} order={order} />;
    }
    return (
       <IssueLineView
          issue={issue}
          layoutId={layoutId}
          order={order}
-         showProject={showProject}
          rowRef={null}
          isDragging={false}
       />

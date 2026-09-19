@@ -37,9 +37,7 @@
       "subIssues": "Show sub-tasks",
       "showEmptyGroups": "Show empty groups",
       "orderCompletedByRecency": "Order completed by recency",
-      "completedTasks": "Completed tasks",
-      "completedAll": "All",
-      "completedNone": "None",
+      "completedTasks": "Show completed tasks",
       "cardProperties": "Card properties",
       "reset": "Reset"
    },
@@ -185,8 +183,6 @@
       "unpin": "Unpin",
       "delete": "Delete",
       "bulkPin": "Pin selected",
-      "agentContext": "Agent context",
-      "agentContextHint": "Agents read this description before working on the project's tasks.",
       "cards": "Cards",
       "table": "Table",
       "selected": "{count} selected",
@@ -203,7 +199,6 @@
       "agents": "Agents",
       "search": "Search people and agents",
       "noMatch": "No one matches.",
-      "invite": "Invite and assign…",
       "showing": "Showing {shown} of {total} agents. Type to search.",
       "searchAgents": "Search agents",
       "orchestratorHint": "The Orchestrator routes the task to the best-fitting agent. Pick one yourself to skip that."

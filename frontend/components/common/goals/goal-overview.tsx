@@ -109,7 +109,7 @@ function WorkSection({ refs, orgId }: { refs: GoalIssueRef[]; orgId: string }) {
             <div className="mt-2 overflow-hidden rounded-md border border-border/60 bg-background">
                {refs.map((ref) => {
                   const issue = issues.find((candidate) => candidate.id === ref.id);
-                  if (issue) return <IssueLine key={ref.id} issue={issue} showProject={false} />;
+                  if (issue) return <IssueLine key={ref.id} issue={issue} />;
                   const status = uiStatusFromApi(ref.status);
                   return (
                      <Link
@@ -168,7 +168,7 @@ function ApprovalsSection({
                   return (
                      <Link
                         key={ref.id}
-                        href={`/${orgId}/approvals?approval=${ref.id}`}
+                        href={`/${orgId}/inbox?approval=${ref.id}`}
                         className="flex items-center gap-2.5 rounded-md border border-border/60 bg-background px-3 py-2.5 hover:bg-accent/45"
                      >
                         <BerryMark size="sm" tone={look.tone} state={look.state} />

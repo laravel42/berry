@@ -155,7 +155,7 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
          className={cn(BOX[size], 'shrink-0 ring-1 ring-actor-human/60', className)}
          title={user.name}
       >
-         <AvatarImage src={user.avatarUrl} alt="" />
+         <AvatarImage src={user.avatarUrl || undefined} alt="" />
          <AvatarFallback className="bg-actor-human/10 font-medium text-actor-human" aria-hidden>
             {initials(user.name)}
          </AvatarFallback>

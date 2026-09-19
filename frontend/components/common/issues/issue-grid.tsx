@@ -14,7 +14,6 @@ import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
 import { PrioritySelector } from './priority-selector';
-import { ProjectBadge } from './project-badge';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { IssueContextMenu } from './issue-context-menu';
 import { WORKSPACE_SLUG } from '@/lib/config';
@@ -47,7 +46,6 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          <div className="mb-2 line-clamp-2 font-medium">{issue.title}</div>
          <div className="mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
             <LabelBadge label={issue.labels} />
-            {issue.project && <ProjectBadge project={issue.project} />}
          </div>
          <div className="mt-auto flex min-w-0 justify-end pt-1">
             <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} showName />
@@ -244,9 +242,6 @@ export function IssueGrid({
                      </Link>
                      <div className="relative z-[1] mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
                         {displayProperties.labels && <LabelBadge label={issue.labels} />}
-                        {displayProperties.project && issue.project && (
-                           <ProjectBadge project={issue.project} />
-                        )}
                      </div>
                      {displayProperties.assignee ? (
                         <div className="relative z-[1] mt-auto flex min-w-0 justify-end pt-1">

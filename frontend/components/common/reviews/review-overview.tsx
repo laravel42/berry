@@ -11,7 +11,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { DiffStat, PeerVerdictChip } from './review-shared';
+import { DiffStat } from './review-shared';
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
    return (
@@ -52,14 +52,13 @@ function absoluteTime(iso: string): string {
 /**
  * The evidence a decision is made on, outcome first: did the agent deliver,
  * or did it stop with nothing to show. Then the facts — who ran it and when,
- * whether there is a pull request, what was committed or produced, what the
- * checks said and whether any peer has looked. Then the agent's own account,
+ * whether there is a pull request, what was committed or produced, and what
+ * the checks said. Then the agent's own account,
  * folded after a screen, and the files it left behind.
  */
 export function ReviewOverview({ item }: { item: ReviewItem }) {
    const t = useTranslations('reviews');
    const { orgId } = useParams<{ orgId: string }>();
-   const latest = item.verdicts[0];
    const [artifacts, setArtifacts] = useState<RunArtifact[] | null>(null);
    const stopped = stoppedWithoutDelivering(item);
    const agent = item.author?.name ?? t('facts.noAuthor');
@@ -182,35 +181,6 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
                   )}
                   {checks && !checks.complete && checkResults.length > 0 && (
                      <span className="text-muted-foreground">· {t('facts.checksIncomplete')}</span>
-                  )}
-               </Fact>
-               {/* Always a row, AutoGate or not: a lead wants to see at a
-                   glance whether anyone has looked, and "No peer review" is
-                   as much a fact as a verdict. */}
-               <Fact label={t('facts.peerReview')}>
-                  {latest ? (
-                     <>
-                        <PeerVerdictChip verdict={latest} />
-                        <span className="text-muted-foreground">
-                           {t('facts.peerBy', { reviewer: latest.reviewer })}
-                           {latest.attempt > 1
-                              ? ` · ${t('peer.attempt', { attempt: latest.attempt })}`
-                              : ''}
-                        </span>
-                        {latest.reason && (
-                           <AgentMarkdown
-                              body={latest.reason}
-                              className="basis-full text-muted-foreground"
-                              clamp={{
-                                 lines: 4,
-                                 moreLabel: t('summary.more'),
-                                 lessLabel: t('summary.less'),
-                              }}
-                           />
-                        )}
-                     </>
-                  ) : (
-                     <span className="text-muted-foreground">{t('facts.noPeerReview')}</span>
                   )}
                </Fact>
             </dl>
