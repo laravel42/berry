@@ -4,6 +4,7 @@ import {
    BeforeToolCallEvent,
    MessageAddedEvent,
    ModelContentBlockDeltaEvent,
+   ModelContentBlockStartEvent,
    ModelStreamUpdateEvent,
    type LocalAgent,
    type Plugin,
@@ -101,6 +102,8 @@ export class LedgerPlugin implements Plugin {
    readonly #open = new Map<string, string>();
    /** When each open tool call started, for its duration. */
    readonly #startedAt = new Map<string, number>();
+   /** Tool calls whose start row is already written. */
+   readonly #announced = new Set<string>();
    /**
     * Set once the ledger refuses a write because the run ended — cancelled
     * while a tool was draining. The run's own ending is already recorded, and
@@ -123,17 +126,20 @@ export class LedgerPlugin implements Plugin {
             const text = inner.delta.text;
             await this.#write(() => this.#output.add(text));
          }
+         // The tool row, as soon as the model names the tool. A call's input is
+         // generated before it runs — sixteen whole files took 54 s — and with
+         // the row written only at the call, the run looked stopped for all of it.
+         if (inner instanceof ModelContentBlockStartEvent && inner.start?.type === 'toolUseStart') {
+            await this.#announce(inner.start.toolUseId, inner.start.name);
+         }
       });
 
       agent.addHook(BeforeToolCallEvent, async (event) => {
-         // Before the tool row, so the ledger reads in the order things
-         // happened: the agent said something, then called something.
-         await this.#write(() => this.#output.flush());
-         this.#open.set(event.toolUse.toolUseId, event.toolUse.name);
+         // Usually announced already, from the stream; a model that does not
+         // stream its tool calls is announced here.
+         await this.#announce(event.toolUse.toolUseId, event.toolUse.name);
+         // The duration is the tool's own, not the time the model took to write its input.
          this.#startedAt.set(event.toolUse.toolUseId, Date.now());
-         await this.#write(() =>
-            this.#ledger.appendToolStarted(this.#runId, event.toolUse.toolUseId, event.toolUse.name)
-         );
       });
 
       agent.addHook(AfterToolCallEvent, async (event) => {
@@ -169,7 +175,18 @@ export class LedgerPlugin implements Plugin {
          }
          this.#open.clear();
          this.#startedAt.clear();
+         this.#announced.clear();
       });
+   }
+
+   async #announce(id: string, name: string): Promise<void> {
+      if (this.#announced.has(id)) return;
+      this.#announced.add(id);
+      // Before the tool row, so the ledger reads in the order things
+      // happened: the agent said something, then called something.
+      await this.#write(() => this.#output.flush());
+      this.#open.set(id, name);
+      await this.#write(() => this.#ledger.appendToolStarted(this.#runId, id, name));
    }
 
    /** Whatever is buffered, written now. For the executor's error path. */

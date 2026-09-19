@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Agent, tool } from '@strands-agents/sdk';
+import { Agent, ModelContentBlockDeltaEvent, ModelStreamUpdateEvent, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { RunTerminal } from '../../../runs/ledger.ts';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
@@ -62,6 +62,26 @@ test('text, then the tool, then its end, then the answer', async () => {
       'completed:call_1:ok',
       'progress:All done here.',
    ]);
+});
+
+test('the tool row is written while the model is still writing the call, and only once', async () => {
+   const { rows, ledger } = fakeLedger();
+   const agent = new Agent({
+      model: new ScriptedModel([call('echo', { text: 'hi' }), say('Done.')]),
+      tools: [echo],
+      plugins: [new LedgerPlugin({ ledger, runId: 'run' })],
+      printer: false,
+   });
+   let whileWriting: string[] | null = null;
+   agent.addHook(ModelStreamUpdateEvent, (event) => {
+      const inner = event.event;
+      if (inner instanceof ModelContentBlockDeltaEvent && inner.delta.type === 'toolUseInputDelta') whileWriting = [...rows];
+   });
+
+   await agent.invoke('go');
+
+   assert.deepEqual(whileWriting, ['started:echo:call_1']);
+   assert.equal(rows.filter((row) => row.startsWith('started:')).length, 1);
 });
 
 test('a tool that throws is recorded as failed, and the run goes on', async () => {
