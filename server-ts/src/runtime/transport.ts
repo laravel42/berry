@@ -68,3 +68,47 @@ export function routingTransport(transports: { agentcore: RuntimeTransport | nul
       },
    };
 }
+
+/**
+ * How long a runtime stream may send nothing at all before it is given up on.
+ *
+ * The runtime writes a keepalive every 15 s while a task runs (and a model
+ * step writes more), so four missed keepalives means the stream is gone even
+ * if the socket never said so — a port forward that dropped the far end, a
+ * container removed under it. Without this the dispatcher held such a run as
+ * dispatching, renewing its lease, forever.
+ */
+export const STREAM_IDLE_MS = 60_000;
+
+/**
+ * The chunks of `source`, or a `RuntimeUnavailable` once none arrives for
+ * `ms`. `onIdle` aborts the underlying request so its socket is released.
+ */
+export async function* guardIdle<T>(source: AsyncIterable<T>, ms: number, onIdle: () => void): AsyncGenerator<T> {
+   const iterator = source[Symbol.asyncIterator]();
+   let finished = false;
+   try {
+      while (true) {
+         let timer: ReturnType<typeof setTimeout> | undefined;
+         const idle = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+               onIdle();
+               reject(new RuntimeUnavailable(`the runtime sent nothing, not even a keepalive, for ${Math.round(ms / 1000)} s`));
+            }, ms);
+         });
+         try {
+            const next = await Promise.race([iterator.next(), idle]);
+            if (next.done) {
+               finished = true;
+               return;
+            }
+            yield next.value;
+         } finally {
+            clearTimeout(timer);
+         }
+      }
+   } finally {
+      // Not awaited: after an idle timeout the pending read may never settle.
+      if (!finished) void iterator.return?.()?.catch?.(() => undefined);
+   }
+}

@@ -62,3 +62,49 @@ test('invoke tells an observer the request it sent and the status that came back
    assert.equal(seen.status, 200);
    assert.equal(seen.type, 'text/event-stream');
 });
+
+test('a stream that goes silent, keepalives included, ends as unavailable and releases the request', async () => {
+   // What happened for real: the runtime container was removed under an open
+   // stream behind a port forward, the socket never closed, and the run sat
+   // "dispatching" with its lease renewed for good.
+   let requestSignal: AbortSignal | undefined;
+   const fakeFetch = (async (_url: string, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      const body = new ReadableStream<Uint8Array>({
+         start(controller) {
+            controller.enqueue(new TextEncoder().encode(encodeLifecycle({ type: 'task.started' })));
+            // …and then nothing, ever.
+         },
+      });
+      return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+   }) as unknown as typeof fetch;
+   const events: LifecycleEvent[] = [];
+   const transport = httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl, idleMs: 50 });
+   await assert.rejects(async () => {
+      for await (const e of transport.invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) events.push(e);
+   }, (error: unknown) => error instanceof RuntimeUnavailable && /sent nothing/.test(error.message));
+   assert.deepEqual(events, [{ type: 'task.started' }]);
+   assert.equal(requestSignal?.aborted, true);
+});
+
+test('keepalives keep a quiet stream alive', async () => {
+   const fakeFetch = (async () => {
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+         async start(controller) {
+            controller.enqueue(encoder.encode(encodeLifecycle({ type: 'task.started' })));
+            for (let i = 0; i < 4; i += 1) {
+               await new Promise((resolve) => setTimeout(resolve, 30));
+               controller.enqueue(encoder.encode(': keepalive\n\n'));
+            }
+            controller.enqueue(encoder.encode(encodeLifecycle({ type: 'task.failed', failure: { code: 'X', message: 'm', retryable: false } })));
+            controller.close();
+         },
+      });
+      return new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+   }) as unknown as typeof fetch;
+   const events: LifecycleEvent[] = [];
+   const transport = httpTransport({ fetch: fakeFetch, token: 't'.repeat(32), endpointUrl: target.endpointUrl, idleMs: 80 });
+   for await (const e of transport.invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) events.push(e);
+   assert.deepEqual(events.map((e) => e.type), ['task.started', 'task.failed']);
+});

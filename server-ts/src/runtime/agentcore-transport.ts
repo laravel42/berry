@@ -10,6 +10,8 @@ import {
    type ExchangeObserver,
    type RuntimeTarget,
    type RuntimeTransport,
+   guardIdle,
+   STREAM_IDLE_MS,
 } from './transport.ts';
 
 /**
@@ -52,6 +54,10 @@ export function agentCoreTransport(options: {
       }): AsyncIterable<LifecycleEvent> {
          if (!target.arn) throw new RuntimeUnavailable('this runtime has no ARN');
          let body: AsyncIterable<Uint8Array>;
+         // The caller's signal, plus the idle watchdog's: either one ends the request.
+         const request = new AbortController();
+         const forward = () => request.abort();
+         signal.addEventListener('abort', forward, { once: true });
          try {
             const command = new InvokeAgentRuntimeCommand({
                agentRuntimeArn: target.arn,
@@ -62,13 +68,17 @@ export function agentCoreTransport(options: {
                payload: new TextEncoder().encode(JSON.stringify(envelope)),
             });
             if (observe) observeWire(command, observe);
-            const response = await clientFor(target.region).send(command, { abortSignal: signal as never });
+            const response = await clientFor(target.region).send(command, { abortSignal: request.signal as never });
             if (response.response === undefined || response.response === null) throw new Error('the runtime returned no body');
             body = toByteStream(response.response);
          } catch (cause) {
             throw new RuntimeUnavailable(`could not invoke the AgentCore Runtime: ${message(cause)}`, { cause });
          }
-         yield* parseLifecycleStream(body);
+         try {
+            yield* parseLifecycleStream(guardIdle(body, STREAM_IDLE_MS, forward));
+         } finally {
+            signal.removeEventListener('abort', forward);
+         }
       },
 
       async stop({ target, runtimeSessionId }) {
