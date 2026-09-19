@@ -16,7 +16,15 @@ export interface RouteDescriptor {
  * keys plus the sections that have pages but no rail entry.
  */
 export type TabLabelKey =
-   ShellLabelKey | 'inbox' | 'runs' | 'plans' | 'views' | 'attachments' | 'plugins' | 'profiles';
+   | ShellLabelKey
+   | 'inbox'
+   | 'runs'
+   | 'plans'
+   | 'views'
+   | 'attachments'
+   | 'plugins'
+   | 'profiles'
+   | 'preview';
 
 /**
  * Path segments that name a section, and what each reads as.
@@ -58,6 +66,8 @@ const SECTION_KEYS: Record<string, TabLabelKey> = {
    'usage': 'usage',
    'logs': 'logs',
    'attachments': 'attachments',
+   // A task's built site, opened full size in its own tab.
+   'preview': 'preview',
    'plugins': 'plugins',
    'profiles': 'profiles',
 };
@@ -91,6 +101,10 @@ export function tabLabelFor(href: string, fallback: string): TabLabel {
    const segments = path.split('/').filter(Boolean);
    const [section, ...rest] = segments;
    if (!section) return { kind: 'raw', text: fallback };
+
+   // Named for what it shows, not the task it belongs to (which is also in
+   // its path): a Preview tab beside the task's own tab reads as two things.
+   if (section === 'preview') return { kind: 'nav', key: 'preview' };
 
    const detail = rest[rest.length - 1];
    if (detail && ISSUE_KEY.test(detail)) return { kind: 'issue', key: detail.toUpperCase() };

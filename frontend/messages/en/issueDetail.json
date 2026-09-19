@@ -418,5 +418,13 @@
       "failed": "The site could not be built. The end of the build log is below.",
       "retry": "Try again",
       "unavailable": "This page is source code that has to be built first, and this server cannot build it because Docker is not available."
+   },
+   "sitePreview": {
+      "back": "Back to {ref}",
+      "noSite": "This task has no page to preview.",
+      "loadFailed": "The preview could not be opened.",
+      "loading": "Loading…",
+      "reload": "Reload the page",
+      "title": "Preview of {path}"
    }
 }

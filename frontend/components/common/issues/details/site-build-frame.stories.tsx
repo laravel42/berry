@@ -82,7 +82,7 @@ export const Built: Story = {
    },
    play: async ({ canvas }) => {
       const frame = await canvas.findByTitle('Page preview of index.html');
-      await expect(frame.getAttribute('src')).toBe('/api/v1/previews/token/__build__/');
+      await expect(frame.getAttribute('src')).toBe('/api/v1/previews/token/__build__/index.html');
       await expect(canvas.getByRole('button', { name: 'Rebuild' })).toBeVisible();
    },
 };

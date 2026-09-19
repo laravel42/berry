@@ -119,7 +119,9 @@ export function SiteBuildFrame({
 
    if (build?.state === 'ready' && base) {
       return frame(
-         `${base}${SITE_BUILD_PATH}`,
+         // A file, not the folder: Next's proxy drops a trailing slash, and the
+         // built site's relative asset paths resolve against this URL.
+         `${base}${SITE_BUILD_PATH}index.html`,
          <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-muted-foreground">
             <Hammer className="size-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1 truncate">{t('built')}</span>

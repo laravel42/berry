@@ -4,7 +4,7 @@ import type { RunArtifact, RunArtifactRepository } from '../core/run-artifacts.t
 import { createApp } from '../http/app.ts';
 import { Registry } from '../http/registry.ts';
 import type { Storage } from '../storage/storage.ts';
-import { artifactPreviewMounts, PreviewTokens, previewContentType, rootRelative } from './artifact-preview.ts';
+import { artifactPreviewMounts, PreviewTokens, previewContentType, rootRelative, SANDBOX_SHIM, withSandboxShim, asAppRoot } from './artifact-preview.ts';
 
 const ISSUE = '6f1c0c52-2c6e-4d7c-9a47-0f7f3c1c9b10';
 const OTHER = '7a2d1d63-3d7f-4e8d-8b58-1a8a4d2dac21';
@@ -66,7 +66,8 @@ test('a site is served at its own paths, sandboxed and framable only by Berry', 
    const page = await server.request(`${base}site/`);
    assert.equal(page.status, 200);
    assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8');
-   assert.equal(await page.text(), '<link href="style.css">');
+   // The storage stand-ins come first, then the page as the agent wrote it.
+   assert.equal(await page.text(), `${SANDBOX_SHIM}<link href="style.css">`);
    const policy = page.headers.get('content-security-policy') ?? '';
    assert.match(policy, /^sandbox allow-scripts/);
    assert.match(policy, /frame-ancestors 'self'/);
@@ -99,7 +100,7 @@ test('root-absolute links point at the site inside the preview, not at Berry', a
       'dist/assets/app.css': 'body{background:url("/assets/bg.png")}',
    });
    const page = await (await server.request(`${base}dist/index.html`)).text();
-   assert.equal(page, `<script type="module" src="${base}dist/assets/app.js"></script><a href="//cdn.test/x">cdn</a>`);
+   assert.equal(page, `${SANDBOX_SHIM}<script type="module" src="${base}dist/assets/app.js"></script><a href="//cdn.test/x">cdn</a>`);
    const css = await (await server.request(`${base}dist/assets/app.css`)).text();
    assert.equal(css, `body{background:url("${base}dist/assets/bg.png")}`);
 });
@@ -107,4 +108,18 @@ test('root-absolute links point at the site inside the preview, not at Berry', a
 test('relative links are left as they are', () => {
    assert.equal(rootRelative('<img src="logo.png">', 'text/html', '/b/'), '<img src="logo.png">');
    assert.equal(rootRelative('a{b:url(img.png)}', 'text/css', '/b/'), 'a{b:url(img.png)}');
+});
+
+test('the storage stand-ins go first in the head, before the page\'s own scripts', () => {
+   assert.equal(
+      withSandboxShim('<!doctype html><html><head><script src="a.js"></script></head></html>'),
+      `<!doctype html><html><head>${SANDBOX_SHIM}<script src="a.js"></script></head></html>`
+   );
+   assert.equal(withSandboxShim('<!DOCTYPE html><p>x</p>'), `<!DOCTYPE html>${SANDBOX_SHIM}<p>x</p>`);
+});
+
+test('a built app is shown at / with its assets resolving from the build folder', () => {
+   const page = asAppRoot('<html><head><script type="module" src="./assets/app.js"></script></head></html>', '/api/v1/previews/t/__build__/');
+   assert.match(page, /^<html><head><base href="\/api\/v1\/previews\/t\/__build__\/"><script>try\{history\.replaceState/);
+   assert.ok(page.indexOf('<base') < page.indexOf('./assets/app.js'));
 });

@@ -59,3 +59,18 @@ export const NothingSelected: Story = {
 export const SingleTab: Story = {
    args: { tabs: [shellTabs[0]], activeTabId: 'tab-1' },
 };
+
+/** A task's site preview reads "Preview", not the task key its path also carries. */
+export const PreviewTab: Story = {
+   args: {
+      tabs: [
+         { id: 'task', href: '/issue/L42-400', label: 'L42-400' },
+         { id: 'preview', href: '/preview/L42-400?path=index.html', label: 'Preview' },
+      ],
+      activeTabId: 'preview',
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('tab', { name: 'Preview' })).toHaveAttribute('aria-selected', 'true');
+      await expect(canvas.getByRole('tab', { name: 'L42-400' })).toBeVisible();
+   },
+};

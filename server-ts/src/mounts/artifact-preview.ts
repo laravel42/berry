@@ -212,10 +212,14 @@ export function artifactPreviewMounts(options: {
          return notFound();
       }
       // The built site, when the task's project has been built for preview.
+      // `__build__` without its slash too: Next's proxy strips trailing slashes.
+      if (path === BUILD_PREFIX.slice(0, -1)) path = BUILD_PREFIX;
       if (path.startsWith(BUILD_PREFIX)) {
          const built = options.builds ? await options.builds.file(issueId, path.slice(BUILD_PREFIX.length)) : null;
          if (!built) return notFound();
-         return serve(built.bytes, previewContentType(built.path, 'application/octet-stream'), `${prefix}${BUILD_PREFIX}`);
+         return serve(built.bytes, previewContentType(built.path, 'application/octet-stream'), `${prefix}${BUILD_PREFIX}`, {
+            app: true,
+         });
       }
       // A directory, or the base itself, is its index page — how a static
       // host answers, and what a site's own links expect.
@@ -234,11 +238,53 @@ export function artifactPreviewMounts(options: {
    return [{ prefix: '/api/v1/previews', handler: route }];
 }
 
+/**
+ * Storage for a page with no origin of its own.
+ *
+ * A sandboxed page (no `allow-same-origin`, which would hand the agent's
+ * scripts Berry's session) throws a SecurityError on `localStorage`,
+ * `sessionStorage` and `document.cookie`. Most apps touch one of them while
+ * they start, so a built React site crashed to a blank frame. These stand-ins
+ * keep the values in memory for the life of the page, and are only installed
+ * where the real ones are refused.
+ */
+export const SANDBOX_SHIM = `<script>(function(){function m(){var d={};return{get length(){return Object.keys(d).length},key:function(i){return Object.keys(d)[i]??null},getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].getItem("x")}catch(e){try{Object.defineProperty(window,n,{value:m(),configurable:true})}catch(_){}}});try{void document.cookie}catch(e){var c="";try{Object.defineProperty(document,"cookie",{get:function(){return c},set:function(v){var p=String(v).split(";")[0];c=c?c+"; "+p:p},configurable:true})}catch(_){}}})();</script>`;
+
+/** The stand-ins, first thing in the page, before any of its own scripts. */
+export function withSandboxShim(html: string): string {
+   const head = /<head\b[^>]*>/i.exec(html);
+   if (head) return html.slice(0, head.index + head[0].length) + SANDBOX_SHIM + html.slice(head.index + head[0].length);
+   const doctype = /<!doctype[^>]*>/i.exec(html);
+   if (doctype) return html.slice(0, doctype.index + doctype[0].length) + SANDBOX_SHIM + html.slice(doctype.index + doctype[0].length);
+   return SANDBOX_SHIM + html;
+}
+
+/**
+ * A built single-page app, shown as its host would serve it: its router reads
+ * `/`, not the preview's long path, or it renders its own "page not found".
+ * The address is rewritten before any of its scripts run, and a `<base>`
+ * keeps its relative assets and lazily loaded chunks resolving from the build.
+ */
+export function asAppRoot(html: string, root: string): string {
+   const base = `<base href="${root.replace(/"/g, '&quot;')}"><script>try{history.replaceState(history.state,"","/"+location.search+location.hash)}catch(e){}</script>`;
+   const head = /<head\b[^>]*>/i.exec(html);
+   if (head) return html.slice(0, head.index + head[0].length) + base + html.slice(head.index + head[0].length);
+   return base + html;
+}
+
 /** A preview file, sandboxed; HTML and CSS have their root-absolute URLs pointed at `root`. */
-function serve(bytes: Uint8Array, type: string, root: string): Response {
-   const body = /^text\/(html|css)\b/.test(type) && root
-      ? new TextEncoder().encode(rootRelative(new TextDecoder().decode(bytes), type, root))
-      : bytes;
+function serve(bytes: Uint8Array, type: string, root: string, options: { app?: boolean } = {}): Response {
+   let body = bytes;
+   if (/^text\/(html|css)\b/.test(type)) {
+      let text = new TextDecoder().decode(bytes);
+      if (root) text = rootRelative(text, type, root);
+      if (type.startsWith('text/html')) {
+         if (options.app) text = asAppRoot(text, root);
+         // Last in, so first in the page: storage before anything reads it.
+         text = withSandboxShim(text);
+      }
+      body = new TextEncoder().encode(text);
+   }
    return new Response(body, {
       status: 200,
       headers: { ...SANDBOX_HEADERS, 'Content-Type': type, 'Content-Length': String(body.byteLength) },
