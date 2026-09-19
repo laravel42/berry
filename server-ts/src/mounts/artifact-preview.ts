@@ -175,7 +175,9 @@ export function issueArtifactPreviewRoutes(options: {
       if (!options.builds || !(await options.builds.available())) {
          throw new ApiError(503, 'BUILDS_UNAVAILABLE', 'This server cannot build sites: Docker is not available.');
       }
-      return json({ available: true, ...(await options.builds.start(issue.id)) }, 202);
+      // `{ "force": true }` builds again even when the current files are built.
+      const body = (await context.req.json().catch(() => ({}))) as { force?: unknown };
+      return json({ available: true, ...(await options.builds.start(issue.id, { force: body?.force === true })) }, 202);
    });
 
    route.post('/:issueRef/artifacts/preview', async (context) => {

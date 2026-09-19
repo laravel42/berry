@@ -67,7 +67,9 @@ export const NEEDS_BUILD = /<script[^>]*\bsrc\s*=\s*["'][^"']+\.(?:tsx?|jsx|vue|
  */
 export function buildScript(packageJson: { scripts?: Record<string, string>; dependencies?: Record<string, string>; devDependencies?: Record<string, string> }): string {
    const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-   const install = 'npm install --no-audit --no-fund --loglevel=error';
+   // `http` prints each package as it is fetched, so the log streams through
+   // the minute an install takes instead of sitting silent.
+   const install = 'npm install --no-audit --no-fund --loglevel=http';
    const build = deps.vite
       ? 'npx --no-install vite build --base ./ --outDir .berry-out --emptyOutDir'
       : packageJson.scripts?.build
@@ -110,13 +112,15 @@ export class SiteBuilds {
 
    /**
     * Starts a build unless the current files are already built or building.
+    * `force` builds again even when they are built — the Rebuild button. A
+    * task never has two builds running at once, forced or not.
     * Returns at once; the build goes on in the background.
     */
-   async start(issueId: string): Promise<BuildStatus> {
+   async start(issueId: string, options: { force?: boolean } = {}): Promise<BuildStatus> {
       const key = await this.#key(issueId);
       const current = await this.#current(issueId);
-      if (current && current.key === key && current.state !== 'failed') return this.status(issueId);
       if (current?.state === 'building') return this.status(issueId);
+      if (!options.force && current && current.key === key && current.state !== 'failed') return this.status(issueId);
 
       const build: Build = {
          key,
@@ -169,7 +173,10 @@ export class SiteBuilds {
          const marker = JSON.parse(await readFile(join(this.#root, key, READY_MARKER), 'utf8')) as { outDir: string; log?: string };
          const outDir = resolve(marker.outDir);
          if (!outDir.startsWith(join(this.#root, key) + sep) || !existsSync(join(outDir, 'index.html'))) return undefined;
-         const build: Build = { key, state: 'ready', log: marker.log ?? '', outDir, startedAt: null, finishedAt: null };
+         // When it finished, from the marker written then: the preview puts it in
+         // the page address so each build loads fresh.
+         const finishedAt = (await stat(join(this.#root, key, READY_MARKER))).mtime.toISOString();
+         const build: Build = { key, state: 'ready', log: marker.log ?? '', outDir, startedAt: null, finishedAt };
          this.#builds.set(issueId, build);
          return build;
       } catch {

@@ -11,10 +11,10 @@ import { BerryApiError } from '@/lib/api';
 import { Hammer, Loader2, RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { knownSiteBuild, rememberSiteBuild } from '@/lib/site-preview';
+import { knownSiteBuild, rebuildSite, rememberSiteBuild } from '@/lib/site-preview';
 
-/** How often a running build is re-read. */
-const POLL_MS = 2000;
+/** How often a running build is re-read: often enough that its log reads as a stream. */
+const POLL_MS = 1000;
 
 interface SiteBuildFrameProps {
    issueRef: string;
@@ -66,6 +66,32 @@ export function SiteBuildFrame({
    const start = useCallback(() => {
       setError(null);
       startSiteBuild(issueRef)
+         .then(setBuild)
+         .catch((cause: unknown) => {
+            setError(
+               cause instanceof BerryApiError && cause.status === 503
+                  ? t('unavailable')
+                  : cause instanceof Error
+                    ? cause.message
+                    : String(cause)
+            );
+         });
+   }, [issueRef, t, setBuild]);
+
+   /**
+    * Rebuild: the frame goes at once and the build's log takes its place,
+    * following it line by line until the new build is up, which then loads.
+    */
+   const rebuild = useCallback(() => {
+      setError(null);
+      setBuild({
+         available: true,
+         state: 'building',
+         log: '',
+         startedAt: new Date().toISOString(),
+         finishedAt: null,
+      });
+      rebuildSite(issueRef)
          .then(setBuild)
          .catch((cause: unknown) => {
             setError(
@@ -132,11 +158,13 @@ export function SiteBuildFrame({
       return frame(
          // A file, not the folder: Next's proxy drops a trailing slash, and the
          // built site's relative asset paths resolve against this URL.
-         `${base}${SITE_BUILD_PATH}index.html`,
+         // The build's end time in the address, so a rebuilt site loads fresh
+         // (a new frame, and no page cached from the build before).
+         `${base}${SITE_BUILD_PATH}index.html?v=${encodeURIComponent(build.finishedAt ?? '')}`,
          <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-1.5 text-muted-foreground">
             <Hammer className="size-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1 truncate">{t('built')}</span>
-            <Button size="xs" variant="ghost" onClick={start} title={t('rebuildHint')}>
+            <Button size="xs" variant="ghost" onClick={rebuild} title={t('rebuildHint')}>
                {t('rebuild')}
             </Button>
          </div>
@@ -172,11 +200,28 @@ export function SiteBuildFrame({
    );
 }
 
-/** The end of the build's output, newest line last. */
+/**
+ * The build's output as it grows, newest line last. Follows the end like a
+ * terminal, unless the reader has scrolled up to read something.
+ */
 function BuildLog({ log }: { log: string }) {
-   const tail = log.split('\n').slice(-40).join('\n').trim();
+   const box = useRef<HTMLPreElement>(null);
+   const pinned = useRef(true);
+   const tail = log.split('\n').slice(-400).join('\n').trim();
+   useEffect(() => {
+      const element = box.current;
+      if (element && pinned.current) element.scrollTop = element.scrollHeight;
+   }, [tail]);
    return (
-      <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/40 p-3 font-mono">
+      <pre
+         ref={box}
+         onScroll={(event) => {
+            const element = event.currentTarget;
+            pinned.current = element.scrollHeight - element.scrollTop - element.clientHeight < 24;
+         }}
+         aria-live="polite"
+         className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/40 p-3 font-mono"
+      >
          {tail}
       </pre>
    );

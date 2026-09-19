@@ -120,3 +120,16 @@ function follow(issueRef: string): void {
    };
    setTimeout(tick, FOLLOW_MS);
 }
+
+/**
+ * Builds the task's site again even though its files are already built — the
+ * Rebuild button. Joins the running build when there is one.
+ */
+export async function rebuildSite(issueRef: string): Promise<KnownSiteBuild> {
+   const build = await apiFetch<KnownSiteBuild>(buildPath(issueRef), {
+      method: 'POST',
+      body: JSON.stringify({ force: true }),
+   });
+   rememberSiteBuild(issueRef, build);
+   return build;
+}

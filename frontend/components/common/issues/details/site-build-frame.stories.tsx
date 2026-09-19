@@ -82,7 +82,7 @@ export const Built: Story = {
    },
    play: async ({ canvas }) => {
       const frame = await canvas.findByTitle('Page preview of index.html');
-      await expect(frame.getAttribute('src')).toBe('/api/v1/previews/token/__build__/index.html');
+      await expect(frame.getAttribute('src')).toMatch(/^\/api\/v1\/previews\/token\/__build__\/index\.html\?v=/);
       await expect(canvas.getByRole('button', { name: 'Rebuild' })).toBeVisible();
    },
 };
@@ -129,5 +129,56 @@ export const NoDocker: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findByText(/Docker is not available/)).toBeVisible();
+   },
+};
+
+/**
+ * Rebuild takes the frame away, streams the build's log in its place and
+ * loads the new build when it succeeds.
+ */
+export const Rebuild: Story = {
+   beforeEach: ({ msw }) => {
+      let reads = 0;
+      msw.use(
+         http.post('*/artifacts/preview/build', async ({ request }) => {
+            const body = (await request.json().catch(() => ({}))) as { force?: boolean };
+            return HttpResponse.json(
+               body.force
+                  ? status('building', '$ npm install\n')
+                  : { ...status('ready'), finishedAt: '2026-09-19T08:01:10Z' },
+               { status: 202 }
+            );
+         }),
+         http.get('*/artifacts/preview/build', () => {
+            reads += 1;
+            return reads < 3
+               ? HttpResponse.json(
+                    status(
+                       'building',
+                       `$ npm install\nadded 392 packages\n$ vite build\nstep ${reads}\n`
+                    )
+                 )
+               : HttpResponse.json({
+                    ...status('ready', 'Built.'),
+                    finishedAt: '2026-09-19T09:30:00Z',
+                 });
+         })
+      );
+   },
+   play: async ({ canvas, userEvent }) => {
+      const first = await canvas.findByTitle('Page preview of index.html');
+      await expect(first.getAttribute('src')).toContain(
+         '__build__/index.html?v=2026-09-19T08%3A01%3A10Z'
+      );
+
+      await userEvent.click(canvas.getByRole('button', { name: 'Rebuild' }));
+      // The frame is gone at once; the log streams in its place.
+      await expect(canvas.queryByTitle('Page preview of index.html')).toBeNull();
+      await expect(await canvas.findByRole('status')).toHaveTextContent('Building the site');
+      await expect(await canvas.findByText(/vite build/, {}, { timeout: 3000 })).toBeVisible();
+
+      // Succeeded: the new build loads, at an address of its own.
+      const rebuilt = await canvas.findByTitle('Page preview of index.html', {}, { timeout: 6000 });
+      await expect(rebuilt.getAttribute('src')).toContain('?v=2026-09-19T09%3A30%3A00Z');
    },
 };
