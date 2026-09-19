@@ -8,13 +8,13 @@ import { toast } from 'sonner';
 
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { decideProposal, listProposals, type WorkProposal } from '@/lib/organization';
 import { useSessionStore } from '@/store/session-store';
@@ -187,12 +187,7 @@ export default function Proposals() {
 
             {error ? <p className="text-destructive">{error}</p> : null}
 
-            {proposals === null && !error ? (
-               <div className="flex flex-col gap-3">
-                  <Skeleton className="h-32 w-full" />
-                  <Skeleton className="h-32 w-full" />
-               </div>
-            ) : null}
+            {proposals === null && !error ? <EmptyStateLoading label={t('loading')} /> : null}
 
             {proposals?.map((proposal) => (
                <ProposalCard

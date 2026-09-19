@@ -1,6 +1,7 @@
 'use client';
 
 import { ListFilterBar, useListFilters } from '@/components/common/filters/list-filters';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -405,7 +406,7 @@ function InboxList({
          />
       );
    }
-   if (!ready) return <InboxPanel title={t('states.loading')} />;
+   if (!ready) return <EmptyStateLoading label={t('states.loading')} />;
    if (items.length === 0) {
       if (sourceCount > 0 && filtered) {
          return (

@@ -30,6 +30,7 @@ import {
 import { Progress } from '@/components/ui/progress';
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -150,7 +151,7 @@ export default function Autopilots({
    };
 
    if (!loaded && !error) {
-      return <div className="px-6 py-10 text-muted-foreground">{t('loading')}</div>;
+      return <EmptyStateLoading label={t('loading')} />;
    }
    if (error) {
       return (

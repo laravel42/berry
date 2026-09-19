@@ -2,6 +2,7 @@
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { ApprovalCard } from '@/components/common/approvals/approval-card';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueLine } from '@/components/common/issues/issue-line';
 import { Pill, SectionHeading } from '@/components/common/plans/plan-sections';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
@@ -273,9 +274,10 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
    const { lists } = useGoalLists(goalId);
 
    if (!goal) {
+      if (loading) return <EmptyStateLoading label="Loading goal…" />;
       return (
          <div className="p-6 text-muted-foreground" role={error ? 'alert' : 'status'}>
-            {error ?? (loading ? 'Loading goal…' : 'Goal not found.')}
+            {error ?? 'Goal not found.'}
          </div>
       );
    }

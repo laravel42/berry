@@ -96,6 +96,7 @@
       "sparkEmptyShort": "No runs"
    },
    "detail": {
+      "loading": "Loading agent…",
       "tabOverview": "Overview",
       "tabCapabilities": "Capabilities",
       "tabSettings": "Settings",

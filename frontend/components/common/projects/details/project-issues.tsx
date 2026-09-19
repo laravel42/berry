@@ -1,6 +1,7 @@
 'use client';
 
 import { BatchToolbar } from '@/components/common/issues/batch-toolbar';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
 import {
    applyIssueFilters,
@@ -48,7 +49,7 @@ export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
    );
 
    if (!project) {
-      return <div className="p-6 text-muted-foreground">Loading project…</div>;
+      return <EmptyStateLoading label="Loading project…" />;
    }
 
    return (

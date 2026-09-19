@@ -6,6 +6,7 @@ import { useFormatter, useNow, useTranslations } from 'next-intl';
 import { useEffect, type ReactNode } from 'react';
 
 import { BerryMark, type BerryMarkState, type BerryMarkTone } from '@/components/brand/berry-mark';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { Pill } from '@/components/common/plans/plan-sections';
 import { status as allStatus, StatusIcon } from '@/data/status';
 import { localTimezone } from '@/lib/cron-schedule';
@@ -91,7 +92,7 @@ export default function UsageNow({
    }, [onState, lastUpdated, loading, reload]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
+   if (!data) return <EmptyStateLoading label={t('loading')} />;
 
    const ago = (iso: string) => format.relativeTime(new Date(iso), now);
    const moreQueued = data.runCounts.queued - data.queuedRuns.length;

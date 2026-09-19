@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { ConfirmAction } from '@/components/common/confirm-action';
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -104,7 +105,7 @@ export default function SkillsList({
    }, [rows, setOrderedIds]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (skills === null) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
+   if (skills === null) return <EmptyStateLoading label={t('loading')} />;
 
    if (rows.length === 0) {
       return (

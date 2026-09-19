@@ -2,6 +2,7 @@
 
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -67,7 +68,7 @@ export default function Goals() {
    return (
       <div className="flex h-full min-h-0 w-full flex-col">
          {!loaded && !error ? (
-            <div className="px-6 py-10 text-muted-foreground">{t('loading')}</div>
+            <EmptyStateLoading label={t('loading')} />
          ) : error ? (
             <div className="px-6 py-10 text-muted-foreground" role="alert">
                {error}

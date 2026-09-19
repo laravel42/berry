@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { SegmentedControl } from '@/components/common/segmented-control';
 import {
    formatCost,
@@ -50,7 +51,7 @@ export default function UsageOverview({
    }, [onState, lastUpdated, loading, reload]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
+   if (!data) return <EmptyStateLoading label={t('loading')} />;
 
    const points = grain === 'weekly' ? weeklyBuckets(data.daily) : data.daily;
    const totals = data.totals;

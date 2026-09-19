@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
 import { DeliveriesTable, RunsTable } from '@/components/common/autopilots/history-tabs';
 import TriggersTab from '@/components/common/autopilots/triggers-tab';
@@ -23,7 +24,6 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAutopilot } from '@/hooks/use-autopilot';
@@ -107,15 +107,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    }, []);
 
    if (loading) {
-      return (
-         <div className="flex flex-col gap-4 px-8 py-8">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-4 w-full max-w-xl" />
-            <Skeleton className="mt-4 h-10 w-full max-w-2xl" />
-            <Skeleton className="h-40 w-full max-w-3xl" />
-         </div>
-      );
+      return <EmptyStateLoading label={t('detail.loading')} />;
    }
 
    if (error || !autopilot) {

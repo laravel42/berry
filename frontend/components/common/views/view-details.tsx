@@ -6,6 +6,7 @@ import { IssueGantt } from '@/components/common/issues/issue-gantt';
 import { IssueTable } from '@/components/common/issues/issue-table';
 import { applyIssueFilters } from '@/components/common/issues/issue-filter-columns';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import ProjectsList from '@/components/common/projects/projects-list';
 import { ProjectGroup } from '@/components/common/projects/projects';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
@@ -121,11 +122,7 @@ export default function ViewDetails({ viewId }: { viewId: string }) {
    }, [view, views.length, router, orgId, t]);
 
    if (!view) {
-      return (
-         <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-            {t('states.loading')}
-         </div>
-      );
+      return <EmptyStateLoading label={t('states.loading')} />;
    }
 
    return view.type === 'issue' ? <IssueViewBody view={view} /> : <ProjectViewBody view={view} />;

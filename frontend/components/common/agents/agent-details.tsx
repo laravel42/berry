@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { colorForAgent } from '@/lib/agent-color';
 import {
    AlertDialog,
@@ -19,7 +20,6 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
@@ -169,14 +169,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    };
 
    if (status === 'loading') {
-      return (
-         <div className="flex flex-col gap-4 px-8 py-8">
-            <Skeleton className="h-14 w-14 rounded-full" />
-            <Skeleton className="h-5 w-56" />
-            <Skeleton className="h-4 w-full max-w-xl" />
-            <Skeleton className="h-40 w-full max-w-3xl" />
-         </div>
-      );
+      return <EmptyStateLoading label={t('loading')} />;
    }
 
    if (status !== 'ready' || !agent) {

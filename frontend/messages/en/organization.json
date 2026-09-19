@@ -78,6 +78,7 @@
    },
    "proposals": {
       "title": "Proposals",
+      "loading": "Loading proposals…",
       "empty": {
          "mark": "No proposals",
          "title": "No proposals yet.",

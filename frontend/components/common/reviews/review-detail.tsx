@@ -1,6 +1,7 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
 import { SitePreview } from '@/components/common/issues/details/site-preview';
 import { loadIssueArtifacts, siteEntry } from '@/lib/attachments';
@@ -112,11 +113,7 @@ export function ReviewDetail({
    );
 
    if (item === undefined) {
-      return (
-         <div className="flex h-full items-center justify-center px-6 text-muted-foreground">
-            {t('detail.loading')}
-         </div>
-      );
+      return <EmptyStateLoading label={t('detail.loading')} />;
    }
    if (item === null) {
       return (

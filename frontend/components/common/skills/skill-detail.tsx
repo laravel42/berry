@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
@@ -136,8 +137,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
    const changes = draft && loadedDraft ? changeSummary(draft, loadedDraft) : [];
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (!draft || !loaded)
-      return <p className="px-6 py-8 text-muted-foreground">{t('detail.loading')}</p>;
+   if (!draft || !loaded) return <EmptyStateLoading label={t('detail.loading')} />;
 
    const fail = (failure: unknown, fallback: string) =>
       toast.error(failure instanceof BerryApiError ? failure.message : fallback);

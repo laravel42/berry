@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -209,9 +210,10 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
    const answers = usePlanAnswers(record);
 
    if (!record) {
+      if (busy === 'loading') return <EmptyStateLoading label="Loading plan…" />;
       return (
          <div className="p-6 text-muted-foreground" role={error ? 'alert' : 'status'}>
-            {error ?? (busy === 'loading' ? 'Loading plan…' : 'Plan not found.')}
+            {error ?? 'Plan not found.'}
          </div>
       );
    }

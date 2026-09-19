@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { SegmentedControl } from '@/components/common/segmented-control';
 import { getUsageErrors, usageQueryKey, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
@@ -53,7 +54,7 @@ export default function UsageErrors({
    }, [onState, lastUpdated, loading, reload]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (!data) return <p className="px-6 py-8 text-muted-foreground">{t('loading')}</p>;
+   if (!data) return <EmptyStateLoading label={t('loading')} />;
 
    const offenders = [...data.offenders].sort((left, right) =>
       rank === 'count'

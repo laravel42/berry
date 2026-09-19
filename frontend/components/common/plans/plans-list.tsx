@@ -3,6 +3,7 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -161,7 +162,7 @@ export default function PlansList() {
                {t('list.failed')}
             </div>
          ) : plans === null ? (
-            <div className="px-6 py-10 text-muted-foreground">{t('list.loading')}</div>
+            <EmptyStateLoading label={t('list.loading')} />
          ) : plans.length === 0 ? (
             <EmptyState icon={<EmptyStateMark label={t('empty.mark')} />}>
                <EmptyStateTitle>

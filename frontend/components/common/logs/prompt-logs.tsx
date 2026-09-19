@@ -4,7 +4,12 @@ import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 
-import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
+import {
+   EmptyState,
+   EmptyStateLoading,
+   EmptyStateMark,
+   EmptyStateText,
+} from '@/components/common/empty-state';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { Button } from '@/components/ui/button';
 import {
@@ -192,11 +197,11 @@ export default function PromptLogs() {
                <EmptyState icon={<EmptyStateMark label={t('loadFailed')} state="crossed" />}>
                   <EmptyStateText>{t('loadFailed')}</EmptyStateText>
                </EmptyState>
+            ) : loading && rows.length === 0 ? (
+               <EmptyStateLoading label={t('loading')} />
             ) : rows.length === 0 ? (
                <EmptyState icon={<EmptyStateMark label={t('title')} />}>
-                  <EmptyStateText>
-                     {loading ? t('loading') : filtered ? t('noMatch') : t('empty')}
-                  </EmptyStateText>
+                  <EmptyStateText>{filtered ? t('noMatch') : t('empty')}</EmptyStateText>
                </EmptyState>
             ) : (
                <table className="w-full">

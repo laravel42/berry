@@ -1,7 +1,12 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
+import {
+   EmptyState,
+   EmptyStateLoading,
+   EmptyStateMark,
+   EmptyStateText,
+} from '@/components/common/empty-state';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
@@ -349,9 +354,7 @@ export default function Reviews({
                </Tabs>
             </div>
             <div className="flex-1 overflow-y-auto">
-               {items === null && !error && (
-                  <div className="px-4 py-6 text-muted-foreground">{t('loading')}</div>
-               )}
+               {items === null && !error && <EmptyStateLoading label={t('loading')} />}
                {error && (
                   <div className="px-4 py-6 text-muted-foreground" role="alert">
                      {error}

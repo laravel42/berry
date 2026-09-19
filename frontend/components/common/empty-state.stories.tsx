@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
    EmptyState,
    EmptyStateActions,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -86,6 +87,15 @@ export const NoMatches: Story = {
       await expect(
          getComputedStyle(canvas.getByText('No tasks match these filters.')).marginTop
       ).toBe('20px');
+   },
+};
+
+/** First paint of a list section: the same mark + line Logs uses. */
+export const Loading: Story = {
+   render: () => <EmptyStateLoading label="Loading logs…" />,
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('img', { name: 'Loading logs…' })).toBeVisible();
+      await expect(canvas.getByText('Loading logs…')).toBeVisible();
    },
 };
 

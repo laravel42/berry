@@ -3,6 +3,7 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import {
    EmptyState,
+   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -239,7 +240,7 @@ export default function Approvals() {
          >
             <div className="min-h-0 flex-1 overflow-y-auto">
                {!loaded && !error ? (
-                  <p className="px-4 py-10 text-muted-foreground">{t('loading')}</p>
+                  <EmptyStateLoading label={t('loading')} />
                ) : error ? (
                   <p className="px-4 py-10 text-status-danger" role="alert">
                      {error}

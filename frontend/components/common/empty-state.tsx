@@ -46,6 +46,18 @@ export function EmptyStateMark({
    return <BerryMark size="lg" tone="neutral" state={state} label={label} />;
 }
 
+/**
+ * What a list section shows while its first page is still in flight.
+ * Same centred mark + line the Logs page uses — not a spinner or skeleton.
+ */
+export function EmptyStateLoading({ label }: { label: string }) {
+   return (
+      <EmptyState icon={<EmptyStateMark label={label} />}>
+         <EmptyStateText>{label}</EmptyStateText>
+      </EmptyState>
+   );
+}
+
 interface EmptyStateTitleProps extends ComponentProps<'h2'> {
    /**
     * `display` (default): the serif display face, for a page-level empty state
