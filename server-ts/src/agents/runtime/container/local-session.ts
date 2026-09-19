@@ -8,6 +8,9 @@ import type {
    ExecutionSession,
 } from '../../../execution/driver.ts';
 
+/** How long output may keep arriving after the shell exits before its group is reaped. */
+const EXIT_DRAIN_MS = 500;
+
 /**
  * The run's workspace, as the container's own shell.
  *
@@ -94,8 +97,17 @@ export class LocalSession implements ExecutionSession {
          // A process that never started emits no `close`.
          if (child.pid === undefined) finish(127);
       });
+      // A backgrounded child (`server &`) inherits stdout and holds it open after the
+      // shell exits, so `close` would wait for the timeout. Let trailing output drain,
+      // then reap the group; that closes the pipes and `close` reports the shell's code.
+      let reap: ReturnType<typeof setTimeout> | undefined;
+      child.on('exit', () => {
+         reap = setTimeout(kill, EXIT_DRAIN_MS);
+         reap.unref();
+      });
       child.on('close', (code, signal) => {
          clearTimeout(timeout);
+         clearTimeout(reap);
          kill();
          if (pid !== undefined) this.#groups.delete(pid);
          if (code === null && signal) push({ type: 'error', seq: seq++, message: `command ended by ${signal}` });

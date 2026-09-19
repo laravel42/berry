@@ -32,6 +32,13 @@ test('files written are read back byte for byte', async () => {
    assert.equal(await s.readFile('deep/dir/a.txt'), 'EOF\nline\n');
 });
 
+test('a backgrounded child that outlives the shell does not hold the command open', async () => {
+   const started = Date.now();
+   const result = await session().exec('sleep 30 & echo hi; exit 4');
+   assert.deepEqual(result, { stdout: 'hi\n', stderr: '', exitCode: 4 });
+   assert.ok(Date.now() - started < 5_000);
+});
+
 test('an aborted command ends with an error and a non-zero exit', async () => {
    const controller = new AbortController();
    setTimeout(() => controller.abort(), 50);
