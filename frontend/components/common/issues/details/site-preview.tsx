@@ -1,7 +1,6 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import {
    artifactPreviewBase,
    artifactPreviewUrl,
@@ -10,52 +9,22 @@ import {
    siteEntry,
    type RunArtifact,
 } from '@/lib/attachments';
-import { useShellStore } from '@/store/shell-store';
-import { ArrowLeft, RotateCw } from 'lucide-react';
-import Link from 'next/link';
+import { RotateCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SiteBuildFrame } from './site-build-frame';
 
 /** A page that loads source a browser cannot run as it is: TypeScript, JSX or a framework component. */
 const NEEDS_BUILD = /<script[^>]*\bsrc\s*=\s*["'][^"']+\.(?:tsx?|jsx|vue|svelte)["']/i;
 
 /**
- * Opens a task's site in its own "Preview" tab, full size, and goes there.
+ * What an agent built on a task, running as a site, filling its container —
+ * the review's Preview section. A project that has to be built is built first
+ * (`SiteBuildFrame`), and the page runs in the same sandbox as everywhere else.
  * `path` picks a page; without it the site's entry page opens.
  */
-export function useOpenSitePreview(issueRef: string) {
-   const router = useRouter();
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
-   const openTab = useShellStore((state) => state.openTab);
-   return useCallback(
-      (page?: RunArtifact) => {
-         const query = page ? `?path=${encodeURIComponent(page.path)}` : '';
-         const href = `/preview/${encodeURIComponent(issueRef)}${query}`;
-         openTab(href, 'Preview');
-         router.push(`/${orgId}${href}`);
-      },
-      [issueRef, orgId, openTab, router]
-   );
-}
-
-/**
- * What an agent built on a task, as a site, in a tab of its own.
- *
- * The task page shows files in a pane beside their tree; a site wants the
- * whole window, and a tab of its own so it can sit next to the task being
- * reviewed. A project that has to be built is built first (`SiteBuildFrame`),
- * and the page runs in the same sandbox as everywhere else.
- */
-export function SitePreviewPage() {
+export function SitePreview({ issueRef, path }: { issueRef: string; path?: string | null }) {
    const t = useTranslations('issueDetail.sitePreview');
-   const params = useParams<{ orgId?: string; issueRef?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
-   const issueRef = decodeURIComponent(params?.issueRef ?? '');
-   const wanted = useSearchParams()?.get('path') ?? null;
-
    const [entry, setEntry] = useState<RunArtifact | null>(null);
    const [base, setBase] = useState<string | null>(null);
    const [unbuilt, setUnbuilt] = useState(false);
@@ -69,8 +38,7 @@ export function SitePreviewPage() {
       const load = async () => {
          const artifacts = await loadIssueArtifacts(issueRef);
          const page =
-            (wanted && artifacts.find((artifact) => artifact.path === wanted)) ||
-            siteEntry(artifacts);
+            (path && artifacts.find((artifact) => artifact.path === path)) || siteEntry(artifacts);
          if (!page) {
             if (!cancelled) setState('empty');
             return;
@@ -89,17 +57,11 @@ export function SitePreviewPage() {
       return () => {
          cancelled = true;
       };
-   }, [issueRef, wanted]);
+   }, [issueRef, path]);
 
    return (
       <div className="flex size-full min-h-0 flex-col">
-         <div className="flex items-center gap-2 border-b px-3 py-1.5">
-            <Button asChild variant="ghost" size="xs">
-               <Link href={`/${orgId}/issue/${encodeURIComponent(issueRef)}`}>
-                  <ArrowLeft className="mr-1 size-3.5" aria-hidden />
-                  {t('back', { ref: issueRef })}
-               </Link>
-            </Button>
+         <div className="flex items-center gap-2 border-b px-4 py-1.5">
             <span className="min-w-0 flex-1 truncate font-mono text-muted-foreground">
                {entry?.path ?? ''}
             </span>

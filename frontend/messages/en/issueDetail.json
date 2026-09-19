@@ -420,7 +420,6 @@
       "unavailable": "This page is source code that has to be built first, and this server cannot build it because Docker is not available."
    },
    "sitePreview": {
-      "back": "Back to {ref}",
       "noSite": "This task has no page to preview.",
       "loadFailed": "The preview could not be opened.",
       "loading": "Loading…",

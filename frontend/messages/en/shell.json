@@ -24,8 +24,7 @@
       "views": "Views",
       "attachments": "Attachments",
       "plugins": "Plugins",
-      "profiles": "Profiles",
-      "preview": "Preview"
+      "profiles": "Profiles"
    },
    "rail": {
       "workspace": "Workspace",

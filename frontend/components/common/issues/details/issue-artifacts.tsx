@@ -26,7 +26,6 @@ import {
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArtifactViewer } from './artifact-viewer';
-import { useOpenSitePreview } from './site-preview-page';
 
 /**
  * What the agents on this issue produced, as the tree they wrote.
@@ -59,6 +58,11 @@ export interface IssueArtifactsProps {
    onLoaded?: (artifacts: RunArtifact[]) => void;
    /** Show only what this run produced. */
    runId?: string;
+   /**
+    * Where "Preview site" goes. The review sends it to its Preview section;
+    * without it the site opens in the viewer.
+    */
+   onPreviewSite?: () => void;
 }
 
 export function IssueArtifacts({
@@ -67,6 +71,7 @@ export function IssueArtifacts({
    defaultOpen = false,
    onLoaded,
    runId,
+   onPreviewSite,
 }: IssueArtifactsProps) {
    const t = useTranslations('issueDetail.artifacts');
    const treeId = useId();
@@ -121,8 +126,6 @@ export function IssueArtifacts({
    // the tree rather than the order the server happened to send.
    const ordered = useMemo(() => flatten(tree), [tree]);
    const site = useMemo(() => siteEntry(artifacts), [artifacts]);
-   // The site opens full size in its own "Preview" tab.
-   const openPreview = useOpenSitePreview(issueRef);
    const view = useCallback(
       (artifact: RunArtifact) => setViewing(ordered.findIndex((file) => file.id === artifact.id)),
       [ordered]
@@ -185,7 +188,7 @@ export function IssueArtifacts({
                      size="xs"
                      className="ml-auto"
                      title={site.path}
-                     onClick={() => openPreview(site)}
+                     onClick={() => (onPreviewSite ? onPreviewSite() : view(site))}
                   >
                      <Globe className="mr-1 size-3.5" aria-hidden />
                      {t('previewSite')}
@@ -215,7 +218,7 @@ export function IssueArtifacts({
                size="xs"
                className="mb-2 self-start"
                title={site.path}
-               onClick={() => openPreview(site)}
+               onClick={() => (onPreviewSite ? onPreviewSite() : view(site))}
             >
                <Globe className="mr-1 size-3.5" aria-hidden />
                {t('previewSite')}
