@@ -22,6 +22,7 @@ import {
    ExternalLink,
    Redo2,
    RotateCw,
+   GitCommitHorizontal,
    Save,
    Undo2,
    X,
@@ -32,6 +33,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SiteBuildFrame } from './site-build-frame';
 import { FileKindMark } from './file-kind-mark';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 interface ArtifactViewerProps {
    issueRef: string;
@@ -46,6 +49,13 @@ interface ArtifactViewerProps {
     */
    layout?: 'dialog' | 'pane';
    className?: string;
+   /**
+    * Commits the edited text where the file lives, with the message given.
+    * With it, the viewer's Save — a download of the buffer — becomes "Commit
+    * changes": the review's Files tab passes this so an edit lands on the pull
+    * request's branch. A rejection's message is shown as it is.
+    */
+   onCommit?: (artifact: RunArtifact, content: string, message: string) => Promise<void>;
 }
 
 type Mode = 'rendered' | 'source';
@@ -70,6 +80,7 @@ export function ArtifactViewer({
    onIndexChange,
    layout = 'dialog',
    className,
+   onCommit,
 }: ArtifactViewerProps) {
    const t = useTranslations('issueDetail.artifactViewer');
    const artifact = index === null ? undefined : artifacts[index];
@@ -189,6 +200,45 @@ export function ArtifactViewer({
 
    const dirty = text !== null && savedText !== null && text !== savedText;
 
+   // Commit changes: a message, then the write. Closed again by a new file.
+   const [commit, setCommit] = useState<{
+      message: string;
+      busy: boolean;
+      error: string | null;
+   } | null>(null);
+   useEffect(() => setCommit(null), [artifact?.id]);
+   const askToCommit = useCallback(() => {
+      if (!artifact || !dirty) return;
+      setCommit(
+         (current) =>
+            current ?? {
+               message: t('commitDefault', { name: artifact.name }),
+               busy: false,
+               error: null,
+            }
+      );
+   }, [artifact, dirty, t]);
+   const confirmCommit = useCallback(() => {
+      if (!artifact || !onCommit || text === null || !commit || commit.busy) return;
+      const content = text;
+      setCommit({ ...commit, busy: true, error: null });
+      onCommit(artifact, content, commit.message.trim())
+         .then(() => {
+            setSavedText(content);
+            setCommit(null);
+         })
+         .catch((cause: unknown) =>
+            setCommit(
+               (current) =>
+                  current && {
+                     ...current,
+                     busy: false,
+                     error: cause instanceof Error ? cause.message : t('commitFailed'),
+                  }
+            )
+         );
+   }, [artifact, onCommit, text, commit, t]);
+
    const save = useCallback(() => {
       if (!artifact || text === null || !dirty) return;
       const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
@@ -234,15 +284,17 @@ export function ArtifactViewer({
          }
          if (event.key === 'ArrowLeft') move(-1);
          if (event.key === 'ArrowRight') move(1);
-         // Save downloads the buffer; CodeMirror already owns undo / redo chords.
+         // Save downloads the buffer — or, where the file can be committed, asks for
+         // the commit. CodeMirror already owns undo / redo chords.
          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && needsText) {
             event.preventDefault();
-            save();
+            if (onCommit) askToCommit();
+            else save();
          }
       };
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-   }, [index, move, needsText, save]);
+   }, [index, move, needsText, save, onCommit, askToCommit]);
 
    if (layout === 'pane' && (index === null || !artifact || !view)) {
       return (
@@ -411,13 +463,26 @@ export function ArtifactViewer({
                            </ToolbarButton>
                         </>
                      ) : null}
-                     <ToolbarButton
-                        label={`${t('save')} (${saveKeys})`}
-                        onClick={save}
-                        disabled={!dirty}
-                     >
-                        <Save className="size-4" />
-                     </ToolbarButton>
+                     {onCommit ? (
+                        <Button
+                           size="xs"
+                           className="h-7 shrink-0 cursor-pointer gap-1.5"
+                           onClick={askToCommit}
+                           disabled={!dirty || commit !== null}
+                           title={`${t('commit')} (${saveKeys})`}
+                        >
+                           <GitCommitHorizontal className="size-3.5" aria-hidden />
+                           {t('commit')}
+                        </Button>
+                     ) : (
+                        <ToolbarButton
+                           label={`${t('save')} (${saveKeys})`}
+                           onClick={save}
+                           disabled={!dirty}
+                        >
+                           <Save className="size-4" />
+                        </ToolbarButton>
+                     )}
                   </>
                ) : null}
                {layout === 'dialog' ? (
@@ -438,7 +503,58 @@ export function ArtifactViewer({
                   <ChevronLeft className="size-5" />
                </ToolbarButton>
             ) : null}
-            <div className="relative min-h-0 flex-1 overflow-hidden">{body()}</div>
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+               {commit ? (
+                  // The message, then the write. Enter commits; Escape backs out with the edit intact.
+                  <form
+                     className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-muted/40 px-3 py-2"
+                     onSubmit={(event) => {
+                        event.preventDefault();
+                        confirmCommit();
+                     }}
+                     onKeyDown={(event) => {
+                        if (event.key === 'Escape' && !commit.busy) setCommit(null);
+                     }}
+                  >
+                     <Input
+                        autoFocus
+                        value={commit.message}
+                        onChange={(event) =>
+                           setCommit({ ...commit, message: event.target.value, error: null })
+                        }
+                        placeholder={t('commitMessage')}
+                        aria-label={t('commitMessage')}
+                        disabled={commit.busy}
+                        maxLength={200}
+                        className="h-7 min-w-48 flex-1"
+                     />
+                     <Button
+                        type="submit"
+                        size="xs"
+                        className="h-7 cursor-pointer"
+                        disabled={commit.busy}
+                     >
+                        {commit.busy ? t('committing') : t('commitConfirm')}
+                     </Button>
+                     <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        className="h-7 cursor-pointer"
+                        disabled={commit.busy}
+                        onClick={() => setCommit(null)}
+                     >
+                        {t('commitCancel')}
+                     </Button>
+                     {commit.error ? (
+                        <p className="w-full text-status-danger" role="alert">
+                           {commit.error}
+                        </p>
+                     ) : null}
+                  </form>
+               ) : null}
+               <div className="relative min-h-0 flex-1 overflow-hidden">{body()}</div>
+            </div>
             {layout === 'dialog' && artifacts.length > 1 ? (
                <ToolbarButton
                   label={t('next')}

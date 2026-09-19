@@ -245,3 +245,69 @@ export function parseUnifiedDiff(text: string): FileDiff[] {
    }
    return files;
 }
+
+/** One file of the repository at the commit under review. `sha` is how its content is asked for. */
+export interface RepositoryFile {
+   path: string;
+   sha: string;
+   size: number;
+}
+
+export interface RepositoryTree {
+   repository: string;
+   branch: string | null;
+   commit: string;
+   files: RepositoryFile[];
+   /** What the pull request does to each path it touches. A deleted file is listed in `files` too, as it last was. */
+   changes: Array<{ path: string; status: FileChange }>;
+}
+
+/** What a pull request does to a file. A rename is the new path, modified. */
+export type FileChange = 'added' | 'modified' | 'deleted';
+
+/** Kept per run, like the diff: a reviewer goes back and forth between tabs. */
+const trees = new Map<string, Promise<RepositoryTree>>();
+
+/** Every file of the repository as the review's branch has it. */
+export function loadRepositoryTree(runId: string): Promise<RepositoryTree> {
+   const held = trees.get(runId);
+   if (held) return held;
+   const pending = apiFetch<RepositoryTree>(`/api/v1/reviews/${encodeURIComponent(runId)}/tree`);
+   trees.set(runId, pending);
+   pending.catch(() => trees.delete(runId));
+   while (trees.size > DIFFS_KEPT) trees.delete(trees.keys().next().value as string);
+   return pending;
+}
+
+/** A file's text. A blob id names exactly one content, so it is asked for once. */
+const blobs = new Map<string, Promise<string>>();
+
+export function loadRepositoryFile(runId: string, sha: string): Promise<string> {
+   const held = blobs.get(sha);
+   if (held) return held;
+   const pending = apiText(
+      `/api/v1/reviews/${encodeURIComponent(runId)}/blob/${encodeURIComponent(sha)}`
+   );
+   blobs.set(sha, pending);
+   pending.catch(() => blobs.delete(sha));
+   while (blobs.size > 60) blobs.delete(blobs.keys().next().value as string);
+   return pending;
+}
+
+/**
+ * Commits one edited file to the review's branch. `sha` is the blob that was
+ * edited: if the file on the branch is no longer that one, the server refuses
+ * and says so. The tree is forgotten afterwards, since the file has a new blob.
+ */
+export async function commitReviewFile(
+   runId: string,
+   input: { path: string; content: string; sha: string; message: string }
+): Promise<{ commit: string; sha: string; branch: string }> {
+   const committed = await apiFetch<{ commit: string; sha: string; branch: string }>(
+      `/api/v1/reviews/${encodeURIComponent(runId)}/commit`,
+      { method: 'POST', body: JSON.stringify(input) }
+   );
+   trees.delete(runId);
+   diffs.delete(runId);
+   return committed;
+}

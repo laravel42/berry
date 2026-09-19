@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { type ReviewOutcome } from './review-decision-bar';
+import { RepositoryFiles } from './repository-files';
 import { ReviewDiff } from './review-diff';
 import { ReviewVerdicts } from './review-guide';
 import { ReviewOverview } from './review-overview';
@@ -67,6 +68,8 @@ export function ReviewDetail({
    // Preview is the running app — a Next.js site has no page file to find — and
    // the saved files are only the fallback for a task without a repository.
    const [hasEnvironment, setHasEnvironment] = useState(false);
+   // The end of the tab bar, as an element a section can render its own buttons into.
+   const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
 
    useEffect(() => {
       setActive(section);
@@ -138,13 +141,18 @@ export function ReviewDetail({
    const status = reviewStatusOf(item);
    const waiting = item.issue.status === 'in_review';
    const hasFiles = item.delivery.producedFiles > 0;
+   // A pull request has a repository to browse at its branch, and that is what
+   // the tab shows: the agent's saved files are in it once committed. A task with
+   // no pull request shows the files saved on it instead.
+   const hasRepository = item.pullRequest !== null;
+   const showFiles = hasFiles || hasRepository;
    // Verdicts exist only where AutoGate asked agents to review, a diff only
    // where a pull request was opened, and files only when the run produced
    // some; a task without one has no such tab, and an old link opens overview.
    const shown: ReviewSection =
       (active === 'guide' && !item.issue.autoGate) ||
       (active === 'diff' && !item.pullRequest) ||
-      (active === 'files' && !hasFiles) ||
+      (active === 'files' && !showFiles) ||
       (active === 'preview' && !hasSite && !hasEnvironment)
          ? 'overview'
          : active;
@@ -223,11 +231,14 @@ export function ReviewDetail({
                      </TabsTrigger>
                   )}
                   {item.pullRequest && <TabsTrigger value="diff">{t('sections.diff')}</TabsTrigger>}
-                  {hasFiles && <TabsTrigger value="files">{t('sections.files')}</TabsTrigger>}
+                  {showFiles && <TabsTrigger value="files">{t('sections.files')}</TabsTrigger>}
                   {(hasSite || hasEnvironment) && (
                      <TabsTrigger value="preview">{t('sections.preview')}</TabsTrigger>
                   )}
                </TabsList>
+               {/* Filled by the section that is open — the build's buttons, the diff's
+                   filter — instead of each drawing a second bar under this one. */}
+               <div ref={setToolbarSlot} className="ml-auto flex items-center gap-2" />
             </div>
             <TabsContent value="overview" className="min-h-0 flex-1 overflow-hidden">
                <ReviewOverview
@@ -243,21 +254,27 @@ export function ReviewDetail({
             )}
             {item.pullRequest && (
                <TabsContent value="diff" className="min-h-0 flex-1 overflow-hidden">
-                  <ReviewDiff item={item} />
+                  <ReviewDiff item={item} toolbarSlot={toolbarSlot} />
                </TabsContent>
             )}
-            {hasFiles && (
+            {showFiles && (
+               // The repository at the branch under review when there is a pull
+               // request; the files the agent saved on the task otherwise.
                <TabsContent
                   value="files"
                   className="flex min-h-0 flex-1 flex-col overflow-hidden p-4"
                >
-                  <IssueArtifacts
-                     issueRef={item.issue.identifier}
-                     runId={item.run.id}
-                     heading={null}
-                     defaultOpen
-                     className="h-full min-h-0 flex-1"
-                  />
+                  {hasRepository ? (
+                     <RepositoryFiles issueRef={item.issue.identifier} runId={item.run.id} />
+                  ) : (
+                     <IssueArtifacts
+                        issueRef={item.issue.identifier}
+                        runId={item.run.id}
+                        heading={null}
+                        defaultOpen
+                        className="h-full min-h-0 flex-1"
+                     />
+                  )}
                </TabsContent>
             )}
             {(hasSite || hasEnvironment) && (
@@ -265,7 +282,10 @@ export function ReviewDetail({
                // otherwise the task's saved site, built first when it needs building.
                <TabsContent value="preview" className="min-h-0 flex-1 overflow-hidden">
                   {hasEnvironment ? (
-                     <EnvironmentPreview issueRef={item.issue.identifier} />
+                     <EnvironmentPreview
+                        issueRef={item.issue.identifier}
+                        toolbarSlot={toolbarSlot}
+                     />
                   ) : (
                      <SitePreview issueRef={item.issue.identifier} />
                   )}

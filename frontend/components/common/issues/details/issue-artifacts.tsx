@@ -12,7 +12,16 @@ import {
    siteEntry,
 } from '@/lib/attachments';
 import { cn } from '@/lib/utils';
-import { ChevronDown, ChevronRight, Download, Folder, Loader2 } from 'lucide-react';
+import {
+   ChevronDown,
+   ChevronRight,
+   Download,
+   Folder,
+   Loader2,
+   SquareDot,
+   SquareMinus,
+   SquarePlus,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArtifactViewer } from './artifact-viewer';
@@ -52,6 +61,21 @@ export interface IssueArtifactsProps {
    runId?: string;
    /** Applied to the split tree + preview shell when the tree is shown. */
    className?: string;
+   /**
+    * Where the files come from, when they are not the task's saved ones: the
+    * review's Files tab hands the repository at the branch under review here,
+    * as the same records, so it is this tree and this viewer that show them.
+    * Must be stable between renders.
+    */
+   load?: () => Promise<RunArtifact[]>;
+   /**
+    * What a pull request does to each path, shown as a mark in the tree: a
+    * green plus for a new file, a yellow dot for a modified one, a red minus
+    * for a deleted one. Files only: a folder carries no mark.
+    */
+   marked?: ReadonlyMap<string, 'added' | 'modified' | 'deleted'>;
+   /** Commits an edited file where it lives. With it, the viewer offers "Commit changes" in place of Save. */
+   commit?: (artifact: RunArtifact, content: string, message: string) => Promise<void>;
 }
 
 export function IssueArtifacts({
@@ -61,6 +85,9 @@ export function IssueArtifacts({
    onLoaded,
    runId,
    className,
+   load,
+   marked,
+   commit,
 }: IssueArtifactsProps) {
    const t = useTranslations('issueDetail.artifacts');
    const treeId = useId();
@@ -85,7 +112,7 @@ export function IssueArtifacts({
          return;
       }
       let cancelled = false;
-      void loadIssueArtifacts(issueRef)
+      void (load ? load() : loadIssueArtifacts(issueRef))
          .then((fetched) => {
             if (cancelled) return;
             setAll(fetched);
@@ -99,7 +126,7 @@ export function IssueArtifacts({
       return () => {
          cancelled = true;
       };
-   }, [issueRef]);
+   }, [issueRef, load]);
 
    const artifacts = useMemo(
       () => (runId ? all.filter((artifact) => artifact.runId === runId) : all),
@@ -115,6 +142,7 @@ export function IssueArtifacts({
    // the tree rather than the order the server happened to send.
    const ordered = useMemo(() => flatten(tree), [tree]);
    const site = useMemo(() => siteEntry(artifacts), [artifacts]);
+
    const view = useCallback(
       (artifact: RunArtifact) => setViewing(ordered.findIndex((file) => file.id === artifact.id)),
       [ordered]
@@ -223,6 +251,7 @@ export function IssueArtifacts({
                         onDownload={download}
                         onView={view}
                         pending={pending}
+                        marked={marked}
                      />
                   ))}
                </aside>
@@ -233,6 +262,7 @@ export function IssueArtifacts({
                      artifacts={ordered}
                      index={viewing}
                      onIndexChange={setViewing}
+                     {...(commit ? { onCommit: commit } : {})}
                   />
                </div>
             </div>
@@ -256,6 +286,7 @@ function TreeRow({
    onDownload,
    onView,
    pending,
+   marked,
 }: {
    node: ArtifactTreeNode;
    depth: number;
@@ -265,6 +296,7 @@ function TreeRow({
    onDownload: (artifact: RunArtifact) => void;
    onView: (artifact: RunArtifact) => void;
    pending: string | null;
+   marked?: ReadonlyMap<string, 'added' | 'modified' | 'deleted'> | undefined;
 }) {
    const t = useTranslations('issueDetail.artifacts');
    // Indent by nesting rather than by a computed class name, so Tailwind's
@@ -297,6 +329,7 @@ function TreeRow({
             ) : (
                <span className="min-w-0 flex-1 truncate">{node.name}</span>
             )}
+            <ChangeMark change={marked?.get(artifact.path)} />
             <Button
                variant="ghost"
                size="icon"
@@ -347,6 +380,7 @@ function TreeRow({
                     onDownload={onDownload}
                     onView={onView}
                     pending={pending}
+                    marked={marked}
                  />
               ))}
       </>
@@ -356,4 +390,32 @@ function TreeRow({
 /** Every file under the given nodes, in tree order. */
 function flatten(nodes: ArtifactTreeNode[]): RunArtifact[] {
    return nodes.flatMap((node) => (node.file ? [node.file] : flatten(node.children)));
+}
+
+/** What a pull request did to this file, as a small squared mark: plus, dot, minus. */
+function ChangeMark({ change }: { change: 'added' | 'modified' | 'deleted' | undefined }) {
+   const t = useTranslations('issueDetail.artifacts');
+   if (!change) return null;
+   const Icon = change === 'added' ? SquarePlus : change === 'deleted' ? SquareMinus : SquareDot;
+   const label =
+      change === 'added'
+         ? t('change.added')
+         : change === 'deleted'
+           ? t('change.deleted')
+           : t('change.modified');
+   return (
+      <span className="inline-flex shrink-0" title={label}>
+         <Icon
+            className={cn(
+               'size-3.5',
+               change === 'added'
+                  ? 'text-status-success'
+                  : change === 'deleted'
+                    ? 'text-status-danger'
+                    : 'text-status-warning'
+            )}
+            aria-label={label}
+         />
+      </span>
+   );
 }
