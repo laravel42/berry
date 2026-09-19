@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { notifyApprovalRequested } from '../approvals/notify.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { StageRecord } from './generator.ts';
@@ -491,17 +492,32 @@ export class PlanRepository {
 
             if (issue.requiresApproval) {
                const approvalId = this.#newId();
+               const title = `Start "${issue.title}"?`;
+               const description =
+                  plan.approvals.find((a) => a.target.tempId === issue.tempId)?.reason ?? null;
                await tx`
                   INSERT INTO approvals (id, workspace_id, kind, risk, title, description, issue_id,
                                          plan_id, goal_id, requested_from_role, requested_by_type,
                                          requested_by, status)
                   VALUES (${approvalId}, ${record.workspaceId}, 'issue_start', 'medium',
-                          ${`Start "${issue.title}"?`},
-                          ${plan.approvals.find((a) => a.target.tempId === issue.tempId)?.reason ?? null},
+                          ${title},
+                          ${description},
                           ${issueId}, ${input.planId},
                           ${(issue.milestone && goalOf.get(issue.milestone)) ?? firstGoalId},
                           'admin', 'user',
                           ${input.userId}, 'pending')`;
+               await notifyApprovalRequested(tx, {
+                  workspaceId: record.workspaceId,
+                  approvalId,
+                  issueId,
+                  title,
+                  body: description,
+                  risk: 'medium',
+                  kind: 'issue_start',
+                  requestedFromUserId: null,
+                  requestedFromRole: 'admin',
+                  actor: { type: 'user', id: input.userId },
+               });
                approvalIds.push(approvalId);
             }
          }

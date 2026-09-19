@@ -3,6 +3,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { Role } from '../identity/roles.ts';
 import { applyProposalDecision } from '../organization/proposals.ts';
+import { notifyApprovalRequested } from './notify.ts';
 
 /**
  * The human decisions that gate work.
@@ -242,7 +243,22 @@ export class ApprovalRepository {
 
          const [row] = await tx`
             SELECT ${tx.unsafe(COLUMNS)} ${tx.unsafe(SOURCE)} WHERE approval.id = ${id}`;
-         return toApproval(row!);
+         const approval = toApproval(row!);
+         await notifyApprovalRequested(tx, {
+            workspaceId: input.workspaceId,
+            approvalId: id,
+            issueId: input.issueId,
+            title: input.title,
+            body: input.description,
+            risk: input.risk,
+            kind: 'issue_start',
+            requestedFromUserId: input.requestedFromUserId,
+            requestedFromRole: input.requestedFromUserId
+               ? null
+               : (input.requestedFromRole ?? 'admin'),
+            actor: { type: 'user', id: input.requestedBy },
+         });
+         return approval;
       }) as Promise<Approval>;
    }
 

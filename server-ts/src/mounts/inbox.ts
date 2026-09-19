@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
+import { backfillPendingApprovals } from '../approvals/notify.ts';
 import { json } from '../http/app.ts';
 import { assertValid, decodeBody, fieldError } from '../http/body.ts';
 import { decodeTimeCursor, encodeCursor, parsePageQuery } from '../http/cursor.ts';
@@ -8,6 +9,7 @@ import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { BoardRepository } from '../core/boards.ts';
+import type { Sql } from '../db/pool.ts';
 import type { InboxAction, InboxItem, InboxRepository, InboxState } from '../inbox/repository.ts';
 import { pathId } from './shared.ts';
 
@@ -36,6 +38,8 @@ export interface InboxOptions {
    sessions: SessionService;
    inbox: InboxRepository;
    boards: BoardRepository;
+   /** Shared pool so the list route can project pending approvals into the inbox. */
+   sql: Sql;
 }
 
 export function inboxMounts(options: InboxOptions): Mount[] {
@@ -55,6 +59,13 @@ export function inboxMounts(options: InboxOptions): Mount[] {
       const unreadOnly = url.searchParams.get('unread') === 'true';
       const scope = `inbox.${workspaceId}.${context.get('user').id}.${state}.${unreadOnly}`;
       const after = page.after === '' ? null : decodeTimeCursor(page.after, scope);
+
+      // Gates opened before approvals lived in Inbox have no row yet; project
+      // the ones this person can still decide before reading the list.
+      await backfillPendingApprovals(options.sql, {
+         workspaceId,
+         recipientId: context.get('user').id,
+      });
 
       const rows = await inbox.list({
          workspaceId,
@@ -80,6 +91,10 @@ export function inboxMounts(options: InboxOptions): Mount[] {
    route.get('/unread-count', async (context) => {
       const url = new URL(context.req.url);
       const workspaceId = await requireWorkspace(context, options, url);
+      await backfillPendingApprovals(options.sql, {
+         workspaceId,
+         recipientId: context.get('user').id,
+      });
       return json({ count: await inbox.unreadCount(workspaceId, context.get('user').id) });
    });
 

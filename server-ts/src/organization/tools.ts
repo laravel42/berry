@@ -12,6 +12,7 @@ import {
 import { InvalidTransition, type IssueRepository } from '../core/issues.ts';
 import { withinTx, type Sql } from '../db/pool.ts';
 import { ApiError } from '../http/errors.ts';
+import { notifyApprovalRequested } from '../approvals/notify.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from '../runtime/agent-tools/registry.ts';
 import { defaultBoardId } from '../work/batch.ts';
@@ -159,13 +160,27 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
          let reference: { approvalId?: string; taskId?: string };
          if (input.to === 'human') {
             const approvalId = randomUUID();
+            const title = `Decision needed: ${input.question.slice(0, 200)}`;
+            const risk = input.decision === 'security' ? 'high' : 'medium';
             await context.sql`
                INSERT INTO approvals (id, workspace_id, kind, risk, title, description, issue_id,
                                       requested_from_role, requested_by_type, requested_by, status)
                VALUES (${approvalId}, ${context.task.workspaceId}, 'escalation',
-                       ${input.decision === 'security' ? 'high' : 'medium'},
-                       ${`Decision needed: ${input.question.slice(0, 200)}`}, ${body}, ${issueId},
+                       ${risk},
+                       ${title}, ${body}, ${issueId},
                        'admin', 'agent', ${context.task.agentId}, 'pending')`;
+            await notifyApprovalRequested(context.sql, {
+               workspaceId: context.task.workspaceId,
+               approvalId,
+               issueId,
+               title,
+               body,
+               risk,
+               kind: 'escalation',
+               requestedFromUserId: null,
+               requestedFromRole: 'admin',
+               actor: { type: 'agent', id: context.task.agentId },
+            });
             reference = { approvalId };
          } else {
             const owner = await roleAgent(context.sql, context.task.workspaceId, input.to);
@@ -351,13 +366,33 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
                let approvalId: string | null = null;
                if (decision === 'needs_decision') {
                   approvalId = randomUUID();
+                  const title = `Proposal: ${input.problem.slice(0, 200)}`;
+                  const approvalBody = approvalDescription(description);
+                  const risk =
+                     input.severity === 'critical' || input.severity === 'high'
+                        ? 'high'
+                        : input.severity === 'medium'
+                          ? 'medium'
+                          : 'low';
                   await tx`
                      INSERT INTO approvals (id, workspace_id, kind, risk, title, description, issue_id,
                                             requested_from_role, requested_by_type, requested_by, status)
                      VALUES (${approvalId}, ${workspaceId}, 'work_proposal',
-                             ${input.severity === 'critical' || input.severity === 'high' ? 'high' : input.severity === 'medium' ? 'medium' : 'low'},
-                             ${`Proposal: ${input.problem.slice(0, 200)}`}, ${approvalDescription(description)}, ${issue.id},
+                             ${risk},
+                             ${title}, ${approvalBody}, ${issue.id},
                              'admin', 'agent', ${context.task.agentId}, 'pending')`;
+                  await notifyApprovalRequested(tx, {
+                     workspaceId,
+                     approvalId,
+                     issueId: issue.id,
+                     title,
+                     body: approvalBody,
+                     risk,
+                     kind: 'work_proposal',
+                     requestedFromUserId: null,
+                     requestedFromRole: 'admin',
+                     actor: { type: 'agent', id: context.task.agentId },
+                  });
                }
                const [proposal] = await tx<Array<{ id: string }>>`
                   INSERT INTO work_proposals (workspace_id, issue_id, approval_id, proposed_by, role_key, problem, evidence, impact,

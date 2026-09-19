@@ -73,6 +73,7 @@ describe('inbox mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
             sessions,
             inbox: new InboxRepository(sql),
             boards: new BoardRepository(sql),
+            sql,
          })
       );
       app = createApp(registry);

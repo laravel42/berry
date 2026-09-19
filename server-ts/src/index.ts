@@ -856,7 +856,7 @@ registry.registerAll(
       gitCredential: scm.provisioning ? scm.gitCredential : null,
    })
 );
-registry.registerAll(inboxMounts({ sessions, inbox: new InboxRepository(sql), boards }));
+registry.registerAll(inboxMounts({ sessions, inbox: new InboxRepository(sql), boards, sql }));
 registry.registerAll(
    workspaceReadMounts({
       sessions,

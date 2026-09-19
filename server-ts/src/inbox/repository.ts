@@ -8,9 +8,11 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
  * such thing as reading someone else's inbox. The scoping is in the SQL rather
  * than in a check above it, so a route that forgot to filter cannot exist.
  *
- * Nothing writes rows here yet; they are projected from workspace facts by a
- * path that has not been ported. Reading, marking read and archiving are what
- * the shell needs, and they work against whatever produced the rows.
+ * Approvals land here when they are requested (and pending ones are projected
+ * on read when an older gate never got a row). Task activity is projected
+ * from workspace facts by the work-tracking hooks. Reading, marking read and
+ * archiving are what the shell needs, and they work against whatever
+ * produced the rows.
  */
 
 export interface InboxItem {
