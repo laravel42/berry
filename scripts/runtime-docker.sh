@@ -12,8 +12,15 @@
 #     user and a private workspace (BERRY_RUNTIME_ISOLATE_SESSIONS). A command
 #     can then read neither the runtime's environment nor another session's files.
 #
-# On AgentCore none of this applies: a session there is a microVM.
+# With --per-session (`pnpm runtime:sessions`) no single container is started.
+# A small router listens on the same port and starts one such container per
+# session, each seeing only its own folder of the workspace volume, with its
+# own memory, CPU and process ceiling; idle ones are stopped. That is the shape
+# AgentCore gives a session, where it is a microVM and none of this applies.
 set -euo pipefail
+
+mode=single
+[ "${1:-}" = "--per-session" ] && mode=sessions
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="${BERRY_ENV_FILE:-$root/.env}"
@@ -35,6 +42,14 @@ grep -E "$allowed" "$env_file" > "$filtered" || true
 echo "runtime environment: $(cut -d= -f1 "$filtered" | tr '\n' ' ')" >&2
 
 docker rm -f "$name" >/dev/null 2>&1 || true
+
+if [ "$mode" = sessions ]; then
+   # Not exec: the env file must outlive every container the router starts,
+   # and the trap above removes it when the router ends.
+   BERRY_ROUTER_ENV_FILE="$filtered" BERRY_RUNTIME_PORT="$port" \
+      node --experimental-strip-types --no-warnings "$root/server-ts/src/runtime/local-router/main.ts"
+   exit $?
+fi
 
 # Published on loopback only: the API reaches it at localhost, and nothing on
 # the network should. Root inside, stripped to what handing out users needs.
