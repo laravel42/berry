@@ -376,7 +376,12 @@
       "downloadFailed": "{name} could not be downloaded.",
       "preview": "Preview {path}",
       "previewSite": "Preview site",
-      "tree": "Produced files"
+      "tree": "Produced files",
+      "change": {
+         "added": "New file in this pull request",
+         "modified": "Modified in this pull request",
+         "deleted": "Deleted in this pull request"
+      }
    },
    "attachments": {
       "title": "Files",
@@ -415,7 +420,14 @@
       "tooLarge": "This file is too large to preview ({size}). Download it instead.",
       "unsupported": "This kind of file has no preview. Download it instead.",
       "pickFile": "Pick a file in the tree to preview it here.",
-      "needsBuild": "This page is source code for a build tool: it loads TypeScript or JSX that a browser cannot run until the project is built, so the preview may stay blank. Ask the agent to build the project and save the output folder (for example dist/) as task files, then preview that."
+      "needsBuild": "This page is source code for a build tool: it loads TypeScript or JSX that a browser cannot run until the project is built, so the preview may stay blank. Ask the agent to build the project and save the output folder (for example dist/) as task files, then preview that.",
+      "commit": "Commit changes",
+      "commitDefault": "Update {name}",
+      "commitMessage": "Commit message",
+      "commitConfirm": "Commit",
+      "committing": "Committing…",
+      "commitCancel": "Cancel",
+      "commitFailed": "The commit could not be made."
    },
    "siteBuild": {
       "loading": "Loading…",
@@ -447,11 +459,67 @@
       "fetching": "Fetching the pull request's code…",
       "starting": "Installing, building and starting. The first time takes a few minutes; after that the dependencies are kept.",
       "failed": "The preview did not start.",
-      "commit": "The commit this preview runs",
       "open": "Open in a new tab",
       "reload": "Reload the page",
       "rebuild": "Rebuild and restart from the latest commit",
       "stop": "Stop the preview",
-      "title": "Preview of {app}"
+      "title": "Preview of {app}",
+      "fix": "Fix with AI",
+      "fixingShort": "Fixing…",
+      "fixHint": "Send the task's agent back in with this log. It finds the cause, fixes it on the task's branch, and the preview restarts from the new commit.",
+      "fixing": "An agent is reading this log and fixing the cause on the task's branch. The preview restarts by itself when the fix lands; you can follow the run on the task.",
+      "fixNotStarted": "The fix could not be started.",
+      "fixLogHeading": "Fix with AI: the agent's run",
+      "fixRunFailed": "The agent's run ended without fixing it. Its report is on the task.",
+      "panel": {
+         "label": "Preview panel",
+         "toggle": "Toggle the panel (Ctrl+`)",
+         "tabs": {
+            "problems": "Problems",
+            "console": "Debug Console",
+            "terminal": "Terminal"
+         },
+         "close": "Close the panel",
+         "minimize": "Minimize the panel to a bar",
+         "expand": "Expand the panel",
+         "maximize": "Maximize the panel",
+         "restore": "Restore the panel",
+         "resize": "Drag to resize the panel",
+         "sessions": "Terminal sessions",
+         "answering": "Answering",
+         "notAnswering": "Not answering yet",
+         "noProblems": "No problems have been detected in the output.",
+         "goToLine": "Show this line in its output",
+         "error": "Error",
+         "warning": "Warning",
+         "noOutputYet": "{name} has written nothing yet.",
+         "noSessions": "No process has started yet.",
+         "prompt": "Preview command",
+         "placeholder": "help",
+         "help": "Commands act on this preview:\n  app NAME         open that process's terminal session\n  status           where the preview stands\n  rebuild          fetch the latest commit, rebuild and restart\n  stop, start      stop or start the preview\n  fix              send the agent in to fix a failed preview\n  open             open the app in a new tab\n  theme NAME       change the terminal colours\n  clear            clear the output (Ctrl+L)\nUp and Down walk through earlier commands.",
+         "unknown": "{input}: not a preview command. Type help.",
+         "noSuchSession": "No session called {name}. This preview has: {names}.",
+         "themes": "Themes: {themes}.",
+         "statusLine": "{state} · commit {commit} · {apps}",
+         "did": {
+            "rebuild": "Rebuilding from the latest commit…",
+            "start": "Starting the preview…",
+            "stop": "Stopping the preview…",
+            "fix": "Sending the agent in…",
+            "open": "Opening the app in a new tab…"
+         },
+         "newShell": "New terminal session",
+         "newShellIn": "New terminal session in {name}",
+         "newShellUnavailable": "A terminal session needs a running preview",
+         "shellName": "sh · {name} ({n})",
+         "shellOpened": "A shell in the {name} container. Commands run there, one at a time; Ctrl+C stops one; clear and exit are the terminal's own.",
+         "shellRunning": "Running… Ctrl+C to stop",
+         "closeShell": "Close this session",
+         "interrupted": "^C",
+         "lastExit": "The last command exited with {code}",
+         "stoppedTimeout": "Stopped: the command ran for more than five minutes.",
+         "stoppedOutput": "Stopped: the command wrote more than the terminal keeps.",
+         "execFailed": "The command could not be run."
+      }
    }
 }
