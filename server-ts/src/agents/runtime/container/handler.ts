@@ -111,7 +111,13 @@ function limitMessage(stopReason: string, agent: TaskEnvelope['agent']): string 
       : turns
         ? `Stopped after ${ceiling} step${ceiling === 1 ? '' : 's'}, this agent's limit`
         : `Stopped after ${ceiling} tokens written, this agent's limit`;
-   return `${reached}. Anything it already did stands. Raise the ${raise} on the agent, or ask for less in one go.`;
+   // Honest about what survives: incomplete work is never delivered, so
+   // repository changes from this run are gone, while what it did through
+   // Berry (comments, task updates, links) was written as it happened.
+   return (
+      `${reached}. Its uncommitted repository changes were not delivered — incomplete work never is — ` +
+      `but what it did through Berry stands. Raise the ${raise} on the agent, or split the task into smaller ones.`
+   );
 }
 
 export async function handleInvocation(envelope: TaskEnvelope, emit: Emit, deps: HandlerDeps): Promise<void> {

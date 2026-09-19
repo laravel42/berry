@@ -9,7 +9,7 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 9;
+export const CATALOG_VERSION = 10;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
@@ -28,13 +28,16 @@ type Tier = keyof typeof MODELS;
  * model calls; the separate per-response ceiling continues to protect each
  * Bedrock request.
  *
- * `max_turns` is left alone. Nothing has hit it: the runs that failed were
- * writing, not looping.
+ * `max_turns` counts model steps, and an implementation task spends one per
+ * file written, command run or task read. At 40 a Frontend Engineer
+ * scaffolding an app was stopped mid-way while every step was productive —
+ * and a stopped run delivers nothing — so the ceilings were doubled. They
+ * still end a run that loops.
  */
 const RUN_LIMITS: Record<Tier, RoleContract['run_limits']> = {
-   opus: { max_turns: 20, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
-   sonnet: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
-   haiku: { max_turns: 30, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   opus: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   sonnet: { max_turns: 80, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   haiku: { max_turns: 60, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
 };
 
 interface RoleSpec {

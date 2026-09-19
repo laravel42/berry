@@ -345,5 +345,7 @@ test('turn exhaustion fails visibly and never delivers incomplete work', async (
    // with a failure and no next move.
    assert.match(last.failure.message, /after 1 step,/);
    assert.match(last.failure.message, /step limit/);
+   // It must not claim the lost work survived.
+   assert.match(last.failure.message, /not delivered/);
    assert.equal(delivered, false);
 });
