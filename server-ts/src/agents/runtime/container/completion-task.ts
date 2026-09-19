@@ -89,7 +89,8 @@ export async function runCompletionTask(
             cacheWriteTokens: usage?.cacheWriteInputTokens ?? 0,
          },
       });
-      if (schema && result.structuredOutput === undefined) {
+      const structured = schema ? mergedStructuredOutput(added, schema) ?? result.structuredOutput : undefined;
+      if (schema && structured === undefined) {
          emit({ type: 'task.failed', failure: { code: 'COMPLETION_INVALID', message: textOf(result.lastMessage), retryable: false } });
          return;
       }
@@ -98,7 +99,7 @@ export async function runCompletionTask(
          result: {
             text: textOf(result.lastMessage),
             truncated: false,
-            ...(schema ? { structured: result.structuredOutput } : {}),
+            ...(schema ? { structured } : {}),
             delivery: null,
          },
       });
@@ -112,6 +113,43 @@ export async function runCompletionTask(
       }
       emit({ type: 'task.failed', failure: classify(error) });
    }
+}
+
+/** The tool Strands forces a structured answer through. */
+const STRUCTURED_TOOL = 'strands_structured_output';
+
+/**
+ * A structured answer the model split across several calls, put back together.
+ *
+ * Asked for one large object, a model can answer in parallel calls of the
+ * structured-output tool, one per top-level field — seen live: the planner
+ * sent `goal`, `milestones`, `assumptions`, `issues` and `approvals` as five
+ * calls. Strands keeps the first, so the plan arrived as a goal with no tasks,
+ * which a loose schema accepts. When the model's last structured turn holds
+ * more than one call, their objects are merged (a later call's field wins) and
+ * the merge is kept only if it satisfies the schema; one call, or a merge
+ * that does not validate, leaves Strands' own answer in place.
+ */
+export function mergedStructuredOutput(
+   messages: ReadonlyArray<{ role: string; toJSON(): unknown }>,
+   schema: { safeParse(value: unknown): { success: boolean; data?: unknown } }
+): unknown {
+   for (const message of [...messages].reverse()) {
+      if (message.role !== 'assistant') continue;
+      const content = (message.toJSON() as { content?: Array<Record<string, unknown>> }).content ?? [];
+      const inputs = content
+         .map((block) => block.toolUse as { name?: unknown; input?: unknown } | undefined)
+         .filter((use) => use?.name === STRUCTURED_TOOL)
+         .map((use) => use?.input);
+      if (inputs.length === 0) continue;
+      if (inputs.length === 1) return undefined;
+      if (!inputs.every((input) => typeof input === 'object' && input !== null && !Array.isArray(input))) {
+         return undefined;
+      }
+      const parsed = schema.safeParse(Object.assign({}, ...(inputs as object[])));
+      return parsed.success ? parsed.data : undefined;
+   }
+   return undefined;
 }
 
 /** One frame's worth of model output; past this the messages are cut. */

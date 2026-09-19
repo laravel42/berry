@@ -322,7 +322,7 @@ export default function PromptLogs() {
    );
 }
 
-function LogStatusBadge({ status }: { status: string }) {
+export function LogStatusBadge({ status }: { status: string }) {
    const t = useTranslations('areas.logs.status');
    const tone = STATUS_TONE[status] ?? { tone: 'neutral', state: 'hollow' };
    const label = (LOG_STATUSES as readonly string[]).includes(status)
@@ -331,7 +331,8 @@ function LogStatusBadge({ status }: { status: string }) {
    return <StatusBadge look={{ label, ...tone }} />;
 }
 
-function PromptLogSheet({
+/** One model call or agent run, whole: its prompt, then the call as it crossed the wire. */
+export function PromptLogSheet({
    workspaceId,
    runId,
    onClose,

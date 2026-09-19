@@ -108,8 +108,8 @@ export function CreatePlanDialog() {
             <DialogHeader className="px-6 pt-5 pb-0">
                <DialogTitle className="sr-only">New plan</DialogTitle>
                <DialogDescription className="sr-only">
-                  Describe what you want to accomplish. Berry proposes the tasks and
-                  approvals it would take, and nothing starts until you approve the plan.
+                  Describe what you want to accomplish. Berry proposes the tasks and approvals it
+                  would take, and nothing starts until you approve the plan.
                </DialogDescription>
                <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
@@ -156,8 +156,7 @@ export function CreatePlanDialog() {
                      />
                   </div>
                   <p className="text-muted-foreground">
-                     Berry turns this into tasks and approvals you review before anything
-                     starts.
+                     Berry turns this into tasks and approvals you review before anything starts.
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5 pt-3">
                      <ProjectSelector project={project} onChange={setProject} />

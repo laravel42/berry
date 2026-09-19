@@ -185,11 +185,22 @@ test('a plan with no tasks is not warned about having no repository', () => {
    assert.ok(!report.warnings.some((warning) => warning.code === 'no_project'));
 });
 
-test('an empty plan is a warning, not an error', () => {
-   // "Berry found nothing to create" is a legitimate answer to a request.
+test('an empty plan is an error, so it cannot compile into a goal with no work', () => {
+   // It used to be a warning ("nothing to create" as a legitimate answer). In
+   // practice an empty plan was a planner that lost its tasks, and passing it
+   // started a goal with nothing under it and no reason given.
    const report = validatePlan(planWith());
-   assert.equal(report.status, 'valid');
-   assert.equal(report.warnings[0]?.code, 'empty');
+   assert.equal(report.status, 'invalid');
+   assert.equal(report.errors[0]?.code, 'empty');
+});
+
+test('a plan still asking its questions stays blocked, tasks or not', () => {
+   const report = validatePlan(
+      planWith({
+         assumptions: [{ id: 'a1', description: 'Which stack?', blocking: true, options: [] }],
+      } as never)
+   );
+   assert.equal(report.status, 'blocked');
 });
 
 test('risk is counted from the plan, so it reads the same twice', () => {

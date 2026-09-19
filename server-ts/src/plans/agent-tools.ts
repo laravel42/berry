@@ -67,8 +67,9 @@ export function registerPlanningTools(deps: PlanningToolDeps): void {
 
    registerAgentTool('create_goal', {
       description:
-         'Create a goal in this workspace: an outcome tasks and plans work towards. It starts as a draft. ' +
-         'Use it when someone asks for a goal, rather than describing one you did not create.',
+         'Create a goal in this workspace: an outcome tasks work towards. It starts as a draft. ' +
+         'Only for a goal that needs no plan. When the work needs planning, call create_plan alone and do not ' +
+         'create a goal first: the plan creates its goals when a person starts it.',
       scope: 'task:write',
       inputSchema: z.object({
          title: z.string().trim().min(1).max(500),
@@ -97,9 +98,9 @@ export function registerPlanningTools(deps: PlanningToolDeps): void {
 
    registerAgentTool('create_plan', {
       description:
-         'Ask the planner to break a request into tasks. It opens a plan for a goal (a new one unless `goalId` ' +
-         'names one) and generates it in the background. Nothing is created on the board until a person ' +
-         'reviews the plan and presses Start Plan, so say that when you report it.',
+         'Ask the planner to break a request into tasks. It generates the plan in the background; its goals and ' +
+         'tasks are created only when a person reviews it and presses Start Plan, so say that when you report ' +
+         'it. Do not create a goal first — pass `goalId` only to plan more work for a goal that already exists.',
       scope: 'task:write',
       inputSchema: z.object({
          prompt: z.string().trim().min(1).max(20_000).describe('What the plan is for, in the words a person would use.'),

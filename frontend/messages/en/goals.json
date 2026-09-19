@@ -14,5 +14,33 @@
       "title": "No goals yet.",
       "body": "A goal is the group of tasks one plan produced. Plan work in a project and the goal arrives with the tasks.",
       "cta": "Go to projects"
+   },
+   "plans": {
+      "header": {
+         "title": "Plans"
+      },
+      "filter": {
+         "label": "Which plans",
+         "open": "Open",
+         "all": "All"
+      },
+      "list": {
+         "plan": "Plan",
+         "status": "Status",
+         "tasks": "Tasks",
+         "updated": "Updated",
+         "loading": "Loading plans…",
+         "failed": "Plans could not be loaded.",
+         "noProject": "No project"
+      },
+      "tasks": "{finished} of {created} done",
+      "planned": "{count, plural, one {# task planned} other {# tasks planned}}",
+      "empty": {
+         "mark": "No plans",
+         "title": "No open plans.",
+         "titleAll": "No plans yet.",
+         "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat.",
+         "cta": "Go to projects"
+      }
    }
 }

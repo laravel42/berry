@@ -147,6 +147,12 @@ const CRITIQUE_SHAPE = z.looseObject({
 
 export type Stage = 'generate' | 'validate' | 'repair' | 'critic';
 
+/** Which workspace a role call runs in, and which plan it is for. */
+interface CallScope {
+   workspaceId: string;
+   planId?: string;
+}
+
 export interface Critique {
    verdict: 'accept' | 'revise';
    problems: Array<{ code: string; path: string; message: string; severity: 'error' | 'warning' }>;
@@ -253,6 +259,8 @@ export class PlanGenerator {
        * would leave no record of what was asked versus what was learned.
        */
       answers?: AnsweredQuestion[];
+      /** The plan being generated: every model call is filed under it, so its transcript can list them. */
+      planId?: string;
       signal?: AbortSignal;
       onStage?: (stage: Stage) => void;
    }): Promise<Generated> {
@@ -261,8 +269,9 @@ export class PlanGenerator {
 
       input.onStage?.('generate');
       const planner = await this.role('planner');
+      const scope: CallScope = { workspaceId: input.workspaceId, ...(input.planId ? { planId: input.planId } : {}) };
       const first = await this.#call({
-         workspaceId: input.workspaceId,
+         ...scope,
          role: 'planner',
          stage: 'generate',
          model: planner,
@@ -287,7 +296,7 @@ export class PlanGenerator {
          while (validation.status === 'invalid' && repairs < this.#maxRepairs) {
             repairs += 1;
             input.onStage?.('repair');
-            const repaired = await this.#repair(input.workspaceId, plan, validation.errors, input.signal);
+            const repaired = await this.#repair(scope, plan, validation.errors, input.signal);
             account(usage, repaired.result);
             plan = repaired.plan;
             validation = repaired.validation;
@@ -299,7 +308,7 @@ export class PlanGenerator {
             while (rounds < this.#maxCriticRounds) {
                rounds += 1;
                input.onStage?.('critic');
-               const reviewed = await this.#critique(input.workspaceId, plan, input.signal);
+               const reviewed = await this.#critique(scope, plan, input.signal);
                account(usage, reviewed.result);
                stages.push(reviewed.record);
                if (reviewed.critique.verdict === 'accept') {
@@ -317,7 +326,7 @@ export class PlanGenerator {
 
                input.onStage?.('repair');
                const repaired = await this.#repair(
-                  input.workspaceId,
+                  scope,
                   plan,
                   reviewed.critique.problems.map((problem) => ({
                      path: problem.path,
@@ -364,14 +373,14 @@ export class PlanGenerator {
    }
 
    async #repair(
-      workspaceId: string,
+      scope: CallScope,
       plan: Plan,
       problems: Array<{ path: string; code: string; message: string }>,
       signal: AbortSignal | undefined
    ) {
       const role = await this.role('repair');
       const result = await this.#call({
-         workspaceId,
+         ...scope,
          role: 'repair',
          stage: 'repair',
          model: role,
@@ -392,10 +401,10 @@ export class PlanGenerator {
       };
    }
 
-   async #critique(workspaceId: string, plan: Plan, signal: AbortSignal | undefined) {
+   async #critique(scope: CallScope, plan: Plan, signal: AbortSignal | undefined) {
       const role = await this.role('critic');
       const result = await this.#call({
-         workspaceId,
+         ...scope,
          role: 'critic',
          stage: 'critic',
          model: role,
@@ -424,6 +433,7 @@ export class PlanGenerator {
 
    async #call(input: {
       workspaceId: string;
+      planId?: string;
       role: 'planner' | 'repair' | 'critic';
       stage: Stage;
       model: { provider: string; model: string };
@@ -435,6 +445,7 @@ export class PlanGenerator {
       const result = await this.#completion
          .structured({
             workspaceId: input.workspaceId,
+            ...(input.planId ? { subject: { planId: input.planId } } : {}),
             purpose: input.role,
             model: input.model.model,
             system: input.system,

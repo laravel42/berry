@@ -15,6 +15,7 @@ export type ShellRoute =
    | 'chat'
    | 'inbox'
    | 'projects'
+   | 'plans'
    | 'goals'
    | 'members'
    | 'skills'
@@ -29,6 +30,7 @@ export type ShellLabelKey =
    | 'reviews'
    | 'goals'
    | 'projects'
+   | 'plans'
    | 'runtimes'
    | 'agents'
    | 'analytics'
@@ -107,7 +109,7 @@ const WORK: ShellRouteDef[] = [
       label: 'goals',
       labelKey: 'goals',
       href: '/goals',
-      match: ['/goal/', '/plan/'],
+      match: ['/goal/'],
       prefsKey: 'goals',
       icon: '<circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" />',
    },
@@ -119,6 +121,17 @@ const WORK: ShellRouteDef[] = [
       match: ['/project/'],
       prefsKey: 'projects',
       icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
+   },
+   {
+      // Every open plan: generating, waiting on answers or approval, or
+      // started and still working through its tasks.
+      id: 'plans',
+      label: 'plans',
+      labelKey: 'plans',
+      href: '/plans',
+      match: ['/plan/'],
+      prefsKey: 'plans',
+      icon: '<path d="M8 4h8M8 4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2" /><path d="M9.5 10l1.5 1.5 3-3M9.5 15.5h5" />',
    },
 ];
 

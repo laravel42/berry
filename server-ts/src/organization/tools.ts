@@ -125,6 +125,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
                issueId: issue.id,
                kind: 'agent',
                source: 'assignment',
+               origin: { runId: context.task.runId },
                ...(parent.requested_by ? { requestedBy: parent.requested_by } : {}),
             }));
          } catch {
@@ -243,6 +244,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
                   kind: 'agent',
                   source: 'assignment',
                   ...(input.message ? { prompt: input.message } : {}),
+                  origin: { runId: context.task.runId },
                   ...(requestedBy ? { requestedBy } : {}),
                }));
             } catch (error) {

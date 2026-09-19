@@ -95,7 +95,10 @@ export function PlanQuestionsWizard({
       setDrafts((current) => ({
          ...current,
          [question.id]: {
-            optionId: next.optionId !== undefined ? next.optionId : (current[question.id]?.optionId ?? null),
+            optionId:
+               next.optionId !== undefined
+                  ? next.optionId
+                  : (current[question.id]?.optionId ?? null),
             text: next.text !== undefined ? next.text : (current[question.id]?.text ?? ''),
          },
       }));
@@ -165,7 +168,9 @@ export function PlanQuestionsWizard({
                               <button
                                  type="button"
                                  aria-pressed={chosen}
-                                 onClick={() => set({ optionId: chosen ? null : option.id, text: '' })}
+                                 onClick={() =>
+                                    set({ optionId: chosen ? null : option.id, text: '' })
+                                 }
                                  className={cn(
                                     'flex w-full items-start gap-2 rounded-md border px-3 py-2 text-left',
                                     chosen
@@ -218,7 +223,12 @@ export function PlanQuestionsWizard({
                </Button>
                <div className="flex items-center gap-2">
                   {!question.blocking && (
-                     <Button variant="ghost" size="sm" disabled={pending} onClick={() => advance(true)}>
+                     <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => advance(true)}
+                     >
                         Skip
                      </Button>
                   )}

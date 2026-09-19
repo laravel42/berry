@@ -48,6 +48,9 @@ export const WORKSPACE_TOPICS = [
    // Workspace-level like goals (boardId null): the Usage page, the Dashboard
    // and the usage panels refresh on it.
    'usage.recorded',
+   // A chat's reply, and a line when work its agent started ends. Ids only,
+   // no message text: the chat reads the messages through its own route.
+   'conversation.message.created',
    'autopilot.created', 'autopilot.updated', 'autopilot.archived',
    'autopilot.run.created', 'autopilot.delivery.received',
 ] as const;

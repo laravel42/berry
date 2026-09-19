@@ -396,6 +396,63 @@ export async function listPlanEvents(planId: string): Promise<PlanEvent[]> {
    return parsed.data.nodes;
 }
 
+/** One answer a person gave when the planner asked, and which plan version asked it. */
+export const planAnswerSchema = z.object({
+   assumptionId: z.string(),
+   question: z.string(),
+   answer: z.string(),
+   chosenOption: z.string().nullish(),
+   forVersion: z.number(),
+   answeredBy: z.string(),
+   answeredAt: z.string(),
+});
+export type PlanAnswer = z.infer<typeof planAnswerSchema>;
+
+/** Every answer given on this plan, oldest first. */
+export async function listPlanAnswers(planId: string): Promise<PlanAnswer[]> {
+   const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/answers`);
+   const parsed = z.object({ nodes: z.array(planAnswerSchema) }).safeParse(json);
+   if (!parsed.success) return [];
+   return parsed.data.nodes;
+}
+
+/** A row of the Plans list: enough to scan, never the whole IR. */
+export const planSummarySchema = z.object({
+   id: z.string(),
+   status: planStatusSchema,
+   title: z.string(),
+   projectId: z.string().nullish(),
+   projectName: z.string().nullish(),
+   goalId: z.string().nullish(),
+   generation: z.object({
+      status: generationStatusSchema,
+      error: z.string().nullish(),
+      stage: z.string().nullish(),
+   }),
+   validationStatus: validationStatusSchema.catch('unknown'),
+   compileStatus: z.string(),
+   plannedTasks: z.number(),
+   createdTasks: z.number(),
+   finishedTasks: z.number(),
+   autoGate: z.boolean().default(false),
+   createdAt: z.string(),
+   updatedAt: z.string(),
+});
+export type PlanSummary = z.infer<typeof planSummarySchema>;
+
+/**
+ * The workspace's plans, newest activity first. `open` keeps drafts, plans
+ * waiting on approval and started ones; `all` adds rejected and superseded.
+ */
+export async function listPlans(
+   workspaceId: string,
+   state: 'open' | 'all' = 'open'
+): Promise<PlanSummary[]> {
+   const query = new URLSearchParams({ workspaceId, state });
+   const json: unknown = await apiFetch(`/api/v1/plans?${query.toString()}`);
+   return z.object({ nodes: z.array(planSummarySchema) }).parse(json).nodes;
+}
+
 // ---------------------------------------------------------------------------
 // Reading a record
 

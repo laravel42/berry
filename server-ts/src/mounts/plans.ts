@@ -158,6 +158,24 @@ export function planMounts(options: PlanOptions): Mount[] {
       return response;
    });
 
+   /**
+    * The workspace's plans. `?state=open` (the default) is the ones still in
+    * play; `?state=all` adds rejected and superseded ones.
+    */
+   route.get('/', async (context) => {
+      const user = context.get('user');
+      const workspaceId = context.req.query('workspaceId') ?? user.currentWorkspaceId;
+      if (!workspaceId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
+         throw ApiError.notFound('Workspace');
+      }
+      await authorizeWorkspace(context, options, workspaceId, 'product.read');
+      const state = context.req.query('state') ?? 'open';
+      if (state !== 'open' && state !== 'all') {
+         throw ApiError.badRequest('state is open or all');
+      }
+      return json({ nodes: await plans.list(workspaceId, { open: state === 'open' }) });
+   });
+
    route.get('/:planId', async (context) => {
       const record = await load(context.req.param('planId'));
       await authorizeWorkspace(context, options, record.workspaceId, 'product.read');
@@ -168,6 +186,13 @@ export function planMounts(options: PlanOptions): Mount[] {
       const record = await load(context.req.param('planId'));
       await authorizeWorkspace(context, options, record.workspaceId, 'product.read');
       return json({ nodes: await plans.versions(record.id) });
+   });
+
+   /** What a person answered when the planner asked, oldest first, per plan version. */
+   route.get('/:planId/answers', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.read');
+      return json({ nodes: await options.answers.list(record.id) });
    });
 
    route.get('/:planId/events', async (context) => {
@@ -399,6 +424,7 @@ async function generate(
    try {
       const generated = await options.generator!.generate({
          workspaceId: record.workspaceId,
+         planId: record.id,
          prompt,
          // Written as each stage begins, so a person watching sees where the
          // plan is rather than a spinner. Failing to write it must not fail
@@ -486,6 +512,7 @@ async function regenerate(options: PlanOptions, record: PlanRecord, userId: stri
       const answers = await options.answers.forPrompt(record.id);
       const generated = await options.generator!.generate({
          workspaceId: record.workspaceId,
+         planId: record.id,
          prompt: record.sourcePrompt ?? '',
          answers,
          onStage: (stage) => {

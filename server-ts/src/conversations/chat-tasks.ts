@@ -44,6 +44,21 @@ export async function sendChatMessage(
    return { messageId, runId };
 }
 
+/** The line a chat gets when work its agent started ends: who, on what, how, in brief. */
+export function delegatedReplyBody(
+   run: Pick<Run, 'status' | 'failure'>,
+   input: { agentName: string; identifier: string | null; summary: string | null }
+): string {
+   const on = input.identifier ? ` ${input.identifier}` : '';
+   if (run.status === 'succeeded') {
+      const first = (input.summary ?? '').trim().split('\n').find((line) => line.trim()) ?? '';
+      const brief = first.length > 300 ? `${first.slice(0, 297)}...` : first;
+      return `${input.agentName} finished${on}.${brief ? ` ${brief}` : ''}`;
+   }
+   if (run.status === 'cancelled') return `${input.agentName}'s run${on} was cancelled.`;
+   return `${input.agentName}'s run${on} failed: ${run.failure?.message ?? 'unknown error'}`;
+}
+
 /** What the agent says when its task ends, for a run that belonged to a chat session. */
 export function chatReplyBody(run: Pick<Run, 'status' | 'failure'>, summary: string | null): string {
    if (run.status === 'succeeded') {
@@ -61,7 +76,34 @@ export function chatReplyBody(run: Pick<Run, 'status' | 'failure'>, summary: str
  */
 export function registerChatReplies(deps: { sql: Sql; conversations: ConversationRepository }): () => void {
    return onRunTerminal(async (run: Run) => {
-      const [row] = await deps.sql`SELECT chat_session_id, agent_id, summary FROM runs WHERE id = ${run.id}`;
+      const [row] = await deps.sql`
+         SELECT r.chat_session_id, r.agent_id, r.summary, a.name AS agent_name,
+                CASE WHEN i.id IS NULL THEN NULL ELSE berry_issue_identifier(r.workspace_id, i.number) END AS identifier,
+                parent.chat_session_id AS parent_chat
+           FROM runs AS r
+           LEFT JOIN agents AS a ON a.id = r.agent_id
+           LEFT JOIN issues AS i ON i.id = r.issue_id
+           LEFT JOIN runs AS parent
+             ON parent.id::text = r.origin->>'runId' AND parent.workspace_id = r.workspace_id
+          WHERE r.id = ${run.id}`;
+      // Work the chat's agent set going (an assignment, a handoff) reports back
+      // into the conversation it came from, so the chat carries on past its
+      // first reply instead of going quiet while the work happens elsewhere.
+      if (!row) return;
+      const parentChat = row.parent_chat as string | null | undefined;
+      if (!row.chat_session_id && parentChat) {
+         await deps.conversations.appendAgentReply({
+            conversationId: parentChat,
+            agentId: row.agent_id as string,
+            body: delegatedReplyBody(run, {
+               agentName: (row.agent_name as string | null) ?? 'An agent',
+               identifier: (row.identifier as string | null) ?? null,
+               summary: (row.summary as string | null) ?? null,
+            }),
+            runId: run.id,
+         });
+         return;
+      }
       const conversationId = row?.chat_session_id as string | null | undefined;
       if (!conversationId) return;
       await deps.conversations.appendAgentReply({

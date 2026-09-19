@@ -42,6 +42,12 @@ export interface EnqueueTaskInput {
     * identity.
     */
    requestedBy?: string;
+   /**
+    * The run whose agent started this one (a handoff, an assignment, a
+    * mention). Lets a chat follow the work its agent set going, not only its
+    * own reply.
+    */
+   origin?: { runId: string };
 }
 
 export class EnqueueRejected extends Error {
@@ -97,12 +103,12 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
       await tx`
          INSERT INTO runs (id, workspace_id, issue_id, board_id, agent_id, kind, source, prompt,
                            chat_session_id, autopilot_run_id, priority, runtime_id, instructions,
-                           requested_by)
+                           requested_by, origin)
          VALUES (${runId}, ${input.workspaceId}, ${issueId}, ${boardId}, ${input.agentId},
                  ${input.kind}, ${input.source}, ${input.prompt ?? null},
                  ${input.chatSessionId ?? null}, ${input.autopilotRunId ?? null},
                  ${input.priority ?? 0}, ${runtimeId}, ${input.kind === 'agent' ? (input.prompt ?? null) : null},
-                 ${input.requestedBy ?? null})`;
+                 ${input.requestedBy ?? null}, ${input.origin ? tx.json(input.origin as never) : null})`;
 
       if (input.chatSessionId) {
          // The first queued task becomes the session's active one; the reply

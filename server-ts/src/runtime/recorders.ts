@@ -100,7 +100,7 @@ export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
 export function directRecorder(
    sql: Sql,
    runId: string,
-   ledger?: Pick<RunLedger, 'appendOutput'>
+   ledger?: Pick<RunLedger, 'appendOutput'> & Partial<Pick<RunLedger, 'appendToolStarted' | 'appendToolCompleted'>>
 ): TaskRecorder {
    // Only on the transition: a repeated terminal write changes no row and must
    // not announce a second time, even though the hooks are idempotent.
@@ -117,15 +117,24 @@ export function directRecorder(
              WHERE id = ${runId} AND status = 'queued'`;
       },
       async message(message) {
-         // Only prose, and only when there is a ledger to write it to. A tool
-         // or command event belongs to a board's run stream, which a run
-         // without an issue does not have.
-         if (message.kind !== 'output' || !ledger) return;
-         await ledger.appendOutput(runId, message.channel, message.text).catch((cause: unknown) => {
-            // The run ended while a delta was in flight: its ending is already
-            // recorded, and nothing after it belongs in the record.
+         // Prose, and each tool's start and end (name and outcome only, never
+         // its arguments), when there is a ledger to write them to. A chat turn
+         // that is mostly tool calls — planning, assigning — otherwise showed
+         // nothing until its final answer, which read as an agent not working.
+         // Commands stay out: they belong to a repository, which this run has not.
+         if (!ledger) return;
+         // The run ended while an event was in flight: its ending is already
+         // recorded, and nothing after it belongs in the record.
+         const late = (cause: unknown) => {
             if (!(cause instanceof RunTerminal)) throw cause;
-         });
+         };
+         if (message.kind === 'output') {
+            await ledger.appendOutput(runId, message.channel, message.text).catch(late);
+         } else if (message.kind === 'tool.started' && ledger.appendToolStarted) {
+            await ledger.appendToolStarted(runId, message.toolCallId, message.name).catch(late);
+         } else if (message.kind === 'tool.completed' && ledger.appendToolCompleted) {
+            await ledger.appendToolCompleted(runId, message.toolCallId, message.succeeded).catch(late);
+         }
       },
       async succeeded({ summary, usage, result }) {
          const rows = await sql`

@@ -191,9 +191,16 @@ const PAGES: PalettePage[] = [
       primary: true,
    },
    {
+      id: 'plans',
+      label: 'Plans',
+      keywords: ['proposals', 'planning', 'questions'],
+      icon: ClipboardList,
+      href: '/plans',
+   },
+   {
       id: 'goals',
       label: 'Goals',
-      keywords: ['objectives', 'outcomes', 'plans'],
+      keywords: ['objectives', 'outcomes'],
       icon: Target,
       href: '/goals',
       shortcutId: 'goto.goals',

@@ -236,10 +236,22 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
    // `runs.priority`, which are workstream A's columns.
    route.get('/:conversationId/tasks', async (context) => {
       const conversation = await load(context);
+      // The chat's own replies, and the work its agent set going from them
+      // (assignments, handoffs): while any of it is live, the chat keeps
+      // following it rather than stopping at its first answer.
       const rows = await sql`
-         SELECT id, status, priority, created_at, started_at FROM runs
-          WHERE chat_session_id = ${conversation.id} AND status IN ('queued', 'running')
-          ORDER BY priority DESC, created_at ASC`;
+         SELECT r.id, r.status, r.priority, r.created_at, r.started_at,
+                (r.chat_session_id IS NULL) AS delegated, a.name AS agent_name,
+                CASE WHEN i.id IS NULL THEN NULL ELSE berry_issue_identifier(r.workspace_id, i.number) END AS identifier
+           FROM runs AS r
+           LEFT JOIN agents AS a ON a.id = r.agent_id
+           LEFT JOIN issues AS i ON i.id = r.issue_id
+          WHERE r.workspace_id = ${conversation.workspaceId}
+            AND r.status IN ('queued', 'running')
+            AND (r.chat_session_id = ${conversation.id}
+                 OR r.origin->>'runId' IN (
+                    SELECT own.id::text FROM runs AS own WHERE own.chat_session_id = ${conversation.id}))
+          ORDER BY (r.chat_session_id IS NULL), r.priority DESC, r.created_at ASC`;
       return json({
          nodes: rows.map((row) => ({
             id: row.id as string,
@@ -247,6 +259,9 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
             priority: Number(row.priority),
             createdAt: new Date(row.created_at as string).toISOString(),
             startedAt: row.started_at ? new Date(row.started_at as string).toISOString() : null,
+            delegated: Boolean(row.delegated),
+            agentName: (row.agent_name as string | null) ?? null,
+            issueIdentifier: (row.identifier as string | null) ?? null,
          })),
       });
    });

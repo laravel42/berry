@@ -118,7 +118,7 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
       await closeDatabase(sql);
    });
 
-   test('each milestone becomes a goal, the first reusing the goal the plan opened with', async () => {
+   test('no goal exists until Start Plan, which makes one per milestone', async () => {
       const plans = new PlanRepository(sql);
       const opened = await plans.open({
          workspaceId,
@@ -128,6 +128,9 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
          prompt: 'Build a support desk.',
          createdBy: userId,
       });
+      assert.equal(opened.goalId, null, 'a plan being planned is not a goal yet');
+      const [before] = await sql`SELECT count(*) AS n FROM goals WHERE workspace_id = ${workspaceId}`;
+      assert.equal(Number(before!.n), 0);
       const task = (tempId: string, title: string, milestone: string, dependsOn: string[] = []) => ({
          tempId,
          title,
@@ -179,12 +182,10 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
 
       assert.equal(compiled.compile?.status, 'succeeded');
       assert.equal(compiled.compile?.goalIds.length, 2);
-      assert.equal(compiled.compile?.goalIds[0], opened.goalId, 'the opened goal is the first milestone');
+      assert.equal(compiled.goalId, compiled.compile?.goalIds[0], 'the first milestone is the plan goal');
       assert.equal(compiled.compile?.issueIds.length, 3);
 
-      // Read in the compiled order rather than by created_at: the opened goal
-      // carries the database's clock and the new one the server's, and a test
-      // must not depend on which is ahead.
+      // Read in the compiled order rather than by created_at.
       const rows = await sql`
          SELECT goal.id, goal.title, goal.status,
                 (SELECT count(*) FROM goal_issues WHERE goal_id = goal.id) AS tasks

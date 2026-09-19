@@ -325,7 +325,11 @@
       "loadEarlier": "Load earlier messages",
       "composerIdle": "Message an agent…",
       "emptyNoAgentTitle": "Talk to an agent",
-      "emptyNoAgentBody": "Start a new chat and pick an agent. Pin the ones you talk to most and they stay at the top of the list on the left. Every reply runs as a task, using the instructions on the agent’s profile."
+      "emptyNoAgentBody": "Start a new chat and pick an agent. Pin the ones you talk to most and they stay at the top of the list on the left. Every reply runs as a task, using the instructions on the agent’s profile.",
+      "followingTitle": "{count, plural, one {Following # run this chat started} other {Following # runs this chat started}}",
+      "followingUnnamed": "An agent",
+      "followingRunning": "Working",
+      "followingQueued": "Waiting to start"
    },
    "floating": {
       "open": "Open chat",

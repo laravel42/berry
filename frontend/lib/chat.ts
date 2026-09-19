@@ -45,6 +45,14 @@ const taskSchema = z.object({
    priority: z.number(),
    createdAt: z.string(),
    startedAt: z.string().nullable(),
+   /**
+    * Work the conversation's agent set going from it (an assignment, a
+    * handoff), rather than one of its own replies. It has no session controls:
+    * it is followed, not queued.
+    */
+   delegated: z.boolean().default(false),
+   agentName: z.string().nullable().default(null),
+   issueIdentifier: z.string().nullable().default(null),
 });
 
 const taskEventSchema = z.object({

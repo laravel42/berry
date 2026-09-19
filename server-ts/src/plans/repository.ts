@@ -22,6 +22,27 @@ import { inDependencyOrder, validatePlan, type Plan, type ValidationReport } fro
  */
 export type PlanStatus = 'draft' | 'pendingApproval' | 'approved' | 'rejected' | 'superseded';
 
+/** One row of the workspace's plan list: enough to scan, not the whole document. */
+export interface PlanSummary {
+   id: string;
+   status: PlanStatus;
+   title: string;
+   projectId: string | null;
+   projectName: string | null;
+   goalId: string | null;
+   generation: { status: string; error: string | null; stage: string | null };
+   validationStatus: string;
+   compileStatus: string;
+   /** Tasks the document proposes. */
+   plannedTasks: number;
+   /** Tasks it created once started, and how many of them are finished. */
+   createdTasks: number;
+   finishedTasks: number;
+   autoGate: boolean;
+   createdAt: string;
+   updatedAt: string;
+}
+
 export interface PlanRecord {
    id: string;
    workspaceId: string;
@@ -112,6 +133,52 @@ export class PlanRepository {
       this.#clock = options.clock ?? (() => new Date());
    }
 
+   /**
+    * The workspace's plans, newest activity first. `open` keeps the ones still
+    * in play — drafts, awaiting approval, started — and leaves out rejected and
+    * superseded ones.
+    */
+   async list(workspaceId: string, filter: { open: boolean }): Promise<PlanSummary[]> {
+      const rows = await this.#sql`
+         SELECT p.id, p.status, p.goal_id, p.auto_gate, p.created_at, p.updated_at,
+                p.generation_status, p.generation_error, p.generation_stage,
+                p.validation_status, p.compile_status,
+                COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
+                COALESCE(p.project_id, g.project_id) AS project_id, pr.name AS project_name,
+                COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
+                (SELECT COUNT(*) FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created,
+                (SELECT COUNT(*) FROM plan_issues AS pi JOIN issues AS i ON i.id = pi.issue_id
+                  WHERE pi.plan_id = p.id AND i.deleted_at IS NULL AND i.status IN ('done', 'cancelled')) AS finished
+           FROM plans AS p
+           LEFT JOIN goals AS g ON g.id = p.goal_id
+           LEFT JOIN projects AS pr ON pr.id = COALESCE(p.project_id, g.project_id) AND pr.deleted_at IS NULL
+          WHERE p.workspace_id = ${workspaceId}
+            AND (${!filter.open} OR p.status IN ('draft', 'pending_approval', 'approved'))
+          ORDER BY p.updated_at DESC, p.id DESC
+          LIMIT 200`;
+      return rows.map((row) => ({
+         id: row.id as string,
+         status: toWireStatus(row.status as string),
+         title: row.title as string,
+         projectId: (row.project_id as string | null) ?? null,
+         projectName: (row.project_name as string | null) ?? null,
+         goalId: (row.goal_id as string | null) ?? null,
+         generation: {
+            status: row.generation_status as string,
+            error: (row.generation_error as string | null) ?? null,
+            stage: (row.generation_stage as string | null) ?? null,
+         },
+         validationStatus: row.validation_status as string,
+         compileStatus: row.compile_status as string,
+         plannedTasks: Number(row.planned),
+         createdTasks: Number(row.created),
+         finishedTasks: Number(row.finished),
+         autoGate: Boolean(row.auto_gate),
+         createdAt: new Date(row.created_at as string).toISOString(),
+         updatedAt: new Date(row.updated_at as string).toISOString(),
+      }));
+   }
+
    async get(planId: string): Promise<PlanRecord> {
       const [row] = await this.#sql`
          SELECT ${this.#sql.unsafe(COLUMNS)} FROM plans WHERE id = ${planId}`;
@@ -149,16 +216,12 @@ export class PlanRepository {
             if (existing) throw new OpenPlanExists(existing.id as string);
          }
 
-         // A plan always hangs off a goal, created here when none was named.
-         // The table requires it (`plans_scope_ck`), and so does the product:
-         // a plan proposes work *for* something, and a plan with nothing to
-         // serve is a list of tasks nobody asked for.
-         //
-         // The project rides on the goal rather than on the plan.
-         // `plans_scope_ck` forbids `project_id` on anything but an
-         // orchestrator plan, and `goals.project_id` is the column that exists
-         // for exactly this — it is what tells the compile which repository
-         // the tasks belong to.
+         // No goal is created here. A plan that is still generating, waiting
+         // on answers or later rejected is not a goal anyone set, and minting
+         // one up front put it in the Goals list before anything was agreed.
+         // Start Plan (`compile`) creates the goals; until then a new plan
+         // carries its project itself (`plans_scope_ck`, migration 199). A goal
+         // the caller named keeps its project on the goal, as before.
          const projectId = input.projectId
             ? ((
                  await tx`
@@ -169,15 +232,7 @@ export class PlanRepository {
             : null;
          if (input.projectId && !projectId) throw new NotFound();
 
-         const goalId =
-            input.goalId ??
-            ((
-               await tx`
-                  INSERT INTO goals (workspace_id, project_id, title, description, status, created_by)
-                  VALUES (${input.workspaceId}, ${projectId}, ${goalTitle(input.prompt)},
-                          ${input.prompt}, 'draft', ${input.createdBy})
-                  RETURNING id`
-            )[0]!.id as string);
+         const goalId = input.goalId ?? null;
 
          // A goal the caller named already says which project it serves, and
          // overwriting that from a plan request would let one plan move
@@ -191,7 +246,7 @@ export class PlanRepository {
          await tx`
             INSERT INTO plans (id, workspace_id, goal_id, project_id, board_id, status, source,
                                source_prompt, generation_status, created_by, auto_gate)
-            VALUES (${id}, ${input.workspaceId}, ${goalId}, NULL,
+            VALUES (${id}, ${input.workspaceId}, ${goalId}, ${goalId ? null : projectId},
                     ${input.boardId}, 'draft', 'ai', ${input.prompt}, 'running',
                     ${input.createdBy}, ${input.autoGate ?? false})`;
          // `proposed_by` is deliberately left null: it references `agents`,
@@ -386,10 +441,10 @@ export class PlanRepository {
       await this.#sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
 
-         // One goal per milestone, in the plan's project. The goal minted when
-         // the plan opened becomes the first milestone rather than lingering
-         // as an empty group beside the real ones — and `plans.goal_id` keeps
-         // pointing at a goal that has tasks.
+         // One goal per milestone, in the plan's project. A goal the plan was
+         // asked for becomes the first milestone rather than lingering as an
+         // empty group beside the real ones; otherwise the first milestone's
+         // new goal becomes the plan's own (`plans.goal_id`, set below).
          const goalOf = new Map<string, string>();
          const goalIds: string[] = [];
          const milestones =
@@ -528,6 +583,7 @@ export class PlanRepository {
          await tx`
             UPDATE plans
                SET status = 'approved', approved_by = ${input.userId},
+                   goal_id = ${firstGoalId},
                    approved_at = ${now}, decision_note = ${input.note},
                    compile_status = 'succeeded', compile_error = NULL, compiled_at = ${now},
                    updated_at = ${now}
@@ -642,8 +698,8 @@ export class PlanRepository {
           WHERE plan_id = ${row.id as string} ORDER BY version DESC LIMIT 1`;
       const critique = latest?.critic ?? null;
 
-      // The goal's project, not the plan's: `plans_scope_ck` forbids one on an
-      // `ai` plan, and the goal is where it lives.
+      // The goal's project once there is a goal; before Start Plan a new plan
+      // carries its project itself.
       const [project] = row.goal_id
          ? await sql`
               SELECT project.id, project.name, project.github_repo_full_name
@@ -651,7 +707,11 @@ export class PlanRepository {
                 JOIN projects AS project
                   ON project.id = goal.project_id AND project.deleted_at IS NULL
                WHERE goal.id = ${row.goal_id as string}`
-         : [];
+         : row.project_id
+           ? await sql`
+                SELECT id, name, github_repo_full_name FROM projects
+                 WHERE id = ${row.project_id as string} AND deleted_at IS NULL`
+           : [];
 
       let issueIds: string[] = [];
       let approvalIds: string[] = [];
@@ -747,12 +807,6 @@ export class PlanRepository {
 }
 
 // ------------------------------------------------------------------ helpers
-
-/** The first line of the request, as the draft goal's name. */
-function goalTitle(prompt: string): string {
-   const firstLine = prompt.split('\n')[0]!.trim();
-   return firstLine.length > 120 ? `${firstLine.slice(0, 117)}…` : firstLine || 'Untitled plan';
-}
 
 /**
  * A label per required capability, created once and reused.

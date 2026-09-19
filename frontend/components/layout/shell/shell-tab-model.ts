@@ -38,6 +38,7 @@ const SECTION_KEYS: Record<string, TabLabelKey> = {
    'project': 'projects',
    'projects': 'projects',
    'plan': 'plans',
+   'plans': 'plans',
    'goal': 'goals',
    'goals': 'goals',
    'approval': 'inbox',

@@ -80,6 +80,7 @@ export async function runCompletionTask(
       model?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
+      subject?: { planId: string };
       /**
        * This call's own budget, overriding the deployment's.
        *
@@ -102,6 +103,7 @@ export async function runCompletionTask(
       jsonSchema: input.schema ? (z.toJSONSchema(input.schema) as Record<string, unknown>) : null,
       model: input.model ?? deps.defaultModel ?? null,
       ...(input.transcript ? { transcript: input.transcript } : {}),
+      ...(input.subject ? { planId: input.subject.planId } : {}),
    };
    let runId = '';
    await deps.sql.begin(async (transaction) => {
@@ -169,6 +171,8 @@ export async function runCompletionTask(
 
 type Call = {
    workspaceId: string;
+   /** What the call is for, filed on its run so a plan's transcript can find it. */
+   subject?: { planId: string } | undefined;
    model: string;
    system: string;
    purpose?: string;
@@ -211,6 +215,7 @@ export class RuntimeCompletion {
       return runCompletionTask(this.#deps, {
          workspaceId: input.workspaceId,
          purpose: input.purpose ?? 'completion',
+         ...(input.subject ? { subject: input.subject } : {}),
          system: input.system,
          prompt,
          schema,

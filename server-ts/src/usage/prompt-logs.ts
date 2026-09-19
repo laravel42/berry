@@ -29,6 +29,8 @@ export type PromptLogKind = 'completion' | 'agent';
 
 export interface PromptLogFilter {
    kind?: PromptLogKind;
+   /** The planner, critic and repair calls one plan made. */
+   planId?: string;
    status?: PromptLogStatus;
    purpose?: string;
    /** true: only calls that asked for a JSON shape; false: only free text. */
@@ -139,6 +141,7 @@ export async function listPromptLogs(
        WHERE r.workspace_id = ${q.workspaceId}
          AND r.kind IN ('completion', 'agent')
          AND (${filter.kind == null} OR r.kind::text = ${filter.kind ?? null})
+         AND (${filter.planId == null} OR r.completion_spec->>'planId' = ${filter.planId ?? null})
          AND (${filter.status == null} OR r.status = ${filter.status ?? null}::run_status)
          AND (${filter.purpose == null} OR ${purposeOf(q)} = ${filter.purpose ?? null})
          AND (${filter.structured == null}

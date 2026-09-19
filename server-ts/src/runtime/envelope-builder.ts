@@ -27,6 +27,8 @@ export interface CompletionSpec {
    model: string | null;
    /** A multi-turn exchange before the prompt (chat replies). */
    transcript?: TranscriptMessage[];
+   /** The plan a planner, critic or repair call was for. */
+   planId?: string;
 }
 
 export interface TaskRow {

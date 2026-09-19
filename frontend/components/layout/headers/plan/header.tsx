@@ -5,16 +5,20 @@ import { PlanStatusBadge, planLook } from '@/components/common/plans/plan-status
 import { Button } from '@/components/ui/button';
 import { useCreatePlanStore } from '@/store/create-plan-store';
 import { usePlanStore } from '@/store/plan-store';
+import { WORKSPACE_SLUG } from '@/lib/config';
 import { ChevronRight, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 
 /**
  * Plan page header: crumb (plans › mark + goal title), the plan's state, and
- * the way to ask for another plan. "Plans" is not a link yet — the goals
- * list that will house plans is not built yet.
+ * the way to ask for another plan. "Plans" goes back to the Plans list.
  */
 export default function Header({ planId }: { planId: string }) {
    const record = usePlanStore((state) => state.records[planId]);
    const openCreatePlan = useCreatePlanStore((state) => state.openModal);
+   const params = useParams<{ orgId?: string }>();
+   const orgId = params?.orgId || WORKSPACE_SLUG;
 
    const look = record ? planLook(record) : null;
    const title =
@@ -25,7 +29,9 @@ export default function Header({ planId }: { planId: string }) {
    return (
       <div className="flex h-10 w-full items-center justify-between gap-4 border-b px-6 py-1.5">
          <div className="flex min-w-0 items-center gap-1.5">
-            <span className="text-muted-foreground">Plans</span>
+            <Link href={`/${orgId}/plans`} className="text-muted-foreground hover:text-foreground">
+               Plans
+            </Link>
             <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
             <BerryMark
                size="sm"

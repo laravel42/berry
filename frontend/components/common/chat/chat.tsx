@@ -46,7 +46,7 @@ import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { useSessionStore } from '@/store/session-store';
 import { ChatComposer } from './chat-composer';
 import { ChatSidebar, MAX_PINNED_AGENTS } from './chat-sidebar';
-import { ChatQueue } from './chat-tasks-panel';
+import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
 
 const PAGE = 50;
@@ -79,6 +79,10 @@ export function Chat() {
    const [hasEarlier, setHasEarlier] = useState(false);
    const [loadingEarlier, setLoadingEarlier] = useState(false);
    const [tasks, setTasks] = useState<ChatTask[]>([]);
+   // The run a send just queued, until its reply is stored: the stream attaches
+   // to it at once instead of waiting for a poll to catch it running, which on
+   // a first message (a cold session) it often never did.
+   const [sent, setSent] = useState<{ conversationId: string; runId: string } | null>(null);
    const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
    const [regenerating, setRegenerating] = useState(false);
 
@@ -252,6 +256,12 @@ export function Chat() {
    useEffect(() => {
       if (!activeId) return;
       return subscribeWorkspaceEvents((event) => {
+         // Another conversation's reply is not this one's news.
+         const conversation =
+            typeof event.payload === 'object' && event.payload !== null
+               ? (event.payload as { conversationId?: unknown }).conversationId
+               : undefined;
+         if (typeof conversation === 'string' && conversation !== activeId) return;
          if (event.type.startsWith('run.') || event.type.startsWith('conversation.')) {
             void refreshSession(activeId).catch(() => undefined);
             void refreshThreads().catch(() => undefined);
@@ -260,12 +270,12 @@ export function Chat() {
    }, [activeId, refreshSession, refreshThreads]);
 
    useEffect(() => {
-      if (!activeId || tasks.length === 0) return;
+      if (!activeId || (tasks.length === 0 && sent === null)) return;
       const timer = setInterval(() => {
          void refreshSession(activeId).catch(() => undefined);
       }, 5000);
       return () => clearInterval(timer);
-   }, [activeId, tasks.length, refreshSession]);
+   }, [activeId, tasks.length, sent, refreshSession]);
 
    useEffect(() => {
       const sync = () => setOffline(!navigator.onLine);
@@ -280,10 +290,24 @@ export function Chat() {
 
    // The running reply, streamed as it is written rather than waiting for the
    // run to end and the stored message to be refetched.
-   const running = tasks.find((task) => task.status === 'running');
+   // The chat's own replies, and the work its agent started from them.
+   const ownTasks = tasks.filter((task) => !task.delegated);
+   const delegatedTasks = tasks.filter((task) => task.delegated);
+   // The reply being written: the running one, else the next queued one, else
+   // the run just sent — so the stream is open from the first event, and the
+   // reader sees the agent working rather than only its final answer.
+   const sentRunId = sent !== null && sent.conversationId === activeId ? sent.runId : null;
+   const replied = sentRunId !== null && messages.some((message) => message.runId === sentRunId);
+   useEffect(() => {
+      if (replied) setSent(null);
+   }, [replied]);
+   const replyRun =
+      ownTasks.find((task) => task.status === 'running')?.id ??
+      ownTasks[0]?.id ??
+      (replied ? null : sentRunId);
    const { text: streamingText, stage: streamStage } = useChatReplyStream({
       conversationId: activeId,
-      runId: running?.id ?? null,
+      runId: replyRun,
       messages,
       labels: {
          running: t('msgStageRunning'),
@@ -305,7 +329,8 @@ export function Chat() {
     * Both conditions end on their own, so a send that failed stops the animation
     * instead of leaving it breathing over an unanswered message.
     */
-   const stage = streamStage ?? (sending || tasks.length > 0 ? t('msgStageThinking') : null);
+   const stage =
+      streamStage ?? (sending || ownTasks.length > 0 || replyRun ? t('msgStageThinking') : null);
 
    const changeComposer = (value: string) => {
       setComposer(value);
@@ -368,7 +393,8 @@ export function Chat() {
       setError(null);
       setComposer('');
       try {
-         await sendMessage(activeId, text);
+         const queued = await sendMessage(activeId, text);
+         setSent({ conversationId: activeId, runId: queued.runId });
       } catch (cause) {
          if (cause instanceof BerryApiError && cause.status === 403) setForbidden(true);
          setError(
@@ -643,11 +669,14 @@ export function Chat() {
             ) : null}
 
             {activeId ? (
-               <ChatQueue
-                  conversationId={activeId}
-                  tasks={tasks}
-                  onChanged={() => void refreshSession(activeId).catch(() => undefined)}
-               />
+               <>
+                  <ChatDelegatedWork tasks={delegatedTasks} />
+                  <ChatQueue
+                     conversationId={activeId}
+                     tasks={ownTasks}
+                     onChanged={() => void refreshSession(activeId).catch(() => undefined)}
+                  />
+               </>
             ) : null}
 
             <ChatComposer
@@ -655,7 +684,7 @@ export function Chat() {
                onChange={changeComposer}
                onSend={() => void send()}
                onStop={active?.activeRunId ? () => stop(active) : null}
-               queueing={tasks.length > 0}
+               queueing={ownTasks.length > 0}
                disabled={!activeId || sending}
                placeholder={
                   agentName ? t('composerPlaceholder', { name: agentName }) : t('composerIdle')

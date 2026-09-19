@@ -230,6 +230,9 @@ export const queuedTasks: ChatTask[] = [
       priority: 0,
       createdAt: '2026-09-18T11:55:00Z',
       startedAt: '2026-09-18T11:55:05Z',
+      delegated: false,
+      agentName: null,
+      issueIdentifier: null,
    },
    {
       id: 'run-81',
@@ -237,6 +240,9 @@ export const queuedTasks: ChatTask[] = [
       priority: 0,
       createdAt: '2026-09-18T11:56:00Z',
       startedAt: null,
+      delegated: false,
+      agentName: null,
+      issueIdentifier: null,
    },
    {
       id: 'run-82',
@@ -244,6 +250,9 @@ export const queuedTasks: ChatTask[] = [
       priority: 0,
       createdAt: '2026-09-18T11:57:30Z',
       startedAt: null,
+      delegated: false,
+      agentName: null,
+      issueIdentifier: null,
    },
 ];
 

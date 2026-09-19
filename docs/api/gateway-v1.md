@@ -770,12 +770,18 @@ Generated plans only. Mutating routes answer `403 PLAN_FORBIDDEN` for viewers.
 
 #### `POST /api/v1/plans/generate`
 
-Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "goalId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `goalId` a draft goal is created for the plan; `projectId` is recorded on that goal, and every task the plan compiles is linked to it. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
+Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "goalId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `goalId` no goal exists until the plan is started: `projectId` is kept on the plan, `goalId` stays null, and `POST /approve` creates one goal per milestone (the first becomes the plan's `goalId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
 
 - `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
 - `403`: `PLAN_FORBIDDEN`
 - `409`: `PLAN_OPEN_EXISTS` (the goal already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
 - `412`: `PLANNER_UNAVAILABLE` (no planner configured, or a model role is not provisioned)
+
+#### `GET /api/v1/plans`
+
+The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`; `all` adds `rejected` and `superseded`). At most 200 rows.
+
+- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "goalId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "createdAt", "updatedAt" }] }`
 
 #### `GET /api/v1/plans/roles`
 
@@ -790,6 +796,12 @@ The provisioned model roles (`settings.write`, resolved against the caller's cur
 #### `GET /api/v1/plans/{planId}/versions`
 
 - `200`: `{ "nodes": [{ "id", "version", "origin", "plan", "validation", "critic", "patch", "createdBy", "createdAt" }] }`
+
+#### `GET /api/v1/plans/{planId}/answers`
+
+What people answered when the planner asked, oldest first (`product.read`).
+
+- `200`: `{ "nodes": [{ "assumptionId", "question", "answer", "chosenOption", "forVersion", "answeredBy", "answeredAt" }] }`
 
 #### `GET /api/v1/plans/{planId}/events`
 

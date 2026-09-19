@@ -716,6 +716,7 @@ export function registerCoreAgentTools(): void {
                kind: 'agent',
                source: 'mention',
                prompt: input.message,
+               origin: { runId: context.task.runId },
                ...(requestedBy ? { requestedBy } : {}),
             });
             return { mentioned: input.agentId, queued: true, runId };

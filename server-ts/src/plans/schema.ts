@@ -337,8 +337,11 @@ export function validatePlan(
          message: 'Two tasks share an identifier.',
       });
    }
+   // A plan is its tasks: one with none cannot be compiled into work, and
+   // passing it as valid is how a goal with nothing under it got started.
+   // A plan still asking its questions is `blocked`, which outranks this.
    if (plan.issues.length === 0) {
-      warnings.push({
+      errors.push({
          path: '/issues',
          code: 'empty',
          message: 'This plan proposes no tasks.',

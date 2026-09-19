@@ -143,13 +143,25 @@ export function FloatingChat() {
    const [active, setActive] = useState<ChatThread | null>(null);
    const [messages, setMessages] = useState<ChatMessage[]>([]);
    const [tasks, setTasks] = useState<ChatTask[]>([]);
+   // The run a send just queued, followed until its reply is stored (see chat.tsx).
+   const [sent, setSent] = useState<{ conversationId: string; runId: string } | null>(null);
    const [composer, setComposer] = useState('');
    const [sending, setSending] = useState(false);
    const [opening, setOpening] = useState<string | null>(null);
    // The same live reply the chat page shows, so the two surfaces agree.
+   const ownTasks = tasks.filter((task) => !task.delegated);
+   const sentRunId = sent !== null && sent.conversationId === active?.id ? sent.runId : null;
+   const replied = sentRunId !== null && messages.some((message) => message.runId === sentRunId);
+   useEffect(() => {
+      if (replied) setSent(null);
+   }, [replied]);
+   const replyRun =
+      ownTasks.find((task) => task.status === 'running')?.id ??
+      ownTasks[0]?.id ??
+      (replied ? null : sentRunId);
    const { text: streamingText, stage: streamStage } = useChatReplyStream({
       conversationId: active?.id ?? null,
-      runId: tasks.find((task) => task.status === 'running')?.id ?? null,
+      runId: replyRun,
       messages,
       labels: {
          running: chat('msgStageRunning'),
@@ -268,25 +280,27 @@ export function FloatingChat() {
       if (!opened || !activeId) return;
       return subscribeWorkspaceEvents((event) => {
          if (!event.type.startsWith('run.') && !event.type.startsWith('conversation.')) return;
+         const conversation =
+            typeof event.payload === 'object' && event.payload !== null
+               ? (event.payload as { conversationId?: unknown }).conversationId
+               : undefined;
+         if (typeof conversation === 'string' && conversation !== activeId) return;
          void refresh(activeId);
       });
    }, [opened, activeId, refresh]);
 
    /**
-    * The reply arrives on a poll, not on an event.
-    *
-    * A chat run's events are board-scoped and a chat run has no board, and the
-    * `conversation.message.created` topic is on neither stream — so the
-    * subscription above cannot fire for chat, and this window would refresh once
-    * after sending and then sit silent forever. The chat page has carried the
-    * same poll for the same reason; this is that net, and it stops as soon as
-    * the queue drains.
+    * A net under the subscription above: a chat run has no board, so its run
+    * events never reach the workspace stream, and only the stored reply
+    * (`conversation.message.created`) does. The poll keeps the queue and the
+    * work the agent started current while any of it is open, and stops once it
+    * drains.
     */
    useEffect(() => {
-      if (!opened || !activeId || tasks.length === 0) return;
+      if (!opened || !activeId || (tasks.length === 0 && sent === null)) return;
       const timer = setInterval(() => void refresh(activeId), 3000);
       return () => clearInterval(timer);
-   }, [opened, activeId, tasks.length, refresh]);
+   }, [opened, activeId, tasks.length, sent, refresh]);
 
    /**
     * The wait, said under the last message — the same rule as the chat page.
@@ -302,7 +316,8 @@ export function FloatingChat() {
     * Both conditions end on their own, so a send that failed stops the animation
     * rather than leaving it breathing over an unanswered message.
     */
-   const stage = streamStage ?? (sending || tasks.length > 0 ? chat('msgStageThinking') : null);
+   const stage =
+      streamStage ?? (sending || ownTasks.length > 0 || replyRun ? chat('msgStageThinking') : null);
 
    const send = async () => {
       const text = composer.trim();
@@ -310,7 +325,8 @@ export function FloatingChat() {
       setSending(true);
       setComposer('');
       try {
-         await sendMessage(activeId, text);
+         const queued = await sendMessage(activeId, text);
+         setSent({ conversationId: activeId, runId: queued.runId });
       } catch {
          /* The reply that never comes is the report. */
       } finally {

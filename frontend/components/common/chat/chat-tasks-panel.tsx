@@ -127,3 +127,37 @@ export function ChatQueue({ conversationId, tasks, onChanged }: ChatQueueProps) 
       </div>
    );
 }
+
+/**
+ * Work the conversation's agent started from it — tasks it assigned or handed
+ * off — while that work runs. The chat follows it and posts a line when each
+ * one ends, so a reader can see the agent carrying on past its first answer.
+ * Read-only: these runs belong to their tasks, not to this conversation.
+ */
+export function ChatDelegatedWork({ tasks }: { tasks: ChatTask[] }) {
+   const t = useTranslations('agentsChat.chat');
+   if (tasks.length === 0) return null;
+   return (
+      <div className="flex-none border-t border-[var(--shell-line)] px-6 py-2">
+         <p className="text-[var(--shell-text-dim)]">
+            {t('followingTitle', { count: tasks.length })}
+         </p>
+         <ul className="mt-1 flex flex-col gap-1">
+            {tasks.map((task) => (
+               <li
+                  key={task.id}
+                  className="flex min-w-0 items-center gap-3 text-[var(--shell-text-muted)]"
+               >
+                  <span className="min-w-0 flex-1 truncate">
+                     {[task.agentName, task.issueIdentifier].filter(Boolean).join(' · ') ||
+                        t('followingUnnamed')}
+                  </span>
+                  <span className="flex-none text-[var(--shell-text-dim)]">
+                     {task.status === 'running' ? t('followingRunning') : t('followingQueued')}
+                  </span>
+               </li>
+            ))}
+         </ul>
+      </div>
+   );
+}

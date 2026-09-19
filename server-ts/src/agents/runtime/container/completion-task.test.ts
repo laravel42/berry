@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import { z } from 'zod';
 import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { runCompletionTask } from './completion-task.ts';
+import { mergedStructuredOutput, runCompletionTask } from './completion-task.ts';
 
 function completion(jsonSchema: Record<string, unknown> | null, transcript: TaskEnvelope['transcript'] = []): TaskEnvelope {
    return {
@@ -83,4 +83,44 @@ test('an answer that never fits the schema still shows what the model said', asy
    assert.equal(events.at(-1)?.type, 'task.failed');
    const said = JSON.stringify(modelEvent(events).messages);
    assert.ok(said.includes('I refuse to use the tool'), said);
+});
+
+describe('a structured answer split across calls', () => {
+   const planSchema = z.object({
+      goal: z.object({ title: z.string() }),
+      milestones: z.array(z.object({ title: z.string() })).default([]),
+      issues: z.array(z.object({ title: z.string() })).default([]),
+   });
+   const turn = (role: string, content: Array<Record<string, unknown>>) => ({ role, toJSON: () => ({ role, content }) });
+   const structuredCall = (input: unknown) => ({ toolUse: { name: 'strands_structured_output', toolUseId: 'x', input } });
+
+   test('is merged when the model sends one call per field, as the planner did', () => {
+      const merged = mergedStructuredOutput(
+         [
+            turn('user', [{ text: 'Plan the landing site' }]),
+            turn('assistant', [
+               { text: "I'll create the plan." },
+               structuredCall({ goal: { title: 'Launch PageBuilder landing' } }),
+               structuredCall({ milestones: [{ title: 'Strategy' }] }),
+               structuredCall({ issues: [{ title: 'Write copy' }, { title: 'Build hero' }] }),
+            ]),
+         ],
+         planSchema
+      );
+      assert.deepEqual(merged, {
+         goal: { title: 'Launch PageBuilder landing' },
+         milestones: [{ title: 'Strategy' }],
+         issues: [{ title: 'Write copy' }, { title: 'Build hero' }],
+      });
+   });
+
+   test("leaves Strands' own answer for a single call, or a merge the schema refuses", () => {
+      assert.equal(mergedStructuredOutput([turn('assistant', [structuredCall({ goal: { title: 'A' } })])], planSchema), undefined);
+      assert.equal(
+         mergedStructuredOutput([turn('assistant', [structuredCall({ milestones: [] }), structuredCall({ issues: [] })])], planSchema),
+         undefined,
+         'no goal anywhere: not a plan'
+      );
+      assert.equal(mergedStructuredOutput([turn('assistant', [{ text: 'no tool' }])], planSchema), undefined);
+   });
 });

@@ -7,6 +7,7 @@ import {
    describeGenerationError,
    describePlanPath,
    describePlanStage,
+   isPlanGenerating,
    type FieldError,
    type PlanRecord,
 } from '@/lib/plans';
@@ -71,21 +72,33 @@ export function PlanGenerationProgress({ record }: { record: PlanRecord }) {
    );
 }
 
-/** Generation ended without a plan, or ran out of repairs. */
+/**
+ * Generation ended without a plan, or ran out of repairs.
+ *
+ * Running out of repairs is stored as a finished generation whose error is
+ * `PLAN_INVALID` — the document exists and its errors are named — so it is
+ * matched explicitly: otherwise a plan that could not be made valid said
+ * nothing at all, and started nothing, with no reason on the page.
+ */
 export function PlanGenerationFailure({ record }: { record: PlanRecord }) {
    const openCreatePlan = useCreatePlanStore((state) => state.openModal);
-   if (record.generation.status !== 'failed') return null;
+   const exhausted =
+      record.generation.status !== 'running' && record.generation.error === 'PLAN_INVALID';
+   if (record.generation.status !== 'failed' && !exhausted) return null;
    // The pipeline keeps the last version it produced. When that version
    // passes validation the server lets it start, so the panel must not tell
    // the person to throw it away.
    const kept = Boolean(record.plan);
    const usable =
       kept && record.validation.status === 'valid' && record.validation.errors.length === 0;
+   const problems = record.validation.errors.length;
    const consequence = usable
       ? 'The last version Berry produced is shown below and passes validation, so you can still start it, or ask for a new plan.'
-      : kept
-        ? 'The last attempt is kept below for reference. Ask for a new plan.'
-        : 'Nothing was produced. Ask for a new plan.';
+      : kept && problems > 0
+        ? `Nothing was started. What is wrong with the last attempt is listed below (${problems === 1 ? '1 problem' : `${problems} problems`}); open Transcript to see each planning step.`
+        : kept
+          ? 'The last attempt is kept below for reference. Ask for a new plan.'
+          : 'Nothing was produced. Ask for a new plan.';
    return (
       <div
          role="alert"
@@ -123,7 +136,10 @@ export function PlanBlockedQuestions({
    record: PlanRecord;
    onAnswer?: () => void;
 }) {
-   if (record.validation.status !== 'blocked') return null;
+   // While the planner works on the answers, the report it is reading from is
+   // the version that asked: showing its questions again reads as if the
+   // answers were lost.
+   if (record.validation.status !== 'blocked' || isPlanGenerating(record)) return null;
    const questions = record.validation.ambiguities.filter((ambiguity) => ambiguity.blocking);
    return (
       <div role="alert" className="mt-5 rounded-md border border-border/60 bg-background px-4 py-3">

@@ -22,8 +22,10 @@ import {
    describePlanFailure,
    isPlanGenerating,
    isPlanOpen,
+   listPlanAnswers,
    planCounts,
    startPlanBlocker,
+   type PlanAnswer,
    type PlanRecord,
 } from '@/lib/plans';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { PlanStatusBadge } from './plan-status-badge';
+import { PlanTranscript } from './plan-transcript';
 import { PlanApprovals, PlanAssumptions, PlanConnections, PlanIssues, Pill } from './plan-sections';
 import {
    PlanBlockedQuestions,
@@ -119,7 +122,8 @@ function useAutoStartPlan(record: PlanRecord | undefined) {
  * every re-render, but a new version is a new set of questions.
  */
 function useQuestionsWizard(record: PlanRecord | undefined) {
-   const blocked = record?.validation.status === 'blocked';
+   // A plan planning again on the answers is not asking anything yet.
+   const blocked = record?.validation.status === 'blocked' && !(record && isPlanGenerating(record));
    const asks = (record?.plan?.assumptions.length ?? 0) > 0;
    const version = record?.version ?? 0;
    const [open, setOpen] = useState(false);
@@ -144,12 +148,67 @@ function useQuestionsWizard(record: PlanRecord | undefined) {
    };
 }
 
+/**
+ * What was answered on this plan, re-read whenever the plan moves on: the
+ * answers are the reason a later version looks the way it does.
+ */
+function usePlanAnswers(record: PlanRecord | undefined): PlanAnswer[] {
+   const [answers, setAnswers] = useState<PlanAnswer[]>([]);
+   const id = record?.id;
+   const version = record?.version;
+   const generation = record?.generation.status;
+   useEffect(() => {
+      if (!id) return;
+      let cancelled = false;
+      listPlanAnswers(id)
+         .then((next) => !cancelled && setAnswers(next))
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [id, version, generation]);
+   return answers;
+}
+
+/** The questions the planner asked and what the person said, per round. */
+function PlanAnswers({ answers, generating }: { answers: PlanAnswer[]; generating: boolean }) {
+   if (answers.length === 0) return null;
+   const rounds = [...new Set(answers.map((answer) => answer.forVersion))];
+   return (
+      <section className="mt-6">
+         <h3 className="font-medium">Your answers</h3>
+         {generating && (
+            <p className="mt-1 text-muted-foreground">Berry is planning again with these.</p>
+         )}
+         {rounds.map((round) => (
+            <dl key={round} className="mt-2 flex flex-col gap-2">
+               {rounds.length > 1 && (
+                  <p className="text-muted-foreground">Asked on version {round}</p>
+               )}
+               {answers
+                  .filter((answer) => answer.forVersion === round)
+                  .map((answer) => (
+                     <div
+                        key={`${round}-${answer.assumptionId}`}
+                        className="border-l-2 border-border pl-3"
+                     >
+                        <dt className="text-muted-foreground">{answer.question}</dt>
+                        <dd className="whitespace-pre-line leading-6">{answer.answer}</dd>
+                     </div>
+                  ))}
+            </dl>
+         ))}
+      </section>
+   );
+}
+
 export default function PlanPreview({ planId }: PlanPreviewProps) {
    const { orgId } = useParams<{ orgId: string }>();
    const inDrawer = useInDetailDrawer();
    const { record, error, busy } = usePlan(planId);
    useAutoStartPlan(record);
    const wizard = useQuestionsWizard(record);
+   const answers = usePlanAnswers(record);
 
    if (!record) {
       return (
@@ -193,6 +252,9 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
                         · <PlanStatusBadge record={record} className="align-middle" />
                      </span>
                   </p>
+                  <div className="mt-3">
+                     <PlanTranscript record={record} />
+                  </div>
 
                   <PlanGenerationProgress record={record} />
                   <PlanGenerationFailure record={record} />
@@ -211,6 +273,8 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
                         </blockquote>
                      </section>
                   )}
+
+                  <PlanAnswers answers={answers} generating={generating} />
 
                   {plan?.goal.description && (
                      <section className="mt-6">

@@ -25,6 +25,7 @@ import {
    FolderKanban,
    GitPullRequest,
    GripVertical,
+   ListChecks,
    LucideIcon,
    MessageSquare,
    ScrollText,
@@ -48,6 +49,7 @@ export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'chat', label: 'Chat', icon: MessageSquare },
    { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
+   { key: 'plans', label: 'Plans', icon: ListChecks },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [

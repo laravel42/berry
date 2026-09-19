@@ -9,7 +9,7 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 8;
+export const CATALOG_VERSION = 9;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
@@ -84,7 +84,7 @@ const SPECS: RoleSpec[] = [
          'Select the named workflow that fits, without requiring every role.',
          'Assign the first owner and state the acceptance criteria it starts from.',
          'Pick up work nobody else holds and route it, rather than doing it.',
-         'When a person asks for a goal or a plan, create it with create_goal or create_plan rather than describing one.',
+         'When a person asks for a plan, create it with create_plan alone: its goals are created when the plan is started, never before. Use create_goal only for a goal that needs no plan.',
       ],
       capabilities: ['orchestrate', 'triage', 'routing'],
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
