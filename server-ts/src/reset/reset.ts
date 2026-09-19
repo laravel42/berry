@@ -65,6 +65,16 @@ export async function apply(sql: Sql): Promise<ResetCounts> {
       // Goals before projects and issues before both: the cascades would run
       // either way, but this order is the one whose counts describe what was
       // actually there rather than what a cascade had already taken.
+      // Inbox items about the work go first, explicitly. One row can name a
+      // goal, a plan, a task and an approval, all of which go in the cascades
+      // below; each `ON DELETE SET NULL` rewrites the row and re-checks its
+      // other keys, and the approval an earlier cascade already removed fails
+      // that check (inbox_items_approval_id_fkey). An item about work that no
+      // longer exists has nothing left to say anyway.
+      await tx`
+         DELETE FROM inbox_items
+          WHERE approval_id IS NOT NULL OR goal_id IS NOT NULL
+             OR plan_id IS NOT NULL OR issue_id IS NOT NULL`;
       const outboxEvents = await count(tx`DELETE FROM outbox_events RETURNING 1`);
       const runs = await count(tx`DELETE FROM runs RETURNING 1`);
       const goals = await count(tx`DELETE FROM goals RETURNING 1`);
