@@ -55,12 +55,13 @@
          "rejected": "Rejected"
       }
    },
-   "decision": {
+      "decision": {
       "noteLabel": "Decision note",
       "notePlaceholder": "Add a note (optional)",
       "confirmNotePlaceholder": "Why not? (optional)",
       "cancel": "Cancel",
       "retry": "Try again",
+      "help": "How this decision works",
       "failed": "The decision was not saved. {reason}",
       "escalation": {
          "answerLabel": "Your answer",

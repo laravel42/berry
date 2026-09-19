@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
    approvalDecisionKind,
    approvalRefusalReason,
@@ -41,6 +42,7 @@ import { useApprovalsStore } from '@/store/approvals-store';
 import { useGoalsStore } from '@/store/goals-store';
 import { useMembersStore } from '@/store/members-store';
 import { format, parseISO } from 'date-fns';
+import { CircleHelp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -200,6 +202,7 @@ export function ApprovalCard({
    const firstOptionRef = useRef<HTMLInputElement>(null);
    const noteId = useId();
    const answerErrorId = useId();
+   const helpId = useId();
 
    const kind = approvalDecisionKind(approval.kind);
    const escalation = kind === 'escalation';
@@ -319,6 +322,7 @@ export function ApprovalCard({
            : t(`decision.${kind}.confirmTitle`);
    const size = compact ? 'xs' : 'sm';
    const locked = busy !== null || refusal !== null;
+   const helpText = t(`decision.${kind}.explain`);
 
    const buttons = (
       <div className="flex flex-wrap items-center gap-2">
@@ -364,6 +368,24 @@ export function ApprovalCard({
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
+         <Tooltip>
+            <TooltipTrigger asChild>
+               <button
+                  type="button"
+                  className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+                  aria-label={t('decision.help')}
+                  aria-describedby={helpId}
+               >
+                  <CircleHelp className="size-4" aria-hidden />
+               </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[75ch]">
+               {helpText}
+            </TooltipContent>
+         </Tooltip>
+         <p id={helpId} className="sr-only">
+            {helpText}
+         </p>
          {refusalText && (
             <span role="status" className="text-muted-foreground">
                {refusalText}
@@ -466,9 +488,6 @@ export function ApprovalCard({
          )}
          {failureLine}
          {buttons}
-         <p className={cn('w-full min-w-0 text-muted-foreground', !compact && 'max-w-prose')}>
-            {t(`decision.${kind}.explain`)}
-         </p>
       </div>
    );
 

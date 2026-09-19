@@ -29,7 +29,6 @@ import { ProjectsDisplayOptions } from './projects-display-options';
 import ProjectsInsightsPanel from './projects-insights-panel';
 import ProjectsList from './projects-list';
 import { useProjectFilterColumns } from './project-filter-columns';
-import { ProjectsSortMenu } from './projects-sort';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import { TimelineScaleControls } from './timeline-scale-controls';
 import ProjectsTimeline from './projects-timeline';
@@ -227,7 +226,6 @@ export default function Projects() {
             <div className="ml-auto flex items-center gap-1">
                {viewType === 'timeline' && <TimelineScaleControls />}
                <ListFilterTrigger filter={filter} />
-               <ProjectsSortMenu />
                <ProjectsDisplayOptions />
                <Button
                   size="xs"
