@@ -47,9 +47,8 @@ import {
    usePropertyValues,
    useWorkspaceProperties,
 } from './issue-grouping';
-import { PrioritySelector } from './priority-selector';
 import { SelectionCheckbox } from './selection-checkbox';
-import { StatusSelector } from './status-selector';
+import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
 import { sortIssues, useIssueListView } from './use-issue-list-view';
 
 const BUILT_IN_COLUMNS = [
@@ -666,9 +665,9 @@ export function IssueTable({
          case 'identifier':
             return <span className="truncate text-muted-foreground">{issue.identifier}</span>;
          case 'status':
-            return <StatusSelector status={issue.status} issueId={issue.id} />;
+            return <IssueStatusPicker issue={issue} />;
          case 'priority':
-            return <PrioritySelector priority={issue.priority} issueId={issue.id} />;
+            return <IssuePriorityPicker issue={issue} />;
          case 'assignee':
             return <AssigneeUser user={issue.assignee} issueId={issue.id} />;
          case 'project':

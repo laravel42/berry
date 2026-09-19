@@ -1,15 +1,11 @@
 'use client';
 
-import { BerryMark, type BerryMarkState, type BerryMarkTone } from '@/components/brand/berry-mark';
+import { StatusBadge } from '@/components/common/status-badge';
+import type { StatusLook } from '@/lib/catalog';
 import { describePlanStatus, isPlanGenerating, type PlanRecord } from '@/lib/plans';
-import { cn } from '@/lib/utils';
 
-export interface PlanLook {
-   tone: BerryMarkTone;
-   state: BerryMarkState;
-   pulse?: boolean;
-   label: string;
-}
+/** A plan's look is a `StatusLook` derived from the whole record, not one status field. */
+export type PlanLook = StatusLook;
 
 /**
  * One glyph and one word for where a plan is. Generation and compile
@@ -52,16 +48,5 @@ export function planLook(record: PlanRecord): PlanLook {
 }
 
 export function PlanStatusBadge({ record, className }: { record: PlanRecord; className?: string }) {
-   const look = planLook(record);
-   return (
-      <span
-         className={cn(
-            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border/60 bg-background px-2 py-0.5 text-muted-foreground',
-            className
-         )}
-      >
-         <BerryMark size="sm" tone={look.tone} state={look.state} pulse={look.pulse} />
-         {look.label}
-      </span>
-   );
+   return <StatusBadge look={planLook(record)} className={className} />;
 }

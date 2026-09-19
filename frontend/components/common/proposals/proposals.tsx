@@ -6,7 +6,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { BerryMark } from '@/components/brand/berry-mark';
+import {
+   EmptyState,
+   EmptyStateActions,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +21,10 @@ import { cn } from '@/lib/utils';
 import { decideProposal, listProposals, type WorkProposal } from '@/lib/organization';
 import { useSessionStore } from '@/store/session-store';
 
-const SEVERITY_VARIANT: Record<WorkProposal['severity'], 'destructive' | 'default' | 'secondary' | 'outline'> = {
+const SEVERITY_VARIANT: Record<
+   WorkProposal['severity'],
+   'destructive' | 'default' | 'secondary' | 'outline'
+> = {
    critical: 'destructive',
    high: 'destructive',
    medium: 'default',
@@ -63,7 +72,9 @@ function ProposalCard({
                   {proposal.identifier}
                </Link>
             </div>
-            <span className="text-muted-foreground">{t('effort', { effort: proposal.effort })}</span>
+            <span className="text-muted-foreground">
+               {t('effort', { effort: proposal.effort })}
+            </span>
          </div>
 
          <p className="font-medium">{proposal.problem}</p>
@@ -132,18 +143,15 @@ function EmptyProposals() {
    const orgId = params?.orgId || WORKSPACE_SLUG;
 
    return (
-      <div className="flex min-h-64 w-full items-center justify-center px-6 py-12">
-         <div className="flex max-w-sm flex-col items-center text-center">
-            <BerryMark size="lg" tone="neutral" state="hollow" label={t('mark')} />
-            <h2 className="mt-5 font-display tracking-[-0.025em]">{t('title')}</h2>
-            <p className="mt-2 leading-relaxed text-muted-foreground">{t('body')}</p>
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-               <Button asChild className="h-10 px-5">
-                  <Link href={`/${orgId}/autopilots`}>{t('cta')}</Link>
-               </Button>
-            </div>
-         </div>
-      </div>
+      <EmptyState icon={<EmptyStateMark label={t('mark')} />}>
+         <EmptyStateTitle>{t('title')}</EmptyStateTitle>
+         <EmptyStateText>{t('body')}</EmptyStateText>
+         <EmptyStateActions>
+            <Button asChild className="h-10 px-5">
+               <Link href={`/${orgId}/autopilots`}>{t('cta')}</Link>
+            </Button>
+         </EmptyStateActions>
+      </EmptyState>
    );
 }
 

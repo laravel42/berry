@@ -5,16 +5,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { AgentPicker } from '@/components/common/agents/agent-multiselect';
-import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BerryApiError } from '@/lib/api';
@@ -166,20 +157,18 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
             </>
          )}
 
-         <AlertDialog open={confirming} onOpenChange={setConfirming}>
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>
-                     {t('bulk.confirmDeleteTitle', { count: selected.length })}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>{t('bulk.confirmDeleteBody')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={remove}>{t('bulk.delete')}</AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
+         <ConfirmAction
+            open={confirming}
+            onOpenChange={setConfirming}
+            title={t('bulk.confirmDeleteTitle', { count: selected.length })}
+            description={t('bulk.confirmDeleteBody')}
+            cancelLabel={t('cancel')}
+            confirmLabel={t('bulk.delete')}
+            destructive
+            // `remove` starts the walk and returns: the dialog closes at once,
+            // and the bar shows the walk's progress.
+            onConfirm={remove}
+         />
       </div>
    );
 }

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
+import { Section } from './panel-section';
 
 const STATE_LABEL: Record<LinkedPullRequest['state'], string> = {
    open: 'Open',
@@ -134,10 +135,7 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
    if (!visible || pullRequests.length === 0) return null;
 
    return (
-      <section className="flex flex-col gap-1">
-         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
-            {t('title')}
-         </h2>
+      <Section title={t('title')} className="flex flex-col gap-1">
          <ul className="flex flex-col gap-1">
             {pullRequests.map((pr) => (
                <li key={pr.id} className="min-w-0">
@@ -165,6 +163,6 @@ export function IssueLinkedPullRequests({ issueRef }: { issueRef: string }) {
                </li>
             ))}
          </ul>
-      </section>
+      </Section>
    );
 }

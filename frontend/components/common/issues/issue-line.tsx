@@ -11,9 +11,8 @@ import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { IssueDragType } from './issue-grid';
 import { LabelBadge } from './label-badge';
-import { PrioritySelector } from './priority-selector';
 import { SelectionCheckbox } from './selection-checkbox';
-import { StatusSelector } from './status-selector';
+import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
 import { motion } from 'motion/react';
 
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -83,9 +82,7 @@ function IssueLineView({
                   {order.length > 0 ? (
                      <SelectionCheckbox issueId={issue.id} order={order} className="mr-1.5" />
                   ) : null}
-                  {displayProperties.priority && (
-                     <PrioritySelector priority={issue.priority} issueId={issue.id} />
-                  )}
+                  {displayProperties.priority && <IssuePriorityPicker issue={issue} />}
                </div>
                {displayProperties.id && (
                   <span className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block">
@@ -94,7 +91,7 @@ function IssueLineView({
                )}
                {displayProperties.status && (
                   <span className={cn('flex items-center', CONTROL)}>
-                     <StatusSelector status={issue.status} issueId={issue.id} />
+                     <IssueStatusPicker issue={issue} />
                   </span>
                )}
                {/* The link covers the whole row through its pseudo-element:

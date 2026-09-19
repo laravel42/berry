@@ -400,7 +400,8 @@
          "updated": "Updated {when}",
          "never": "Not loaded yet",
          "refresh": "Refresh",
-         "timesShownIn": "Times shown in {zone}"
+         "timesShownIn": "Times shown in {zone}",
+         "range": "Time range"
       },
       "tiles": {
          "cost": "Cost",
@@ -416,7 +417,9 @@
          "weekly": "Weekly",
          "metric_cost": "Cost",
          "metric_tokens": "Tokens",
-         "metric_calls": "Model calls"
+         "metric_calls": "Model calls",
+         "metricLabel": "Trend metric",
+         "grainLabel": "Trend grouping"
       },
       "breakdown": {
          "empty": "No usage in this window.",
@@ -442,7 +445,8 @@
          "by_rate": "By rate",
          "failedOf": "{failed} of {total}",
          "lowSample": "* A rate from fewer than ten runs says more about luck than about the agent.",
-         "empty": "Nothing failed in this window."
+         "empty": "Nothing failed in this window.",
+         "rankLabel": "Rank offenders"
       },
       "runtime": {
          "loading": "Loading usage…",
@@ -459,7 +463,8 @@
          "tokens": "Tokens",
          "cost": "Cost",
          "empty": "Nothing was spent in this window.",
-         "unpricedWarning": "* Some of these used a model with no published price, so their cost is missing rather than zero."
+         "unpricedWarning": "* Some of these used a model with no published price, so their cost is missing rather than zero.",
+         "splitLabel": "Split spend"
       }
    },
    "dashboard": {
@@ -484,7 +489,8 @@
       "task_inReview": "In review",
       "task_blocked": "Blocked",
       "task_done": "Done",
-      "task_cancelled": "Cancelled"
+      "task_cancelled": "Cancelled",
+      "range": "Time range"
    },
    "runtimes": {
       "health": {

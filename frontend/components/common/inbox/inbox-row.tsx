@@ -12,7 +12,7 @@ import { getNotificationIcon } from '@/lib/notification-utils';
 import { cn } from '@/lib/utils';
 import { Archive, ArchiveRestore, ExternalLink, Mail, MailOpen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { relativeTime } from './inbox-format';
+import { timeAgo } from '@/lib/time-ago';
 
 export interface InboxRowActions {
    onSelect: () => void;
@@ -73,7 +73,7 @@ export function InboxRow({
                      {item.title}
                   </span>
                   <span className="mt-1 block text-right text-muted-foreground">
-                     {relativeTime(item.timestamp)}
+                     {timeAgo(item.timestamp)}
                   </span>
                </span>
                {item.read ? null : (

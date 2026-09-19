@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useSessionStore } from '@/store/session-store';
+import { PageTitleBar } from '../page-title-bar';
 
 /** The agents page title and the one way to add an agent from the list. */
 export default function HeaderNav() {
@@ -16,8 +17,7 @@ export default function HeaderNav() {
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
 
    return (
-      <div className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
+      <PageTitleBar title={t('title')}>
          {canEdit ? (
             <Button size="xs" asChild>
                <Link href={`/${orgId}/agents/new`}>
@@ -26,6 +26,6 @@ export default function HeaderNav() {
                </Link>
             </Button>
          ) : null}
-      </div>
+      </PageTitleBar>
    );
 }

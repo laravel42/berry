@@ -12,6 +12,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { GitHubIntegrationSettings } from '@/components/common/settings/github-integration-settings';
+import { StatusBadge } from '@/components/common/status-badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
    BUILT_IN_PROVIDER,
@@ -213,14 +214,13 @@ function ProviderCard({
             <div className="min-w-0 flex-1">
                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <h3 className="font-medium">{provider.name}</h3>
-                  <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-0.5 text-muted-foreground">
-                     <BerryMark
-                        size="sm"
-                        tone={state.tone}
-                        state={state.tone === 'complete' ? 'solid' : 'hollow'}
-                     />
-                     {state.label}
-                  </span>
+                  <StatusBadge
+                     look={{
+                        label: state.label,
+                        tone: state.tone,
+                        state: state.tone === 'complete' ? 'solid' : 'hollow',
+                     }}
+                  />
                </div>
                {provider.description && (
                   <p className="mt-0.5 text-muted-foreground">{provider.description}</p>

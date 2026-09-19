@@ -12,6 +12,7 @@ import { useProject } from '@/hooks/use-project';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { format, parseISO } from 'date-fns';
 import { useEffect } from 'react';
+import { DetailSectionLabel } from './detail-section-label';
 
 /** Stable empty list so a missing project key does not re-render forever. */
 const EMPTY_UPDATES: ProjectUpdate[] = [];
@@ -61,9 +62,7 @@ export function ProjectActivityFeedList({ projectId }: { projectId: string }) {
 
    return (
       <div className="border-t border-border/60 pt-4">
-         <div className="mb-1 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-            updates
-         </div>
+         <DetailSectionLabel>Updates</DetailSectionLabel>
          <div className="flex flex-col gap-1.5">
             {updates.length > 0 ? (
                updates.map((update) => <UpdateRow key={update.id} update={update} />)

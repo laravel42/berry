@@ -6,12 +6,13 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { localTimezone } from '@/lib/cron-schedule';
 import { USAGE_DAY_OPTIONS, getDashboard } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
 import { UsageDailyChart } from './usage-daily-chart';
+import { StatTile } from './usage-tiles';
 import { useUsage } from './use-usage';
 
 const TASK_KEYS = [
@@ -44,27 +45,25 @@ export default function DashboardOverview() {
 
    return (
       <div className="flex flex-col gap-8 px-6 py-6">
-         <div className="flex w-fit items-center gap-1 rounded-md border p-0.5">
-            {USAGE_DAY_OPTIONS.map((option) => (
-               <Button
-                  key={option}
-                  size="xxs"
-                  variant={option === days ? 'secondary' : 'ghost'}
-                  onClick={() => setDays(option)}
-               >
-                  {t('days', { count: option })}
-               </Button>
-            ))}
-         </div>
+         <SegmentedControl
+            aria-label={t('range')}
+            value={days}
+            onValueChange={setDays}
+            options={USAGE_DAY_OPTIONS.map((option) => ({
+               value: option,
+               label: t('days', { count: option }),
+            }))}
+         />
          {error ? <p className="text-muted-foreground">{error}</p> : null}
          {data ? (
             <>
                <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
                   {RUN_STATUSES.map((status) => (
-                     <div key={status} className="rounded-md border px-4 py-3">
-                        <p className="text-muted-foreground">{t(`status_${status}`)}</p>
-                        <p className="mt-1 font-medium tabular-nums">{data.runCounts[status]}</p>
-                     </div>
+                     <StatTile
+                        key={status}
+                        label={t(`status_${status}`)}
+                        value={data.runCounts[status]}
+                     />
                   ))}
                </div>
 

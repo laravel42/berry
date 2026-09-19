@@ -11,6 +11,20 @@ import {
 } from '@/lib/usage';
 
 /**
+ * One figure and what it counts, in a bordered tile: the unit of every
+ * usage and dashboard summary row. Lay tiles out in a grid; the value is
+ * tabular so figures in neighbouring tiles line up.
+ */
+export function StatTile({ label, value }: { label: string; value: string | number }) {
+   return (
+      <div className="rounded-md border px-4 py-3">
+         <p className="text-muted-foreground">{label}</p>
+         <p className="mt-1 font-medium tabular-nums">{value}</p>
+      </div>
+   );
+}
+
+/**
  * What a window cost and what it took: money, tokens, and — when the read
  * carries them — the runs behind both.
  */
@@ -34,10 +48,7 @@ export function UsageTiles({ totals, runs }: { totals: UsageBucket; runs?: RunTo
       <div className="flex flex-col gap-2">
          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             {tiles.map((tile) => (
-               <div key={tile.label} className="rounded-md border px-4 py-3">
-                  <p className="text-muted-foreground">{tile.label}</p>
-                  <p className="mt-1 font-medium tabular-nums">{tile.value}</p>
-               </div>
+               <StatTile key={tile.label} label={tile.label} value={tile.value} />
             ))}
          </div>
          {totals.unpricedEvents > 0 ? (

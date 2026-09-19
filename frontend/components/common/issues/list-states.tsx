@@ -1,5 +1,6 @@
 'use client';
 
+import { EmptyState, EmptyStateActions, EmptyStateText } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIssuesStore } from '@/store/issues-store';
@@ -105,16 +106,13 @@ export function IssueListError({ message, onRetry }: { message: string; onRetry:
    const t = useTranslations('issueLists');
 
    return (
-      <div className="flex min-h-64 w-full items-center justify-center px-6 py-12">
-         <div className="flex max-w-sm flex-col items-center text-center">
-            <AlertTriangle className="size-5 text-status-warning" />
-            <p className="mt-4 leading-relaxed text-muted-foreground">
-               {message || t('states.loadFailed')}
-            </p>
-            <Button variant="secondary" className="mt-5" onClick={onRetry}>
+      <EmptyState icon={<AlertTriangle className="size-5 text-status-warning" />}>
+         <EmptyStateText>{message || t('states.loadFailed')}</EmptyStateText>
+         <EmptyStateActions>
+            <Button variant="secondary" onClick={onRetry}>
                {t('states.retry')}
             </Button>
-         </div>
-      </div>
+         </EmptyStateActions>
+      </EmptyState>
    );
 }

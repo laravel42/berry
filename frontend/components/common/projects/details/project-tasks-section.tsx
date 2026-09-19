@@ -20,7 +20,7 @@ export function ProjectTasksSection({ issues }: { issues: Issue[] }) {
 
    return (
       <section>
-         <DetailSectionLabel>tasks</DetailSectionLabel>
+         <DetailSectionLabel>Tasks</DetailSectionLabel>
          {issues.length === 0 ? (
             <p className="text-muted-foreground">No tasks linked to this project yet.</p>
          ) : (

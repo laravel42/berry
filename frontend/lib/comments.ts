@@ -1,6 +1,6 @@
 import type { ActivityItem } from '@/data/issue-details';
 import type { User } from '@/data/users';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { timeAgo } from '@/lib/time-ago';
 import { z } from 'zod';
 import { apiFetch } from './api';
 import { actorRefSchema, connectionSchema, newIdempotencyKey } from './api-schemas';
@@ -23,14 +23,6 @@ const commentConnectionSchema = connectionSchema(commentSchema);
 
 export type ApiComment = z.infer<typeof commentSchema>;
 
-function timeAgo(iso: string): string {
-   try {
-      return formatDistanceToNow(parseISO(iso), { addSuffix: true });
-   } catch {
-      return 'recently';
-   }
-}
-
 export function commentToActivityItem(
    comment: ApiComment
 ): Extract<ActivityItem, { kind: 'comment' }> {
@@ -39,7 +31,7 @@ export function commentToActivityItem(
       kind: 'comment',
       id: comment.id,
       actor,
-      timeAgo: timeAgo(comment.createdAt),
+      timeAgo: timeAgo(comment.createdAt, 'recently'),
       body: [{ type: 'paragraph', text: comment.body }],
       comment,
    };

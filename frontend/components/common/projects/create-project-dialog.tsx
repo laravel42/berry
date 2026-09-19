@@ -2,11 +2,16 @@
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { ActorAvatar } from '@/components/common/issues/actor-avatar';
+import { PickerChipButton } from '@/components/common/pickers/option-picker';
+import { PriorityPicker } from '@/components/common/pickers/priority-picker';
+import { StatusPicker } from '@/components/common/pickers/status-picker';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
-import { ProjectLeadSelector } from '@/components/common/projects/create-project/lead-selector';
-import { ProjectPrioritySelector } from '@/components/common/projects/create-project/priority-selector';
-import { defaultProjectCreateStatus } from '@/components/common/projects/create-project/project-status-options';
-import { ProjectStatusSelector } from '@/components/common/projects/create-project/status-selector';
+import {
+   defaultProjectCreateStatus,
+   projectCreateStatusOptions,
+} from '@/components/common/projects/create-project/project-status-options';
+import { LeadPicker, leadCandidates } from '@/components/common/projects/lead-picker';
 import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,10 +30,11 @@ import { BerryApiError } from '@/lib/api';
 import { WORKSPACE_NAME } from '@/lib/config';
 import { createWorkspaceProject } from '@/lib/projects';
 import { useCreateProjectStore } from '@/store/create-project-store';
+import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format } from 'date-fns';
-import { ChevronRight, X } from 'lucide-react';
+import { ChevronRight, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -74,6 +80,7 @@ export function CreateProjectDialog() {
    );
 
    const [form, setForm] = useState<ProjectFormState>(createDefaultForm);
+   const members = useMembersStore((state) => state.members);
 
    useEffect(() => {
       if (isOpen) {
@@ -188,18 +195,37 @@ export function CreateProjectDialog() {
                   />
 
                   <div className="mt-4 flex flex-wrap items-center gap-1.5">
-                     <ProjectStatusSelector
+                     <StatusPicker
+                        variant="chip"
                         status={form.status}
+                        options={projectCreateStatusOptions}
                         onChange={(status) => setForm({ ...form, status })}
                      />
-                     <ProjectPrioritySelector
+                     <PriorityPicker
+                        variant="chip"
                         priority={form.priority}
                         onChange={(priority) => setForm({ ...form, priority })}
                      />
-                     <ProjectLeadSelector
+                     {/* Nothing is preselected: who leads is a decision, not a default. */}
+                     <LeadPicker
                         lead={form.lead}
+                        candidates={leadCandidates(members, undefined)}
                         onChange={(lead) => setForm({ ...form, lead })}
-                     />
+                     >
+                        <PickerChipButton>
+                           {form.lead ? (
+                              <>
+                                 <ActorAvatar user={form.lead} size="sm" className="size-4" />
+                                 <span>{form.lead.name}</span>
+                              </>
+                           ) : (
+                              <>
+                                 <UserIcon className="size-3.5" />
+                                 <span>Project lead</span>
+                              </>
+                           )}
+                        </PickerChipButton>
+                     </LeadPicker>
                      <ProjectDateSelector
                         label="Start"
                         date={form.startDate}

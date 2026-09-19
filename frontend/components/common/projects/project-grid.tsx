@@ -3,7 +3,11 @@
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { HealthPopover } from '@/components/common/projects/health-popover';
-import { ProjectDetailLeadPicker } from '@/components/common/projects/project-detail-lead-picker';
+import {
+   LeadAvatarButton,
+   LeadPicker,
+   leadCandidates,
+} from '@/components/common/projects/lead-picker';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { Project } from '@/data/projects';
 import { useResolvedProjectLead } from '@/lib/use-resolved-project-lead';
@@ -155,12 +159,13 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                               onPointerDown={(event) => event.stopPropagation()}
                               onClick={(event) => event.stopPropagation()}
                            >
-                              <ProjectDetailLeadPicker
-                                 compact
+                              <LeadPicker
                                  lead={lead}
-                                 members={members}
-                                 onLeadChange={(member) => updateProjectLead(project.id, member)}
-                              />
+                                 candidates={leadCandidates(members, lead)}
+                                 onChange={(member) => updateProjectLead(project.id, member)}
+                              >
+                                 <LeadAvatarButton lead={lead} size="sm" />
+                              </LeadPicker>
                            </span>
                         ) : null}
                      </div>

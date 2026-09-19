@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { PageTitleBar } from '../page-title-bar';
 
 /**
  * Goals list header. No action, deliberately: planning is what makes a goal and
@@ -9,9 +10,5 @@ import { useTranslations } from 'next-intl';
  */
 export default function Header() {
    const t = useTranslations('goals.header');
-   return (
-      <header className="flex w-full items-center border-b px-6 py-3">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
-      </header>
-   );
+   return <PageTitleBar title={t('title')} />;
 }

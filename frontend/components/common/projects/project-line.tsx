@@ -1,6 +1,8 @@
 'use client';
 
+import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
+import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -10,7 +12,6 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Issue } from '@/data/issues';
-import { priorities } from '@/data/priorities';
 import { Project } from '@/data/projects';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
@@ -32,8 +33,7 @@ import {
    PROJECT_SELECT_SLOT,
 } from './project-columns';
 import { HealthPopover } from './health-popover';
-import { PrioritySelector } from './priority-selector';
-import { LeadSelector } from './lead-selector';
+import { LeadPicker, leadCandidates } from './lead-picker';
 import { StatusWithPercent } from './status-with-percent';
 import { DatePicker } from './date-picker';
 import { cn } from '@/lib/utils';
@@ -98,12 +98,10 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
          >
             {displayProperties.priority ? (
                <span className="relative z-10 shrink-0 pointer-events-auto">
-                  <PrioritySelector
+                  <PriorityPicker
+                     variant="icon"
                      priority={project.priority}
-                     onPriorityChange={(priorityId) => {
-                        const match = priorities.find((entry) => entry.id === priorityId);
-                        if (match) updateProjectPriority(project.id, match);
-                     }}
+                     onChange={(next) => updateProjectPriority(project.id, next)}
                   />
                </span>
             ) : null}
@@ -140,14 +138,24 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                      'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
                   )}
                >
-                  <LeadSelector
+                  <LeadPicker
                      lead={project.lead}
-                     members={members}
-                     onLeadChange={(userId) => {
-                        const member = members.find((entry) => entry.id === userId);
-                        if (member) updateProjectLead(project.id, member);
-                     }}
-                  />
+                     candidates={leadCandidates(members, project.lead)}
+                     onChange={(member) => updateProjectLead(project.id, member)}
+                  >
+                     <Button
+                        className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                        size="sm"
+                        variant="ghost"
+                        role="combobox"
+                        aria-label={`Lead: ${project.lead.name}`}
+                     >
+                        <ActorAvatar user={project.lead} size="sm" className="mr-1" />
+                        <span className="hidden min-w-0 truncate md:inline">
+                           {project.lead.name}
+                        </span>
+                     </Button>
+                  </LeadPicker>
                </div>
             )}
             {displayProperties.targetDate && (

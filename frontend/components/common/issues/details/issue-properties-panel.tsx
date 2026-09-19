@@ -11,8 +11,7 @@ import { useTranslations } from 'next-intl';
 import { useRef } from 'react';
 import { toast } from 'sonner';
 import { AssigneeUser } from '../assignee-user';
-import { PrioritySelector } from '../priority-selector';
-import { StatusSelector } from '../status-selector';
+import { IssuePriorityPicker, IssueStatusPicker } from '../issue-pickers';
 import { IssueRefRow } from './content-blocks';
 import { CustomStatusSelect } from './custom-status-select';
 import { IssueCustomProperties } from './issue-custom-properties';
@@ -82,14 +81,14 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
                      <div className="flex size-7 shrink-0 items-center justify-center">
-                        <StatusSelector status={issue.status} issueId={issue.id} />
+                        <IssueStatusPicker issue={issue} />
                      </div>
                      <span className="min-w-0 truncate">{issue.status.name}</span>
                   </div>
                   <CustomStatusSelect issue={issue} />
                   <div className="flex items-center gap-2">
                      <div className="flex size-7 shrink-0 items-center justify-center">
-                        <PrioritySelector priority={issue.priority} issueId={issue.id} />
+                        <IssuePriorityPicker issue={issue} />
                      </div>
                      <span className="min-w-0 truncate">{issue.priority.name}</span>
                   </div>

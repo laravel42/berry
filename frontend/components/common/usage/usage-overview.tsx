@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
-import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { getWorkspaceUsage, weeklyBuckets, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
@@ -58,30 +58,24 @@ export default function UsageOverview({
          <section className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
                <h2 className="mr-auto font-medium">{t('chart.title')}</h2>
-               <div className="flex items-center gap-1 rounded-md border p-0.5">
-                  {METRICS.map((option) => (
-                     <Button
-                        key={option}
-                        size="xxs"
-                        variant={metric === option ? 'secondary' : 'ghost'}
-                        onClick={() => setMetric(option)}
-                     >
-                        {t(`chart.metric_${option}`)}
-                     </Button>
-                  ))}
-               </div>
-               <div className="flex items-center gap-1 rounded-md border p-0.5">
-                  {(['daily', 'weekly'] as const).map((option) => (
-                     <Button
-                        key={option}
-                        size="xxs"
-                        variant={grain === option ? 'secondary' : 'ghost'}
-                        onClick={() => setGrain(option)}
-                     >
-                        {t(`chart.${option}`)}
-                     </Button>
-                  ))}
-               </div>
+               <SegmentedControl
+                  aria-label={t('chart.metricLabel')}
+                  value={metric}
+                  onValueChange={setMetric}
+                  options={METRICS.map((option) => ({
+                     value: option,
+                     label: t(`chart.metric_${option}`),
+                  }))}
+               />
+               <SegmentedControl
+                  aria-label={t('chart.grainLabel')}
+                  value={grain}
+                  onValueChange={setGrain}
+                  options={(['daily', 'weekly'] as const).map((option) => ({
+                     value: option,
+                     label: t(`chart.${option}`),
+                  }))}
+               />
             </div>
             <UsageDailyChart points={points} metric={metric} />
          </section>

@@ -13,7 +13,8 @@ import { Archive, ArchiveRestore, ArrowLeft, ExternalLink, RotateCcw } from 'luc
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { inboxHref, isAgentOutcome, relativeTime } from './inbox-format';
+import { timeAgo } from '@/lib/time-ago';
+import { inboxHref, isAgentOutcome } from './inbox-format';
 import { InboxPanel } from './inbox-states';
 
 interface InboxDetailProps {
@@ -237,7 +238,7 @@ function DetailBar({ item, archived, href, onArchive, onUnarchive, onBack }: Det
          </Button>
          <span className="shrink-0">{getNotificationIcon(item.type, 'size-4')}</span>
          <span className="min-w-0 truncate text-muted-foreground">
-            {t(`types.${item.type}`)} · {relativeTime(item.timestamp)}
+            {t(`types.${item.type}`)} · {timeAgo(item.timestamp)}
          </span>
          <div className="ml-auto flex items-center gap-1">
             {href ? (

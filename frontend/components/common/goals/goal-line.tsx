@@ -5,19 +5,11 @@ import { GOAL_STATUS, statusLook } from '@/lib/catalog';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import type { Goal } from '@/lib/goals';
 import { useProjectsStore } from '@/store/projects-store';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { timeAgo } from '@/lib/time-ago';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { GoalProgress } from './goal-progress';
 import { GoalStatusBadge } from './goal-status-badge';
-
-function relativeTime(iso: string): string {
-   try {
-      return formatDistanceToNow(parseISO(iso), { addSuffix: true });
-   } catch {
-      return iso;
-   }
-}
 
 export default function GoalLine({ goal }: { goal: Goal }) {
    const params = useParams<{ orgId?: string }>();
@@ -55,7 +47,7 @@ export default function GoalLine({ goal }: { goal: Goal }) {
          </div>
 
          <div className="hidden w-36 shrink-0 text-muted-foreground md:block">
-            {relativeTime(goal.updatedAt)}
+            {timeAgo(goal.updatedAt)}
          </div>
       </Link>
    );

@@ -211,6 +211,16 @@ and CVA variants, not through feature-local forks.
 | Views | 2 | Keep saved-view mechanics |
 | Agent | 1 | Replace inherited chat presentation with Berry run context, controls, provenance, and audit state |
 
+### Shared product components
+
+Above the primitives, `frontend/components/README.md` catalogues the shared product
+components: the property pickers (`OptionPicker`, `PriorityPicker`, `StatusPicker`,
+`LeadPicker`), `EmptyState`, `SegmentedControl`, `StatusBadge`, `ConfirmAction`,
+`PageTitleBar`, the detail section labels and `StatTile`. Reach for one of these before
+writing a feature-local copy of the same pattern, and add new shared components there with
+their purpose, props, accessibility notes and what they replaced. Each has a Storybook file
+whose `play` functions are its tests.
+
 Cross-cutting patterns already present include a command palette, create-issue dialog,
 responsive off-canvas sidebar, stacked headers, list/grid/board/timeline views, filter builder,
 property selectors, empty/loading states, toasts, charts, diff views, and settings forms.

@@ -14,7 +14,8 @@ import { cn } from '@/lib/utils';
 import { useShortcut } from '@/components/layout/shortcut-provider';
 import { useNotificationsDrawerStore } from '@/store/notifications-drawer-store';
 import { useNotificationsStore } from '@/store/notifications-store';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { timeAgo } from '@/lib/time-ago';
+import { inboxHref } from '@/components/common/inbox/inbox-format';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -61,7 +62,7 @@ export function NotificationsDrawer() {
 
    const openNotification = (item: InboxItem) => {
       if (!item.read) void markAsRead(item.id);
-      const href = destinationOf(item, orgId);
+      const href = inboxHref(item, orgId);
       if (href) {
          close();
          router.push(href);
@@ -122,7 +123,7 @@ export function NotificationsDrawer() {
                               </span>
                            ) : null}
                            <span className="mt-1 block text-muted-foreground">
-                              {relativeTime(item.timestamp)}
+                              {timeAgo(item.timestamp)}
                            </span>
                         </span>
                         {item.read ? null : (
@@ -148,24 +149,4 @@ export function NotificationsDrawer() {
          </SheetContent>
       </Sheet>
    );
-}
-
-/** Where a notification takes you, or nothing when it points at no record. */
-export function destinationOf(item: InboxItem, orgId: string): string | null {
-   if (!orgId) return null;
-   if (item.identifier) return `/${orgId}/issue/${item.identifier}`;
-   if (item.plan?.id) return `/${orgId}/plan/${item.plan.id}`;
-   if (item.goal?.id) return `/${orgId}/goal/${item.goal.id}`;
-   if (item.approval?.id) {
-      return `/${orgId}/inbox?approval=${encodeURIComponent(item.approval.id)}`;
-   }
-   return null;
-}
-
-function relativeTime(timestamp: string): string {
-   try {
-      return formatDistanceToNow(parseISO(timestamp), { addSuffix: true });
-   } catch {
-      return timestamp;
-   }
 }

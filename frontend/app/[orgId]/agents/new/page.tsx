@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import NewAgentManual from '@/components/common/agents/new-agent-manual';
+import { PageTitleBar } from '@/components/layout/headers/page-title-bar';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 
@@ -47,11 +48,7 @@ function NewAgentChoice() {
 export default function NewAgentPage() {
    const t = useTranslations('agentsChat.create');
 
-   const header = (
-      <div className="flex w-full items-center border-b px-6 py-3">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
-      </div>
-   );
+   const header = <PageTitleBar title={t('title')} />;
 
    return (
       <MainLayout header={header}>

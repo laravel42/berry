@@ -44,7 +44,7 @@ import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import { useCommentDraftStore } from '@/store/comment-draft-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { timeAgo } from '@/lib/time-ago';
 import {
    Ban,
    Bot,
@@ -96,14 +96,6 @@ type EventItem = Extract<ActivityItem, { kind: 'event' }>;
 
 /** A task key as typed: `BER-12`. Rendered as a link wherever it appears. */
 const ISSUE_KEY = /\b([A-Z][A-Z0-9]{1,5}-\d+)\b/g;
-
-function timeAgo(iso: string): string {
-   try {
-      return formatDistanceToNow(parseISO(iso), { addSuffix: true });
-   } catch {
-      return 'recently';
-   }
-}
 
 /**
  * Tokens the decorator must leave alone: fenced and inline code, links the
@@ -388,7 +380,7 @@ function CommentCard({
          <div className="mb-1.5 flex items-center gap-2">
             <ActorAvatar user={actor} size="sm" />
             <ActorName user={actor} />
-            <span className="text-muted-foreground">{timeAgo(comment.createdAt)}</span>
+            <span className="text-muted-foreground">{timeAgo(comment.createdAt, 'recently')}</span>
             {comment.resolvedAt ? (
                <span className="rounded bg-accent px-1.5 text-muted-foreground">
                   {t('resolved')}
@@ -576,7 +568,7 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
                      }),
                      event: described.event,
                      text: described.text,
-                     timeAgo: timeAgo(entry.occurredAt),
+                     timeAgo: timeAgo(entry.occurredAt, 'recently'),
                      at: entry.occurredAt,
                   } as EventItem & { at: string },
                ];

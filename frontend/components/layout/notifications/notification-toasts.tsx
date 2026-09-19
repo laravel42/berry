@@ -7,7 +7,7 @@ import { useNotificationsStore } from '@/store/notifications-store';
 import { useTranslations } from 'next-intl';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { destinationOf } from './notifications-drawer';
+import { inboxHref } from '@/components/common/inbox/inbox-format';
 import { useParams, useRouter } from 'next/navigation';
 
 /**
@@ -43,7 +43,7 @@ export function NotificationToasts() {
             action: {
                label: t('toast.open'),
                onClick: () => {
-                  const href = destinationOf(item, orgId);
+                  const href = inboxHref(item, orgId);
                   if (href) router.push(href);
                   else openDrawer();
                },

@@ -13,7 +13,7 @@ import { getEmptyImage } from 'react-dnd-html5-backend';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
-import { PrioritySelector } from './priority-selector';
+import { IssuePriorityPicker } from './issue-pickers';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { IssueContextMenu } from './issue-context-menu';
 import { WORKSPACE_SLUG } from '@/lib/config';
@@ -34,7 +34,7 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
    return (
       <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
-            <PrioritySelector priority={issue.priority} issueId={issue.id} />
+            <IssuePriorityPicker issue={issue} />
             <span className="min-w-0 truncate text-subtle-foreground">{issue.identifier}</span>
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                {format(new Date(issue.createdAt), 'MMM dd')}
@@ -197,7 +197,7 @@ export function IssueGrid({
                      <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
                         {displayProperties.priority ? (
                            <span className="relative z-[1] flex shrink-0 items-center">
-                              <PrioritySelector priority={issue.priority} issueId={issue.id} />
+                              <IssuePriorityPicker issue={issue} />
                            </span>
                         ) : null}
                         {liveRun ? (

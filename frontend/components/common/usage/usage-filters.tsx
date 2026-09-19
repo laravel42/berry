@@ -4,6 +4,7 @@ import { Check, Globe, RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -56,18 +57,15 @@ export default function UsageFilters({ query, onChange, lastUpdated, loading, on
 
    return (
       <div className="flex flex-wrap items-center gap-2">
-         <div className="flex items-center gap-1 rounded-md border p-0.5">
-            {USAGE_DAY_OPTIONS.map((days) => (
-               <Button
-                  key={days}
-                  size="xxs"
-                  variant={query.days === days ? 'secondary' : 'ghost'}
-                  onClick={() => onChange({ ...query, days })}
-               >
-                  {t('days', { count: days })}
-               </Button>
-            ))}
-         </div>
+         <SegmentedControl
+            aria-label={t('range')}
+            value={query.days}
+            onValueChange={(days) => onChange({ ...query, days })}
+            options={USAGE_DAY_OPTIONS.map((days) => ({
+               value: days,
+               label: t('days', { count: days }),
+            }))}
+         />
 
          <Popover>
             <PopoverTrigger asChild>

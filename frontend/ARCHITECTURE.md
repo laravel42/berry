@@ -96,3 +96,7 @@ exist but are intentionally absent from the nav (`profile`,
   plus a manual check of the changed view.
 - Prefer existing `ui/` primitives and the semantic tokens in `globals.css`
   over new components or raw palette utilities.
+- Before writing a picker, empty state, view toggle, status pill or page title
+  row, check the shared components catalogued in
+  [`components/README.md`](components/README.md); extend one with a typed
+  variant rather than copying its markup.

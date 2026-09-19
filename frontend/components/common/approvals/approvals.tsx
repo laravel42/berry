@@ -1,6 +1,12 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import {
+   EmptyState,
+   EmptyStateMark,
+   EmptyStateText,
+   EmptyStateTitle,
+} from '@/components/common/empty-state';
 import { Pill } from '@/components/common/plans/plan-sections';
 import {
    approvalDecisionKind,
@@ -239,13 +245,10 @@ export default function Approvals() {
                      {error}
                   </p>
                ) : empty ? (
-                  <div className="flex min-h-64 items-center justify-center px-6 py-12">
-                     <div className="flex max-w-sm flex-col items-center text-center">
-                        <BerryMark size="lg" tone="neutral" state="hollow" label={emptyHeading} />
-                        <h2 className="mt-5">{emptyHeading}</h2>
-                        <p className="mt-2 leading-relaxed text-muted-foreground">{emptyBody}</p>
-                     </div>
-                  </div>
+                  <EmptyState icon={<EmptyStateMark label={emptyHeading} />}>
+                     <EmptyStateTitle variant="plain">{emptyHeading}</EmptyStateTitle>
+                     <EmptyStateText>{emptyBody}</EmptyStateText>
+                  </EmptyState>
                ) : (
                   <ul>
                      {view !== 'resolved' && (

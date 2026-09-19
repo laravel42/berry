@@ -6,16 +6,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -368,31 +359,19 @@ export default function SkillsList({
             />
          ) : null}
 
-         <AlertDialog
+         <ConfirmAction
             open={confirming !== null}
             onOpenChange={(open) => !open && setConfirming(null)}
-         >
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>
-                     {t('row.confirmDeleteTitle', { name: confirming?.name ?? '' })}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>{t('row.confirmDeleteBody')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction
-                     onClick={() => {
-                        const target = confirming;
-                        setConfirming(null);
-                        if (target) void remove(target);
-                     }}
-                  >
-                     {t('row.delete')}
-                  </AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
+            title={t('row.confirmDeleteTitle', { name: confirming?.name ?? '' })}
+            description={t('row.confirmDeleteBody')}
+            cancelLabel={t('cancel')}
+            confirmLabel={t('row.delete')}
+            destructive
+            onConfirm={() => {
+               // Closes at once: the row reports its own progress and failure.
+               if (confirming) void remove(confirming);
+            }}
+         />
       </div>
    );
 }

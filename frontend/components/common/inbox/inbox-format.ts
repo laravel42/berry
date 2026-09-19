@@ -1,14 +1,4 @@
 import type { InboxItem } from '@/data/inbox';
-import { formatDistanceToNow, parseISO } from 'date-fns';
-
-/** "3 minutes ago", or the raw stamp when it cannot be read. */
-export function relativeTime(timestamp: string): string {
-   try {
-      return formatDistanceToNow(parseISO(timestamp), { addSuffix: true });
-   } catch {
-      return timestamp;
-   }
-}
 
 /**
  * Where a notification takes you when it is opened in its own tab.

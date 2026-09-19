@@ -3,6 +3,8 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
+import { PriorityPicker } from '@/components/common/pickers/priority-picker';
+import { ISSUE_STATUS_OPTIONS, StatusPicker } from '@/components/common/pickers/status-picker';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,9 +52,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector, isOrchestrator } from './assignee-selector';
-import { PrioritySelector } from './priority-selector';
 import { ProjectSelector } from './project-selector';
-import { StatusSelector } from './status-selector';
 
 /**
  * Creating a task.
@@ -113,7 +113,7 @@ export function CreateNewIssue() {
       setCreateAnother,
       setMode,
    } = useCreateIssueStore();
-   const { addIssue, getAllIssues } = useIssuesStore();
+   const { addIssue, getAllIssues, filterByStatus, filterByPriority } = useIssuesStore();
    const agents = useAgentsStore((state) => state.agents);
    const boardId = useSessionStore((state) => state.boardId);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
@@ -454,15 +454,20 @@ export function CreateNewIssue() {
 
                   <div className="flex w-full flex-wrap items-center justify-start gap-1.5">
                      {createFields.status ? (
-                        <StatusSelector
+                        <StatusPicker
+                           variant="chip"
                            status={uiStatus}
+                           options={ISSUE_STATUS_OPTIONS}
                            onChange={(next) => setDraft({ statusId: next.id })}
+                           countFor={(id) => filterByStatus(id).length}
                         />
                      ) : null}
                      {createFields.priority ? (
-                        <PrioritySelector
+                        <PriorityPicker
+                           variant="chip"
                            priority={uiPriority}
                            onChange={(next) => setDraft({ priorityId: next.id })}
+                           countFor={(id) => filterByPriority(id).length}
                         />
                      ) : null}
                      {createFields.assignee ? (

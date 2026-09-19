@@ -1,5 +1,6 @@
 'use client';
 
+import { SegmentedControl } from '@/components/common/segmented-control';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -209,18 +210,15 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
                   title={t('usageTitle')}
                   description={t('usageDescription')}
                   action={
-                     <div className="flex items-center gap-1 rounded-md border p-0.5">
-                        {RUNTIME_DAY_OPTIONS.map((days) => (
-                           <Button
-                              key={days}
-                              size="xxs"
-                              variant={usageQuery.days === days ? 'secondary' : 'ghost'}
-                              onClick={() => setUsageQuery({ ...usageQuery, days })}
-                           >
-                              {tUsage('days', { count: days })}
-                           </Button>
-                        ))}
-                     </div>
+                     <SegmentedControl
+                        aria-label={tUsage('range')}
+                        value={usageQuery.days}
+                        onValueChange={(days) => setUsageQuery({ ...usageQuery, days })}
+                        options={RUNTIME_DAY_OPTIONS.map((days) => ({
+                           value: days,
+                           label: tUsage('days', { count: days }),
+                        }))}
+                     />
                   }
                >
                   <SettingsCard className="p-4">

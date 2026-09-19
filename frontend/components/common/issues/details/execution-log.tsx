@@ -38,13 +38,14 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
 import { selectOpenReviewForIssue, useReviewsStore } from '@/store/reviews-store';
 import { useSessionStore } from '@/store/session-store';
-import { formatDistanceToNow, parseISO } from 'date-fns';
+import { timeAgo } from '@/lib/time-ago';
 import { GitPullRequestArrow, RotateCcw, ScrollText, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { Section } from './panel-section';
 
 /**
  * Every run this task has had.
@@ -85,14 +86,6 @@ function markTone(status: RunRecord['status']): BerryMarkTone {
    }
 }
 
-function timeAgo(iso: string): string {
-   try {
-      return formatDistanceToNow(parseISO(iso), { addSuffix: true });
-   } catch {
-      return 'recently';
-   }
-}
-
 function RunRow({
    run,
    all,
@@ -120,7 +113,7 @@ function RunRow({
          : t(`trigger.${runTriggerKey(run.source)}` as 'trigger.assignment');
    const asker = run.requestedBy ? getMemberById(run.requestedBy.id)?.name : undefined;
    const duration = runDurationMs(run);
-   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt);
+   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
    const live = !isTerminalRunStatus(run.status);
 
    const reason =
@@ -260,7 +253,7 @@ function LatestOutcome({
    }, [workspaceId, issueRef]);
 
    const name = getAgentById(run.agentId)?.name ?? t('trigger.assignment');
-   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt);
+   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
    const stopped = review ? stoppedWithoutDelivering(review) : false;
    const sentence =
       run.status === 'succeeded'
@@ -399,10 +392,7 @@ export function ExecutionLog({
    };
 
    return (
-      <section>
-         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
-            {t('title')}
-         </h2>
+      <Section title={t('title')}>
          {decided ? (
             <div
                role="status"
@@ -510,7 +500,7 @@ export function ExecutionLog({
             }
             onOpenChange={(open) => (open ? undefined : setTranscript(null))}
          />
-      </section>
+      </Section>
    );
 }
 

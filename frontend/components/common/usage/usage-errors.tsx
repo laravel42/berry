@@ -6,10 +6,11 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { getUsageErrors, type UsageQuery } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
+import { StatTile } from './usage-tiles';
 import { useUsage } from './use-usage';
 
 /** Below this, a rate says more about luck than about an agent. */
@@ -70,10 +71,7 @@ export default function UsageErrors({
       <div className="flex flex-col gap-8 px-6 py-6">
          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {tiles.map((tile) => (
-               <div key={tile.label} className="rounded-md border px-4 py-3">
-                  <p className="text-muted-foreground">{tile.label}</p>
-                  <p className="mt-1 font-medium tabular-nums">{tile.value}</p>
-               </div>
+               <StatTile key={tile.label} label={tile.label} value={tile.value} />
             ))}
          </div>
 
@@ -131,18 +129,15 @@ export default function UsageErrors({
             <section className="flex flex-col gap-2">
                <div className="flex flex-wrap items-center gap-2">
                   <h2 className="mr-auto font-medium">{t('offenders')}</h2>
-                  <div className="flex items-center gap-1 rounded-md border p-0.5">
-                     {(['count', 'rate'] as const).map((option) => (
-                        <Button
-                           key={option}
-                           size="xxs"
-                           variant={rank === option ? 'secondary' : 'ghost'}
-                           onClick={() => setRank(option)}
-                        >
-                           {t(`by_${option}`)}
-                        </Button>
-                     ))}
-                  </div>
+                  <SegmentedControl
+                     aria-label={t('rankLabel')}
+                     value={rank}
+                     onValueChange={setRank}
+                     options={(['count', 'rate'] as const).map((option) => ({
+                        value: option,
+                        label: t(`by_${option}`),
+                     }))}
+                  />
                </div>
                {offenders.length === 0 ? (
                   <p className="text-muted-foreground">{t('empty')}</p>

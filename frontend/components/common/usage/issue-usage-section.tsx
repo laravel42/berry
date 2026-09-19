@@ -1,6 +1,7 @@
 'use client';
 
 import { IssueUsageDialog } from '@/components/common/issues/details/issue-usage-dialog';
+import { Section } from '@/components/common/issues/details/panel-section';
 import { formatCost, formatTokens, getIssueUsage, totalTokens } from '@/lib/usage';
 import { useIssueRuns } from '@/store/issue-runs-store';
 import { useSessionStore } from '@/store/session-store';
@@ -27,10 +28,7 @@ export function IssueUsageSection({ issueId }: { issueId: string }) {
    );
    if (error || !data) return null;
    return (
-      <section>
-         <h2 data-heading="label" className="mb-1 pb-1 text-muted-foreground">
-            {t('title')}
-         </h2>
+      <Section title={t('title')}>
          {data.totals.events === 0 ? (
             <p className="text-muted-foreground">{t('none')}</p>
          ) : (
@@ -60,6 +58,6 @@ export function IssueUsageSection({ issueId }: { issueId: string }) {
                <IssueUsageDialog usage={data} runs={runs} open={open} onOpenChange={setOpen} />
             </div>
          )}
-      </section>
+      </Section>
    );
 }

@@ -4,6 +4,7 @@ import type { Project } from '@/data/projects';
 import { useMembersStore } from '@/store/members-store';
 import { format, parseISO } from 'date-fns';
 import { useTranslations } from 'next-intl';
+import { DetailSectionLabel } from './detail-section-label';
 
 function when(value: string | undefined): string | null {
    if (!value) return null;
@@ -27,9 +28,7 @@ export function ProjectDetailsSection({ project }: { project: Project }) {
 
    return (
       <div>
-         <div className="mb-2 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-            {t('title').toLowerCase()}
-         </div>
+         <DetailSectionLabel className="mb-2">{t('title')}</DetailSectionLabel>
          <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
                <span className="shrink-0 text-muted-foreground">{t('createdBy')}</span>

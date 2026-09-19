@@ -10,6 +10,7 @@ import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
 import { BarChart3, PanelRight, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { PageTitleBar } from '../page-title-bar';
 import { DisplayOptions } from '../display-options';
 
 function HeaderNav() {
@@ -18,15 +19,14 @@ function HeaderNav() {
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
 
    return (
-      <div className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
+      <PageTitleBar title={t('title')}>
          {canEdit ? (
             <Button size="xs" onClick={() => openModal()}>
                <Plus className="size-4" />
                {t('create')}
             </Button>
          ) : null}
-      </div>
+      </PageTitleBar>
    );
 }
 

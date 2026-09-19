@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
 import { readableModelName } from '@/components/common/agents/model-name';
-import { Button } from '@/components/ui/button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import {
    formatCost,
    formatTokens,
@@ -106,18 +106,15 @@ export function RuntimeUsagePanel({ runtimeId, query }: { runtimeId: string; que
          <section className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
                <h3 className="mr-auto font-medium">{t('split')}</h3>
-               <div className="flex items-center gap-1 rounded-md border p-0.5">
-                  {(['agent', 'model'] as const).map((option) => (
-                     <Button
-                        key={option}
-                        size="xxs"
-                        variant={split === option ? 'secondary' : 'ghost'}
-                        onClick={() => setSplit(option)}
-                     >
-                        {t(`by_${option}`)}
-                     </Button>
-                  ))}
-               </div>
+               <SegmentedControl
+                  aria-label={t('splitLabel')}
+                  value={split}
+                  onValueChange={setSplit}
+                  options={(['agent', 'model'] as const).map((option) => ({
+                     value: option,
+                     label: t(`by_${option}`),
+                  }))}
+               />
             </div>
             <UsageBreakdownTable
                title={split === 'agent' ? t('by_agent') : t('by_model')}

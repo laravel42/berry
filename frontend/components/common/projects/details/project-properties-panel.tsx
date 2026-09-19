@@ -6,21 +6,22 @@ import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Issue } from '@/data/issues';
-import { priorities } from '@/data/priorities';
 import { ProjectDetail } from '@/data/project-details';
 import { Project } from '@/data/projects';
 import { PanelFilterTarget, usePanelFilter } from '@/components/common/issues/use-panel-filter';
+import { PriorityPicker } from '@/components/common/pickers/priority-picker';
+import { StatusPicker } from '@/components/common/pickers/status-picker';
 import { HealthPopover } from '@/components/common/projects/health-popover';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
+import { projectCreateStatusOptions } from '@/components/common/projects/create-project/project-status-options';
 import { RepositorySelector } from '@/components/common/projects/repository-selector';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { ProjectProgressChart } from './project-progress-chart';
-import { ProjectDetailLeadPicker } from '../project-detail-lead-picker';
-import { ProjectDetailStatusSelector } from '../project-detail-status-selector';
-import { PrioritySelector } from '../priority-selector';
+import { LeadAvatarButton, LeadPicker, leadCandidates } from '../lead-picker';
+import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
 
 interface ProjectPropertiesPanelProps {
@@ -118,9 +119,7 @@ function PropertyRow({ label, children }: { label: string; children: React.React
 function SidebarSection({ title, children }: { title: string; children: React.ReactNode }) {
    return (
       <div>
-         <div className="mb-2 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]">
-            {title.toLowerCase()}
-         </div>
+         <DetailSectionLabel className="mb-2">{title}</DetailSectionLabel>
          {children}
       </div>
    );
@@ -150,19 +149,19 @@ function ProjectPropertiesPanelCompact({
             <SidebarSection title="Properties">
                <div className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-1.5 -ml-1.5">
-                     <ProjectDetailStatusSelector
+                     <StatusPicker
+                        variant="icon"
                         status={project.status}
-                        onStatusChange={(status) => updateProjectStatus(project.id, status)}
+                        options={projectCreateStatusOptions}
+                        onChange={(status) => updateProjectStatus(project.id, status)}
                      />
                      <span>{project.status.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 -ml-1.5">
-                     <PrioritySelector
+                     <PriorityPicker
+                        variant="icon"
                         priority={project.priority}
-                        onPriorityChange={(priorityId) => {
-                           const match = priorities.find((entry) => entry.id === priorityId);
-                           if (match) updateProjectPriority(project.id, match);
-                        }}
+                        onChange={(priority) => updateProjectPriority(project.id, priority)}
                      />
                      <span>{project.priority.name}</span>
                   </div>
@@ -173,11 +172,13 @@ function ProjectPropertiesPanelCompact({
                   {/* No -ml: the lead control is a filled circle, not a padded
                       ghost icon — negative margin clipped the avatar. */}
                   <div className="flex items-center gap-1.5">
-                     <ProjectDetailLeadPicker
+                     <LeadPicker
                         lead={project.lead}
-                        members={members}
-                        onLeadChange={(member) => updateProjectLead(project.id, member)}
-                     />
+                        candidates={leadCandidates(members, project.lead)}
+                        onChange={(member) => updateProjectLead(project.id, member)}
+                     >
+                        <LeadAvatarButton lead={project.lead} />
+                     </LeadPicker>
                      <span className="truncate">{project.lead.name}</span>
                   </div>
                   <div className="flex min-w-0 items-center gap-1.5 -ml-1.5">
