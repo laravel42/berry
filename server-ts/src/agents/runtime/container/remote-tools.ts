@@ -2,6 +2,7 @@ import { tool, type JSONSchema, type JSONValue, type Tool, type ToolContext } fr
 import { z } from 'zod';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { FileTooLarge, getBytes } from '../../../execution/bytes.ts';
+import { shellQuote } from '../../checkout.ts';
 import { insideDirectory } from '../../workspace-files.ts';
 import { WORKDIR_KEY } from '../command-tool.ts';
 
@@ -132,6 +133,79 @@ export function collectFileTool(api: BerryApi, session: () => Promise<ExecutionS
          }
       },
    });
+}
+
+/** How much of a task's saved work is put back in one go: a task's files, not a repository. */
+const RESTORE_MAX_FILES = 300;
+const RESTORE_MAX_BYTES = 8 * 1024 * 1024;
+
+export interface RestoredFiles {
+   /** Saved on the task, absent from the checkout, and now in it. */
+   placed: string[];
+   /** Absent too, but not placed: binary, cut short by the read limit, or outside the repository. */
+   skipped: string[];
+}
+
+/**
+ * Puts a task's saved files into the checkout where the branch does not have
+ * them.
+ *
+ * Work is saved on the task as it is written and committed at the end of the
+ * run, so the two normally agree. They stop agreeing when the run that wrote
+ * the files had no repository — a task created without a project — or ended
+ * before it could deliver: the code is then reviewed, approved and closed while
+ * existing only as the task's files, and the next run starts from a branch
+ * that has none of it. Placing what is missing makes that work part of this
+ * run's tree, so it is delivered with whatever the run does next, or on its
+ * own if the run does nothing else.
+ *
+ * Only what is missing. A path the checkout already has is left alone: the
+ * branch is the newer truth whenever a command edited a file after it was
+ * saved, and an older saved copy must never overwrite it.
+ */
+export async function restoreTaskFiles(api: BerryApi, session: ExecutionSession, directory: string): Promise<RestoredFiles> {
+   const listed = await callBerry(api, 'list_files', {});
+   const all = isRecord(listed) && Array.isArray(listed.files) ? listed.files.filter((entry): entry is string => typeof entry === 'string') : [];
+   const candidates = all.map((path) => [path, insideDirectory(path)] as const).filter((entry): entry is readonly [string, string] => entry[1] !== null).slice(0, RESTORE_MAX_FILES);
+   if (candidates.length === 0) return { placed: [], skipped: [] };
+
+   // One command answers "which of these does the checkout lack", as the session's own user.
+   const probe = await session.exec(`for f in ${candidates.map(([, relative]) => shellQuote(relative)).join(' ')}; do [ -e "$f" ] || [ -L "$f" ] || printf '%s\\n' "$f"; done`, { cwd: directory });
+   if (probe.exitCode !== 0) return { placed: [], skipped: [] };
+   const missing = new Set(probe.stdout.split('\n').filter((line) => line !== ''));
+
+   const placed: string[] = [];
+   const skipped: string[] = [];
+   let bytes = 0;
+   for (const [path, relative] of candidates) {
+      if (!missing.has(relative)) continue;
+      const file = await callBerry(api, 'read_file', { path });
+      const usable = isRecord(file) && file.found === true && file.truncated !== true && typeof file.content === 'string' && String(file.contentType ?? 'text/plain').startsWith('text/');
+      if (!usable || bytes + Buffer.byteLength(file.content as string) > RESTORE_MAX_BYTES) {
+         skipped.push(relative);
+         continue;
+      }
+      bytes += Buffer.byteLength(file.content as string);
+      await session.writeFile(`${directory}/${relative}`, file.content as string);
+      placed.push(relative);
+   }
+   return { placed, skipped };
+}
+
+/** What the agent is told about files Berry put back, appended to its task. Empty when there were none. */
+export function restoredNote(restored: RestoredFiles): string {
+   if (restored.placed.length === 0) return '';
+   const list = (paths: string[]) => paths.slice(0, 40).join(', ') + (paths.length > 40 ? `, and ${paths.length - 40} more` : '');
+   return (
+      '\n\nWork saved on this task that the branch did not have\n' +
+      `Berry put ${restored.placed.length} file${restored.placed.length === 1 ? '' : 's'} saved on this task by an earlier run into your checkout, ` +
+      `because the branch had no file at those paths: ${list(restored.placed)}. They are uncommitted, and will be ` +
+      'committed with your work. They were written against an older state of the repository: read them against ' +
+      'what is there now, fit them in (imports, routes, migrations numbering, tests), run the checks, and say in ' +
+      'your report what you kept and what you changed.' +
+      (restored.skipped.length ? ` Not restored (binary or too large): ${list(restored.skipped)}.` : '') +
+      '\n'
+   );
 }
 
 async function callBerry(api: BerryApi, name: string, input: unknown): Promise<JSONValue> {

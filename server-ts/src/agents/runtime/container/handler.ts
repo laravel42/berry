@@ -28,6 +28,8 @@ import {
    callAttach,
    collectFileTool,
    loadRemoteTools,
+   restoreTaskFiles,
+   restoredNote,
    type BerryApi,
    type WorkspaceMirror,
 } from './remote-tools.ts';
@@ -262,7 +264,15 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       );
       if (directory) agent.appState.set(WORKDIR_KEY, directory);
 
-      const result = await agent.invoke(envelope.task.prompt + budgetContract(envelope.agent.maxTurns), {
+      // After the baseline is committed, so what is put back counts as this run's
+      // change and is delivered. Never for a read-only checkout, which delivers
+      // nothing; and never fatal — a task that cannot list its files still runs.
+      const restored =
+         directory && envelope.repo && !envelope.repo.readOnly
+            ? await restoreTaskFiles(api, workspace, directory).catch(() => ({ placed: [], skipped: [] }))
+            : { placed: [], skipped: [] };
+
+      const result = await agent.invoke(envelope.task.prompt + restoredNote(restored) + budgetContract(envelope.agent.maxTurns), {
          cancelSignal: signal,
          limits: {
             ...(envelope.agent.maxTurns ? { turns: envelope.agent.maxTurns } : {}),

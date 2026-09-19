@@ -7,7 +7,7 @@ import { Agent } from '@strands-agents/sdk';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
 import { LocalSession } from './local-session.ts';
 import { WORKDIR_KEY } from '../command-tool.ts';
-import { RemoteToolsUnavailable, collectFileTool, loadRemoteTools } from './remote-tools.ts';
+import { RemoteToolsUnavailable, collectFileTool, loadRemoteTools, restoreTaskFiles, restoredNote } from './remote-tools.ts';
 
 function fakeBerry(calls: Array<{ url: string; body: unknown; auth: string | null }>): typeof fetch {
    return (async (input: string | URL | Request, init?: RequestInit) => {
@@ -128,4 +128,63 @@ test('write_file never writes outside the workspace, nor mirrors a save Berry re
    await run('refused.txt', () => Response.json({ error: { message: 'no' } }, { status: 403 }));
    const listing = await session.exec('find . -type f; test -e /tmp/berry-mirror-absolute.txt && echo LEAKED');
    assert.equal(listing.stdout, '');
+});
+
+/** A task with saved files: `list_files` names them, `read_file` hands each over. */
+function berryWithFiles(files: Record<string, { content: string; contentType?: string; truncated?: boolean }>, reads: string[]): typeof fetch {
+   return (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const body = JSON.parse(String(init?.body ?? '{}')) as { path?: string };
+      if (url.endsWith('/list_files')) return Response.json({ result: { files: Object.keys(files) } });
+      if (url.endsWith('/read_file')) {
+         reads.push(body.path!);
+         const file = files[body.path!];
+         return Response.json({ result: file ? { path: body.path, found: true, contentType: file.contentType ?? 'text/plain', truncated: file.truncated ?? false, content: file.content } : { path: body.path, found: false } });
+      }
+      return Response.json({ result: null });
+   }) as typeof fetch;
+}
+
+test('saved work the branch does not have is put back; what the branch has is never overwritten', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-restore-')) });
+   await session.writeFile('repo/server/src/app.ts', 'the branch version, edited by a command since\n');
+   const reads: string[] = [];
+   const api = {
+      apiUrl: 'https://berry.test',
+      token: 't',
+      fetch: berryWithFiles(
+         {
+            'server/src/app.ts': { content: 'an older saved copy\n' },
+            'server/migrations/0009_prompts.up.sql': { content: "create table prompts (id int);\n-- it's here\n" },
+            'server/src/routes/prompts.ts': { content: 'export const prompts = 1;\n' },
+            'docs/diagram.png': { content: 'PNG', contentType: 'image/png' },
+            'server/big.json': { content: '{', truncated: true },
+            '../outside.txt': { content: 'no' },
+         },
+         reads
+      ),
+   };
+   const restored = await restoreTaskFiles(api, session, join(session.root, 'repo'));
+   assert.deepEqual(restored.placed.sort(), ['server/migrations/0009_prompts.up.sql', 'server/src/routes/prompts.ts']);
+   assert.deepEqual(restored.skipped.sort(), ['docs/diagram.png', 'server/big.json']);
+   assert.equal(await session.readFile('repo/server/src/app.ts'), 'the branch version, edited by a command since\n');
+   assert.equal(await session.readFile('repo/server/migrations/0009_prompts.up.sql'), "create table prompts (id int);\n-- it's here\n");
+   // Files the branch already has are not even fetched, and nothing lands outside the checkout.
+   assert.ok(!reads.includes('server/src/app.ts') && !reads.includes('../outside.txt'));
+   assert.equal((await session.exec('ls .. | wc -l', { cwd: 'repo' })).stdout.trim(), '1');
+
+   const note = restoredNote(restored);
+   assert.match(note, /put 2 files saved on this task/);
+   assert.match(note, /0009_prompts\.up\.sql/);
+   assert.match(note, /Not restored \(binary or too large\): .*diagram\.png/);
+   assert.equal(restoredNote({ placed: [], skipped: ['x'] }), '');
+});
+
+test('a task with no saved files, or a Berry that will not list them, restores nothing', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-restore-')) });
+   await session.exec('mkdir -p repo');
+   const none = await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: berryWithFiles({}, []) }, session, join(session.root, 'repo'));
+   assert.deepEqual(none, { placed: [], skipped: [] });
+   const refusing = (async () => Response.json({ error: { message: 'no' } }, { status: 403 })) as unknown as typeof fetch;
+   assert.deepEqual(await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: refusing }, session, join(session.root, 'repo')), { placed: [], skipped: [] });
 });
