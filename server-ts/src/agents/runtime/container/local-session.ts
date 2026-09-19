@@ -9,6 +9,25 @@ import type {
 } from '../../../execution/driver.ts';
 import type { SessionIdentity } from './session-identity.ts';
 
+/**
+ * What the image says about its tools, handed to commands by name.
+ *
+ * A command's environment is built from nothing so that no credential of the
+ * runtime's reaches it by accident. These are not credentials: they are where
+ * the image put bun and nvm, and how pip and corepack should behave in a
+ * container. Anything else in the runtime's environment stays out.
+ */
+const TOOL_ENV = ['BASH_ENV', 'BUN_INSTALL', 'COREPACK_ENABLE_DOWNLOAD_PROMPT', 'PIP_BREAK_SYSTEM_PACKAGES', 'PIP_DISABLE_PIP_VERSION_CHECK'] as const;
+
+function toolEnv(): Record<string, string> {
+   const found: Record<string, string> = {};
+   for (const name of TOOL_ENV) {
+      const value = process.env[name];
+      if (value) found[name] = value;
+   }
+   return found;
+}
+
 /** How long output may keep arriving after the shell exits before its group is reaped. */
 const EXIT_DRAIN_MS = 500;
 
@@ -119,7 +138,7 @@ export class LocalSession implements ExecutionSession {
          cwd,
          // Platform credentials are not implicit tool inputs. This reduces accidental
          // exposure; shell execution still requires an isolated OS trust boundary.
-         env: { PATH: process.env.PATH, LANG: 'C.UTF-8', HOME: this.root, TMPDIR: this.root, ...this.#env, ...(options.env ?? {}) },
+         env: { PATH: process.env.PATH, LANG: 'C.UTF-8', HOME: this.root, TMPDIR: this.root, ...toolEnv(), ...this.#env, ...(options.env ?? {}) },
          detached: true,
          ...(this.#identity ?? {}),
       });

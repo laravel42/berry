@@ -154,6 +154,12 @@ function deliveryContract(): string {
       'Either way, save or write the complete new contents of a file — Berry ' +
       'commits the file as it is, not a patch, so a partial file replaces the ' +
       'whole one.\n' +
+      'Your workspace has Node with npm, pnpm, yarn and bun; nvm; Python 3 with ' +
+      'pip and venv; git and ffmpeg. Install, build and test with the package ' +
+      'manager the repository committed a lockfile for — the preview does the ' +
+      'same, and a different one resolves a different tree. When the repository ' +
+      'has an .nvmrc, run nvm install once: every later command in it then runs ' +
+      'on that Node, which is also what the preview uses.\n' +
       'A reviewer opens your pull request as a running preview: Berry starts ' +
       'the repository\'s apps and the services they need in containers and ' +
       'shows the result. It can work out an ordinary layout by itself (a ' +
