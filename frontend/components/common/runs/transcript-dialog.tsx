@@ -8,6 +8,7 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { CodeEditor } from '@/components/ui/code-editor';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import {
@@ -23,7 +24,7 @@ import { formatCost, formatTokens } from '@/lib/usage';
 import { cn } from '@/lib/utils';
 import { Check, Copy, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 /**
  * One run, read back.
@@ -236,8 +237,7 @@ function StepCard({
          data-step-id={step.id}
          className={cn(
             'rounded-sm border border-border/60 bg-container p-2.5',
-            current && 'border-status-info',
-            step.kind === 'error' && 'border-status-danger/50'
+            current && 'border-status-info'
          )}
       >
          <div className="flex items-center gap-2">
@@ -248,7 +248,7 @@ function StepCard({
                <Highlighted text={step.title} query={highlight} />
             </span>
             {step.ok === false ? (
-               <span className="shrink-0 text-status-danger">✕</span>
+               <span className="shrink-0 text-muted-foreground">✕</span>
             ) : step.ok === true ? (
                <span className="shrink-0 text-status-success">✓</span>
             ) : null}
@@ -260,9 +260,7 @@ function StepCard({
                   <span>{t('input')}</span>
                   <CopyButton text={step.input} label={t('input')} />
                </div>
-               <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 leading-6">
-                  <Highlighted text={step.input} query={highlight} />
-               </pre>
+               <StepBody text={step.input} query={highlight} maxHeight="10rem" className="mt-1" />
             </div>
          ) : null}
 
@@ -272,26 +270,56 @@ function StepCard({
                   <span>{t('result')}</span>
                   <CopyButton text={step.result} label={t('result')} />
                </div>
-               <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 leading-6">
-                  <Highlighted text={step.result} query={highlight} />
-               </pre>
+               <StepBody text={step.result} query={highlight} maxHeight="18rem" className="mt-1" />
             </div>
          ) : null}
       </li>
    );
 }
 
+/**
+ * Shell-coloured code when the search is idle; a marked `<pre>` while searching
+ * so the match still lights up inside long output (CodeMirror does not carry
+ * the transcript's own highlight marks).
+ */
+function StepBody({
+   text,
+   query,
+   maxHeight,
+   className,
+}: {
+   text: string;
+   query: string;
+   maxHeight: string;
+   className?: string;
+}) {
+   if (query.trim()) {
+      return (
+         <pre
+            className={cn(
+               'overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
+               className
+            )}
+            style={{ maxHeight }}
+         >
+            <Highlighted text={text} query={query} />
+         </pre>
+      );
+   }
+   return <CodeEditor value={text} language="bash" maxHeight={maxHeight} className={className} />;
+}
+
 /** The search term, marked wherever it appears. */
 function Highlighted({ text, query }: { text: string; query: string }) {
    if (!query.trim()) return <>{text}</>;
-   const parts: React.ReactNode[] = [];
+   const parts: ReactNode[] = [];
    const needle = query.toLowerCase();
    let index = 0;
    let found = text.toLowerCase().indexOf(needle);
    while (found !== -1) {
       if (found > index) parts.push(text.slice(index, found));
       parts.push(
-         <mark key={`${found}`} className="bg-status-warning/40 text-foreground">
+         <mark key={`${found}`} className="bg-status-warning/50 text-[var(--brand-chalk)]">
             {text.slice(found, found + needle.length)}
          </mark>
       );
