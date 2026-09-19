@@ -3,6 +3,8 @@ import { withinTx, type Sql } from '../db/pool.ts';
 import type { CompletionResult, RuntimeCompletion } from '../runtime/completion.ts';
 import type { GitHubClient } from '../integrations/github.ts';
 import { IssueRepository } from '../core/issues.ts';
+import { ReviewQueue } from '../core/review-queue.ts';
+import { conflictInstructions, refreshPullRequests, refusedInstructions, sendBack } from './send-back.ts';
 import { parseContract, type RoleContract } from '../organization/contract.ts';
 import { roleAgent } from '../organization/delegation.ts';
 import { requiredReviews } from '../organization/reviews.ts';
@@ -767,16 +769,23 @@ export class ReviewGate {
     */
    async #merge(material: ReviewMaterial, reviewerId: string): Promise<boolean> {
       const number = material.delivered!.pullRequest!;
-      let outcome: { merged: boolean; sha: string | null; reason: string | null };
+      let outcome: { merged: boolean; sha: string | null; reason: string | null; conflict: boolean };
+      let client: GitHubClient;
+      let baseBranch = 'the default branch';
       try {
          const { owner, name } = parseRepository(material.repository!);
-         const client = await this.#github(material.workspaceId);
+         client = await this.#github(material.workspaceId);
          outcome = await client.mergePullRequest({
             owner,
             name,
             number,
             title: `${material.issue.identifier}: ${material.issue.title}`,
          });
+         // Only to name the branch in what the author is told; the merge's
+         // answer stands without it.
+         if (outcome.conflict) {
+            baseBranch = (await client.pullRequestState(owner, name, number).catch(() => null))?.base ?? baseBranch;
+         }
       } catch (error) {
          this.#onError(`merging pull request #${number} failed`, error);
          await this.#comment(material.issue.id, reviewerId, mergeUnreachableComment(number, error));
@@ -785,16 +794,37 @@ export class ReviewGate {
 
       if (outcome.merged) {
          await this.#comment(material.issue.id, reviewerId, mergedComment(number, outcome.sha));
+         // The default branch just moved under every other task in flight.
+         // Best effort, and never this merge's failure.
+         const numbers = await new ReviewQueue(this.#sql)
+            .openPullRequests(material.workspaceId, material.repository!, number)
+            .catch((error: unknown) => {
+               this.#onError('listing open pull requests failed', error);
+               return [];
+            });
+         await refreshPullRequests({ client, repository: material.repository!, numbers, onError: this.#onError });
          return true;
       }
 
+      // A refusal reaches the author as the next run's instructions. The
+      // reviews approved, so there is no rejection for the prompt's feedback
+      // path to carry, and an author sent back without a reason repeats itself.
+      // For a conflict that run is also built differently: its workspace holds
+      // the merge to be made (see `runtime/merge-plan.ts`), because a snapshot
+      // of the branch alone never shows the agent what it conflicts with.
       const attempt = await this.#attemptOf(this.#sql, material.issue.id, material.run.id);
+      const reason = outcome.reason ?? 'GitHub did not merge it';
       await this.#comment(
          material.issue.id,
          reviewerId,
-         mergeRefusedComment(number, outcome.reason ?? 'GitHub did not merge it', attempt)
+         outcome.conflict ? mergeConflictComment(number, baseBranch, attempt) : mergeRefusedComment(number, reason, attempt)
       );
-      await this.#sendBack(material, reviewerId, attempt);
+      await this.#sendBack(
+         material,
+         reviewerId,
+         attempt,
+         outcome.conflict ? conflictInstructions(number, baseBranch) : refusedInstructions(number, reason)
+      );
       return false;
    }
 
@@ -876,32 +906,26 @@ export class ReviewGate {
    }
 
    /** Back to todo, and another go for the author. */
-   async #sendBack(material: ReviewMaterial, actorId: string, attempt: number): Promise<void> {
-      await this.#issues.update({
-         issueId: material.issue.id,
-         patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
-         actorId,
-         actorType: 'agent',
-      });
-
+   async #sendBack(material: ReviewMaterial, actorId: string, attempt: number, instructions: string | null = null): Promise<void> {
       // Another go. Under AutoGate always: the loop runs until a reviewer
       // approves, which is what makes the task's outcome the loop's business
-      // rather than the person's. Otherwise while the budget allows. The
-      // rejection reason reaches the author through the prompt's own
-      // review-feedback path.
-      const again = material.autoGate || attempt < this.#maxAttempts;
-      if (again && material.run.requestedBy) {
-         await this.#runs
-            .admit({
-               issueId: material.issue.id,
-               boardId: material.boardId,
-               workspaceId: material.workspaceId,
-               agentId: material.run.agentId,
-               requestedBy: material.run.requestedBy,
-               instructions: null,
-            })
-            .catch((error: unknown) => this.#onError('re-admitting the author failed', error));
-      }
+      // rather than the person's. Otherwise while the budget allows. A
+      // rejection's reason reaches the author through the prompt's own
+      // review-feedback path; a refused merge has no rejection behind it and
+      // passes `instructions` instead.
+      await sendBack(
+         { issues: this.#issues, runs: this.#runs, onError: this.#onError },
+         {
+            issueId: material.issue.id,
+            boardId: material.boardId,
+            workspaceId: material.workspaceId,
+            agentId: material.run.agentId,
+            actor: { id: actorId, type: 'agent' },
+            requestedBy: material.run.requestedBy,
+            again: material.autoGate || attempt < this.#maxAttempts,
+            instructions,
+         }
+      );
    }
 
    async #material(runId: string): Promise<ReviewMaterial> {
@@ -1207,6 +1231,13 @@ function mergeRefusedComment(number: number, reason: string, attempt: number): s
       `**Reviews passed, but pull request #${number} would not merge** (attempt ${attempt}).`,
       `GitHub said: ${reason}`,
       'Sent back so this can be fixed and merged rather than left on a branch.',
+   ].join('\n\n');
+}
+
+function mergeConflictComment(number: number, baseBranch: string, attempt: number): string {
+   return [
+      `**Reviews passed, but pull request #${number} conflicts with ${baseBranch}** (attempt ${attempt}).`,
+      `Another task changed the same files after this branch was cut. Sent back to bring the branch up to date: the next run starts from ${baseBranch} with this task's changes laid over it, reconciles the files both changed, and delivers the merge.`,
    ].join('\n\n');
 }
 

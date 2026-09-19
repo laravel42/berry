@@ -103,6 +103,14 @@ export const taskDeliverySchema = z.object({
       mode: z.enum(['100644', '100755', '120000']),
       content: z.string().max(8 * 1024 * 1024).nullable(),
    })).max(2000).optional(),
+   /**
+    * True when the runtime laid the task branch over the default branch head
+    * before the agent worked (a conflict-resolution run). The candidate is
+    * then the whole difference from the default branch. A runtime image that
+    * predates such runs never says so, and the control plane refuses to
+    * publish its candidate as a merge: it would drop the branch's work.
+    */
+   merged: z.boolean().optional(),
    committed: z.boolean(),
    commit: z.string().nullable(),
    branch: z.string(),

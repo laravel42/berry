@@ -62,3 +62,40 @@ test('truncated provider trees and failed path policies prevent publication', as
    await assert.rejects(policy.client.publishCandidate({ ...input, authorizePaths: async () => { throw new Error('forbidden'); } }), /forbidden/);
    assert.ok(!policy.writes.some((entry) => entry.path.includes('/git/refs')));
 });
+
+test('a conflict-resolution delivery is a merge commit on the default branch tree, branch head first', async () => {
+   const { client, writes } = harness();
+   await client.publishCandidate({ ...input, mergeParent: 'main' });
+   const commit = writes.find((entry) => entry.path.endsWith('/git/commits'));
+   // Both parents: only a commit descended from the default branch head clears
+   // the conflict, and the branch head first keeps the ref a fast-forward.
+   assert.deepEqual(commit?.body.parents, ['base', 'main']);
+   assert.equal(writes.find((entry) => entry.path.includes('/git/refs/'))?.body.force, false);
+   // An ordinary delivery keeps its single parent.
+   const ordinary = harness();
+   await ordinary.client.publishCandidate(input);
+   assert.deepEqual(ordinary.writes.find((entry) => entry.path.endsWith('/git/commits'))?.body.parents, ['base']);
+});
+
+test('a refused merge is reported in GitHub\'s words alone, and a conflict is told apart', async () => {
+   const refusing = (status: number, message: string) =>
+      new GitHubClient({ token: 't', fetch: (async () => new Response(JSON.stringify({ message }), { status })) as typeof fetch });
+   const conflict = await refusing(405, 'Pull Request has merge conflicts').mergePullRequest({ owner: 'berry', name: 'app', number: 5 });
+   assert.deepEqual(conflict, { merged: false, sha: null, reason: 'Pull Request has merge conflicts', conflict: true });
+   const check = await refusing(405, 'Required status check "ci" is expected.').mergePullRequest({ owner: 'berry', name: 'app', number: 5 });
+   assert.equal(check.conflict, false);
+   assert.doesNotMatch(check.reason ?? '', /PUT|\/repos\//);
+});
+
+test('a pull request GitHub knows to conflict says so, and an unknown mergeability does not', async () => {
+   const answering = (body: unknown) => new GitHubClient({ token: 't', fetch: (async () => new Response(JSON.stringify(body))) as typeof fetch });
+   const dirty = await answering({ state: 'open', merged: false, mergeable: false, mergeable_state: 'dirty', base: { ref: 'main' } }).pullRequestState('berry', 'app', 5);
+   assert.deepEqual(dirty, { merged: false, open: true, conflicts: true, base: 'main' });
+   const unknown = await answering({ state: 'open', merged: false, mergeable: null, mergeable_state: 'unknown' }).pullRequestState('berry', 'app', 5);
+   assert.equal(unknown.conflicts, false);
+});
+
+test('updating a branch that conflicts is an answer, not a failure', async () => {
+   const client = new GitHubClient({ token: 't', fetch: (async () => new Response(JSON.stringify({ message: 'merge conflict between base and head' }), { status: 422 })) as typeof fetch });
+   assert.deepEqual(await client.updatePullRequestBranch('berry', 'app', 4), { updated: false, reason: 'merge conflict between base and head' });
+});

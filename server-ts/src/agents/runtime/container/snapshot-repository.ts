@@ -6,11 +6,13 @@ import { verify } from '../../verification.ts';
 import { emitterSink } from './emitter.ts';
 import type { RepositoryStep } from './handler.ts';
 import type { LocalSession } from './local-session.ts';
+import { applyMergeOverlay } from './merge-overlay.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 
 /** Fresh, credential-free snapshots. The control plane publishes the returned candidate. */
 export function snapshotRepository(options: { fetch?: typeof fetch } = {}): RepositoryStep {
    const baselines = new WeakMap<LocalSession, string>();
+   const merges = new WeakSet<LocalSession>();
    const git = 'git -c core.hooksPath=/dev/null -c core.fsmonitor=false';
    return {
       async prepare({ envelope, session, emit, signal }) {
@@ -43,6 +45,12 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          const result = await session.exec(`${git} init -q && ${git} add -A && ${git} -c user.name=Berry -c user.email=agent@berry.invalid commit -q --allow-empty -m snapshot && ${git} rev-parse HEAD`, { cwd: directory });
          if (result.exitCode !== 0) throw new Error('Could not initialize repository snapshot');
          baselines.set(session, result.stdout.trim());
+         // After the baseline, so the branch's side of a conflict-resolution
+         // run is part of the candidate: the baseline is the default branch.
+         if (repo.merge && !repo.readOnly) {
+            await applyMergeOverlay({ envelope, session, directory, fetch: options.fetch ?? fetch, signal });
+            merges.add(session);
+         }
          await emitterSink(emit).appendRepositoryReady(envelope.runId, { repository: repo.fullName, branch: repo.branch, baseCommit: repo.snapshotCommit });
          return directory;
       },
@@ -88,7 +96,10 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
             if (files.length > 2000 || Buffer.byteLength(JSON.stringify(files)) > 7 * 1024 * 1024) throw new Error('Candidate exceeds the bounded delivery size; split the change');
          }
          baselines.delete(session);
-         return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files };
+         // Said only when the overlay was really applied: the control plane
+         // publishes a merge commit on nothing less.
+         const merged = merges.delete(session);
+         return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files, ...(merged ? { merged: true } : {}) };
       },
    };
 }

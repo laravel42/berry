@@ -18,6 +18,21 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- Conflict-resolution runs. When a task's branch and the default branch changed the same
+  file, the next run on the task is built to merge them: `EnvelopeBuilder` plans the merge
+  from three Git trees (`src/runtime/merge-plan.ts`), records `merge_parent` and
+  `merge_base` on `run_repository_snapshots` (migration `203`), serves the default branch
+  head from `GET /api/v1/agent-tools/repository-snapshot` and the branch's side from the new
+  `GET /api/v1/agent-tools/repository-merge`. The runtime lays it over the snapshot, merges
+  what `git merge-file` can, and leaves the rest marked, with both versions under the
+  reserved `.berry-merge/` directory. `publishTrustedDelivery` publishes the result as a
+  merge commit with parents `[branch head, default branch head]` and refuses a candidate
+  that still holds a conflict marker, names a path under `.berry-merge/`, or comes from a
+  runtime image that did not apply the overlay. Requires a redeployed runtime image.
+- `POST /api/v1/reviews/{runId}/merge` answers a conflict with `409 MERGE_CONFLICT`, returns
+  the task to `todo` and admits a run for its agent. The AutoGate does the same, and both
+  call GitHub's `update-branch` on the repository's other open Berry pull requests after a
+  merge, skipping tasks with a queued or running run.
 - GitHub App creation and installation, replacing configured OAuth credentials. Berry
   posts a manifest to GitHub (`POST /api/v1/integrations/github/app/manifest`), and the
   conversion callback stores the app id, both halves of the OAuth credential, the private
@@ -362,6 +377,10 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Fixed
 
+- A refused merge no longer shows transport text ("GitHub PUT /repos/…/merge failed: 405").
+  `mergePullRequest` returns GitHub's sentence alone, and the AutoGate passes the reason to
+  the author's next run as its instructions; before, an approved-then-refused task was sent
+  back with no reason at all.
 - An integration connection whose credential has expired no longer reports itself
   connected. `ConnectionRepository` derives the status from `expires_at` on the same clock
   and margin `token()` already refuses on, so `/integrations/providers` and

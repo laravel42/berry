@@ -14,6 +14,55 @@ export const transcriptMessageSchema = z.object({
    text: z.string(),
 });
 
+/**
+ * Where a conflict-resolution run keeps the material it merges from: this
+ * task's version and the common ancestor of every file both sides changed, and
+ * a status file. Reserved — the runtime leaves it out of the candidate and the
+ * control plane refuses to publish a path under it — so neither can reach the
+ * repository by accident.
+ */
+export const MERGE_DIRECTORY = '.berry-merge';
+
+/**
+ * The label on the opening conflict marker of a file git could not merge.
+ *
+ * Berry's own, so that delivery can refuse a file that still carries one
+ * without mistaking a document that merely shows `<<<<<<<` for unfinished work.
+ */
+export const MERGE_MARKER_LABEL = 'berry: this task';
+
+/** What the runtime reads first from the overlay archive of a conflict-resolution run. */
+export const MERGE_MANIFEST_PATH = `${MERGE_DIRECTORY}/manifest.json`;
+
+const mergePath = z
+   .string()
+   .min(1)
+   .max(4096)
+   .refine((path) => !path.startsWith('/') && !/[\\\0\n]/.test(path) && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..' && part.toLowerCase() !== '.git'));
+
+export const mergeManifestSchema = z.object({
+   /** Files the task branch deleted and the default branch left alone. */
+   remove: z.array(mergePath),
+   conflicts: z.array(
+      z.object({
+         path: mergePath,
+         /** Which versions exist. A missing one means that side deleted the file, or never had it. */
+         ours: z.boolean(),
+         base: z.boolean(),
+         theirs: z.boolean(),
+         /** False when a side is a symbolic link: there is no text to merge. */
+         mergeable: z.boolean(),
+      })
+   ),
+});
+
+export type MergeManifest = z.infer<typeof mergeManifestSchema>;
+
+/** True when text still holds a conflict marker this run's merge wrote. */
+export function hasMergeMarker(text: string): boolean {
+   return text.startsWith(`<<<<<<< ${MERGE_MARKER_LABEL}`) || text.includes(`\n<<<<<<< ${MERGE_MARKER_LABEL}`);
+}
+
 export const repoPlanSchema = z.object({
    /** `owner/name` on GitHub. */
    fullName: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
@@ -21,6 +70,13 @@ export const repoPlanSchema = z.object({
    baseBranch: z.string().min(1),
    readOnly: z.boolean().optional(),
    snapshotCommit: z.string().regex(/^[0-9a-f]{40,64}$/).optional(),
+   /**
+    * Present on a conflict-resolution run. The snapshot is then the default
+    * branch head, and the runtime lays the task branch's changes over it from
+    * `/api/v1/agent-tools/repository-merge` before the agent starts.
+    * `conflicts` are the files both sides changed.
+    */
+   merge: z.object({ conflicts: z.array(z.string()) }).optional(),
    credential: z.object({ username: z.string(), password: z.string() }),
    verifyCommands: z.array(z.string()),
    issueReference: z.string(),

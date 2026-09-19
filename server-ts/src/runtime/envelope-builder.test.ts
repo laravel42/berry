@@ -77,6 +77,112 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       assert.equal(delivery, null, 'no git credential means no repository');
    });
 
+   describe('a task with a repository', () => {
+      const BRANCH_HEAD = 'b'.repeat(40);
+      const MAIN_HEAD = 'c'.repeat(40);
+      const FORK = 'a'.repeat(40);
+      let projectId = '';
+
+      before(async () => {
+         const [project] = await sql`
+            INSERT INTO projects (workspace_id, name, github_repo_full_name, github_repo_id, created_by)
+            VALUES (${fixture!.workspaceId}, 'Gallery', 'berry/gallery', 42, ${fixture!.userId}) RETURNING id`;
+         projectId = project!.id as string;
+         await sql`UPDATE agents SET permissions = ${sql.array(['read_repository', 'create_branches', 'open_pull_requests'])} WHERE id = ${fixture!.agentId}`;
+      });
+      after(async () => {
+         await sql`DELETE FROM issue_project_links WHERE project_id = ${projectId}`;
+         await sql`DELETE FROM projects WHERE id = ${projectId}`;
+      });
+
+      /**
+       * GitHub as three trees. `main` is what the default branch changed since
+       * the fork; the task branch always rewrote the README and added a file.
+       */
+      function repositoryBuilder(main: Record<string, string>, options: { branchExists?: boolean } = {}) {
+         const entry = (sha: string) => ({ sha, mode: '100644', type: 'blob', size: 10 });
+         const fork = { 'server/README.md': 'readme-0', 'src/app.ts': 'app-0' };
+         const trees: Record<string, Record<string, string>> = {
+            [FORK]: fork,
+            [BRANCH_HEAD]: { ...fork, 'server/README.md': 'readme-task', 'src/gallery.ts': 'gallery-task' },
+            [MAIN_HEAD]: { ...fork, ...main },
+         };
+         const asked: string[] = [];
+         const client = {
+            repository: async () => ({ defaultBranch: 'main', canPush: true }),
+            branchHead: async (_owner: string, _name: string, branch: string) =>
+               branch === 'main' ? MAIN_HEAD : options.branchExists === false ? null : BRANCH_HEAD,
+            mergeBase: async () => {
+               asked.push('mergeBase');
+               return { commit: FORK, behindBy: 1 };
+            },
+            treeEntries: async (_owner: string, _name: string, commit: string) =>
+               new Map(Object.entries(trees[commit]!).map(([path, sha]) => [path, entry(sha)])),
+         } as unknown as GitHubClient;
+         return {
+            asked,
+            builder: new EnvelopeBuilder({
+               sql, publicUrl: 'https://berry.test', defaultModel: 'default-model', memory: nullRunMemory(), sealer: null,
+               gitCredential: async () => ({ username: 'x', password: 't', canPush: true }),
+               github: () => client,
+            }),
+         };
+      }
+
+      async function queued(title: string) {
+         const f = fixture!;
+         const issueId = await createIssue(sql, f, title);
+         await sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by) VALUES (${f.workspaceId}, ${issueId}, ${projectId}, ${f.userId})`;
+         const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'continue' });
+         return loadTask(sql, runId);
+      }
+
+      const snapshotOf = async (runId: string) =>
+         (await sql`SELECT base_commit, default_commit, expected_head, merge_parent, merge_base FROM run_repository_snapshots WHERE run_id = ${runId}`)[0]!;
+
+      test('a branch that conflicts with the default branch gets a run built to merge it', async () => {
+         const { builder: withRepository } = repositoryBuilder({ 'server/README.md': 'readme-other-task', 'src/app.ts': 'app-other-task' });
+         const task = await queued('Conflicting task');
+         const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         // The workspace starts from the default branch head; the branch head
+         // stays the commit the delivery builds on, and its first parent.
+         assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
+         assert.deepEqual(envelope.repo?.merge, { conflicts: ['server/README.md'] });
+         const row = await snapshotOf(task.runId);
+         assert.equal(row.base_commit, BRANCH_HEAD);
+         assert.equal(row.expected_head, BRANCH_HEAD);
+         assert.equal(row.merge_parent, MAIN_HEAD);
+         assert.equal(row.merge_base, FORK);
+         // The run is told, by name, what to reconcile and how.
+         assert.match(envelope.task.prompt, /Merging main into this task/);
+         assert.match(envelope.task.prompt, /- server\/README\.md/);
+         assert.doesNotMatch(envelope.task.prompt, /- src\/app\.ts/, 'a file only the default branch changed is not the agent\'s to merge');
+         assert.match(envelope.task.prompt, /Remove nothing the other task contributed/);
+         // Built again for the same run, it is the same merge.
+         const again = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.deepEqual(again.envelope.repo?.merge, { conflicts: ['server/README.md'] });
+      });
+
+      test('a branch that is only behind is an ordinary run on its own head', async () => {
+         const { builder: withRepository } = repositoryBuilder({ 'src/app.ts': 'app-other-task' });
+         const task = await queued('Behind, no conflict');
+         const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.equal(envelope.repo?.snapshotCommit, BRANCH_HEAD);
+         assert.equal(envelope.repo?.merge, undefined);
+         assert.equal((await snapshotOf(task.runId)).merge_parent, null);
+         assert.doesNotMatch(envelope.task.prompt, /Merging main/);
+      });
+
+      test('a task with no branch yet starts from the default branch and asks nothing about a merge', async () => {
+         const { builder: withRepository, asked } = repositoryBuilder({}, { branchExists: false });
+         const task = await queued('First run');
+         const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
+         assert.equal(envelope.repo?.merge, undefined);
+         assert.deepEqual(asked, []);
+      });
+   });
+
    test('two completion tasks never share a session', async () => {
       const f = fixture!;
       const one = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.orchestratorId, kind: 'completion', source: 'completion', prompt: 'a' });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
+import { gunzipSync } from 'node:zlib';
 import { z } from 'zod';
 import { IssueRepository } from '../../core/issues.ts';
 import { ProjectRepository } from '../../core/projects.ts';
@@ -301,6 +302,10 @@ describe('agent tool API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
                         archived.push({ owner, name, ref });
                         return new Response(new Uint8Array([0x1f, 0x8b, 0x08]));
                      },
+                     // Three commits: both sides rewrote the README since `fork`.
+                     treeEntries: async (_owner: string, _name: string, commit: string) =>
+                        new Map([['README.md', { sha: `readme-${commit}`, mode: '100644', type: 'blob', size: 6 }]]),
+                     blob: async (_owner: string, _name: string, sha: string) => Buffer.from(sha),
                   }) as never,
             })
          );
@@ -379,6 +384,42 @@ describe('agent tool API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
             scopes: ['task:read'], ttlSeconds: 600,
          });
          assert.equal((await snapshot(fresh)).status, 404);
+      });
+
+      test('a conflict-resolution run is served the default branch head, and its branch as an overlay', async () => {
+         await withSnapshot();
+         await sql`UPDATE run_repository_snapshots SET merge_parent = 'maincommit', merge_base = 'fork' WHERE run_id = ${runId}`;
+         const fresh = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:read', 'task:write'], ttlSeconds: 600,
+         });
+         archived.length = 0;
+         assert.equal((await snapshot(fresh)).status, 200);
+         assert.deepEqual(archived, [{ owner: 'berry', name: 'app', ref: 'maincommit' }]);
+
+         const response = await snapshotApp.request('/api/v1/agent-tools/repository-merge', { headers: { authorization: `Bearer ${fresh}` } });
+         assert.equal(response.status, 200);
+         assert.equal(response.headers.get('content-type'), 'application/gzip');
+         assert.equal(response.headers.get('cache-control'), 'no-store');
+         const tar = gunzipSync(Buffer.from(await response.arrayBuffer())).toString('latin1');
+         // The manifest, this task's version and the common ancestor — and never
+         // the file at its own path, where the default branch's version stays.
+         assert.ok(tar.includes('.berry-merge/manifest.json'));
+         assert.ok(tar.includes('"conflicts":[{"path":"README.md","ours":true,"base":true,"theirs":true,"mergeable":true}]'));
+         assert.ok(tar.includes('.berry-merge/ours/README.md') && tar.includes('readme-basecommit'));
+         assert.ok(tar.includes('.berry-merge/base/README.md') && tar.includes('readme-fork'));
+         assert.ok(!tar.includes('readme-maincommit'));
+      });
+
+      test('an ordinary run has no overlay to fetch', async () => {
+         await withSnapshot();
+         const fresh = await mintTaskToken(sql, {
+            runId, workspaceId: mine!.workspaceId, agentId: mine!.agentId,
+            scopes: ['task:read'], ttlSeconds: 600,
+         });
+         const response = await snapshotApp.request('/api/v1/agent-tools/repository-merge', { headers: { authorization: `Bearer ${fresh}` } });
+         assert.equal(response.status, 404);
+         assert.equal((await snapshotApp.request('/api/v1/agent-tools/repository-merge')).status, 401);
       });
 
       test('without a task token nothing is served', async () => {

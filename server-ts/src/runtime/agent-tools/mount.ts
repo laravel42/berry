@@ -13,6 +13,7 @@ import { getAgentTool, listAgentTools, type RepositoryLinker } from './registry.
 import { resolveTaskToken, type TaskClaims } from './tokens.ts';
 import type { GitHubClient } from '../../integrations/github.ts';
 import { parseRepository } from '../../agents/checkout.ts';
+import { mergeArchive, planMerge } from '../merge-plan.ts';
 
 /**
  * `/api/v1/agent-tools`: the only way an agent in a runtime acts on Berry.
@@ -59,15 +60,42 @@ export function agentToolMounts(options: {
    route.get('/repository-snapshot', async (context) => {
       const task = context.get('task');
       if (!task.scopes.includes('task:read') || !options.github) throw ApiError.notFound('Repository snapshot');
-      const [snapshot] = await options.sql`SELECT s.repository, s.base_commit FROM run_repository_snapshots AS s
+      // A conflict-resolution run starts from the default branch head it is
+      // merging into; the branch's side arrives as the overlay below.
+      const [snapshot] = await options.sql`SELECT s.repository, COALESCE(s.merge_parent, s.base_commit) AS commit FROM run_repository_snapshots AS s
          JOIN runs AS r ON r.id = s.run_id JOIN agents AS a ON a.id = r.agent_id
          WHERE s.run_id = ${task.runId} AND r.workspace_id = ${task.workspaceId}
            AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
       if (!snapshot) throw ApiError.notFound('Repository snapshot');
       const { owner, name } = parseRepository(snapshot.repository as string);
-      const response = await (await options.github(task.workspaceId)).archive(owner, name, snapshot.base_commit as string);
+      const response = await (await options.github(task.workspaceId)).archive(owner, name, snapshot.commit as string);
       // Never relay upstream headers, redirect URLs, or credentials to the runtime.
       return new Response(response.body, { headers: { 'content-type': 'application/gzip', 'cache-control': 'no-store' } });
+   });
+
+   /**
+    * The task branch's side of a conflict-resolution run, as an archive to
+    * unpack over the snapshot (see `runtime/merge-plan.ts`). Rebuilt from the
+    * three commits the run was planned with, so it is the same merge the
+    * prompt described however the heads have moved since. Bytes only: like the
+    * snapshot, it gives the runtime no remote, no history and no credential.
+    */
+   route.get('/repository-merge', async (context) => {
+      const task = context.get('task');
+      if (!task.scopes.includes('task:read') || !options.github) throw ApiError.notFound('Repository merge');
+      const [snapshot] = await options.sql`SELECT s.repository, s.base_commit, s.merge_parent, s.merge_base, s.created_at FROM run_repository_snapshots AS s
+         JOIN runs AS r ON r.id = s.run_id JOIN agents AS a ON a.id = r.agent_id
+         WHERE s.run_id = ${task.runId} AND r.workspace_id = ${task.workspaceId} AND s.merge_parent IS NOT NULL
+           AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
+      if (!snapshot) throw ApiError.notFound('Repository merge');
+      const { owner, name } = parseRepository(snapshot.repository as string);
+      const client = await options.github(task.workspaceId);
+      const plan = await planMerge(client, {
+         owner, name, base: snapshot.merge_base as string, ours: snapshot.base_commit as string, theirs: snapshot.merge_parent as string,
+      });
+      if (!plan) throw ApiError.notFound('Repository merge');
+      const archive = await mergeArchive(client, { owner, name, plan, at: new Date(snapshot.created_at as string) });
+      return new Response(new Uint8Array(archive), { headers: { 'content-type': 'application/gzip', 'cache-control': 'no-store' } });
    });
 
    route.post('/:name', async (context) => {

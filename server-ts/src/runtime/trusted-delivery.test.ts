@@ -201,6 +201,83 @@ test('a candidate that changed nothing is a delivery that committed nothing', as
    assert.equal(github.calls.length, 0);
 });
 
+/** A conflict-resolution run: the branch head stays the base, the default branch head is the second parent. */
+const MERGE_SNAPSHOT = { ...SNAPSHOT, merge_parent: 'main', merge_base: 'fork' };
+
+function mergeGitHub() {
+   const published: Array<{ baseCommit: string; mergeParent: string | null | undefined }> = [];
+   const client = {
+      publishCandidate: async (input: { baseCommit: string; mergeParent?: string | null; files: Array<{ path: string }>; authorizePaths?: (files: string[]) => Promise<void> }) => {
+         const files = input.files.map((file) => file.path);
+         await input.authorizePaths?.(files);
+         published.push({ baseCommit: input.baseCommit, mergeParent: input.mergeParent });
+         return { commit: 'merge-commit', files };
+      },
+   } as unknown as GitHubClient;
+   return { client, published };
+}
+
+test('a conflict-resolution run publishes with the default branch head as its second parent', async () => {
+   const github = mergeGitHub();
+   const delivery = { ...candidate([{ path: 'server/README.md' }]), merged: true };
+   const result = await publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, delivery);
+   assert.equal(result.commit, 'merge-commit');
+   assert.deepEqual(github.published, [{ baseCommit: 'base', mergeParent: 'main' }]);
+   // An ordinary run never names one.
+   const ordinary = mergeGitHub();
+   await publishTrustedDelivery(fakeSql(), 'run-1', ordinary.client, candidate([{ path: 'src/app.ts' }]));
+   assert.deepEqual(ordinary.published, [{ baseCommit: 'base', mergeParent: null }]);
+});
+
+test('a runtime that did not lay the branch over the default branch cannot publish a merge', async () => {
+   // Its candidate holds the agent's edits alone; as the merge's tree it would
+   // drop everything else the branch had.
+   const github = mergeGitHub();
+   await assert.rejects(
+      publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, candidate([{ path: 'server/README.md' }])),
+      /did not merge the default branch into this run; update the runtime image/
+   );
+   assert.equal(github.published.length, 0);
+});
+
+test('a merge with a conflict marker left in it is refused, for a checkpoint as for a finished run', async () => {
+   const github = mergeGitHub();
+   const unresolved = Buffer.from('# Server\n<<<<<<< berry: this task\nours\n=======\ntheirs\n>>>>>>> main\n').toString('base64');
+   const delivery = { ...candidate([{ path: 'server/README.md', content: unresolved }, { path: 'src/app.ts' }]), merged: true };
+   await assert.rejects(
+      publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, delivery),
+      /Conflict markers remain in: server\/README\.md/
+   );
+   assert.equal(github.published.length, 0);
+   // A document that merely shows a marker is not unfinished work, and an
+   // ordinary run is not held to a merge's rule.
+   const shown = Buffer.from('Resolve lines starting with <<<<<<< HEAD by hand.\n<<<<<<< HEAD\n').toString('base64');
+   const documented = { ...candidate([{ path: 'docs/git.md', content: shown }]), merged: true };
+   assert.equal((await publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, documented)).committed, true);
+   assert.equal((await publishTrustedDelivery(fakeSql(), 'run-1', github.client, candidate([{ path: 'a.md', content: unresolved }]))).committed, true);
+});
+
+test('the merge\'s working files are never published, by any run', async () => {
+   for (const path of ['.berry-merge/ours/server/README.md', '.berry-merge/STATUS.md', '.Berry-Merge/x']) {
+      const github = mergeGitHub();
+      await assert.rejects(
+         publishTrustedDelivery(fakeSql(), 'run-1', github.client, candidate([{ path }])),
+         /merge working files/
+      );
+      assert.equal(github.published.length, 0);
+   }
+});
+
+test('a workflow is refused on a conflict-resolution run as on any other', async () => {
+   const github = mergeGitHub();
+   const delivery = { ...candidate([{ path: '.github/workflows/ci.yml' }]), merged: true };
+   await assert.rejects(
+      publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, delivery),
+      /Refusing to publish paths that execute with repository secrets/
+   );
+   assert.equal(github.published.length, 0);
+});
+
 test('a symlink or executable mode survives to the provider unchanged', async () => {
    const github = fakeGitHub(['bin/run']);
    const delivery = candidate([{ path: 'bin/run' }]);
