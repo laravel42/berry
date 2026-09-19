@@ -21,7 +21,7 @@ function HeaderNav() {
       <div className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
          <h1 className="min-w-0 truncate">{t('title')}</h1>
          {canEdit ? (
-            <Button size="xs" variant="secondary" onClick={() => openModal()}>
+            <Button size="xs" onClick={() => openModal()}>
                <Plus className="size-4" />
                {t('create')}
             </Button>

@@ -19,7 +19,7 @@ export default function HeaderNav() {
       <div className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
          <h1 className="min-w-0 truncate">{t('title')}</h1>
          {canEdit ? (
-            <Button size="xs" variant="secondary" asChild>
+            <Button size="xs" asChild>
                <Link href={`/${orgId}/agents/new`}>
                   <Plus className="size-4" />
                   {t('newAgent')}

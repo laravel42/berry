@@ -119,7 +119,7 @@ function SkillsScreen() {
          <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
             <h1 className="min-w-0 truncate">{t('title')}</h1>
             {canEdit ? (
-               <Button size="xs" variant="secondary" onClick={() => setCreating(true)}>
+               <Button size="xs" onClick={() => setCreating(true)}>
                   <Plus className="size-3.5" />
                   {t('create.title')}
                </Button>

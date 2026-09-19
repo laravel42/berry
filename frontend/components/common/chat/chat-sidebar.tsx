@@ -13,6 +13,7 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { BerryMark } from '@/components/layout/shell/shell-icon';
 import type { Agent, AgentRoster } from '@/lib/agents';
 import type { ChatThread } from '@/lib/chat';
@@ -114,13 +115,9 @@ export function ChatSidebar({
             <h1 className="min-w-0 truncate">{t('title')}</h1>
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
-                  <button
-                     type="button"
-                     className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
+                  <Button size="xs" type="button" aria-label={t('newChat')}>
                      <Plus className="size-3.5" />
-                     {t('newChat')}
-                  </button>
+                  </Button>
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="max-h-96 min-w-60 overflow-y-auto">
                   {agents.length === 0 ? (

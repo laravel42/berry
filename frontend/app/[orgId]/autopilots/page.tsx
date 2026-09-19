@@ -104,7 +104,6 @@ export default function AutopilotsPage() {
             {canEdit ? (
                <Button
                   size="xs"
-                  variant="secondary"
                   onClick={() => {
                      setTemplate(null);
                      setCreating(true);
