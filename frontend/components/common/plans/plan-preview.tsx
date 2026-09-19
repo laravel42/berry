@@ -39,7 +39,7 @@ import { toast } from 'sonner';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { PlanStatusBadge } from './plan-status-badge';
 import { PlanExecutionLog } from './plan-execution-log';
-import { PlanApprovals, PlanAssumptions, PlanConnections, PlanIssues, Pill } from './plan-sections';
+import { PlanApprovals, PlanAssumptions, PlanConnections, PlanIssues } from './plan-sections';
 import {
    PlanBlockedQuestions,
    PlanFindings,
@@ -445,25 +445,14 @@ function PlanActions({ record }: { record: PlanRecord }) {
    );
 }
 
-const RISK_TONE = { low: 'neutral', medium: 'attention', high: 'danger' } as const;
-
 /** The record's facts, in the side column. */
 function PlanProperties({ record }: { record: PlanRecord }) {
    const projects = useProjectsStore((state) => state.projects);
    const projectId = record.projectId ?? record.plan?.goal.projectId ?? null;
    const project = projectId ? projects.find((candidate) => candidate.id === projectId) : undefined;
-   const confidence =
-      record.validation.status === 'blocked'
-         ? null
-         : confidenceText(record.confidence ?? record.plan?.confidence);
 
    const rows: { label: string; value: ReactNode }[] = [
       { label: 'Status', value: <PlanStatusBadge record={record} /> },
-      {
-         label: 'Risk',
-         value: <Pill tone={RISK_TONE[record.validation.risk]}>{record.validation.risk}</Pill>,
-      },
-      { label: 'Confidence', value: confidence ?? '—' },
       { label: 'Version', value: record.version > 0 ? `v${record.version}` : '—' },
       {
          label: 'Planner',

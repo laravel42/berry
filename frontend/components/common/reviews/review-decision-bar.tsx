@@ -42,12 +42,12 @@ export interface ReviewOutcome {
 /**
  * The decision on a task at the gate: Approve and Send back.
  *
- * Which of the two leads follows what the run left behind. A delivery — a
- * commit or a pull request — is there to be approved, so Approve is primary.
- * A run that stopped with neither has nothing to approve; Send back leads and
- * Approve steps aside. Approve asks first and names what marking this task
- * done means. Send back opens a note dialog — the agent reads the note on its
- * next run, so it cannot go without one.
+ * Approve is always the filled action; Send back is secondary. Which of the
+ * two comes first follows what the run left behind: a delivery — a commit or
+ * a pull request — leads with Approve; a run that stopped with neither leads
+ * with Send back. Approve asks first and names what marking this task done
+ * means. Send back opens a note dialog — the agent reads the note on its next
+ * run, so it cannot go without one.
  *
  * Reviews' right pane and the task page both mount this, so the two surfaces
  * cannot disagree about the rules.
@@ -164,7 +164,7 @@ export function ReviewDecisionBar({
    const approve = (
       <Button
          size="xs"
-         variant={primary === 'approve' ? 'default' : 'secondary'}
+         variant="default"
          disabled={pending !== null}
          aria-busy={pending === 'approve' || undefined}
          onClick={() => request('approve')}
@@ -175,7 +175,7 @@ export function ReviewDecisionBar({
    const sendBack = (
       <Button
          size="xs"
-         variant={primary === 'send-back' ? 'default' : 'secondary'}
+         variant="secondary"
          disabled={pending !== null}
          aria-busy={pending === 'send-back' || undefined}
          onClick={() => request('send-back')}
