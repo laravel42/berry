@@ -1,0 +1,69 @@
+# Berry on one Docker host. Written for /opt/berry/host/update.sh, which sets
+# the image names and writes the env files; not meant to be run by hand.
+#
+# The API, the web server and the session router are on the host's network.
+# The API reaches a preview's app on a loopback port Docker picks, and the
+# session router listens on loopback for the API: both are the host's loopback,
+# which a bridged container does not share. The security group lets the load
+# balancer reach 3000 and 4000 and nothing else reach anything.
+name: berry
+
+x-logging: &logging
+   driver: json-file
+   options: { max-size: '20m', max-file: '5' }
+
+services:
+   postgres:
+      image: postgres:16
+      restart: unless-stopped
+      env_file: /opt/berry/env/postgres.env
+      volumes:
+         - /data/postgres:/var/lib/postgresql/data
+      ports:
+         - '127.0.0.1:5432:5432'
+      healthcheck:
+         test: ['CMD-SHELL', 'pg_isready -U berry -d berry']
+         interval: 5s
+         timeout: 3s
+         retries: 20
+      logging: *logging
+
+   api:
+      image: ${BERRY_IMAGE_API}
+      restart: unless-stopped
+      network_mode: host
+      env_file: /opt/berry/env/api.env
+      environment:
+         HOME: /root
+      volumes:
+         - /var/run/docker.sock:/var/run/docker.sock
+         # A preview's checkout is mounted into its containers by the host's
+         # Docker, so it has to be at the same path here as it is there.
+         - /root/.cache/berry/previews:/root/.cache/berry/previews
+      depends_on:
+         postgres: { condition: service_healthy }
+      logging: *logging
+
+   # One container per agent session, each with its own folder, memory, CPU and
+   # process ceiling; idle ones are stopped. What `pnpm runtime:sessions` runs.
+   sessions:
+      image: ${BERRY_IMAGE_API}
+      restart: unless-stopped
+      network_mode: host
+      command: ['node', '--experimental-strip-types', '--no-warnings', 'src/runtime/local-router/main.ts']
+      environment:
+         BERRY_ROUTER_ENV_FILE: /opt/berry/env/runtime.env
+         BERRY_ROUTER_IMAGE: berry-agent-runtime
+         BERRY_RUNTIME_PORT: '8080'
+      volumes:
+         - /var/run/docker.sock:/var/run/docker.sock
+         # Read by the docker client in this container when it starts a session.
+         - /opt/berry/env/runtime.env:/opt/berry/env/runtime.env:ro
+      logging: *logging
+
+   web:
+      image: ${BERRY_IMAGE_WEB}
+      restart: unless-stopped
+      network_mode: host
+      depends_on: [api]
+      logging: *logging

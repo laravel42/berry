@@ -1,0 +1,23 @@
+{
+   "name": "@berry/deploy-aws",
+   "private": true,
+   "version": "0.1.0",
+   "description": "Berry on one EC2 Docker host, as an AWS CDK app. Not part of the pnpm workspace: install with npm in this folder.",
+   "type": "module",
+   "scripts": {
+      "typecheck": "tsc --noEmit",
+      "synth": "cdk synth --strict",
+      "diff": "cdk diff",
+      "deploy": "cdk deploy"
+   },
+   "dependencies": {
+      "aws-cdk-lib": "^2.200.0",
+      "constructs": "^10.4.2"
+   },
+   "devDependencies": {
+      "@types/node": "^22.0.0",
+      "aws-cdk": "^2.1020.0",
+      "tsx": "^4.19.0",
+      "typescript": "^5.6.0"
+   }
+}

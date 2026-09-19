@@ -1,0 +1,10 @@
+{
+   "app": "npx tsx bin/berry.ts",
+   "watch": { "include": ["bin/**", "lib/**", "host/**", "docker/**"] },
+   "context": {
+      "@aws-cdk/core:checkSecretUsage": true,
+      "@aws-cdk/aws-iam:minimizePolicies": true,
+      "@aws-cdk/aws-ec2:restrictDefaultSecurityGroup": true,
+      "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true
+   }
+}
