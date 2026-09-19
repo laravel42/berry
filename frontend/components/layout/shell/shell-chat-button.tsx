@@ -13,7 +13,7 @@ import { useShortcutBindings } from '@/store/shortcuts-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 
 /**
- * Flat "Agents" launcher at the bottom-right of the body frame.
+ * Flat "Agents" launcher at the bottom-left of the body frame.
  *
  * Opens the floating chat window that `FloatingChat` draws. Always rendered:
  * Preferences → General can turn the floating *panel* off, and that preference

@@ -344,10 +344,10 @@ export function FloatingChat() {
       const move = (moveEvent: PointerEvent) => {
          const from = resizing.current;
          if (!from) return;
-         // The window grows up and to the left, because it is anchored to the
-         // bottom-right corner of the viewport.
+         // The window grows up and to the right, because it is anchored to the
+         // bottom-left corner of the viewport.
          setSize({
-            width: Math.max(MIN_WIDTH, from.width + (from.x - moveEvent.clientX)),
+            width: Math.max(MIN_WIDTH, from.width + (moveEvent.clientX - from.x)),
             height: Math.max(MIN_HEIGHT, from.height + (from.y - moveEvent.clientY)),
          });
       };
@@ -408,10 +408,10 @@ export function FloatingChat() {
          // keeps the button that closes it.
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
-            // Bottom 4rem, not 1rem: the corner buttons live under it.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-4 sm:bottom-16 sm:rounded-lg',
+            // Bottom ~3.1rem: the Agents launcher sits under the panel.
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:left-4 sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
             expanded
-               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-16'
+               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
                : minimised
                  ? 'sm:w-[var(--chat-w)]'
                  : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',
@@ -419,17 +419,6 @@ export function FloatingChat() {
          style={sizeVars}
       >
          <header className="flex flex-none items-center gap-2 border-b border-[var(--shell-line)] px-3 py-2">
-            {!expanded && !minimised ? (
-               <button
-                  type="button"
-                  onPointerDown={onResize}
-                  aria-label={t('expand')}
-                  className="hidden size-4 flex-none cursor-nwse-resize text-[var(--shell-text-dim)] sm:block"
-               >
-                  <Minimize2 className="size-3.5 rotate-90" aria-hidden />
-               </button>
-            ) : null}
-
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <button
@@ -479,6 +468,17 @@ export function FloatingChat() {
                >
                   {t('openFull')}
                </Link>
+            ) : null}
+
+            {!expanded && !minimised ? (
+               <button
+                  type="button"
+                  onPointerDown={onResize}
+                  aria-label={t('expand')}
+                  className="hidden size-4 flex-none cursor-nesw-resize text-[var(--shell-text-dim)] sm:block"
+               >
+                  <Minimize2 className="size-3.5 -rotate-90" aria-hidden />
+               </button>
             ) : null}
 
             <button

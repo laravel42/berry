@@ -503,7 +503,7 @@
 :root {
    --app-inset-t: 8px;
    --app-inset-r: 6px;
-   --app-inset-b: 30px; /* frame bottom */
+   --app-inset-b: 8px; /* frame bottom */
    --app-inset-l: 0px;
    --app-frame: #111113;
 }
