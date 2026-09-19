@@ -50,6 +50,38 @@ export async function setParent(
              updated_at = now()
        WHERE id = ${input.issueId} AND deleted_at IS NULL`;
    if (result.count !== 1) throw new NotFound();
+   if (input.parentId !== null) await inheritProject(q, input.issueId);
+}
+
+/**
+ * A task with no project takes the one of its nearest ancestor that has one.
+ *
+ * A task's project is what gives it a repository. Work filed from a task (a
+ * decision handed to a role, a delegated piece, a follow-up) is part of the
+ * same project, and whoever files it almost never says so. It is decided here,
+ * where a task gets its parent, rather than by each caller that creates one:
+ * a caller that forgets produces a task whose agent finds no code to work on.
+ * A project the task already has is left alone.
+ */
+export async function inheritProject(q: Queryable, issueId: string): Promise<void> {
+   await q`
+      WITH RECURSIVE lineage AS (
+         SELECT parent.id, parent.parent_id, 1 AS depth
+           FROM issues AS child JOIN issues AS parent ON parent.id = child.parent_id
+          WHERE child.id = ${issueId}
+         UNION ALL
+         SELECT parent.id, parent.parent_id, lineage.depth + 1
+           FROM lineage JOIN issues AS parent ON parent.id = lineage.parent_id
+          WHERE lineage.depth < 100
+      )
+      INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by)
+      SELECT link.workspace_id, ${issueId}, link.project_id, link.linked_by
+        FROM lineage
+        JOIN issue_project_links AS link ON link.issue_id = lineage.id
+        JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
+       ORDER BY lineage.depth
+       LIMIT 1
+      ON CONFLICT (issue_id) DO NOTHING`;
 }
 
 export async function childIssueIds(q: Queryable, parentId: string): Promise<string[]> {

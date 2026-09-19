@@ -45,6 +45,29 @@ describe('hierarchy', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set'
       );
    });
 
+   test('a task with no project takes its nearest ancestor’s when it gets a parent, and keeps one it has', async () => {
+      const [project] = await sql`INSERT INTO projects (workspace_id, name) VALUES (${world.workspaceId}, 'Tree') RETURNING id`;
+      const [elsewhere] = await sql`INSERT INTO projects (workspace_id, name) VALUES (${world.workspaceId}, 'Elsewhere') RETURNING id`;
+      const link = (issueId: string, projectId: string) =>
+         sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id) VALUES (${world.workspaceId}, ${issueId}, ${projectId})`;
+      const projectOf = async (issueId: string) => (await sql`SELECT project_id FROM issue_project_links WHERE issue_id = ${issueId}`)[0]?.project_id ?? null;
+
+      const root = await createIssue(sql, world, { title: 'Linked root' });
+      await link(root, project!.id as string);
+      // A decision filed under it has no project of its own, and neither does what is filed under that.
+      const decision = await createIssue(sql, world);
+      const followUp = await createIssue(sql, world);
+      await setParent(sql, { workspaceId: world.workspaceId, issueId: decision, parentId: root, stage: null });
+      await sql`DELETE FROM issue_project_links WHERE issue_id = ${decision}`;
+      await setParent(sql, { workspaceId: world.workspaceId, issueId: followUp, parentId: decision, stage: null });
+      assert.equal(await projectOf(followUp), project!.id, 'reaches past an unlinked parent to the nearest linked ancestor');
+
+      const own = await createIssue(sql, world);
+      await link(own, elsewhere!.id as string);
+      await setParent(sql, { workspaceId: world.workspaceId, issueId: own, parentId: root, stage: null });
+      assert.equal(await projectOf(own), elsewhere!.id, 'a project the task already has is left alone');
+   });
+
    test('stage two waits for stage one, then is released as a group', async () => {
       const parent = await createIssue(sql, world, { title: 'Staged' });
       const a1 = await createIssue(sql, world, { parentId: parent, stage: 1, status: 'todo' });

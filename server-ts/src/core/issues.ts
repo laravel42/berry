@@ -432,6 +432,21 @@ export class IssueRepository {
          }
          if (params.project) {
             await setIssueProject(tx, id, params.project, params.createdBy);
+         } else {
+            // No project named. In a workspace with exactly one there is nothing
+            // else the task could be part of, and a task with no project has no
+            // repository: an agent given it finds no code to work on. With several
+            // projects nothing is guessed; a task under a parent takes its parent's
+            // when the parent is set (work/hierarchy.ts).
+            await tx`
+               INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by)
+               SELECT board.workspace_id, ${id}, project.id, ${params.createdBy}
+                 FROM boards AS board
+                 JOIN projects AS project ON project.workspace_id = board.workspace_id AND project.deleted_at IS NULL
+                WHERE board.id = ${params.boardId}
+                  AND (SELECT count(*) FROM projects AS other
+                        WHERE other.workspace_id = board.workspace_id AND other.deleted_at IS NULL) = 1
+               ON CONFLICT (issue_id) DO NOTHING`;
          }
 
          // Read back after linking, so the returned issue carries its project
