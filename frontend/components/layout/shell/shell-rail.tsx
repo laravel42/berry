@@ -201,7 +201,7 @@ export function ShellRail({
                               fill="none"
                               stroke="currentColor"
                               strokeWidth={1.7}
-                              className="ml-auto text-[var(--shell-text-dim)] transition-colors group-hover/ws:text-[var(--shell-text-muted)] group-data-[state=open]/ws:text-[var(--shell-text-muted)]"
+                              className="ml-auto translate-x-1 text-[var(--shell-text-dim)] transition-colors group-hover/ws:text-[var(--shell-text-muted)] group-data-[state=open]/ws:text-[var(--shell-text-muted)]"
                               aria-hidden="true"
                            >
                               <path d="M8 10l4-4 4 4M8 14l4 4 4-4" />
