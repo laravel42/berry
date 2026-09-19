@@ -7,11 +7,17 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 import NewSkillDialog from '@/components/common/skills/new-skill-dialog';
 import SkillDetail from '@/components/common/skills/skill-detail';
+import {
+   applyListFilters,
+   ListFilterBar,
+   useListFilters,
+} from '@/components/common/filters/list-filters';
 import SkillsFilters, {
    DEFAULT_CRITERIA,
-   activeFilterCount,
+   useSkillFilterColumns,
    type SkillCriteria,
 } from '@/components/common/skills/skills-filters';
+import type { FiltersState } from '@/components/data-table-filter/core/types';
 import SkillsList from '@/components/common/skills/skills-list';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
@@ -37,6 +43,7 @@ function SkillsScreen() {
 
    const [query, setQuery] = useState('');
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
+   const [filters, setFilters] = useState<FiltersState>([]);
    const [skills, setSkills] = useState<Skill[] | null>(null);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [error, setError] = useState<string | null>(null);
@@ -57,17 +64,12 @@ function SkillsScreen() {
       };
    }, []);
 
-   // The server answers the filters it knows (search, agent, creator, usage);
-   // sort and columns are the reader's own view of the same answer.
+   // The server answers the search; the filters, sort and columns are the
+   // reader's own view of that answer, matched here from the list payload.
    useEffect(() => {
       let cancelled = false;
       const timer = setTimeout(() => {
-         listSkills({
-            ...(query.trim() ? { q: query.trim() } : {}),
-            ...(criteria.agentId ? { agentId: criteria.agentId } : {}),
-            ...(criteria.createdBy ? { createdBy: criteria.createdBy } : {}),
-            ...(criteria.usage === 'all' ? {} : { inUse: criteria.usage === 'inUse' }),
-         })
+         listSkills(query.trim() ? { q: query.trim() } : {})
             .then((found) => {
                if (cancelled) return;
                setSkills(found);
@@ -82,7 +84,7 @@ function SkillsScreen() {
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [query, criteria, revision, t]);
+   }, [query, revision, t]);
 
    /** Who has made a skill here, as the catalogue itself reports it. */
    const creators = useMemo(() => {
@@ -92,6 +94,18 @@ function SkillsScreen() {
       }
       return [...seen].map(([id, name]) => ({ id, name }));
    }, [skills]);
+
+   const filterColumns = useSkillFilterColumns(skills ?? [], agents, creators);
+   const filter = useListFilters({
+      data: skills ?? [],
+      columns: filterColumns,
+      filters,
+      onFiltersChange: setFilters,
+   });
+   const shown = useMemo(
+      () => (skills ? applyListFilters(skills, filterColumns, filters) : null),
+      [skills, filterColumns, filters]
+   );
 
    const open = (id: string | null) => {
       const next = new URLSearchParams(params.toString());
@@ -119,20 +133,16 @@ function SkillsScreen() {
                aria-label={t('search')}
                className="h-7 max-w-xs"
             />
-            <SkillsFilters
-               criteria={criteria}
-               onChange={setCriteria}
-               agents={agents}
-               creators={creators}
-            />
+            <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
          </div>
+         <ListFilterBar filter={filter} className="border-b-0 border-t" />
       </div>
    );
 
    return (
       <MainLayout header={header}>
          <SkillsList
-            skills={skills}
+            skills={shown}
             error={error}
             criteria={criteria}
             agents={agents}
@@ -140,7 +150,7 @@ function SkillsScreen() {
             openId={view}
             onOpen={(id) => open(id)}
             onChanged={reload}
-            narrowed={query.trim() !== '' || activeFilterCount(criteria) > 0}
+            narrowed={query.trim() !== '' || filter.filters.length > 0}
          />
          {view ? (
             <DetailDrawerShell

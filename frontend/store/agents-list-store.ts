@@ -1,3 +1,4 @@
+import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { create } from 'zustand';
 
 /**
@@ -36,41 +37,20 @@ export const AGENT_COLUMNS: AgentColumn[] = [
  */
 const DEFAULT_COLUMNS: AgentColumn[] = ['workload', 'activity', 'runs', 'lastActive', 'model'];
 
-export interface AgentFilters {
-   /** A status name, or null for any. */
-   availability: string | null;
-   /** An access scope (`everyone`, `admins`, `listed`), or null for any. */
-   access: string | null;
-   /** A runtime id, `none` for agents with no runtime, or null for any. */
-   runtime: string | null;
-   /** A member id, `workspace` for authorless agents, or null for any. */
-   owner: string | null;
-   /** A `provider/model` pairing, or null for any. */
-   model: string | null;
-}
-
-export const EMPTY_FILTERS: AgentFilters = {
-   availability: null,
-   access: null,
-   runtime: null,
-   owner: null,
-   model: null,
-};
-
 interface AgentsListState {
    scope: AgentsScope;
    sortKey: AgentsSortKey;
    /** Descending is the useful default for activity and runs, not for a name. */
    sortDescending: boolean;
-   filters: AgentFilters;
+   /** The toolbar's filter chips (bazza/ui FiltersState). */
+   filters: FiltersState;
    columns: AgentColumn[];
    /** Ids ticked for a bulk action. Cleared whenever the scope changes. */
    selected: string[];
    setScope: (scope: AgentsScope) => void;
    /** Clicking the column already sorted on flips the direction. */
    sortBy: (key: AgentsSortKey) => void;
-   setFilter: (key: keyof AgentFilters, value: string | null) => void;
-   clearFilters: () => void;
+   setFilters: React.Dispatch<React.SetStateAction<FiltersState>>;
    toggleColumn: (column: AgentColumn) => void;
    toggleSelected: (id: string) => void;
    setSelected: (ids: string[]) => void;
@@ -81,7 +61,7 @@ export const useAgentsListStore = create<AgentsListState>((set) => ({
    scope: 'all',
    sortKey: 'activity',
    sortDescending: true,
-   filters: EMPTY_FILTERS,
+   filters: [],
    columns: DEFAULT_COLUMNS,
    selected: [],
 
@@ -96,8 +76,10 @@ export const useAgentsListStore = create<AgentsListState>((set) => ({
             : { sortKey: key, sortDescending: key !== 'name' }
       ),
 
-   setFilter: (key, value) => set((state) => ({ filters: { ...state.filters, [key]: value } })),
-   clearFilters: () => set({ filters: EMPTY_FILTERS }),
+   setFilters: (action) =>
+      set((state) => ({
+         filters: typeof action === 'function' ? action(state.filters) : action,
+      })),
 
    toggleColumn: (column) =>
       set((state) => ({
@@ -115,11 +97,6 @@ export const useAgentsListStore = create<AgentsListState>((set) => ({
    setSelected: (ids) => set({ selected: ids }),
    clearSelection: () => set({ selected: [] }),
 }));
-
-/** Whether any filter is narrowing the list, for the "clear" affordance. */
-export function hasActiveFilters(filters: AgentFilters): boolean {
-   return Object.values(filters).some((value) => value !== null);
-}
 
 /** Read-only helper so callers do not repeat the scope comparison. */
 export const isArchivedScope = (): boolean => useAgentsListStore.getState().scope === 'archived';

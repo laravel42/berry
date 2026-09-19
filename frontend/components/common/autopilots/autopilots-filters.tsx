@@ -1,20 +1,23 @@
 'use client';
 
-import { ArrowUpDown, Check, ChevronRight, Columns3, ListFilter } from 'lucide-react';
+import { ArrowUpDown, Bot, Check, Columns3, Repeat, UserPen, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-import { AgentCommandItems } from '@/components/common/agents/agent-multiselect';
-import { Button } from '@/components/ui/button';
 import {
-   Command,
-   CommandGroup,
-   CommandInput,
-   CommandItem,
-   CommandList,
-   CommandSeparator,
-} from '@/components/ui/command';
+   agentFilterOption,
+   byLabel,
+   memberFilterOption,
+} from '@/components/common/filters/filter-options';
+import {
+   ListFilterTrigger,
+   type ListFilterController,
+} from '@/components/common/filters/list-filters';
+import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
+import { Button } from '@/components/ui/button';
+import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 
 export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
@@ -22,65 +25,85 @@ export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 export const AUTOPILOT_SORTS = ['name', 'updated', 'created'] as const;
 export type AutopilotSort = (typeof AUTOPILOT_SORTS)[number];
 
+/** Which autopilots and how they are laid out; what narrows them is the filter's. */
 export interface AutopilotCriteria {
    scope: 'all' | 'active' | 'paused';
-   assigneeId: string | null;
-   mode: 'all' | 'create_issue' | 'fixed_issue';
-   trigger: 'all' | 'cron' | 'webhook' | 'none';
-   createdBy: string | null;
    sort: AutopilotSort;
    columns: AutopilotColumn[];
 }
 
 export const DEFAULT_AUTOPILOT_CRITERIA: AutopilotCriteria = {
    scope: 'all',
-   assigneeId: null,
-   mode: 'all',
-   trigger: 'all',
-   createdBy: null,
    sort: 'name',
    columns: ['status', 'mode', 'updated'],
 };
 
-export function activeAutopilotFilters(criteria: AutopilotCriteria): number {
-   let count = 0;
-   if (criteria.assigneeId) count += 1;
-   if (criteria.mode !== 'all') count += 1;
-   if (criteria.trigger !== 'all') count += 1;
-   if (criteria.createdBy) count += 1;
-   return count;
+/** Trigger value for an autopilot that only runs by hand. */
+const NO_TRIGGER = 'none';
+
+/** What the autopilot list can be narrowed by. */
+export function useAutopilotFilterColumns(
+   /** The agents that can be an autopilot's assignee. */
+   assignees: Array<{ id: string; name: string }>,
+   creators: Array<{ id: string; name: string; avatarUrl?: string }>
+) {
+   const t = useTranslations('areas.autopilots');
+
+   return useMemo(() => {
+      const dtf = createColumnConfigHelper<Autopilot>();
+      return [
+         dtf
+            .option()
+            .id('assignee')
+            .accessor((autopilot: Autopilot) => autopilot.assigneeId)
+            .displayName(t('filters.assignee'))
+            .icon(Bot)
+            .options(assignees.map(agentFilterOption).sort(byLabel))
+            .build(),
+         dtf
+            .option()
+            .id('mode')
+            .accessor((autopilot: Autopilot) => autopilot.executionMode)
+            .displayName(t('filters.mode'))
+            .icon(Repeat)
+            .options(EXECUTION_MODES.map((mode) => ({ value: mode, label: t(`mode.${mode}`) })))
+            .build(),
+         dtf
+            .multiOption()
+            .id('trigger')
+            .accessor((autopilot: Autopilot) =>
+               autopilot.triggerKinds.length > 0 ? [...autopilot.triggerKinds] : [NO_TRIGGER]
+            )
+            .displayName(t('filters.trigger'))
+            .icon(Zap)
+            .options([
+               { value: 'cron', label: t('filters.trigger_cron') },
+               { value: 'webhook', label: t('filters.trigger_webhook') },
+               { value: NO_TRIGGER, label: t('filters.trigger_none') },
+            ])
+            .build(),
+         dtf
+            .option()
+            .id('creator')
+            .accessor((autopilot: Autopilot) => autopilot.createdBy ?? 'unknown')
+            .displayName(t('filters.creator'))
+            .icon(UserPen)
+            .options(creators.map(memberFilterOption).sort(byLabel))
+            .build(),
+      ] as const;
+   }, [assignees, creators, t]);
 }
 
 interface Props {
    criteria: AutopilotCriteria;
    onChange: (criteria: AutopilotCriteria) => void;
-   /** The agents that can be an autopilot's assignee. */
-   assignees: Array<{ id: string; name: string }>;
-   creators: Array<{ id: string; name: string }>;
+   filter: ListFilterController<Autopilot>;
 }
 
-type Pane = 'assignee' | 'mode' | 'trigger' | 'creator' | null;
-
 /** Scope, filters, sort and columns for the autopilot list. */
-export default function AutopilotsFilters({ criteria, onChange, assignees, creators }: Props) {
+export default function AutopilotsFilters({ criteria, onChange, filter }: Props) {
    const t = useTranslations('areas.autopilots');
-   const [open, setOpen] = useState(false);
-   const [pane, setPane] = useState<Pane>(null);
-   const count = activeAutopilotFilters(criteria);
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
-   const assigneeOptions = useMemo(
-      () =>
-         assignees
-            .map((assignee) => ({ id: assignee.id, label: assignee.name }))
-            .sort((left, right) => left.label.localeCompare(right.label)),
-      [assignees]
-   );
-
-   const back = (
-      <Button variant="ghost" size="icon" className="size-6" onClick={() => setPane(null)}>
-         <ChevronRight className="size-4 rotate-180" />
-      </Button>
-   );
 
    return (
       <div className="flex flex-wrap items-center gap-2">
@@ -98,179 +121,7 @@ export default function AutopilotsFilters({ criteria, onChange, assignees, creat
          </div>
 
          <div className="ml-auto flex flex-wrap items-center gap-1">
-            <Popover
-               open={open}
-               onOpenChange={(next) => {
-                  setOpen(next);
-                  if (!next) setPane(null);
-               }}
-            >
-               <PopoverTrigger asChild>
-                  <Button
-                     size="xs"
-                     variant="outline"
-                     className="relative border-muted-foreground/15"
-                  >
-                     <ListFilter className="mr-1 size-4" />
-                     {t('filters.button')}
-                     {count > 0 ? (
-                        <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                           {count}
-                        </span>
-                     ) : null}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent
-                  className="w-64 p-0"
-                  align="start"
-                  onOpenAutoFocus={(event) => event.preventDefault()}
-                  onCloseAutoFocus={(event) => event.preventDefault()}
-                  onFocusOutside={(event) => event.preventDefault()}
-               >
-                  {pane === null ? (
-                     <Command>
-                        <CommandList>
-                           <CommandGroup>
-                              {(['assignee', 'mode', 'trigger', 'creator'] as const).map((key) => (
-                                 <CommandItem
-                                    key={key}
-                                    value={key}
-                                    onSelect={() => setPane(key)}
-                                    onPointerDown={(event) => event.preventDefault()}
-                                    className="justify-between"
-                                 >
-                                    {t(`filters.${key}`)}
-                                    <ChevronRight className="size-4" />
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                           {count > 0 ? (
-                              <>
-                                 <CommandSeparator />
-                                 <CommandGroup>
-                                    <CommandItem
-                                       onSelect={() =>
-                                          set({
-                                             assigneeId: null,
-                                             mode: 'all',
-                                             trigger: 'all',
-                                             createdBy: null,
-                                          })
-                                       }
-                                    >
-                                       {t('filters.clear')}
-                                    </CommandItem>
-                                 </CommandGroup>
-                              </>
-                           ) : null}
-                        </CommandList>
-                     </Command>
-                  ) : pane === 'assignee' ? (
-                     <Command>
-                        <div className="flex items-center border-b p-2">
-                           {back}
-                           <span className="ml-2 font-medium">{t('filters.assignee')}</span>
-                        </div>
-                        <CommandInput placeholder={t('filters.searchAssignees')} />
-                        <CommandList>
-                           <CommandGroup>
-                              <CommandItem
-                                 onSelect={() => set({ assigneeId: null })}
-                                 className="justify-between"
-                              >
-                                 {t('filters.anyAssignee')}
-                                 {criteria.assigneeId === null ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                              <AgentCommandItems
-                                 options={assigneeOptions}
-                                 value={criteria.assigneeId}
-                                 onSelect={(id) => set({ assigneeId: id })}
-                              />
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  ) : pane === 'mode' ? (
-                     <Command>
-                        <div className="flex items-center border-b p-2">
-                           {back}
-                           <span className="ml-2 font-medium">{t('filters.mode')}</span>
-                        </div>
-                        <CommandList>
-                           <CommandGroup>
-                              {(['all', 'create_issue', 'fixed_issue'] as const).map((mode) => (
-                                 <CommandItem
-                                    key={mode}
-                                    onSelect={() => set({ mode })}
-                                    className="justify-between"
-                                 >
-                                    {mode === 'all' ? t('filters.any') : t(`mode.${mode}`)}
-                                    {criteria.mode === mode ? <Check className="size-4" /> : null}
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  ) : pane === 'trigger' ? (
-                     <Command>
-                        <div className="flex items-center border-b p-2">
-                           {back}
-                           <span className="ml-2 font-medium">{t('filters.trigger')}</span>
-                        </div>
-                        <CommandList>
-                           <CommandGroup>
-                              {(['all', 'cron', 'webhook', 'none'] as const).map((trigger) => (
-                                 <CommandItem
-                                    key={trigger}
-                                    onSelect={() => set({ trigger })}
-                                    className="justify-between"
-                                 >
-                                    {trigger === 'all'
-                                       ? t('filters.any')
-                                       : t(`filters.trigger_${trigger}`)}
-                                    {criteria.trigger === trigger ? (
-                                       <Check className="size-4" />
-                                    ) : null}
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  ) : (
-                     <Command>
-                        <div className="flex items-center border-b p-2">
-                           {back}
-                           <span className="ml-2 font-medium">{t('filters.creator')}</span>
-                        </div>
-                        <CommandList>
-                           <CommandGroup>
-                              <CommandItem
-                                 onSelect={() => set({ createdBy: null })}
-                                 className="justify-between"
-                              >
-                                 {t('filters.anyCreator')}
-                                 {criteria.createdBy === null ? <Check className="size-4" /> : null}
-                              </CommandItem>
-                              {creators.map((creator) => (
-                                 <CommandItem
-                                    key={creator.id}
-                                    value={creator.name}
-                                    onSelect={() => set({ createdBy: creator.id })}
-                                    className="justify-between"
-                                 >
-                                    {creator.name}
-                                    {criteria.createdBy === creator.id ? (
-                                       <Check className="size-4" />
-                                    ) : null}
-                                 </CommandItem>
-                              ))}
-                           </CommandGroup>
-                        </CommandList>
-                     </Command>
-                  )}
-               </PopoverContent>
-            </Popover>
+            <ListFilterTrigger filter={filter} />
 
             <Popover>
                <PopoverTrigger asChild>

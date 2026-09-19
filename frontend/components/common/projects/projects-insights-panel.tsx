@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { health as healthList, Project } from '@/data/projects';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
+import { selectedOptionValues, toggleOptionValue } from '@/components/common/filters/list-filters';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { X } from 'lucide-react';
 import { useMemo } from 'react';
@@ -64,7 +65,8 @@ function CountList({ rows }: { rows: CountRow[] }) {
 /** Right panel of the Projects page: counters by health / lead. */
 export default function ProjectsInsightsPanel({ projects }: ProjectsInsightsPanelProps) {
    const { closePanel } = useRightPanelStore();
-   const { filters, toggleFilter } = useProjectsFilterStore();
+   const { filters, setFilters } = useProjectsFilterStore();
+   const selectedHealth = useMemo(() => selectedOptionValues(filters, 'health'), [filters]);
    const members = useMembersStore((state) => state.members);
 
    const healthRows = useMemo<CountRow[]>(
@@ -73,13 +75,17 @@ export default function ProjectsInsightsPanel({ projects }: ProjectsInsightsPane
             key: entry.id,
             label: entry.id === 'no-update' ? 'No update expected' : entry.name,
             leading: (
-               <span className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+               <span
+                  className="size-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: entry.color }}
+               />
             ),
             count: projects.filter((project) => project.health.id === entry.id).length,
-            onClick: () => toggleFilter('health', entry.id),
-            active: filters.health.length === 1 && filters.health[0] === entry.id,
+            onClick: () =>
+               setFilters((previous) => toggleOptionValue(previous, 'health', entry.id)),
+            active: selectedHealth.length === 1 && selectedHealth[0] === entry.id,
          })),
-      [projects, filters.health, toggleFilter]
+      [projects, selectedHealth, setFilters]
    );
 
    const leadRows = useMemo<CountRow[]>(

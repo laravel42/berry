@@ -19,5 +19,8 @@
       "remove": "Remove",
       "removeTriggerTitle": "Remove this trigger?",
       "removeTriggerBody": "The autopilot stops firing from it at once. A webhook’s address and signing secret stop working. This cannot be undone."
+   },
+   "filters": {
+      "clear": "Clear"
    }
 }

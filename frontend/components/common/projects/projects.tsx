@@ -16,13 +16,20 @@ import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Filter } from '@/components/layout/headers/projects/filter';
+import {
+   applyListFilters,
+   ListFilterBar,
+   ListFilterTrigger,
+   useListFilters,
+} from '@/components/common/filters/list-filters';
 import ProjectsBoard, { type ProjectBoardEntry } from './projects-board';
 import { CreateProjectDialog } from './create-project-dialog';
 import { EmptyProjects } from './empty-projects';
 import { ProjectsDisplayOptions } from './projects-display-options';
 import ProjectsInsightsPanel from './projects-insights-panel';
 import ProjectsList from './projects-list';
+import { useProjectFilterColumns } from './project-filter-columns';
+import { ProjectsSortMenu } from './projects-sort';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import { TimelineScaleControls } from './timeline-scale-controls';
 import ProjectsTimeline from './projects-timeline';
@@ -81,33 +88,10 @@ function applyClosedFilter(list: Project[], closedProjects: string): Project[] {
    return list.filter((project) => !CLOSED_CATEGORIES.has(project.status.category));
 }
 
-function applyDisplayFilters(
-   list: Project[],
-   filters: { health: string[]; priority: string[]; status: string[]; lead: string[] },
-   query: string
-): Project[] {
-   let filtered = list.slice();
-   if (filters.health.length > 0) {
-      const healthSet = new Set(filters.health);
-      filtered = filtered.filter((project) => healthSet.has(project.health.id));
-   }
-   if (filters.priority.length > 0) {
-      const prioritySet = new Set(filters.priority);
-      filtered = filtered.filter((project) => prioritySet.has(project.priority.id));
-   }
-   if (filters.status.length > 0) {
-      const statusSet = new Set(filters.status);
-      filtered = filtered.filter((project) => statusSet.has(project.status.id));
-   }
-   if (filters.lead.length > 0) {
-      const leadSet = new Set(filters.lead);
-      filtered = filtered.filter((project) => leadSet.has(project.lead.id));
-   }
+function applySearch(list: Project[], query: string): Project[] {
    const term = query.trim().toLowerCase();
-   if (term) {
-      filtered = filtered.filter((project) => project.name.toLowerCase().includes(term));
-   }
-   return filtered;
+   if (!term) return list;
+   return list.filter((project) => project.name.toLowerCase().includes(term));
 }
 
 function percentCompleteForProject(
@@ -123,7 +107,7 @@ function percentCompleteForProject(
 /** Projects page: search, filters, display options, views and insights. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
-   const { filters, sort, query, setQuery } = useProjectsFilterStore();
+   const { filters, setFilters, sort, query, setQuery } = useProjectsFilterStore();
    const { viewType, grouping, ordering, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
    const { openPanel, togglePanel } = useRightPanelStore();
@@ -147,9 +131,22 @@ export default function Projects() {
       [enriched, closedProjects]
    );
 
+   const filterColumns = useProjectFilterColumns(scoped);
+   const filter = useListFilters({
+      data: scoped,
+      columns: filterColumns,
+      filters,
+      onFiltersChange: setFilters,
+   });
+
    const displayed = useMemo(
-      () => sortProjects(applyDisplayFilters(scoped, filters, query), sort, ordering),
-      [scoped, filters, query, sort, ordering]
+      () =>
+         sortProjects(
+            applySearch(applyListFilters(scoped, filterColumns, filters), query),
+            sort,
+            ordering
+         ),
+      [scoped, filterColumns, filters, query, sort, ordering]
    );
 
    const boardEntries = useMemo<ProjectBoardEntry[]>(() => {
@@ -229,7 +226,8 @@ export default function Projects() {
             />
             <div className="ml-auto flex items-center gap-1">
                {viewType === 'timeline' && <TimelineScaleControls />}
-               <Filter />
+               <ListFilterTrigger filter={filter} />
+               <ProjectsSortMenu />
                <ProjectsDisplayOptions />
                <Button
                   size="xs"
@@ -245,6 +243,8 @@ export default function Projects() {
                </Button>
             </div>
          </div>
+
+         <ListFilterBar filter={filter} />
 
          {selected.length > 0 && (
             <div className="flex items-center gap-2 border-b bg-accent/40 px-6 py-1.5 shrink-0">

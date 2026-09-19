@@ -1,9 +1,18 @@
 'use client';
 
+import {
+   priorityFilterOptions,
+   taskStatusFilterOptions,
+} from '@/components/common/filters/filter-options';
+import { applyListFilters, type ListFilterColumns } from '@/components/common/filters/list-filters';
+import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
+import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { useShortcut } from '@/components/layout/shortcut-provider';
 import type { InboxItem } from '@/data/inbox';
+import { BarChart3, CircleCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { parseAsStringLiteral, useQueryState } from 'nuqs';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 /** The two lists the page can be showing. */
 export const INBOX_VIEWS = ['active', 'archived'] as const;
@@ -32,24 +41,6 @@ export type InboxShow = (typeof INBOX_SHOW)[number];
 /** Read-state filters on the active inbox (not the archive). */
 export type InboxShowFilter = Exclude<InboxShow, 'archived'>;
 
-export interface InboxFilters {
-   /** UI status ids of the task a notification is about. */
-   statuses: string[];
-   /** UI priority ids of that task. */
-   priorities: string[];
-   /** Sender keys: a member id, `agent`, or `system`. */
-   senders: string[];
-   /** All or unread, on the active inbox. */
-   show: InboxShowFilter;
-}
-
-export const EMPTY_INBOX_FILTERS: InboxFilters = {
-   statuses: [],
-   priorities: [],
-   senders: [],
-   show: 'all',
-};
-
 /** The sender bucket a notification with no named actor falls into. */
 export const SENDER_AGENT = 'agent';
 export const SENDER_SYSTEM = 'system';
@@ -68,57 +59,48 @@ export function senderKey(item: InboxItem): string {
    return item.actor.type === 'agent' ? SENDER_AGENT : item.actor.id;
 }
 
-/** How many filter groups are narrowing the list. */
-export function activeFilterCount(filters: InboxFilters): number {
-   return (
-      (filters.statuses.length > 0 ? 1 : 0) +
-      (filters.priorities.length > 0 ? 1 : 0) +
-      (filters.senders.length > 0 ? 1 : 0) +
-      (filters.show !== 'all' ? 1 : 0)
-   );
-}
+/** Stand-in for "not about a task", which no option offers. */
+const NO_FACET = '__none__';
 
-export function hasActiveFilters(filters: InboxFilters): boolean {
-   return activeFilterCount(filters) > 0;
+/**
+ * What the inbox can be narrowed by: the status and priority of the task a
+ * notification is about. The filter menu counts each value over the list
+ * before filtering, so a reader can see a dead end coming.
+ */
+export function useInboxFilterColumns(facetsOf: FacetResolver) {
+   const t = useTranslations('inbox');
+
+   return useMemo(() => {
+      const dtf = createColumnConfigHelper<InboxItem>();
+      return [
+         dtf
+            .option()
+            .id('status')
+            .accessor((item: InboxItem) => facetsOf(item).status ?? NO_FACET)
+            .displayName(t('filters.status'))
+            .icon(CircleCheck)
+            .options(taskStatusFilterOptions)
+            .build(),
+         dtf
+            .option()
+            .id('priority')
+            .accessor((item: InboxItem) => facetsOf(item).priority ?? NO_FACET)
+            .displayName(t('filters.priority'))
+            .icon(BarChart3)
+            .options(priorityFilterOptions)
+            .build(),
+      ] as const;
+   }, [facetsOf, t]);
 }
 
 export function applyInboxFilters(
    items: InboxItem[],
-   filters: InboxFilters,
-   facetsOf: FacetResolver
+   show: InboxShowFilter,
+   columns: ListFilterColumns<InboxItem>,
+   filters: FiltersState
 ): InboxItem[] {
-   return items.filter((item) => {
-      if (filters.show === 'unread' && item.read) return false;
-      const facets = facetsOf(item);
-      if (filters.statuses.length > 0) {
-         if (!facets.status || !filters.statuses.includes(facets.status)) return false;
-      }
-      if (filters.priorities.length > 0) {
-         if (!facets.priority || !filters.priorities.includes(facets.priority)) return false;
-      }
-      if (filters.senders.length > 0 && !filters.senders.includes(facets.sender)) return false;
-      return true;
-   });
-}
-
-/**
- * How many notifications each facet value would match.
- *
- * Counted over the list before filtering, so a count never drops to zero
- * merely because the value it counts is not currently selected.
- */
-export function countFacet(
-   items: InboxItem[],
-   facetsOf: FacetResolver,
-   pick: (facets: InboxFacets) => string | null
-): Record<string, number> {
-   const counts: Record<string, number> = {};
-   for (const item of items) {
-      const value = pick(facetsOf(item));
-      if (!value) continue;
-      counts[value] = (counts[value] ?? 0) + 1;
-   }
-   return counts;
+   const shown = show === 'unread' ? items.filter((item) => !item.read) : items;
+   return applyListFilters(shown, columns, filters);
 }
 
 /**

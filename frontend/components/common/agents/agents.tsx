@@ -36,7 +36,6 @@ import {
    loadAgentRoster,
    loadArchivedAgents,
    loadWorkspaceAgents,
-   modelPairKey,
    restoreAgent,
    setAgentAccess,
    type Agent,
@@ -48,7 +47,13 @@ import {
    type AgentsSortKey,
 } from '@/store/agents-list-store';
 import { useAgentsStore } from '@/store/agents-store';
+import {
+   applyListFilters,
+   ListFilterBar,
+   useListFilters,
+} from '@/components/common/filters/list-filters';
 import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
+import { useAgentFilterColumns } from './agent-filter-columns';
 
 /** Which column heading sorts by what; the rest are labels only. */
 const SORT_FOR_COLUMN: Partial<Record<AgentColumn, AgentsSortKey>> = {
@@ -102,6 +107,18 @@ export default function Agents() {
    const toggleSelected = useAgentsListStore((state) => state.toggleSelected);
    const setSelected = useAgentsListStore((state) => state.setSelected);
    const clearSelection = useAgentsListStore((state) => state.clearSelection);
+   const setFilters = useAgentsListStore((state) => state.setFilters);
+   const filterColumns = useAgentFilterColumns();
+   const source = useMemo(
+      () => (scope === 'archived' ? (archived ?? []) : agents),
+      [scope, archived, agents]
+   );
+   const filter = useListFilters({
+      data: source,
+      columns: filterColumns,
+      filters,
+      onFiltersChange: setFilters,
+   });
 
    const [loading, setLoading] = useState(true);
    const [confirm, setConfirm] = useState<Confirm | null>(null);
@@ -147,24 +164,7 @@ export default function Agents() {
    }, [scope, archived, loadArchive]);
 
    const rows = useMemo(() => {
-      const source = scope === 'archived' ? (archived ?? []) : agents;
-
-      const matched = source.filter((agent) => {
-         const entry = roster.get(agent.id);
-         if (filters.availability && agent.status !== filters.availability) return false;
-         if (filters.access && (agent.access?.assign ?? 'everyone') !== filters.access)
-            return false;
-         if (filters.runtime) {
-            const runtimeId = entry?.runtimeId ?? 'none';
-            if (runtimeId !== filters.runtime) return false;
-         }
-         if (filters.owner) {
-            const ownerId = entry?.ownerId ?? 'workspace';
-            if (ownerId !== filters.owner) return false;
-         }
-         if (filters.model && modelPairKey(agent) !== filters.model) return false;
-         return true;
-      });
+      const matched = applyListFilters(source, filterColumns, filters);
 
       const direction = sortDescending ? -1 : 1;
       return matched.slice().sort((left, right) => {
@@ -183,7 +183,7 @@ export default function Agents() {
          const rightAt = roster.get(right.id)?.lastActiveAt ?? right.updatedAt;
          return direction * leftAt.localeCompare(rightAt);
       });
-   }, [scope, archived, agents, roster, filters, sortKey, sortDescending]);
+   }, [source, filterColumns, roster, filters, sortKey, sortDescending]);
 
    const selectedRows = rows.filter((agent) => selected.includes(agent.id));
    const allSelected = rows.length > 0 && selectedRows.length === rows.length;
@@ -278,6 +278,7 @@ export default function Agents() {
 
    return (
       <div className="flex h-full w-full flex-col">
+         <ListFilterBar filter={filter} />
          <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-6 py-1.5 text-muted-foreground">
                <Checkbox
@@ -353,7 +354,7 @@ export default function Agents() {
                </div>
             ) : rows.length === 0 ? (
                <div className="px-6 py-10 text-muted-foreground">
-                  {Object.values(filters).some(Boolean) ? (
+                  {filter.filters.length > 0 ? (
                      t('noMatch')
                   ) : scope === 'archived' ? (
                      t('emptyArchived')

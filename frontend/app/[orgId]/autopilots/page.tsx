@@ -7,9 +7,15 @@ import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
 import Autopilots from '@/components/common/autopilots/autopilots';
 import AutopilotsFilters, {
    DEFAULT_AUTOPILOT_CRITERIA,
-   activeAutopilotFilters,
+   useAutopilotFilterColumns,
    type AutopilotCriteria,
 } from '@/components/common/autopilots/autopilots-filters';
+import {
+   applyListFilters,
+   ListFilterBar,
+   useListFilters,
+} from '@/components/common/filters/list-filters';
+import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import type { User } from '@/data/users';
@@ -30,6 +36,7 @@ export default function AutopilotsPage() {
 
    const [people, setPeople] = useState<User[]>([]);
    const [criteria, setCriteria] = useState<AutopilotCriteria>(DEFAULT_AUTOPILOT_CRITERIA);
+   const [filters, setFilters] = useState<FiltersState>([]);
    const [creating, setCreating] = useState(false);
    const [template, setTemplate] = useState<{ name: string; prompt: string } | null>(null);
 
@@ -62,29 +69,33 @@ export default function AutopilotsPage() {
    const creators = useMemo(() => {
       const seen = new Set<string>();
       for (const autopilot of autopilots) if (autopilot.createdBy) seen.add(autopilot.createdBy);
-      return [...seen].map((id) => ({
-         id,
-         name: people.find((person) => person.id === id)?.name ?? t('row.someone'),
-      }));
+      return [...seen].map((id) => {
+         const person = people.find((entry) => entry.id === id);
+         return { id, name: person?.name ?? t('row.someone'), avatarUrl: person?.avatarUrl };
+      });
    }, [autopilots, people, t]);
 
+   const scoped = useMemo(
+      () =>
+         criteria.scope === 'all'
+            ? autopilots
+            : autopilots.filter((autopilot) => autopilot.status === criteria.scope),
+      [autopilots, criteria.scope]
+   );
+
+   const filterColumns = useAutopilotFilterColumns(assignees, creators);
+   const filter = useListFilters({
+      data: scoped,
+      columns: filterColumns,
+      filters,
+      onFiltersChange: setFilters,
+   });
+
    /** The list arrives whole and is short, so it is narrowed here. */
-   const shown = useMemo(() => {
-      return autopilots.filter((autopilot) => {
-         if (criteria.scope !== 'all' && autopilot.status !== criteria.scope) return false;
-         if (criteria.assigneeId && autopilot.assigneeId !== criteria.assigneeId) return false;
-         if (criteria.mode !== 'all' && autopilot.executionMode !== criteria.mode) return false;
-         if (criteria.createdBy && autopilot.createdBy !== criteria.createdBy) return false;
-         if (criteria.trigger === 'none' && autopilot.triggerKinds.length > 0) return false;
-         if (
-            (criteria.trigger === 'cron' || criteria.trigger === 'webhook') &&
-            !autopilot.triggerKinds.includes(criteria.trigger)
-         ) {
-            return false;
-         }
-         return true;
-      });
-   }, [autopilots, criteria]);
+   const shown = useMemo(
+      () => applyListFilters(scoped, filterColumns, filters),
+      [scoped, filterColumns, filters]
+   );
 
    const header = (
       <div className="flex w-full flex-col gap-2 border-b px-6 py-3">
@@ -104,12 +115,8 @@ export default function AutopilotsPage() {
                </Button>
             ) : null}
          </div>
-         <AutopilotsFilters
-            criteria={criteria}
-            onChange={setCriteria}
-            assignees={assignees}
-            creators={creators}
-         />
+         <AutopilotsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
+         <ListFilterBar filter={filter} className="border-b-0 bg-transparent px-0 py-0" />
       </div>
    );
 
@@ -123,7 +130,7 @@ export default function AutopilotsPage() {
             assigneeName={assigneeName}
             canEdit={canEdit}
             onChanged={reload}
-            narrowed={activeAutopilotFilters(criteria) > 0}
+            narrowed={filter.filters.length > 0}
             onUseTemplate={(chosen) => {
                setTemplate(chosen);
                setCreating(true);

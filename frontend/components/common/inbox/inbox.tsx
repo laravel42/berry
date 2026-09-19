@@ -1,5 +1,7 @@
 'use client';
 
+import { ListFilterBar, useListFilters } from '@/components/common/filters/list-filters';
+import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { Button } from '@/components/ui/button';
 import {
    DropdownMenu,
@@ -28,17 +30,16 @@ import { InboxRow } from './inbox-row';
 import { InboxPanel } from './inbox-states';
 import {
    applyInboxFilters,
-   EMPTY_INBOX_FILTERS,
-   hasActiveFilters,
    SENDER_AGENT,
    SENDER_SYSTEM,
    selectionAfterRemoval,
    senderKey,
+   useInboxFilterColumns,
    useInboxKeyboard,
    useInboxSelection,
    useInboxView,
    type InboxFacets,
-   type InboxFilters,
+   type InboxShowFilter,
 } from './use-inbox';
 
 /** How much of the archive is read in one go. */
@@ -58,7 +59,8 @@ export default function Inbox() {
 
    const [view, setView] = useInboxView();
    const [selectedId, setSelectedId] = useInboxSelection();
-   const [filters, setFilters] = useState<InboxFilters>(EMPTY_INBOX_FILTERS);
+   const [show, setShow] = useState<InboxShowFilter>('all');
+   const [filters, setFilters] = useState<FiltersState>([]);
 
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const user = useSessionStore((state) => state.user);
@@ -125,10 +127,23 @@ export default function Inbox() {
       [issues]
    );
 
+   const filterColumns = useInboxFilterColumns(facetsOf);
+   const filter = useListFilters({
+      data: source,
+      columns: filterColumns,
+      filters,
+      onFiltersChange: setFilters,
+   });
+
    const visible = useMemo(
-      () => applyInboxFilters(source, filters, facetsOf),
-      [source, filters, facetsOf]
+      () => applyInboxFilters(source, show, filterColumns, filters),
+      [source, show, filterColumns, filters]
    );
+
+   const clearFilters = useCallback(() => {
+      setShow('all');
+      setFilters([]);
+   }, []);
 
    const selected = useMemo(
       () => visible.find((item) => item.id === selectedId) ?? null,
@@ -245,10 +260,9 @@ export default function Inbox() {
          >
             <div className="flex shrink-0 items-center gap-1.5 border-b px-4 py-2">
                <InboxFilterBar
-                  items={source}
-                  facetsOf={facetsOf}
-                  filters={filters}
-                  onChange={setFilters}
+                  filter={filter}
+                  show={show}
+                  onShowChange={setShow}
                   archivedView={archivedView}
                   showCounts={{
                      all: notifications.length,
@@ -298,6 +312,8 @@ export default function Inbox() {
                </div>
             </div>
 
+            <ListFilterBar filter={filter} className="px-4" />
+
             <div className="min-h-0 flex-1 overflow-y-auto">
                <InboxList
                   items={visible}
@@ -305,7 +321,7 @@ export default function Inbox() {
                   ready={listReady}
                   failed={archivedView && archivedStatus === 'error'}
                   archivedView={archivedView}
-                  filtered={hasActiveFilters(filters)}
+                  filtered={show !== 'all' || filter.filters.length > 0}
                   handled={archivedStatus === 'ready' && archivedItems.length > 0}
                   selectedId={selectedId}
                   orgId={orgId}
@@ -315,7 +331,7 @@ export default function Inbox() {
                      void (item.read ? markAsUnread(item.id) : markAsRead(item.id));
                   }}
                   onMoveOut={(item) => void moveOut(item)}
-                  onClearFilters={() => setFilters(EMPTY_INBOX_FILTERS)}
+                  onClearFilters={clearFilters}
                   onRetry={() => void loadArchive()}
                />
             </div>

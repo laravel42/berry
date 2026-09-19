@@ -1,21 +1,24 @@
 'use client';
 
-import { ArrowUpDown, Check, ChevronRight, Columns3, ListFilter } from 'lucide-react';
+import { ArrowUpDown, Check, Columns3, Tag, UserPen, Bot, CircleDot } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
-import { AgentCommandItems } from '@/components/common/agents/agent-multiselect';
-import { Button } from '@/components/ui/button';
 import {
-   Command,
-   CommandGroup,
-   CommandInput,
-   CommandItem,
-   CommandList,
-   CommandSeparator,
-} from '@/components/ui/command';
+   agentFilterOption,
+   byLabel,
+   memberFilterOption,
+} from '@/components/common/filters/filter-options';
+import {
+   ListFilterTrigger,
+   type ListFilterController,
+} from '@/components/common/filters/list-filters';
+import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
+import { Button } from '@/components/ui/button';
+import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Agent } from '@/lib/agents';
+import { isSkillInUse, type Skill } from '@/lib/skills';
 
 export const SKILL_COLUMNS = ['labels', 'agents', 'files', 'creator', 'updated'] as const;
 export type SkillColumn = (typeof SKILL_COLUMNS)[number];
@@ -23,228 +26,91 @@ export type SkillColumn = (typeof SKILL_COLUMNS)[number];
 export const SKILL_SORTS = ['name', 'updated', 'usage'] as const;
 export type SkillSort = (typeof SKILL_SORTS)[number];
 
+/** How the reader lays the catalogue out; what it is narrowed by is the filter's. */
 export interface SkillCriteria {
-   usage: 'all' | 'inUse' | 'unused';
-   agentId: string | null;
-   createdBy: string | null;
    sort: SkillSort;
    columns: SkillColumn[];
 }
 
 export const DEFAULT_CRITERIA: SkillCriteria = {
-   usage: 'all',
-   agentId: null,
-   createdBy: null,
    sort: 'name',
    columns: ['agents', 'files'],
 };
 
-export function activeFilterCount(criteria: SkillCriteria): number {
-   let count = 0;
-   if (criteria.usage !== 'all') count += 1;
-   if (criteria.agentId) count += 1;
-   if (criteria.createdBy) count += 1;
-   return count;
+/**
+ * What the catalogue can be narrowed by. Every field is on the list payload,
+ * so the page matches them itself and the server only answers the search.
+ */
+export function useSkillFilterColumns(
+   skills: Skill[],
+   agents: Agent[],
+   /** Everyone who has made a skill here, as the list itself reports them. */
+   creators: Array<{ id: string; name: string }>
+) {
+   const t = useTranslations('areas.skills');
+
+   return useMemo(() => {
+      const labels = [...new Set(skills.flatMap((skill) => skill.labels))]
+         .map((label) => ({ value: label, label }))
+         .sort(byLabel);
+      const dtf = createColumnConfigHelper<Skill>();
+      return [
+         dtf
+            .option()
+            .id('usage')
+            .accessor((skill: Skill) => (isSkillInUse(skill) ? 'inUse' : 'unused'))
+            .displayName(t('filters.usage'))
+            .icon(CircleDot)
+            .options([
+               { value: 'inUse', label: t('filters.inUse') },
+               { value: 'unused', label: t('filters.unused') },
+            ])
+            .build(),
+         dtf
+            .multiOption()
+            .id('agent')
+            // An agent carries a skill only while its binding is switched on.
+            .accessor((skill: Skill) =>
+               skill.agents.filter((agent) => agent.enabled).map((agent) => agent.id)
+            )
+            .displayName(t('filters.agent'))
+            .icon(Bot)
+            .options(agents.map(agentFilterOption).sort(byLabel))
+            .build(),
+         dtf
+            .option()
+            .id('creator')
+            .accessor((skill: Skill) => skill.createdBy ?? 'unknown')
+            .displayName(t('filters.creator'))
+            .icon(UserPen)
+            .options(creators.map(memberFilterOption).sort(byLabel))
+            .build(),
+         dtf
+            .multiOption()
+            .id('labels')
+            .accessor((skill: Skill) => skill.labels)
+            .displayName(t('columns.labels'))
+            .icon(Tag)
+            .options(labels)
+            .build(),
+      ] as const;
+   }, [skills, agents, creators, t]);
 }
 
 interface Props {
    criteria: SkillCriteria;
    onChange: (criteria: SkillCriteria) => void;
-   agents: Agent[];
-   /** Everyone who has made a skill here, as the list itself reports them. */
-   creators: Array<{ id: string; name: string }>;
+   filter: ListFilterController<Skill>;
 }
 
-type Pane = 'usage' | 'agent' | 'creator' | null;
-
-/**
- * The catalogue's filter, sort and column controls.
- *
- * One popover with panes rather than four separate menus, the way the members
- * list does it, so the header stays readable at a narrow width.
- */
-export default function SkillsFilters({ criteria, onChange, agents, creators }: Props) {
+/** The catalogue's filter, sort and column controls. */
+export default function SkillsFilters({ criteria, onChange, filter }: Props) {
    const t = useTranslations('areas.skills');
-   const [open, setOpen] = useState(false);
-   const [pane, setPane] = useState<Pane>(null);
-   const count = activeFilterCount(criteria);
-   const agentOptions = useMemo(
-      () =>
-         agents
-            .map((agent) => ({ id: agent.id, label: agent.name }))
-            .sort((left, right) => left.label.localeCompare(right.label)),
-      [agents]
-   );
-
    const set = (patch: Partial<SkillCriteria>) => onChange({ ...criteria, ...patch });
-   const back = (
-      <Button variant="ghost" size="icon" className="size-6" onClick={() => setPane(null)}>
-         <ChevronRight className="size-4 rotate-180" />
-      </Button>
-   );
 
    return (
       <div className="flex flex-wrap items-center gap-2">
-         <Popover
-            open={open}
-            onOpenChange={(next) => {
-               setOpen(next);
-               if (!next) setPane(null);
-            }}
-         >
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="outline" className="relative border-muted-foreground/15">
-                  <ListFilter className="mr-1 size-4" />
-                  {t('filters.button')}
-                  {count > 0 ? (
-                     <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        {count}
-                     </span>
-                  ) : null}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent
-               className="w-64 p-0"
-               align="start"
-               onOpenAutoFocus={(event) => event.preventDefault()}
-               onCloseAutoFocus={(event) => event.preventDefault()}
-               onFocusOutside={(event) => event.preventDefault()}
-            >
-               {pane === null ? (
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           <CommandItem
-                              value="usage"
-                              onSelect={() => setPane('usage')}
-                              onPointerDown={(event) => event.preventDefault()}
-                              className="justify-between"
-                           >
-                              {t('filters.usage')}
-                              <ChevronRight className="size-4" />
-                           </CommandItem>
-                           <CommandItem
-                              value="agent"
-                              onSelect={() => setPane('agent')}
-                              onPointerDown={(event) => event.preventDefault()}
-                              className="justify-between"
-                           >
-                              {t('filters.agent')}
-                              <ChevronRight className="size-4" />
-                           </CommandItem>
-                           <CommandItem
-                              value="creator"
-                              onSelect={() => setPane('creator')}
-                              onPointerDown={(event) => event.preventDefault()}
-                              className="justify-between"
-                           >
-                              {t('filters.creator')}
-                              <ChevronRight className="size-4" />
-                           </CommandItem>
-                        </CommandGroup>
-                        {count > 0 ? (
-                           <>
-                              <CommandSeparator />
-                              <CommandGroup>
-                                 <CommandItem
-                                    onSelect={() =>
-                                       set({
-                                          usage: 'all',
-                                          agentId: null,
-                                          createdBy: null,
-                                       })
-                                    }
-                                 >
-                                    {t('filters.clear')}
-                                 </CommandItem>
-                              </CommandGroup>
-                           </>
-                        ) : null}
-                     </CommandList>
-                  </Command>
-               ) : pane === 'usage' ? (
-                  <Command>
-                     <div className="flex items-center border-b p-2">
-                        {back}
-                        <span className="ml-2 font-medium">{t('filters.usage')}</span>
-                     </div>
-                     <CommandList>
-                        <CommandGroup>
-                           {(['all', 'inUse', 'unused'] as const).map((value) => (
-                              <CommandItem
-                                 key={value}
-                                 onSelect={() => set({ usage: value })}
-                                 className="justify-between"
-                              >
-                                 {value === 'all'
-                                    ? t('filters.any')
-                                    : value === 'inUse'
-                                      ? t('filters.inUse')
-                                      : t('filters.unused')}
-                                 {criteria.usage === value ? <Check className="size-4" /> : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               ) : pane === 'agent' ? (
-                  <Command>
-                     <div className="flex items-center border-b p-2">
-                        {back}
-                        <span className="ml-2 font-medium">{t('filters.agent')}</span>
-                     </div>
-                     <CommandInput placeholder={t('filters.searchAgents')} />
-                     <CommandList>
-                        <CommandGroup>
-                           <CommandItem
-                              onSelect={() => set({ agentId: null })}
-                              className="justify-between"
-                           >
-                              {t('filters.anyAgent')}
-                              {criteria.agentId === null ? <Check className="size-4" /> : null}
-                           </CommandItem>
-                           <AgentCommandItems
-                              options={agentOptions}
-                              value={criteria.agentId}
-                              onSelect={(id) => set({ agentId: id })}
-                           />
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               ) : (
-                  <Command>
-                     <div className="flex items-center border-b p-2">
-                        {back}
-                        <span className="ml-2 font-medium">{t('filters.creator')}</span>
-                     </div>
-                     <CommandList>
-                        <CommandGroup>
-                           <CommandItem
-                              onSelect={() => set({ createdBy: null })}
-                              className="justify-between"
-                           >
-                              {t('filters.anyCreator')}
-                              {criteria.createdBy === null ? <Check className="size-4" /> : null}
-                           </CommandItem>
-                           {creators.map((creator) => (
-                              <CommandItem
-                                 key={creator.id}
-                                 value={creator.name}
-                                 onSelect={() => set({ createdBy: creator.id })}
-                                 className="justify-between"
-                              >
-                                 {creator.name}
-                                 {criteria.createdBy === creator.id ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               )}
-            </PopoverContent>
-         </Popover>
+         <ListFilterTrigger filter={filter} />
 
          <Popover>
             <PopoverTrigger asChild>

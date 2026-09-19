@@ -1,21 +1,16 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { BerryMark } from '@/components/brand/berry-mark';
-import { colorForAgent } from '@/lib/agent-color';
-import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
-import { dateFilterOperators } from '@/components/data-table-filter/core/operators';
-import type { ColumnOption, FiltersState } from '@/components/data-table-filter/core/types';
+import { matchesFilter } from '@/components/common/filters/list-filters';
 import {
-   dateFilterFn,
-   multiOptionFilterFn,
-   optionFilterFn,
-   textFilterFn,
-} from '@/components/data-table-filter/lib/filter-fns';
+   personFilterOption,
+   priorityFilterOptions,
+   taskStatusFilterOptions,
+} from '@/components/common/filters/filter-options';
+import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
+import type { ColumnOption, FiltersState } from '@/components/data-table-filter/core/types';
 import type { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
-import { priorities } from '@/data/priorities';
-import { status, type StatusCategory } from '@/data/status';
+import type { StatusCategory } from '@/data/status';
 import type { Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import { agentToUser, type Agent } from '@/lib/agents';
@@ -46,12 +41,6 @@ import { useEffect, useMemo, useState } from 'react';
 /** Option value standing for "this field has no value at all". */
 export const EMPTY_PROPERTY_VALUE = '__empty__';
 
-const statusOptions: ColumnOption[] = status.map((item) => ({
-   value: item.id,
-   label: item.name,
-   icon: <item.icon />,
-}));
-
 const STATUS_TYPES: { id: StatusCategory; name: string }[] = [
    { id: 'backlog', name: 'Backlog' },
    { id: 'unstarted', name: 'Unstarted' },
@@ -66,33 +55,6 @@ const statusTypeOptions: ColumnOption[] = STATUS_TYPES.map((item) => ({
    icon: <CircleDashed className="size-4 text-muted-foreground" />,
 }));
 
-const priorityOptions: ColumnOption[] = priorities.map((priority) => ({
-   value: priority.id,
-   label: priority.name,
-   icon: <priority.icon className="size-4 text-muted-foreground" />,
-}));
-
-function personOption(person: User): ColumnOption {
-   return {
-      value: person.id,
-      label: person.name,
-      icon:
-         person.role === 'Application' ? (
-            <BerryMark
-               size="sm"
-               tone="working"
-               dotColor={colorForAgent(person.id)}
-               label={`${person.name}, agent`}
-            />
-         ) : (
-            <Avatar className="size-4">
-               <AvatarImage src={person.avatarUrl} alt={person.name} />
-               <AvatarFallback>{person.name[0]}</AvatarFallback>
-            </Avatar>
-         ),
-   };
-}
-
 /** Members and agents can both hold a task, so both belong in the menu. */
 function buildAssigneeOptions(members: User[], agents: User[]): ColumnOption[] {
    return [
@@ -101,8 +63,8 @@ function buildAssigneeOptions(members: User[], agents: User[]): ColumnOption[] {
          label: 'No assignee',
          icon: <CircleUserRound className="size-4 text-muted-foreground" />,
       },
-      ...members.map(personOption),
-      ...agents.map(personOption),
+      ...members.map(personFilterOption),
+      ...agents.map(personFilterOption),
    ];
 }
 
@@ -113,8 +75,8 @@ function buildCreatorOptions(members: User[], agents: User[]): ColumnOption[] {
          label: 'Unknown',
          icon: <UserPen className="size-4 text-muted-foreground" />,
       },
-      ...members.map(personOption),
-      ...agents.map(personOption),
+      ...members.map(personFilterOption),
+      ...agents.map(personFilterOption),
    ];
 }
 
@@ -157,7 +119,7 @@ function buildIssueFilterColumns(
          .accessor((issue: Issue) => issue.status.id)
          .displayName('Status')
          .icon(CircleCheck)
-         .options(statusOptions)
+         .options(taskStatusFilterOptions)
          .build(),
       dtf
          .option()
@@ -189,7 +151,7 @@ function buildIssueFilterColumns(
          .accessor((issue: Issue) => issue.priority.id)
          .displayName('Priority')
          .icon(BarChart3)
-         .options(priorityOptions)
+         .options(priorityFilterOptions)
          .build(),
       dtf
          .multiOption()
@@ -505,31 +467,7 @@ export function applyIssueFilters(
          const column = columnById.get(filter.columnId);
          if (!column) return true;
 
-         const value = column.accessor(issue);
-         switch (filter.type) {
-            case 'option':
-               return optionFilterFn(String(value ?? ''), filter) ?? true;
-            case 'multiOption':
-               return multiOptionFilterFn((value as string[]) ?? [], filter) ?? true;
-            case 'date': {
-               // A singular operator with a leftover range would throw inside
-               // the filter function, so the extra value is dropped instead.
-               const operators = dateFilterOperators as Record<
-                  string,
-                  { target: string } | undefined
-               >;
-               const singular = operators[String(filter.operator)]?.target === 'single';
-               const normalised =
-                  singular && filter.values.length > 1
-                     ? { ...filter, values: filter.values.slice(0, 1) }
-                     : filter;
-               return dateFilterFn(value as Date, normalised) ?? true;
-            }
-            case 'text':
-               return textFilterFn(String(value ?? ''), filter) ?? true;
-            default:
-               return true;
-         }
+         return matchesFilter(column.accessor(issue), filter);
       })
    );
 }

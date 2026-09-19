@@ -5,12 +5,13 @@ import { createParser, useQueryState } from 'nuqs';
 import { useCallback } from 'react';
 
 /**
- * Issue filters, synced to the URL via nuqs under a single `?filters=` param.
+ * List filters, synced to the URL via nuqs under a single `?filters=` param.
  *
  * The state shape is bazza/ui's `FiltersState` (an array of
  * `{ columnId, type, operator, values }`) so it plugs directly into the
- * Linear-style <DataTableFilter /> component while staying shareable
- * through the URL.
+ * shared list filter (`components/common/filters/list-filters.tsx`) while
+ * staying shareable through the URL. Task lists and the Projects list use
+ * it; each lives on its own route, so the one param never carries both.
  */
 
 const isFilterModel = (value: unknown): value is FilterModel => {

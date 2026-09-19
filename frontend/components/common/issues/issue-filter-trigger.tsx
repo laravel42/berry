@@ -1,7 +1,6 @@
 'use client';
 
-import { FilterSelector } from '@/components/data-table-filter/components/filter-selector';
-import { useDataTableFilters } from '@/components/data-table-filter/hooks/use-data-table-filters';
+import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
 import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useIssueFilterColumns } from './issue-filter-columns';
@@ -17,21 +16,12 @@ export function IssueFilterTrigger({ iconOnly = false }: { iconOnly?: boolean })
    const { filters, setFilters } = useFilterStore();
    const issueFilterColumns = useIssueFilterColumns();
 
-   const { columns, actions, strategy } = useDataTableFilters({
-      strategy: 'client',
+   const filter = useListFilters({
       data: issues,
-      columnsConfig: issueFilterColumns,
+      columns: issueFilterColumns,
       filters,
       onFiltersChange: setFilters,
    });
 
-   return (
-      <FilterSelector
-         columns={columns}
-         filters={filters}
-         actions={actions}
-         strategy={strategy}
-         iconOnly={iconOnly}
-      />
-   );
+   return <ListFilterTrigger filter={filter} iconOnly={iconOnly} />;
 }
