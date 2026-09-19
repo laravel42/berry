@@ -17,3 +17,17 @@ test('every ledger write becomes one task.message', async () => {
       ['output', 'tool.started', 'tool.completed', 'command.started', 'command.output', 'command.completed']
    );
 });
+
+test('a finished tool carries its duration and file facts onto the stream', async () => {
+   const events: LifecycleEvent[] = [];
+   const sink = emitterSink((event) => events.push(event));
+   await sink.appendToolCompleted('run', 'c1', true, { durationMs: 12, detail: { path: 'a.md', bytes: 4 } });
+   await sink.appendToolCompleted('run', 'c2', true);
+   assert.deepEqual(
+      events.map((event) => (event.type === 'task.message' ? event.message : null)),
+      [
+         { kind: 'tool.completed', toolCallId: 'c1', succeeded: true, durationMs: 12, detail: { path: 'a.md', bytes: 4 } },
+         { kind: 'tool.completed', toolCallId: 'c2', succeeded: true },
+      ]
+   );
+});

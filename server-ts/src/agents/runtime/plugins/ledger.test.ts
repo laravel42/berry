@@ -4,7 +4,7 @@ import { Agent, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { RunTerminal } from '../../../runs/ledger.ts';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { LedgerPlugin, type LedgerSink } from './ledger.ts';
+import { LedgerPlugin, toolDetail, type LedgerSink } from './ledger.ts';
 
 /**
  * What the run stream reads. The order is the product: a person watching a
@@ -104,4 +104,49 @@ test('a run that went terminal stops the plugin writing, without throwing', asyn
    await agent.invoke('go');
 
    assert.deepEqual(rows, [], 'nothing is written after the ledger refused');
+});
+
+test('a file tool reports which file, how big, and how long it took', async () => {
+   const completions: Array<{ id: string; extra: unknown }> = [];
+   const ledger: LedgerSink = {
+      async appendToolStarted() {},
+      async appendToolCompleted(_runId, id, _ok, extra) {
+         completions.push({ id, extra });
+      },
+      async appendOutput() {},
+   };
+   const writeFile = tool({
+      name: 'write_file',
+      description: 'write',
+      inputSchema: z.object({ path: z.string(), content: z.string() }),
+      callback: async ({ path }) => ({ path, version: 1, saved: true }),
+   });
+   const model = new ScriptedModel([call('write_file', { path: 'src/App.tsx', content: 'héllo' }), say('Saved.')]);
+   const agent = new Agent({ model, tools: [writeFile], plugins: [new LedgerPlugin({ ledger, runId: 'run' })], printer: false });
+   await agent.invoke('go');
+
+   const extra = completions[0]?.extra as { durationMs?: number; detail?: unknown };
+   assert.equal(typeof extra.durationMs, 'number');
+   // Bytes, not characters: "é" is two.
+   assert.deepEqual(extra.detail, { path: 'src/App.tsx', bytes: 6 });
+});
+
+test('the file facts of each file tool, and none for other tools', () => {
+   const json = (value: unknown) => ({ content: [{ json: value }] });
+   assert.deepEqual(toolDetail('list_files', {}, json({ files: ['a', 'b', 'c'] })), { count: 3 });
+   assert.deepEqual(
+      toolDetail('read_file', { path: 'notes.md' }, json({ path: 'notes.md', sizeBytes: 2048, content: 'x' })),
+      { path: 'notes.md', bytes: 2048 }
+   );
+   // A result that arrives as JSON text reads the same.
+   assert.deepEqual(
+      toolDetail('read_file', { path: 'a.md' }, { content: [{ text: JSON.stringify({ sizeBytes: 5 }) }] }),
+      { path: 'a.md', bytes: 5 }
+   );
+   assert.deepEqual(toolDetail('write_file', { path: 'a.txt', content: 'abc' }, json({ saved: true })), {
+      path: 'a.txt',
+      bytes: 3,
+   });
+   assert.equal(toolDetail('run_command', { command: 'ls' }, json({ exitCode: 0 })), null);
+   assert.equal(toolDetail('list_files', {}, json({ error: 'no' })), null);
 });

@@ -32,7 +32,14 @@ export function emitterSink(emit: Emit): LedgerSink & CommandLedger & Repository
    return {
       appendOutput: (_runId, channel, text) => message({ kind: 'output', channel, text }),
       appendToolStarted: (_runId, toolCallId, name) => message({ kind: 'tool.started', toolCallId, name }),
-      appendToolCompleted: (_runId, toolCallId, succeeded) => message({ kind: 'tool.completed', toolCallId, succeeded }),
+      appendToolCompleted: (_runId, toolCallId, succeeded, extra) =>
+         message({
+            kind: 'tool.completed',
+            toolCallId,
+            succeeded,
+            ...(extra?.durationMs === undefined ? {} : { durationMs: extra.durationMs }),
+            ...(extra?.detail ? { detail: extra.detail } : {}),
+         }),
       appendCommandStarted: (_runId, params) => message({ kind: 'command.started', ...params }),
       appendCommandOutput: (_runId, params) => message({ kind: 'command.output', ...params }),
       appendCommandCompleted: (_runId, params) => message({ kind: 'command.completed', ...params }),

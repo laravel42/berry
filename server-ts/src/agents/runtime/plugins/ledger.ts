@@ -8,6 +8,7 @@ import {
    type LocalAgent,
    type Plugin,
 } from '@strands-agents/sdk';
+import type { ToolDetail } from '../../../runtime/lifecycle.ts';
 import { RunTerminal } from '../terminal.ts';
 import { OutputBuffer } from '../output-buffer.ts';
 
@@ -29,8 +30,66 @@ import { OutputBuffer } from '../output-buffer.ts';
 /** The slice of the ledger this plugin writes. Structural, so tests can fake it. */
 export interface LedgerSink {
    appendToolStarted(runId: string, toolCallId: string, name: string): Promise<void>;
-   appendToolCompleted(runId: string, toolCallId: string, succeeded: boolean): Promise<void>;
+   appendToolCompleted(runId: string, toolCallId: string, succeeded: boolean, extra?: ToolCompletion): Promise<void>;
    appendOutput(runId: string, channel: string, text: string): Promise<void>;
+}
+
+/** What a finished tool call adds to its row: how long it took, and what a file tool touched. */
+export interface ToolCompletion {
+   durationMs?: number;
+   detail?: ToolDetail;
+}
+
+/** The result a tool returned, as an object, when it returned one. */
+function resultObject(result: unknown): Record<string, unknown> | null {
+   const content = (result as { content?: unknown } | null)?.content;
+   if (!Array.isArray(content)) return null;
+   for (const block of content) {
+      const json = (block as { json?: unknown }).json;
+      if (json && typeof json === 'object' && !Array.isArray(json)) return json as Record<string, unknown>;
+      const text = (block as { text?: unknown }).text;
+      if (typeof text === 'string' && text.trimStart().startsWith('{')) {
+         try {
+            const parsed: unknown = JSON.parse(text);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+         } catch {
+            // Not JSON: nothing to read.
+         }
+      }
+   }
+   return null;
+}
+
+/**
+ * The public facts of a file tool call, for the run transcript: the file a
+ * read or write touched and its size, and how many files a listing returned.
+ * Null for every other tool, and for a call whose result does not say.
+ */
+export function toolDetail(name: string, input: unknown, result: unknown): ToolDetail | null {
+   const args = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+   const out = resultObject(result);
+   const path = typeof args.path === 'string' ? args.path.slice(0, 1024) : undefined;
+   const size = (value: unknown) =>
+      typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
+   let detail: ToolDetail | null = null;
+   switch (name) {
+      case 'list_files':
+         if (Array.isArray(out?.files)) detail = { count: out.files.length };
+         break;
+      case 'read_file':
+         detail = { ...(path ? { path } : {}), ...(size(out?.sizeBytes) !== undefined ? { bytes: size(out?.sizeBytes)! } : {}) };
+         break;
+      case 'write_file':
+         detail = {
+            ...(path ? { path } : {}),
+            ...(typeof args.content === 'string' ? { bytes: Buffer.byteLength(args.content) } : {}),
+         };
+         break;
+      case 'attach_file':
+         detail = { ...(path ? { path } : {}), ...(size(out?.sizeBytes) !== undefined ? { bytes: size(out?.sizeBytes)! } : {}) };
+         break;
+   }
+   return detail && Object.keys(detail).length > 0 ? detail : null;
 }
 
 export class LedgerPlugin implements Plugin {
@@ -40,6 +99,8 @@ export class LedgerPlugin implements Plugin {
    readonly #output: OutputBuffer;
    /** Tools the model has called and not yet heard back from. */
    readonly #open = new Map<string, string>();
+   /** When each open tool call started, for its duration. */
+   readonly #startedAt = new Map<string, number>();
    /**
     * Set once the ledger refuses a write because the run ended — cancelled
     * while a tool was draining. The run's own ending is already recorded, and
@@ -69,19 +130,26 @@ export class LedgerPlugin implements Plugin {
          // happened: the agent said something, then called something.
          await this.#write(() => this.#output.flush());
          this.#open.set(event.toolUse.toolUseId, event.toolUse.name);
+         this.#startedAt.set(event.toolUse.toolUseId, Date.now());
          await this.#write(() =>
             this.#ledger.appendToolStarted(this.#runId, event.toolUse.toolUseId, event.toolUse.name)
          );
       });
 
       agent.addHook(AfterToolCallEvent, async (event) => {
-         this.#open.delete(event.toolUse.toolUseId);
+         const id = event.toolUse.toolUseId;
+         this.#open.delete(id);
+         const started = this.#startedAt.get(id);
+         this.#startedAt.delete(id);
          // A thrown tool and a denied tool both arrive as an error result;
          // the ledger only learns by looking.
          const ok = !event.error && event.result.status !== 'error';
-         await this.#write(() =>
-            this.#ledger.appendToolCompleted(this.#runId, event.toolUse.toolUseId, ok)
-         );
+         const detail = ok ? toolDetail(event.toolUse.name, event.toolUse.input, event.result) : null;
+         const extra: ToolCompletion = {
+            ...(started === undefined ? {} : { durationMs: Math.max(0, Date.now() - started) }),
+            ...(detail ? { detail } : {}),
+         };
+         await this.#write(() => this.#ledger.appendToolCompleted(this.#runId, id, ok, extra));
       });
 
       // The end of one model message, which the SDK adds after its tools have
@@ -100,6 +168,7 @@ export class LedgerPlugin implements Plugin {
             await this.#write(() => this.#ledger.appendToolCompleted(this.#runId, id, false));
          }
          this.#open.clear();
+         this.#startedAt.clear();
       });
    }
 

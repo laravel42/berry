@@ -3,6 +3,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
 
 export { RunTerminal };
+import type { ToolDetail } from '../runtime/lifecycle.ts';
 import { notifyRunTerminal } from './terminal-hooks.ts';
 
 /**
@@ -284,11 +285,23 @@ export class RunLedger {
    }
 
    /** Only the outcome. Tool output is never recorded. */
-   async appendToolCompleted(runId: string, toolCallId: string, succeeded: boolean): Promise<void> {
+   /**
+    * `durationMs` and `detail` come from the runtime: how long the tool took,
+    * and for a file tool which file and how big (never its contents). Both are
+    * left out when the runtime did not send them, so older rows read the same.
+    */
+   async appendToolCompleted(
+      runId: string,
+      toolCallId: string,
+      succeeded: boolean,
+      extra: { durationMs?: number; detail?: ToolDetail } = {}
+   ): Promise<void> {
       await this.appendActiveEvent(runId, 'run.tool.completed', {
          toolCallId,
          status: succeeded ? 'succeeded' : 'failed',
          outputSummary: null,
+         ...(extra.durationMs === undefined ? {} : { durationMs: extra.durationMs }),
+         ...(extra.detail ? { detail: extra.detail } : {}),
       });
    }
 

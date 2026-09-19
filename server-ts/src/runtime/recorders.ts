@@ -46,7 +46,7 @@ export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
                case 'tool.started':
                   return ledger.appendToolStarted(runId, message.toolCallId, message.name);
                case 'tool.completed':
-                  return ledger.appendToolCompleted(runId, message.toolCallId, message.succeeded);
+                  return ledger.appendToolCompleted(runId, message.toolCallId, message.succeeded, completionOf(message));
                case 'command.started':
                   return ledger.appendCommandStarted(runId, { commandId: message.commandId, command: message.command, cwd: message.cwd });
                case 'command.output':
@@ -133,7 +133,7 @@ export function directRecorder(
          } else if (message.kind === 'tool.started' && ledger.appendToolStarted) {
             await ledger.appendToolStarted(runId, message.toolCallId, message.name).catch(late);
          } else if (message.kind === 'tool.completed' && ledger.appendToolCompleted) {
-            await ledger.appendToolCompleted(runId, message.toolCallId, message.succeeded).catch(late);
+            await ledger.appendToolCompleted(runId, message.toolCallId, message.succeeded, completionOf(message)).catch(late);
          }
       },
       async succeeded({ summary, usage, result }) {
@@ -166,5 +166,15 @@ export function directRecorder(
          RETURNING id`;
          await announce(rows);
       },
+   };
+}
+
+/** A finished tool's duration and file facts, as the ledger takes them. */
+function completionOf(
+   message: Extract<TaskMessage, { kind: 'tool.completed' }>
+): { durationMs?: number; detail?: NonNullable<typeof message.detail> } {
+   return {
+      ...(message.durationMs === undefined ? {} : { durationMs: message.durationMs }),
+      ...(message.detail ? { detail: message.detail } : {}),
    };
 }

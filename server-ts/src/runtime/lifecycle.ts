@@ -21,10 +21,29 @@ export const taskUsageSchema = z.object({
    cacheWriteTokens: z.number().int().nonnegative(),
 });
 
+/**
+ * The public facts about a file tool call: which file, how big, how many. The
+ * same standing as a command line, which the ledger records in full; a file's
+ * contents and a tool's other arguments stay out.
+ */
+export const toolDetailSchema = z.object({
+   path: z.string().max(1024).optional(),
+   bytes: z.number().int().nonnegative().optional(),
+   count: z.number().int().nonnegative().optional(),
+});
+
 export const taskMessageSchema = z.discriminatedUnion('kind', [
    z.object({ kind: z.literal('output'), channel: z.string(), text: z.string() }),
    z.object({ kind: z.literal('tool.started'), toolCallId: z.string(), name: z.string() }),
-   z.object({ kind: z.literal('tool.completed'), toolCallId: z.string(), succeeded: z.boolean() }),
+   z.object({
+      kind: z.literal('tool.completed'),
+      toolCallId: z.string(),
+      succeeded: z.boolean(),
+      /** How long the tool took, measured in the runtime. */
+      durationMs: z.number().nonnegative().optional(),
+      /** What a file tool touched; see `toolDetail`. Never the tool's content. */
+      detail: toolDetailSchema.optional(),
+   }),
    z.object({
       kind: z.literal('command.started'),
       commandId: z.string(),
@@ -137,6 +156,7 @@ export const lifecycleEventSchema = z.discriminatedUnion('type', [
 ]);
 
 export type TaskUsage = z.infer<typeof taskUsageSchema>;
+export type ToolDetail = z.infer<typeof toolDetailSchema>;
 export type TaskMessage = z.infer<typeof taskMessageSchema>;
 export type TaskDelivery = z.infer<typeof taskDeliverySchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
