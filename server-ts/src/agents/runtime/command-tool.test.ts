@@ -108,6 +108,17 @@ test('a failing command is a result the model can read, not an exception', async
    assert.equal(result.stderr, 'error: type mismatch\n');
 });
 
+test('a clock that steps back under a command never yields a negative duration', async () => {
+   // A container's wall clock is adjusted while it runs. A negative duration
+   // is refused by the lifecycle schema, and that one frame failed a whole run.
+   const { ledger, events } = fakeLedger();
+   let now = 10_000;
+   const backwards = () => new Date((now -= 250));
+   await call(tool(fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }]), ledger, backwards), { command: 'true' });
+   const completed = events.find((event) => event.type === 'completed')!;
+   assert.equal(completed.durationMs, 0);
+});
+
 test('the command is recorded verbatim, which the other tools never do', async () => {
    const { ledger, events } = fakeLedger();
    const session = fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }]);

@@ -12,6 +12,16 @@ import { z } from 'zod';
  * verification report — so the server maps each kind onto one ledger method.
  */
 
+/**
+ * How long something took, as the runtime measured it.
+ *
+ * A fact for the reader and never a reason to end a run: a container's wall
+ * clock steps back under a 40 ms command, the duration comes out negative, and
+ * refusing that frame failed a run whose work was fine. A duration that is not
+ * a non-negative number is read as zero.
+ */
+const durationMs = z.number().nonnegative().catch(0);
+
 export const taskUsageSchema = z.object({
    eventId: z.string().min(1).max(200).optional(),
    model: z.string(),
@@ -40,7 +50,7 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
       toolCallId: z.string(),
       succeeded: z.boolean(),
       /** How long the tool took, measured in the runtime. */
-      durationMs: z.number().nonnegative().optional(),
+      durationMs: durationMs.optional(),
       /** What a file tool touched; see `toolDetail`. Never the tool's content. */
       detail: toolDetailSchema.optional(),
    }),
@@ -60,7 +70,7 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
       kind: z.literal('command.completed'),
       commandId: z.string(),
       exitCode: z.number().int().nullable(),
-      durationMs: z.number().nonnegative(),
+      durationMs,
       truncated: z.boolean(),
    }),
    z.object({
@@ -73,13 +83,13 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
       kind: z.literal('verified'),
       passed: z.boolean(),
       complete: z.boolean(),
-      durationMs: z.number().nonnegative(),
+      durationMs,
       results: z.array(
          z.object({
             command: z.string(),
             exitCode: z.number().int().nullable(),
             passed: z.boolean(),
-            durationMs: z.number().nonnegative(),
+            durationMs,
             error: z.string().nullable(),
          })
       ),

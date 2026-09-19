@@ -68,3 +68,25 @@ test('a failure may carry a checkpoint of the work already done, and need not', 
    const plain = lifecycleEventSchema.parse({ type: 'task.failed', failure });
    assert.ok(plain.type === 'task.failed' && plain.delivery === undefined);
 });
+
+test('a duration that is not a non-negative number reads as zero and never ends the run', () => {
+   // A container's clock stepping back under a 40 ms command made one negative
+   // duration, and refusing that frame failed a run whose work was fine.
+   const completed = (durationMs: unknown) =>
+      lifecycleEventSchema.safeParse({
+         type: 'task.message',
+         message: { kind: 'command.completed', commandId: 'c', exitCode: 0, durationMs, truncated: false },
+      });
+   for (const bad of [-12, null, 'soon', undefined]) {
+      const parsed = completed(bad);
+      assert.equal(parsed.success && parsed.data.type === 'task.message' && 'durationMs' in parsed.data.message && parsed.data.message.durationMs, 0);
+   }
+   const kept = completed(41);
+   assert.equal(kept.success && kept.data.type === 'task.message' && 'durationMs' in kept.data.message && kept.data.message.durationMs, 41);
+   // Only the duration is forgiven: the rest of the frame is still the contract.
+   const wrong = lifecycleEventSchema.safeParse({
+      type: 'task.message',
+      message: { kind: 'command.completed', commandId: 'c', exitCode: 'zero', durationMs: 41, truncated: false },
+   });
+   assert.equal(wrong.success, false);
+});

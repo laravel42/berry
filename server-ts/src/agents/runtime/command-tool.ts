@@ -168,7 +168,10 @@ export function runCommandTool(scope: CommandToolScope): Tool {
             .appendCommandCompleted(scope.runId, {
                commandId,
                exitCode,
-               durationMs: clock().getTime() - startedAt,
+               // Never negative: the wall clock in a container can step back
+               // under a command, and one such frame fails the whole run as a
+               // protocol error on the far side.
+               durationMs: Math.max(0, clock().getTime() - startedAt),
                truncated: recorder.truncated,
             })
             .catch(() => undefined);

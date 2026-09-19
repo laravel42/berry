@@ -107,7 +107,7 @@ export async function verify(options: VerifyOptions): Promise<VerificationReport
          command,
          exitCode,
          passed: exitCode === 0,
-         durationMs: clock().getTime() - began,
+         durationMs: Math.max(0, clock().getTime() - began),
          output,
          error,
       });
@@ -119,7 +119,7 @@ export async function verify(options: VerifyOptions): Promise<VerificationReport
       // did run reported.
       passed: complete && results.length > 0 && results.every((result) => result.passed),
       complete,
-      durationMs: clock().getTime() - startedAt,
+      durationMs: Math.max(0, clock().getTime() - startedAt),
    };
 }
 
