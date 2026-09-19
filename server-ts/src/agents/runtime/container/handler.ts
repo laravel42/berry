@@ -13,6 +13,7 @@ import type { ModelFactory } from '../model.ts';
 import { AccountingPlugin } from '../plugins/accounting.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
+import { StepBudgetPlugin, budgetContract } from '../plugins/step-budget.ts';
 import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
 import { truncateUtf8 } from '../utf8.ts';
@@ -241,6 +242,9 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
                   exempt: new Set([...remote.map((t) => t.name), ...mcp.tools.map((t) => t.name)]),
                }),
                outcome,
+               // Last, so the ledger and the outcome read the tool's own result,
+               // not the one a budget notice was added to.
+               new StepBudgetPlugin({ maxTurns: envelope.agent.maxTurns }),
             ],
             maxTokens: envelope.agent.maxTokens ?? undefined,
             temperature: envelope.agent.temperature ?? undefined,
@@ -251,7 +255,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       );
       if (directory) agent.appState.set(WORKDIR_KEY, directory);
 
-      const result = await agent.invoke(envelope.task.prompt, {
+      const result = await agent.invoke(envelope.task.prompt + budgetContract(envelope.agent.maxTurns), {
          cancelSignal: signal,
          limits: {
             ...(envelope.agent.maxTurns ? { turns: envelope.agent.maxTurns } : {}),
