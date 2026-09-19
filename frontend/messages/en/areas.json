@@ -276,7 +276,7 @@
          "secretsBody": "The server keeps only a hash of the URL's token and a sealed secret.",
          "endpoint": "Endpoint (POST)",
          "signingSecret": "Signing secret",
-         "signingHint": "Sign the raw body with HMAC-SHA256 and send it as X-Berry-Signature: sha256=<hex>. Name the event in X-Berry-Event or a top-level event field.",
+         "signingHint": "Sign the raw body with HMAC-SHA256 and send it as X-Berry-Signature: sha256='<hex>'. Name the event in X-Berry-Event or a top-level event field.",
          "show": "Show",
          "hide": "Hide",
          "copy": "Copy",
