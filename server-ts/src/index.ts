@@ -16,6 +16,7 @@ const PLUGIN_MCP_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
 import { loadConfig } from './config/config.ts';
 import { checkDatabase, closeDatabase, openDatabase } from './db/pool.ts';
+import { pending as pendingMigrations } from './migrate/migrations.ts';
 import { createApp } from './http/app.ts';
 import { Registry } from './http/registry.ts';
 import { platformMounts } from './mounts/platform.ts';
@@ -181,6 +182,18 @@ import { SkillRepository } from './skills/repository.ts';
 const config = loadConfig();
 const logger = createLogger(config.serviceName);
 const sql = openDatabase({ url: config.databaseUrl });
+
+// The server does not migrate by itself. On a database that is behind, say so
+// once and stop, rather than serve a schema the code does not match.
+const unapplied = await pendingMigrations(sql);
+if (unapplied > 0) {
+   logger.error('the database schema is behind; run the migrations, then start again', {
+      pending: unapplied,
+      command: 'pnpm migrate:server',
+   });
+   await closeDatabase(sql);
+   process.exit(1);
+}
 
 /**
  * Sign-in, when this deployment has a secret to sign cookies with and an

@@ -138,6 +138,22 @@ export async function apply(sql: Sql, logger: Logger): Promise<void> {
    }
 }
 
+/**
+ * How many shipped migrations this database has not applied.
+ *
+ * The server asks before it starts. It does not migrate by itself, and booting
+ * on a database that is behind fails one query at a time, each with a
+ * `relation does not exist` that says nothing about the cause.
+ */
+export async function pending(sql: Sql, directory: string = DIRECTORY): Promise<number> {
+   const migrations = await list(directory);
+   const [ledger] = await sql<{ present: boolean }[]>`
+      SELECT to_regclass('berry_schema_migrations') IS NOT NULL AS present`;
+   if (!ledger?.present) return migrations.length;
+   const applied = await readApplied(sql);
+   return migrations.filter((migration) => !applied.has(migration.version)).length;
+}
+
 async function readApplied(conn: Sql): Promise<Map<number, AppliedMigration>> {
    const rows = await conn<{ version: number; name: string; checksum: string }[]>`
       SELECT version, name, checksum FROM berry_schema_migrations ORDER BY version
