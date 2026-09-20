@@ -69,6 +69,10 @@ services:
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
          BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
          BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
+         # Optional: cross-run recall (AgentCore Memory) and where Nova Reel renders video.
+         BERRY_AGENTCORE_REGION: ${BERRY_AGENTCORE_REGION:-}
+         BERRY_AGENTCORE_MEMORY_ID: ${BERRY_AGENTCORE_MEMORY_ID:-}
+         BERRY_MEDIA_VIDEO_S3_URI: ${BERRY_MEDIA_VIDEO_S3_URI:-}
          # Previews, each at p-<id>-<app>.<preview domain>.
          BERRY_PREVIEW_DOMAIN: ${BERRY_PREVIEW_DOMAIN:?set BERRY_PREVIEW_DOMAIN}
          BERRY_PREVIEW_SCHEME: ${BERRY_SCHEME:-http}
@@ -152,6 +156,10 @@ services:
       build:
          context: ../../server-ts
          dockerfile: sandbox/agentcore/Dockerfile
+         args:
+            # The image defaults to arm64, which is what AgentCore runs. Here it
+            # runs on this server: amd64 unless the server is an ARM machine.
+            BERRY_RUNTIME_PLATFORM: ${BERRY_RUNTIME_PLATFORM:-linux/amd64}
       image: berry-agent-runtime
       entrypoint: ['true']
       restart: 'no'

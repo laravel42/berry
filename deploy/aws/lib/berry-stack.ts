@@ -120,12 +120,13 @@ export class BerryStack extends Stack {
       const platform = arm ? ecrAssets.Platform.LINUX_ARM64 : ecrAssets.Platform.LINUX_AMD64;
       // `exclude` is also what the asset's hash is taken over: an image is rebuilt
       // and released only when something it is made from changed.
-      const image = (name: string, directory: string, file: string, exclude: string[] = []) =>
-         new ecrAssets.DockerImageAsset(this, `${name}Image`, { directory, file, platform, exclude: [...NOT_CONTEXT, ...exclude], ignoreMode: IgnoreMode.DOCKER });
+      const image = (name: string, directory: string, file: string, exclude: string[] = [], buildArgs: Record<string, string> = {}) =>
+         new ecrAssets.DockerImageAsset(this, `${name}Image`, { directory, file, platform, buildArgs, exclude: [...NOT_CONTEXT, ...exclude], ignoreMode: IgnoreMode.DOCKER });
       const images = {
          api: image('Api', repository, 'deploy/docker/api.Dockerfile', ['frontend', 'packages', 'scripts', '**/*.test.ts']),
          web: image('Web', repository, 'deploy/docker/web.Dockerfile', ['server-ts/*', '!server-ts/package.json', 'scripts']),
-         runtime: image('Runtime', `${repository}server-ts`, 'sandbox/agentcore/Dockerfile'),
+         // Its Dockerfile pins arm64 for AgentCore; here it runs on the host, whatever that is.
+         runtime: image('Runtime', `${repository}server-ts`, 'sandbox/agentcore/Dockerfile', [], { BERRY_RUNTIME_PLATFORM: arm ? 'linux/arm64' : 'linux/amd64' }),
          preview: image('Preview', `${repository}server-ts/sandbox/preview`, 'Dockerfile'),
       };
 
