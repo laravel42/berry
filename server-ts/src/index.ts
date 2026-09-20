@@ -1029,7 +1029,7 @@ const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
 registerChatReplies({ sql, conversations: conversationRepository });
-registerOrganizationToolsFor({ sql, issues, gate: reviewGate });
+registerOrganizationToolsFor({ sql, issues, gate: reviewGate, limits: config.organization });
 registry.registerAll(
    conversationMounts({
       sessions,

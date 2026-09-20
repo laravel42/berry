@@ -28,6 +28,14 @@ export interface PromptContext extends Dispatch {
     */
    priorWork?: string;
    /**
+    * The tasks around this one: the task it was carved out of, and what its own
+    * sub-tasks came back with (see `relatedTasks` in the envelope builder). An
+    * agent sees only what crosses the boundary into its task, and whoever
+    * delegated it rarely copied the goal in: without this it asks for context
+    * that exists one level up, or redoes what a sub-task already answered.
+    */
+   related?: string;
+   /**
     * The merge this run has to make, when its branch conflicts with the default
     * branch (see `runtime/merge-plan.ts`). Berry's own words, not task data, so
     * it is not fenced.
@@ -40,6 +48,9 @@ export function buildMessage(dispatch: PromptContext): string {
 
    if (dispatch.issueDescription) {
       message += `\n\nDescription:\n${fenced('issue_description', dispatch.issueDescription)}`;
+   }
+   if (dispatch.related) {
+      message += `\n\nThe tasks around this one, for context. They are not yours to do:\n${fenced('related_tasks', dispatch.related)}`;
    }
    if (dispatch.instructions) {
       message += `\n\nRun instructions:\n${fenced('run_instructions', dispatch.instructions)}`;

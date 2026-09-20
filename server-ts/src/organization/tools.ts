@@ -21,6 +21,7 @@ import { postRunResult } from '../runs/result-comment.ts';
 import { defaultBoardId } from '../work/batch.ts';
 import { setParent } from '../work/hierarchy.ts';
 import { callerContract, canDelegate, roleAgent } from './delegation.ts';
+import { DEFAULT_ORGANIZATION_LIMITS, type OrganizationLimits } from '../config/config.ts';
 import { MAX_PROPOSALS_PER_RUN } from './discovery.ts';
 import { acceptDecision, fingerprintProposal, proposalSchema, type ProposalInput } from './proposals.ts';
 
@@ -36,6 +37,8 @@ export interface OrganizationToolDeps {
    issues: IssueRepository;
    /** Records `submit_review` verdicts; null where the deployment cannot run reviews. */
    gate?: Pick<ReviewGate, 'recordVerdict'> | null;
+   /** The deployment's ceilings on handing work around (config `organization`). The defaults when absent. */
+   limits?: OrganizationLimits;
    /**
     * Test seam only: called right after `propose_work` creates its task, before
     * the label, approval and `work_proposals` writes. Throwing here exercises
@@ -76,8 +79,71 @@ async function parentOf(context: AgentToolContext, issueId: string) {
    return row;
 }
 
+/**
+ * Refuses a new sub-task that would make the tree too deep, or one run too
+ * prolific. Said to the agent in words it can act on: a refusal is a tool
+ * result it reads, and the way out is always to do the work or ask a person.
+ */
+async function assertMayCreateSubTask(context: AgentToolContext, limits: OrganizationLimits, parentId: string): Promise<void> {
+   if (limits.maxDelegationDepth > 0) {
+      const [row] = await context.sql<Array<{ depth: number }>>`
+         WITH RECURSIVE lineage AS (
+            SELECT id, parent_id, 0 AS depth FROM issues WHERE id = ${parentId}
+            UNION ALL
+            SELECT parent.id, parent.parent_id, lineage.depth + 1
+              FROM lineage JOIN issues AS parent ON parent.id = lineage.parent_id
+             WHERE lineage.depth < 100
+         )
+         SELECT max(depth)::int AS depth FROM lineage`;
+      if ((row?.depth ?? 0) + 1 > limits.maxDelegationDepth) {
+         throw new ApiError(
+            409,
+            'DELEGATION_TOO_DEEP',
+            `This task is already ${row?.depth ?? 0} level(s) below the one a person filed, and sub-tasks stop at ${limits.maxDelegationDepth}. Do this piece yourself, or escalate to a person.`
+         );
+      }
+   }
+   if (limits.maxDelegationsPerRun > 0) {
+      const [row] = await context.sql<Array<{ n: number }>>`
+         SELECT count(*)::int AS n FROM issues
+          WHERE parent_id = ${parentId} AND deleted_at IS NULL
+            AND created_at >= COALESCE((SELECT COALESCE(started_at, created_at) FROM runs WHERE id = ${context.task.runId}), '-infinity'::timestamptz)`;
+      if ((row?.n ?? 0) >= limits.maxDelegationsPerRun) {
+         throw new ApiError(
+            429,
+            'DELEGATION_LIMIT',
+            `This run has already created ${row?.n} sub-tasks, and a run may create ${limits.maxDelegationsPerRun}. Wait for those to finish, or do the rest yourself.`
+         );
+      }
+   }
+}
+
+/**
+ * Refuses a handoff that is two roles passing one task back and forth. The
+ * last handoffs of the task, with this one, must involve enough different
+ * agents; sending a task back once is ordinary and is not refused.
+ */
+async function assertNotBouncing(context: AgentToolContext, limits: OrganizationLimits, issueId: string, targetAgentId: string, identifier: string): Promise<void> {
+   if (limits.handoffWindow < 2 || limits.handoffMinUniqueAgents < 2) return;
+   const recent = await context.sql<Array<{ assignee_id: string }>>`
+      SELECT assignee_id FROM assignments
+       WHERE issue_id = ${issueId} AND assignee_type = 'agent'
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${limits.handoffWindow - 1}`;
+   const holders = [targetAgentId, ...recent.map((row) => row.assignee_id)];
+   if (holders.length < limits.handoffWindow) return;
+   if (new Set(holders).size < limits.handoffMinUniqueAgents) {
+      throw new ApiError(
+         409,
+         'HANDOFF_LOOP',
+         `${identifier} has gone back and forth between the same roles for its last ${limits.handoffWindow} handoffs. Handing it over again will not settle it: resolve it yourself, or escalate to a person.`
+      );
+   }
+}
+
 export function registerOrganizationTools(deps: OrganizationToolDeps): void {
    if (getAgentTool('delegate_to_agent')) return;
+   const limits = deps.limits ?? DEFAULT_ORGANIZATION_LIMITS;
 
    registerAgentTool('delegate_to_agent', {
       description:
@@ -98,6 +164,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             throw new ApiError(403, 'DELEGATION_NOT_ALLOWED', `${caller.id} cannot hand work to ${input.role}`);
          }
          const parentId = issueOf(context);
+         await assertMayCreateSubTask(context, limits, parentId);
          const parent = await parentOf(context, parentId);
          const description = [
             input.description.trim(),
@@ -172,6 +239,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
          if (task.status === 'done' || task.status === 'cancelled') {
             throw new ApiError(409, 'TASK_CLOSED', `${task.identifier} is ${task.status}; a person reopens it, not an agent`);
          }
+         await assertNotBouncing(context, limits, issueId, target.id, task.identifier);
          const waitingOn = await context.sql<Array<{ identifier: string }>>`
             SELECT berry_issue_identifier(bb.workspace_id, blocker.number) AS identifier
               FROM issue_dependencies AS edge
@@ -321,6 +389,8 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
          } else {
             const owner = await roleAgent(context.sql, context.task.workspaceId, input.to);
             if (!owner) throw ApiError.notFound('Role');
+            // A decision handed to a role is a sub-task like any other. One asked of a person is not, and is never refused here.
+            await assertMayCreateSubTask(context, limits, issueId);
             const { issue } = await deps.issues.create({
                boardId: parent.board_id,
                title: `Decision: ${input.question.slice(0, 200)}`,

@@ -21,6 +21,11 @@ import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
 
+/** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
+const RELATED_PARENT_CHARS = 1500;
+const RELATED_CHILD_CHARS = 600;
+const RELATED_CHILDREN = 12;
+
 export interface CompletionSpec {
    purpose: string;
    system: string;
@@ -214,7 +219,8 @@ export class EnvelopeBuilder {
       // builds an envelope without the ledger's claim (a preview, a retry
       // path) still gets the issue prompt rather than a bare message.
       const dispatch = input.dispatch ?? (await this.#readDispatch(task.runId));
-      const [reviewFeedback, recalled, comments, dependencies, projectResources] = await Promise.all([
+      const [related, reviewFeedback, recalled, comments, dependencies, projectResources] = await Promise.all([
+         this.#related(dispatch.issueId),
          lastRejection(this.#deps.sql, dispatch.issueId),
          this.#deps.memory.recall({ agentId: task.agentId, issueId: dispatch.issueId }),
          this.#comments(dispatch.issueId),
@@ -233,6 +239,7 @@ export class EnvelopeBuilder {
                prompt: buildMessage({
                   ...dispatch,
                   reviewFeedback,
+                  ...(related ? { related } : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
@@ -372,6 +379,57 @@ export class EnvelopeBuilder {
          body: row.body as string,
          createdAt: new Date(row.created_at as string).toISOString(),
       }));
+   }
+
+   /**
+    * The task this one was carved out of, and what its own sub-tasks came back
+    * with, as text for the prompt. Short on purpose: a parent's goal and each
+    * sub-task's summary, not their transcripts, because everything here is
+    * paid for on every turn of the run. Null for a task with neither.
+    */
+   async #related(issueId: string): Promise<string | null> {
+      const [parent] = await this.#deps.sql`
+         SELECT berry_issue_identifier(pb.workspace_id, parent.number) AS identifier,
+                parent.title, parent.description, parent.status::text AS status
+           FROM issues AS me
+           JOIN issues AS parent ON parent.id = me.parent_id AND parent.deleted_at IS NULL
+           JOIN boards AS pb ON pb.id = parent.board_id
+          WHERE me.id = ${issueId}`;
+      const children = await this.#deps.sql`
+         SELECT berry_issue_identifier(cb.workspace_id, child.number) AS identifier,
+                child.title, child.status::text AS status,
+                (SELECT run.summary FROM runs AS run
+                  WHERE run.issue_id = child.id AND run.status = 'succeeded' AND run.summary IS NOT NULL
+                  ORDER BY run.completed_at DESC NULLS LAST LIMIT 1) AS summary
+           FROM issues AS child
+           JOIN boards AS cb ON cb.id = child.board_id
+          WHERE child.parent_id = ${issueId} AND child.deleted_at IS NULL
+          ORDER BY child.created_at
+          LIMIT ${RELATED_CHILDREN}`;
+      if (!parent && children.length === 0) return null;
+      const clip = (text: string | null, limit: number): string => {
+         const flat = (text ?? '').trim();
+         return flat.length <= limit ? flat : `${flat.slice(0, limit).trimEnd()} […]`;
+      };
+      const parts: string[] = [];
+      if (parent) {
+         parts.push(
+            `This task is part of ${parent.identifier as string} (${parent.status as string}): ${parent.title as string}` +
+               (parent.description ? `\n${clip(parent.description as string, RELATED_PARENT_CHARS)}` : '')
+         );
+      }
+      if (children.length > 0) {
+         parts.push(
+            'Its sub-tasks:\n' +
+               children
+                  .map((child) => {
+                     const summary = clip(child.summary as string | null, RELATED_CHILD_CHARS);
+                     return `- ${child.identifier as string} (${child.status as string}): ${child.title as string}${summary ? `\n  Came back with: ${summary.replaceAll('\n', '\n  ')}` : ''}`;
+                  })
+                  .join('\n')
+         );
+      }
+      return parts.join('\n\n');
    }
 
    /** Spec 2.2: the envelope carries the issue's dependencies (same query as the `list_dependencies` tool). */

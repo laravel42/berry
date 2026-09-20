@@ -25,6 +25,7 @@ export interface Config {
     * Berry and names it here, with the scheme and port a browser really uses.
     */
    previews: { domain: string; scheme: 'http' | 'https'; port: number | null };
+   organization: OrganizationLimits;
    storage: StorageConfig | null;
    agents: AgentConfig | null;
    /** Where tasks run and how they are bounded (ADR-0014). */
@@ -295,6 +296,40 @@ export class ConfigError extends Error {
    }
 }
 
+/**
+ * What bounds the work agents hand to each other.
+ *
+ * One run is bounded by its step budget. A tree of tasks is not: each
+ * delegation is another run, a delegated task can delegate again, and two roles
+ * that list each other can pass one task back and forth, every pass a paid run.
+ * These are the ceilings on that, for the whole deployment. Zero turns one off.
+ */
+export interface OrganizationLimits {
+   /** How far below the task a person filed a sub-task may sit. A task at this depth cannot delegate further. */
+   maxDelegationDepth: number;
+   /** Sub-tasks (delegations and decisions handed to a role) one run may create. */
+   maxDelegationsPerRun: number;
+   /** The recent handoffs of a task that are looked at when it is handed on again. */
+   handoffWindow: number;
+   /** The distinct agents those handoffs must involve. Fewer is two roles bouncing the task. */
+   handoffMinUniqueAgents: number;
+}
+
+export const DEFAULT_ORGANIZATION_LIMITS: OrganizationLimits = { maxDelegationDepth: 3, maxDelegationsPerRun: 5, handoffWindow: 4, handoffMinUniqueAgents: 3 };
+
+function organizationLimits(env: NodeJS.ProcessEnv): OrganizationLimits {
+   const limit = (value: string | undefined, fallback: number): number => {
+      const trimmed = (value ?? '').trim();
+      return /^\d+$/.test(trimmed) ? Math.min(Number(trimmed), 1000) : fallback;
+   };
+   return {
+      maxDelegationDepth: limit(env.BERRY_DELEGATION_MAX_DEPTH, DEFAULT_ORGANIZATION_LIMITS.maxDelegationDepth),
+      maxDelegationsPerRun: limit(env.BERRY_DELEGATIONS_PER_RUN, DEFAULT_ORGANIZATION_LIMITS.maxDelegationsPerRun),
+      handoffWindow: limit(env.BERRY_HANDOFF_WINDOW, DEFAULT_ORGANIZATION_LIMITS.handoffWindow),
+      handoffMinUniqueAgents: limit(env.BERRY_HANDOFF_MIN_UNIQUE_AGENTS, DEFAULT_ORGANIZATION_LIMITS.handoffMinUniqueAgents),
+   };
+}
+
 function previews(env: NodeJS.ProcessEnv, apiPort: number): Config['previews'] {
    const domain = (env.BERRY_PREVIEW_DOMAIN ?? '').trim().toLowerCase().replace(/^\*?\./, '') || 'preview.localhost';
    const scheme = (env.BERRY_PREVIEW_SCHEME ?? '').trim().toLowerCase() === 'https' ? 'https' : 'http';
@@ -340,6 +375,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // Per-subscriber event buffer, before a slow client is dropped.
       realtimeBuffer: positiveInt(env.REALTIME_BUFFER, 64),
       previews: previews(env, port),
+      organization: organizationLimits(env),
       storage: storage(env),
       agents: agents(env),
       runtime: runtime(env),

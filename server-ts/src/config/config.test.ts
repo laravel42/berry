@@ -202,3 +202,9 @@ test('a slug that could not be a GitHub App name is refused', () => {
       (error: unknown) => error instanceof ConfigError && /BERRY_GITHUB_APP_SLUG/.test(error.message)
    );
 });
+
+test('the ceilings on handing work around are deployment-wide, with defaults, and zero turns one off', () => {
+   assert.deepEqual(loadConfig(base).organization, { maxDelegationDepth: 3, maxDelegationsPerRun: 5, handoffWindow: 4, handoffMinUniqueAgents: 3 });
+   const set = loadConfig({ ...base, BERRY_DELEGATION_MAX_DEPTH: '2', BERRY_DELEGATIONS_PER_RUN: '0', BERRY_HANDOFF_WINDOW: '6', BERRY_HANDOFF_MIN_UNIQUE_AGENTS: 'many' }).organization;
+   assert.deepEqual(set, { maxDelegationDepth: 2, maxDelegationsPerRun: 0, handoffWindow: 6, handoffMinUniqueAgents: 3 });
+});
