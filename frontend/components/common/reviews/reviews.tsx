@@ -19,6 +19,7 @@ import {
 import { useSessionStore } from '@/store/session-store';
 import { X } from 'lucide-react';
 import Link from 'next/link';
+import { useReviewsStore } from '@/store/reviews-store';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import {
@@ -102,7 +103,7 @@ function ReviewRow({
                className="pt-px"
             />
             <span className="min-w-0 flex-1">
-               <span className="line-clamp-3 break-all text-sm">
+               <span className="line-clamp-3 leading-5 break-all">
                   <span className="font-bold text-muted-foreground">{item.issue.identifier}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span className={branch ? 'font-mono' : undefined}>{label}</span>
@@ -261,9 +262,16 @@ export default function Reviews({
       }
    }, [workspace, state, t]);
 
+   // The shared queue (the rail's badge) is kept current as agents deliver and
+   // people decide. When it changes, this list is behind too: fetched again, so
+   // a review that arrives while the page is open appears without a reload.
+   const queueSignature = useReviewsStore(
+      (store) => store.open?.map((item) => item.id).join(',') ?? null
+   );
+
    useEffect(() => {
       void fetchItems();
-   }, [fetchItems]);
+   }, [fetchItems, queueSignature]);
 
    /**
     * After a decision the decided task leaves the waiting list. The next one
