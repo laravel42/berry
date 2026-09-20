@@ -41,7 +41,7 @@ A preview answers at `p-<id>-<app>.<preview domain>`, a different host per previ
 2. **Dokploy:** Project → Create Service → **Compose**. Provider: this Git repository and branch. Compose path: `deploy/dokploy/docker-compose.yml`.
 3. **Environment tab:** paste `.env.example` from this folder and fill it in. Generate the four secrets with `openssl rand -base64 32` (`openssl rand -hex 24` for the database password). Keep `INTEGRATION_ENCRYPTION_KEY` somewhere safe: it seals every stored credential and build variable.
 4. **Domains tab:** add `dev.berry.pm` → service `web`, port `3000`, HTTPS **off** (Cloudflare holds the certificate; turning it on makes Traefik redirect the tunnel's HTTP in a loop). The preview route is already in the compose file, because it is a pattern and the Domains tab takes one host.
-5. **Deploy.** The first deploy builds three images and takes 10 to 15 minutes. Migrations run when the API starts.
+5. **Deploy.** The first deploy builds three images and takes 10 to 15 minutes. The `api` container applies the database migrations before it starts the server.
 6. **Sign-in:** create a GitHub OAuth App with callback `https://dev.berry.pm/api/auth/callback/github`, put its id and secret in the Environment tab, deploy again.
 
 Check it: `https://dev.berry.pm/ready` answers `200`.

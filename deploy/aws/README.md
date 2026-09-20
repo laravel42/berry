@@ -59,7 +59,7 @@ Any variable the API reads (`.env.example` lists them) can be added to that secr
 
 ## Releases and changes
 
-- **New code:** `npx cdk deploy …` again. Only images whose sources changed are rebuilt; the host pulls them and restarts those containers. Migrations run when the API starts. A release whose API does not answer `/ready` within three minutes fails the deploy and prints the API's last log lines.
+- **New code:** `npx cdk deploy …` again. Only images whose sources changed are rebuilt; the host pulls them and restarts those containers. The `api` container applies the database migrations before it starts the server. A release whose API does not answer `/ready` within three minutes fails the deploy and prints the API's last log lines.
 - **Changed secret only:** re-run the release on the host:
   ```bash
   aws ssm start-associations-once --association-ids \

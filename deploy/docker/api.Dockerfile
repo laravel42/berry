@@ -32,4 +32,8 @@ COPY server-ts/sandbox/preview ./sandbox/preview
 ENV NODE_ENV=production
 ENV API_ADDR=0.0.0.0:4000
 EXPOSE 4000
-CMD ["node", "--experimental-strip-types", "--no-warnings", "src/index.ts"]
+# The server does not migrate by itself, so the container does it first: a new
+# install starts from an empty database, and a release may carry a migration.
+# Forward-only and checksummed, so running it on every start is safe. If it
+# fails the server is not started against a schema it does not match.
+CMD ["sh", "-c", "node --experimental-strip-types --no-warnings src/migrate/index.ts up && exec node --experimental-strip-types --no-warnings src/index.ts"]
