@@ -2,7 +2,7 @@ import { scheduleMention } from '../../runs/followups.ts';
 import { callerContract, canDelegate } from '../../organization/delegation.ts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { BerryArtifactService } from '../../agents/artifact-service.ts';
+import { artifactPath, BerryArtifactService } from '../../agents/artifact-service.ts';
 import { postRunResult } from '../../runs/result-comment.ts';
 import { enqueueTask } from '../../runs/queue.ts';
 import { ApiError } from '../../http/errors.ts';
@@ -14,6 +14,36 @@ import { DependencyCycle, DependencyRepository } from '../../core/dependencies.t
 import { NotFound } from '../../identity/errors.ts';
 import { DEFAULT_FETCH_LIMITS, FetchRefused, fetchPublicUrl, isTextual, readableHtml } from './fetch-url.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from './registry.ts';
+
+/**
+ * A file's path on a task, as the file tools take it.
+ *
+ * The same rules as `run_artifacts_path_safe_ck`, checked here so that an agent
+ * that asks for `/tmp/out.js` is told what to send instead. Left to the column,
+ * the refusal reaches it as a server error it cannot learn from.
+ */
+export const artifactPathSchema = z
+   .string()
+   .min(1)
+   .max(1024)
+   .refine(
+      (value) => {
+         const path = artifactPath(value);
+         return (
+            path.length <= 1024 &&
+            !/[\p{Cc}\\]/u.test(path) &&
+            path.trim() === path &&
+            !path.startsWith('/') &&
+            !path.endsWith('/') &&
+            !path.includes('//') &&
+            !/(^|\/)\.\.?(\/|$)/.test(path)
+         );
+      },
+      {
+         message:
+            "use a path relative to the task, such as 'notes/plan.md': no leading or trailing '/', no '.' or '..' segments, no '//', no backslashes",
+      }
+   );
 
 /**
  * The Berry tools every agent has.
@@ -378,7 +408,7 @@ export function registerCoreAgentTools(): void {
    registerAgentTool('read_file', {
       description: 'Read a file saved on this task, by path.',
       scope: 'task:read',
-      inputSchema: z.object({ path: z.string().min(1), version: z.number().int().min(0).optional() }),
+      inputSchema: z.object({ path: artifactPathSchema, version: z.number().int().min(0).optional() }),
       handler: async (context, input) => {
          const part = await (await artifactsOf(context)).loadArtifact({
             filename: input.path,
@@ -398,9 +428,10 @@ export function registerCoreAgentTools(): void {
    });
 
    registerAgentTool('write_file', {
-      description: 'Save a text file on this task. Other agents and people on the task can read it.',
+      description:
+         "Save a text file on this task, at a relative path such as 'notes/plan.md'. Other agents and people on the task can read it.",
       scope: 'task:write',
-      inputSchema: z.object({ path: z.string().min(1), content: z.string() }),
+      inputSchema: z.object({ path: artifactPathSchema, content: z.string() }),
       handler: async (context, input) => {
          const version = await (await artifactsOf(context)).saveArtifact({
             filename: input.path,
@@ -411,10 +442,11 @@ export function registerCoreAgentTools(): void {
    });
 
    registerAgentTool('attach_file', {
-      description: 'Attach a binary file (base64) to this task, such as a rendered clip or an image.',
+      description:
+         "Attach a binary file (base64) to this task, at a relative path such as 'renders/clip.mp4'.",
       scope: 'task:write',
       inputSchema: z.object({
-         path: z.string().min(1),
+         path: artifactPathSchema,
          base64: z.string().max(Math.ceil((MAX_ATTACH_BYTES * 4) / 3) + 4),
          contentType: z.string().optional(),
       }),
