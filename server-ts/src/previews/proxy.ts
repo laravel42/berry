@@ -58,7 +58,7 @@ const BERRY_COOKIE = /^(?:__Secure-|__Host-)?berry[._-]/i;
  * Answers a request addressed to a preview host; null for every other request,
  * which then goes to Berry's own routes untouched.
  */
-export function previewProxy(targets: PreviewTargets, domain: string, doFetch: typeof fetch = fetch) {
+export function previewProxy(targets: PreviewTargets, domain: string, doFetch: typeof fetch = fetch, hostAddr = '127.0.0.1') {
    return async (request: Request): Promise<Response | null> => {
       const addressed = parsePreviewHost(request.headers.get('host'), domain);
       if (!addressed) return null;
@@ -82,7 +82,7 @@ export function previewProxy(targets: PreviewTargets, domain: string, doFetch: t
       const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
       let upstream: Response;
       try {
-         upstream = await doFetch(`http://127.0.0.1:${port}${url.pathname}${url.search}`, {
+         upstream = await doFetch(`http://${hostAddr}:${port}${url.pathname}${url.search}`, {
             method: request.method,
             headers,
             redirect: 'manual',

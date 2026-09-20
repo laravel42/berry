@@ -75,6 +75,9 @@ export interface PreviewEnvironmentsOptions {
     */
    owner?: string;
    root?: string;
+   /** The host address an app's port is published on, and the address this process reaches it at. Loopback unless the server is a container (config `docker`). */
+   publishAddr?: string;
+   hostAddr?: string;
    image?: string;
    idleMs?: number;
    maxEnvironments?: number;
@@ -456,7 +459,7 @@ export class PreviewEnvironments {
          const container = `berry-pv-${env.id}-${app.name}`;
          env.containers.push(container);
          await this.#must(
-            appArgs({ id: env.id, owner: this.#owner, network, container, app, image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), variables: Object.keys(variables), services: plan.services }),
+            appArgs({ id: env.id, owner: this.#owner, network, container, app, image, tree, modulesVolume: `berry-pv-nm-${modulesKey}-${app.name}`, env: resolveEnv(plan, app, addresses), variables: Object.keys(variables), services: plan.services, ...(this.#o.publishAddr ? { publishAddr: this.#o.publishAddr } : {}) }),
             `start ${app.name}`,
             60_000,
             variables
@@ -467,7 +470,7 @@ export class PreviewEnvironments {
       }
 
       const deadline = this.#clock() + (this.#o.startTimeoutMs ?? 12 * 60_000);
-      const answers = this.#o.answers ?? answersOn;
+      const answers = this.#o.answers ?? ((port: number) => answersOn(this.#o.hostAddr ?? '127.0.0.1', port));
       while (live()) {
          for (const running of env.apps) {
             if (running.ready) continue;
@@ -609,6 +612,7 @@ export function appArgs(input: {
    /** The project's own variables, by name only: docker reads each value from its client's environment. They win over the plan's. */
    variables?: string[];
    services: PreviewService[];
+   publishAddr?: string;
 }): string[] {
    const { app } = input;
    const workdir = workdirOf(app);
@@ -617,8 +621,8 @@ export function appArgs(input: {
       '--label', `${PREVIEW_LABEL}=${input.id}`,
       ...(input.owner ? ['--label', `${PREVIEW_OWNER_LABEL}=${input.owner}`] : []),
       '--network', input.network, '--network-alias', app.name,
-      // Loopback, on a port Docker picks: only the preview proxy reaches it.
-      '--publish', `127.0.0.1::${app.port}`,
+      // Loopback (or the bridge gateway, when the server is a container), on a port Docker picks: only the preview proxy reaches it.
+      '--publish', `${input.publishAddr ?? '127.0.0.1'}::${app.port}`,
       ...LIMITS, '--memory', '2g', '--cpus', '2',
       '--env', 'CI=true', '--env', 'NO_COLOR=1', '--env', 'FORCE_COLOR=0', '--env', 'npm_config_update_notifier=false',
       '--env', 'NEXT_TELEMETRY_DISABLED=1', '--env', `PORT=${app.port}`,
@@ -722,8 +726,8 @@ function followLogs(container: string, onOutput: (text: string) => void): () => 
 }
 
 /** Any HTTP answer counts — a 404 from a server is a server. */
-async function answersOn(port: number): Promise<boolean> {
-   return fetch(`http://127.0.0.1:${port}/`, { redirect: 'manual', signal: AbortSignal.timeout(3_000) }).then(() => true).catch(() => false);
+async function answersOn(host: string, port: number): Promise<boolean> {
+   return fetch(`http://${host}:${port}/`, { redirect: 'manual', signal: AbortSignal.timeout(3_000) }).then(() => true).catch(() => false);
 }
 
 /** `docker exec`, its output streamed, ended with the signal. Resolves with the exit code. */

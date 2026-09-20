@@ -31,6 +31,9 @@ export interface DockerContainersOptions {
    memory: string;
    cpus: string;
    pidsLimit: number;
+   /** The host address a session is published on, and the address the router reaches it at. Loopback by default. */
+   publishAddr?: string;
+   hostAddr?: string;
    readyTimeoutMs?: number;
    /** Runs `docker <args>` and resolves with stdout. Injected by tests. */
    docker?: (args: string[]) => Promise<string>;
@@ -47,7 +50,8 @@ export function runArgs(options: DockerContainersOptions, session: string): stri
       'run', '--detach', '--rm', '--init',
       '--name', containerName(session),
       '--label', `${SESSION_LABEL}=${session}`,
-      '--publish', '127.0.0.1::8080',
+      // Loopback, unless the router is itself a container: then the bridge gateway, which it reaches by name.
+      '--publish', `${options.publishAddr ?? '127.0.0.1'}::8080`,
       '--env-file', options.envFile,
       '--env', 'PORT=8080',
       '--env', 'BERRY_RUNTIME_WORK_ROOT=/mnt/workspace',
@@ -73,7 +77,7 @@ export function dockerContainers(options: DockerContainersOptions): SessionConta
       // `docker port` fails for a container that is not running, which is the answer.
       const out = await docker(['port', containerName(session), '8080/tcp']).catch(() => '');
       const port = /:(\d+)\s*$/m.exec(out.trim().split('\n')[0] ?? '')?.[1];
-      return port ? `http://127.0.0.1:${port}` : null;
+      return port ? `http://${options.hostAddr ?? '127.0.0.1'}:${port}` : null;
    };
 
    const ready = async (url: string): Promise<void> => {

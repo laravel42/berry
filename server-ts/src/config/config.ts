@@ -24,7 +24,14 @@ export interface Config {
     * to this machine unaided. A deployment points a wildcard DNS record at
     * Berry and names it here, with the scheme and port a browser really uses.
     */
-   previews: { domain: string; scheme: 'http' | 'https'; port: number | null };
+   previews: {
+      domain: string;
+      scheme: 'http' | 'https';
+      port: number | null;
+      /** Where preview checkouts are kept. Null is the home cache. Set when the server is itself a container: see `docker`. */
+      root: string | null;
+   };
+   docker: DockerAddressing;
    organization: OrganizationLimits;
    storage: StorageConfig | null;
    agents: AgentConfig | null;
@@ -330,6 +337,32 @@ function organizationLimits(env: NodeJS.ProcessEnv): OrganizationLimits {
    };
 }
 
+/**
+ * Where the containers this server starts (a preview's apps, an agent session)
+ * are published, and how this process reaches them there.
+ *
+ * On a machine the server runs on directly, both are loopback: Docker
+ * publishes on 127.0.0.1 and the server connects to 127.0.0.1. When the server
+ * is itself a container on a bridge network, its loopback is its own, so the
+ * containers are published on the Docker bridge's gateway address (reachable
+ * from containers and the host, not from outside) and reached by the name
+ * that resolves to it: `BERRY_DOCKER_PUBLISH_ADDR=172.17.0.1` and
+ * `BERRY_DOCKER_HOST_ADDR=host.docker.internal`.
+ */
+export interface DockerAddressing {
+   publishAddr: string;
+   hostAddr: string;
+}
+
+function dockerAddressing(env: NodeJS.ProcessEnv): DockerAddressing {
+   // An address or a host name and nothing else: both end up in a URL and a docker argument.
+   const address = (value: string | undefined): string => {
+      const trimmed = (value ?? '').trim();
+      return /^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$/.test(trimmed) ? trimmed : '127.0.0.1';
+   };
+   return { publishAddr: address(env.BERRY_DOCKER_PUBLISH_ADDR), hostAddr: address(env.BERRY_DOCKER_HOST_ADDR) };
+}
+
 function previews(env: NodeJS.ProcessEnv, apiPort: number): Config['previews'] {
    const domain = (env.BERRY_PREVIEW_DOMAIN ?? '').trim().toLowerCase().replace(/^\*?\./, '') || 'preview.localhost';
    const scheme = (env.BERRY_PREVIEW_SCHEME ?? '').trim().toLowerCase() === 'https' ? 'https' : 'http';
@@ -337,7 +370,8 @@ function previews(env: NodeJS.ProcessEnv, apiPort: number): Config['previews'] {
    // Unset means the API's own port, which is where a local browser finds it;
    // `default` means none in the URL, for a proxy on 80 or 443.
    const port = raw === '' ? apiPort : raw.toLowerCase() === 'default' ? null : Number(raw);
-   return { domain, scheme, port: port !== null && Number.isInteger(port) && port > 0 && port < 65536 ? port : raw === '' ? apiPort : null };
+   const root = (env.BERRY_PREVIEW_ROOT ?? '').trim();
+   return { domain, scheme, port: port !== null && Number.isInteger(port) && port > 0 && port < 65536 ? port : raw === '' ? apiPort : null, root: root.startsWith('/') ? root : null };
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -376,6 +410,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       realtimeBuffer: positiveInt(env.REALTIME_BUFFER, 64),
       previews: previews(env, port),
       organization: organizationLimits(env),
+      docker: dockerAddressing(env),
       storage: storage(env),
       agents: agents(env),
       runtime: runtime(env),

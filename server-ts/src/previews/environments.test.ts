@@ -281,3 +281,13 @@ test('a project’s variables reach the app by name, never as an argument, and n
    assert.ok(!status.log.includes('sk-secret-value-123'));
    assert.match(status.log, /connecting with ••••••/);
 });
+
+test('a server that is itself a container publishes apps on the address it is given, and asks there whether they answer', async () => {
+   const { docker, calls } = fakeDocker();
+   const envs = environments(docker, { publishAddr: '172.17.0.1', hostAddr: 'host.docker.internal' });
+   envs.start('issue-bridged', archiveOf({ 'package.json': JSON.stringify({ dependencies: { next: '15' } }) }));
+   await settled(envs, 'issue-bridged');
+   const run = calls.find((args) => args[0] === 'run' && args.some((arg) => /^berry-pv-.*-web$/.test(arg)))!;
+   assert.ok(run.some((arg, index) => run[index - 1] === '--publish' && arg.startsWith('172.17.0.1::')));
+   assert.ok(!run.some((arg) => arg.startsWith('127.0.0.1::')));
+});

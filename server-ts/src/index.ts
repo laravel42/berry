@@ -311,6 +311,9 @@ const previewEnvironments = new PreviewEnvironments({
    origin: (id, appName) => previewOrigin(config.previews, id, appName),
    // Its listen address: a second server on this machine (a test instance on another port) keeps its own previews.
    owner: `${config.apiAddr.host}:${config.apiAddr.port}`,
+   ...(config.previews.root ? { root: config.previews.root } : {}),
+   publishAddr: config.docker.publishAddr,
+   hostAddr: config.docker.hostAddr,
 });
 void previewEnvironments.removeOrphans().catch((error: unknown) =>
    logger.warn('previews left by an earlier process were not removed', { error: error instanceof Error ? error.message : String(error) })
@@ -1281,7 +1284,7 @@ const app = createApp(registry);
 
 // A request addressed to a preview's host name is that preview's; every other
 // request is Berry's and never sees the proxy.
-const toPreview = previewEnvironments ? previewProxy(previewEnvironments, config.previews.domain) : null;
+const toPreview = previewEnvironments ? previewProxy(previewEnvironments, config.previews.domain, fetch, config.docker.hostAddr) : null;
 const server = serve({
    fetch: toPreview ? async (request, env) => (await toPreview(request)) ?? app.fetch(request, env) : app.fetch,
    hostname: config.apiAddr.host,

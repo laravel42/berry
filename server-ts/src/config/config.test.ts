@@ -208,3 +208,13 @@ test('the ceilings on handing work around are deployment-wide, with defaults, an
    const set = loadConfig({ ...base, BERRY_DELEGATION_MAX_DEPTH: '2', BERRY_DELEGATIONS_PER_RUN: '0', BERRY_HANDOFF_WINDOW: '6', BERRY_HANDOFF_MIN_UNIQUE_AGENTS: 'many' }).organization;
    assert.deepEqual(set, { maxDelegationDepth: 2, maxDelegationsPerRun: 0, handoffWindow: 6, handoffMinUniqueAgents: 3 });
 });
+
+test('containers are published and reached on loopback unless the server is told it is a container itself', () => {
+   assert.deepEqual(loadConfig(base).docker, { publishAddr: '127.0.0.1', hostAddr: '127.0.0.1' });
+   assert.equal(loadConfig(base).previews.root, null);
+   const contained = loadConfig({ ...base, BERRY_DOCKER_PUBLISH_ADDR: '172.17.0.1', BERRY_DOCKER_HOST_ADDR: 'host.docker.internal', BERRY_PREVIEW_ROOT: '/var/lib/berry/previews' });
+   assert.deepEqual(contained.docker, { publishAddr: '172.17.0.1', hostAddr: 'host.docker.internal' });
+   assert.equal(contained.previews.root, '/var/lib/berry/previews');
+   // What is not an address never reaches a docker argument or a URL.
+   assert.deepEqual(loadConfig({ ...base, BERRY_DOCKER_PUBLISH_ADDR: '0.0.0.0 --privileged', BERRY_DOCKER_HOST_ADDR: 'a/b', BERRY_PREVIEW_ROOT: 'relative' }).docker, { publishAddr: '127.0.0.1', hostAddr: '127.0.0.1' });
+});
