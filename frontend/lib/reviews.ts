@@ -36,6 +36,8 @@ export const reviewItemSchema = z.object({
       id: z.string(),
       summary: z.string().nullable(),
       completedAt: z.string().nullable(),
+      /** The run's working branch, even when no pull request was opened. */
+      branch: z.string().nullable().optional(),
    }),
    repository: z.string().nullable(),
    pullRequest: z

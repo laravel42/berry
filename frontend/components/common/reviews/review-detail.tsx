@@ -10,18 +10,16 @@ import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
 import { loadPreviewEnvironment } from '@/lib/preview-environment';
 import { preloadSitePreview } from '@/lib/site-preview';
 import { useSessionStore } from '@/store/session-store';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { type ReviewOutcome } from './review-decision-bar';
+import { ReviewDeliveryLine } from './review-delivery-line';
 import { RepositoryFiles } from './repository-files';
 import { ReviewDiff } from './review-diff';
 import { ReviewVerdicts } from './review-guide';
 import { ReviewOverview } from './review-overview';
-import { DiffStat, IssueCheckIcon, PrIcon } from './review-shared';
-import { reviewStatusOf } from './reviews';
 
 export type { ReviewOutcome } from './review-decision-bar';
 
@@ -138,8 +136,6 @@ export function ReviewDetail({
       );
    }
 
-   const status = reviewStatusOf(item);
-   const waiting = item.issue.status === 'in_review';
    const hasFiles = item.delivery.producedFiles > 0;
    // A pull request has a repository to browse at its branch, and that is what
    // the tab shows: the agent's saved files are in it once committed. A task with
@@ -170,7 +166,7 @@ export function ReviewDetail({
 
    return (
       <div className="flex h-full flex-col overflow-hidden">
-         <div className="flex h-10 min-w-0 shrink-0 items-center gap-2 border-b px-4">
+         <div className="flex min-h-10 min-w-0 shrink-0 items-center gap-2 border-b px-4 py-2">
             {onBack && (
                <button
                   type="button"
@@ -181,46 +177,14 @@ export function ReviewDetail({
                   <ArrowLeft className="size-4" aria-hidden />
                </button>
             )}
-            <Link
-               href={`/${orgId}/issue/${item.issue.identifier}`}
-               className="flex shrink-0 items-center gap-1.5 rounded-sm hover:opacity-80 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-            >
-               <IssueCheckIcon />
-               <span className="font-medium">{item.issue.identifier}</span>
-            </Link>
-            <span className="shrink-0 text-muted-foreground" aria-hidden>
-               ›
-            </span>
-            <PrIcon status={status} muted={waiting && !item.delivery.committed} />
-            <h2 className="min-w-0 truncate text-[13px]" title={item.issue.title}>
-               {item.issue.title}
-            </h2>
-            {item.delivery.committed && (
-               <DiffStat
-                  additions={item.delivery.insertions}
-                  deletions={item.delivery.deletions}
-                  className="shrink-0"
-               />
-            )}
-            <span className="flex-1" />
-            {item.pullRequest?.url && (
-               <a
-                  href={item.pullRequest.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex shrink-0 items-center gap-1 rounded-sm font-bold text-status-warning underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-               >
-                  <ExternalLink className="size-3.5" aria-hidden />
-                  {t('detail.pullRequest', { number: item.pullRequest.number })}
-               </a>
-            )}
+            <ReviewDeliveryLine item={item} onDecided={decided} className="min-w-0 flex-1" />
          </div>
          <Tabs
             value={shown}
             onValueChange={(value) => selectSection(value as ReviewSection)}
             className="flex min-h-0 flex-1 flex-col gap-0"
          >
-            <div className="flex h-10 shrink-0 items-center border-b px-4">
+            <div className="flex shrink-0 items-center border-b px-4 py-[6px]">
                <TabsList className="h-8">
                   <TabsTrigger value="overview">{t('sections.overview')}</TabsTrigger>
                   {item.issue.autoGate && (
@@ -242,11 +206,7 @@ export function ReviewDetail({
                <div ref={setToolbarSlot} className="ml-auto flex items-center gap-2" />
             </div>
             <TabsContent value="overview" className="min-h-0 flex-1 overflow-hidden">
-               <ReviewOverview
-                  item={item}
-                  onOpenFiles={() => selectSection('files')}
-                  onDecided={decided}
-               />
+               <ReviewOverview item={item} />
             </TabsContent>
             {item.issue.autoGate && (
                <TabsContent value="guide" className="min-h-0 flex-1 overflow-hidden">

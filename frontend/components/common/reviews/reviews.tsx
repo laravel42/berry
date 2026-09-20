@@ -52,43 +52,6 @@ function clampListWidth(width: number): number {
    return Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, Math.round(width)));
 }
 
-/**
- * What the run left behind, on the row's second line: the pull request and
- * its size, or the plain fact that nothing was committed. Without this every
- * waiting row looked like a delivery, and most were not.
- */
-function DeliveryFacts({ item }: { item: ReviewItem }) {
-   const t = useTranslations('reviews');
-   if (item.delivery.committed) {
-      return (
-         <>
-            <span className={item.pullRequest ? 'text-foreground' : undefined}>
-               {item.pullRequest
-                  ? t('detail.pullRequest', { number: item.pullRequest.number })
-                  : t('facts.noPullRequest')}
-            </span>
-            <DiffStat additions={item.delivery.insertions} deletions={item.delivery.deletions} />
-         </>
-      );
-   }
-   return (
-      <>
-         {item.pullRequest && (
-            <span className="text-foreground">
-               {t('detail.pullRequest', { number: item.pullRequest.number })}
-            </span>
-         )}
-         {item.delivery.producedFiles > 0 ? (
-            <span className="text-foreground">
-               {t('facts.producedFiles', { count: item.delivery.producedFiles })}
-            </span>
-         ) : (
-            <span>{t('facts.nothingCommitted')}</span>
-         )}
-      </>
-   );
-}
-
 function ReviewRow({
    item,
    orgId,
@@ -105,6 +68,8 @@ function ReviewRow({
    const latest = item.verdicts[0];
    const status = reviewStatusOf(item);
    const href = `/${orgId}/review/${item.id}${listTab === 'created' ? '?list=created' : ''}`;
+   const branch = item.pullRequest?.branch ?? item.run.branch ?? null;
+   const label = branch ?? item.issue.title;
    return (
       <Link
          // Soft-selects the right pane; unmodified left-click updates the URL
@@ -136,9 +101,19 @@ function ReviewRow({
                muted={status === 'open' && !item.delivery.committed}
                className="pt-px"
             />
-            <span className="shrink-0 pt-px text-muted-foreground">{item.issue.identifier}</span>
-            <span className="line-clamp-2 min-w-0 flex-1 break-words" title={item.issue.title}>
-               {item.issue.title}
+            <span className="min-w-0 flex-1">
+               <span className="line-clamp-3 break-all text-sm">
+                  <span className="font-bold text-muted-foreground">{item.issue.identifier}</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <span className={branch ? 'font-mono' : undefined}>{label}</span>
+               </span>
+               {item.delivery.committed ? (
+                  <DiffStat
+                     additions={item.delivery.insertions}
+                     deletions={item.delivery.deletions}
+                     className="mt-0.5"
+                  />
+               ) : null}
             </span>
             {item.issue.autoGate && latest && latest.approved !== null && (
                <PeerVerdictChip verdict={latest} />
@@ -147,23 +122,12 @@ function ReviewRow({
                {reviewTimeAgo(item.run.completedAt ?? item.updatedAt)}
             </span>
          </span>
-         <span className="flex flex-wrap items-center gap-x-2 pl-6 text-muted-foreground">
-            <DeliveryFacts item={item} />
-         </span>
       </Link>
    );
 }
 
 /** Collapsible status group: the header arrow really opens and closes the rows. */
-function ReviewGroup({
-   label,
-   count,
-   children,
-}: {
-   label: string;
-   count: number;
-   children: ReactNode;
-}) {
+function ReviewGroup({ label, children }: { label: string; children: ReactNode }) {
    const [open, setOpen] = useState(true);
    return (
       <div>
@@ -186,7 +150,6 @@ function ReviewGroup({
             >
                <path d="M1 3l3 3 3-3" stroke="currentColor" strokeWidth="1.2" fill="none" />
             </svg>
-            <span className="ml-auto text-status-success">{count}</span>
          </button>
          <div
             className={cn(
@@ -401,7 +364,7 @@ export default function Reviews({
                   </div>
                )}
                {groups.map((group) => (
-                  <ReviewGroup key={group.key} label={group.label} count={group.items.length}>
+                  <ReviewGroup key={group.key} label={group.label}>
                      {group.items.map((item) => (
                         <ReviewRow
                            key={item.id}

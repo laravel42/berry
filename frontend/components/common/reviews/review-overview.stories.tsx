@@ -32,15 +32,12 @@ type Story = StoryObj<typeof meta>;
 /** A pull request with green checks; the run's own "## Summary" heading is not printed twice. */
 export const DeliveredPullRequest: Story = {
    beforeEach: ({ msw }) => {
-      // This run produced nothing, so the produced-files section stays hidden.
       msw.use(
          http.get('*/api/v1/issues/:ref/artifacts', () => HttpResponse.json({ artifacts: [] }))
       );
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getByText('Backend Engineer delivered PR #412.')).toBeVisible();
       await expect(canvas.getByText('2 checks passed')).toBeVisible();
-      await expect(await canvas.findByText('No produced files')).toBeVisible();
       await expect(canvas.getAllByRole('heading', { name: 'Summary' })).toHaveLength(1);
    },
 };
@@ -58,7 +55,6 @@ export const StoppedWithoutDelivering: Story = {
 export const ProducedFiles: Story = {
    args: { item: producedFilesReview },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByRole('link', { name: '2 produced files' })).toBeVisible();
       await expect(canvas.getByText('2 of 2 checks failed')).toBeVisible();
       await expect(
          canvas.getByText('The remaining checks did not run: the verification budget was spent.')

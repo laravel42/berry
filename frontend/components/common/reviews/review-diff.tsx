@@ -78,7 +78,7 @@ export function ReviewDiff({
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('diff.filter')}
-               className="h-7 pl-7"
+               className="h-8 pl-7"
             />
          </div>
       </>

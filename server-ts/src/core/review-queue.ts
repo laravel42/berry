@@ -23,7 +23,7 @@ export interface ReviewItem {
    id: string;
    issue: { id: string; identifier: string; title: string; status: string; autoGate: boolean };
    author: { id: string; name: string } | null;
-   run: { id: string; summary: string | null; completedAt: string | null };
+   run: { id: string; summary: string | null; completedAt: string | null; branch: string | null };
    repository: string | null;
    pullRequest: { number: number; url: string | null; branch: string | null; headCommit: string | null } | null;
    delivery: {
@@ -191,6 +191,7 @@ export class ReviewQueue {
                id: row.run_id as string,
                summary: (row.summary as string | null) ?? null,
                completedAt: toRFC3339(row.completed_at as string | null),
+               branch: (row.branch as string | null) ?? null,
             },
             repository: (row.repository as string | null) ?? null,
             pullRequest:

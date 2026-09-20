@@ -20,7 +20,6 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { describePatchFailure } from '@/lib/issues';
 import {
    decideReview,
@@ -28,7 +27,7 @@ import {
    type ReviewDecision,
    type ReviewItem,
 } from '@/lib/reviews';
-import { CircleHelp } from 'lucide-react';
+import { Check, Loader2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
@@ -73,17 +72,9 @@ export function ReviewDecisionBar({
       null
    );
    const [confirming, setConfirming] = useState(false);
-   // Same on the server and the first client paint; the Mac glyph lands after
-   // hydration, so the two never disagree.
-   const [keys, setKeys] = useState(() => t('decision.keysOther'));
    const noteRef = useRef<HTMLTextAreaElement>(null);
    const noteId = useId();
-   const helpId = useId();
    const errorId = useId();
-
-   useEffect(() => {
-      if (/Mac|iPhone|iPad/.test(navigator.platform)) setKeys(t('decision.keysMac'));
-   }, [t]);
 
    // The note field lives in a dialog; take focus when it opens so typing
    // starts immediately.
@@ -153,34 +144,40 @@ export function ReviewDecisionBar({
         ? t('decision.confirmCommitted')
         : t('decision.confirmNothingCommitted');
 
-   const helpText = [
-      stopped ? t('decision.explainStopped') : t('decision.explain'),
-      t('decision.noteHelp'),
-      t(primary === 'approve' ? 'decision.shortcutApprove' : 'decision.shortcutSendBack', {
-         keys,
-      }),
-   ].join(' ');
-
    const approve = (
       <Button
          size="xs"
          variant="default"
+         className="h-9 w-[42px] px-0"
          disabled={pending !== null}
          aria-busy={pending === 'approve' || undefined}
+         aria-label={t('decision.approve')}
+         title={t('decision.approve')}
          onClick={() => request('approve')}
       >
-         {pending === 'approve' ? t('decision.approving') : t('decision.approve')}
+         {pending === 'approve' ? (
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+         ) : (
+            <Check className="size-3.5" aria-hidden />
+         )}
       </Button>
    );
    const sendBack = (
       <Button
          size="xs"
          variant="secondary"
+         className="h-9 w-[42px] px-0"
          disabled={pending !== null}
          aria-busy={pending === 'send-back' || undefined}
+         aria-label={t('decision.sendBack')}
+         title={t('decision.sendBack')}
          onClick={() => request('send-back')}
       >
-         {pending === 'send-back' ? t('decision.sendingBack') : t('decision.sendBack')}
+         {pending === 'send-back' ? (
+            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+         ) : (
+            <X className="size-3.5" aria-hidden />
+         )}
       </Button>
    );
 
@@ -217,25 +214,8 @@ export function ReviewDecisionBar({
                   {approve}
                </>
             )}
-            <Tooltip>
-               <TooltipTrigger asChild>
-                  <button
-                     type="button"
-                     className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-                     aria-label={t('decision.help')}
-                  >
-                     <CircleHelp className="size-4" aria-hidden />
-                  </button>
-               </TooltipTrigger>
-               <TooltipContent side="top" className="max-w-[75ch]">
-                  {helpText}
-               </TooltipContent>
-            </Tooltip>
             {aside && <span className="ml-auto">{aside}</span>}
          </div>
-         <p id={helpId} className="sr-only">
-            {helpText}
-         </p>
 
          <Dialog
             open={noting}

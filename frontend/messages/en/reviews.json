@@ -45,7 +45,7 @@
    },
    "delivery": {
       "stopped": "<name>{agent}</name> stopped without delivering.",
-      "pullRequest": "<name>{agent}</name> delivered <pr>PR #{number}</pr>.",
+      "pullRequest": "<name>{agent}</name> delivered <pr>PR #{number}</pr>",
       "committed": "<name>{agent}</name> committed changes but opened no pull request.",
       "produced": "<name>{agent}</name> delivered {count, plural, one {# file} other {# files}} without a commit."
    },
