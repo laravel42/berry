@@ -12,16 +12,19 @@
 # The API starts a preview's containers and the session router starts one
 # container per agent session, both through the host's Docker socket. They are
 # siblings of these containers, not children, so they are published on the
-# Docker bridge's address and reached through `host.docker.internal`; that
-# address answers containers and the host, and nothing outside the machine.
+# Docker bridge's address and reached there; that address answers containers
+# and the host, and nothing outside the machine.
 
 x-logging: &logging
    driver: json-file
    options: { max-size: '20m', max-file: '5' }
 
+# Reached by the bridge's address, not by `host.docker.internal`: the address
+# becomes the Host header a preview's server sees, and dev servers (Vite, and
+# others that check it) accept any IP address and refuse a name they do not know.
 x-docker-host: &docker-host
    BERRY_DOCKER_PUBLISH_ADDR: ${DOCKER_BRIDGE_ADDR:-172.17.0.1}
-   BERRY_DOCKER_HOST_ADDR: host.docker.internal
+   BERRY_DOCKER_HOST_ADDR: ${DOCKER_BRIDGE_ADDR:-172.17.0.1}
 
 services:
    postgres:

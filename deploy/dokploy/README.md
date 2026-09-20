@@ -10,7 +10,7 @@ browser ─ HTTPS ─ Cloudflare ═ tunnel ═ Traefik :80 ─┬─ dev.berry.
 
 Cloudflare ends TLS and the tunnel speaks plain HTTP to Traefik, so the server needs no certificate and no open port. Berry is told its public scheme is `https` (`BERRY_SCHEME`), which is what it puts in links, callbacks and preview addresses.
 
-The API starts a preview's containers, and the session router starts one container per agent run, both through the server's Docker socket. Those are siblings of Berry's containers, so they are published on the Docker bridge address (`172.17.0.1`, reachable from containers and the server itself, not from the network) and reached as `host.docker.internal`.
+The API starts a preview's containers, and the session router starts one container per agent run, both through the server's Docker socket. Those are siblings of Berry's containers, so they are published on the Docker bridge address (`172.17.0.1`, reachable from containers and the server itself, not from the network) and reached at that address. By address rather than by name on purpose: it becomes the Host header a preview's server sees, and Vite and other dev servers accept any IP address but refuse a host name they were not told about.
 
 ## The tunnel
 
