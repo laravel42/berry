@@ -1,0 +1,18 @@
+# The images under deploy/ build from the repository root. Nothing local,
+# large or secret belongs in a build context.
+.git
+.claude
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/node_modules
+**/.next
+**/.next-verify
+**/cdk.out
+**/.DS_Store
+docs
+documentation
+semantic-review
+*.pdf

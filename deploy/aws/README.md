@@ -85,5 +85,5 @@ The stack has termination protection. The data volume, the artifacts bucket and 
 ## Files
 
 - `bin/berry.ts`, `lib/berry-stack.ts`: the CDK app.
-- `docker/api.Dockerfile`: the API with the Docker client, for a host that runs previews and sessions. `docker/web.Dockerfile`: the Next.js standalone server. Both build from the repository root.
+- `../docker/api.Dockerfile`: the API with the Docker client, for a host that runs previews and sessions. `../docker/web.Dockerfile`: the Next.js standalone server. Both build from the repository root.
 - `host/compose.yml`, `host/update.sh`: what runs on the host. `update.sh` is idempotent; the stack's State Manager association runs it with the release's settings.

@@ -14,10 +14,12 @@ COPY server-ts/package.json server-ts/
 RUN pnpm install --frozen-lockfile --filter berry-frontend...
 
 COPY frontend frontend
-# Where `/api/*` is rewritten to is fixed when the app is built. The web server
-# runs on the host's network beside the API, so that is loopback; browsers
-# reach the API through the load balancer and never through this.
-ENV BERRY_API_ORIGIN=http://127.0.0.1:4000
+# Where `/api/*` is rewritten to is fixed when the app is built, so it is a
+# build argument: loopback where the web server shares the host's network with
+# the API (deploy/aws), the API's service name where both are containers on
+# one network (deploy/dokploy: http://api:4000).
+ARG BERRY_API_ORIGIN=http://127.0.0.1:4000
+ENV BERRY_API_ORIGIN=${BERRY_API_ORIGIN}
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter berry-frontend build
 

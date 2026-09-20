@@ -1,0 +1,177 @@
+# Berry on Dokploy, as one Compose service built from this repository.
+#
+# In Dokploy: a Compose service with this repository as its source and
+# `deploy/dokploy/docker-compose.yml` as the compose path. The variables are
+# set in the service's Environment tab (see .env.example beside this file);
+# Dokploy does not read `env_file`, so everything is named here.
+#
+#   browser ─ Traefik ─┬─ <domain> ───────────── web :3000 ── /api, /v1 ──┐
+#                      └─ p-….<preview domain> ─────────────────────────── api :4000
+#                                           sessions :8080 ← api      postgres :5432
+#
+# The API starts a preview's containers and the session router starts one
+# container per agent session, both through the host's Docker socket. They are
+# siblings of these containers, not children, so they are published on the
+# Docker bridge's address and reached through `host.docker.internal`; that
+# address answers containers and the host, and nothing outside the machine.
+
+x-logging: &logging
+   driver: json-file
+   options: { max-size: '20m', max-file: '5' }
+
+x-docker-host: &docker-host
+   BERRY_DOCKER_PUBLISH_ADDR: ${DOCKER_BRIDGE_ADDR:-172.17.0.1}
+   BERRY_DOCKER_HOST_ADDR: host.docker.internal
+
+services:
+   postgres:
+      image: postgres:16
+      restart: unless-stopped
+      environment:
+         POSTGRES_USER: berry
+         POSTGRES_DB: berry
+         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      volumes:
+         - berry-postgres:/var/lib/postgresql/data
+      healthcheck:
+         test: ['CMD-SHELL', 'pg_isready -U berry -d berry']
+         interval: 5s
+         timeout: 3s
+         retries: 20
+      networks: [berry]
+      logging: *logging
+
+   api:
+      build:
+         context: ../..
+         dockerfile: deploy/docker/api.Dockerfile
+      restart: unless-stopped
+      environment:
+         <<: *docker-host
+         APP_ENV: production
+         SERVICE_NAME: berry-server
+         HOME: /root
+         DATABASE_URL: postgres://berry:${POSTGRES_PASSWORD}@postgres:5432/berry?sslmode=disable
+         BERRY_APP_URL: ${BERRY_SCHEME:-http}://${BERRY_DOMAIN:?set BERRY_DOMAIN}
+         BERRY_PUBLIC_URL: ${BERRY_SCHEME:-http}://${BERRY_DOMAIN}
+         # An agent session calls the API back. It is a container beside these, so it goes through the host like everything else.
+         BERRY_RUNTIME_CALLBACK_URL: ${BERRY_RUNTIME_CALLBACK_URL:-${BERRY_SCHEME:-http}://${BERRY_DOMAIN}}
+         BERRY_AUTH_SECRET: ${BERRY_AUTH_SECRET:?set BERRY_AUTH_SECRET}
+         INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:?set INTEGRATION_ENCRYPTION_KEY}
+         BERRY_AUTH_GITHUB_CLIENT_ID: ${BERRY_AUTH_GITHUB_CLIENT_ID:-}
+         BERRY_AUTH_GITHUB_CLIENT_SECRET: ${BERRY_AUTH_GITHUB_CLIENT_SECRET:-}
+         BERRY_GITHUB_WEBHOOK_SECRET: ${BERRY_GITHUB_WEBHOOK_SECRET:-}
+         # Agent runs: the session router beside this service.
+         BERRY_AGENT_RUNTIME_URL: http://sessions:8080
+         BERRY_RUNTIME_AUTH_TOKEN: ${BERRY_RUNTIME_AUTH_TOKEN:?set BERRY_RUNTIME_AUTH_TOKEN}
+         BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
+         BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
+         BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
+         BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
+         BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
+         # Previews, each at p-<id>-<app>.<preview domain>.
+         BERRY_PREVIEW_DOMAIN: ${BERRY_PREVIEW_DOMAIN:?set BERRY_PREVIEW_DOMAIN}
+         BERRY_PREVIEW_SCHEME: ${BERRY_SCHEME:-http}
+         BERRY_PREVIEW_PORT: default
+         BERRY_PREVIEW_ROOT: /var/lib/berry/previews
+         # Run artifacts. Empty leaves file storage off; any S3-compatible store works with S3_ENDPOINT.
+         S3_BUCKET: ${S3_BUCKET:-}
+         S3_REGION: ${S3_REGION:-}
+         S3_ENDPOINT: ${S3_ENDPOINT:-}
+         S3_USE_PATH_STYLE: ${S3_USE_PATH_STYLE:-}
+         AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+         AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      volumes:
+         - /var/run/docker.sock:/var/run/docker.sock
+         # A preview's checkout is mounted into its containers by the host's
+         # Docker, so it must be at the same path on the host as in here.
+         - /var/lib/berry/previews:/var/lib/berry/previews
+      extra_hosts:
+         - 'host.docker.internal:host-gateway'
+      depends_on:
+         postgres: { condition: service_healthy }
+      networks: [berry, dokploy-network]
+      labels:
+         # Previews are addressed by a pattern, which Dokploy's Domains tab
+         # cannot express, so their route is written here. The app's own domain
+         # is added in the Domains tab, on the `web` service.
+         - traefik.enable=true
+         - traefik.docker.network=dokploy-network
+         - traefik.http.routers.berry-previews.rule=HostRegexp(`^p-[0-9a-f]{20}(-[a-z][a-z0-9-]*)?\.${BERRY_PREVIEW_DOMAIN_REGEX:?set BERRY_PREVIEW_DOMAIN_REGEX}$$`)
+         # Traefik's plain entrypoint: behind a Cloudflare tunnel TLS ends at
+         # Cloudflare and the tunnel speaks HTTP to Traefik, and on a private
+         # network there is no TLS at all. Only when Traefik itself must serve
+         # HTTPS: change `web` to `websecure` and add the two tls lines (README).
+         - traefik.http.routers.berry-previews.entrypoints=web
+         # - traefik.http.routers.berry-previews.tls=true
+         # - traefik.http.routers.berry-previews.tls.certresolver=letsencrypt-dns
+         - traefik.http.routers.berry-previews.service=berry-previews
+         - traefik.http.services.berry-previews.loadbalancer.server.port=4000
+      logging: *logging
+
+   # One container per agent session, each with its own folder, memory, CPU and
+   # process ceiling; idle ones are stopped. What `pnpm runtime:sessions` runs.
+   sessions:
+      build:
+         context: ../..
+         dockerfile: deploy/docker/api.Dockerfile
+      restart: unless-stopped
+      # The sessions get what the runtime reads and nothing of the API's: the
+      # file the router hands to `docker run --env-file` is written from this
+      # service's own environment, which holds nothing else.
+      command:
+         - sh
+         - -c
+         - >-
+           umask 077 &&
+           printenv | grep -E '^(BERRY_BEDROCK_|AWS_REGION=|BERRY_RUNTIME_AUTH_TOKEN=)' > /run/runtime.env &&
+           exec node --experimental-strip-types --no-warnings src/runtime/local-router/main.ts
+      environment:
+         <<: *docker-host
+         BERRY_ROUTER_ENV_FILE: /run/runtime.env
+         BERRY_ROUTER_IMAGE: berry-agent-runtime
+         BERRY_ROUTER_LISTEN_HOST: 0.0.0.0
+         BERRY_RUNTIME_PORT: '8080'
+         BERRY_ROUTER_MAX_CONTAINERS: ${BERRY_ROUTER_MAX_CONTAINERS:-8}
+         BERRY_RUNTIME_AUTH_TOKEN: ${BERRY_RUNTIME_AUTH_TOKEN}
+         BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
+         AWS_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
+         BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
+         BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
+      volumes:
+         - /var/run/docker.sock:/var/run/docker.sock
+      extra_hosts:
+         - 'host.docker.internal:host-gateway'
+      depends_on: [runtime-image]
+      networks: [berry]
+      logging: *logging
+
+   # Not a service: it exists so that a deploy builds the image the router
+   # starts sessions from, under the name the router looks for, and exits.
+   runtime-image:
+      build:
+         context: ../../server-ts
+         dockerfile: sandbox/agentcore/Dockerfile
+      image: berry-agent-runtime
+      entrypoint: ['true']
+      restart: 'no'
+      network_mode: none
+
+   web:
+      build:
+         context: ../..
+         dockerfile: deploy/docker/web.Dockerfile
+         args:
+            BERRY_API_ORIGIN: http://api:4000
+      restart: unless-stopped
+      depends_on: [api]
+      networks: [berry, dokploy-network]
+      logging: *logging
+
+volumes:
+   berry-postgres:
+
+networks:
+   berry:
+   dokploy-network:
+      external: true

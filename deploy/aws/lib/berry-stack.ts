@@ -30,7 +30,7 @@ const repository = fileURLToPath(new URL('../../../', import.meta.url));
 const here = fileURLToPath(new URL('../', import.meta.url));
 
 /** Never part of an image's build context: what is large, local, or a secret. */
-const NOT_CONTEXT = ['.*', '!.npmrc', '**/.env*', '**/.DS_Store', '**/node_modules', '**/.next', '**/.next-verify', '**/cdk.out', 'docs', 'documentation', 'semantic-review', '*.pdf', '*.md', 'LICENSE', 'skills-lock.json', 'deploy/aws/*', '!deploy/aws/docker'];
+const NOT_CONTEXT = ['.*', '!.npmrc', '**/.env*', '**/.DS_Store', '**/node_modules', '**/.next', '**/.next-verify', '**/cdk.out', 'docs', 'documentation', 'semantic-review', '*.pdf', '*.md', 'LICENSE', 'skills-lock.json', 'deploy/*', '!deploy/docker'];
 
 export interface BerryStackProps extends StackProps {
    /** Where Berry is served: `berry.example.com`. Previews answer under `*.preview.<domain>`. */
@@ -123,8 +123,8 @@ export class BerryStack extends Stack {
       const image = (name: string, directory: string, file: string, exclude: string[] = []) =>
          new ecrAssets.DockerImageAsset(this, `${name}Image`, { directory, file, platform, exclude: [...NOT_CONTEXT, ...exclude], ignoreMode: IgnoreMode.DOCKER });
       const images = {
-         api: image('Api', repository, 'deploy/aws/docker/api.Dockerfile', ['frontend', 'packages', 'scripts', '**/*.test.ts']),
-         web: image('Web', repository, 'deploy/aws/docker/web.Dockerfile', ['server-ts/*', '!server-ts/package.json', 'scripts']),
+         api: image('Api', repository, 'deploy/docker/api.Dockerfile', ['frontend', 'packages', 'scripts', '**/*.test.ts']),
+         web: image('Web', repository, 'deploy/docker/web.Dockerfile', ['server-ts/*', '!server-ts/package.json', 'scripts']),
          runtime: image('Runtime', `${repository}server-ts`, 'sandbox/agentcore/Dockerfile'),
          preview: image('Preview', `${repository}server-ts/sandbox/preview`, 'Dockerfile'),
       };

@@ -1,6 +1,6 @@
 {
    "app": "npx tsx bin/berry.ts",
-   "watch": { "include": ["bin/**", "lib/**", "host/**", "docker/**"] },
+   "watch": { "include": ["bin/**", "lib/**", "host/**", "../docker/**"] },
    "context": {
       "@aws-cdk/core:checkSecretUsage": true,
       "@aws-cdk/aws-iam:minimizePolicies": true,
