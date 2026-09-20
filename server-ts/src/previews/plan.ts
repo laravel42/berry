@@ -176,6 +176,7 @@ export function planFromManifest(text: string): PreviewPlan {
       }
    }
    const primary = apps.findIndex((app) => app.primary === true);
+   const front = apps[primary === -1 ? 0 : primary]!;
    return {
       source: 'manifest',
       apps: apps.map((app, index) => ({
@@ -186,7 +187,12 @@ export function planFromManifest(text: string): PreviewPlan {
          migrate: app.migrate ?? null,
          start: app.start,
          port: app.port,
-         env: app.env,
+         // Every app of a preview has an origin of its own, so the page people
+         // open calls the others across origins. A detected plan tells each API
+         // which page to allow; a manifest is written by someone who does not
+         // know the preview's address, and almost never says. One that does is
+         // left as written.
+         env: app === front || 'CORS_ORIGIN' in app.env ? app.env : { ...app.env, CORS_ORIGIN: `\${apps.${front.name}.url}` },
          primary: index === (primary === -1 ? 0 : primary),
          kind: 'declared',
       })),

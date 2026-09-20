@@ -123,3 +123,18 @@ test('only ordinary backing stores may run beside an app', () => {
 test('a folder is normalised and never leaves the repository', () => {
    assert.deepEqual(['.', './web/', 'apps//site', '../x', '/abs', 'a/../../b'].map(safeDir), ['.', 'web', 'apps/site', null, null, null]);
 });
+
+test('a manifest’s APIs are told which page may call them, unless the manifest says so itself', () => {
+   const manifest = (apiEnv: Record<string, string>) => JSON.stringify({
+      apps: [
+         { name: 'api', dir: 'server', start: 'npm start', port: 3001, env: apiEnv },
+         { name: 'web', dir: 'client', start: 'npm run preview', port: 4173, primary: true, env: { VITE_API_URL: '${apps.api.url}' } },
+      ],
+   });
+   const plan = planFromManifest(manifest({ PORT: '3001' }));
+   const [api, web] = plan.apps;
+   assert.equal(api!.env.CORS_ORIGIN, '${apps.web.url}');
+   assert.equal('CORS_ORIGIN' in web!.env, false, 'the page itself is not an API');
+   assert.equal(resolveEnv(plan, api!, { url: (name) => `https://p-abc-${name}.preview.test` }).CORS_ORIGIN, 'https://p-abc-web.preview.test');
+   assert.equal(planFromManifest(manifest({ CORS_ORIGIN: 'https://mine.example' })).apps[0]!.env.CORS_ORIGIN, 'https://mine.example');
+});
