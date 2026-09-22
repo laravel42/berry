@@ -179,6 +179,23 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          assert.ok(mintedFor.every((owner) => owner === 'berry'), JSON.stringify(mintedFor));
       });
 
+      test('an agent that may read but not branch gets a read-only checkout and the read-only contract', async () => {
+         const f = fixture!;
+         const { builder: withRepository } = repositoryBuilder({});
+         const task = await queued('Read-only review');
+         await sql`UPDATE agents SET permissions = ${sql.array(['read_repository'])} WHERE id = ${f.agentId}`;
+         try {
+            const { envelope, delivery } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+            assert.equal(envelope.repo?.readOnly, true);
+            assert.equal(delivery, null);
+            assert.match(envelope.task.prompt, /checked out in your workspace to read, not to change/);
+            assert.match(envelope.task.prompt, /browse_repository/);
+            assert.doesNotMatch(envelope.task.prompt, /opens a pull request; you never push yourself/);
+         } finally {
+            await sql`UPDATE agents SET permissions = ${sql.array(['read_repository', 'create_branches', 'open_pull_requests'])} WHERE id = ${f.agentId}`;
+         }
+      });
+
       test('a branch that is only behind is an ordinary run on its own head', async () => {
          const { builder: withRepository } = repositoryBuilder({ 'src/app.ts': 'app-other-task' });
          const task = await queued('Behind, no conflict');
