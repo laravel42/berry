@@ -39,19 +39,18 @@ interface Props {
    onCriteriaChange?: (criteria: SkillCriteria) => void;
 }
 
-function sortSkills(skills: Skill[], sort: SkillCriteria['sort']): Skill[] {
-   const sorted = [...skills];
-   if (sort === 'updated') {
-      sorted.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
-   } else if (sort === 'usage') {
-      const carried = (skill: Skill) => skill.agents.filter((agent) => agent.enabled).length;
-      sorted.sort(
-         (left, right) => carried(right) - carried(left) || left.name.localeCompare(right.name)
-      );
-   } else {
-      sorted.sort((left, right) => left.name.localeCompare(right.name));
-   }
-   return sorted;
+/** Each sort's natural order: names A→Z, the newest and the most used first. */
+function sortSkills(skills: Skill[], sort: SkillCriteria['sort'], descending = false): Skill[] {
+   const carried = (skill: Skill) => skill.agents.filter((agent) => agent.enabled).length;
+   const compare = (left: Skill, right: Skill): number => {
+      if (sort === 'updated') return right.updatedAt.localeCompare(left.updatedAt);
+      if (sort === 'usage') return carried(right) - carried(left);
+      return left.name.localeCompare(right.name);
+   };
+   const sign = descending ? -1 : 1;
+   return [...skills].sort(
+      (left, right) => sign * compare(left, right) || left.name.localeCompare(right.name)
+   );
 }
 
 /** Which column heading sorts by what; the rest are labels only. */
@@ -86,7 +85,10 @@ export default function SkillsList({
    const [confirming, setConfirming] = useState<Skill | null>(null);
    const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
-   const rows = useMemo(() => sortSkills(skills ?? [], criteria.sort), [skills, criteria.sort]);
+   const rows = useMemo(
+      () => sortSkills(skills ?? [], criteria.sort, criteria.descending),
+      [skills, criteria.sort, criteria.descending]
+   );
    const selected = rows.filter((skill) => selection.includes(skill.id));
    const allSelected = rows.length > 0 && selection.length === rows.length;
 
@@ -131,9 +133,16 @@ export default function SkillsList({
       }
    };
 
+   // The same heading again reverses the order; a new one starts in its natural order.
    const sortBy = (sort: SkillCriteria['sort']) => {
-      onCriteriaChange?.({ ...criteria, sort });
+      onCriteriaChange?.({
+         ...criteria,
+         sort,
+         descending: criteria.sort === sort ? !criteria.descending : false,
+      });
    };
+   const arrow = (sort: SkillCriteria['sort']) =>
+      criteria.sort === sort ? <span aria-hidden>{criteria.descending ? ' ↑' : ' ↓'}</span> : null;
 
    const header = (column: SkillColumn, label: string, align?: string) => {
       if (!criteria.columns.includes(column)) return null;
@@ -163,7 +172,7 @@ export default function SkillsList({
                )}
             >
                {label}
-               {criteria.sort === key ? <span aria-hidden> ↓</span> : null}
+               {arrow(key)}
             </button>
          </div>
       );
@@ -193,7 +202,7 @@ export default function SkillsList({
                      )}
                   >
                      {t('columns.skill')}
-                     {criteria.sort === 'name' ? <span aria-hidden> ↓</span> : null}
+                     {arrow('name')}
                   </button>
                ) : (
                   <div className="min-w-0 flex-1">{t('columns.skill')}</div>

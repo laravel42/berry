@@ -30,14 +30,24 @@ export const useGoalsStore = create<GoalsState>((set, get) => ({
          });
          return { goals: sortGoals(merged), error, loaded: true };
       }),
+   // A goal already listed keeps its place: opening one refetches it, and the
+   // detail read's timestamp is not the list's, so re-sorting here sent the
+   // goal a person had just clicked to the bottom of the list. Only a goal
+   // the list did not know is sorted in.
    upsertGoal: (goal) =>
       set((state) => {
          const known = state.goals.find((candidate) => candidate.id === goal.id);
-         const next = state.goals.filter((candidate) => candidate.id !== goal.id);
-         next.push(
-            goal.progress || !known?.progress ? goal : { ...goal, progress: known.progress }
-         );
-         return { goals: sortGoals(next), error: null };
+         const merged =
+            goal.progress || !known?.progress ? goal : { ...goal, progress: known.progress };
+         if (known) {
+            return {
+               goals: state.goals.map((candidate) =>
+                  candidate.id === goal.id ? merged : candidate
+               ),
+               error: null,
+            };
+         }
+         return { goals: sortGoals([...state.goals, merged]), error: null };
       }),
    removeGoal: (goalId) =>
       set((state) => ({ goals: state.goals.filter((goal) => goal.id !== goalId) })),

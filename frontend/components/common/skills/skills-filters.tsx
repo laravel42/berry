@@ -16,7 +16,6 @@ import {
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import type { Agent } from '@/lib/agents';
 import { isSkillInUse, type Skill } from '@/lib/skills';
@@ -30,6 +29,8 @@ export type SkillSort = (typeof SKILL_SORTS)[number];
 /** How the reader lays the catalogue out; what it is narrowed by is the filter's. */
 export interface SkillCriteria {
    sort: SkillSort;
+   /** Reverses the sort's natural direction (A→Z, newest first, most used first). */
+   descending?: boolean;
    columns: SkillColumn[];
 }
 
@@ -102,33 +103,17 @@ interface Props {
    criteria: SkillCriteria;
    onChange: (criteria: SkillCriteria) => void;
    filter: ListFilterController<Skill>;
-   query: string;
-   onQueryChange: (query: string) => void;
    /** Trailing primary action (e.g. New skill), after the list controls. */
    action?: ReactNode;
 }
 
-/** The catalogue's search, filter and column controls. Sort is on the table headings. */
-export default function SkillsFilters({
-   criteria,
-   onChange,
-   filter,
-   query,
-   onQueryChange,
-   action,
-}: Props) {
+/** The catalogue's filter and column controls. Search sits on the page statement. */
+export default function SkillsFilters({ criteria, onChange, filter, action }: Props) {
    const t = useTranslations('areas.skills');
    const set = (patch: Partial<SkillCriteria>) => onChange({ ...criteria, ...patch });
 
    return (
-      <div className="mb-1 flex w-full shrink-0 items-center gap-2 border-b px-4 py-[6px] [&_button]:!h-9 [&_button[aria-label='New skill']]:!h-[34px] [&_button[aria-label='New skill']]:!w-[42px] [&_input]:!h-9">
-         <Input
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder={t('search')}
-            aria-label={t('search')}
-            className="h-9 max-w-64"
-         />
+      <div className="mb-1 flex w-full shrink-0 items-center justify-end gap-2 border-b px-4 py-[6px] [&_button]:!h-9">
          <ListFilterTrigger filter={filter} />
          <Popover>
             <PopoverTrigger asChild>
@@ -137,7 +122,7 @@ export default function SkillsFilters({
                   {t('filters.columns')}
                </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="start">
+            <PopoverContent className="w-52 p-0" align="end">
                <Command>
                   <CommandList>
                      <CommandGroup>
@@ -164,8 +149,7 @@ export default function SkillsFilters({
                </Command>
             </PopoverContent>
          </Popover>
-
-         {action ? <div className="ml-auto flex items-center gap-1">{action}</div> : null}
+         {action}
       </div>
    );
 }

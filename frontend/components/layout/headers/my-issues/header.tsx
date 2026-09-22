@@ -18,6 +18,7 @@ import { useSessionStore } from '@/store/session-store';
 import type { ViewType } from '@/store/view-store';
 import { BarChart3, LayoutGrid, LayoutList, PanelRight, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { DisplayOptions } from '../display-options';
 
 /** The layouts the toolbar switches between. Table stays reachable by its link. */
 const LAYOUTS: { value: ViewType; key: 'list' | 'board'; icon: React.ElementType }[] = [
@@ -192,6 +193,7 @@ export default function Header() {
                   <PanelRight className="size-4" />
                   {t('breakdown')}
                </Button>
+               <DisplayOptions />
             </div>
          </div>
       </div>

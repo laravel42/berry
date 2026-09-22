@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /**
  * The Inbox layout, for any short list: the list in a rail on the left, the
@@ -44,6 +44,11 @@ export function SplitIndex({
 /**
  * Selects the first row when nothing is selected and there is room for both
  * sides. A phone shows the list first, so it is left alone there.
+ *
+ * The selection lives in the URL, and opening something from the detail pane
+ * (a task, in its drawer) rewrites the URL without it. The page stays mounted,
+ * so the last selection is remembered and put back rather than jumping to the
+ * first row under the person's feet.
  */
 export function useSelectFirst(
    selectedId: string | null,
@@ -52,6 +57,8 @@ export function useSelectFirst(
 ) {
    const first = ids[0] ?? null;
    const missing = selectedId !== null && ids.length > 0 && !ids.includes(selectedId);
+   const last = useRef<string | null>(null);
+   if (selectedId !== null && !missing) last.current = selectedId;
    useEffect(() => {
       if (!first) return;
       if (selectedId !== null && !missing) return;
@@ -59,6 +66,6 @@ export function useSelectFirst(
          if (missing) select(null);
          return;
       }
-      select(first);
-   }, [first, selectedId, missing, select]);
+      select(last.current && ids.includes(last.current) ? last.current : first);
+   }, [first, ids, selectedId, missing, select]);
 }
