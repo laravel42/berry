@@ -41,6 +41,13 @@ export interface PromptContext extends Dispatch {
     * it is not fenced.
     */
    merge?: string;
+   /**
+    * The checkout is there to read, not to change: the agent may read the
+    * repository but not branch it. Its files go on the task, not into a
+    * pull request, and the contract has to say so, or a level 2 agent reports
+    * "saved to the repository" about a file only the task holds.
+    */
+   repositoryReadOnly?: boolean;
 }
 
 export function buildMessage(dispatch: PromptContext): string {
@@ -84,7 +91,9 @@ export function buildMessage(dispatch: PromptContext): string {
    // The contracts go last so the agent reads them with the task fresh, but
    // the cap cuts from the tail, so a long description would silently drop
    // them first. They get their room reserved; the description gives way.
-   const contracts = reportingContract() + (dispatch.repository ? deliveryContract() : '');
+   const contracts =
+      reportingContract() +
+      (dispatch.repository ? (dispatch.repositoryReadOnly ? readOnlyContract() : deliveryContract()) : '');
    return truncateUtf8(message, MAX_PROMPT_BYTES - Buffer.byteLength(contracts, 'utf8')) + contracts;
 }
 
@@ -138,6 +147,30 @@ function fenced(tag: string, text: string): string {
    // defused rather than trusted.
    const safe = text.replaceAll(`</${tag}>`, `</ ${tag}>`);
    return `<${tag}>\n${safe}\n</${tag}>`;
+}
+
+/**
+ * The repository, for a role that reads it and does not change it.
+ *
+ * The same checkout as a code run's, reached through two read-only tools
+ * because this role has no shell. What such a run produces is a document,
+ * and it lands on the task: saying that here is what stops the agent from
+ * describing an attachment as a commit.
+ */
+function readOnlyContract(): string {
+   return (
+      '\n\nThe repository\n' +
+      'The repository is checked out in your workspace to read, not to change. ' +
+      'browse_repository lists its files from any directory and ' +
+      'read_repository_file opens one by its path from the repository root; use ' +
+      'them to read the code, the design system and the docs before you write ' +
+      'about them. You cannot run commands, edit the checkout or open a pull ' +
+      'request in this role.\n' +
+      'What you produce is saved on the task with write_file and stays there ' +
+      'as an attachment: it is not committed to the repository. Say where a ' +
+      'file is when you report it — "attached to this task as docs/spec.md" — ' +
+      'never that it was saved to the repository.\n'
+   );
 }
 
 /**

@@ -18,6 +18,11 @@ const LEVEL_1 = [
    // Read-only: who is in the workspace, and what a public page says.
    'list_agents',
    'fetch_url',
+   // The project's repository, read in place. A checkout is unpacked for any
+   // agent that may read the repository; these are how a role without a shell
+   // (a designer reviewing an implementation) reads it. Neither writes.
+   'browse_repository',
+   'read_repository_file',
 ] as const;
 
 const LEVEL_2 = [
@@ -58,11 +63,13 @@ export const KNOWN_TOOLS: readonly string[] = [...LEVEL_5];
 
 /**
  * What a row whose contract failed validation may still do: read the task and
- * its files, comment, escalate. Not `fetch_url` or `list_agents`: an agent
- * nobody can vouch for gets no new reach, outbound or across the workspace.
+ * its files, comment, escalate. Not `fetch_url`, `list_agents` or the
+ * repository: an agent nobody can vouch for gets no new reach, outbound,
+ * across the workspace or into the code.
  */
+const UNVOUCHED_REACH = ['fetch_url', 'list_agents', 'browse_repository', 'read_repository_file'];
 export const INVALID_CONTRACT_TOOLS: readonly string[] = LEVEL_1.filter(
-   (tool) => tool !== 'fetch_url' && tool !== 'list_agents'
+   (tool) => !UNVOUCHED_REACH.includes(tool)
 );
 
 export function toolCeiling(level: AutonomyLevel): readonly string[] {

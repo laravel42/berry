@@ -19,6 +19,9 @@ import { PermissionDenied, type Permission, type PermissionSet } from '../../per
 
 export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    run_command: 'run_commands',
+   // Reading the checkout needs the same permission that got it unpacked.
+   browse_repository: 'read_repository',
+   read_repository_file: 'read_repository',
    // Artifact writes are deliberately ungated (decision D3, 2026-09-09):
    // adding a permission would need a migration in the shape of 034 to keep
    // existing agents' `write_file`, and an artifact is the run's own output,

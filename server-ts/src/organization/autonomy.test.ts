@@ -42,6 +42,13 @@ describe('autonomy ceilings', () => {
       }
    });
 
+   test('the repository is readable from level 1, and only level 3+ can change it', () => {
+      for (const tool of ['browse_repository', 'read_repository_file']) {
+         assert.equal(toolCeiling(1).includes(tool), true, tool);
+      }
+      assert.equal(toolCeiling(2).includes('collect_file'), false);
+   });
+
    test('only Level 5 may submit reviews, only Level 3+ may run commands', () => {
       assert.equal(toolCeiling(4).includes('submit_review'), false);
       assert.equal(toolCeiling(5).includes('submit_review'), true);
