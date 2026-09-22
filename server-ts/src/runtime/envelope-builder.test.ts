@@ -99,7 +99,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
        * GitHub as three trees. `main` is what the default branch changed since
        * the fork; the task branch always rewrote the README and added a file.
        */
-      function repositoryBuilder(main: Record<string, string>, options: { branchExists?: boolean } = {}) {
+      function repositoryBuilder(main: Record<string, string>, options: { branchExists?: boolean; empty?: boolean } = {}) {
          const entry = (sha: string) => ({ sha, mode: '100644', type: 'blob', size: 10 });
          const fork = { 'server/README.md': 'readme-0', 'src/app.ts': 'app-0' };
          const trees: Record<string, Record<string, string>> = {
@@ -109,10 +109,18 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          };
          const asked: string[] = [];
          const mintedFor: Array<string | null | undefined> = [];
+         const written: Array<{ path: string; branch: string; sha: string | null }> = [];
+         // An empty repository has no main until something is committed to it.
+         let mainExists = options.empty !== true;
          const client = {
             repository: async () => ({ defaultBranch: 'main', canPush: true }),
             branchHead: async (_owner: string, _name: string, branch: string) =>
-               branch === 'main' ? MAIN_HEAD : options.branchExists === false ? null : BRANCH_HEAD,
+               branch === 'main' ? (mainExists ? MAIN_HEAD : null) : options.branchExists === false ? null : BRANCH_HEAD,
+            putFile: async (input: { path: string; branch: string; sha: string | null }) => {
+               written.push({ path: input.path, branch: input.branch, sha: input.sha });
+               mainExists = true;
+               return { commit: MAIN_HEAD, blob: 'readme-blob' };
+            },
             mergeBase: async () => {
                asked.push('mergeBase');
                return { commit: FORK, behindBy: 1 };
@@ -131,6 +139,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
                github: () => client,
             }),
             mintedFor,
+            written,
          };
       }
 
@@ -204,6 +213,27 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          assert.equal(envelope.repo?.merge, undefined);
          assert.equal((await snapshotOf(task.runId)).merge_parent, null);
          assert.doesNotMatch(envelope.task.prompt, /Merging main/);
+      });
+
+      test('an empty repository gets a first commit on its default branch instead of failing every run', async () => {
+         const { builder: withRepository, written } = repositoryBuilder({}, { empty: true, branchExists: false });
+         const task = await queued('First task on an empty repository');
+         const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.deepEqual(written, [{ path: 'README.md', branch: 'main', sha: null }]);
+         assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
+      });
+
+      test('a read-only run on an empty repository says there is nothing to read, and writes nothing', async () => {
+         const f = fixture!;
+         const { builder: withRepository, written } = repositoryBuilder({}, { empty: true });
+         const task = await queued('Read-only on empty');
+         await sql`UPDATE agents SET permissions = ${sql.array(['read_repository'])} WHERE id = ${f.agentId}`;
+         try {
+            await assert.rejects(withRepository.build({ task, dispatch: null, token: 'berry_task_x' }), /no commits yet/);
+            assert.deepEqual(written, []);
+         } finally {
+            await sql`UPDATE agents SET permissions = ${sql.array(['read_repository', 'create_branches', 'open_pull_requests'])} WHERE id = ${f.agentId}`;
+         }
       });
 
       test('a task with no branch yet starts from the default branch and asks nothing about a merge', async () => {

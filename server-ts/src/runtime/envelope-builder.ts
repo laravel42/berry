@@ -490,8 +490,9 @@ export class EnvelopeBuilder {
       const issue = await loadIssue(this.#deps.sql, dispatch.issueId);
       const branch = branchName(agent.name, issue.reference, issue.title);
       const client = this.#deps.github(credential.password);
-      const defaultCommit = await client.branchHead(owner, name, remote.defaultBranch);
-      if (!defaultCommit) throw new Error('The repository default branch is missing');
+      const defaultCommit =
+         (await client.branchHead(owner, name, remote.defaultBranch)) ??
+         (await initialiseRepository(client, { owner, name, fullName: repository.fullName, branch: remote.defaultBranch, readOnly }));
       const expectedHead = readOnly ? null : await client.branchHead(owner, name, branch);
       // A branch that conflicts with the default branch gets a run that can
       // resolve it. Decided here, from the repository itself, rather than from
@@ -552,3 +553,35 @@ export class EnvelopeBuilder {
       };
    }
 }
+
+/**
+ * A repository with no commits has no default branch to check out, and every
+ * run on the project failed at "the default branch is missing". A person
+ * links a repository they just created more often than one they have already
+ * pushed to, so Berry gives it its first commit: an empty README on the
+ * default branch, the way GitHub's own "create README" button does. Only a run
+ * that may push does it; a read-only run has nothing to read and says so.
+ */
+async function initialiseRepository(
+   client: Pick<GitHubClient, 'putFile' | 'branchHead'>,
+   input: { owner: string; name: string; fullName: string; branch: string; readOnly: boolean }
+): Promise<string> {
+   if (input.readOnly) {
+      throw new Error(`${input.fullName} has no commits yet, so there is nothing to read; push a first commit to ${input.branch}`);
+   }
+   await client.putFile({
+      owner: input.owner,
+      name: input.name,
+      branch: input.branch,
+      path: 'README.md',
+      // Empty on purpose: the first agent to write a README replaces it whole,
+      // and an empty file is the one version of it no later branch can conflict with.
+      content: '',
+      message: `Initial commit on ${input.branch}`,
+      sha: null,
+   });
+   const head = await client.branchHead(input.owner, input.name, input.branch);
+   if (!head) throw new Error(`${input.fullName} still has no ${input.branch} after Berry's first commit`);
+   return head;
+}
+
