@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Calendar, Check, Plus, Tag, UserPlus } from 'lucide-react';
+import { ArrowRight, Calendar, Check, Plus, UserPlus } from 'lucide-react';
 import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -366,31 +366,6 @@ export function ProjectPropertiesPanel({
                      <Calendar className="size-3.5 text-muted-foreground" />
                      {project.targetDate ? formatDay(project.targetDate) : 'Target'}
                   </span>
-               </PropertyRow>
-               <PropertyRow label="Labels">
-                  <div className="flex items-center gap-1.5">
-                     {project.labels.length === 0 && (
-                        <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                           <Tag className="size-3.5" />
-                           Add label
-                        </span>
-                     )}
-                     {project.labels.map((label) => (
-                        <span
-                           key={label.id}
-                           className="inline-flex items-center gap-1 border rounded-full px-2 py-0.5"
-                        >
-                           <span
-                              className="size-2 rounded-full"
-                              style={{ backgroundColor: label.color }}
-                           />
-                           {label.name}
-                        </span>
-                     ))}
-                     <button className="text-muted-foreground hover:text-foreground transition-colors">
-                        <Plus className="size-3.5" />
-                     </button>
-                  </div>
                </PropertyRow>
             </div>
          </div>

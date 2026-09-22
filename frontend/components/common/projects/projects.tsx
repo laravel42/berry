@@ -253,7 +253,7 @@ export default function Projects() {
       [enriched, closedProjects]
    );
 
-   const filterColumns = useProjectFilterColumns(scoped);
+   const filterColumns = useProjectFilterColumns();
    const filter = useListFilters({
       data: scoped,
       columns: filterColumns,

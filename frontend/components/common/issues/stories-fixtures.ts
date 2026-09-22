@@ -151,7 +151,6 @@ export const healthProject: Project = {
    priority: priorityById('high'),
    health: health.find((entry) => entry.id === 'on-track')!,
    teamId: 'ws-1',
-   labels: [],
    githubRepo: 'berry-dev/berry',
    createdAt: '2026-08-01T09:00:00Z',
    updatedAt: '2026-09-17T09:00:00Z',

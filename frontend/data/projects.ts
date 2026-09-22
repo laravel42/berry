@@ -2,7 +2,6 @@ import { Status } from './status';
 import { RemixiconComponentType } from '@remixicon/react';
 import type { LucideIcon } from 'lucide-react';
 import { User } from './users';
-import { LabelInterface } from './labels';
 import { Priority } from './priorities';
 
 export interface Project {
@@ -19,7 +18,6 @@ export interface Project {
    health: Health;
    /** Owning team (see data/teams.ts). */
    teamId: string;
-   labels: LabelInterface[];
    initiative?: string;
    /** Days since the last health update (undefined = no update yet). */
    healthUpdatedAgoDays?: number;

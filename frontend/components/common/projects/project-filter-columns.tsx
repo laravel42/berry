@@ -1,7 +1,6 @@
 'use client';
 
 import {
-   byLabel,
    memberFilterOption,
    priorityFilterOptions,
 } from '@/components/common/filters/filter-options';
@@ -9,7 +8,7 @@ import { createColumnConfigHelper } from '@/components/data-table-filter/core/fi
 import type { ColumnOption } from '@/components/data-table-filter/core/types';
 import { health as allHealth, type Project } from '@/data/projects';
 import { useMembersStore } from '@/store/members-store';
-import { BarChart3, CircleDashed, HeartPulse, Tag, UserRound } from 'lucide-react';
+import { BarChart3, CircleDashed, HeartPulse, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
@@ -30,30 +29,9 @@ const statusOptions: ColumnOption[] = projectCreateStatusOptions.map((option) =>
 }));
 
 /** What the Projects list can be narrowed by. */
-export function useProjectFilterColumns(projects: Project[]) {
+export function useProjectFilterColumns() {
    const t = useTranslations('issueLists');
    const members = useMembersStore((state) => state.members);
-
-   // Labels are offered from the projects themselves, so the menu never lists
-   // one that would match nothing.
-   const labelOptions = useMemo(() => {
-      const seen = new Map<string, ColumnOption>();
-      for (const project of projects) {
-         for (const label of project.labels) {
-            seen.set(label.id, {
-               value: label.id,
-               label: label.name,
-               icon: (
-                  <span
-                     className="size-2.5 rounded-full"
-                     style={{ backgroundColor: label.color }}
-                  />
-               ),
-            });
-         }
-      }
-      return [...seen.values()].sort(byLabel);
-   }, [projects]);
 
    return useMemo(() => {
       const dtf = createColumnConfigHelper<Project>();
@@ -97,14 +75,6 @@ export function useProjectFilterColumns(projects: Project[]) {
                ...members.map(memberFilterOption),
             ])
             .build(),
-         dtf
-            .multiOption()
-            .id('labels')
-            .accessor((project: Project) => project.labels.map((label) => label.id))
-            .displayName('Labels')
-            .icon(Tag)
-            .options(labelOptions)
-            .build(),
       ] as const;
-   }, [t, members, labelOptions]);
+   }, [t, members]);
 }

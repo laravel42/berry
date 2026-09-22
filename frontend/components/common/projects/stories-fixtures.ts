@@ -83,7 +83,6 @@ export function makeProject(overrides: Partial<Project> & Pick<Project, 'id' | '
       priority: priorityById('high'),
       health: healthById('on-track'),
       teamId: 'ws-1',
-      labels: [],
       createdById: andrea.id,
       createdAt: '2026-08-01T09:12:00Z',
       updatedAt: '2026-09-17T16:40:00Z',
@@ -98,7 +97,6 @@ export const projectHealth = makeProject({
    description:
       'Move the health chip off the browser and into Postgres, with an update history the Activity feed can read.',
    githubRepo: 'berry-dev/berry',
-   labels: [storyLabels[0]!, storyLabels[1]!],
 });
 
 export const projectRunner = makeProject({
@@ -111,7 +109,6 @@ export const projectRunner = makeProject({
    startDate: '2026-07-14',
    targetDate: '2026-09-30',
    percentComplete: 35,
-   labels: [storyLabels[2]!],
    createdById: maya.id,
 });
 

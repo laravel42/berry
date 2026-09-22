@@ -168,7 +168,6 @@ export const serverProject: Project = {
    priority: priorityOf('high'),
    health: pick(health, 'on-track'),
    teamId: 'team-1',
-   labels: [],
    githubRepo: 'berry-dev/berry',
    createdAt: '2026-08-01T09:00:00Z',
    updatedAt: '2026-09-17T16:20:00Z',

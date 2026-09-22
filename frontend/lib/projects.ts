@@ -95,7 +95,6 @@ export function toUiProject(apiProject: ApiProject, viewer: User): Project | und
       priority,
       health: projectHealth,
       teamId: apiProject.workspaceId,
-      labels: [],
       createdById: apiProject.createdBy?.type === 'user' ? apiProject.createdBy.id : null,
       createdAt: apiProject.createdAt,
       updatedAt: apiProject.updatedAt,
