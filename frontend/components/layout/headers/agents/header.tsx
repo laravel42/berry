@@ -7,6 +7,8 @@ import { useTranslations } from 'next-intl';
 
 import { PageStatement } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useAgentsListStore } from '@/store/agents-list-store';
 import { useAgentsStore } from '@/store/agents-store';
 
 import HeaderOptions from './header-options';
@@ -16,6 +18,8 @@ export default function Header() {
    const { orgId } = useParams<{ orgId: string }>();
    const agents = useAgentsStore((state) => state.agents);
    const roster = useAgentsStore((state) => state.roster);
+   const query = useAgentsListStore((state) => state.query);
+   const setQuery = useAgentsListStore((state) => state.setQuery);
 
    // The roster says who is running something right now. It is best effort, so
    // without it the page falls back to how many agents there are; with neither
@@ -36,17 +40,21 @@ export default function Header() {
             }
             sub={t('statement.sub')}
          >
-            <Button
-               size="xs"
-               className="ml-auto h-[34px] w-[42px] shrink-0 px-0"
-               aria-label={t('newAgent')}
-               title={t('newAgent')}
-               asChild
-            >
-               <Link href={`/${orgId}/agents/new`}>
-                  <Plus className="size-4" />
-               </Link>
-            </Button>
+            <div className="flex items-center gap-2">
+               <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  className="h-[34px] w-48"
+               />
+               <Button size="xs" className="h-[34px] shrink-0" asChild>
+                  <Link href={`/${orgId}/agents/new`}>
+                     <Plus className="size-4" aria-hidden />
+                     {t('newAgent')}
+                  </Link>
+               </Button>
+            </div>
          </PageStatement>
          <HeaderOptions />
       </div>

@@ -16,21 +16,13 @@ import {
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 
 export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 
-export const AUTOPILOT_SORTS = [
-   'name',
-   'status',
-   'mode',
-   'quota',
-   'updated',
-   'created',
-] as const;
+export const AUTOPILOT_SORTS = ['name', 'status', 'mode', 'quota', 'updated', 'created'] as const;
 export type AutopilotSort = (typeof AUTOPILOT_SORTS)[number];
 
 /** How the list is laid out; what narrows it is the filter's. */
@@ -118,32 +110,17 @@ interface Props {
    criteria: AutopilotCriteria;
    onChange: (criteria: AutopilotCriteria) => void;
    filter: ListFilterController<Autopilot>;
-   query: string;
-   onQueryChange: (query: string) => void;
    /** Trailing primary action (e.g. New autopilot), after Display-style controls. */
    action?: ReactNode;
 }
 
-/** Search, filters and columns for the autopilot list. Sort is on the table headings. */
-export default function AutopilotsFilters({
-   criteria,
-   onChange,
-   filter,
-   query,
-   onQueryChange,
-   action,
-}: Props) {
+/** Filter and column controls for the autopilot list. Search sits on the page statement. */
+export default function AutopilotsFilters({ criteria, onChange, filter, action }: Props) {
    const t = useTranslations('areas.autopilots');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
 
    return (
-      <div className="mb-1 flex w-full shrink-0 items-center gap-2 border-b px-4 py-[6px] [&_button]:!h-9 [&_button[aria-label='New autopilot']]:!h-[34px] [&_button[aria-label='New autopilot']]:!w-[42px] [&_input]:!h-9">
-         <Input
-            className="h-9 max-w-64"
-            placeholder={t('search')}
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-         />
+      <div className="mb-1 flex w-full shrink-0 items-center justify-end gap-2 border-b px-4 py-[6px] [&_button]:!h-9">
          <ListFilterTrigger filter={filter} />
          <Popover>
             <PopoverTrigger asChild>
@@ -152,7 +129,7 @@ export default function AutopilotsFilters({
                   {t('filters.columns')}
                </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="start">
+            <PopoverContent className="w-52 p-0" align="end">
                <Command>
                   <CommandList>
                      <CommandGroup>
@@ -179,8 +156,7 @@ export default function AutopilotsFilters({
                </Command>
             </PopoverContent>
          </Popover>
-
-         {action ? <div className="ml-auto flex items-center gap-1">{action}</div> : null}
+         {action}
       </div>
    );
 }

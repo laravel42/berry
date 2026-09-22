@@ -30,6 +30,8 @@ interface AgentsListState {
    sortDescending: boolean;
    /** The toolbar's filter chips (bazza/ui FiltersState). */
    filters: FiltersState;
+   /** Free-text search over agent names and descriptions. */
+   query: string;
    columns: AgentColumn[];
    /** Ids ticked for a bulk action. Cleared whenever the scope changes. */
    selected: string[];
@@ -37,6 +39,7 @@ interface AgentsListState {
    /** Clicking the column already sorted on flips the direction. */
    sortBy: (key: AgentsSortKey) => void;
    setFilters: React.Dispatch<React.SetStateAction<FiltersState>>;
+   setQuery: (query: string) => void;
    toggleColumn: (column: AgentColumn) => void;
    toggleSelected: (id: string) => void;
    setSelected: (ids: string[]) => void;
@@ -48,6 +51,7 @@ export const useAgentsListStore = create<AgentsListState>((set) => ({
    sortKey: 'activity',
    sortDescending: true,
    filters: [],
+   query: '',
    columns: DEFAULT_COLUMNS,
    selected: [],
 
@@ -66,6 +70,8 @@ export const useAgentsListStore = create<AgentsListState>((set) => ({
       set((state) => ({
          filters: typeof action === 'function' ? action(state.filters) : action,
       })),
+
+   setQuery: (query) => set({ query }),
 
    toggleColumn: (column) =>
       set((state) => ({

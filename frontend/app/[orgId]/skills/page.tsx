@@ -24,6 +24,7 @@ import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import SkillDetailHeader from '@/components/layout/headers/skills/detail-header';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import { listSkills, type Skill } from '@/lib/skills';
@@ -126,25 +127,23 @@ function SkillsScreen() {
             line={t('statement.line', { count: total ?? 0 })}
             sub={t('statement.sub')}
          >
-            {canEdit ? (
-               <Button
-                  size="xs"
-                  className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
-                  aria-label={t('create.title')}
-                  title={t('create.title')}
-                  onClick={() => setCreating(true)}
-               >
-                  <Plus className="size-4" />
-               </Button>
-            ) : null}
+            <div className="flex items-center gap-2">
+               <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  className="h-[34px] w-48"
+               />
+               {canEdit ? (
+                  <Button size="xs" className="h-[34px] shrink-0" onClick={() => setCreating(true)}>
+                     <Plus className="size-4" aria-hidden />
+                     {t('create.title')}
+                  </Button>
+               ) : null}
+            </div>
          </PageStatement>
-         <SkillsFilters
-            criteria={criteria}
-            onChange={setCriteria}
-            filter={filter}
-            query={query}
-            onQueryChange={setQuery}
-         />
+         <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
          <ListFilterBar filter={filter} />
       </>
    );

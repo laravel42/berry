@@ -19,7 +19,6 @@ const creators = [
 function Toolbar({ initial }: { initial: AutopilotCriteria }) {
    const [criteria, setCriteria] = useState(initial);
    const [filters, setFilters] = useState<FiltersState>([]);
-   const [query, setQuery] = useState('');
    const columns = useAutopilotFilterColumns(liveAgents, creators);
    const filter = useListFilters({
       data: autopilots,
@@ -29,13 +28,7 @@ function Toolbar({ initial }: { initial: AutopilotCriteria }) {
    });
    return (
       <div className="flex w-[820px] flex-col gap-2">
-         <AutopilotsFilters
-            criteria={criteria}
-            onChange={setCriteria}
-            filter={filter}
-            query={query}
-            onQueryChange={setQuery}
-         />
+         <AutopilotsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
          <p className="text-muted-foreground" data-testid="criteria">
             {criteria.sort}
             {criteria.sortDescending ? ' ↓' : ' ↑'} · {criteria.columns.join(', ')}
@@ -55,7 +48,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getByPlaceholderText('Search autopilots')).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Columns' })).toBeVisible();
    },
 };
 

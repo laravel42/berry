@@ -2,6 +2,7 @@
    "header": {
       "title": "Agents",
       "newAgent": "New agent",
+      "search": "Search agents",
       "statement": {
          "line": "{count, plural, one {agent is working} other {agents are working}}",
          "lineAll": "{count, plural, one {agent in this workspace} other {agents in this workspace}}",

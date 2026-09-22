@@ -85,7 +85,7 @@ const reason = (error: unknown, fallback: string) =>
  * Three lists are in play and only one is on screen: the live roster (held in
  * the agents store, shared with every other agent surface), the archive (read
  * on demand) and the per-agent facts the rows draw. Scope, filters and
- * sort are the toolbar's, read from the list store.
+ * sort and search are the toolbar's, read from the list store.
  */
 export default function Agents() {
    const t = useTranslations('agentsChat.list');
@@ -103,7 +103,8 @@ export default function Agents() {
    const upsertAgent = useAgentsStore((state) => state.upsertAgent);
    const removeAgent = useAgentsStore((state) => state.removeAgent);
 
-   const { scope, sortKey, sortDescending, filters, columns, selected } = useAgentsListStore();
+   const { scope, sortKey, sortDescending, filters, query, columns, selected } =
+      useAgentsListStore();
    const sortBy = useAgentsListStore((state) => state.sortBy);
    const toggleSelected = useAgentsListStore((state) => state.toggleSelected);
    const setSelected = useAgentsListStore((state) => state.setSelected);
@@ -165,7 +166,12 @@ export default function Agents() {
    }, [scope, archived, loadArchive]);
 
    const rows = useMemo(() => {
-      const matched = applyListFilters(source, filterColumns, filters);
+      const term = query.trim().toLowerCase();
+      const matched = applyListFilters(source, filterColumns, filters).filter((agent) => {
+         if (!term) return true;
+         if (agent.name.toLowerCase().includes(term)) return true;
+         return (agent.description ?? '').toLowerCase().includes(term);
+      });
 
       const direction = sortDescending ? -1 : 1;
       return matched.slice().sort((left, right) => {
@@ -184,7 +190,7 @@ export default function Agents() {
          const rightAt = roster.get(right.id)?.lastActiveAt ?? right.updatedAt;
          return direction * leftAt.localeCompare(rightAt);
       });
-   }, [source, filterColumns, roster, filters, sortKey, sortDescending]);
+   }, [source, filterColumns, roster, filters, query, sortKey, sortDescending]);
 
    const selectedRows = rows.filter((agent) => selected.includes(agent.id));
    const allSelected = rows.length > 0 && selectedRows.length === rows.length;
@@ -297,7 +303,7 @@ export default function Agents() {
                   icon={
                      <EmptyStateMark
                         label={
-                           filter.filters.length > 0
+                           filter.filters.length > 0 || query.trim() !== ''
                               ? t('noMatch')
                               : scope === 'archived'
                                 ? t('emptyArchived')
@@ -306,7 +312,7 @@ export default function Agents() {
                      />
                   }
                >
-                  {filter.filters.length > 0 ? (
+                  {filter.filters.length > 0 || query.trim() !== '' ? (
                      <EmptyStateText>{t('noMatch')}</EmptyStateText>
                   ) : scope === 'archived' ? (
                      <EmptyStateText>{t('emptyArchived')}</EmptyStateText>

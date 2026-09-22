@@ -24,11 +24,18 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Admin: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, userEvent }) => {
       await expect(canvas.getByRole('link', { name: 'New agent' })).toHaveAttribute(
          'href',
          '/elian/agents/new'
       );
+      const search = canvas.getByRole('textbox', { name: 'Search agents' });
+      const button = canvas.getByRole('link', { name: 'New agent' });
+      await expect(search.getBoundingClientRect().right).toBeLessThanOrEqual(
+         button.getBoundingClientRect().left
+      );
+      await userEvent.type(search, 'front');
+      await expect(useAgentsListStore.getState().query).toBe('front');
    },
 };
 
