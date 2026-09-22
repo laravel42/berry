@@ -218,11 +218,6 @@ export const storyDetail = (projectId: string): ProjectDetail => ({
    projectId,
    description: [],
    resources: [],
-   milestones: [
-      { id: 'ms-1', name: 'Schema and migration', targetDate: '2026-08-21', completed: true },
-      { id: 'ms-2', name: 'Updates API', targetDate: '2026-09-11', completed: true },
-      { id: 'ms-3', name: 'UI writes through', targetDate: '2026-10-09', completed: false },
-   ],
    updates: [],
    activity: [
       { id: 'act-1', user: maya, date: '2026-09-16', text: 'moved health to on track' },

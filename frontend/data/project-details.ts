@@ -5,13 +5,6 @@ import { User } from './users';
 /*                                 Interfaces                                 */
 /* -------------------------------------------------------------------------- */
 
-export interface ProjectMilestone {
-   id: string;
-   name: string;
-   targetDate?: string;
-   completed: boolean;
-}
-
 export type ProjectUpdateHealth = 'on-track' | 'at-risk' | 'off-track';
 
 export const projectUpdateHealthLabel: Record<ProjectUpdateHealth, string> = {
@@ -52,7 +45,6 @@ export interface ProjectDetail {
    projectId: string;
    description: ContentBlock[];
    resources: ProjectResource[];
-   milestones: ProjectMilestone[];
    updates: ProjectUpdate[];
    activity: ProjectActivityEvent[];
 }
@@ -71,7 +63,6 @@ export function getProjectDetail(projectId: string): ProjectDetail {
       projectId,
       description: [],
       resources: [],
-      milestones: [],
       updates: [],
       activity: [],
    };

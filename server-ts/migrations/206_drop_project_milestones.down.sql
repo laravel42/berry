@@ -1,0 +1,2 @@
+-- The tables held no rows in any deployment Berry knows of; recreating them
+-- empty is migration 010's job, and there is nothing to restore.

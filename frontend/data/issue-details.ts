@@ -63,7 +63,6 @@ export interface IssueDetail {
    relatedIds?: string[];
    blockedByIds?: string[];
    prLinks?: PrLink[];
-   milestone?: string;
 }
 
 /* -------------------------------------------------------------------------- */

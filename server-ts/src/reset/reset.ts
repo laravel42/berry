@@ -145,11 +145,9 @@ export const EMPTIED_TABLES: readonly string[] = [
    'issue_subscribers',
    'issue_dependencies',
    'issue_label_memberships',
-   'issue_milestone_links',
    'issue_project_links',
    'issue_property_values',
    'issues',
-   'milestones',
    'project_resources',
    // A project's sealed build variables (migration 204) go with the project.
    'project_preview_env',

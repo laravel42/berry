@@ -67,7 +67,6 @@ export const WithRelatedAndDiffs: Story = {
    args: {
       detail: {
          ...getIssueDetail(persistHealth),
-         milestone: 'Health persisted',
          relatedIds: ['BERR-43', 'BERR-46'],
          prLinks: [
             { id: '#318', title: 'Persist project health', status: 'open' },

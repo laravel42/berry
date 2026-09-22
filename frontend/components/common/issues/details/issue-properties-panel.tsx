@@ -145,12 +145,6 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
                   <IssueProjectProperty issue={issue} />
                   <AutoGateProperty issue={issue} />
-                  {issue.project && detail.milestone ? (
-                     <div className="flex items-center gap-2 pl-9 text-muted-foreground">
-                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
-                        <span className="truncate">{detail.milestone}</span>
-                     </div>
-                  ) : null}
                </div>
             </Section>
 

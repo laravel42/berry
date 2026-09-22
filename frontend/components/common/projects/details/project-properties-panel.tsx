@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowRight, Calendar, Check, Plus, UserPlus } from 'lucide-react';
+import { ArrowRight, Calendar, UserPlus } from 'lucide-react';
 import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -125,13 +125,7 @@ function SidebarSection({ title, children }: { title: string; children: React.Re
    );
 }
 
-function ProjectPropertiesPanelCompact({
-   project,
-   detail,
-}: {
-   project: Project;
-   detail: ProjectDetail;
-}) {
+function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
    const members = useMembersStore((state) => state.members);
    const {
       updateProjectStatus,
@@ -203,24 +197,6 @@ function ProjectPropertiesPanelCompact({
                </div>
             </SidebarSection>
 
-            {detail.milestones.length > 0 && (
-               <SidebarSection title="Milestones">
-                  {detail.milestones.map((milestone, index) => (
-                     <div
-                        key={milestone.id}
-                        className={
-                           index === 0
-                              ? 'flex items-center gap-2 min-w-0'
-                              : 'mt-1.5 flex items-center gap-2 pl-6 text-muted-foreground min-w-0'
-                        }
-                     >
-                        <span className="size-2 shrink-0 rotate-45 border border-status-warning" />
-                        <span className="truncate">{milestone.name}</span>
-                     </div>
-                  ))}
-               </SidebarSection>
-            )}
-
             <ProjectDetailsSection project={project} />
          </div>
       </div>
@@ -228,7 +204,7 @@ function ProjectPropertiesPanelCompact({
 }
 
 /**
- * Right-side panel of the project pages: properties, milestones,
+ * Right-side panel of the project pages: properties,
  * progress breakdowns and a compact activity feed.
  */
 export function ProjectPropertiesPanel({
@@ -305,7 +281,7 @@ export function ProjectPropertiesPanel({
    );
 
    if (compact) {
-      return <ProjectPropertiesPanelCompact project={project} detail={detail} />;
+      return <ProjectPropertiesPanelCompact project={project} />;
    }
 
    return (
@@ -368,52 +344,6 @@ export function ProjectPropertiesPanel({
                   </span>
                </PropertyRow>
             </div>
-         </div>
-
-         {/* Milestones */}
-         <div className="px-5 py-4 border-b">
-            <div className="flex items-center justify-between mb-2">
-               <h3 className="font-medium">Milestones</h3>
-               <button className="text-muted-foreground hover:text-foreground transition-colors">
-                  <Plus className="size-3.5" />
-               </button>
-            </div>
-            {detail.milestones.length === 0 ? (
-               <p className="text-muted-foreground">
-                  Add milestones to organize work within your project and break it into more
-                  granular stages. <span className="text-foreground/70 underline">Learn more</span>
-               </p>
-            ) : (
-               <div className="flex flex-col gap-1.5">
-                  {detail.milestones.map((milestone) => (
-                     <div key={milestone.id} className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-2 min-w-0">
-                           <span
-                              className={
-                                 milestone.completed
-                                    ? 'size-4 rounded-full bg-violet-500 flex items-center justify-center shrink-0'
-                                    : 'size-4 rounded-full border border-input shrink-0'
-                              }
-                           >
-                              {milestone.completed && <Check className="size-2.5 text-white" />}
-                           </span>
-                           <span
-                              className={
-                                 milestone.completed
-                                    ? 'truncate line-through text-muted-foreground'
-                                    : 'truncate'
-                              }
-                           >
-                              {milestone.name}
-                           </span>
-                        </span>
-                        <span className="text-muted-foreground whitespace-nowrap">
-                           {formatDay(milestone.targetDate)}
-                        </span>
-                     </div>
-                  ))}
-               </div>
-            )}
          </div>
 
          {/* Progress */}

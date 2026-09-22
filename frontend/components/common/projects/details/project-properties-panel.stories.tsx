@@ -47,7 +47,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The project tasks page panel: properties, milestones, progress and activity. */
+/** The project tasks page panel: properties, progress and activity. */
 export const Full: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('3 members')).toBeVisible();
@@ -55,7 +55,7 @@ export const Full: Story = {
    },
 };
 
-/** Nothing linked yet: empty milestones copy, no breakdown rows. */
+/** Nothing linked yet: no breakdown rows. */
 export const NoTasks: Story = {
    args: { project: projectInbox, detail: getProjectDetail(projectInbox.id), issues: [] },
    play: async ({ canvas }) => {
