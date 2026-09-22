@@ -6,7 +6,6 @@ import { CheckIcon } from 'lucide-react';
 import {
    Command,
    CommandEmpty,
-   CommandGroup,
    CommandInput,
    CommandItem,
    CommandList,
@@ -40,6 +39,16 @@ function compact(tokens: number): string {
  * empty list. A model is picked by recalling part of its vendor or name, so
  * substring-per-term is both predictable and enough.
  */
+/** A–Z by the name a person reads, then by id so equal names stay put. */
+function byName(left: AgentModel, right: AgentModel): number {
+   const byLabel = left.displayName.localeCompare(right.displayName, undefined, {
+      numeric: true,
+      sensitivity: 'base',
+   });
+   if (byLabel !== 0) return byLabel;
+   return left.id.localeCompare(right.id);
+}
+
 function matches(value: string, search: string): number {
    const haystack = value.toLowerCase();
    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
@@ -91,15 +100,7 @@ export function AgentModelPicker({
       };
    }, []);
 
-   const groups = useMemo(() => {
-      const byProvider = new Map<string, AgentModel[]>();
-      for (const item of models) {
-         const bucket = byProvider.get(item.provider) ?? [];
-         bucket.push(item);
-         byProvider.set(item.provider, bucket);
-      }
-      return [...byProvider.entries()];
-   }, [models]);
+   const sorted = useMemo(() => models.slice().sort(byName), [models]);
 
    const selected = models.find((item) => modelKey(item) === current) ?? null;
    const focused = models.find((item) => modelKey(item) === (focusedKey ?? current)) ?? selected;
@@ -128,42 +129,35 @@ export function AgentModelPicker({
                   <CommandInput placeholder="Search models…" disabled={disabled} />
                   <CommandList className={cn(LIST_HEIGHT, 'max-h-none overflow-y-auto')}>
                      <CommandEmpty>No model matches.</CommandEmpty>
-                     {groups.map(([groupProvider, items]) => (
-                        <CommandGroup key={groupProvider} heading={groupProvider}>
-                           {items.map((item) => {
-                              const key = modelKey(item);
-                              const active = key === current;
-                              const previewing = key === (focusedKey ?? current);
-                              return (
-                                 <CommandItem
-                                    key={key}
-                                    value={`${key} ${item.displayName}`}
-                                    disabled={disabled}
-                                    onSelect={() => choose(key)}
-                                    onMouseEnter={() => setFocusedKey(key)}
-                                    className={cn(
-                                       'flex h-10 items-center gap-2 rounded-none px-3',
-                                       previewing && 'bg-accent/60'
-                                    )}
-                                 >
-                                    <CheckIcon
-                                       className={cn(
-                                          'size-3.5 shrink-0',
-                                          active ? 'opacity-100' : 'opacity-0'
-                                       )}
-                                    />
-                                    <span className="min-w-0 flex-1 truncate">
-                                       {item.displayName}
-                                    </span>
-                                    <span className="shrink-0 text-muted-foreground">
-                                       {modelPrice(item.inputCostPerM)}/
-                                       {modelPrice(item.outputCostPerM)}
-                                    </span>
-                                 </CommandItem>
-                              );
-                           })}
-                        </CommandGroup>
-                     ))}
+                     {sorted.map((item) => {
+                        const key = modelKey(item);
+                        const active = key === current;
+                        const previewing = key === (focusedKey ?? current);
+                        return (
+                           <CommandItem
+                              key={key}
+                              value={`${key} ${item.displayName}`}
+                              disabled={disabled}
+                              onSelect={() => choose(key)}
+                              onMouseEnter={() => setFocusedKey(key)}
+                              className={cn(
+                                 'flex h-10 items-center gap-2 rounded-none px-3',
+                                 previewing && 'bg-accent/60'
+                              )}
+                           >
+                              <CheckIcon
+                                 className={cn(
+                                    'size-3.5 shrink-0',
+                                    active ? 'opacity-100' : 'opacity-0'
+                                 )}
+                              />
+                              <span className="min-w-0 flex-1 truncate">{item.displayName}</span>
+                              <span className="shrink-0 text-muted-foreground">
+                                 {modelPrice(item.inputCostPerM)}/{modelPrice(item.outputCostPerM)}
+                              </span>
+                           </CommandItem>
+                        );
+                     })}
                   </CommandList>
                </Command>
             </div>

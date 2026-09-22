@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, fn } from 'storybook/test';
+import { expect, fn, within } from 'storybook/test';
 import { AgentModelPicker } from './agent-model-picker';
 import { storyHandlers } from './stories-fixtures';
 
@@ -29,8 +29,15 @@ type Story = StoryObj<typeof meta>;
 
 export const Assigned: Story = {
    play: async ({ args, canvas, userEvent }) => {
-      // The catalogue arrives from GET /api/v1/agents/models (MSW).
-      await userEvent.click(await canvas.findByText('Claude Haiku 4.5'));
+      // The catalogue arrives from GET /api/v1/agents/models (MSW), A–Z by name.
+      const list = await canvas.findByRole('listbox');
+      await within(list).findByRole('option', { name: /Claude Haiku 4.5/ });
+      const names = within(list)
+         .getAllByRole('option')
+         .map((option) => option.textContent ?? '');
+      const order = ['Claude Haiku 4.5', 'Claude Opus 5', 'Claude Sonnet 5', 'Qwen3 32B'];
+      await expect(order.every((name, index) => names[index]?.includes(name))).toBe(true);
+      await userEvent.click(within(list).getByRole('option', { name: /Claude Haiku 4.5/ }));
       await expect(args.onChange).toHaveBeenCalledWith(
          'bedrock',
          'us.anthropic.claude-haiku-4-5-20251001-v1:0'
