@@ -151,6 +151,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    'issues',
    'milestones',
    'project_resources',
+   // A project's sealed build variables (migration 204) go with the project.
+   'project_preview_env',
    'project_updates',
    'projects',
    // Catalogues a person made while trying things out. Starter labels are
