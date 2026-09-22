@@ -73,10 +73,13 @@ export interface GrantSummary {
 export class GitHubUserUnavailable extends Error {
    override readonly name = 'GitHubUserUnavailable';
    readonly reason: 'not_linked' | 'sign_in_again' | 'github_error';
+   /** GitHub's status for a `github_error`, when there was a response. */
+   readonly status: number | null;
 
-   constructor(message: string, reason: GitHubUserUnavailable['reason']) {
+   constructor(message: string, reason: GitHubUserUnavailable['reason'], status: number | null = null) {
       super(message);
       this.reason = reason;
+      this.status = status;
    }
 }
 
@@ -506,6 +509,78 @@ export class GitHubUserAccess {
       return row ? toRepositoryChoice(row) : null;
    }
 
+   /**
+    * Where this person may create a repository: their own account, and each
+    * organisation they belong to that lets them create there. GitHub's rule is
+    * the organisation's: an admin always may, a member only where
+    * `members_can_create_repositories` is on. Read with the person's token,
+    * which is the only one that knows their memberships.
+    */
+   async repositoryOwners(userId: string): Promise<Array<{ login: string; type: 'user' | 'organization' }>> {
+      const token = await this.#token(userId);
+      const viewer = await this.#json<{ login?: unknown }>(token, userId, '/user');
+      const owners: Array<{ login: string; type: 'user' | 'organization' }> = [];
+      if (typeof viewer.login === 'string' && viewer.login !== '') owners.push({ login: viewer.login, type: 'user' });
+      const memberships = await this.#json<Array<{ role?: unknown; organization?: { login?: unknown } }>>(
+         token,
+         userId,
+         '/user/memberships/orgs?state=active&per_page=100'
+      );
+      if (!Array.isArray(memberships)) return owners;
+      for (const membership of memberships) {
+         const login = membership.organization?.login;
+         if (typeof login !== 'string' || login === '') continue;
+         let allowed = membership.role === 'admin';
+         if (!allowed) {
+            const organization = await this.#json<{ members_can_create_repositories?: unknown } | null>(
+               token,
+               userId,
+               `/orgs/${encodeURIComponent(login)}`,
+               { notFoundAsNull: true }
+            );
+            allowed = organization?.members_can_create_repositories === true;
+         }
+         if (allowed) owners.push({ login, type: 'organization' });
+      }
+      return owners;
+   }
+
+   /**
+    * A new repository, made with the person's own sign-in token.
+    *
+    * The GitHub App deliberately holds no `administration` permission, so a
+    * repository is created as the signed-in person, under their account or an
+    * organisation they may create in; GitHub decides which, and its refusal is
+    * relayed. Made empty on purpose: a run gives it its first commit (see the
+    * envelope builder), and an empty repository is the one nothing can
+    * conflict with. The token still never leaves this class.
+    */
+   async createRepository(
+      userId: string,
+      input: { name: string; owner?: string | null; private: boolean; description?: string | null }
+   ): Promise<RepositoryChoice> {
+      const token = await this.#token(userId);
+      const owner = (input.owner ?? '').trim();
+      const viewer = await this.#json<{ login?: unknown }>(token, userId, '/user');
+      const login = typeof viewer.login === 'string' ? viewer.login : '';
+      const path =
+         owner !== '' && owner.toLowerCase() !== login.toLowerCase()
+            ? `/orgs/${encodeURIComponent(owner)}/repos`
+            : '/user/repos';
+      const row = await this.#json<UserRepositoryRow>(token, userId, path, {
+         method: 'POST',
+         body: {
+            name: input.name,
+            private: input.private,
+            auto_init: false,
+            ...(input.description ? { description: input.description } : {}),
+         },
+      });
+      const choice = toRepositoryChoice(row);
+      if (!choice) throw new GitHubUserUnavailable('GitHub did not return the repository it created', 'github_error');
+      return choice;
+   }
+
    /** What one installation was granted. */
    async #repositories(
       token: string,
@@ -563,16 +638,19 @@ export class GitHubUserAccess {
       token: string,
       userId: string,
       path: string,
-      options: { notFoundAsNull?: boolean } = {}
+      options: { notFoundAsNull?: boolean; method?: 'GET' | 'POST'; body?: unknown } = {}
    ): Promise<T> {
       let response: Response;
       try {
          response = await this.#fetch(new URL(path, this.#api), {
+            method: options.method ?? 'GET',
             headers: {
                accept: 'application/vnd.github+json',
                authorization: `Bearer ${token}`,
                'x-github-api-version': '2022-11-28',
+               ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
             },
+            ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
          });
       } catch {
          throw new GitHubUserUnavailable('GitHub could not be reached', 'github_error');
@@ -586,9 +664,26 @@ export class GitHubUserAccess {
       }
       if (response.status === 404 && options.notFoundAsNull) return null as T;
       if (!response.ok) {
+         // GitHub's own words are the useful part of a refusal, and for a 422
+         // they sit under `errors`, not `message` ("Repository creation failed."
+         // says nothing; "name already exists on this account" is the reason).
+         const detail = await response
+            .json()
+            .then((body: unknown) => {
+               if (typeof body !== 'object' || body === null) return '';
+               const { message, errors } = body as { message?: unknown; errors?: unknown };
+               const reasons = Array.isArray(errors)
+                  ? errors
+                       .map((entry) => (typeof entry === 'object' && entry !== null && typeof (entry as { message?: unknown }).message === 'string' ? (entry as { message: string }).message : ''))
+                       .filter((reason) => reason !== '')
+                  : [];
+               return [typeof message === 'string' ? message : '', ...reasons].filter(Boolean).join(': ');
+            })
+            .catch(() => '');
          throw new GitHubUserUnavailable(
-            `GitHub answered ${response.status} for ${path.split('?')[0]}`,
-            'github_error'
+            `GitHub answered ${response.status} for ${path.split('?')[0]}${detail ? `: ${detail}` : ''}`,
+            'github_error',
+            response.status
          );
       }
       try {

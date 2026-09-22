@@ -679,6 +679,84 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
     * apart from a picker that could not load — the fixes are opposite, and a
     * spinner that ends in nothing teaches nobody which one happened.
     */
+   /** The accounts the signed-in person may create a repository under. */
+   route.get('/github/repository-owners', async (context) => {
+      await requireWorkspace(context, options, 'product.read');
+      if (!options.userAccess) return json({ owners: [] });
+      try {
+         return json({ owners: await options.userAccess.repositoryOwners(context.get('user').id) });
+      } catch (error) {
+         if (error instanceof GitHubUserUnavailable) {
+            if (error.reason !== 'github_error') return json({ owners: [] });
+            throw new ApiError(502, 'PROVIDER_ERROR', `GitHub refused the request: ${error.message}`);
+         }
+         throw error;
+      }
+   });
+
+   /**
+    * A new repository, made as the signed-in person.
+    *
+    * The GitHub App holds no `administration` permission on purpose, so a
+    * repository is created with the person's own sign-in token, under their
+    * account or an organisation they may create in. The project is not linked
+    * here: the dialog that asked for the repository links it when the project
+    * is created, the same way it links one that already existed.
+    */
+   route.post('/github/repositories', async (context) => {
+      await requireWorkspace(context, options, 'product.read');
+      if (!options.userAccess) {
+         throw new ApiError(409, 'SIGN_IN_REQUIRED', 'Creating a repository needs a GitHub sign-in, which this deployment does not have.');
+      }
+      const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const name = typeof body.name === 'string' ? body.name.trim() : '';
+      if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || name === '.' || name === '..') {
+         throw new ApiError(400, 'VALIDATION_ERROR', 'A repository name is letters, digits, dots, dashes and underscores, up to 100 characters.', [
+            { field: 'name', message: 'Invalid repository name' },
+         ]);
+      }
+      const owner = typeof body.owner === 'string' && body.owner.trim() !== '' ? body.owner.trim() : null;
+      if (owner !== null && !/^[A-Za-z0-9-]{1,39}$/.test(owner)) {
+         throw new ApiError(400, 'VALIDATION_ERROR', 'That is not a GitHub account name.', [{ field: 'owner', message: 'Invalid owner' }]);
+      }
+      const description = typeof body.description === 'string' ? body.description.trim().slice(0, 350) : null;
+      try {
+         const repository = await options.userAccess.createRepository(context.get('user').id, {
+            name,
+            owner,
+            private: body.private !== false,
+            description: description || null,
+         });
+         return json({ repository }, 201);
+      } catch (error) {
+         if (error instanceof GitHubUserUnavailable) {
+            if (error.reason !== 'github_error') {
+               throw new ApiError(409, 'SIGN_IN_REQUIRED', 'Sign in with GitHub again to create a repository.');
+            }
+            // 422 is GitHub's answer for a name already taken on that account;
+            // 403 and 404 both mean the account will not let this person create
+            // there (a 404 is how GitHub hides an organisation from an outsider).
+            if (error.status === 422) {
+               const reason = error.message.replace(/^GitHub answered \d+ for [^:]+: /, '');
+               if (/already exists/i.test(reason)) {
+                  throw new ApiError(
+                     409,
+                     'REPOSITORY_EXISTS',
+                     `${owner ? `${owner}/${name}` : name} already exists on GitHub. Choose another name, or link the existing repository instead.`,
+                     { field: 'name', owner, name }
+                  );
+               }
+               throw new ApiError(400, 'VALIDATION_ERROR', `GitHub would not create ${owner ? `${owner}/` : ''}${name}: ${reason}`, [{ field: 'name', message: reason }]);
+            }
+            if (error.status === 403 || error.status === 404) {
+               throw new ApiError(403, 'FORBIDDEN', `GitHub does not let you create a repository under ${owner ?? 'that account'}.`);
+            }
+            throw new ApiError(502, 'PROVIDER_ERROR', `GitHub refused the request: ${error.message}`);
+         }
+         throw error;
+      }
+   });
+
    route.get('/github/repositories', async (context) => {
       const workspaceId = await requireWorkspace(context, options, 'product.read');
       if (!options.connections) {

@@ -217,6 +217,24 @@ describe(
                   status,
                   headers: { 'content-type': 'application/json' },
                });
+            if (target.pathname === '/user') return reply({ login: 'alice' });
+            if (target.pathname === '/user/memberships/orgs') {
+               return reply([
+                  { role: 'admin', organization: { login: 'acme' } },
+                  { role: 'member', organization: { login: 'open-org' } },
+                  { role: 'member', organization: { login: 'locked-org' } },
+               ]);
+            }
+            if (target.pathname === '/orgs/open-org') return reply({ members_can_create_repositories: true });
+            if (target.pathname === '/orgs/locked-org') return reply({ members_can_create_repositories: false });
+            if (init?.method === 'POST' && (target.pathname === '/user/repos' || target.pathname === '/orgs/acme/repos')) {
+               const body = JSON.parse(String(init.body)) as { name: string; private: boolean; auto_init: boolean };
+               // GitHub's real shape: a bland message, the reason under `errors`.
+               if (body.name === 'notes') return reply({ message: 'Repository creation failed.', errors: [{ resource: 'Repository', code: 'custom', field: 'name', message: 'name already exists on this account' }] }, 422);
+               const owner = target.pathname === '/user/repos' ? 'alice' : 'acme';
+               return reply({ id: 400, name: body.name, full_name: `${owner}/${body.name}`, private: body.private, default_branch: 'main', owner: { login: owner }, permissions: { push: true } }, 201);
+            }
+            if (target.pathname === '/orgs/outsiders/repos') return reply({ message: 'Not Found' }, 404);
             if (target.pathname === '/user/repos') return reply(rows);
             if (target.pathname === '/repos/alice/notes') return reply(rows[0]);
             return reply({ message: 'Not Found' }, 404);
@@ -232,6 +250,37 @@ describe(
          );
          assert.ok(calls[0]?.startsWith('/user/repos?'), 'listed from /user/repos');
          assert.equal(calls.length, 1, 'a short page ends the listing');
+      });
+
+      test('lists the person and the organisations they may create in, and no other', async () => {
+         const owners = await access(userReposStub()).repositoryOwners(u1Id);
+         assert.deepEqual(owners, [
+            { login: 'alice', type: 'user' },
+            { login: 'acme', type: 'organization' },
+            { login: 'open-org', type: 'organization' },
+         ]);
+      });
+
+      test('creates a repository under the person or an organisation, empty, and relays a refusal', async () => {
+         const calls: string[] = [];
+         const user = access(userReposStub(calls));
+         const mine = await user.createRepository(u1Id, { name: 'fresh', private: true });
+         assert.equal(mine.fullName, 'alice/fresh');
+         assert.equal(mine.private, true);
+         // Naming their own login is the same as naming nobody.
+         const own = await user.createRepository(u1Id, { name: 'again', owner: 'Alice', private: false });
+         assert.equal(own.fullName, 'alice/again');
+         const org = await user.createRepository(u1Id, { name: 'shared', owner: 'acme', private: true });
+         assert.equal(org.fullName, 'acme/shared');
+         assert.ok(calls.some((path) => path === '/orgs/acme/repos'), 'created in the organisation');
+         await assert.rejects(
+            user.createRepository(u1Id, { name: 'notes', private: true }),
+            (error: GitHubUserUnavailable) => error.status === 422 && /already exists/.test(error.message)
+         );
+         await assert.rejects(
+            user.createRepository(u1Id, { name: 'x', owner: 'outsiders', private: true }),
+            (error: GitHubUserUnavailable) => error.status === 404
+         );
       });
 
       test('resolves a repository through the sign-in token, and a 404 is null', async () => {

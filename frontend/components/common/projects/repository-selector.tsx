@@ -13,14 +13,26 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { Project } from '@/data/projects';
 import { BerryApiError } from '@/lib/api';
 import {
+   createGitHubRepository,
    loadGitHubRepositories,
+   loadRepositoryOwners,
    setProjectRepository,
    type GitHubAccess,
    type GitHubRepository,
 } from '@/lib/projects';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects-store';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, Loader2, Plus, RefreshCw, X } from 'lucide-react';
 import { RiGithubFill } from '@remixicon/react';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
@@ -62,44 +74,58 @@ export function RepositoryPicker({
    const [access, setAccess] = useState<GitHubAccess | null>(null);
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
+   const [creating, setCreating] = useState(false);
 
-   useEffect(() => {
-      if (!open || repositories.length > 0) return;
-      let cancelled = false;
+   // The list is loaded once per opening and kept; the reload beside the
+   // search is for the moment somebody creates or is granted a repository on
+   // GitHub while the picker is already open.
+   const load = useCallback(async () => {
       setLoading(true);
       setError(null);
-      loadGitHubRepositories()
-         .then((loaded) => {
-            if (cancelled) return;
-            setRepositories(loaded.repositories);
-            setAccess(loaded.access);
-         })
-         .catch((cause: unknown) => {
-            if (cancelled) return;
-            // An empty list and a list that failed to load look identical, and
-            // the fixes are opposite — so the reason is shown, not hidden.
-            setError(
-               cause instanceof BerryApiError ? cause.message : 'Repositories could not be loaded.'
-            );
-         })
-         .finally(() => {
-            if (!cancelled) setLoading(false);
-         });
-      return () => {
-         cancelled = true;
-      };
-   }, [open, repositories.length]);
+      try {
+         const loaded = await loadGitHubRepositories();
+         setRepositories(loaded.repositories);
+         setAccess(loaded.access);
+      } catch (cause) {
+         // An empty list and a list that failed to load look identical, and
+         // the fixes are opposite — so the reason is shown, not hidden.
+         setError(
+            cause instanceof BerryApiError ? cause.message : 'Repositories could not be loaded.'
+         );
+      } finally {
+         setLoading(false);
+      }
+   }, []);
+
+   useEffect(() => {
+      if (open && repositories.length === 0 && !loading && !error) void load();
+      // Only the opening should trigger a load; a failed load is retried by hand.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [open]);
 
    const choose = useCallback(
       (fullName: string | null) => {
          setOpen(false);
+         setCreating(false);
          onSelect(fullName);
       },
       [onSelect]
    );
 
+   const created = useCallback(
+      (repository: GitHubRepository) => {
+         setRepositories((current) => [repository, ...current]);
+         choose(repository.fullName);
+      },
+      [choose]
+   );
+
+   // `modal`: the picker also opens inside the create-project dialog, whose
+   // scroll lock stops wheel events reaching anything outside it, this
+   // popover's list included, which then would not scroll. A modal popover
+   // carries its own lock and scrolls on its own.
    return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal>
          <PopoverTrigger asChild>
             <Button
                variant={variant}
@@ -133,89 +159,297 @@ export function RepositoryPicker({
          </PopoverTrigger>
 
          <PopoverContent className="w-72 p-0" align="start">
-            <Command>
-               <CommandInput placeholder="Search repositories…" />
-               <CommandList>
-                  {loading ? (
-                     <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground">
-                        <Loader2 className="size-4 animate-spin" /> Loading…
-                     </div>
-                  ) : error ? (
-                     <div className="px-3 py-4 text-destructive">{error}</div>
-                  ) : (
-                     <>
-                        <CommandEmpty>No repository found.</CommandEmpty>
-                        <CommandGroup>
-                           {value ? (
-                              <CommandItem onSelect={() => choose(null)}>
-                                 <X className="size-4" /> Unlink
-                              </CommandItem>
-                           ) : null}
-                           {repositories.map((repository) => (
+            {creating ? (
+               <NewRepositoryForm
+                  onCreated={created}
+                  onCancel={() => setCreating(false)}
+                  onLinkExisting={choose}
+               />
+            ) : (
+               <Command>
+                  <CommandInput
+                     placeholder="Search repositories…"
+                     trailing={
+                        <Button
+                           type="button"
+                           variant="ghost"
+                           size="icon"
+                           className="size-6 shrink-0 text-muted-foreground"
+                           aria-label="Reload repositories"
+                           title="Reload repositories"
+                           disabled={loading}
+                           onClick={() => void load()}
+                        >
+                           <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
+                        </Button>
+                     }
+                  />
+                  <CommandList>
+                     {loading ? (
+                        <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground">
+                           <Loader2 className="size-4 animate-spin" /> Loading…
+                        </div>
+                     ) : error ? (
+                        <div className="px-3 py-4 text-destructive">{error}</div>
+                     ) : (
+                        <>
+                           <CommandEmpty>No repository found.</CommandEmpty>
+                           <CommandGroup>
                               <CommandItem
-                                 key={repository.id}
-                                 value={repository.fullName}
-                                 onSelect={() => choose(repository.fullName)}
+                                 value="new repository"
+                                 onSelect={() => setCreating(true)}
                               >
-                                 <RiGithubFill className="size-4 shrink-0" />
-                                 <span className="truncate">{repository.fullName}</span>
-                                 {value === repository.fullName ? (
-                                    <Check className="ml-auto size-4" />
-                                 ) : null}
+                                 <Plus className="size-4" /> New repository…
                               </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </>
-                  )}
-               </CommandList>
-               {/* Without an installation a user token reads only public
+                              {value ? (
+                                 <CommandItem onSelect={() => choose(null)}>
+                                    <X className="size-4" /> Unlink
+                                 </CommandItem>
+                              ) : null}
+                              {repositories.map((repository) => (
+                                 <CommandItem
+                                    key={repository.id}
+                                    value={repository.fullName}
+                                    onSelect={() => choose(repository.fullName)}
+                                 >
+                                    <RiGithubFill className="size-4 shrink-0" />
+                                    <span className="truncate">{repository.fullName}</span>
+                                    {value === repository.fullName ? (
+                                       <Check className="ml-auto size-4" />
+                                    ) : null}
+                                 </CommandItem>
+                              ))}
+                           </CommandGroup>
+                        </>
+                     )}
+                  </CommandList>
+                  {/* Without an installation a user token reads only public
                    repositories, which looks like a broken picker rather than a
                    missing install. That is the one case worth a footer; once the
                    app is installed the list speaks for itself. A list from the
                    person's GitHub sign-in is not that case: sign-in asks for
                    `repo`, so it already includes their private repositories. */}
-               {access && !access.installed && access.source !== 'sign-in' ? (
-                  <div className="border-t px-3 py-2 text-muted-foreground">
-                     Only public repositories are visible.
-                     {access.installUrl ? (
-                        <>
-                           {' '}
+                  {access && !access.installed && access.source !== 'sign-in' ? (
+                     <div className="border-t px-3 py-2 text-muted-foreground">
+                        Only public repositories are visible.
+                        {access.installUrl ? (
+                           <>
+                              {' '}
+                              <a
+                                 href={access.installUrl}
+                                 target="_blank"
+                                 rel="noreferrer"
+                                 className="text-foreground underline underline-offset-2"
+                              >
+                                 Install the app
+                              </a>
+                              .
+                           </>
+                        ) : null}
+                     </div>
+                  ) : null}
+                  {/* An installed app that cannot write contents lists every
+                   repository and then fails at the push, after a run has
+                   already done the work. Said here so the gap is visible
+                   before a repository is chosen, not after. */}
+                  {access && access.installed && access.canPush === false ? (
+                     <div className="border-t px-3 py-2 text-muted-foreground">
+                        Read-only access: runs can clone but not push.{' '}
+                        {access.manageUrl ? (
                            <a
-                              href={access.installUrl}
+                              href={access.manageUrl}
                               target="_blank"
                               rel="noreferrer"
                               className="text-foreground underline underline-offset-2"
                            >
-                              Install the app
+                              Grant write access
                            </a>
-                           .
-                        </>
-                     ) : null}
-                  </div>
-               ) : null}
-               {/* An installed app that cannot write contents lists every
-                   repository and then fails at the push, after a run has
-                   already done the work. Said here so the gap is visible
-                   before a repository is chosen, not after. */}
-               {access && access.installed && access.canPush === false ? (
-                  <div className="border-t px-3 py-2 text-muted-foreground">
-                     Read-only access: runs can clone but not push.{' '}
-                     {access.manageUrl ? (
-                        <a
-                           href={access.manageUrl}
-                           target="_blank"
-                           rel="noreferrer"
-                           className="text-foreground underline underline-offset-2"
-                        >
-                           Grant write access
-                        </a>
-                     ) : null}
-                     .
-                  </div>
-               ) : null}
-            </Command>
+                        ) : null}
+                        .
+                     </div>
+                  ) : null}
+               </Command>
+            )}
          </PopoverContent>
       </Popover>
+   );
+}
+
+/**
+ * Makes a repository as the signed-in person and hands it back to the picker,
+ * which links it like any other. The owners offered are the ones GitHub says
+ * this person may create under: their account and the organisations that
+ * allow it; nothing else is listed, so a refusal at Create is rare.
+ */
+function NewRepositoryForm({
+   onCreated,
+   onCancel,
+   onLinkExisting,
+}: {
+   onCreated: (repository: GitHubRepository) => void;
+   onCancel: () => void;
+   /** The name is taken: link that repository instead of making one. */
+   onLinkExisting: (fullName: string) => void;
+}) {
+   const [name, setName] = useState('');
+   const [owners, setOwners] = useState<Array<{
+      login: string;
+      type: 'user' | 'organization';
+   }> | null>(null);
+   const [ownersError, setOwnersError] = useState<string | null>(null);
+   useEffect(() => {
+      let cancelled = false;
+      loadRepositoryOwners()
+         .then((loaded) => {
+            if (cancelled) return;
+            setOwners(loaded);
+            setChoice((current) => (current === '' ? (loaded[0]?.login ?? '') : current));
+         })
+         .catch((cause: unknown) => {
+            if (cancelled) return;
+            setOwners([]);
+            setOwnersError(
+               cause instanceof BerryApiError
+                  ? cause.message
+                  : 'Your GitHub accounts could not be read.'
+            );
+         });
+      return () => {
+         cancelled = true;
+      };
+   }, []);
+   const [choice, setChoice] = useState('');
+   const owner = choice;
+   const [isPrivate, setIsPrivate] = useState(true);
+   const [pending, setPending] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   // Set when GitHub says the name is taken: the one refusal with a way out
+   // other than retyping, so it gets its own message and a button.
+   const [exists, setExists] = useState<string | null>(null);
+   const valid = /^[A-Za-z0-9._-]{1,100}$/.test(name.trim()) && owner !== '';
+
+   const submit = async () => {
+      if (!valid || pending) return;
+      setPending(true);
+      setError(null);
+      setExists(null);
+      try {
+         onCreated(
+            await createGitHubRepository({
+               name: name.trim(),
+               owner: owner.trim() || null,
+               private: isPrivate,
+            })
+         );
+      } catch (cause) {
+         if (cause instanceof BerryApiError && cause.code === 'REPOSITORY_EXISTS') {
+            setExists(`${owner}/${name.trim()}`);
+            return;
+         }
+         setError(
+            cause instanceof BerryApiError ? cause.message : 'The repository could not be created.'
+         );
+      } finally {
+         setPending(false);
+      }
+   };
+
+   return (
+      // Not a <form>: the picker opens inside the create-project dialog, which
+      // is a form itself, and a nested form's submit reaches the outer one — the
+      // dialog then validated the project name instead of creating the
+      // repository. Enter on the name field and the button call submit directly.
+      <div className="flex flex-col gap-3 p-3">
+         <div className="font-medium">New repository</div>
+         <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-repository-owner">Owner</Label>
+            {owners === null ? (
+               <div className="flex h-9 items-center gap-2 text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" /> Reading your accounts…
+               </div>
+            ) : owners.length === 0 ? (
+               <p className="text-muted-foreground">
+                  {ownersError ?? 'GitHub lists no account you may create a repository under.'}
+               </p>
+            ) : (
+               <Select value={choice} onValueChange={setChoice}>
+                  <SelectTrigger id="new-repository-owner" className="w-full">
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     {owners.map((candidate) => (
+                        <SelectItem key={candidate.login} value={candidate.login}>
+                           {candidate.login}
+                           {candidate.type === 'user' ? ' (you)' : ''}
+                        </SelectItem>
+                     ))}
+                  </SelectContent>
+               </Select>
+            )}
+         </div>
+         <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-repository-name">Name</Label>
+            <Input
+               id="new-repository-name"
+               value={name}
+               onChange={(event) => {
+                  setName(event.target.value);
+                  setExists(null);
+               }}
+               placeholder="my-project"
+               onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                     event.preventDefault();
+                     void submit();
+                  }
+               }}
+               autoFocus
+               autoComplete="off"
+            />
+         </div>
+         <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="new-repository-private" className="font-normal">
+               Private
+            </Label>
+            <Switch
+               id="new-repository-private"
+               checked={isPrivate}
+               onCheckedChange={setIsPrivate}
+            />
+         </div>
+         {exists ? (
+            <div className="flex flex-col gap-2 rounded-md border border-status-warning/40 bg-status-warning/10 p-2.5">
+               <p>
+                  <span className="font-medium">{exists}</span> already exists on GitHub. Choose
+                  another name, or link it as it is.
+               </p>
+               <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="self-start"
+                  onClick={() => onLinkExisting(exists)}
+               >
+                  Link {exists}
+               </Button>
+            </div>
+         ) : null}
+         {error ? <p className="text-destructive">{error}</p> : null}
+         <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
+               Back
+            </Button>
+            <Button
+               type="button"
+               size="sm"
+               disabled={!valid || pending}
+               onClick={() => void submit()}
+            >
+               {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+               Create
+            </Button>
+         </div>
+      </div>
    );
 }
 

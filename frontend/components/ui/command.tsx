@@ -52,8 +52,12 @@ function CommandDialog({
 
 function CommandInput({
    className,
+   trailing,
    ...props
-}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+}: React.ComponentProps<typeof CommandPrimitive.Input> & {
+   /** Drawn at the end of the search bar: an action on the list, such as reloading it. */
+   trailing?: React.ReactNode;
+}) {
    return (
       <div data-slot="command-input-wrapper" className="flex items-center border-b px-2 py-1.5">
          <div className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md bg-background px-2">
@@ -66,6 +70,7 @@ function CommandInput({
                )}
                {...props}
             />
+            {trailing}
          </div>
       </div>
    );

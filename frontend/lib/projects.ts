@@ -298,6 +298,42 @@ export async function loadGitHubRepositories(): Promise<RepositoryChoices> {
    return { repositories: parsed.data.repositories, access: parsed.data.access };
 }
 
+/** The accounts the signed-in person may create a repository under: their own, and organisations that allow it. */
+export async function loadRepositoryOwners(): Promise<
+   Array<{ login: string; type: 'user' | 'organization' }>
+> {
+   const json: unknown = await apiFetch('/api/v1/integrations/github/repository-owners');
+   const parsed = z
+      .object({
+         owners: z.array(z.object({ login: z.string(), type: z.enum(['user', 'organization']) })),
+      })
+      .safeParse(json);
+   if (!parsed.success) throw new Error('Repository owners were not recognized');
+   return parsed.data.owners;
+}
+
+/**
+ * A new GitHub repository, made as the signed-in person. Empty: a run gives it
+ * its first commit. The caller links it to the project as it would any other.
+ */
+export async function createGitHubRepository(input: {
+   name: string;
+   owner?: string | null;
+   private: boolean;
+}): Promise<GitHubRepository> {
+   const json: unknown = await apiFetch('/api/v1/integrations/github/repositories', {
+      method: 'POST',
+      body: JSON.stringify({
+         name: input.name,
+         ...(input.owner ? { owner: input.owner } : {}),
+         private: input.private,
+      }),
+   });
+   const parsed = z.object({ repository: repositorySchema }).safeParse(json);
+   if (!parsed.success) throw new Error('Create repository response was not recognized');
+   return parsed.data.repository;
+}
+
 /** Link a project to a repository, or unlink it with null. */
 export async function setProjectRepository(
    projectId: string,
