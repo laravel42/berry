@@ -243,6 +243,7 @@ export class EnvelopeBuilder {
                   ...(related ? { related } : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
+                  skills: (extensions?.skills ?? []).map((skill) => ({ name: skill.name, description: skillDescription(skill) })),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
                      : {}),
@@ -583,5 +584,17 @@ async function initialiseRepository(
    const head = await client.branchHead(input.owner, input.name, input.branch);
    if (!head) throw new Error(`${input.fullName} still has no ${input.branch} after Berry's first commit`);
    return head;
+}
+
+/** The description a skill's SKILL.md frontmatter carries, or nothing. */
+function skillDescription(skill: { files: Array<{ path: string; content: string }> }): string {
+   const manifest = skill.files.find((file) => file.path === 'SKILL.md')?.content ?? '';
+   const match = /^description:\s*(.+)$/m.exec(manifest.split('\n---')[0] ?? '');
+   if (!match) return '';
+   try {
+      return String(JSON.parse(match[1]!.trim()));
+   } catch {
+      return match[1]!.trim();
+   }
 }
 

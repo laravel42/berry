@@ -7,6 +7,7 @@ import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { runCommandTool, WORKDIR_KEY } from '../command-tool.ts';
 import { repositoryTools } from '../repository-tools.ts';
+import { readSkillTool } from '../skill-tool.ts';
 import { permissionsOf, type Permission } from '../../permissions.ts';
 import { buildRunAgent } from '../agent.ts';
 import { classify } from '../failure.ts';
@@ -208,6 +209,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          runCommandTool({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          collectFileTool(api, session),
          ...repositoryTools(session),
+         readSkillTool(envelope.agent.skills),
          ...remote,
          // Speech and video render here, with the runtime's own role, and
          // land on the task through Berry like any other file.

@@ -30,6 +30,8 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    // A file a command produced, saved the same way write_file saves text.
    collect_file: null,
    read_file: null,
+   // A skill is the agent's own text, chosen for it by a person.
+   read_skill: null,
    list_files: null,
    read_task: null,
    list_dependencies: null,

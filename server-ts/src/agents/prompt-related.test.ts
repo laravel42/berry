@@ -12,3 +12,18 @@ test('the tasks around a task are given as context, fenced like any task data, a
    assert.equal(message.split('</related_tasks>').length, 2);
    assert.doesNotMatch(buildMessage(base), /related_tasks/);
 });
+
+test('the skills an agent carries are named, with what each is for and how to read one', () => {
+   const message = buildMessage({
+      ...base,
+      skills: [
+         { name: 'systematic-debugging', description: 'Use for a bug with no obvious cause.' },
+         { name: 'error-handling', description: 'Use when adding\n error paths.' },
+      ],
+   });
+   assert.match(message, /Skills you carry/);
+   assert.match(message, /- systematic-debugging: Use for a bug with no obvious cause\./);
+   assert.match(message, /- error-handling: Use when adding error paths\./);
+   assert.match(message, /read it with read_skill/);
+   assert.doesNotMatch(buildMessage({ ...base, skills: [] }), /Skills you carry/);
+});

@@ -23,6 +23,8 @@ const LEVEL_1 = [
    // (a designer reviewing an implementation) reads it. Neither writes.
    'browse_repository',
    'read_repository_file',
+   // The skills a person chose for this agent, read on demand.
+   'read_skill',
 ] as const;
 
 const LEVEL_2 = [
@@ -63,11 +65,12 @@ export const KNOWN_TOOLS: readonly string[] = [...LEVEL_5];
 
 /**
  * What a row whose contract failed validation may still do: read the task and
- * its files, comment, escalate. Not `fetch_url`, `list_agents` or the
- * repository: an agent nobody can vouch for gets no new reach, outbound,
- * across the workspace or into the code.
+ * its files, comment, escalate. Not `fetch_url`, `list_agents`, the repository
+ * or its skills: an agent nobody can vouch for gets no new reach, outbound,
+ * across the workspace, into the code or into instructions a contract was
+ * meant to govern.
  */
-const UNVOUCHED_REACH = ['fetch_url', 'list_agents', 'browse_repository', 'read_repository_file'];
+const UNVOUCHED_REACH = ['fetch_url', 'list_agents', 'browse_repository', 'read_repository_file', 'read_skill'];
 export const INVALID_CONTRACT_TOOLS: readonly string[] = LEVEL_1.filter(
    (tool) => !UNVOUCHED_REACH.includes(tool)
 );
