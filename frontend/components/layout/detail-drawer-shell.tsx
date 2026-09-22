@@ -79,7 +79,6 @@ export default function DetailDrawerShell({
          <SheetContent
             side="right"
             hideClose
-            overlayClassName="bg-transparent"
             className={cn(
                'flex h-full w-auto inset-y-0 right-0 left-auto flex-col gap-0 border-l bg-container p-0',
                'max-w-none sm:max-w-none'

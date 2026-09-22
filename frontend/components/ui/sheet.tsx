@@ -30,7 +30,11 @@ function SheetOverlay({
       <SheetPrimitive.Overlay
          data-slot="sheet-overlay"
          className={cn(
-            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80',
+            // A scrim, not a blackout: the page stays legible behind the drawer so
+            // the reader keeps their place, but dimmed enough that the drawer is
+            // plainly where the attention goes. No blur: it costs paint on a large
+            // page and softens nothing the dimming does not already settle.
+            'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/65',
             className
          )}
          {...props}
