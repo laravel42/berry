@@ -11,6 +11,8 @@ import {
    runtimeUsage,
    runtimeVisible,
    usageWindow,
+   issueWork,
+   workOverview,
    workspaceUsage,
 } from './queries.ts';
 import {
@@ -100,6 +102,51 @@ describe('usage reads', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
          [world.agentId, world.agentName],
       ]);
       assert.deepEqual(result.byModel.map((row) => row.key).sort(), ['model-a', 'model-b']);
+   });
+
+   test('a window whose runs fall inside two days is charted by the hour, with the runs of each', async () => {
+      const result = await workspaceUsage(scopeOf(sql, world.workspaceId), usageWindow(30));
+      assert.equal(result.series.grain, 'hour');
+      assert.match(result.series.points[0]!.key, /^\d{4}-\d{2}-\d{2} \d{2}$/);
+      assert.equal(result.series.points.reduce((sum, point) => sum + point.events, 0), 2);
+      assert.equal(result.series.points.reduce((sum, point) => sum + point.runs, 0), 1);
+      // Unpriced usage costs nothing, so no task is named as expensive.
+      assert.deepEqual(result.topIssues, []);
+   });
+
+   test('work counts a task once, at its completion, and only while it is still done', async () => {
+      const scope = scopeOf(sql, world.workspaceId);
+      const completed = (at: string) => sql`
+         INSERT INTO outbox_events (topic, aggregate_type, aggregate_id, workspace_id, board_id, payload, occurred_at)
+         VALUES ('issue.completed', 'issue', ${world.issueId}, ${world.workspaceId}, ${world.boardId}, '{}'::jsonb, ${at})`;
+      const [before] = await sql`SELECT status::text AS status, assignee_type::text AS assignee_type, assignee_id FROM issues WHERE id = ${world.issueId}`;
+      await sql`UPDATE issues SET status = 'done', assignee_type = 'agent', assignee_id = ${world.agentId} WHERE id = ${world.issueId}`;
+      await completed(new Date(Date.now() - 60_000).toISOString());
+      await completed(new Date().toISOString());
+
+      const done = await workOverview(scope, usageWindow(7));
+      assert.equal(done.tasksDone, 1, 'two completions of one task are one task');
+      assert.equal(done.series.points.reduce((sum, point) => sum + point.tasksDone, 0), 1);
+      assert.deepEqual(done.byAgent.map((row) => [row.agentId, row.tasksDone, row.runs]), [[world.agentId, 1, 1]]);
+      assert.ok(done.duration && done.duration.median >= 0 && done.duration.max >= done.duration.median);
+      assert.deepEqual(done.firstPass, { oneRun: 1, total: 1 }, 'one run finished it');
+      assert.equal(done.waiting.reviews, 0);
+
+      await sql`UPDATE issues SET status = 'in_review' WHERE id = ${world.issueId}`;
+      const reopened = await workOverview(scope, usageWindow(7));
+      assert.equal(reopened.tasksDone, 0, 'a task reopened since is not output');
+      assert.equal(reopened.duration, null);
+      assert.equal(reopened.waiting.reviews, 1, 'a task in review waits on a person');
+      assert.ok(reopened.waiting.oldestAt && !Number.isNaN(Date.parse(reopened.waiting.oldestAt)));
+      const rows = await issueWork(scope);
+      assert.deepEqual(rows.filter((row) => row.issueId === world.issueId).map((row) => row.runs), [1]);
+      assert.deepEqual(await issueWork(scopeOf(sql, other.workspaceId)).then((list) => list.filter((row) => row.issueId === world.issueId)), []);
+
+      const foreign = await workOverview(scopeOf(sql, other.workspaceId), usageWindow(7));
+      assert.equal(foreign.tasksDone, 0);
+      await sql`DELETE FROM outbox_events WHERE aggregate_id = ${world.issueId} AND topic = 'issue.completed'`;
+      // The task is shared with the tests below, which count it by status.
+      await sql`UPDATE issues SET status = ${before!.status}::issue_status, assignee_type = ${before!.assignee_type}::assignee_type, assignee_id = ${before!.assignee_id} WHERE id = ${world.issueId}`;
    });
 
    test('agent usage of a foreign agent is empty from this workspace', async () => {

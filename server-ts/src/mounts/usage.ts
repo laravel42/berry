@@ -14,10 +14,12 @@ import {
    errorsOverview,
    issueInWorkspace,
    issueUsage,
+   issueWork,
    projectInWorkspace,
    runtimeUsage,
    runtimeVisible,
    usageWindow,
+   workOverview,
    workspaceUsage,
    type UsageFilter,
    type UsageWindow,
@@ -62,6 +64,22 @@ function usageRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVariabl
       const { window, scope } = await readWindow(context.req.url, db);
       const body = await scopedRead(db, (q) => workspaceUsage(q, window, filterOf(scope)));
       return json({ ...windowFields(window, scope), ...body });
+   });
+
+   // What the window's spend produced: tasks done, what was delivered, how long a task takes.
+   route.get('/:workspaceId/work', async (context) => {
+      const db = context.get('scoped');
+      const { window, scope } = await readWindow(context.req.url, db);
+      const body = await scopedRead(db, (q) => workOverview(q, window, filterOf(scope)));
+      return json({ ...windowFields(window, scope), ...body });
+   });
+
+   // Time and money per task, for a task list's rows. Not windowed: a row shows a task's whole cost.
+   route.get('/:workspaceId/issues', async (context) => {
+      const db = context.get('scoped');
+      const { scope } = await readWindow(context.req.url, db);
+      const issues = await scopedRead(db, (q) => issueWork(q, filterOf(scope)));
+      return json({ issues });
    });
 
    route.get('/:workspaceId/errors', async (context) => {
