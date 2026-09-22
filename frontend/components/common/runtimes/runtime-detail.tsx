@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import {
    SettingsCard,
    SettingsRow,
@@ -24,14 +23,11 @@ import { useSettingsResource } from '@/components/common/settings/use-settings-r
 import { RuntimeUsagePanel } from '@/components/common/usage/runtime-usage-panel';
 import {
    checkRuntimeHealth,
-   createProfile,
    deleteRuntime,
    formatSeconds,
    getRuntime,
-   listProfiles,
    updateRuntime,
    type RuntimeDetail as Detail,
-   type RuntimeProfile,
 } from '@/lib/runtimes';
 import { RUNTIME_DAY_OPTIONS, type UsageQuery } from '@/lib/usage';
 import { localTimezone } from '@/lib/cron-schedule';
@@ -41,7 +37,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-/** One runtime: its health, its session lifecycle, recent activity and profiles. */
+/** One runtime: its health, its session lifecycle and recent activity. */
 export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
    const t = useTranslations('areas.runtimes');
    const tUsage = useTranslations('areas.usage.filters');
@@ -49,13 +45,7 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
    const { orgId } = useParams<{ orgId: string }>();
    const viewerId = useSessionStore((state) => state.user?.id ?? null);
    const runtime = useSettingsResource<Detail>(() => getRuntime(runtimeId), [runtimeId]);
-   const profiles = useSettingsResource<RuntimeProfile[]>(
-      () => listProfiles(runtimeId),
-      [runtimeId]
-   );
    const [checking, setChecking] = useState(false);
-   const [profileName, setProfileName] = useState('');
-   const [idleHours, setIdleHours] = useState('1');
    const [usageQuery, setUsageQuery] = useState<UsageQuery>({
       days: 30,
       timezone: localTimezone(),
@@ -103,29 +93,6 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
       } catch (error) {
          toast.error(error instanceof Error ? error.message : t('deleteFailed'));
          setDeleting(false);
-      }
-   }
-
-   async function addProfile() {
-      const hours = Number(idleHours);
-      if (!Number.isFinite(hours) || hours * 3600 < 60 || hours > 8) {
-         toast.error('The idle timeout must be between one minute and eight hours.');
-         return;
-      }
-      try {
-         const saved = await createProfile(runtimeId, {
-            name: profileName.trim(),
-            idleTimeoutS: Math.round(hours * 3600),
-         });
-         if (saved.lifecycleApplied === false) {
-            toast.error(
-               `The profile was saved, but the runtime was not updated: ${saved.lifecycleError ?? 'unknown error'}`
-            );
-         }
-         setProfileName('');
-         profiles.reload();
-      } catch (error) {
-         toast.error(error instanceof Error ? error.message : 'The profile could not be saved.');
       }
    }
 
@@ -223,24 +190,6 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
                >
                   <SettingsCard className="p-4">
                      <RuntimeUsagePanel runtimeId={runtimeId} query={usageQuery} />
-                  </SettingsCard>
-               </SettingsSection>
-
-               <SettingsSection title={t('servingAgents')}>
-                  <SettingsCard>
-                     {value.servingAgents.length === 0 ? (
-                        <p className="p-4 text-muted-foreground">{t('servingEmpty')}</p>
-                     ) : (
-                        value.servingAgents.map((agent) => (
-                           <SettingsRow
-                              key={agent.id}
-                              title={agent.name}
-                              description={`${agent.status} · ${agent.profileName ?? t('noProfile')}`}
-                              chevron
-                              onClick={() => router.push(`/${orgId}/agents/${agent.id}`)}
-                           />
-                        ))
-                     )}
                   </SettingsCard>
                </SettingsSection>
 
@@ -342,42 +291,6 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
                </AlertDialog>
             </>
          )}
-         <SettingsSection
-            title="Profiles"
-            description="Environment, default model and session idle timeout for agents bound to this runtime. Environment values are sealed and never shown again."
-         >
-            <SettingsCard>
-               {profiles.value?.map((profile) => (
-                  <SettingsRow
-                     key={profile.id}
-                     title={profile.name}
-                     description={`${profile.envKeys.length} env vars${profile.idleTimeoutS ? ` · idle ${formatSeconds(profile.idleTimeoutS)}` : ''}${profile.modelDefault ? ` · ${profile.modelDefault}` : ''}`}
-                  />
-               ))}
-               <div className="flex flex-wrap items-center gap-2 p-4">
-                  <Input
-                     className="max-w-48"
-                     placeholder="Profile name"
-                     aria-label="Profile name"
-                     value={profileName}
-                     onChange={(event) => setProfileName(event.target.value)}
-                  />
-                  <Input
-                     className="max-w-28"
-                     type="number"
-                     min={0.1}
-                     max={8}
-                     step={0.5}
-                     aria-label="Idle timeout in hours"
-                     value={idleHours}
-                     onChange={(event) => setIdleHours(event.target.value)}
-                  />
-                  <Button disabled={profileName.trim() === ''} onClick={() => void addProfile()}>
-                     Add profile
-                  </Button>
-               </div>
-            </SettingsCard>
-         </SettingsSection>
       </SettingsShell>
    );
 }

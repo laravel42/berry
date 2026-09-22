@@ -5,7 +5,7 @@ import { expect, waitFor, within } from 'storybook/test';
 
 import { seedAdminSession, usageHandlers } from '../usage/stories-fixtures';
 import RuntimeDetail from './runtime-detail';
-import { customDetail, platformDetail, profiles } from './stories-fixtures';
+import { customDetail, platformDetail } from './stories-fixtures';
 
 const meta = {
    component: RuntimeDetail,
@@ -19,13 +19,7 @@ const meta = {
       msw.use(
          ...usageHandlers,
          http.get('*/api/v1/runtimes/rt-platform', () => HttpResponse.json(platformDetail)),
-         http.get('*/api/v1/runtimes/rt-gpu', () => HttpResponse.json(customDetail)),
-         http.get('*/api/v1/runtimes/:runtimeId/profiles', ({ params }) =>
-            HttpResponse.json({
-               nodes: params.runtimeId === 'rt-platform' ? profiles : [],
-               pageInfo: { hasNextPage: false, endCursor: null },
-            })
-         )
+         http.get('*/api/v1/runtimes/rt-gpu', () => HttpResponse.json(customDetail))
       );
    },
 } satisfies Meta<typeof RuntimeDetail>;
@@ -33,12 +27,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The deployment's default runtime: healthy, busy, four agents bound to it. */
+/** The deployment's default runtime: healthy and busy. */
 export const Platform: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByRole('heading', { name: 'Berry platform' })).toBeVisible();
       await expect(canvas.getByRole('img', { name: 'Tasks per day' })).toBeVisible();
-      await expect(canvas.getByText('Long sessions')).toBeVisible();
+      await expect(canvas.queryByRole('heading', { name: 'Profiles' })).toBeNull();
       // Platform runtimes have no visibility switch and cannot be deleted.
       await expect(canvas.queryByText('Danger zone')).toBeNull();
    },
