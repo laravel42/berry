@@ -88,7 +88,7 @@ export default defineConfig([
    ...nextTs,
    // Last so Prettier wins over stylistic rules from next/typescript.
    prettier,
-   globalIgnores(['.next/**', '.next-verify/**', 'out/**', 'build/**', 'next-env.d.ts']),
+   globalIgnores(['.next/**', '.next-verify/**', '.next-docker/**', 'out/**', 'build/**', 'next-env.d.ts']),
    {
       name: 'berry/settings',
       settings: {

@@ -225,6 +225,50 @@ Cross-cutting patterns already present include a command palette, create-issue d
 responsive off-canvas sidebar, stacked headers, list/grid/board/timeline views, filter builder,
 property selectors, empty/loading states, toasts, charts, diff views, and settings forms.
 
+## How every page is set
+
+The shared parts are in `frontend/components/common/page/page-parts.tsx`. They change how a page looks, not what it does.
+
+- **A list page opens with `PageStatement`**: the page's name in small capitals (its `<h1>`), one figure in the display face, a sentence saying what the figure counts, and a quieter sentence saying when things leave or join the list. The figure counts what is open or waiting, never everything ever made. Leave `figure` undefined until the data has loaded, so a loading page does not claim zero. The page's one create action goes in its `children`; tabs, search and filters stay in the page's own header below it.
+- **`SectionLabel`** (small capitals, `font-medium tracking-wider text-muted-foreground uppercase`) names a group, a column header row or a side-panel heading.
+- **`Panel`** (`rounded-xl border bg-card p-5`) holds one subject on a detail page.
+- **`Figure`** sets a number in the display face. Sizes are named in `app/globals.css` under `[data-figure]`; never use a `text-*` size utility.
+- Rows that can be clicked are at least `min-h-11`.
+- No charts outside Usage (next section).
+
+## The Usage page's charts
+
+**Charts are for Usage, and only Usage.** They were tried as a summary above every list in the app and removed: a page where someone works through a list, a queue or a form is slowed down by a chart above it, and the owner's call was that the chart-led style belongs to the one page whose whole purpose is to be read from its numbers. Do not add charts to another page without being asked to.
+
+Usage is read from shapes before words. The parts live in `frontend/components/common/charts/charts.tsx`; the page composes them and never draws its own.
+
+**The order of a tab.** One `PageHero`, then `ChartPanel`s in a 12-column grid (`grid gap-5 lg:grid-cols-12`, page padding `px-6 py-6`, `gap-5` between rows). The hero answers "how much, and is that good"; each panel answers one question, which is its title ("Who spent it", not "Agents").
+
+**The hero.** Small-capital label saying what is counted and over what window; one figure at `hero` size; one plain sentence; two to four `Fact`s that tie the figure to something (per task, per run); a chart on the right showing how the figure came about. 
+
+**Figures.** The number a panel is about goes through `<Figure size="hero|lg|md|sm">` (DM Serif Display, set in `[data-figure]` in `globals.css`). Never a `text-*` size utility: the lint rule forbids them. Everything else stays on the type scale. Numbers are `tabular-nums`.
+
+**Picking the chart.**
+
+| The question | Use |
+| --- | --- |
+| How did it move through time, with a second measure alongside | `SeriesBars` (top, and optionally bottom) |
+| Who took which share, where a few dominate | `Treemap` |
+| Shares of a whole, five or fewer | `Donut` |
+| One ratio | `Gauge` |
+| One value per row against a reference | `Lollipops` |
+| Two measures side by side, one row per subject | `PairedBars` |
+| Where the middle and the bulk of a spread sit | `RangeStrip` |
+| A small count that should stay countable | `Squares` |
+| Shares of one total in a line | `ShareStrip` |
+
+**Colour.** Tokens only, so both themes hold. `bg-foreground` is the main measure. `status-success` is work finished, `status-info` is activity (runs, calls), `status-warning` marks a reference or something worth a look. `status-danger` is for a state a person must act on, never for decoration, and never as the headline of a page: a page leads with what was produced, not with what failed. Shade by rank with `color-mix(in oklab, <token> N%, var(--card))`, as `Treemap` and `ShareStrip` do.
+
+**Numbers are real.** A chart shows what the page has already loaded, or what an existing `lib/` fetcher returns. No placeholder series, no invented trend. When there is nothing to show, the panel says so in a sentence (`text-muted-foreground`) rather than drawing an empty frame, and a page with no data at all keeps its existing empty state.
+
+**Accessible as drawn.** Every chart takes a `label` that says in words what it shows; it is the `aria-label` of a `role="img"`. Rows that lead somewhere are real links with a 44px target. Colour never carries meaning alone: a figure or a label says it too.
+
+
 ## Reuse versus re-skin boundary
 
 ### Safe to reuse

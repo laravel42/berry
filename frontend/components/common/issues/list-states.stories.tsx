@@ -23,7 +23,6 @@ type Story = StoryObj<typeof meta>;
 export const ListLoading: Story = {};
 export const BoardLoading: Story = { args: { mode: 'grid' } };
 export const TableLoading: Story = { args: { mode: 'table' } };
-export const TimelineLoading: Story = { args: { mode: 'gantt' } };
 
 export const LoadFailed: Story = {
    render: () => <IssueListError message="" onRetry={retry} />,

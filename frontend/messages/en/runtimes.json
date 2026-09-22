@@ -1,6 +1,10 @@
 {
    "header": {
-      "title": "Runtimes"
+      "title": "Runtimes",
+      "statement": {
+         "line": "{count, plural, one {run is in progress} other {runs are in progress}}",
+         "sub": "A run leaves this count when it succeeds, fails or is cancelled."
+      }
    },
    "overview": {
       "label": "Runtimes",

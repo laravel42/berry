@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Check, Columns3, Plus } from 'lucide-react';
+import { Check, Columns3 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -36,7 +34,6 @@ const SCOPES: AgentsScope[] = ['all', 'archived'];
 export default function HeaderOptions() {
    const t = useTranslations('agentsChat.list');
    const tHeader = useTranslations('agents.header');
-   const { orgId } = useParams<{ orgId: string }>();
    const agents = useAgentsStore((state) => state.agents);
    const archived = useAgentsStore((state) => state.archived);
    const { scope, filters, columns, setScope, setFilters, toggleColumn } = useAgentsListStore();
@@ -68,7 +65,7 @@ export default function HeaderOptions() {
    };
 
    return (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-9 [&_a]:!h-9 [&_button[aria-label='New agent']]:!h-[34px] [&_button[aria-label='New agent']]:!w-[42px] [&_a[aria-label='New agent']]:!h-[34px] [&_a[aria-label='New agent']]:!w-[42px]">
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-9 [&_a]:!h-9">
          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Tabs value={scope} onValueChange={(value) => setScope(value as AgentsScope)}>
                <TabsList aria-label={tHeader('title')}>
@@ -84,9 +81,10 @@ export default function HeaderOptions() {
                   ))}
                </TabsList>
             </Tabs>
+         </div>
 
+         <div className="flex shrink-0 flex-wrap items-center gap-2">
             <ListFilterTrigger filter={filter} />
-
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <Button size="xs" variant="outline" className="border-muted-foreground/15">
@@ -94,7 +92,7 @@ export default function HeaderOptions() {
                      {t('columns')}
                   </Button>
                </DropdownMenuTrigger>
-               <DropdownMenuContent align="start" className="w-52">
+               <DropdownMenuContent align="end" className="w-52">
                   {AGENT_COLUMNS.map((column) => (
                      <DropdownMenuItem
                         key={column}
@@ -118,18 +116,6 @@ export default function HeaderOptions() {
                </DropdownMenuContent>
             </DropdownMenu>
          </div>
-
-         <Button
-            size="xs"
-            className="ml-auto h-[34px] w-[42px] shrink-0 px-0"
-            aria-label={tHeader('newAgent')}
-            title={tHeader('newAgent')}
-            asChild
-         >
-            <Link href={`/${orgId}/agents/new`}>
-               <Plus className="size-4" />
-            </Link>
-         </Button>
       </div>
    );
 }

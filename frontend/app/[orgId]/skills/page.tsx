@@ -18,11 +18,13 @@ import SkillsFilters, {
    type SkillCriteria,
 } from '@/components/common/skills/skills-filters';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
+import { PageStatement } from '@/components/common/page/page-parts';
 import SkillsList from '@/components/common/skills/skills-list';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import SkillDetailHeader from '@/components/layout/headers/skills/detail-header';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import { listSkills, type Skill } from '@/lib/skills';
@@ -44,6 +46,9 @@ function SkillsScreen() {
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
    const [skills, setSkills] = useState<Skill[] | null>(null);
+   // How many skills the workspace has: the last unsearched answer, so the
+   // figure does not shrink to the matches while someone is searching.
+   const [total, setTotal] = useState<number | undefined>(undefined);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
@@ -72,6 +77,7 @@ function SkillsScreen() {
             .then((found) => {
                if (cancelled) return;
                setSkills(found);
+               if (!query.trim()) setTotal(found.length);
                setError(null);
             })
             .catch((failure: unknown) => {
@@ -115,26 +121,29 @@ function SkillsScreen() {
 
    const header = (
       <>
-         <SkillsFilters
-            criteria={criteria}
-            onChange={setCriteria}
-            filter={filter}
-            query={query}
-            onQueryChange={setQuery}
-            action={
-               canEdit ? (
-                  <Button
-                     size="xs"
-                     className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
-                     aria-label={t('create.title')}
-                     title={t('create.title')}
-                     onClick={() => setCreating(true)}
-                  >
-                     <Plus className="size-4" />
+         <PageStatement
+            label={t('title')}
+            figure={total}
+            line={t('statement.line', { count: total ?? 0 })}
+            sub={t('statement.sub')}
+         >
+            <div className="flex items-center gap-2">
+               <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  className="h-[34px] w-48"
+               />
+               {canEdit ? (
+                  <Button size="xs" className="h-[34px] shrink-0" onClick={() => setCreating(true)}>
+                     <Plus className="size-4" aria-hidden />
+                     {t('create.title')}
                   </Button>
-               ) : null
-            }
-         />
+               ) : null}
+            </div>
+         </PageStatement>
+         <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
          <ListFilterBar filter={filter} />
       </>
    );

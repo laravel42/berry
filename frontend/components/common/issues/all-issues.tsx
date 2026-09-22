@@ -12,7 +12,6 @@ import { useIssueListView } from './use-issue-list-view';
 import { useSearchStore } from '@/store/search-store';
 import { useMemo } from 'react';
 import { GroupedIssuesView } from './grouped-issues-view';
-import { IssueGantt } from './issue-gantt';
 import { IssueTable } from './issue-table';
 import { InsightsPanel } from './insights-panel';
 import { SearchIssues } from './search-issues';
@@ -77,8 +76,6 @@ export default function AllIssues({ categories }: AllIssuesProps) {
                      statuses={statuses}
                      totalIssues={scopedIssues}
                   />
-               ) : viewType === 'gantt' ? (
-                  <IssueGantt issues={displayedIssues} />
                ) : (
                   <GroupedIssuesView
                      issues={displayedIssues}

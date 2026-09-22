@@ -1,5 +1,9 @@
 {
    "title": "Approvals",
+   "statement": {
+      "line": "{count, plural, one {decision is waiting} other {decisions are waiting}}",
+      "sub": "A decision leaves the pending list when it is approved or rejected."
+   },
    "mine": "Mine",
    "mineDescription": "Show only the approvals you can decide",
    "views": {
@@ -55,7 +59,7 @@
          "rejected": "Rejected"
       }
    },
-      "decision": {
+   "decision": {
       "noteLabel": "Decision note",
       "notePlaceholder": "Add a note (optional)",
       "confirmNotePlaceholder": "Why not? (optional)",

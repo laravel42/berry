@@ -8,7 +8,6 @@ import {
    applyIssueFilters,
    usePropertyFilterMatches,
 } from '@/components/common/issues/issue-filter-columns';
-import { IssueGantt } from '@/components/common/issues/issue-gantt';
 import { IssueTable } from '@/components/common/issues/issue-table';
 import {
    IssueListError,
@@ -151,8 +150,6 @@ export default function MyIssues() {
                      statuses={displayOrderedStatus}
                      totalIssues={scopedIssues}
                   />
-               ) : view.mode === 'gantt' ? (
-                  <IssueGantt issues={displayedIssues} />
                ) : (
                   <GroupedIssuesView
                      issues={displayedIssues}

@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-export type ViewType = 'list' | 'grid' | 'table' | 'gantt';
+export type ViewType = 'list' | 'grid' | 'table';
 
 /** Maps a stored or linked layout onto one that still exists. */
 export function normalizeViewType(value: string | null | undefined): ViewType {
    if (value === 'swimlane') return 'grid';
-   if (value === 'list' || value === 'grid' || value === 'table' || value === 'gantt') return value;
+   // `gantt` was a layout once; a saved view or an old link that names it gets the list.
+   if (value === 'list' || value === 'grid' || value === 'table') return value;
    return 'list';
 }
 

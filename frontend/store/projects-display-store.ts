@@ -3,84 +3,58 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 /* Linear-style display settings for the Projects page (3 view types). */
 
-export type ProjectsViewType = 'timeline' | 'board' | 'list';
-export type ProjectsGrouping = 'status' | 'none';
-export type ProjectsOrdering = 'start-date' | 'target-date' | 'title';
-export type ClosedProjectsFilter = 'all' | 'hide';
-export type TimelineZoom = 'year' | 'quarter' | 'month' | 'week';
-
-export const TIMELINE_ZOOM_LEVELS: {
-   id: TimelineZoom;
-   label: string;
-   shortcut: string;
-}[] = [
-   { id: 'year', label: 'Year', shortcut: 'Y' },
-   { id: 'quarter', label: 'Quarter', shortcut: 'Q' },
-   { id: 'month', label: 'Month', shortcut: 'M' },
-   { id: 'week', label: 'Week', shortcut: 'W' },
+export type ProjectsViewType = 'board' | 'list';
+export type ProjectsGrouping = 'status' | 'priority' | 'lead' | 'health' | 'none';
+export type ProjectsOrdering =
+   'title' | 'start-date' | 'target-date' | 'status' | 'priority' | 'created' | 'updated';
+export const PROJECTS_ORDERINGS: ProjectsOrdering[] = [
+   'title',
+   'start-date',
+   'target-date',
+   'status',
+   'priority',
+   'created',
+   'updated',
 ];
-
+export type ProjectsDirection = 'asc' | 'desc';
+export type ClosedProjectsFilter = 'all' | 'hide';
 export type ProjectDisplayPropertyKey =
-   | 'milestones'
-   | 'priority'
-   | 'status'
-   | 'health'
-   | 'lead'
-   | 'members'
-   | 'targetDate'
-   | 'issues'
-   | 'labels';
+   'priority' | 'status' | 'health' | 'lead' | 'targetDate' | 'issues';
 
 export const PROJECT_DISPLAY_PROPERTIES: { key: ProjectDisplayPropertyKey; label: string }[] = [
-   { key: 'milestones', label: 'Milestones' },
    { key: 'priority', label: 'Priority' },
    { key: 'status', label: 'Status' },
    { key: 'health', label: 'Health' },
    { key: 'lead', label: 'Lead' },
-   { key: 'members', label: 'Members' },
    { key: 'targetDate', label: 'Target date' },
    { key: 'issues', label: 'Tasks' },
-   { key: 'labels', label: 'Labels' },
 ];
 
 const DEFAULT_PROPERTIES: Record<ProjectDisplayPropertyKey, boolean> = {
-   milestones: false,
    priority: true,
    status: true,
    health: true,
    lead: true,
-   members: false,
    targetDate: true,
    issues: true,
-   labels: false,
 };
 
 interface ProjectsDisplayState {
    viewType: ProjectsViewType;
    grouping: ProjectsGrouping;
    ordering: ProjectsOrdering;
+   direction: ProjectsDirection;
    closedProjects: ClosedProjectsFilter;
    /** List/board: render groups (columns) with no project. */
    showEmptyGroups: boolean;
-   /** Timeline: show the sticky project list on the left. */
-   showProjectList: boolean;
-   /** Timeline: show week-start day numbers under the month scale. */
-   showWeekNumbers: boolean;
-   /** Timeline: year / quarter / month / week scale. */
-   timelineZoom: TimelineZoom;
-   /** Bumped to ask the mounted timeline to scroll to today. */
-   todayJumpId: number;
    displayProperties: Record<ProjectDisplayPropertyKey, boolean>;
 
    setViewType: (viewType: ProjectsViewType) => void;
    setGrouping: (grouping: ProjectsGrouping) => void;
    setOrdering: (ordering: ProjectsOrdering) => void;
+   setDirection: (direction: ProjectsDirection) => void;
    setClosedProjects: (value: ClosedProjectsFilter) => void;
    setShowEmptyGroups: (value: boolean) => void;
-   setShowProjectList: (value: boolean) => void;
-   setShowWeekNumbers: (value: boolean) => void;
-   setTimelineZoom: (zoom: TimelineZoom) => void;
-   jumpTimelineToToday: () => void;
    toggleDisplayProperty: (key: ProjectDisplayPropertyKey) => void;
    resetDisplaySettings: () => void;
 }
@@ -88,12 +62,10 @@ interface ProjectsDisplayState {
 const DEFAULTS = {
    viewType: 'list' as ProjectsViewType,
    grouping: 'status' as ProjectsGrouping,
-   ordering: 'start-date' as ProjectsOrdering,
+   ordering: 'title' as ProjectsOrdering,
+   direction: 'asc' as ProjectsDirection,
    closedProjects: 'all' as ClosedProjectsFilter,
    showEmptyGroups: false,
-   showProjectList: true,
-   showWeekNumbers: false,
-   timelineZoom: 'year' as TimelineZoom,
    displayProperties: DEFAULT_PROPERTIES,
 };
 
@@ -101,17 +73,13 @@ export const useProjectsDisplayStore = create<ProjectsDisplayState>()(
    persist(
       (set) => ({
          ...DEFAULTS,
-         todayJumpId: 0,
 
          setViewType: (viewType) => set({ viewType }),
          setGrouping: (grouping) => set({ grouping }),
          setOrdering: (ordering) => set({ ordering }),
+         setDirection: (direction) => set({ direction }),
          setClosedProjects: (closedProjects) => set({ closedProjects }),
          setShowEmptyGroups: (showEmptyGroups) => set({ showEmptyGroups }),
-         setShowProjectList: (showProjectList) => set({ showProjectList }),
-         setShowWeekNumbers: (showWeekNumbers) => set({ showWeekNumbers }),
-         setTimelineZoom: (timelineZoom) => set({ timelineZoom }),
-         jumpTimelineToToday: () => set((state) => ({ todayJumpId: state.todayJumpId + 1 })),
          toggleDisplayProperty: (key) =>
             set((state) => ({
                displayProperties: {
@@ -119,20 +87,36 @@ export const useProjectsDisplayStore = create<ProjectsDisplayState>()(
                   [key]: !state.displayProperties[key],
                },
             })),
-         resetDisplaySettings: () => set({ ...DEFAULTS, todayJumpId: 0 }),
+         resetDisplaySettings: () => set({ ...DEFAULTS }),
       }),
       {
          name: 'projects-display-settings-v4',
          storage: createJSONStorage(() => localStorage),
+         // Timeline was a layout once. A browser that last chose it gets the list.
+         merge: (persisted, current) => {
+            const raw = persisted as Partial<ProjectsDisplayState> | undefined;
+            const stored = raw?.displayProperties;
+            const displayProperties = { ...DEFAULT_PROPERTIES };
+            if (stored) {
+               for (const property of PROJECT_DISPLAY_PROPERTIES) {
+                  const value = stored[property.key];
+                  if (typeof value === 'boolean') displayProperties[property.key] = value;
+               }
+            }
+            return {
+               ...current,
+               ...raw,
+               viewType: raw?.viewType === 'board' ? 'board' : 'list',
+               displayProperties,
+            };
+         },
          partialize: (state) => ({
             viewType: state.viewType,
             grouping: state.grouping,
             ordering: state.ordering,
+            direction: state.direction,
             closedProjects: state.closedProjects,
             showEmptyGroups: state.showEmptyGroups,
-            showProjectList: state.showProjectList,
-            showWeekNumbers: state.showWeekNumbers,
-            timelineZoom: state.timelineZoom,
             displayProperties: state.displayProperties,
          }),
       }

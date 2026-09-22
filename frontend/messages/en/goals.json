@@ -14,7 +14,8 @@
       "status": "Status",
       "progress": "Progress",
       "updated": "Updated",
-      "loading": "Loading goals…"
+      "loading": "Loading goals…",
+      "back": "All goals"
    },
    "empty": {
       "mark": "No goals",
@@ -39,7 +40,8 @@
          "updated": "Updated",
          "loading": "Loading plans…",
          "failed": "Plans could not be loaded.",
-         "noProject": "No project"
+         "noProject": "No project",
+         "back": "All plans"
       },
       "tasks": "{finished} of {created} done",
       "planned": "{count, plural, one {# task planned} other {# tasks planned}}",

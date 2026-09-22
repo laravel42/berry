@@ -259,7 +259,7 @@ export default function RunOverview() {
                            key={column}
                            scope="col"
                            className={cn(
-                              'px-6 py-2.5 font-normal text-muted-foreground sm:px-8',
+                              'px-6 py-2.5 font-medium tracking-wider text-muted-foreground uppercase sm:px-8',
                               column === 'assignee' && 'w-[120px]',
                               column === 'state' && 'w-[200px]'
                            )}

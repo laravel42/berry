@@ -15,9 +15,11 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
+import { PageStatement } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { User } from '@/data/users';
 import { Plus } from 'lucide-react';
 import { useAutopilots } from '@/hooks/use-autopilots';
@@ -96,31 +98,40 @@ export default function AutopilotsPage() {
       });
    }, [autopilots, filterColumns, filters, query, assigneeName]);
 
+   const enabled = autopilots.filter((autopilot) => autopilot.status === 'active').length;
+
    const header = (
       <>
-         <AutopilotsFilters
-            criteria={criteria}
-            onChange={setCriteria}
-            filter={filter}
-            query={query}
-            onQueryChange={setQuery}
-            action={
-               canEdit ? (
+         <PageStatement
+            label={t('title')}
+            figure={loaded ? enabled : undefined}
+            line={t('statement.line', { count: enabled })}
+            sub={t('statement.sub')}
+         >
+            <div className="flex items-center gap-2">
+               <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  className="h-[34px] w-48"
+               />
+               {canEdit ? (
                   <Button
                      size="xs"
-                     className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
-                     aria-label={t('new')}
-                     title={t('new')}
+                     className="h-[34px] shrink-0"
                      onClick={() => {
                         setTemplate(null);
                         setCreating(true);
                      }}
                   >
-                     <Plus className="size-4" />
+                     <Plus className="size-4" aria-hidden />
+                     {t('new')}
                   </Button>
-               ) : null
-            }
-         />
+               ) : null}
+            </div>
+         </PageStatement>
+         <AutopilotsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
          <ListFilterBar filter={filter} />
       </>
    );

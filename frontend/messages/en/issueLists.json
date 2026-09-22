@@ -17,7 +17,6 @@
    },
    "display": {
       "label": "Display",
-      "moreOptions": "More options",
       "grouping": "Grouping",
       "ordering": "Ordering",
       "direction": "Direction",
@@ -125,6 +124,11 @@
       "frequentFirst": "Most assigned by you first"
    },
    "views": {
+      "title": "Views",
+      "statement": {
+         "line": "{count, plural, =0 {views are saved} one {view is saved} other {views are saved}}",
+         "sub": "A view is a saved set of filters. It stays here until someone deletes it."
+      },
       "newView": "New view",
       "edit": "Edit view",
       "pin": "Pin to the sidebar",
@@ -176,6 +180,7 @@
       "hiddenByFilters": "{count, plural, =1 {1 task} other {# tasks}} hidden by filters"
    },
    "projects": {
+      "title": "Projects",
       "search": "Search projects",
       "status": "Status",
       "lead": "Lead",
@@ -186,7 +191,29 @@
       "cards": "Cards",
       "table": "Table",
       "selected": "{count} selected",
-      "noneMatch": "No project matches these filters."
+      "noneMatch": "No project matches these filters.",
+      "insights": "Insights",
+      "layout": {
+         "label": "Layout",
+         "list": "List",
+         "board": "Board"
+      },
+      "kpi": {
+         "running": "Running",
+         "runningDetail": "{finished} finished",
+         "completion": "Completion",
+         "completionDetail": "{done} of {total} tasks",
+         "nextDue": "Next due",
+         "noDue": "None",
+         "overdue": "{days} d late",
+         "waiting": "On you",
+         "waitingDetail": "{decisions, plural, one {# decision} other {# decisions}} · {reviews, plural, one {# review} other {# reviews}} · oldest {age}",
+         "waitingNone": "{decisions, plural, one {# decision} other {# decisions}} · {reviews, plural, one {# review} other {# reviews}}",
+         "spend": "Spend, {days} d",
+         "spendDetail": "{cost} per finished task",
+         "agentTime": "Agent time, {days} d",
+         "agentTimeDetail": "{agents, plural, one {# agent} other {# agents}} · {runs, plural, one {# run} other {# runs}}"
+      }
    },
    "row": {
       "priority": "Priority: {current}"

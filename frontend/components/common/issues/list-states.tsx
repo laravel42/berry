@@ -78,19 +78,6 @@ export function IssueListSkeleton({ mode }: { mode: ViewType }) {
       );
    }
 
-   if (mode === 'gantt') {
-      return (
-         <div className="flex flex-col gap-2 p-4" aria-hidden>
-            {[0, 1, 2, 3, 4].map((row) => (
-               <div key={row} className="flex items-center gap-3">
-                  <Skeleton className="h-3 w-52" />
-                  <Skeleton className="h-5 flex-1" style={{ maxWidth: `${40 + row * 12}%` }} />
-               </div>
-            ))}
-         </div>
-      );
-   }
-
    return (
       <div className="flex flex-col" aria-hidden>
          <Skeleton className="mx-6 my-2 h-4 w-32" />

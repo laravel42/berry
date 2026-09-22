@@ -94,7 +94,17 @@ export function SettingsSection({
             ) : (
                <div className="mb-1 flex items-end justify-between gap-4">
                   <div>
-                     {title ? <h2>{title}</h2> : null}
+                     {/* Small capitals name a group (see page-parts `SectionLabel`).
+                         `data-heading="h3"` keeps the h2 role at the smaller size,
+                         since capitals at the h2 size would shout. */}
+                     {title ? (
+                        <h2
+                           data-heading="h3"
+                           className="font-medium tracking-wider text-muted-foreground uppercase"
+                        >
+                           {title}
+                        </h2>
+                     ) : null}
                      {description ? (
                         <p className="mt-0.5 text-muted-foreground">{description}</p>
                      ) : null}

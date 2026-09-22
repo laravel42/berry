@@ -2,6 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
+import { SectionLabel } from '@/components/common/page/page-parts';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useGoalsStore } from '@/store/goals-store';
@@ -44,7 +45,7 @@ function HeaderOptions() {
          </div>
 
          <Input
-            className="h-9 max-w-64"
+            className="h-9 min-w-0 flex-1 basis-40"
             placeholder={t('list.search')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -59,8 +60,13 @@ function HeaderOptions() {
  * invite a goal with no project to hang off.
  */
 export default function Header() {
+   const t = useTranslations('goals.header');
+
    return (
-      <div className="flex w-full flex-col items-center">
+      <div className="flex w-full shrink-0 flex-col">
+         <div className="flex min-h-11 items-center px-4 pt-1">
+            <SectionLabel as="h1">{t('title')}</SectionLabel>
+         </div>
          <HeaderOptions />
       </div>
    );

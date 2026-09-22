@@ -18,6 +18,7 @@ const meta = {
          sortKey: 'activity',
          sortDescending: true,
          filters: [],
+         query: '',
          selected: [],
          columns: ['activity', 'lastActive', 'model'],
       });
@@ -33,6 +34,17 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+/** Typing a name keeps the agents it matches and drops the rest. */
+export const Search: Story = {
+   beforeEach: () => {
+      useAgentsListStore.setState({ query: 'legacy' });
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('legacy-importer')).toBeVisible();
+      await expect(canvas.queryByText('Orchestrator')).toBeNull();
+   },
+};
 
 export const Roster: Story = {
    play: async ({ canvas }) => {

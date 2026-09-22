@@ -4,7 +4,27 @@
       "search": "Search tasks",
       "insights": "Insights",
       "breakdown": "Breakdown",
-      "create": "Create task"
+      "create": "Create task",
+      "kpi": {
+         "open": "Open",
+         "openDetail": "{waiting} on you · {running} running",
+         "oldestWait": "Oldest wait",
+         "oldestWaitDetail": "on you · {reviews, plural, one {# review} other {# reviews}} · {decisions, plural, one {# decision} other {# decisions}}",
+         "noWait": "None",
+         "done": "Done, {days} d",
+         "doneDetail": "{pullRequests, plural, one {# pull request} other {# pull requests}} · {commits, plural, one {# commit} other {# commits}}",
+         "leadTime": "Lead time",
+         "leadTimeDetail": "created to done · median · p90 {p90}",
+         "costPerTask": "Cost per task",
+         "costPerTaskDetail": "{time} agent time per task",
+         "firstPass": "One-run rate",
+         "firstPassDetail": "{oneRun} of {total} · {runs, plural, one {# run} other {# runs}}"
+      },
+      "layout": {
+         "label": "Layout",
+         "list": "List",
+         "board": "Board"
+      }
    },
    "tabs": {
       "all": "All",

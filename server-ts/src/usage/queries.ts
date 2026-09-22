@@ -1,5 +1,6 @@
 import type { ScopedQuery } from '../identity/workspace-context.ts';
 import { formatIdentifier } from '../core/issues.ts';
+import { toRFC3339 } from '../db/pool.ts';
 import { issueStatusToApi } from '../runs/ledger.ts';
 
 /**
@@ -325,15 +326,325 @@ async function runTotals(
    };
 }
 
+/**
+ * How a chart of the window should be drawn: by day, or by hour when all the
+ * activity falls inside two days.
+ *
+ * A workspace that ran for one afternoon has a 30-day window holding one
+ * non-empty day, and a daily chart of it is a single bar. The frame is taken
+ * from the runs in scope, since nothing is spent or finished without one.
+ */
+export interface SeriesFrame {
+   grain: 'hour' | 'day';
+   /** The first and last bucket, as instants; null when nothing ran. */
+   from: string | null;
+   to: string | null;
+}
+
+const HOURLY_SPAN_HOURS = 48;
+
+async function seriesFrame(q: ScopedQuery, window: UsageWindow, filter: UsageFilter): Promise<SeriesFrame> {
+   const [row] = await q.sql`
+      SELECT date_trunc('hour', MIN(r.created_at)) AS first_hour,
+             date_trunc('hour', MAX(COALESCE(r.completed_at, r.created_at))) AS last_hour
+        FROM (${runsInScope(q, filter)}) AS r
+       WHERE r.created_at >= ${window.from}`;
+   const first = (row?.first_hour as string | null) ?? null;
+   const last = (row?.last_hour as string | null) ?? null;
+   if (!first || !last) return { grain: 'day', from: null, to: null };
+   const hours = (new Date(last).getTime() - new Date(first).getTime()) / 3_600_000;
+   return hours <= HOURLY_SPAN_HOURS ? { grain: 'hour', from: first, to: last } : { grain: 'day', from: null, to: null };
+}
+
+/** The frame's buckets as local timestamps: every hour between the two ends, or every day of the window. */
+function frameBuckets(q: ScopedQuery, window: UsageWindow, frame: SeriesFrame) {
+   if (frame.grain === 'hour' && frame.from && frame.to) {
+      return q.sql`generate_series(
+         ${frame.from}::timestamptz AT TIME ZONE ${window.timezone},
+         ${frame.to}::timestamptz AT TIME ZONE ${window.timezone},
+         interval '1 hour')`;
+   }
+   return localDays(q, window);
+}
+
+export interface SeriesPoint {
+   /** `YYYY-MM-DD` for a day, `YYYY-MM-DD HH` for an hour, in the window's zone. */
+   key: string;
+   costMicros: number;
+   tokens: number;
+   events: number;
+   runs: number;
+}
+
+async function usageSeries(q: ScopedQuery, window: UsageWindow, filter: UsageFilter, frame: SeriesFrame): Promise<SeriesPoint[]> {
+   const step = frame.grain === 'hour' ? q.sql`interval '1 hour'` : q.sql`interval '1 day'`;
+   const format = frame.grain === 'hour' ? 'YYYY-MM-DD HH24' : 'YYYY-MM-DD';
+   const rows = await q.sql`
+      SELECT to_char(b.at, ${format}) AS key,
+             (SELECT COALESCE(SUM(h.cost_micros), 0)::bigint
+                FROM ${usageSource(q, filter)} AS h
+               WHERE h.workspace_id = ${q.workspaceId}
+                 AND h.bucket >= b.at AT TIME ZONE ${window.timezone}
+                 AND h.bucket < (b.at + ${step}) AT TIME ZONE ${window.timezone}
+                     ${narrow(q, filter)}) AS cost_micros,
+             (SELECT COALESCE(SUM(h.input_tokens + h.output_tokens), 0)::bigint
+                FROM ${usageSource(q, filter)} AS h
+               WHERE h.workspace_id = ${q.workspaceId}
+                 AND h.bucket >= b.at AT TIME ZONE ${window.timezone}
+                 AND h.bucket < (b.at + ${step}) AT TIME ZONE ${window.timezone}
+                     ${narrow(q, filter)}) AS tokens,
+             (SELECT COALESCE(SUM(h.events), 0)::bigint
+                FROM ${usageSource(q, filter)} AS h
+               WHERE h.workspace_id = ${q.workspaceId}
+                 AND h.bucket >= b.at AT TIME ZONE ${window.timezone}
+                 AND h.bucket < (b.at + ${step}) AT TIME ZONE ${window.timezone}
+                     ${narrow(q, filter)}) AS events,
+             (SELECT COUNT(*)::bigint FROM (${runsInScope(q, filter)}) AS r
+               WHERE r.created_at >= b.at AT TIME ZONE ${window.timezone}
+                 AND r.created_at < (b.at + ${step}) AT TIME ZONE ${window.timezone}) AS runs
+        FROM ${frameBuckets(q, window, frame)} AS b(at)
+       ORDER BY b.at`;
+   return rows.map((row) => ({
+      key: String(row.key),
+      costMicros: Number(row.cost_micros ?? 0),
+      tokens: Number(row.tokens ?? 0),
+      events: Number(row.events ?? 0),
+      runs: Number(row.runs ?? 0),
+   }));
+}
+
+export interface IssueSpend {
+   issueId: string;
+   identifier: string;
+   title: string;
+   costMicros: number;
+   runs: number;
+}
+
+/** The tasks the most was spent on. Always from the raw rows: only they name the task. */
+async function usageTopIssues(q: ScopedQuery, window: UsageWindow, filter: UsageFilter): Promise<IssueSpend[]> {
+   const board = filter.boardId ? q.sql`AND i.board_id = ${filter.boardId}` : q.sql``;
+   const project = filter.projectId ? q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})` : q.sql``;
+   const agent = filter.agentId ? q.sql`AND u.agent_id = ${filter.agentId}` : q.sql``;
+   const rows = await q.sql`
+      SELECT i.id::text AS issue_id, berry_issue_identifier(b.workspace_id, i.number) AS identifier, i.title,
+             COALESCE(SUM(u.cost_micros), 0)::bigint AS cost_micros,
+             COUNT(DISTINCT u.run_id)::bigint AS runs
+        FROM task_usage AS u
+        JOIN issues AS i ON i.id = u.issue_id
+        JOIN boards AS b ON b.id = i.board_id
+       WHERE u.workspace_id = ${q.workspaceId} AND u.occurred_at >= ${window.from}
+             ${board} ${project} ${agent}
+       GROUP BY i.id, b.workspace_id, i.number, i.title
+      HAVING COALESCE(SUM(u.cost_micros), 0) > 0
+       ORDER BY cost_micros DESC
+       LIMIT 5`;
+   return rows.map((row) => ({
+      issueId: String(row.issue_id),
+      identifier: String(row.identifier),
+      title: String(row.title),
+      costMicros: Number(row.cost_micros ?? 0),
+      runs: Number(row.runs ?? 0),
+   }));
+}
+
 export async function workspaceUsage(q: ScopedQuery, window: UsageWindow, filter: UsageFilter = {}) {
-   const [totals, daily, byAgent, byModel, runs] = await Promise.all([
+   const frame = await seriesFrame(q, window, filter);
+   const [totals, daily, byAgent, byModel, runs, points, topIssues] = await Promise.all([
       usageTotals(q, window, filter),
       usageDaily(q, window, filter),
       usageByAgent(q, window, filter),
       usageByModel(q, window, filter),
       runTotals(q, window, filter),
+      usageSeries(q, window, filter, frame),
+      usageTopIssues(q, window, filter),
    ]);
-   return { totals, daily, byAgent, byModel, runs };
+   return { totals, daily, byAgent, byModel, runs, series: { grain: frame.grain, points }, topIssues };
+}
+
+/**
+ * What the window's spend produced: tasks that reached done, the pull requests
+ * and commits delivered on the way, how long a task takes, and who did it.
+ *
+ * A task counts once, at its latest `issue.completed` inside the window, and
+ * only while it is still done: one reopened since is not output. Whose it was
+ * is the agent it is assigned to now, which is who delivered it.
+ */
+export interface WorkOverview {
+   tasksDone: number;
+   pullRequests: number;
+   commits: number;
+   runs: number;
+   runSeconds: number;
+   series: { grain: 'hour' | 'day'; points: Array<{ key: string; tasksDone: number }> };
+   byAgent: Array<{ agentId: string; agentName: string; tasksDone: number; runs: number; runSeconds: number }>;
+   /** Seconds from a task's creation to its completion; null when no task finished. */
+   duration: { median: number; p90: number; min: number; max: number } | null;
+   /** Runs that stopped for a reason a person can act on. */
+   attention: { stepLimit: number; deliveryFailed: number };
+   /** Of the tasks finished in the window that an agent ran, how many took exactly one run. */
+   firstPass: { oneRun: number; total: number };
+   /**
+    * What is stopped on a person right now, whatever the window: tasks in
+    * review and approvals still pending. `oldestAt` is when the longest-waiting
+    * one began to wait; null when nothing waits.
+    */
+   waiting: { reviews: number; decisions: number; oldestAt: string | null };
+}
+
+/** Tasks in review: a person's approval is what they wait for. */
+function waitingReviews(q: ScopedQuery, filter: UsageFilter) {
+   const board = filter.boardId ? q.sql`AND i.board_id = ${filter.boardId}` : q.sql``;
+   const project = filter.projectId ? q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})` : q.sql``;
+   const agent = filter.agentId ? q.sql`AND i.assignee_type = 'agent' AND i.assignee_id = ${filter.agentId}` : q.sql``;
+   return q.sql`
+      SELECT i.id, i.updated_at AS since
+        FROM issues AS i
+        JOIN boards AS b ON b.id = i.board_id AND b.workspace_id = ${q.workspaceId}
+       WHERE i.deleted_at IS NULL AND i.status = 'in_review' ${board} ${project} ${agent}`;
+}
+
+/** Approvals nobody has answered yet. One without a task belongs to no board, project or agent. */
+function waitingDecisions(q: ScopedQuery, filter: UsageFilter) {
+   const board = filter.boardId ? q.sql`AND a.issue_id IN (SELECT i.id FROM issues AS i WHERE i.board_id = ${filter.boardId})` : q.sql``;
+   const project = filter.projectId ? q.sql`AND a.issue_id IN (${projectIssues(q, filter.projectId)})` : q.sql``;
+   const agent = filter.agentId
+      ? q.sql`AND a.issue_id IN (SELECT i.id FROM issues AS i WHERE i.assignee_type = 'agent' AND i.assignee_id = ${filter.agentId})`
+      : q.sql``;
+   return q.sql`
+      SELECT a.id, a.requested_at AS since
+        FROM approvals AS a
+       WHERE a.workspace_id = ${q.workspaceId} AND a.status = 'pending' ${board} ${project} ${agent}`;
+}
+
+function completedInScope(q: ScopedQuery, window: UsageWindow, filter: UsageFilter) {
+   const board = filter.boardId ? q.sql`AND i.board_id = ${filter.boardId}` : q.sql``;
+   const project = filter.projectId ? q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})` : q.sql``;
+   const agent = filter.agentId ? q.sql`AND i.assignee_type = 'agent' AND i.assignee_id = ${filter.agentId}` : q.sql``;
+   return q.sql`
+      SELECT i.id, i.created_at, i.assignee_type, i.assignee_id, MAX(e.occurred_at) AS completed_at
+        FROM outbox_events AS e
+        JOIN issues AS i ON i.id = e.aggregate_id AND i.deleted_at IS NULL AND i.status = 'done'
+       WHERE e.workspace_id = ${q.workspaceId} AND e.topic = 'issue.completed'
+         AND e.occurred_at >= ${window.from} ${board} ${project} ${agent}
+       GROUP BY i.id`;
+}
+
+export async function workOverview(q: ScopedQuery, window: UsageWindow, filter: UsageFilter = {}): Promise<WorkOverview> {
+   const frame = await seriesFrame(q, window, filter);
+   const step = frame.grain === 'hour' ? q.sql`interval '1 hour'` : q.sql`interval '1 day'`;
+   const format = frame.grain === 'hour' ? 'YYYY-MM-DD HH24' : 'YYYY-MM-DD';
+   const [[totals], [delivered], points, agents, [spread], runs, [passes], [waits]] = await Promise.all([
+      q.sql`SELECT COUNT(*)::bigint AS done FROM (${completedInScope(q, window, filter)}) AS c`,
+      q.sql`
+         SELECT COUNT(DISTINCT (r.issue_id, r.pull_request_number)) FILTER (WHERE r.pull_request_number IS NOT NULL)::bigint AS pull_requests,
+                COUNT(*) FILTER (WHERE r.head_commit IS NOT NULL)::bigint AS commits,
+                COUNT(*) FILTER (WHERE r.failure_code = 'RUN_LIMIT_REACHED')::bigint AS step_limit,
+                COUNT(*) FILTER (WHERE r.failure_code = 'DELIVERY_FAILED')::bigint AS delivery_failed
+           FROM runs AS r
+          WHERE r.id IN (SELECT s.id FROM (${runsInScope(q, filter)}) AS s WHERE s.created_at >= ${window.from})`,
+      q.sql`
+         SELECT to_char(b.at, ${format}) AS key,
+                (SELECT COUNT(*)::bigint FROM (${completedInScope(q, window, filter)}) AS c
+                  WHERE c.completed_at >= b.at AT TIME ZONE ${window.timezone}
+                    AND c.completed_at < (b.at + ${step}) AT TIME ZONE ${window.timezone}) AS done
+           FROM ${frameBuckets(q, window, frame)} AS b(at)
+          ORDER BY b.at`,
+      q.sql`
+         SELECT a.id::text AS agent_id, a.name AS agent_name,
+                (SELECT COUNT(*)::bigint FROM (${completedInScope(q, window, filter)}) AS c
+                  WHERE c.assignee_type = 'agent' AND c.assignee_id = a.id) AS done,
+                COUNT(r.id)::bigint AS runs,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (r.completed_at - r.started_at)))
+                         FILTER (WHERE r.completed_at IS NOT NULL AND r.started_at IS NOT NULL), 0) AS seconds
+           FROM agents AS a
+           LEFT JOIN (${runsInScope(q, filter)}) AS r ON r.agent_id = a.id AND r.created_at >= ${window.from}
+          WHERE a.workspace_id = ${q.workspaceId}
+          GROUP BY a.id, a.name
+         HAVING COUNT(r.id) > 0
+          ORDER BY done DESC, seconds DESC
+          LIMIT 50`,
+      q.sql`
+         SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.completed_at - c.created_at))) AS median,
+                percentile_cont(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (c.completed_at - c.created_at))) AS p90,
+                MIN(EXTRACT(EPOCH FROM (c.completed_at - c.created_at))) AS shortest,
+                MAX(EXTRACT(EPOCH FROM (c.completed_at - c.created_at))) AS longest
+           FROM (${completedInScope(q, window, filter)}) AS c`,
+      runTotals(q, window, filter),
+      q.sql`
+         SELECT COUNT(*) FILTER (WHERE n.runs = 1)::bigint AS one_run, COUNT(*)::bigint AS total
+           FROM (SELECT c.id, COUNT(r.id) AS runs
+                   FROM (${completedInScope(q, window, filter)}) AS c
+                   JOIN (${runsInScope(q, filter)}) AS r ON r.issue_id = c.id
+                  GROUP BY c.id) AS n`,
+      q.sql`
+         SELECT (SELECT COUNT(*)::bigint FROM (${waitingReviews(q, filter)}) AS w) AS reviews,
+                (SELECT COUNT(*)::bigint FROM (${waitingDecisions(q, filter)}) AS w) AS decisions,
+                LEAST((SELECT MIN(w.since) FROM (${waitingReviews(q, filter)}) AS w),
+                      (SELECT MIN(w.since) FROM (${waitingDecisions(q, filter)}) AS w)) AS oldest`,
+   ]);
+   const done = Number(totals?.done ?? 0);
+   return {
+      tasksDone: done,
+      pullRequests: Number(delivered?.pull_requests ?? 0),
+      commits: Number(delivered?.commits ?? 0),
+      runs: runs.runs,
+      runSeconds: runs.runSeconds,
+      series: { grain: frame.grain, points: points.map((row) => ({ key: String(row.key), tasksDone: Number(row.done ?? 0) })) },
+      byAgent: agents.map((row) => ({
+         agentId: String(row.agent_id),
+         agentName: String(row.agent_name),
+         tasksDone: Number(row.done ?? 0),
+         runs: Number(row.runs ?? 0),
+         runSeconds: Math.round(Number(row.seconds ?? 0)),
+      })),
+      duration:
+         done === 0 || spread?.median == null
+            ? null
+            : {
+                 median: Math.round(Number(spread.median)),
+                 p90: Math.round(Number(spread.p90)),
+                 min: Math.max(0, Math.round(Number(spread.shortest))),
+                 max: Math.round(Number(spread.longest)),
+              },
+      attention: { stepLimit: Number(delivered?.step_limit ?? 0), deliveryFailed: Number(delivered?.delivery_failed ?? 0) },
+      firstPass: { oneRun: Number(passes?.one_run ?? 0), total: Number(passes?.total ?? 0) },
+      waiting: {
+         reviews: Number(waits?.reviews ?? 0),
+         decisions: Number(waits?.decisions ?? 0),
+         // The API's client hands timestamps back as text; a plain one (the tests') as a Date.
+         oldestAt: waits?.oldest == null ? null : waits.oldest instanceof Date ? waits.oldest.toISOString() : toRFC3339(String(waits.oldest)),
+      },
+   };
+}
+
+/**
+ * Time and money per task, for the rows of a task list. One row per task that
+ * has a run or a usage event; a task with neither is absent, not zero.
+ */
+export async function issueWork(q: ScopedQuery, filter: UsageFilter = {}) {
+   const project = filter.projectId ? q.sql`AND i.id IN (${projectIssues(q, filter.projectId)})` : q.sql``;
+   const board = filter.boardId ? q.sql`AND i.board_id = ${filter.boardId}` : q.sql``;
+   const rows = await q.sql`
+      SELECT i.id::text AS issue_id,
+             COALESCE(u.cost_micros, 0)::bigint AS cost_micros,
+             COALESCE(r.seconds, 0) AS seconds,
+             COALESCE(r.runs, 0)::bigint AS runs
+        FROM issues AS i
+        JOIN boards AS b ON b.id = i.board_id AND b.workspace_id = ${q.workspaceId}
+        LEFT JOIN (SELECT t.issue_id, SUM(t.cost_micros) AS cost_micros
+                     FROM task_usage AS t WHERE t.workspace_id = ${q.workspaceId} GROUP BY t.issue_id) AS u ON u.issue_id = i.id
+        LEFT JOIN (SELECT s.issue_id, COUNT(*) AS runs,
+                          SUM(EXTRACT(EPOCH FROM (s.completed_at - s.started_at)))
+                             FILTER (WHERE s.completed_at IS NOT NULL AND s.started_at IS NOT NULL) AS seconds
+                     FROM runs AS s WHERE s.workspace_id = ${q.workspaceId} AND s.issue_id IS NOT NULL GROUP BY s.issue_id) AS r ON r.issue_id = i.id
+       WHERE i.deleted_at IS NULL AND (u.issue_id IS NOT NULL OR r.issue_id IS NOT NULL) ${project} ${board}`;
+   return rows.map((row) => ({
+      issueId: String(row.issue_id),
+      costMicros: Number(row.cost_micros ?? 0),
+      runSeconds: Math.round(Number(row.seconds ?? 0)),
+      runs: Number(row.runs ?? 0),
+   }));
 }
 
 export async function agentUsage(q: ScopedQuery, agentId: string, window: UsageWindow) {

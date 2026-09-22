@@ -1,8 +1,10 @@
 'use client';
 
+import { PageStatement } from '@/components/common/page/page-parts';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useApprovalsStore } from '@/store/approvals-store';
 import { useApprovalsFilterStore, type ApprovalsView } from '@/store/approvals-filter-store';
 import { useTranslations } from 'next-intl';
 
@@ -13,10 +15,18 @@ import { useTranslations } from 'next-intl';
 export default function Header() {
    const t = useTranslations('approvals');
    const { view, setView, mine, setMine } = useApprovalsFilterStore();
+   const approvals = useApprovalsStore((state) => state.approvals);
+   const loaded = useApprovalsStore((state) => state.loaded);
+   const pending = approvals.filter((approval) => approval.status === 'pending').length;
    return (
-      <header className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-2">
-         <h1>{t('title')}</h1>
-         <div className="flex flex-wrap items-center gap-4">
+      <div className="flex w-full flex-col">
+         <PageStatement
+            label={t('title')}
+            figure={loaded ? pending : undefined}
+            line={t('statement.line', { count: pending })}
+            sub={t('statement.sub')}
+         />
+         <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b px-6 py-2">
             <div className="flex items-center gap-2">
                <Switch
                   id="approvals-mine"
@@ -38,6 +48,6 @@ export default function Header() {
                </TabsList>
             </Tabs>
          </div>
-      </header>
+      </div>
    );
 }

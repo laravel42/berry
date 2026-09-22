@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
+import { PageStatement } from '@/components/common/page/page-parts';
 import { JoinLinksPanel } from '@/components/common/settings/join-links-settings';
 import { SettingsCard, SettingsRow, SettingsSection } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
@@ -285,9 +286,15 @@ export default function Members() {
 
    return (
       <div className="h-full w-full overflow-y-auto">
+         <PageStatement
+            heading="h2"
+            label={t('title')}
+            figure={members.value ? members.value.length : undefined}
+            line={t('statement.line', { count: members.value?.length ?? 0 })}
+            sub={t('statement.sub')}
+         />
          <div className="mx-auto max-w-3xl px-6 py-8 pb-20">
             <SettingsSection
-               title={t('title')}
                description={members.error ?? undefined}
                action={
                   canManage ? (

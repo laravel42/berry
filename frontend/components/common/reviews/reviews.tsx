@@ -7,6 +7,7 @@ import {
    EmptyStateMark,
    EmptyStateText,
 } from '@/components/common/empty-state';
+import { PageStatement } from '@/components/common/page/page-parts';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
@@ -19,7 +20,7 @@ import {
 import { useSessionStore } from '@/store/session-store';
 import { X } from 'lucide-react';
 import Link from 'next/link';
-import { useReviewsStore } from '@/store/reviews-store';
+import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import {
@@ -340,6 +341,9 @@ export default function Reviews({
 
    const caughtUp = items !== null && items.length === 0 && state === 'open';
 
+   // The shared queue the rail's badge counts: what waits, whichever tab is open.
+   const waitingCount = useReviewsStore(selectOpenReviewCount);
+
    return (
       <div
          className="flex h-full w-full overflow-hidden"
@@ -352,6 +356,14 @@ export default function Reviews({
                selectedId ? 'hidden md:flex' : 'flex'
             )}
          >
+            <div className="shrink-0">
+               <PageStatement
+                  label={t('title')}
+                  figure={waitingCount ?? undefined}
+                  line={t('statement.line', { count: waitingCount ?? 0 })}
+                  sub={t('statement.sub')}
+               />
+            </div>
             <div className="shrink-0 px-4 py-[6px]">
                <Tabs value={listTab} className="gap-0">
                   <TabsList className="h-9">

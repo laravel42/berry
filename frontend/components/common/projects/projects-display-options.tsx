@@ -15,33 +15,31 @@ import {
    PROJECT_DISPLAY_PROPERTIES,
    ProjectsGrouping,
    ProjectsOrdering,
-   ProjectsViewType,
    useProjectsDisplayStore,
 } from '@/store/projects-display-store';
 import {
+   ArrowDownWideNarrow,
    ArrowUpDown,
    ArrowUpNarrowWide,
-   ChartNoAxesGantt,
-   LayoutGrid,
-   List,
    SlidersHorizontal,
 } from 'lucide-react';
 
-const VIEW_TYPES: { value: ProjectsViewType; label: string; icon: React.ElementType }[] = [
-   { value: 'list', label: 'List', icon: List },
-   { value: 'board', label: 'Board', icon: LayoutGrid },
-   { value: 'timeline', label: 'Timeline', icon: ChartNoAxesGantt },
-];
-
 const GROUPINGS: { value: ProjectsGrouping; label: string }[] = [
    { value: 'status', label: 'Status' },
+   { value: 'priority', label: 'Priority' },
+   { value: 'lead', label: 'Lead' },
+   { value: 'health', label: 'Health' },
    { value: 'none', label: 'No grouping' },
 ];
 
 const ORDERINGS: { value: ProjectsOrdering; label: string }[] = [
+   { value: 'title', label: 'Title' },
    { value: 'start-date', label: 'Start date' },
    { value: 'target-date', label: 'Target date' },
-   { value: 'title', label: 'Title' },
+   { value: 'status', label: 'Status' },
+   { value: 'priority', label: 'Priority' },
+   { value: 'created', label: 'Created' },
+   { value: 'updated', label: 'Updated' },
 ];
 
 function OptionRow({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
@@ -53,24 +51,21 @@ function OptionRow({ label, children }: { label: React.ReactNode; children: Reac
    );
 }
 
-/** Linear-style Display popover for the Projects page (List/Board/Timeline). */
+/** Display popover for the Projects page. */
 export function ProjectsDisplayOptions() {
    const {
       viewType,
       grouping,
       ordering,
+      direction,
       closedProjects,
       showEmptyGroups,
-      showProjectList,
-      showWeekNumbers,
       displayProperties,
-      setViewType,
       setGrouping,
       setOrdering,
+      setDirection,
       setClosedProjects,
       setShowEmptyGroups,
-      setShowProjectList,
-      setShowWeekNumbers,
       toggleDisplayProperty,
       resetDisplaySettings,
    } = useProjectsDisplayStore();
@@ -85,26 +80,6 @@ export function ProjectsDisplayOptions() {
          </PopoverTrigger>
          <PopoverContent align="end" className="w-[420px] p-0">
             <div className="p-3 flex flex-col gap-3">
-               {/* View switcher */}
-               <div className="grid grid-cols-3 gap-2">
-                  {VIEW_TYPES.map((view) => (
-                     <button
-                        key={view.value}
-                        type="button"
-                        onClick={() => setViewType(view.value)}
-                        className={cn(
-                           'flex items-center justify-center gap-1.5 h-9 rounded-full border transition-colors',
-                           viewType === view.value
-                              ? 'bg-accent text-foreground border-border font-medium'
-                              : 'border-border/60 text-muted-foreground hover:text-foreground hover:bg-accent/40'
-                        )}
-                     >
-                        <view.icon className="size-4" />
-                        {view.label}
-                     </button>
-                  ))}
-               </div>
-
                {/* Grouping / ordering */}
                <div className="flex flex-col gap-1.5">
                   <OptionRow
@@ -139,21 +114,37 @@ export function ProjectsDisplayOptions() {
                         </span>
                      }
                   >
-                     <Select
-                        value={ordering}
-                        onValueChange={(value) => setOrdering(value as ProjectsOrdering)}
-                     >
-                        <SelectTrigger className="h-8 w-36">
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {ORDERINGS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                 {option.label}
-                              </SelectItem>
-                           ))}
-                        </SelectContent>
-                     </Select>
+                     <div className="flex items-center gap-1">
+                        <Select
+                           value={ordering}
+                           onValueChange={(value) => setOrdering(value as ProjectsOrdering)}
+                        >
+                           <SelectTrigger className="h-8 w-36" aria-label="Ordering">
+                              <SelectValue />
+                           </SelectTrigger>
+                           <SelectContent>
+                              {ORDERINGS.map((option) => (
+                                 <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                 </SelectItem>
+                              ))}
+                           </SelectContent>
+                        </Select>
+                        <Button
+                           size="icon"
+                           variant="ghost"
+                           className="size-8"
+                           aria-label={direction === 'asc' ? 'Ascending' : 'Descending'}
+                           title={direction === 'asc' ? 'Ascending' : 'Descending'}
+                           onClick={() => setDirection(direction === 'asc' ? 'desc' : 'asc')}
+                        >
+                           {direction === 'asc' ? (
+                              <ArrowUpNarrowWide className="size-3.5" />
+                           ) : (
+                              <ArrowDownWideNarrow className="size-3.5" />
+                           )}
+                        </Button>
+                     </div>
                   </OptionRow>
                </div>
 
@@ -179,22 +170,8 @@ export function ProjectsDisplayOptions() {
                {/* Per-view options */}
                <div className="flex flex-col gap-1.5">
                   <span className="font-medium">
-                     {viewType === 'timeline'
-                        ? 'Timeline options'
-                        : viewType === 'board'
-                          ? 'Board options'
-                          : 'List options'}
+                     {viewType === 'board' ? 'Board options' : 'List options'}
                   </span>
-                  {viewType === 'timeline' && (
-                     <>
-                        <OptionRow label="Show project list">
-                           <Switch checked={showProjectList} onCheckedChange={setShowProjectList} />
-                        </OptionRow>
-                        <OptionRow label="Show week numbers">
-                           <Switch checked={showWeekNumbers} onCheckedChange={setShowWeekNumbers} />
-                        </OptionRow>
-                     </>
-                  )}
                   <OptionRow
                      label={viewType === 'board' ? 'Show empty columns' : 'Show empty groups'}
                   >

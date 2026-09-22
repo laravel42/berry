@@ -4,45 +4,33 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useState } from 'react';
 
-import UsageErrors from '@/components/common/usage/usage-errors';
 import UsageFilters from '@/components/common/usage/usage-filters';
-import UsageNow from '@/components/common/usage/usage-now';
-import UsageOverview from '@/components/common/usage/usage-overview';
+import UsageSpend from '@/components/common/usage/usage-spend';
+import UsageWork from '@/components/common/usage/usage-work';
 import MainLayout from '@/components/layout/main-layout';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { localTimezone } from '@/lib/cron-schedule';
 import type { UsageQuery } from '@/lib/usage';
 
-/*
- * DIRECTION CONTRACT (Impeccable surface b3f44305 · urgency-stack · code-led)
- * THESIS: Usage reads top-to-bottom by what needs a person first — awaiting,
- *   failures, spend — refusing the equal metric-tile dashboard.
- * OWN-WORLD: Berry dark Operate shell; column-tint urgency bands; tabular mono
- *   figures; semantic status tokens; BerryMark for run state.
- * STORY: Operator sees who needs them, what failed, what it cost, then the rest.
- * FIRST VIEWPORT: Title + Overview/Spend/Runs tabs + filters; stacked urgency
- *   bands; quieter lists below a hairline.
- * FORM: Urgency stack (seed deal index 5 of 7); signature: warning pulse on
- *   awaiting when count > 0.
- * FINISH: unreviewed and undocumented is unfinished; this build ends with the
- *   finish review, the verdict, DESIGN.md, and every shipping raster carrying
- *   its provenance.
- */
-
 /**
- * One page for the workspace's activity and spend. Overview is what is
- * happening now; Spend is what a window of runs cost; Runs is how they ended.
- * It replaces the separate Dashboard (whose `/dashboard` route redirects here),
- * so each figure has exactly one home.
+ * One page for what the workspace's agents cost and what that produced, drawn
+ * as charts. Spend is the window's cost, when it was spent and who and what
+ * took which share of it; Work is what it bought: tasks done, what was
+ * delivered, who finished them and how long a task takes.
+ *
+ * It replaced a three-tab page whose Overview repeated the Inbox and Reviews
+ * (what waits on a person, what is in flight) and whose Runs tab led with
+ * failed runs. Most failure causes are Berry's to fix, not the reader's, and a
+ * retried run still ends in a finished task; Work counts those, and names only
+ * the two causes a person can act on. The `/dashboard` route redirects here.
  */
-const TABS = ['overview', 'spend', 'runs'] as const;
+const TABS = ['spend', 'work'] as const;
 type Tab = (typeof TABS)[number];
 
-/** A `?tab=` value to a tab; the old `usage` and `errors` links still land right. */
+/** A `?tab=` value to a tab. Links to the old tabs still land somewhere sensible. */
 function tabFrom(raw: string | null): Tab {
-   if (raw === 'spend' || raw === 'usage') return 'spend';
-   if (raw === 'runs' || raw === 'errors') return 'runs';
-   return 'overview';
+   if (raw === 'work' || raw === 'runs' || raw === 'errors') return 'work';
+   return 'spend';
 }
 
 function UsageScreen() {
@@ -76,7 +64,7 @@ function UsageScreen() {
 
    const open = (next: Tab) => {
       const search = new URLSearchParams(params.toString());
-      if (next === 'overview') search.delete('tab');
+      if (next === 'spend') search.delete('tab');
       else search.set('tab', next);
       router.replace(search.size > 0 ? `?${search.toString()}` : '?', { scroll: false });
    };
@@ -94,7 +82,7 @@ function UsageScreen() {
                </TabsList>
             </Tabs>
             <UsageFilters
-               timeframe={tab === 'overview' ? 'live' : 'window'}
+               timeframe="window"
                query={query}
                onChange={setQuery}
                lastUpdated={state.lastUpdated}
@@ -107,9 +95,8 @@ function UsageScreen() {
 
    return (
       <MainLayout header={header} headersNumber={1}>
-         {tab === 'overview' ? <UsageNow query={query} onState={onState} /> : null}
-         {tab === 'spend' ? <UsageOverview query={query} onState={onState} /> : null}
-         {tab === 'runs' ? <UsageErrors query={query} onState={onState} /> : null}
+         {tab === 'spend' ? <UsageSpend query={query} onState={onState} /> : null}
+         {tab === 'work' ? <UsageWork query={query} onState={onState} /> : null}
       </MainLayout>
    );
 }

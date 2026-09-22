@@ -8,45 +8,19 @@
       "type": "git",
       "url": "git+https://github.com/laravel42/berry-circle.git"
    },
-   "packageManager": "pnpm@10.12.1",
-   "pnpm": {
-      "onlyBuiltDependencies": [
-         "@biomejs/biome",
-         "@google/genai",
-         "@parcel/watcher",
-         "@swc/core",
-         "better-sqlite3",
-         "esbuild",
-         "node-llama-cpp",
-         "protobufjs",
-         "sharp",
-         "tree-sitter-go",
-         "tree-sitter-javascript",
-         "tree-sitter-python",
-         "tree-sitter-rust",
-         "tree-sitter-typescript",
-         "unrs-resolver",
-         "workerd"
-      ],
-      "peerDependencyRules": {
-         "allowedVersions": {
-            "eslint-plugin-import>eslint": "10",
-            "eslint-plugin-jsx-a11y>eslint": "10",
-            "eslint-plugin-react>eslint": "10",
-            "@tobilu/qmd>typescript": "7"
-         }
-      }
-   },
+   "packageManager": "pnpm@12.5.1",
    "scripts": {
       "prepare": "husky",
       "dev:frontend": "pnpm --filter berry-frontend dev",
       "lint:frontend": "pnpm --filter berry-frontend lint",
       "build:frontend": "pnpm --filter berry-frontend build",
       "dev:server": "pnpm --filter @berry/server dev",
+      "dev:docker": "docker compose -f deploy/local/docker-compose.yml up --build",
+      "dev:docker:down": "docker compose -f deploy/local/docker-compose.yml down",
       "typecheck:server": "pnpm --filter @berry/server typecheck",
       "test:server": "pnpm --filter @berry/server test",
       "db:migrate": "pnpm --filter @berry/server migrate",
-      "db:seed": "pnpm --filter @berry/server seed",      
+      "db:seed": "pnpm --filter @berry/server seed",
       "db:reset": "pnpm --filter @berry/server reset",
       "runtime:build": "docker build -f server-ts/sandbox/agentcore/Dockerfile -t berry-agent-runtime server-ts",
       "runtime:docker": "bash scripts/runtime-docker.sh",

@@ -2,6 +2,7 @@
 
 import { ListFilterBar, useListFilters } from '@/components/common/filters/list-filters';
 import { EmptyStateLoading } from '@/components/common/empty-state';
+import { PageStatement } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { Button } from '@/components/ui/button';
 import {
@@ -149,6 +150,8 @@ export default function Inbox() {
       [visible, selectedId]
    );
 
+   const unread = useMemo(() => notifications.filter((item) => !item.read).length, [notifications]);
+
    const listReady = archivedView ? archivedStatus === 'ready' : status === 'ready';
 
    // A filter that hides the selected notification clears the selection: the
@@ -258,6 +261,12 @@ export default function Inbox() {
                selectedId ? 'hidden md:flex' : 'flex'
             )}
          >
+            <PageStatement
+               label={t('title')}
+               figure={status === 'ready' ? unread : undefined}
+               line={t('statement.line', { count: unread })}
+               sub={t('statement.sub')}
+            />
             <div className="flex shrink-0 items-center gap-1.5 border-b px-4 py-[6px] [&_button]:!h-9">
                <InboxFilterBar
                   filter={filter}
@@ -266,7 +275,7 @@ export default function Inbox() {
                   archivedView={archivedView}
                   showCounts={{
                      all: notifications.length,
-                     unread: notifications.filter((item) => !item.read).length,
+                     unread,
                      archived: archivedItems.length,
                   }}
                   onShowArchived={() => void setView('archived')}

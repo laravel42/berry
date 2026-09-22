@@ -2,3 +2,30 @@ packages:
    - frontend
    - server-ts
    - packages/plugin-sdk
+
+# pnpm 12 reads these here, not from package.json's "pnpm" field.
+allowBuilds:
+   '@biomejs/biome': true
+   '@google/genai': true
+   '@parcel/watcher': true
+   '@swc/core': true
+   better-sqlite3: true
+   esbuild: true
+   msw: true
+   node-llama-cpp: true
+   protobufjs: true
+   sharp: true
+   tree-sitter-go: true
+   tree-sitter-javascript: true
+   tree-sitter-python: true
+   tree-sitter-rust: true
+   tree-sitter-typescript: true
+   unrs-resolver: true
+   workerd: true
+
+peerDependencyRules:
+   allowedVersions:
+      'eslint-plugin-import>eslint': '10'
+      'eslint-plugin-jsx-a11y>eslint': '10'
+      'eslint-plugin-react>eslint': '10'
+      '@tobilu/qmd>typescript': '7'

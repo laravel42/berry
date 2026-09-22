@@ -18,6 +18,8 @@
 # Verification builds, kept out of .next so they cannot race `next dev`,
 # which shares that directory and fails with ENOENT on its manifests.
 /.next-verify/
+# `pnpm dev:docker` builds here, apart from the Mac's own .next.
+/.next-docker/
 /out/
 
 # production

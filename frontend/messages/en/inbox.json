@@ -1,5 +1,9 @@
 {
    "title": "Inbox",
+   "statement": {
+      "line": "{count, plural, one {notification is unread} other {notifications are unread}}",
+      "sub": "A notification leaves this list when it is archived."
+   },
    "views": {
       "active": "Inbox",
       "archived": "Archive"

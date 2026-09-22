@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fn, within } from 'storybook/test';
-import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import ProjectLine from './project-line';
 import {
    projectBilling,
@@ -55,13 +54,6 @@ export const Selectable: Story = {
       await expect(box).toBeChecked();
       await userEvent.click(box);
       await expect(args.onToggleSelected).toHaveBeenCalledTimes(1);
-   },
-};
-
-/** Labels are a display property, off by default. */
-export const WithLabels: Story = {
-   beforeEach: () => {
-      useProjectsDisplayStore.getState().toggleDisplayProperty('labels');
    },
 };
 

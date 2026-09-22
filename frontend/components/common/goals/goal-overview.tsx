@@ -287,13 +287,15 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
    return (
       <div
          className={cn(
-            'h-full min-h-0 w-full overflow-hidden bg-container',
+            // A container, so the properties column follows the room this view is
+            // given (a full page, a drawer, the pane beside a list), not the window.
+            '@container h-full min-h-0 w-full overflow-hidden bg-container',
             inDrawer ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto]' : 'flex'
          )}
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
-               <div className="mx-auto max-w-3xl px-6 py-6 sm:px-8 sm:py-8">
+               <div className="w-full px-6 py-6 sm:px-8 sm:py-8">
                   <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
                      {goal.title}
                   </h1>
@@ -322,7 +324,7 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
             </div>
          </div>
 
-         <aside className="hidden h-full w-[292px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside className="hidden h-full w-[292px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 @4xl:flex">
             <Properties goal={goal} />
          </aside>
       </div>

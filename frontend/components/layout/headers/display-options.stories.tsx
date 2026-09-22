@@ -31,17 +31,8 @@ export const Default: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
-      const layouts = within(await body.findByRole('group', { name: 'Layout' }));
-      await expect(layouts.getByRole('button', { name: 'List' })).toHaveAttribute(
-         'aria-pressed',
-         'true'
-      );
-      // The layout is URL state as well as a stored preference.
-      await userEvent.click(layouts.getByRole('button', { name: 'Board' }));
-      await expect(layouts.getByRole('button', { name: 'Board' })).toHaveAttribute(
-         'aria-pressed',
-         'true'
-      );
+      await expect(await body.findByRole('combobox', { name: 'Grouping' })).toBeVisible();
+      await expect(await body.findByRole('combobox', { name: 'Ordering' })).toBeVisible();
    },
 };
 
@@ -50,16 +41,5 @@ export const IconOnly: Story = {
    args: { iconOnly: true },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('button', { name: 'Display' })).toBeVisible();
-   },
-};
-
-export const MoreOptionsOpen: Story = {
-   beforeEach: () => {
-      useDisplaySettingsStore.setState({ moreOptionsOpen: true });
-   },
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('combobox', { name: 'Grouping' })).toBeVisible();
    },
 };
