@@ -539,8 +539,8 @@ const reviewGate = defaultTarget
         completion,
         defaultModel: config.runtime.defaultModel,
         maxAttempts: config.agents?.autoGateMaxAttempts ?? 2,
-        github: async (workspaceId) =>
-           new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }),
+        github: async (workspaceId: string, owner?: string | null) =>
+           new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }),
         // `write_file` saves against the run rather than the repository, so for
         // most tasks the saved files *are* the work under review.
         ...(storage ? { openArtifact: (key: string) => storage.open(key) } : {}),
@@ -793,7 +793,7 @@ registry.registerAll(
                source: (issue) =>
                   scm.provisioning
                      ? pullRequestSource(
-                          { sql, github: async (workspaceId) => new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }) },
+                          { sql, github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) },
                           issue
                        )
                      : Promise.resolve(null),
@@ -946,7 +946,7 @@ const planOptions: PlanOptions = {
 registerPlanningTools({ sql, goals, boards, plans: planOptions, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
-   ...(scm.provisioning ? { github: async (workspaceId: string) => new GitHubClient({ token: (await scm.gitCredential(workspaceId)).password }) } : {}),
+   ...(scm.provisioning ? { github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) } : {}),
    // `link_project_repository`: the same resolution a person's repository
    // picker goes through, so an agent can link exactly what a person could.
    repositories: connections
@@ -1264,9 +1264,9 @@ const followupWorker = reviewGate
            await publishRunArtifacts(
               {
                  sql,
-                 github: async (workspaceId) =>
+                 github: async (workspaceId: string, owner?: string | null) =>
                     new GitHubClient({
-                       token: (await scm.gitCredential(workspaceId)).password,
+                       token: (await scm.gitCredential(workspaceId, owner)).password,
                     }),
                  ...(storage ? { openArtifact: (key: string) => storage.open(key) } : {}),
                  onError: (message, error) =>

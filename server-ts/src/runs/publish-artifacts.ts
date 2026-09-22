@@ -31,7 +31,7 @@ import { RunLedger, RunTerminal } from './ledger.ts';
 
 export interface PublishDeps {
    sql: Sql;
-   github: (workspaceId: string) => Promise<GitHubClient>;
+   github: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    /** Reads a saved artifact's bytes. Absent with no file store, and then nothing is published. */
    openArtifact?: ((storageKey: string) => Promise<Uint8Array>) | undefined;
    clock?: () => Date;
@@ -117,7 +117,7 @@ export async function publishRunArtifacts(
    const now = (deps.clock ?? (() => new Date()))();
 
    try {
-      const client = await deps.github(run.workspace_id);
+      const client = await deps.github(run.workspace_id, owner);
       const repo = await client.repository(owner, name);
       const base = await client.branchHead(owner, name, repo.defaultBranch);
       if (!base) {

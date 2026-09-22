@@ -14,6 +14,7 @@ import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskRes
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
 import { RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
 import { scheduleReview } from '../runs/followups.ts';
+import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
 
 export type UsageRecorder = (
@@ -50,7 +51,7 @@ export interface RuntimeTaskExecutorOptions {
    recordUsage: UsageRecorder;
    ledger?: RunLedger;
    memory?: RunMemory;
-   gitCredential?: ((workspaceId: string) => Promise<{ username: string; password: string }>) | undefined;
+   gitCredential?: ((workspaceId: string, owner?: string | null) => Promise<{ username: string; password: string }>) | undefined;
    github?: (token: string) => GitHubClient;
    reviewGate?: { review(runId: string): Promise<unknown> };
    onGateError?: (error: unknown) => void;
@@ -215,7 +216,7 @@ export class RuntimeTaskExecutor implements Executor {
       const summary = result.text === '' ? null : result.text;
       if (plan && result.delivery) {
          try {
-            const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId) : null;
+            const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId, parseRepository(plan.fullName).owner) : null;
             const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
             if (result.delivery.candidate) {
                if (!github) throw new Error('Trusted repository delivery is not configured');
@@ -275,7 +276,7 @@ export class RuntimeTaskExecutor implements Executor {
       failure: Failure
    ): Promise<Failure> {
       try {
-         const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId) : null;
+         const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId, parseRepository(plan.fullName).owner) : null;
          const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
          if (!github) throw new Error('repository delivery is not configured');
          const published = await publishTrustedDelivery(this.#o.sql, task.runId, github, candidate);

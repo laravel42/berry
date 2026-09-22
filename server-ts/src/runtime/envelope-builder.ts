@@ -83,7 +83,8 @@ export interface EnvelopeDeps {
    defaultModel: string;
    memory: RunMemory;
    sealer: Sealer | null;
-   gitCredential?: ((workspaceId: string) => Promise<{ username: string; password: string; canPush?: boolean }>) | undefined;
+   /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
+   gitCredential?: ((workspaceId: string, owner?: string | null) => Promise<{ username: string; password: string; canPush?: boolean }>) | undefined;
    github: (token: string) => GitHubClient;
    /**
     * The agent's skills, MCP servers and env (workstream D).
@@ -241,6 +242,7 @@ export class EnvelopeBuilder {
                   reviewFeedback,
                   ...(related ? { related } : {}),
                   ...(priorWork ? { priorWork } : {}),
+                  ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
                      : {}),
@@ -476,8 +478,11 @@ export class EnvelopeBuilder {
       // repository never causes a token to be minted on its behalf.
       permissions.require('read_repository');
       const readOnly = !permissions.has('create_branches');
-      const credential = await this.#deps.gitCredential(task.workspaceId);
+      // Minted for the account that holds the repository: a workspace with
+      // more than one GitHub account gets the first account's token otherwise,
+      // and that token answers 404 for every other account's repositories.
       const { owner, name } = parseRepository(repository.fullName);
+      const credential = await this.#deps.gitCredential(task.workspaceId, owner);
       const remote = await this.#deps.github(credential.password).repository(owner, name);
       if (!readOnly && !(credential.canPush ?? remote.canPush)) {
          throw new Error(`the GitHub connection cannot push to ${repository.fullName}`);

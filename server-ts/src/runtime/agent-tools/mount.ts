@@ -27,7 +27,7 @@ export function agentToolMounts(options: {
    storage: Storage | null;
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
-   github?: (workspaceId: string) => Promise<GitHubClient>;
+   github?: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    /** `link_project_repository`'s resolver and writer; absent without a GitHub integration. */
    repositories?: RepositoryLinker | null;
    /** Test seam: `fetch_url`'s bounds. */
@@ -68,7 +68,7 @@ export function agentToolMounts(options: {
            AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
       if (!snapshot) throw ApiError.notFound('Repository snapshot');
       const { owner, name } = parseRepository(snapshot.repository as string);
-      const response = await (await options.github(task.workspaceId)).archive(owner, name, snapshot.commit as string);
+      const response = await (await options.github(task.workspaceId, owner)).archive(owner, name, snapshot.commit as string);
       // Never relay upstream headers, redirect URLs, or credentials to the runtime.
       return new Response(response.body, { headers: { 'content-type': 'application/gzip', 'cache-control': 'no-store' } });
    });
@@ -89,7 +89,7 @@ export function agentToolMounts(options: {
            AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
       if (!snapshot) throw ApiError.notFound('Repository merge');
       const { owner, name } = parseRepository(snapshot.repository as string);
-      const client = await options.github(task.workspaceId);
+      const client = await options.github(task.workspaceId, owner);
       const plan = await planMerge(client, {
          owner, name, base: snapshot.merge_base as string, ours: snapshot.base_commit as string, theirs: snapshot.merge_parent as string,
       });

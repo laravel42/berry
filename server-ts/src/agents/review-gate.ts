@@ -179,7 +179,7 @@ export interface ReviewGateOptions {
    runs: RunRepository;
    completion: Pick<RuntimeCompletion, 'structured'>;
    /** A client authenticated for the workspace's repository. */
-   github: (workspaceId: string) => Promise<GitHubClient>;
+   github: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    defaultModel: string;
    /**
     * Rejection budget for a manually forced review. AutoGate deliberately has
@@ -230,7 +230,7 @@ export class ReviewGate {
    readonly #issues: IssueRepository;
    readonly #runs: RunRepository;
    readonly #completion: Pick<RuntimeCompletion, 'structured'>;
-   readonly #github: (workspaceId: string) => Promise<GitHubClient>;
+   readonly #github: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    readonly #defaultModel: string;
    readonly #maxAttempts: number;
    readonly #maxDiffBytes: number;
@@ -783,7 +783,7 @@ export class ReviewGate {
       let baseBranch = 'the default branch';
       try {
          const { owner, name } = parseRepository(material.repository!);
-         client = await this.#github(material.workspaceId);
+         client = await this.#github(material.workspaceId, owner);
          outcome = await client.mergePullRequest({
             owner,
             name,
@@ -1091,7 +1091,7 @@ export class ReviewGate {
 
    async #diff(material: ReviewMaterial): Promise<string> {
       const { owner, name } = parseRepository(material.repository!);
-      const client = await this.#github(material.workspaceId);
+      const client = await this.#github(material.workspaceId, owner);
       const diff = await client.pullRequestDiff(owner, name, material.delivered!.pullRequest!);
       return boundedTail(diff, this.#maxDiffBytes);
    }

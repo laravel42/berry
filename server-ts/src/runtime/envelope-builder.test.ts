@@ -108,6 +108,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             [MAIN_HEAD]: { ...fork, ...main },
          };
          const asked: string[] = [];
+         const mintedFor: Array<string | null | undefined> = [];
          const client = {
             repository: async () => ({ defaultBranch: 'main', canPush: true }),
             branchHead: async (_owner: string, _name: string, branch: string) =>
@@ -123,9 +124,13 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             asked,
             builder: new EnvelopeBuilder({
                sql, publicUrl: 'https://berry.test', defaultModel: 'default-model', memory: nullRunMemory(), sealer: null,
-               gitCredential: async () => ({ username: 'x', password: 't', canPush: true }),
+               gitCredential: async (_workspaceId: string, owner?: string | null) => {
+                  mintedFor.push(owner);
+                  return { username: 'x', password: 't', canPush: true };
+               },
                github: () => client,
             }),
+            mintedFor,
          };
       }
 
@@ -161,6 +166,17 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          // Built again for the same run, it is the same merge.
          const again = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
          assert.deepEqual(again.envelope.repo?.merge, { conflicts: ['server/README.md'] });
+      });
+
+      test('the credential is minted for the account that holds the repository', async () => {
+         // A workspace with more than one GitHub account has one installation
+         // per account, and a token from the wrong one answers 404 for the
+         // repository, which then reads as "the repository does not exist".
+         const { builder: withRepository, mintedFor } = repositoryBuilder({});
+         const task = await queued('Owner named');
+         await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.ok(mintedFor.length > 0, 'no credential was minted');
+         assert.ok(mintedFor.every((owner) => owner === 'berry'), JSON.stringify(mintedFor));
       });
 
       test('a branch that is only behind is an ordinary run on its own head', async () => {

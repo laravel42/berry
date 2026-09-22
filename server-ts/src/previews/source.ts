@@ -18,7 +18,7 @@ import type { PreviewSource } from './environments.ts';
  */
 export interface PreviewSourceDeps {
    sql: Sql;
-   github(workspaceId: string): Promise<Pick<GitHubClient, 'archive' | 'branchHead'>>;
+   github(workspaceId: string, owner?: string | null): Promise<Pick<GitHubClient, 'archive' | 'branchHead'>>;
 }
 
 export async function pullRequestSource(deps: PreviewSourceDeps, issue: { id: string; workspaceId: string }): Promise<PreviewSource | null> {
@@ -30,7 +30,7 @@ export async function pullRequestSource(deps: PreviewSourceDeps, issue: { id: st
        ORDER BY created_at DESC LIMIT 1`;
    if (!run) return null;
    const { owner, name } = parseRepository(repository.fullName);
-   const client = await deps.github(issue.workspaceId);
+   const client = await deps.github(issue.workspaceId, owner);
    const head = run.branch ? await client.branchHead(owner, name, run.branch as string).catch(() => null) : null;
    const commit = head ?? (run.head_commit as string);
    return { commit, archive: () => client.archive(owner, name, commit) };
