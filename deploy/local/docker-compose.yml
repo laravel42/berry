@@ -1,0 +1,105 @@
+# Berry for local development, in one command:  pnpm dev:docker
+#
+# Three services run from the working tree with their watchers on, so an edit
+# on the Mac restarts the API or reloads the page as it does today:
+#
+#   web       next dev          http://localhost:3000
+#   api       node --watch      http://localhost:4000   (previews at *.preview.localhost:4000)
+#   sessions  the session router, one container per agent session
+#
+# It uses the repository's own .env and the PostgreSQL already on the Mac: the
+# dev database is not moved into a container, so its data is what it was.
+# deploy/local/start.sh says what is adjusted for running inside a container.
+
+name: berry-dev
+
+x-dev: &dev
+   build:
+      context: .
+      dockerfile: dev.Dockerfile
+   env_file: ../../.env
+   extra_hosts:
+      - 'host.docker.internal:host-gateway'
+   init: true
+   environment: &dev-env
+      # pnpm's package store, in a volume: left to itself pnpm puts it beside the
+      # project, which here is the working tree on the Mac.
+      npm_config_store_dir: /pnpm-store
+
+services:
+   api:
+      <<: *dev
+      command: ['bash', 'deploy/local/start.sh', 'api']
+      environment:
+         <<: *dev-env
+         API_ADDR: 0.0.0.0:4000
+         HOME: /root
+         BERRY_AGENT_RUNTIME_URL: http://sessions:8080
+         # A preview's checkout is mounted into its containers by the Mac's
+         # Docker, so it has to be at the same path in here as it is out there.
+         BERRY_PREVIEW_ROOT: ${HOME}/.cache/berry/previews
+      ports:
+         - '127.0.0.1:4000:4000'
+      volumes:
+         - ../..:/repo
+         - server-modules:/repo/server-ts/node_modules
+         - pnpm-store:/pnpm-store
+         - /var/run/docker.sock:/var/run/docker.sock
+         - ${HOME}/.cache/berry/previews:${HOME}/.cache/berry/previews
+      depends_on: [sessions]
+
+   sessions:
+      <<: *dev
+      command: ['bash', 'deploy/local/start.sh', 'sessions']
+      environment:
+         <<: *dev-env
+         BERRY_ROUTER_IMAGE: berry-agent-runtime
+         BERRY_ROUTER_LISTEN_HOST: 0.0.0.0
+         BERRY_RUNTIME_PORT: '8080'
+      volumes:
+         - ../..:/repo
+         - /var/run/docker.sock:/var/run/docker.sock
+      depends_on:
+         runtime-image: { condition: service_completed_successfully }
+
+   # Not a service: it builds the image agent sessions start from, under the
+   # name the router looks for, and exits.
+   runtime-image:
+      build:
+         context: ../../server-ts
+         dockerfile: sandbox/agentcore/Dockerfile
+         args:
+            # arm64 is an Apple Silicon Mac. On an Intel Mac: BERRY_RUNTIME_PLATFORM=linux/amd64 pnpm dev:docker
+            BERRY_RUNTIME_PLATFORM: ${BERRY_RUNTIME_PLATFORM:-linux/arm64}
+      image: berry-agent-runtime
+      entrypoint: ['true']
+      restart: 'no'
+      network_mode: none
+
+   web:
+      <<: *dev
+      command: ['bash', 'deploy/local/start.sh', 'web']
+      environment:
+         <<: *dev-env
+         BERRY_API_ORIGIN: http://api:4000
+         # Its own build folder: the Mac's .next holds files built for macOS.
+         NEXT_DIST_DIR: .next-docker
+         NEXT_TELEMETRY_DISABLED: '1'
+      ports:
+         - '127.0.0.1:3000:3000'
+      volumes:
+         - ../..:/repo
+         - root-modules:/repo/node_modules
+         - web-modules:/repo/frontend/node_modules
+         - sdk-modules:/repo/packages/plugin-sdk/node_modules
+         - web-server-modules:/repo/server-ts/node_modules
+         - pnpm-store:/pnpm-store
+      depends_on: [api]
+
+volumes:
+   pnpm-store:
+   server-modules:
+   root-modules:
+   web-modules:
+   sdk-modules:
+   web-server-modules:
