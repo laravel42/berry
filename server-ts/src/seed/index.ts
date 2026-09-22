@@ -11,7 +11,7 @@ const logger = createLogger(`${config.serviceName}-seed`);
 const sql = openDatabase({ url: config.databaseUrl });
 
 // `BERRY_SEED_DEMO_WORK=false` keeps the identity and the board and skips the
-// demo tasks and projects — for a developer working in an empty product.
+// demo projects — for a developer working in an empty product.
 const demoWork = !['false', '0', 'no', 'off'].includes(
    (process.env.BERRY_SEED_DEMO_WORK ?? '').trim().toLowerCase()
 );

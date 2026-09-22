@@ -27,11 +27,12 @@ import { bindRolePackSkills, ensureCapabilitySkills } from './deploy.ts';
  */
 export interface SeedOptions {
    /**
-    * Whether the demo tasks and projects are written. On by default, so a
-    * clean volume has something to look at; off for a developer who wants
-    * the identity, workspace and board but an empty product to work in —
-    * and who does not want the demo rows coming back on every boot after
-    * deleting them.
+    * Whether the demo projects are written. On by default, so a clean volume
+    * has something to look at; off for a developer who wants the identity,
+    * workspace and board but an empty product to work in — and who does not
+    * want the demo rows coming back on every boot after deleting them. No
+    * tasks are seeded: a task is real work, and placeholder tasks were only
+    * ever something to delete before agents could be trusted with the board.
     */
    demoWork?: boolean;
 }
@@ -56,8 +57,6 @@ export async function apply(
          await ensureCapabilitySkills(tx, workspace.id as string, now);
       }
       if (options.demoWork ?? true) {
-         await upsertIssues(tx, now);
-         await labelIssues(tx, now);
          await upsertProjects(tx, now);
       }
       await assignAgentModels(tx, now);
@@ -209,7 +208,7 @@ async function upsertLabels(tx: Sql, now: string): Promise<void> {
  * The AgentCore deep-skills pack, into every workspace that exists.
  *
  * Creation does not install these — they are a development catalogue, the way
- * the demo tasks are. The pack is committed next to this seeder so a machine
+ * the demo projects are. The pack is committed next to this seeder so a machine
  * without the original zip still gets the same 100 skills.
  */
 async function upsertSkills(tx: Sql, now: string): Promise<void> {
@@ -223,76 +222,6 @@ async function upsertSkills(tx: Sql, now: string): Promise<void> {
          now,
          skills
       );
-   }
-}
-
-/** Which starter labels the demo tasks carry, by issue id and label name. */
-const ISSUE_LABELS: Record<string, readonly string[]> = {
-   '11111111-1111-4111-8111-111111111201': ['feature', 'performance'],
-   '11111111-1111-4111-8111-111111111202': ['improvement', 'design'],
-   '11111111-1111-4111-8111-111111111203': ['chore', 'good first task'],
-};
-
-async function labelIssues(tx: Sql, now: string): Promise<void> {
-   for (const [issueId, names] of Object.entries(ISSUE_LABELS)) {
-      for (const name of names) {
-         await tx`
-            INSERT INTO issue_label_memberships (workspace_id, issue_id, label_id, assigned_by, created_at)
-            SELECT ${WorkspaceID}, ${issueId}, id, ${UserID}, ${now}
-              FROM issue_labels
-             WHERE workspace_id = ${WorkspaceID} AND lower(name) = ${name} AND archived_at IS NULL
-            ON CONFLICT DO NOTHING
-         `;
-      }
-   }
-}
-
-const ISSUES = [
-   {
-      id: '11111111-1111-4111-8111-111111111201',
-      number: 1,
-      title: 'Wire agent runtime probes',
-      status: 'todo',
-      priority: 'high',
-      sort: 1000,
-   },
-   {
-      id: '11111111-1111-4111-8111-111111111202',
-      number: 2,
-      title: 'Match projects board to issues Kanban',
-      status: 'in_progress',
-      priority: 'medium',
-      sort: 2000,
-   },
-   {
-      id: '11111111-1111-4111-8111-111111111203',
-      number: 3,
-      title: 'Seed local development data',
-      status: 'done',
-      priority: 'low',
-      sort: 3000,
-   },
-] as const;
-
-async function upsertIssues(tx: Sql, now: string): Promise<void> {
-   for (const issue of ISSUES) {
-      await tx`
-         INSERT INTO issues (
-            id, board_id, number, title, description, status, priority, sort_order,
-            created_by, created_at, updated_at
-         ) VALUES (
-            ${issue.id}, ${BoardID}, ${issue.number}, ${issue.title},
-            'Seeded for local Berry development.',
-            ${issue.status}::issue_status, ${issue.priority}::issue_priority, ${issue.sort},
-            ${UserID}, ${now}, ${now}
-         )
-         ON CONFLICT (id) DO UPDATE SET
-            title = EXCLUDED.title,
-            status = EXCLUDED.status,
-            priority = EXCLUDED.priority,
-            sort_order = EXCLUDED.sort_order,
-            updated_at = EXCLUDED.updated_at
-      `;
    }
 }
 

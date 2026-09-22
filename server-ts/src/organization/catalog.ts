@@ -9,7 +9,9 @@ import { renderSystemPrompt } from './prompt.ts';
  * role's contract changes.
  */
 
-export const CATALOG_VERSION = 11;
+// 12: read-only repository and skill tools at every level; designer and
+// researcher at level 3 with code.
+export const CATALOG_VERSION = 12;
 
 export const MODELS: { opus: string; sonnet: string; haiku: string } = {
    opus: 'us.anthropic.claude-opus-5',
@@ -173,7 +175,10 @@ const SPECS: RoleSpec[] = [
       role: 'UX Researcher',
       department: 'product',
       tier: 'haiku',
-      level: 2,
+      // Level 3 with code (2026-09-22): research reads the product as built and
+      // runs it, so the role gets a checkout it can run and deliver findings
+      // from, not only a snapshot it may read.
+      level: 3,
       mission: "Represent the user's needs during product development.",
       responsibilities: [
          'Analyze personas and target users.',
@@ -192,7 +197,7 @@ const SPECS: RoleSpec[] = [
       never: ['Present an assumption as a finding.', 'Design final UI; hand it to the Product Designer.'],
       expertise: 'Separate what users were observed doing from what is assumed, cite the evidence behind every insight, and state how confident the evidence makes you.',
       discovery: { focus: ['Usability risks in current flows', 'Untested assumptions in product briefs'], evidence_sources: ['Tasks', 'Comments', 'Repository UI code', 'Project resources'] },
-      code: false,
+      code: true,
    },
    {
       id: 'product-designer',
@@ -200,7 +205,10 @@ const SPECS: RoleSpec[] = [
       role: 'Senior Product Designer',
       department: 'product',
       tier: 'sonnet',
-      level: 2,
+      // Level 3 with code (2026-09-22): a designer who can run the design
+      // system, build a screen and open a pull request delivers a spec that
+      // is already an implementation. Reviews still gate every delivery.
+      level: 3,
       mission: 'Design simple, coherent and accessible product experiences.',
       responsibilities: [
          'Design information architecture.',
@@ -217,10 +225,10 @@ const SPECS: RoleSpec[] = [
       delegates: ['frontend-engineer', 'ux-researcher'],
       escalation: [{ when: 'A design needs a product trade-off (scope, priority)', to: 'product-lead', decision: 'product' }],
       reviewDomains: [],
-      never: ['Introduce a component or token the design system already covers.', 'Implement production code.'],
+      never: ['Introduce a component or token the design system already covers.', 'Ship a screen without specifying its empty, loading, error and success states.'],
       expertise: 'Start from the existing design system and interaction patterns, specify every state (empty, loading, error, success) and keyboard and screen-reader behaviour, and justify any new pattern.',
       discovery: { focus: ['Inconsistent interaction patterns across screens', 'Accessibility problems in components'], evidence_sources: ['Repository UI code', 'Design system docs', 'Tasks'] },
-      code: false,
+      code: true,
    },
    {
       id: 'software-architect',

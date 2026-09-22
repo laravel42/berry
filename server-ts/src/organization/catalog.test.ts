@@ -69,7 +69,7 @@ describe('the Berry organization catalog', () => {
    });
 
    test('roles that must never implement have no code tools', () => {
-      for (const key of ['product-lead', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst', 'ux-researcher', 'product-designer']) {
+      for (const key of ['product-lead', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst']) {
          assert.equal(catalogRole(key)?.allowed_tools.includes('run_command'), false, key);
       }
    });
