@@ -30,6 +30,9 @@ export const OpenList: Story = {
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText('List options')).toBeVisible();
       await expect(body.getByText('Show empty groups')).toBeVisible();
+      await expect(body.queryByRole('button', { name: 'Milestones' })).not.toBeInTheDocument();
+      await expect(body.queryByRole('button', { name: 'Members' })).not.toBeInTheDocument();
+      await expect(body.queryByRole('button', { name: 'Labels' })).not.toBeInTheDocument();
    },
 };
 
@@ -48,8 +51,8 @@ export const ToggleProperty: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('button', { name: 'Labels' }));
-      await expect(useProjectsDisplayStore.getState().displayProperties.labels).toBe(true);
+      await userEvent.click(await body.findByRole('button', { name: 'Priority' }));
+      await expect(useProjectsDisplayStore.getState().displayProperties.priority).toBe(false);
    },
 };
 

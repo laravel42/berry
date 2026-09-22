@@ -110,19 +110,6 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                   {project.name}
                </span>
             </div>
-            {displayProperties.labels &&
-               project.labels.map((label) => (
-                  <span
-                     key={label.id}
-                     className="hidden shrink-0 items-center gap-1 rounded-full border px-1.5 py-px text-muted-foreground lg:inline-flex"
-                  >
-                     <span
-                        className="size-1.5 rounded-full"
-                        style={{ backgroundColor: label.color }}
-                     />
-                     {label.name}
-                  </span>
-               ))}
          </div>
 
          <div className="ml-auto flex min-w-0 items-center">

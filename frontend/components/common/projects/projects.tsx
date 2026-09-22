@@ -2,13 +2,15 @@
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Project } from '@/data/projects';
+import { health as HEALTH, Project } from '@/data/projects';
+import type { Status } from '@/data/status';
+import { priorities as PRIORITIES } from '@/data/priorities';
 import { pinTarget } from '@/lib/pins';
 import { useIssuesStore } from '@/store/issues-store';
 import { usePinsStore } from '@/store/pins-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
-import { useProjectsDisplayStore } from '@/store/projects-display-store';
+import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
 import { BarChart3, Box, LayoutGrid, List } from 'lucide-react';
@@ -35,6 +37,15 @@ import ProjectsList from './projects-list';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 
+/** How one group of projects is found and shown; a status group also takes drops. */
+interface ProjectGroupSpec {
+   id: string;
+   name: string;
+   icon: React.ReactNode;
+   status?: Status;
+   match: (project: Project) => boolean;
+}
+
 export interface ProjectGroup {
    id: string;
    name: string;
@@ -53,35 +64,43 @@ const STATUS_SORT_ORDER: Record<string, number> = {
    'cancelled': 4,
 };
 
-function sortProjects(list: Project[], sort: string, ordering: string): Project[] {
-   const compare = (a: Project, b: Project) => {
-      switch (sort) {
-         case 'title-desc':
-            return b.name.localeCompare(a.name);
-         case 'date-asc':
-            return (a.targetDate ?? '').localeCompare(b.targetDate ?? '');
-         case 'date-desc':
-            return (b.targetDate ?? '').localeCompare(a.targetDate ?? '');
-         case 'status-asc':
-            return (STATUS_SORT_ORDER[a.status.id] ?? 99) - (STATUS_SORT_ORDER[b.status.id] ?? 99);
-         case 'status-desc':
-            return (STATUS_SORT_ORDER[b.status.id] ?? 99) - (STATUS_SORT_ORDER[a.status.id] ?? 99);
-         case 'title-asc':
-            return a.name.localeCompare(b.name);
-         default:
-            break;
-      }
+const PRIORITY_SORT_ORDER: Record<string, number> = {
+   'urgent': 0,
+   'high': 1,
+   'medium': 2,
+   'low': 3,
+   'no-priority': 4,
+};
+
+/** A missing date sorts last in either direction. */
+const byDate = (a: string | undefined, b: string | undefined) =>
+   a && b ? a.localeCompare(b) : a ? -1 : b ? 1 : 0;
+
+function sortProjects(list: Project[], ordering: ProjectsOrdering, direction: 'asc' | 'desc') {
+   const compare = (a: Project, b: Project): number => {
       switch (ordering) {
-         case 'title':
-            return a.name.localeCompare(b.name);
-         case 'target-date':
-            return (a.targetDate ?? '').localeCompare(b.targetDate ?? '');
          case 'start-date':
+            return byDate(a.startDate, b.startDate);
+         case 'target-date':
+            return byDate(a.targetDate, b.targetDate);
+         case 'status':
+            return (STATUS_SORT_ORDER[a.status.id] ?? 99) - (STATUS_SORT_ORDER[b.status.id] ?? 99);
+         case 'priority':
+            return (
+               (PRIORITY_SORT_ORDER[a.priority.id] ?? 99) -
+               (PRIORITY_SORT_ORDER[b.priority.id] ?? 99)
+            );
+         case 'created':
+            return a.createdAt.localeCompare(b.createdAt);
+         case 'updated':
+            return a.updatedAt.localeCompare(b.updatedAt);
+         case 'title':
          default:
-            return a.startDate.localeCompare(b.startDate);
+            return a.name.localeCompare(b.name);
       }
    };
-   return list.slice().sort(compare);
+   const sign = direction === 'asc' ? 1 : -1;
+   return list.slice().sort((a, b) => sign * compare(a, b) || a.name.localeCompare(b.name));
 }
 
 function applyClosedFilter(list: Project[], closedProjects: string): Project[] {
@@ -119,14 +138,13 @@ const DAY_MS = 86_400_000;
  */
 function useProjectKpis(
    projects: Project[],
+   /** Whether the store has answered: an empty list is then a real zero. */
+   known: boolean,
    issues: ReturnType<typeof useIssuesStore.getState>['issues'],
    data: ReturnType<typeof useWorkKpis>
 ): Kpi[] {
    const t = useTranslations('issueLists.projects.kpi');
    return useMemo(() => {
-      // The projects store has no loaded flag: an empty store is either still
-      // loading or an empty workspace, and neither should claim zero.
-      const known = projects.length > 0;
       const open = projects.filter((project) => !CLOSED_CATEGORIES.has(project.status.category));
       const openIds = new Set(open.map((project) => project.id));
       // Every task of an open project, cancelled ones too: the same basis as a row's percentage.
@@ -205,16 +223,15 @@ function useProjectKpis(
                : undefined,
          },
       ];
-   }, [projects, issues, data, t]);
+   }, [projects, known, issues, data, t]);
 }
 
 /** Projects page: search, filters, display options, views and insights. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
-   const { filters, setFilters, sort, query, setQuery } = useProjectsFilterStore();
-   const { viewType, setViewType, grouping, ordering, closedProjects, showEmptyGroups } =
+   const { filters, setFilters, query, setQuery } = useProjectsFilterStore();
+   const { viewType, setViewType, grouping, ordering, direction, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
-   const data = useWorkKpis();
    const { openPanel, togglePanel } = useRightPanelStore();
    const allProjects = useProjectsStore((state) => state.projects);
    const issues = useIssuesStore((state) => state.issues);
@@ -248,56 +265,103 @@ export default function Projects() {
       () =>
          sortProjects(
             applySearch(applyListFilters(scoped, filterColumns, filters), query),
-            sort,
-            ordering
+            ordering,
+            direction
          ),
-      [scoped, filterColumns, filters, query, sort, ordering]
+      [scoped, filterColumns, filters, query, ordering, direction]
    );
 
-   const boardEntries = useMemo<ProjectBoardEntry[]>(() => {
-      if (grouping === 'none') {
-         return [
-            {
-               group: {
-                  id: 'all',
-                  name: 'All projects',
-                  color: 'var(--status-neutral)',
-                  icon: <Box className="size-4 text-muted-foreground" />,
-               },
-               projects: displayed,
-               total: scoped.length,
-            },
-         ];
-      }
+   // Spend, agent time and what waits on a person are read per project when the
+   // list shows exactly one; otherwise for the whole workspace.
+   const soleProject = displayed.length === 1 ? displayed[0]!.id : undefined;
+   const data = useWorkKpis({ projectId: soleProject });
 
-      return projectCreateStatusOptions.map((option) => ({
-         group: {
-            id: option.status.id,
-            name: option.label,
-            color: option.status.color,
-            icon: <option.status.icon />,
-            status: option.status,
+   // One description of the groups serves both layouts: the list renders
+   // it as sections, the board as columns. Only status columns can take a
+   // dropped card or create a project, so only those carry the status.
+   const grouped = useMemo(() => {
+      const none: ProjectGroupSpec[] = [
+         {
+            id: 'all',
+            name: 'All projects',
+            icon: <Box className="size-4 text-muted-foreground" />,
+            match: () => true,
          },
-         projects: displayed.filter((project) => project.status.id === option.status.id),
-         total: scoped.filter((project) => project.status.id === option.status.id).length,
+      ];
+      const byStatus: ProjectGroupSpec[] = projectCreateStatusOptions.map((option) => ({
+         id: option.status.id,
+         name: option.label,
+         icon: <option.status.icon />,
+         status: option.status,
+         match: (project: Project) => project.status.id === option.status.id,
+      }));
+      const byPriority: ProjectGroupSpec[] = PRIORITIES.map((priority) => ({
+         id: priority.id,
+         name: priority.name,
+         icon: <priority.icon />,
+         match: (project: Project) => project.priority.id === priority.id,
+      }));
+      const byHealth: ProjectGroupSpec[] = HEALTH.map((entry) => ({
+         id: entry.id,
+         name: entry.name,
+         icon: (
+            <span
+               aria-hidden
+               className="inline-block size-2.5 rounded-full"
+               style={{ background: entry.color }}
+            />
+         ),
+         match: (project: Project) => project.health.id === entry.id,
+      }));
+      // Leads are whoever leads a project here, alphabetical; no fixed vocabulary.
+      const leads = new Map<string, Project['lead']>();
+      for (const project of scoped) leads.set(project.lead.id, project.lead);
+      const byLead: ProjectGroupSpec[] = [...leads.values()]
+         .sort((a, b) => a.name.localeCompare(b.name))
+         .map((lead) => ({
+            id: lead.id,
+            name: lead.name,
+            icon: <Box className="size-4 text-muted-foreground" />,
+            match: (project: Project) => project.lead.id === lead.id,
+         }));
+      const descriptors =
+         grouping === 'status'
+            ? byStatus
+            : grouping === 'priority'
+              ? byPriority
+              : grouping === 'lead'
+                ? byLead
+                : grouping === 'health'
+                  ? byHealth
+                  : none;
+      return descriptors.map((descriptor) => ({
+         ...descriptor,
+         projects: displayed.filter(descriptor.match),
+         total: scoped.filter(descriptor.match).length,
       }));
    }, [displayed, grouping, scoped]);
 
-   const groups = useMemo<ProjectGroup[]>(() => {
-      if (grouping === 'none') {
-         return [{ id: 'all', name: 'All projects', projects: displayed }];
-      }
+   const boardEntries = useMemo<ProjectBoardEntry[]>(
+      () =>
+         grouped.map(({ id, name, icon, status, projects, total }) => ({
+            group: { id, name, icon, status },
+            projects,
+            total,
+         })),
+      [grouped]
+   );
 
-      return projectCreateStatusOptions
-         .map((option) => ({
-            id: option.status.id,
-            name: option.label,
-            projects: displayed.filter((project) => project.status.id === option.status.id),
-         }))
-         .filter((group) => showEmptyGroups || group.projects.length > 0);
-   }, [displayed, grouping, showEmptyGroups]);
+   const groups = useMemo<ProjectGroup[]>(
+      () =>
+         grouped
+            .map(({ id, name, projects }) => ({ id, name, projects }))
+            .filter((group) => grouping === 'none' || showEmptyGroups || group.projects.length > 0),
+      [grouped, grouping, showEmptyGroups]
+   );
 
-   const kpis = useProjectKpis(enriched, issues, data);
+   // The cards describe the projects on the board, after search, filters and
+   // the closed toggle, not the whole workspace.
+   const kpis = useProjectKpis(displayed, enriched.length > 0, issues, data);
 
    const toggleSelected = (projectId: string) =>
       setSelected((previous) =>
