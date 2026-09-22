@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Check, Columns3, Plus } from 'lucide-react';
+import { Check, Columns3 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -36,7 +34,6 @@ const SCOPES: AgentsScope[] = ['all', 'archived'];
 export default function HeaderOptions() {
    const t = useTranslations('agentsChat.list');
    const tHeader = useTranslations('agents.header');
-   const { orgId } = useParams<{ orgId: string }>();
    const agents = useAgentsStore((state) => state.agents);
    const archived = useAgentsStore((state) => state.archived);
    const { scope, filters, columns, setScope, setFilters, toggleColumn } = useAgentsListStore();
@@ -118,18 +115,6 @@ export default function HeaderOptions() {
                </DropdownMenuContent>
             </DropdownMenu>
          </div>
-
-         <Button
-            size="xs"
-            className="ml-auto h-[34px] w-[42px] shrink-0 px-0"
-            aria-label={tHeader('newAgent')}
-            title={tHeader('newAgent')}
-            asChild
-         >
-            <Link href={`/${orgId}/agents/new`}>
-               <Plus className="size-4" />
-            </Link>
-         </Button>
       </div>
    );
 }

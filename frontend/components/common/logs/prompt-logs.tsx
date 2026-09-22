@@ -11,6 +11,7 @@ import {
    EmptyStateText,
 } from '@/components/common/empty-state';
 import { readableModelName } from '@/components/common/agents/model-name';
+import { PageStatement } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import {
    Select,
@@ -107,6 +108,7 @@ export default function PromptLogs() {
 
    return (
       <div className="flex min-h-0 flex-1 flex-col">
+         <PageStatement label={t('title')} />
          <div className="flex flex-wrap items-center gap-2 border-b px-4 py-[6px]">
             <Select
                value={filter.kind ?? ANY}
@@ -205,18 +207,18 @@ export default function PromptLogs() {
                </EmptyState>
             ) : (
                <table className="w-full">
-                  <thead className="sticky top-0 z-10 bg-background text-left text-muted-foreground">
+                  <thead className="sticky top-0 z-10 bg-background text-left tracking-wider text-muted-foreground uppercase">
                      <tr className="border-b">
-                        <th className="px-6 py-2 font-normal">{t('columns.when')}</th>
-                        <th className="px-3 py-2 font-normal">{t('columns.purpose')}</th>
-                        <th className="w-full px-3 py-2 font-normal">{t('columns.prompt')}</th>
-                        <th className="px-3 py-2 font-normal">{t('columns.model')}</th>
-                        <th className="px-3 py-2 text-right font-normal">{t('columns.tokens')}</th>
-                        <th className="px-3 py-2 text-right font-normal">{t('columns.cost')}</th>
-                        <th className="px-3 py-2 text-right font-normal">
+                        <th className="px-6 py-2 font-medium">{t('columns.when')}</th>
+                        <th className="px-3 py-2 font-medium">{t('columns.purpose')}</th>
+                        <th className="w-full px-3 py-2 font-medium">{t('columns.prompt')}</th>
+                        <th className="px-3 py-2 font-medium">{t('columns.model')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('columns.tokens')}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t('columns.cost')}</th>
+                        <th className="px-3 py-2 text-right font-medium">
                            {t('columns.duration')}
                         </th>
-                        <th className="px-6 py-2 font-normal">{t('columns.status')}</th>
+                        <th className="px-6 py-2 font-medium">{t('columns.status')}</th>
                      </tr>
                   </thead>
                   <tbody>

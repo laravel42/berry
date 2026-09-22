@@ -107,7 +107,6 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       list: mode('list'),
       grid: mode('board'),
       table: mode('table'),
-      gantt: mode('gantt'),
    };
    const groupingLabel: Record<string, string> = {
       status: t('status'),

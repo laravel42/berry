@@ -18,19 +18,11 @@ import {
    ProjectsViewType,
    useProjectsDisplayStore,
 } from '@/store/projects-display-store';
-import {
-   ArrowUpDown,
-   ArrowUpNarrowWide,
-   ChartNoAxesGantt,
-   LayoutGrid,
-   List,
-   SlidersHorizontal,
-} from 'lucide-react';
+import { ArrowUpDown, ArrowUpNarrowWide, LayoutGrid, List, SlidersHorizontal } from 'lucide-react';
 
 const VIEW_TYPES: { value: ProjectsViewType; label: string; icon: React.ElementType }[] = [
    { value: 'list', label: 'List', icon: List },
    { value: 'board', label: 'Board', icon: LayoutGrid },
-   { value: 'timeline', label: 'Timeline', icon: ChartNoAxesGantt },
 ];
 
 const GROUPINGS: { value: ProjectsGrouping; label: string }[] = [
@@ -53,7 +45,7 @@ function OptionRow({ label, children }: { label: React.ReactNode; children: Reac
    );
 }
 
-/** Linear-style Display popover for the Projects page (List/Board/Timeline). */
+/** Linear-style Display popover for the Projects page (List/Board). */
 export function ProjectsDisplayOptions() {
    const {
       viewType,
@@ -61,16 +53,12 @@ export function ProjectsDisplayOptions() {
       ordering,
       closedProjects,
       showEmptyGroups,
-      showProjectList,
-      showWeekNumbers,
       displayProperties,
       setViewType,
       setGrouping,
       setOrdering,
       setClosedProjects,
       setShowEmptyGroups,
-      setShowProjectList,
-      setShowWeekNumbers,
       toggleDisplayProperty,
       resetDisplaySettings,
    } = useProjectsDisplayStore();
@@ -179,22 +167,8 @@ export function ProjectsDisplayOptions() {
                {/* Per-view options */}
                <div className="flex flex-col gap-1.5">
                   <span className="font-medium">
-                     {viewType === 'timeline'
-                        ? 'Timeline options'
-                        : viewType === 'board'
-                          ? 'Board options'
-                          : 'List options'}
+                     {viewType === 'board' ? 'Board options' : 'List options'}
                   </span>
-                  {viewType === 'timeline' && (
-                     <>
-                        <OptionRow label="Show project list">
-                           <Switch checked={showProjectList} onCheckedChange={setShowProjectList} />
-                        </OptionRow>
-                        <OptionRow label="Show week numbers">
-                           <Switch checked={showWeekNumbers} onCheckedChange={setShowWeekNumbers} />
-                        </OptionRow>
-                     </>
-                  )}
                   <OptionRow
                      label={viewType === 'board' ? 'Show empty columns' : 'Show empty groups'}
                   >

@@ -13,7 +13,7 @@ import { useViewStore, normalizeViewType, type ViewType } from '@/store/view-sto
 import { parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs';
 import { useCallback } from 'react';
 
-export const VIEW_TYPES = ['list', 'grid', 'table', 'gantt'] as const;
+export const VIEW_TYPES = ['list', 'grid', 'table'] as const;
 export const ORDERING_KEYS = [
    'manual',
    'status',
@@ -37,8 +37,6 @@ export function groupingKeysForMode(mode: ViewType): GroupingKey[] {
    switch (mode) {
       case 'table':
          return ['status', 'assignee', 'project', 'none'];
-      case 'gantt':
-         return ['none', 'status', 'assignee'];
       default:
          return ['status', 'assignee', 'priority', 'project', 'none'];
    }

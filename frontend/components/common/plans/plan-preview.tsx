@@ -231,13 +231,15 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
    return (
       <div
          className={cn(
-            'h-full min-h-0 w-full overflow-hidden bg-container',
+            // A container, so the properties column follows the room this view is
+            // given (a full page, a drawer, the pane beside a list), not the window.
+            '@container h-full min-h-0 w-full overflow-hidden bg-container',
             inDrawer ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto]' : 'flex'
          )}
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
-               <div className="mx-auto max-w-3xl px-6 py-6 sm:px-8 sm:py-8">
+               <div className="w-full px-6 py-6 sm:px-8 sm:py-8">
                   <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
                      {title}
                   </h1>
@@ -305,7 +307,7 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
             <PlanQuestionsWizard record={record} open={wizard.open} onOpenChange={wizard.setOpen} />
          </div>
 
-         <aside className="hidden h-full w-[221px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside className="hidden h-full w-[221px] min-w-0 shrink-0 flex-col overflow-y-auto border-l bg-muted/15 px-5 pt-6 pb-3.5 @4xl:flex">
             <PlanProperties record={record} />
          </aside>
       </div>
@@ -398,7 +400,7 @@ function PlanActions({ record }: { record: PlanRecord }) {
 
    return (
       <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-         <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:px-8">
+         <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:px-8">
             <p className="min-w-0 flex-1 text-muted-foreground">
                {blocker ?? 'Nothing runs until you press Start Plan.'}
                {!blocker && record.validation.risk === 'high' && (

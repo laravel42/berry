@@ -8,7 +8,6 @@ import {
    usePropertyFilterMatches,
 } from '@/components/common/issues/issue-filter-columns';
 import { IssueFilterBar } from '@/components/common/issues/issue-filter-bar';
-import { IssueGantt } from '@/components/common/issues/issue-gantt';
 import { IssueTable } from '@/components/common/issues/issue-table';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { getProjectDetail } from '@/data/project-details';
@@ -64,8 +63,6 @@ export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
                      statuses={displayOrderedStatus}
                      totalIssues={issues}
                   />
-               ) : view.mode === 'gantt' ? (
-                  <IssueGantt issues={displayedIssues} />
                ) : (
                   <GroupedIssuesView
                      issues={displayedIssues}

@@ -1,5 +1,9 @@
 {
    "title": "Reviews",
+   "statement": {
+      "line": "{count, plural, one {review is waiting} other {reviews are waiting}}",
+      "sub": "A review leaves when you approve it or send it back."
+   },
    "tabs": {
       "waiting": "Waiting",
       "decided": "Decided"

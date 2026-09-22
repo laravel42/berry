@@ -9,16 +9,19 @@ import {
    EmptyStateTitle,
 } from '@/components/common/empty-state';
 import { StatusBadge } from '@/components/common/status-badge';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { listPlans, type PlanSummary } from '@/lib/plans';
 import { timeAgo } from '@/lib/time-ago';
 import { usePlansListStore } from '@/store/plans-list-store';
 import { useSessionStore } from '@/store/session-store';
-import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useParams } from 'next/navigation';
+import { useQueryState } from 'nuqs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { SplitIndex, useSelectFirst } from '@/components/common/page/split-index';
+import Header from '@/components/layout/headers/plans/header';
+import { cn } from '@/lib/utils';
+import PlanPreview from './plan-preview';
 import { planSummaryLook } from './plan-status-badge';
 
 function applySearch(list: PlanSummary[], query: string): PlanSummary[] {
@@ -37,62 +40,69 @@ function isLive(plan: PlanSummary): boolean {
    return plan.generation.status === 'running' || plan.compileStatus === 'running';
 }
 
-function PlanRow({ plan, orgId }: { plan: PlanSummary; orgId: string }) {
+/** One plan in the rail. Selecting it opens the plan beside the list. */
+function PlanRow({
+   plan,
+   selected,
+   onSelect,
+}: {
+   plan: PlanSummary;
+   selected: boolean;
+   onSelect: (planId: string) => void;
+}) {
    const t = useTranslations('goals.plans');
    const look = planSummaryLook(plan);
    const started = plan.createdTasks > 0;
    const percent = started ? Math.round((plan.finishedTasks / plan.createdTasks) * 100) : 0;
    return (
-      <Link
-         href={`/${orgId}/plan/${plan.id}`}
-         className="flex w-full items-center border-b border-muted-foreground/5 px-6 py-3 last:border-b-0 hover:bg-sidebar/50"
+      <button
+         type="button"
+         aria-current={selected ? 'true' : undefined}
+         onClick={() => onSelect(plan.id)}
+         className={cn(
+            'flex w-full items-start gap-3 border-b border-muted-foreground/5 px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
+            selected ? 'bg-accent' : 'hover:bg-sidebar/50'
+         )}
       >
-         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted/40">
-               <BerryMark
-                  size="sm"
-                  tone={look.tone}
-                  state={look.state}
-                  pulse={look.pulse}
-                  label={look.label}
-               />
+         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">
+            <BerryMark
+               size="sm"
+               tone={look.tone}
+               state={look.state}
+               pulse={look.pulse}
+               label={look.label}
+            />
+         </span>
+         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="flex items-center gap-2">
+               <StatusBadge look={look} />
+               <span className="ml-auto shrink-0 text-muted-foreground">
+                  {timeAgo(plan.updatedAt)}
+               </span>
             </span>
-            <div className="min-w-0 overflow-hidden">
-               <span className="block truncate font-medium leading-none">{plan.title}</span>
-               <p className="mt-0.5 line-clamp-1 text-muted-foreground">
-                  {plan.projectName ?? t('list.noProject')}
-               </p>
-            </div>
-         </div>
-
-         <div className="w-32 shrink-0">
-            <StatusBadge look={look} />
-         </div>
-
-         <div className="hidden w-40 shrink-0 sm:block">
+            <span className="line-clamp-2 font-medium">{plan.title}</span>
+            <span className="truncate text-muted-foreground">
+               {plan.projectName ?? t('list.noProject')}
+            </span>
             {started ? (
-               <div className="flex flex-col gap-1">
-                  <span className="text-muted-foreground">
-                     {t('tasks', { finished: plan.finishedTasks, created: plan.createdTasks })}
-                  </span>
-                  <span className="h-1 w-full overflow-hidden rounded-full bg-muted">
+               <span className="flex items-center gap-2">
+                  <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
                      <span
                         className="block h-full rounded-full bg-primary"
                         style={{ width: `${percent}%` }}
                      />
                   </span>
-               </div>
-            ) : (
-               <span className="text-muted-foreground">
-                  {plan.plannedTasks > 0 ? t('planned', { count: plan.plannedTasks }) : '—'}
+                  <span className="shrink-0 text-muted-foreground tabular-nums">
+                     {t('tasks', { finished: plan.finishedTasks, created: plan.createdTasks })}
+                  </span>
                </span>
-            )}
-         </div>
-
-         <div className="hidden w-36 shrink-0 text-muted-foreground md:block">
-            {timeAgo(plan.updatedAt)}
-         </div>
-      </Link>
+            ) : plan.plannedTasks > 0 ? (
+               <span className="text-muted-foreground">
+                  {t('planned', { count: plan.plannedTasks })}
+               </span>
+            ) : null}
+         </span>
+      </button>
    );
 }
 
@@ -103,8 +113,6 @@ function PlanRow({ plan, orgId }: { plan: PlanSummary; orgId: string }) {
  */
 export default function PlansList() {
    const t = useTranslations('goals.plans');
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? null);
    const scope = usePlansListStore((state) => state.scope);
    const query = usePlansListStore((state) => state.query);
@@ -155,38 +163,68 @@ export default function PlansList() {
       [plans, query]
    );
 
-   return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-         {failed && plans === null ? (
-            <div className="px-6 py-10 text-muted-foreground" role="alert">
-               {t('list.failed')}
-            </div>
-         ) : plans === null ? (
-            <EmptyStateLoading label={t('list.loading')} />
-         ) : plans.length === 0 ? (
-            <EmptyState icon={<EmptyStateMark label={t('empty.mark')} />}>
-               <EmptyStateTitle>
-                  {scope === 'open' ? t('empty.title') : t('empty.titleAll')}
-               </EmptyStateTitle>
-               <EmptyStateText>{t('empty.body')}</EmptyStateText>
-            </EmptyState>
-         ) : (
-            <>
-               <div className="sticky top-0 z-10 flex items-center border-b bg-container px-4 py-[6px] text-muted-foreground">
-                  <div className="min-w-0 flex-1">{t('list.plan')}</div>
-                  <div className="w-32 shrink-0">{t('list.status')}</div>
-                  <div className="hidden w-40 shrink-0 sm:block">{t('list.tasks')}</div>
-                  <div className="hidden w-36 shrink-0 md:block">{t('list.updated')}</div>
+   const [selectedId, setSelectedId] = useQueryState('plan');
+   const select = useCallback((id: string | null) => void setSelectedId(id), [setSelectedId]);
+   const ids = useMemo(() => displayed.map((plan) => plan.id), [displayed]);
+   useSelectFirst(selectedId, ids, select);
+   const selected = selectedId !== null && ids.includes(selectedId) ? selectedId : null;
+
+   const rail = (
+      <>
+         <Header />
+         <div className="min-h-0 flex-1 overflow-y-auto">
+            {failed && plans === null ? (
+               <div className="px-4 py-10 text-muted-foreground" role="alert">
+                  {t('list.failed')}
                </div>
-               {displayed.length === 0 ? (
-                  <div className="flex h-40 items-center justify-center text-muted-foreground">
-                     {t('list.noneMatch')}
+            ) : plans === null ? (
+               <EmptyStateLoading label={t('list.loading')} />
+            ) : plans.length === 0 ? (
+               <EmptyState icon={<EmptyStateMark label={t('empty.mark')} />}>
+                  <EmptyStateTitle>
+                     {scope === 'open' ? t('empty.title') : t('empty.titleAll')}
+                  </EmptyStateTitle>
+                  <EmptyStateText>{t('empty.body')}</EmptyStateText>
+               </EmptyState>
+            ) : displayed.length === 0 ? (
+               <div className="flex h-40 items-center justify-center px-4 text-center text-muted-foreground">
+                  {t('list.noneMatch')}
+               </div>
+            ) : (
+               displayed.map((plan) => (
+                  <PlanRow
+                     key={plan.id}
+                     plan={plan}
+                     selected={plan.id === selected}
+                     onSelect={select}
+                  />
+               ))
+            )}
+         </div>
+      </>
+   );
+
+   return (
+      <SplitIndex
+         selected={selected !== null}
+         rail={rail}
+         detail={
+            selected ? (
+               <>
+                  <button
+                     type="button"
+                     onClick={() => select(null)}
+                     className="flex min-h-11 shrink-0 items-center gap-2 border-b px-4 text-muted-foreground md:hidden"
+                  >
+                     <ChevronLeft className="size-4" aria-hidden="true" />
+                     {t('list.back')}
+                  </button>
+                  <div className="min-h-0 flex-1">
+                     <PlanPreview key={selected} planId={selected} />
                   </div>
-               ) : (
-                  displayed.map((plan) => <PlanRow key={plan.id} plan={plan} orgId={orgId} />)
-               )}
-            </>
-         )}
-      </div>
+               </>
+            ) : null
+         }
+      />
    );
 }

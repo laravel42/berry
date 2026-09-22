@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect } from 'storybook/test';
+import { expect, fn, userEvent } from 'storybook/test';
 import {
    goalActive,
    goalBlocked,
@@ -13,14 +13,14 @@ import GoalLine from './goal-line';
 const meta = {
    component: GoalLine,
    tags: ['ai-generated', 'needs-work'],
-   args: { goal: goalActive },
+   args: { goal: goalActive, selected: false, onSelect: fn() },
    parameters: { nextjs: { navigation: { segments: [['orgId', 'berry']] } } },
    beforeEach: () => {
       seedProjectStores();
    },
    decorators: [
       (Story) => (
-         <div className="w-[860px] border">
+         <div className="w-[440px] border">
             <Story />
          </div>
       ),
@@ -32,12 +32,10 @@ type Story = StoryObj<typeof meta>;
 
 /** A goal inside a project shows the project name as its subtitle. */
 export const InProject: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, args }) => {
       await expect(canvas.getByText(projectHealth.name)).toBeVisible();
-      await expect(canvas.getByRole('link')).toHaveAttribute(
-         'href',
-         `/berry/goal/${goalActive.id}/overview`
-      );
+      await userEvent.click(canvas.getByRole('button'));
+      await expect(args.onSelect).toHaveBeenCalledWith(goalActive.id);
    },
 };
 

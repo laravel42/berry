@@ -172,7 +172,7 @@ export default function SkillsList({
    return (
       <div className="flex h-full min-h-0 w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"

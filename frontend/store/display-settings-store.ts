@@ -43,7 +43,6 @@ const DEFAULT_GROUPING: Record<ViewType, GroupingKey> = {
    list: 'status',
    grid: 'status',
    table: 'status',
-   gantt: 'none',
 };
 
 interface DisplaySettingsState {

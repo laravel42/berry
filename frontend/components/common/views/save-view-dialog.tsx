@@ -129,7 +129,6 @@ export function SaveViewDialog({
       list: t('mode.list'),
       grid: t('mode.board'),
       table: t('mode.table'),
-      gantt: t('mode.gantt'),
    };
 
    return (

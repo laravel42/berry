@@ -13,6 +13,7 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
+import { PageStatement, SectionLabel } from '@/components/common/page/page-parts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -79,7 +80,7 @@ function ProposalCard({
 
          {proposal.evidence.length ? (
             <div>
-               <div className="text-muted-foreground">{t('evidence')}</div>
+               <SectionLabel as="div">{t('evidence')}</SectionLabel>
                <ul className="mt-1 list-disc space-y-1 pl-5">
                   {proposal.evidence.map((item, index) => (
                      <li key={`${item.kind}-${item.ref}-${index}`}>
@@ -92,12 +93,12 @@ function ProposalCard({
          ) : null}
 
          <div>
-            <div className="text-muted-foreground">{t('impact')}</div>
+            <SectionLabel as="div">{t('impact')}</SectionLabel>
             <p>{proposal.impact}</p>
          </div>
 
          <div>
-            <div className="text-muted-foreground">{t('action')}</div>
+            <SectionLabel as="div">{t('action')}</SectionLabel>
             <p>{proposal.proposedAction}</p>
          </div>
 
@@ -172,31 +173,45 @@ export default function Proposals() {
       void load();
    }, [load]);
 
+   const count = proposals?.length ?? 0;
+   const statement = (
+      <PageStatement
+         label={t('title')}
+         figure={proposals !== null ? count : undefined}
+         line={t('statement.line', { count })}
+         sub={t('statement.sub')}
+      />
+   );
+
    if (proposals !== null && proposals.length === 0 && !error) {
       return (
-         <div className="flex h-full w-full items-center justify-center overflow-y-auto">
-            <EmptyProposals />
+         <div className="flex h-full w-full flex-col">
+            {statement}
+            <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-y-auto">
+               <EmptyProposals />
+            </div>
          </div>
       );
    }
 
    return (
-      <div className="h-full w-full overflow-y-auto">
-         <div className={cn('mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10 pb-20')}>
-            <h1 className="font-display tracking-[-0.025em]">{t('title')}</h1>
+      <div className="flex h-full w-full flex-col">
+         {statement}
+         <div className="min-h-0 w-full flex-1 overflow-y-auto">
+            <div className={cn('mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10 pb-20')}>
+               {error ? <p className="text-destructive">{error}</p> : null}
 
-            {error ? <p className="text-destructive">{error}</p> : null}
+               {proposals === null && !error ? <EmptyStateLoading label={t('loading')} /> : null}
 
-            {proposals === null && !error ? <EmptyStateLoading label={t('loading')} /> : null}
-
-            {proposals?.map((proposal) => (
-               <ProposalCard
-                  key={proposal.id}
-                  proposal={proposal}
-                  orgId={orgId}
-                  onDecided={() => void load()}
-               />
-            ))}
+               {proposals?.map((proposal) => (
+                  <ProposalCard
+                     key={proposal.id}
+                     proposal={proposal}
+                     orgId={orgId}
+                     onDecided={() => void load()}
+                  />
+               ))}
+            </div>
          </div>
       </div>
    );

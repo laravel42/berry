@@ -2,7 +2,6 @@
 
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
 import { InsightsPanel } from '@/components/common/issues/insights-panel';
-import { IssueGantt } from '@/components/common/issues/issue-gantt';
 import { IssueTable } from '@/components/common/issues/issue-table';
 import { applyIssueFilters } from '@/components/common/issues/issue-filter-columns';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
@@ -63,8 +62,6 @@ function IssueViewBody({ view }: { view: View }) {
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {mode === 'table' ? (
                   <IssueTable issues={issues} statuses={allStatus} totalIssues={issues} />
-               ) : mode === 'gantt' ? (
-                  <IssueGantt issues={issues} />
                ) : (
                   <GroupedIssuesView
                      issues={issues}

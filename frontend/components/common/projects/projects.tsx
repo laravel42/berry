@@ -11,7 +11,7 @@ import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
-import { BarChart3, Box } from 'lucide-react';
+import { BarChart3, Box, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -22,6 +22,9 @@ import {
    ListFilterTrigger,
    useListFilters,
 } from '@/components/common/filters/list-filters';
+import { PageKpiHeader, type Kpi } from '@/components/common/page/page-parts';
+import { KPI_DAYS, useWorkKpis } from '@/components/common/usage/use-work-kpis';
+import { formatAge, formatCost, formatSpanShort } from '@/lib/usage';
 import ProjectsBoard, { type ProjectBoardEntry } from './projects-board';
 import { CreateProjectButton } from './create-project-button';
 import { CreateProjectDialog } from './create-project-dialog';
@@ -31,8 +34,6 @@ import ProjectsInsightsPanel from './projects-insights-panel';
 import ProjectsList from './projects-list';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
-import { TimelineScaleControls } from './timeline-scale-controls';
-import ProjectsTimeline from './projects-timeline';
 
 export interface ProjectGroup {
    id: string;
@@ -104,12 +105,116 @@ function percentCompleteForProject(
    return Math.round((done / linked.length) * 100);
 }
 
+const LAYOUTS: { value: 'list' | 'board'; icon: React.ElementType }[] = [
+   { value: 'list', icon: List },
+   { value: 'board', icon: LayoutGrid },
+];
+
+const DAY_MS = 86_400_000;
+
+/**
+ * The Projects page's KPI cards. Counts come from the stores the page already
+ * holds; spend, agent time and what waits on a person come from the usage read.
+ * A figure stays undefined until its source has answered.
+ */
+function useProjectKpis(
+   projects: Project[],
+   issues: ReturnType<typeof useIssuesStore.getState>['issues'],
+   data: ReturnType<typeof useWorkKpis>
+): Kpi[] {
+   const t = useTranslations('issueLists.projects.kpi');
+   return useMemo(() => {
+      // The projects store has no loaded flag: an empty store is either still
+      // loading or an empty workspace, and neither should claim zero.
+      const known = projects.length > 0;
+      const open = projects.filter((project) => !CLOSED_CATEGORIES.has(project.status.category));
+      const openIds = new Set(open.map((project) => project.id));
+      // Every task of an open project, cancelled ones too: the same basis as a row's percentage.
+      const tasks = issues.filter((issue) => issue.project && openIds.has(issue.project.id));
+      const done = tasks.filter((issue) => issue.status.category === 'completed').length;
+      const next = open
+         .filter((project) => project.targetDate)
+         .sort((a, b) => String(a.targetDate).localeCompare(String(b.targetDate)))[0];
+      const days = next
+         ? Math.ceil((Date.parse(String(next.targetDate)) - Date.now()) / DAY_MS)
+         : null;
+      const work = data?.work;
+      const waiting = work ? work.waiting.reviews + work.waiting.decisions : undefined;
+
+      return [
+         {
+            label: t('running'),
+            value: known ? open.length : undefined,
+            detail: known
+               ? t('runningDetail', { finished: projects.length - open.length })
+               : undefined,
+         },
+         {
+            label: t('completion'),
+            value: known
+               ? tasks.length > 0
+                  ? `${Math.round((done / tasks.length) * 100)}%`
+                  : '–'
+               : undefined,
+            detail: known ? t('completionDetail', { done, total: tasks.length }) : undefined,
+         },
+         {
+            label: t('nextDue'),
+            value: known
+               ? days === null
+                  ? t('noDue')
+                  : days < 0
+                    ? t('overdue', { days: -days })
+                    : `${days} d`
+               : undefined,
+            detail: next?.name,
+            tone: days !== null && days < 0 ? 'text-status-warning' : undefined,
+         },
+         {
+            label: t('waiting'),
+            value: waiting,
+            detail: work
+               ? work.waiting.oldestAt
+                  ? t('waitingDetail', {
+                       decisions: work.waiting.decisions,
+                       reviews: work.waiting.reviews,
+                       age: formatAge(work.waiting.oldestAt),
+                    })
+                  : t('waitingNone', {
+                       decisions: work.waiting.decisions,
+                       reviews: work.waiting.reviews,
+                    })
+               : undefined,
+            tone: waiting ? 'text-status-warning' : undefined,
+         },
+         {
+            label: t('spend', { days: KPI_DAYS }),
+            value: data ? formatCost(data.costMicros) : undefined,
+            detail:
+               data && work && work.tasksDone > 0
+                  ? t('spendDetail', {
+                       cost: formatCost(Math.round(data.costMicros / work.tasksDone)),
+                    })
+                  : undefined,
+         },
+         {
+            label: t('agentTime', { days: KPI_DAYS }),
+            value: work ? formatSpanShort(work.runSeconds) : undefined,
+            detail: work
+               ? t('agentTimeDetail', { agents: work.byAgent.length, runs: work.runs })
+               : undefined,
+         },
+      ];
+   }, [projects, issues, data, t]);
+}
+
 /** Projects page: search, filters, display options, views and insights. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
    const { filters, setFilters, sort, query, setQuery } = useProjectsFilterStore();
-   const { viewType, grouping, ordering, closedProjects, showEmptyGroups } =
+   const { viewType, setViewType, grouping, ordering, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
+   const data = useWorkKpis();
    const { openPanel, togglePanel } = useRightPanelStore();
    const allProjects = useProjectsStore((state) => state.projects);
    const issues = useIssuesStore((state) => state.issues);
@@ -192,6 +297,8 @@ export default function Projects() {
          .filter((group) => showEmptyGroups || group.projects.length > 0);
    }, [displayed, grouping, showEmptyGroups]);
 
+   const kpis = useProjectKpis(enriched, issues, data);
+
    const toggleSelected = (projectId: string) =>
       setSelected((previous) =>
          previous.includes(projectId)
@@ -217,16 +324,47 @@ export default function Projects() {
    return (
       <div className="w-full h-full flex flex-col overflow-hidden">
          <CreateProjectDialog />
-         <div className="mb-1 flex w-full shrink-0 items-center gap-2 border-b px-4 py-[6px] [&_button]:!h-9 [&_button[aria-label='New project']]:!h-[34px] [&_button[aria-label='New project']]:!w-[42px] [&_input]:!h-9">
-            <Input
-               className="h-9 max-w-64"
-               placeholder={lists('projects.search')}
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-            />
-            <ListFilterTrigger filter={filter} />
+         <div className="w-full shrink-0">
+            <PageKpiHeader label={lists('projects.title')} kpis={kpis}>
+               <Input
+                  className="h-9 w-64 max-sm:w-40"
+                  placeholder={lists('projects.search')}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+               />
+               <CreateProjectButton />
+            </PageKpiHeader>
+         </div>
+         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center gap-2 border-b px-6 py-[6px] [&_button]:!h-9">
+            <div
+               role="group"
+               aria-label={lists('projects.layout.label')}
+               className="flex items-center rounded-md border p-0.5"
+            >
+               {LAYOUTS.map((layout) => {
+                  const on = viewType === layout.value;
+                  return (
+                     <button
+                        key={layout.value}
+                        type="button"
+                        aria-pressed={on}
+                        aria-label={lists(`projects.layout.${layout.value}`)}
+                        title={lists(`projects.layout.${layout.value}`)}
+                        onClick={() => setViewType(layout.value)}
+                        className={cn(
+                           'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                           on
+                              ? 'bg-secondary text-foreground'
+                              : 'text-muted-foreground hover:text-foreground'
+                        )}
+                     >
+                        <layout.icon className="size-4" />
+                     </button>
+                  );
+               })}
+            </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-               {viewType === 'timeline' && <TimelineScaleControls />}
+               <ListFilterTrigger filter={filter} />
                <Button
                   size="xs"
                   variant="outline"
@@ -237,10 +375,9 @@ export default function Projects() {
                   onClick={() => togglePanel('insights')}
                >
                   <BarChart3 className="size-4" />
-                  Insights
+                  {lists('projects.insights')}
                </Button>
                <ProjectsDisplayOptions />
-               <CreateProjectButton className="ml-1" />
             </div>
          </div>
 
@@ -283,7 +420,6 @@ export default function Projects() {
                   )
                ) : (
                   <>
-                     {viewType === 'timeline' && <ProjectsTimeline groups={groups} />}
                      {viewType === 'list' && (
                         <ProjectsList
                            groups={groups}

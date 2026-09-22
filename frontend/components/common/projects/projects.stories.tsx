@@ -55,16 +55,6 @@ export const Board: Story = {
    },
 };
 
-export const Timeline: Story = {
-   beforeEach: () => {
-      useProjectsDisplayStore.setState({ viewType: 'timeline' });
-   },
-   play: async ({ canvas }) => {
-      // The scale controls join the toolbar only on the timeline.
-      await expect(canvas.getByRole('button', { name: 'Today' })).toBeVisible();
-   },
-};
-
 export const WithInsights: Story = {
    beforeEach: () => {
       useRightPanelStore.setState({ openPanel: 'insights' });

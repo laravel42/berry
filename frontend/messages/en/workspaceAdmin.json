@@ -85,6 +85,10 @@
    },
    "members": {
       "title": "Members",
+      "statement": {
+         "line": "{count, plural, =0 {people are in this workspace} one {person is in this workspace} other {people are in this workspace}}",
+         "sub": "Someone joins by invitation or join link and leaves when removed."
+      },
       "loading": "Loading…",
       "empty": "No members yet.",
       "invite": "Invite",

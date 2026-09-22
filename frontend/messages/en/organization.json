@@ -78,6 +78,10 @@
    },
    "proposals": {
       "title": "Proposals",
+      "statement": {
+         "line": "{count, plural, one {proposal is waiting for a decision} other {proposals are waiting for a decision}}",
+         "sub": "A proposal leaves this list when it is accepted or rejected."
+      },
       "loading": "Loading proposals…",
       "empty": {
          "mark": "No proposals",

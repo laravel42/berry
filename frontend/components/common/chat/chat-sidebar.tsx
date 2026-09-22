@@ -38,39 +38,30 @@ interface ChatSidebarProps {
    onSelect: (thread: ChatThread) => void;
    onChanged: () => void;
    onStop: (thread: ChatThread) => void;
+   /** The page sets its name and the new-chat action above the split instead. */
+   headless?: boolean;
 }
 
-/**
- * Pinned agents, a picker for starting a conversation, and the conversations
- * themselves.
- *
- * The picker is grouped into the agents this person made and everyone else's,
- * because in a workspace with thirty agents "which of these is mine" is the
- * question the list is being scanned for.
- */
-export function ChatSidebar({
+interface NewChatMenuProps {
+   agents: Agent[];
+   roster: Map<string, AgentRoster>;
+   sessionUserId: string | undefined;
+   pinnedAgentIds: string[];
+   onNewChat: (agent: Agent) => void;
+   onTogglePinned: (agent: Agent) => void;
+}
+
+/** The page's one action: pick an agent and start a conversation with it. */
+export function NewChatMenu({
    agents,
    roster,
    sessionUserId,
    pinnedAgentIds,
-   threads,
-   archived,
-   showArchived,
-   onToggleArchived,
-   activeId,
    onNewChat,
    onTogglePinned,
-   onSelect,
-   onChanged,
-   onStop,
-}: ChatSidebarProps) {
+}: NewChatMenuProps) {
    const t = useTranslations('agentsChat.chat');
    const coverage = useAgentCoverage();
-
-   const pinned = pinnedAgentIds
-      .map((id) => agents.find((agent) => agent.id === id))
-      .filter((agent): agent is Agent => agent !== undefined)
-      .slice(0, MAX_PINNED_AGENTS);
 
    const mine = agents.filter((agent) => roster.get(agent.id)?.ownerId === sessionUserId);
    const others = agents.filter((agent) => roster.get(agent.id)?.ownerId !== sessionUserId);
@@ -110,35 +101,81 @@ export function ChatSidebar({
    };
 
    return (
+      <DropdownMenu>
+         <DropdownMenuTrigger asChild>
+            <Button size="xxs" type="button" aria-label={t('newChat')}>
+               <Plus className="size-3" />
+            </Button>
+         </DropdownMenuTrigger>
+         <DropdownMenuContent align="end" className="max-h-96 min-w-60 overflow-y-auto">
+            {agents.length === 0 ? (
+               <DropdownMenuItem disabled>{t('pickerEmpty')}</DropdownMenuItem>
+            ) : null}
+            {mine.length > 0 ? (
+               <>
+                  <DropdownMenuLabel>{t('pickerMine')}</DropdownMenuLabel>
+                  {mine.map(agentItem)}
+               </>
+            ) : null}
+            {others.length > 0 ? (
+               <>
+                  {mine.length > 0 ? <DropdownMenuSeparator /> : null}
+                  <DropdownMenuLabel>{t('pickerOthers')}</DropdownMenuLabel>
+                  {others.map(agentItem)}
+               </>
+            ) : null}
+         </DropdownMenuContent>
+      </DropdownMenu>
+   );
+}
+
+/**
+ * Pinned agents, a picker for starting a conversation, and the conversations
+ * themselves.
+ *
+ * The picker is grouped into the agents this person made and everyone else's,
+ * because in a workspace with thirty agents "which of these is mine" is the
+ * question the list is being scanned for.
+ */
+export function ChatSidebar({
+   agents,
+   roster,
+   sessionUserId,
+   pinnedAgentIds,
+   threads,
+   archived,
+   showArchived,
+   onToggleArchived,
+   activeId,
+   onNewChat,
+   onTogglePinned,
+   onSelect,
+   onChanged,
+   onStop,
+   headless = false,
+}: ChatSidebarProps) {
+   const t = useTranslations('agentsChat.chat');
+
+   const pinned = pinnedAgentIds
+      .map((id) => agents.find((agent) => agent.id === id))
+      .filter((agent): agent is Agent => agent !== undefined)
+      .slice(0, MAX_PINNED_AGENTS);
+
+   return (
       <aside className="flex w-[218px] flex-none flex-col overflow-y-auto border-r border-[var(--shell-line)] bg-[var(--shell-rail)]">
-         <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--shell-line)] px-4 py-1.5">
-            <h1 className="min-w-0 truncate">{t('title')}</h1>
-            <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                  <Button size="xxs" type="button" aria-label={t('newChat')}>
-                     <Plus className="size-3" />
-                  </Button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end" className="max-h-96 min-w-60 overflow-y-auto">
-                  {agents.length === 0 ? (
-                     <DropdownMenuItem disabled>{t('pickerEmpty')}</DropdownMenuItem>
-                  ) : null}
-                  {mine.length > 0 ? (
-                     <>
-                        <DropdownMenuLabel>{t('pickerMine')}</DropdownMenuLabel>
-                        {mine.map(agentItem)}
-                     </>
-                  ) : null}
-                  {others.length > 0 ? (
-                     <>
-                        {mine.length > 0 ? <DropdownMenuSeparator /> : null}
-                        <DropdownMenuLabel>{t('pickerOthers')}</DropdownMenuLabel>
-                        {others.map(agentItem)}
-                     </>
-                  ) : null}
-               </DropdownMenuContent>
-            </DropdownMenu>
-         </div>
+         {headless ? null : (
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-[var(--shell-line)] px-4 py-1.5">
+               <h1 className="min-w-0 truncate">{t('title')}</h1>
+               <NewChatMenu
+                  agents={agents}
+                  roster={roster}
+                  sessionUserId={sessionUserId}
+                  pinnedAgentIds={pinnedAgentIds}
+                  onNewChat={onNewChat}
+                  onTogglePinned={onTogglePinned}
+               />
+            </div>
+         )}
 
          {pinned.length > 0 ? (
             <>

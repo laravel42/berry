@@ -266,7 +266,7 @@ export default function Agents() {
                onClick={() => sortBy(key)}
                aria-label={label}
                className={cn(
-                  'truncate hover:text-foreground',
+                  'truncate uppercase hover:text-foreground',
                   sortKey === key && 'text-foreground'
                )}
             >
@@ -319,7 +319,7 @@ export default function Agents() {
                </EmptyState>
             ) : (
                <>
-                  <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
+                  <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
                      <Checkbox
                         checked={allSelected}
                         onCheckedChange={() =>
@@ -332,7 +332,7 @@ export default function Agents() {
                         type="button"
                         onClick={() => sortBy('name')}
                         className={cn(
-                           'min-w-0 flex-1 text-left hover:text-foreground',
+                           'min-w-0 flex-1 text-left uppercase hover:text-foreground',
                            sortKey === 'name' && 'text-foreground'
                         )}
                      >

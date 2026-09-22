@@ -15,6 +15,7 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
+import { PageStatement } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -96,30 +97,37 @@ export default function AutopilotsPage() {
       });
    }, [autopilots, filterColumns, filters, query, assigneeName]);
 
+   const enabled = autopilots.filter((autopilot) => autopilot.status === 'active').length;
+
    const header = (
       <>
+         <PageStatement
+            label={t('title')}
+            figure={loaded ? enabled : undefined}
+            line={t('statement.line', { count: enabled })}
+            sub={t('statement.sub')}
+         >
+            {canEdit ? (
+               <Button
+                  size="xs"
+                  className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
+                  aria-label={t('new')}
+                  title={t('new')}
+                  onClick={() => {
+                     setTemplate(null);
+                     setCreating(true);
+                  }}
+               >
+                  <Plus className="size-4" />
+               </Button>
+            ) : null}
+         </PageStatement>
          <AutopilotsFilters
             criteria={criteria}
             onChange={setCriteria}
             filter={filter}
             query={query}
             onQueryChange={setQuery}
-            action={
-               canEdit ? (
-                  <Button
-                     size="xs"
-                     className="ml-1 h-[34px] w-[42px] shrink-0 px-0"
-                     aria-label={t('new')}
-                     title={t('new')}
-                     onClick={() => {
-                        setTemplate(null);
-                        setCreating(true);
-                     }}
-                  >
-                     <Plus className="size-4" />
-                  </Button>
-               ) : null
-            }
          />
          <ListFilterBar filter={filter} />
       </>

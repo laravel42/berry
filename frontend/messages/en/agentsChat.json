@@ -256,6 +256,10 @@
    },
    "chat": {
       "title": "Chat",
+      "statement": {
+         "line": "{count, plural, one {conversation is open} other {conversations are open}}",
+         "sub": "A conversation leaves this list when it is archived."
+      },
       "newChat": "New chat",
       "pinned": "Pinned agents",
       "pinnedFull": "Five pinned agents is the most the strip holds.",

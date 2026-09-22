@@ -204,7 +204,7 @@ export default function Autopilots({
                onClick={() => sortBy(key)}
                aria-label={label}
                className={cn(
-                  'truncate hover:text-foreground',
+                  'truncate uppercase hover:text-foreground',
                   criteria.sort === key && 'text-foreground'
                )}
             >
@@ -276,7 +276,7 @@ export default function Autopilots({
    return (
       <div className="flex h-full min-h-0 w-full flex-col">
          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] text-muted-foreground">
+            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
                {canEdit ? (
                   <Checkbox
                      className="shrink-0"
@@ -292,7 +292,7 @@ export default function Autopilots({
                      type="button"
                      onClick={() => sortBy('name')}
                      className={cn(
-                        'min-w-0 flex-1 text-left hover:text-foreground',
+                        'min-w-0 flex-1 text-left uppercase hover:text-foreground',
                         criteria.sort === 'name' && 'text-foreground'
                      )}
                   >
