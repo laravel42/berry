@@ -109,6 +109,17 @@ export const workspaceUsage: WorkspaceUsage = {
    byAgent,
    byModel,
    runs: { runs: 142, failed: 9, runSeconds: 41_820 },
+   series: {
+      grain: 'day',
+      points: dailyBuckets(30).map((day, index) => ({
+         key: day.key,
+         costMicros: day.costMicros,
+         tokens: day.inputTokens + day.outputTokens,
+         events: day.events,
+         runs: (index * 7) % 11,
+      })),
+   },
+   topIssues: [],
 };
 
 export const emptyWorkspaceUsage: WorkspaceUsage = {
@@ -118,6 +129,8 @@ export const emptyWorkspaceUsage: WorkspaceUsage = {
    byAgent: [],
    byModel: [],
    runs: { runs: 0, failed: 0, runSeconds: 0 },
+   series: { grain: 'day', points: [] },
+   topIssues: [],
 };
 
 export const usageErrors: UsageErrors = {
