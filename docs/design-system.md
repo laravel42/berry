@@ -257,7 +257,7 @@ Usage is read from shapes before words. The parts live in `frontend/components/c
 | Shares of a whole, five or fewer | `Donut` |
 | One ratio | `Gauge` |
 | One value per row against a reference | `Lollipops` |
-| Two measures against each other | `Scatter` |
+| Two measures side by side, one row per subject | `PairedBars` |
 | Where the middle and the bulk of a spread sit | `RangeStrip` |
 | A small count that should stay countable | `Squares` |
 | Shares of one total in a line | `ShareStrip` |

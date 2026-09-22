@@ -561,13 +561,15 @@
          "perTaskLabel": "Dollars per finished task, by agent, against the workspace average.",
          "perTaskAverage": "Amber line: the workspace average, {average}.",
          "noTasksDone": "No task reached done in this window.",
-         "volumeTitle": "Volume against price",
-         "volumeHint": "across = runs · up = dollars per run · circle = dollars spent",
+         "volumeTitle": "Runs and cost per run",
+         "volumeHint": "by agent · each column on its own scale",
          "volumeLabel": "Each agent by how many runs it made and what a run of it cost.",
          "noRuns": "No runs in this window.",
          "tasksTitle": "Most expensive tasks",
          "tasksHint": "bar = dollars",
-         "runCount": "{count, plural, =1 {1 run} other {# runs}}"
+         "runCount": "{count, plural, =1 {1 run} other {# runs}}",
+         "volumeRuns": "Runs",
+         "volumePerRun": "Per run"
       },
       "work": {
          "loading": "Loading work…",

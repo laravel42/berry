@@ -24,7 +24,7 @@ import {
    Legend,
    Lollipops,
    PageHero,
-   Scatter,
+   PairedBars,
    SeriesBars,
    Treemap,
    type TreemapItem,
@@ -135,16 +135,17 @@ export default function UsageSpend({
       .sort((a, b) => b.value - a.value)
       .slice(0, 9);
 
-   const points = spenders
+   const perRun = spenders
       .map((agent) => ({ agent, runs: doneBy.get(agent.key)?.runs ?? 0 }))
       .filter((row) => row.runs > 0)
       .slice(0, 10)
       .map((row) => ({
          id: row.agent.key,
          label: row.agent.agentName,
-         x: row.runs,
-         y: row.agent.costMicros / row.runs,
-         size: row.agent.costMicros,
+         left: row.runs,
+         right: row.agent.costMicros / row.runs,
+         leftFigure: String(row.runs),
+         rightFigure: formatCost(Math.round(row.agent.costMicros / row.runs)),
       }));
 
    const topCost = Math.max(1, ...usage.topIssues.map((issue) => issue.costMicros));
@@ -266,12 +267,11 @@ export default function UsageSpend({
                hint={t('volumeHint')}
                className="min-h-96 lg:col-span-7"
             >
-               {points.length > 0 ? (
-                  <Scatter
-                     points={points}
+               {perRun.length > 0 ? (
+                  <PairedBars
+                     rows={perRun}
                      label={t('volumeLabel')}
-                     xTicks={(value) => String(Math.round(value))}
-                     yTicks={(value) => formatCost(Math.round(value))}
+                     headings={[t('volumeRuns'), t('volumePerRun')]}
                   />
                ) : (
                   <p className="text-muted-foreground">{t('noRuns')}</p>

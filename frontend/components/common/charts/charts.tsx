@@ -472,79 +472,69 @@ export function Lollipops({
    );
 }
 
-export interface ScatterPoint {
+export interface PairedRow {
    id: string;
    label: string;
-   x: number;
-   y: number;
-   size: number;
+   /** The two values, each drawn on its own scale. */
+   left: number;
+   right: number;
+   leftFigure: string;
+   rightFigure: string;
 }
 
-/** Two measures against each other, with a third as the size of the mark. */
-export function Scatter({
-   points,
+/**
+ * Two measures side by side, one row per subject: how much of something
+ * happened, and what each one cost. Each column has its own scale, so the
+ * longest bar in either is the full width; the figures say the rest. Replaced
+ * a scatter, which put the same two numbers on axes nobody could read.
+ */
+export function PairedBars({
+   rows,
    label,
-   xTicks,
-   yTicks,
+   headings,
 }: {
-   points: ScatterPoint[];
+   rows: PairedRow[];
    label: string;
-   xTicks: (value: number) => string;
-   yTicks: (value: number) => string;
+   headings: [string, string];
 }) {
-   const maxX = Math.max(1, ...points.map((point) => point.x)) * 1.08;
-   const maxY = Math.max(0.000001, ...points.map((point) => point.y)) * 1.08;
-   const maxSize = Math.max(0.000001, ...points.map((point) => point.size));
+   const maxLeft = Math.max(0.000001, ...rows.map((row) => row.left));
+   const maxRight = Math.max(0.000001, ...rows.map((row) => row.right));
+   const grid =
+      'grid grid-cols-[minmax(6.5rem,12rem)_minmax(0,1fr)_3rem_minmax(0,1fr)_3.5rem] items-center gap-x-3';
    return (
-      <div className="flex min-h-0 flex-1 gap-2">
-         <div className="flex w-12 flex-col justify-between pb-6 text-right text-muted-foreground tabular-nums">
-            {[1, 2 / 3, 1 / 3, 0].map((step) => (
-               <span key={step}>{yTicks(maxY * step)}</span>
-            ))}
+      <div role="img" aria-label={label} className="flex flex-1 flex-col gap-2">
+         <div className={grid}>
+            <span />
+            <span className="font-medium tracking-wider text-muted-foreground uppercase">
+               {headings[0]}
+            </span>
+            <span />
+            <span className="font-medium tracking-wider text-muted-foreground uppercase">
+               {headings[1]}
+            </span>
+            <span />
          </div>
-         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div
-               role="img"
-               aria-label={label}
-               className="relative min-h-40 flex-1 border-b border-l"
-               style={{
-                  backgroundImage:
-                     'linear-gradient(var(--border), var(--border)), linear-gradient(var(--border), var(--border))',
-                  backgroundSize: '100% 1px, 100% 1px',
-                  backgroundPosition: '0 33.3%, 0 66.6%',
-                  backgroundRepeat: 'no-repeat',
-               }}
-            >
-               {points.map((point) => {
-                  const diameter = Math.round(14 + Math.sqrt(point.size / maxSize) * 50);
-                  return (
-                     <div
-                        key={point.id}
-                        className="absolute flex items-center"
-                        style={{
-                           left: `${(point.x / maxX) * 100}%`,
-                           bottom: `${(point.y / maxY) * 100}%`,
-                           transform: 'translate(-50%, 50%)',
-                        }}
-                     >
-                        <span
-                           aria-hidden
-                           className="block rounded-full border-2 border-foreground/60 bg-foreground/20"
-                           style={{ width: diameter, height: diameter }}
-                        />
-                        <span className="absolute left-full ml-1.5 whitespace-nowrap">
-                           {point.label}
-                        </span>
-                     </div>
-                  );
-               })}
+         {rows.map((row) => (
+            <div key={row.id} className={cn(grid, 'min-h-6')}>
+               <span className="truncate" title={row.label}>
+                  {row.label}
+               </span>
+               <span className="block h-3.5 rounded-sm bg-muted">
+                  <span
+                     className="block h-full rounded-sm bg-status-info"
+                     style={{ width: `${(row.left / maxLeft) * 100}%` }}
+                  />
+               </span>
+               <span className="text-right tabular-nums">{row.leftFigure}</span>
+               <span className="block h-3.5 rounded-sm bg-muted">
+                  <span
+                     className="block h-full rounded-sm bg-foreground"
+                     style={{ width: `${(row.right / maxRight) * 100}%` }}
+                  />
+               </span>
+               <span className="text-right font-medium tabular-nums">{row.rightFigure}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground tabular-nums">
-               {[0, 0.25, 0.5, 0.75, 1].map((step) => (
-                  <span key={step}>{xTicks(maxX * step)}</span>
-               ))}
-            </div>
-         </div>
+         ))}
       </div>
    );
 }
