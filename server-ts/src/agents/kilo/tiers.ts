@@ -14,7 +14,7 @@
  *   models at or above the median completion.
  * - BerryLow: real code-mode usage per dollar (blended token price), among
  *   unscored models cheaper than BerryMid's cheapest.
- * - BerryFree: free models, benchmark first, then real usage.
+ * - BerryFree: free models by real usage, benchmark only breaking ties.
  * - BerryAuto: Kilo's own routing, `kilo-auto/efficient`, as a comparison.
  *
  * A model sits in one tier only, the highest it reaches.
@@ -166,11 +166,13 @@ export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: s
       )
       .slice(0, TIER_SIZE);
 
+   // Real usage first: few free models are benchmarked, and a weak score
+   // (15%) would otherwise outrank the free models people actually run.
    const free = models
       .filter(isFreeEligible)
       .sort(
          (a, b) =>
-            (b.bench?.completion ?? -1) - (a.bench?.completion ?? -1) || used(b) - used(a) || a.id.localeCompare(b.id)
+            used(b) - used(a) || (b.bench?.completion ?? -1) - (a.bench?.completion ?? -1) || a.id.localeCompare(b.id)
       )
       .slice(0, TIER_SIZE);
 

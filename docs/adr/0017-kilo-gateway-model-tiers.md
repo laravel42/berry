@@ -88,8 +88,9 @@ show cost before work and record actual cost after. The Kilo gateway
    - **BerryMid:** completion rate per dollar, among models at or above the
      median.
    - **BerryLow:** cost per attempt, among scored models.
-   - **BerryFree:** KiloBench where a model is scored, else real usage in the
-     role's mode.
+   - **BerryFree:** real usage in the role's mode; KiloBench only breaks
+     ties (revised 2026-09-25: few free models are scored, and a 15% score
+     outranked the free models people actually run).
 
    *Revised 2026-09-25.* Only 11 of the 45 own-key models have a KiloBench
    score, and all are frontier-priced, so the ranking uses both halves of the

@@ -76,9 +76,9 @@ test('the account\'s own key, a real id, tools, and no retirement are required f
    assert.equal(tierOf(pools, '~a/sonnet-latest'), null);
 });
 
-test('Free ranks benchmark first, then usage; Auto is always Kilo\'s router, price unknown', () => {
+test('Free ranks by real usage, a weak benchmark only breaking ties; Auto is always Kilo\'s router, price unknown', () => {
    const pools = rankTiers(catalog, usage);
-   assert.deepEqual(pools.berry_free.map((m) => m.id), ['p/free-b:free', 'p/free-a:free']);
+   assert.deepEqual(pools.berry_free.map((m) => m.id), ['p/free-a:free', 'p/free-b:free'], 'the used model outranks the scored one');
    assert.deepEqual(pools.berry_auto.map((m) => [m.id, m.blendedPricePerM]), [[AUTO_MODEL, null]]);
    assert.deepEqual(rankTiers([], []).berry_auto.map((m) => m.id), [AUTO_MODEL]);
 });
