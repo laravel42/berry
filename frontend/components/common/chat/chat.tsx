@@ -11,7 +11,6 @@ import { agentHasRuntime } from '@/lib/runtimes';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
-import { PageStatement } from '@/components/common/page/page-parts';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -20,12 +19,17 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import { loadAgentRoster, loadWorkspaceAgents, type Agent, type AgentRoster } from '@/lib/agents';
+import {
+   isOrchestrator,
+   loadAgentRoster,
+   loadWorkspaceAgents,
+   type Agent,
+   type AgentRoster,
+} from '@/lib/agents';
 import {
    cancelSessionTask,
    createSession,
    deleteSession,
-   getPinnedAgents,
    listMessages,
    listSessionTasks,
    listSuggestions,
@@ -35,7 +39,6 @@ import {
    renameSession,
    saveDraft,
    sendMessage,
-   setPinnedAgents,
    setSessionArchived,
    type ChatMessage,
    type ChatSuggestion,
@@ -46,7 +49,7 @@ import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { useSessionStore } from '@/store/session-store';
 import { ChatComposer } from './chat-composer';
-import { ChatSidebar, MAX_PINNED_AGENTS, NewChatMenu } from './chat-sidebar';
+import { ChatSidebar } from './chat-sidebar';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
 
@@ -67,14 +70,10 @@ export function Chat() {
    const pathname = usePathname();
    const searchParams = useSearchParams();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
-   const sessionUserId = useSessionStore((state) => state.user?.id);
 
    const [agents, setAgents] = useState<Agent[]>([]);
    const [roster, setRoster] = useState<Map<string, AgentRoster>>(new Map());
-   const [pinnedAgentIds, setPinnedAgentIds] = useState<string[]>([]);
    const [threads, setThreads] = useState<ChatThread[]>([]);
-   // Only so the page does not claim zero conversations while they load.
-   const [threadsLoaded, setThreadsLoaded] = useState(false);
    const [archived, setArchived] = useState<ChatThread[] | null>(null);
    const [showArchived, setShowArchived] = useState(false);
    const [active, setActive] = useState<ChatThread | null>(null);
@@ -107,7 +106,6 @@ export function Chat() {
    const refreshThreads = useCallback(async () => {
       const found = await listThreads();
       setThreads(found);
-      setThreadsLoaded(true);
       return found;
    }, []);
 
@@ -180,17 +178,14 @@ export function Chat() {
       let cancelled = false;
       void (async () => {
          try {
-            const [loadedAgents, loadedThreads, pinned, entries] = await Promise.all([
+            const [loadedAgents, loadedThreads, entries] = await Promise.all([
                loadWorkspaceAgents(),
                listThreads(),
-               getPinnedAgents().catch(() => [] as string[]),
                loadAgentRoster(7).catch(() => new Map<string, AgentRoster>()),
             ]);
             if (cancelled) return;
             setAgents(loadedAgents.filter((agent) => !agent.archivedAt));
             setThreads(loadedThreads);
-            setThreadsLoaded(true);
-            setPinnedAgentIds(pinned);
             setRoster(entries);
          } catch (cause) {
             if (!cancelled) setError(cause instanceof Error ? cause.message : t('rowFailed'));
@@ -347,9 +342,17 @@ export function Chat() {
       }, 600);
    };
 
-   const newChat = async (agent: Agent) => {
+   // Every conversation starts with the Orchestrator: it reads the request
+   // and hands the work to the right role, so nobody picks an agent first.
+   const orchestrator = agents.find(isOrchestrator) ?? null;
+
+   const newChat = async () => {
+      if (!orchestrator) {
+         setError(t('bannerNoOrchestrator'));
+         return;
+      }
       try {
-         const id = await createSession(agent.id);
+         const id = await createSession(orchestrator.id);
          const found = await refreshThreads();
          const thread = found.find((entry) => entry.id === id);
          if (thread) {
@@ -358,23 +361,6 @@ export function Chat() {
          }
       } catch (cause) {
          setError(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
-      }
-   };
-
-   const togglePinned = async (agent: Agent) => {
-      const has = pinnedAgentIds.includes(agent.id);
-      if (!has && pinnedAgentIds.length >= MAX_PINNED_AGENTS) {
-         toast.info(t('pinnedFull'));
-         return;
-      }
-      const next = has
-         ? pinnedAgentIds.filter((id) => id !== agent.id)
-         : [...pinnedAgentIds, agent.id];
-      setPinnedAgentIds(next);
-      try {
-         setPinnedAgentIds(await setPinnedAgents(next));
-      } catch {
-         setPinnedAgentIds(await getPinnedAgents().catch(() => pinnedAgentIds));
       }
    };
 
@@ -491,28 +477,8 @@ export function Chat() {
 
    return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]">
-         <PageStatement
-            label={t('title')}
-            figure={threadsLoaded ? threads.length : undefined}
-            line={t('statement.line', { count: threads.length })}
-            sub={t('statement.sub')}
-         >
-            <NewChatMenu
-               agents={agents}
-               roster={roster}
-               sessionUserId={sessionUserId}
-               pinnedAgentIds={pinnedAgentIds}
-               onNewChat={(agent) => void newChat(agent)}
-               onTogglePinned={(agent) => void togglePinned(agent)}
-            />
-         </PageStatement>
          <div className="flex min-h-0 flex-1">
             <ChatSidebar
-               headless
-               agents={agents}
-               roster={roster}
-               sessionUserId={sessionUserId}
-               pinnedAgentIds={pinnedAgentIds}
                threads={threads}
                archived={archived}
                showArchived={showArchived}
@@ -522,8 +488,7 @@ export function Chat() {
                   if (next) void refreshArchived();
                }}
                activeId={activeId}
-               onNewChat={(agent) => void newChat(agent)}
-               onTogglePinned={(agent) => void togglePinned(agent)}
+               onNewChat={() => void newChat()}
                onSelect={(thread) => {
                   void select(thread);
                   show(thread);
@@ -540,7 +505,7 @@ export function Chat() {
                 already called Chat three times over — rail, tab, sidebar —
                 so with nothing open the pane says nothing at all. */}
                {active ? (
-                  <header className="flex flex-none items-center gap-3 border-b border-[var(--shell-line)] px-6 py-3">
+                  <header className="flex flex-none items-center gap-3 px-6 py-3">
                      <h2 className="min-w-0 flex-none truncate text-[var(--shell-text)]">
                         {agentName ?? active.topic}
                      </h2>
@@ -685,20 +650,23 @@ export function Chat() {
                />
 
                {error ? (
-                  <p role="alert" className="flex-none px-6 pb-2 text-[var(--shell-accent)]">
+                  <p
+                     role="alert"
+                     className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-[var(--shell-accent)]"
+                  >
                      {error}
                   </p>
                ) : null}
 
                {activeId ? (
-                  <>
+                  <div className="mx-auto w-full max-w-3xl">
                      <ChatDelegatedWork tasks={delegatedTasks} />
                      <ChatQueue
                         conversationId={activeId}
                         tasks={ownTasks}
                         onChanged={() => void refreshSession(activeId).catch(() => undefined)}
                      />
-                  </>
+                  </div>
                ) : null}
 
                <ChatComposer

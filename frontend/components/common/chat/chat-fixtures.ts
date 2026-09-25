@@ -270,9 +270,6 @@ export const chatHandlers = [
          nodes: new URL(request.url).searchParams.get('archived') ? archivedThreads : chatThreads,
       })
    ),
-   http.get('*/api/v1/conversations/pinned-agents', () =>
-      HttpResponse.json({ agentIds: ['agent-backend', 'agent-orchestrator'] })
-   ),
    http.get('*/api/v1/conversations/suggestions', () =>
       HttpResponse.json({ nodes: chatSuggestions })
    ),

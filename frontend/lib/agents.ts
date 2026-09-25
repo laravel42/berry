@@ -663,3 +663,11 @@ export async function createAgent(input: {
       })
    );
 }
+
+/**
+ * The one agent every conversation goes to. It reads the request and hands
+ * the work to the right role, so a person never has to pick an agent first.
+ */
+export function isOrchestrator(agent: Pick<Agent, 'capabilities' | 'roleKey'>): boolean {
+   return agent.capabilities.includes('orchestrate') || agent.roleKey === 'orchestrator';
+}

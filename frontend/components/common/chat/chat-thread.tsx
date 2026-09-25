@@ -150,158 +150,149 @@ export function ChatThread({
       <div
          ref={scroller}
          onScroll={onScroll}
-         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5"
+         className={[
+            'flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5',
+            // An empty conversation opens like a blank page: the greeting sits
+            // in the middle with the composer under it, not at the top left.
+            messages.length === 0 && !streamingText ? 'justify-center' : '',
+         ].join(' ')}
       >
-         {hasEarlier ? (
-            <button
-               type="button"
-               onClick={onLoadEarlier}
-               className="self-center text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
-            >
-               {t('loadEarlier')}
-            </button>
-         ) : null}
-
-         {messages.length === 0 ? (
-            <div className="flex flex-col gap-3">
-               <h2 className="text-[var(--shell-text)]">
-                  {agentName ? t('emptyTitle', { name: agentName }) : t('emptyNoAgentTitle')}
-               </h2>
-               <p className="max-w-prose leading-relaxed text-[var(--shell-text-dim)]">
-                  {agentName ? t('emptyBody') : t('emptyNoAgentBody')}
-               </p>
-               {starters.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                     {starters.map((starter) => (
-                        <button
-                           key={starter}
-                           type="button"
-                           onClick={() => onUseSuggestion(starter)}
-                           className="rounded-[5px] bg-[var(--shell-line)] px-2.5 py-1 text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]"
-                        >
-                           {starter}
-                        </button>
-                     ))}
-                  </div>
-               ) : null}
-            </div>
-         ) : null}
-
-         {messages.map((message) => {
-            const day = dayLabel(message.createdAt);
-            const divider = day && day !== lastDay ? day : null;
-            lastDay = day || lastDay;
-            const isAgent = message.authorType === 'agent';
-
-            return (
-               <div key={message.id} className="flex flex-col gap-4">
-                  {divider ? (
-                     <div className="flex items-center gap-3 text-[var(--shell-text-dim)]">
-                        <span className="h-px flex-1 bg-[var(--shell-line)]" />
-                        {divider}
-                        <span className="h-px flex-1 bg-[var(--shell-line)]" />
-                     </div>
-                  ) : null}
-
-                  <article className="group flex gap-3">
-                     <span
-                        className={[
-                           'mt-0.5 flex size-6 flex-none items-center justify-center rounded',
-                           isAgent
-                              ? 'bg-[color-mix(in_srgb,var(--shell-accent)_28%,transparent)] text-[var(--shell-text)]'
-                              : 'bg-[var(--shell-line)] text-[var(--shell-text-muted)]',
-                        ].join(' ')}
-                        aria-hidden="true"
-                     >
-                        {(message.authorName.trim()[0] ?? '?').toUpperCase()}
-                     </span>
-                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex items-baseline gap-2">
-                           <span className="text-[var(--shell-text)]">{message.authorName}</span>
-                           <span className="tabular-nums text-[var(--shell-text-dim)]">
-                              {clockTime(message.createdAt)}
-                           </span>
-                           <button
-                              type="button"
-                              onClick={() => void copy(message)}
-                              aria-label={t('msgCopy')}
-                              className="ml-auto text-[var(--shell-text-dim)] opacity-0 hover:text-[var(--shell-text)] focus-visible:opacity-100 group-hover:opacity-100"
-                           >
-                              {copied === message.id ? (
-                                 <Check className="size-3.5" />
-                              ) : (
-                                 <Copy className="size-3.5" />
-                              )}
-                           </button>
-                        </div>
-
-                        <div className="text-[var(--shell-text-muted)]">
-                           <ChatMarkdown body={message.body} />
-                        </div>
-                     </div>
-                  </article>
-               </div>
-            );
-         })}
-
-         {streamingText ? (
-            <article className="flex gap-3" aria-live="polite" aria-busy="true">
-               <span
-                  className="mt-0.5 flex size-6 flex-none items-center justify-center rounded bg-[color-mix(in_srgb,var(--shell-accent)_28%,transparent)] text-[var(--shell-text)]"
-                  aria-hidden="true"
-               >
-                  {(agentName?.trim()[0] ?? '?').toUpperCase()}
-               </span>
-               <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-baseline gap-2">
-                     {agentName ? (
-                        <span className="text-[var(--shell-text)]">{agentName}</span>
-                     ) : null}
-                     <span className="size-1.5 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none" />
-                  </div>
-                  <div className="text-[var(--shell-text-muted)]">
-                     <ChatMarkdown body={streamingText} />
-                  </div>
-               </div>
-            </article>
-         ) : null}
-
-         {/* Under the last message and indented to the message text, so the wait
-             belongs to the conversation rather than to a bar of its own. `pl-9`
-             is the avatar gutter above it: `size-6` plus the article's `gap-3`. */}
-         {stage && !streamingText ? (
-            <p className="flex items-center gap-2 pl-9 text-[var(--shell-text-dim)]" role="status">
-               <ThinkingDots />
-               {stage}
-            </p>
-         ) : null}
-
-         {messages.length > 0 && suggestions.length > 0 && !stage && !streamingText ? (
-            <div className="flex flex-wrap items-center gap-2">
-               <span className="text-[var(--shell-text-dim)]">{t('followUps')}</span>
-               {suggestions.map((suggestion) => (
-                  <button
-                     key={suggestion.label}
-                     type="button"
-                     onClick={() => onUseSuggestion(suggestion.prompt)}
-                     className="rounded-[5px] bg-[var(--shell-line)] px-2.5 py-1 text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]"
-                  >
-                     {suggestion.label}
-                  </button>
-               ))}
+         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+            {hasEarlier ? (
                <button
                   type="button"
-                  onClick={onRegenerate}
-                  disabled={regenerating}
-                  className="inline-flex items-center gap-1 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] disabled:opacity-50"
+                  onClick={onLoadEarlier}
+                  className="self-center text-[var(--shell-text-dim)] hover:text-[var(--shell-text)]"
                >
-                  <RefreshCw className={regenerating ? 'size-3.5 animate-spin' : 'size-3.5'} />
-                  {t('regenerate')}
+                  {t('loadEarlier')}
                </button>
-            </div>
-         ) : null}
+            ) : null}
 
-         <div ref={endRef} />
+            {messages.length === 0 && !streamingText ? (
+               <div className="flex flex-col items-center gap-4 text-center">
+                  <h2 data-figure="md" className="text-[var(--shell-text)]">
+                     {agentName ? t('emptyTitle', { name: agentName }) : t('emptyNoAgentTitle')}
+                  </h2>
+                  <p className="max-w-prose leading-relaxed text-[var(--shell-text-dim)]">
+                     {agentName ? t('emptyBody') : t('emptyNoAgentBody')}
+                  </p>
+                  {starters.length > 0 ? (
+                     <div className="grid w-full gap-2 sm:grid-cols-2">
+                        {starters.map((starter) => (
+                           <button
+                              key={starter}
+                              type="button"
+                              onClick={() => onUseSuggestion(starter)}
+                              className="rounded-xl border border-[var(--shell-line)] px-4 py-3 text-left text-[var(--shell-text-muted)] transition-colors hover:border-[var(--shell-line-strong)] hover:text-[var(--shell-text)]"
+                           >
+                              {starter}
+                           </button>
+                        ))}
+                     </div>
+                  ) : null}
+               </div>
+            ) : null}
+
+            {messages.map((message) => {
+               const day = dayLabel(message.createdAt);
+               const divider = day && day !== lastDay ? day : null;
+               lastDay = day || lastDay;
+               const isAgent = message.authorType === 'agent';
+
+               return (
+                  <div key={message.id} className="flex flex-col gap-4">
+                     {divider ? (
+                        <div className="flex items-center gap-3 text-[var(--shell-text-dim)]">
+                           <span className="h-px flex-1 bg-[var(--shell-line)]" />
+                           {divider}
+                           <span className="h-px flex-1 bg-[var(--shell-line)]" />
+                        </div>
+                     ) : null}
+
+                     {isAgent ? (
+                        // The agent's reply is the page's own text: no avatar, no
+                        // name, the full width. Its actions show under it on hover.
+                        <article className="group flex flex-col gap-1.5">
+                           <div className="text-[var(--shell-text)]">
+                              <ChatMarkdown body={message.body} />
+                           </div>
+                           <div className="flex items-center gap-3 text-[var(--shell-text-dim)] opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                              <button
+                                 type="button"
+                                 onClick={() => void copy(message)}
+                                 aria-label={t('msgCopy')}
+                                 className="inline-flex items-center gap-1 hover:text-[var(--shell-text)]"
+                              >
+                                 {copied === message.id ? (
+                                    <Check className="size-3.5" />
+                                 ) : (
+                                    <Copy className="size-3.5" />
+                                 )}
+                              </button>
+                              <span className="tabular-nums">{clockTime(message.createdAt)}</span>
+                           </div>
+                        </article>
+                     ) : (
+                        // The person's message is a bubble on the right, as they
+                        // typed it, so the eye separates question from answer.
+                        <article className="group flex flex-col items-end gap-1">
+                           <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--shell-line)] px-4 py-2.5 text-[var(--shell-text)] whitespace-pre-wrap">
+                              {message.body}
+                           </div>
+                           <span className="tabular-nums text-[var(--shell-text-dim)] opacity-0 group-hover:opacity-100">
+                              {clockTime(message.createdAt)}
+                           </span>
+                        </article>
+                     )}
+                  </div>
+               );
+            })}
+
+            {streamingText ? (
+               <article className="flex flex-col gap-1.5" aria-live="polite" aria-busy="true">
+                  <div className="text-[var(--shell-text)]">
+                     <ChatMarkdown body={streamingText} />
+                  </div>
+                  <span className="size-1.5 rounded-full bg-[var(--shell-accent)] [animation:berrypulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none" />
+               </article>
+            ) : null}
+
+            {/* Under the last message, so the wait belongs to the conversation
+             rather than to a bar of its own. */}
+            {stage && !streamingText ? (
+               <p className="flex items-center gap-2 text-[var(--shell-text-dim)]" role="status">
+                  <ThinkingDots />
+                  {stage}
+               </p>
+            ) : null}
+
+            {messages.length > 0 && suggestions.length > 0 && !stage && !streamingText ? (
+               <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[var(--shell-text-dim)]">{t('followUps')}</span>
+                  {suggestions.map((suggestion) => (
+                     <button
+                        key={suggestion.label}
+                        type="button"
+                        onClick={() => onUseSuggestion(suggestion.prompt)}
+                        className="rounded-[5px] bg-[var(--shell-line)] px-2.5 py-1 text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]"
+                     >
+                        {suggestion.label}
+                     </button>
+                  ))}
+                  <button
+                     type="button"
+                     onClick={onRegenerate}
+                     disabled={regenerating}
+                     className="inline-flex items-center gap-1 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] disabled:opacity-50"
+                  >
+                     <RefreshCw className={regenerating ? 'size-3.5 animate-spin' : 'size-3.5'} />
+                     {t('regenerate')}
+                  </button>
+               </div>
+            ) : null}
+
+            <div ref={endRef} />
+         </div>
       </div>
    );
 }

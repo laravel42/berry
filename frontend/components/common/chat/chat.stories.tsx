@@ -32,8 +32,10 @@ type Story = StoryObj<typeof meta>;
 export const NoConversationOpen: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Project health migration')).toBeVisible();
-      await expect(canvas.getByRole('heading', { name: 'Talk to an agent' })).toBeVisible();
-      await expect(canvas.getByRole('textbox', { name: 'Message an agent…' })).toBeDisabled();
+      await expect(canvas.getByRole('heading', { name: 'Start a conversation' })).toBeVisible();
+      await expect(
+         canvas.getByRole('textbox', { name: 'Message the Orchestrator…' })
+      ).toBeDisabled();
    },
 };
 

@@ -31,20 +31,12 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Opens on "who": pinned agents, then recent ones, then the rest with the Orchestrator first. */
-export const PickAnAgent: Story = {
+/** Opens on a fresh conversation with the Orchestrator; one click and the composer is there. */
+export const StartAConversation: Story = {
    play: async ({ canvas, userEvent }) => {
-      const pinned = await canvas.findByRole('list', { name: 'Pinned' });
-      await expect(pinned).toHaveTextContent('Backend Engineer');
-      await userEvent.click(
-         canvas.getByRole('button', { name: 'Start a chat with Backend Engineer' })
-      );
-      // Opening the agent's thread loads its history into the window.
+      await userEvent.click(await canvas.findByRole('button', { name: 'Start a chat' }));
       await expect(
-         await canvas.findByText('Great. Keep the migration forward-only please.')
-      ).toBeVisible();
-      await expect(
-         canvas.getByRole('textbox', { name: 'Message Backend Engineer…' })
+         await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
       ).toBeVisible();
    },
 };

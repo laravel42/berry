@@ -250,16 +250,3 @@ export async function listSuggestions(agentId: string): Promise<ChatSuggestion[]
    );
    return z.object({ nodes: z.array(suggestionSchema) }).parse(json).nodes;
 }
-
-export async function getPinnedAgents(): Promise<string[]> {
-   const json: unknown = await apiFetch(`${base}/pinned-agents`);
-   return z.object({ agentIds: z.array(z.string()) }).parse(json).agentIds;
-}
-
-export async function setPinnedAgents(agentIds: string[]): Promise<string[]> {
-   const json: unknown = await apiFetch(`${base}/pinned-agents`, {
-      method: 'PUT',
-      body: JSON.stringify({ agentIds }),
-   });
-   return z.object({ agentIds: z.array(z.string()) }).parse(json).agentIds;
-}

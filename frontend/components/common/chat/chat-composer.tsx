@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { SendHorizonal, Square } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { searchWorkspace, type SearchResult } from '@/lib/search';
@@ -118,9 +118,9 @@ export function ChatComposer({
    const sendLabel = queueing ? t('queue') : t('send');
 
    return (
-      <div className="relative flex-none border-t border-[var(--shell-line)]">
+      <div className="relative mx-auto w-full max-w-3xl flex-none">
          {open ? (
-            <ul className="absolute bottom-full left-3 right-3 z-10 mb-2 max-w-80 overflow-hidden rounded-md border border-[var(--shell-line)] bg-[var(--shell-surface)] shadow-lg">
+            <ul className="absolute bottom-full left-6 right-6 z-10 mb-2 max-w-80 overflow-hidden rounded-md border border-[var(--shell-line)] bg-[var(--shell-surface)] shadow-lg">
                {results.map((result, index) => (
                   <li key={`${result.type}-${result.id}`}>
                      <button
@@ -152,13 +152,13 @@ export function ChatComposer({
          ) : null}
 
          <form
-            className="flex items-end gap-2 px-3 py-3"
+            className="flex items-end gap-2 px-6 pt-2 pb-5"
             onSubmit={(event) => {
                event.preventDefault();
                if (canSend) onSend();
             }}
          >
-            <div className="flex min-w-0 flex-1 items-end gap-2 rounded-lg border border-[var(--shell-line)] bg-[var(--shell-surface)] px-2.5 py-1.5">
+            <div className="flex min-w-0 flex-1 items-end gap-2 rounded-2xl border border-[var(--shell-line-strong)] bg-[var(--shell-surface)] px-4 py-2 shadow-lg shadow-black/20 focus-within:border-[var(--shell-text-dim)]">
                <textarea
                   ref={input}
                   rows={1}
@@ -200,34 +200,35 @@ export function ChatComposer({
                         if (canSend) onSend();
                      }
                   }}
-                  className="max-h-40 min-h-8 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
+                  className="max-h-48 min-h-8 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
+               {/* Stop stands where Send was while a reply runs; a send then
+                   queues, so both stay reachable without a second button. */}
+               {onStop ? (
+                  <button
+                     type="button"
+                     onClick={onStop}
+                     aria-label={t('stopReply')}
+                     title={t('stopReply')}
+                     className="mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
+                  >
+                     <Square className="size-3" aria-hidden />
+                  </button>
+               ) : null}
                <button
                   type="submit"
                   disabled={!canSend}
                   aria-label={sendLabel}
                   title={sendLabel}
                   className={[
-                     'mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-md transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
+                     'mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
                      SEND_VARIANT[sendVariant],
                   ].join(' ')}
                >
-                  <SendHorizonal className="size-3.5" aria-hidden />
+                  <ArrowUp className="size-4" aria-hidden />
                </button>
             </div>
-
-            {onStop ? (
-               <button
-                  type="button"
-                  onClick={onStop}
-                  aria-label={t('stopReply')}
-                  title={t('stopReply')}
-                  className="mb-0.5 flex size-8 flex-none cursor-pointer items-center justify-center rounded-md bg-[var(--shell-line)] text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-line-strong)] hover:text-[var(--shell-text)]"
-               >
-                  <Square className="size-3.5" aria-hidden />
-               </button>
-            ) : null}
          </form>
       </div>
    );
