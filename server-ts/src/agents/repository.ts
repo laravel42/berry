@@ -36,7 +36,10 @@ export interface Agent {
    instructions: string | null;
    modelProvider: string | null;
    modelName: string | null;
+   /** The agent's own Berry tier (ADR-0017); null means its contract's, or BerryLow. */
    modelTier: string | null;
+   /** The gateway model a run falls back to when its tier's choice fails. */
+   fallbackModel: string | null;
    limits: unknown;
    /**
     * What this agent may do, as `permissions.ts` reads it.
@@ -102,6 +105,10 @@ export interface AgentConfigPatch {
    starters?: string[];
    /** Null clears the ceiling rather than leaving it unchanged. */
    maxConcurrency?: number | null;
+   /** The agent's own tier; null clears it back to the contract's. */
+   tier?: string | null;
+   /** A gateway model id; null clears it. */
+   fallbackModel?: string | null;
 }
 
 export interface CreateAgentInput {
@@ -159,7 +166,7 @@ const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
 const AGENT_COLUMNS = `
    agent.id, agent.board_id, agent.name, agent.description, agent.avatar_url,
    agent.status, agent.capabilities, agent.skills, agent.instructions,
-   agent.model_provider, agent.model_name, agent.model_tier,
+   agent.model_provider, agent.model_name, agent.model_tier, agent.fallback_model,
    agent.manifest_limits, agent.permissions, agent.protected, agent.system_role, agent.archived_at,
    agent.labels, agent.env_names, agent.assign_scope, agent.mention_scope,
    agent.created_by, agent.conversation_starters, agent.max_concurrency,
@@ -393,6 +400,8 @@ export class AgentRepository {
       const setsName = patch.name !== undefined;
       const setsStarters = patch.starters !== undefined;
       const setsConcurrency = patch.maxConcurrency !== undefined;
+      const setsTier = patch.tier !== undefined;
+      const setsFallback = patch.fallbackModel !== undefined;
 
       const updated = await this.sql`
          UPDATE agents SET
@@ -413,6 +422,9 @@ export class AgentRepository {
             -- leaving it alone are different requests.
             max_concurrency = CASE WHEN ${setsConcurrency}
                THEN ${patch.maxConcurrency ?? null}::integer ELSE max_concurrency END,
+            model_tier = CASE WHEN ${setsTier} THEN ${patch.tier ?? null}::text ELSE model_tier END,
+            fallback_model = CASE WHEN ${setsFallback}
+               THEN ${patch.fallbackModel ?? null}::text ELSE fallback_model END,
             -- Stamped because the prompt is now applied where it is stored:
             -- there is no upstream copy that could be behind this one.
             instructions_synced_at = CASE WHEN ${setsInstructions}
@@ -612,6 +624,7 @@ function toAgent(row: Record<string, unknown>): Agent {
       modelProvider: (row.model_provider as string | null) ?? null,
       modelName: (row.model_name as string | null) ?? null,
       modelTier: (row.model_tier as string | null) ?? null,
+      fallbackModel: (row.fallback_model as string | null) ?? null,
       limits: row.manifest_limits ?? null,
       permissions: (row.permissions as string[] | null) ?? [],
       protected: row.protected === true,

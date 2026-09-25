@@ -1,3 +1,4 @@
+import type { Tier } from '../agents/model-tiers.ts';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
@@ -30,6 +31,10 @@ export type UsageRecorder = (
       outputTokens: number;
       cacheReadTokens: number;
       cacheWriteTokens: number;
+      /** The gateway's own cost report (ADR-0017); absent means Berry prices it. */
+      reportedCostMicros?: number | null;
+      /** The Berry tier that chose the model; absent or null when the agent named its own. */
+      tier?: Tier | null;
    }
 ) => Promise<void>;
 
@@ -130,7 +135,7 @@ export class RuntimeTaskExecutor implements Executor {
                retryable: false,
             });
          }
-         const { envelope, delivery, model } = built;
+         const { envelope, delivery, model, tier } = built;
          envelopeSession = envelope.runtimeSessionId;
          await sql`UPDATE runs SET runtime_session_id = ${envelope.runtimeSessionId} WHERE id = ${runId}`;
          // Kept for the Logs page: what was sent to the runtime and what came
@@ -172,6 +177,7 @@ export class RuntimeTaskExecutor implements Executor {
                      inputTokens: event.usage.inputTokens, outputTokens: event.usage.outputTokens,
                      cacheReadTokens: event.usage.cacheReadTokens, cacheWriteTokens: event.usage.cacheWriteTokens,
                      ...(event.usage.reportedCostMicros === undefined ? {} : { reportedCostMicros: event.usage.reportedCostMicros }),
+                     ...(tier ? { tier } : {}),
                   })
                   .catch((error: unknown) => {
                      this.#o.onUsageError?.(error);

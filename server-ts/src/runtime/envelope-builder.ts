@@ -66,11 +66,13 @@ export interface AgentConfig {
    modelProvider: string | null;
    /**
     * The gateway tier the agent runs on when it names no gateway model
-    * (ADR-0017): its contract's tier, else its role's tier in the catalogue
-    * (a contract customised before tiers existed), else BerryLow for an agent
-    * outside the organization.
+    * (ADR-0017): its own (`agents.model_tier`), else its contract's, else its
+    * role's in the catalogue (a contract customised before tiers existed),
+    * else BerryLow for an agent outside the organization.
     */
    tier: Tier;
+   /** The gateway model a run falls back to when the tier's choice fails; used by the routing. */
+   fallbackModel: string | null;
    permissions: string[];
    /** The tools this agent's role contract allows; null outside the organization. */
    tools: string[] | null;
@@ -155,11 +157,13 @@ export class EnvelopeBuilder {
       envelope: TaskEnvelope;
       delivery: DeliveryPlan | null;
       model: string;
+      /** The tier that chose `model` (ADR-0017); null when a model was named. */
+      tier: Tier | null;
    }> {
       const { task } = input;
       const agent = await this.#agent(task.agentId);
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
-      const model = await this.#model(task, agent, profile.model);
+      const { model, tier } = await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -203,6 +207,7 @@ export class EnvelopeBuilder {
          const spec = task.completionSpec ?? { purpose: 'completion', system: '', jsonSchema: null, model: null };
          return {
             model,
+            tier,
             delivery: null,
             envelope: {
                ...base,
@@ -223,6 +228,7 @@ export class EnvelopeBuilder {
          // A chat task: the prompt is the message; workstream D adds the chat context.
          return {
             model,
+            tier,
             delivery: null,
             envelope: {
                ...base,
@@ -251,6 +257,7 @@ export class EnvelopeBuilder {
       const { repo, delivery } = await this.#repository(task, dispatch, agent);
       return {
          model,
+         tier,
          delivery,
          envelope: {
             ...base,
@@ -354,10 +361,10 @@ export class EnvelopeBuilder {
     * named the agent runs on its tier's choice for today. A completion that
     * names none runs on BerryLow's, as it ran on Haiku before.
     */
-   async #model(task: TaskRow, agent: AgentConfig, profileModel: string | null): Promise<string> {
+   async #model(task: TaskRow, agent: AgentConfig, profileModel: string | null): Promise<{ model: string; tier: Tier | null }> {
       const completionModel = task.kind === 'completion' ? (task.completionSpec?.model ?? null) : null;
       const gateway = this.#deps.gateway;
-      if (!gateway) return completionModel ?? (agent.model || profileModel || this.#deps.defaultModel);
+      if (!gateway) return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null };
 
       const named = [
          completionModel,
@@ -365,16 +372,16 @@ export class EnvelopeBuilder {
          task.kind === 'completion' ? null : profileModel,
          isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
       ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
-      if (named) return named;
+      if (named) return { model: named, tier: null };
       const tier: Tier = task.kind === 'completion' ? 'berry_low' : agent.tier;
       const chosen = await gateway.modelFor(tier);
       if (!chosen) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
-      return chosen;
+      return { model: chosen, tier };
    }
 
    async #agent(agentId: string): Promise<AgentConfig> {
       const [row] = await this.#deps.sql`
-         SELECT id, name, instructions, model_name, model_provider, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
+         SELECT id, name, instructions, model_name, model_provider, model_tier, fallback_model, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
            FROM agents WHERE id = ${agentId} AND archived_at IS NULL`;
       if (!row) throw new Error(`agent ${agentId} does not exist`);
       const name = row.name as string;
@@ -395,7 +402,12 @@ export class EnvelopeBuilder {
             `You are ${name}, an agent working a task in Berry. Do the task you are given and report what you did.`,
          model: (row.model_name as string | null) ?? '',
          modelProvider: (row.model_provider as string | null) ?? null,
-         tier: contract?.tier ?? catalogRole((row.role_key as RoleKey | null) ?? ('' as RoleKey))?.tier ?? 'berry_low',
+         tier:
+            (row.model_tier as Tier | null) ??
+            contract?.tier ??
+            catalogRole((row.role_key as RoleKey | null) ?? ('' as RoleKey))?.tier ??
+            'berry_low',
+         fallbackModel: (row.fallback_model as string | null) ?? null,
          permissions: (row.permissions as string[] | null) ?? [],
          tools: toolsForAgentRow({ role_key: (row.role_key as string | null) ?? null, role_contract: row.role_contract }),
          runtimeProfileId: (row.runtime_profile_id as string | null) ?? null,

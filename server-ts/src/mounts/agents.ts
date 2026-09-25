@@ -34,7 +34,7 @@ import {
 } from '../agents/catalog.ts';
 import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
 import type { KiloCatalog } from '../agents/kilo/catalog.ts';
-import { TIER_NAMES, TIERS } from '../agents/kilo/tiers.ts';
+import { isGatewayModelId, TIER_NAMES, TIERS, type Tier } from '../agents/kilo/tiers.ts';
 
 /**
  * `/api/v1/agents`.
@@ -83,6 +83,8 @@ const CONFIG_FIELDS = new Set([
    'skills',
    'starters',
    'maxConcurrency',
+   'tier',
+   'fallbackModel',
 ]);
 const MAX_STARTERS = 3;
 const MAX_STARTER = 200;
@@ -358,6 +360,8 @@ export function agentMounts(options: AgentOptions): Mount[] {
       const maxConcurrency =
          'maxConcurrency' in body ? parseConcurrency(body.maxConcurrency) : undefined;
       const pair = await parseModelPair(body, catalog, logger);
+      const tier = 'tier' in body ? parseTier(body.tier) : undefined;
+      const fallbackModel = 'fallbackModel' in body ? await parseFallbackModel(body.fallbackModel, catalog, logger) : undefined;
 
       if (
          name === undefined &&
@@ -366,7 +370,9 @@ export function agentMounts(options: AgentOptions): Mount[] {
          skills === undefined &&
          starters === undefined &&
          maxConcurrency === undefined &&
-         pair === undefined
+         pair === undefined &&
+         tier === undefined &&
+         fallbackModel === undefined
       ) {
          throw new ApiError(400, 'NO_FIELDS', 'No configuration fields were provided.');
       }
@@ -380,6 +386,8 @@ export function agentMounts(options: AgentOptions): Mount[] {
             ...(starters === undefined ? {} : { starters }),
             ...(maxConcurrency === undefined ? {} : { maxConcurrency }),
             ...(pair === undefined ? {} : pair),
+            ...(tier === undefined ? {} : { tier }),
+            ...(fallbackModel === undefined ? {} : { fallbackModel }),
          })
          .catch(rethrowAgent);
       return json(serializeAgent(updated));
@@ -734,6 +742,8 @@ export function serializeAgent(agent: Agent): Record<string, unknown> {
       permissions: agent.permissions,
       modelProvider: agent.modelProvider,
       modelName: agent.modelName,
+      tier: agent.modelTier,
+      fallbackModel: agent.fallbackModel,
       systemRole: agent.systemRole,
       // Who authored the agent. Null for anything a workspace seeded itself,
       // which is a different answer from "the person reading this page".
@@ -988,6 +998,31 @@ async function listModels(catalog: ModelSource | null, logger?: Logger) {
       }
       throw error;
    }
+}
+
+/** An agent's own tier (ADR-0017): one of Berry's, or null for "its contract's". */
+function parseTier(value: unknown): Tier | null {
+   if (value === null) return null;
+   if (typeof value === 'string' && (TIERS as readonly string[]).includes(value)) return value as Tier;
+   throw new ApiError(400, 'TIER_INVALID', `A tier is one of ${TIERS.join(', ')}, or null.`);
+}
+
+/**
+ * The model a run falls back to: a gateway id the catalogue lists, or null.
+ * Checked like a model pair, so a fallback that cannot run is refused when it
+ * is set rather than discovered when the tier's choice has already failed.
+ */
+async function parseFallbackModel(value: unknown, catalog: ModelSource | null, logger?: Logger): Promise<string | null> {
+   if (value === null) return null;
+   const model = text(value, 'fallbackModel', 200, true)!;
+   if (!isGatewayModelId(model)) {
+      throw new ApiError(400, 'FALLBACK_MODEL_INVALID', 'A fallback model is a gateway model id, such as vendor/model.');
+   }
+   const models = await listModels(catalog, logger);
+   if (!models.some((candidate) => candidate.id === model)) {
+      throw new ApiError(400, 'MODEL_UNAVAILABLE', 'That model is not available on this runtime.');
+   }
+   return model;
 }
 
 function requireGateway(gateway: AgentOptions['gateway']): NonNullable<AgentOptions['gateway']> {

@@ -127,6 +127,20 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          }
       });
 
+      test('the agent\'s own tier wins over its contract\'s, and the build says which tier chose', async () => {
+         const f = fixture!;
+         await sql`UPDATE agents SET model_tier = 'berry_free' WHERE id = ${f.agentId}`;
+         try {
+            const issueId = await createIssue(sql, f);
+            const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
+            const built = await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+            assert.equal(built.model, 'vendor/berry_free-choice');
+            assert.equal(built.tier, 'berry_free');
+         } finally {
+            await sql`UPDATE agents SET model_tier = NULL WHERE id = ${f.agentId}`;
+         }
+      });
+
       test('a gateway model the agent names is used as is', async () => {
          await sql`UPDATE agents SET model_provider = 'kilo', model_name = 'anthropic/claude-haiku-4.5' WHERE id = ${fixture!.agentId}`;
          assert.equal(await modelOf(), 'anthropic/claude-haiku-4.5');

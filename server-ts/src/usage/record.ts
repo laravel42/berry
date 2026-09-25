@@ -1,3 +1,4 @@
+import { TIERS } from '../agents/model-tiers.ts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { toRFC3339, type Sql } from '../db/pool.ts';
@@ -28,6 +29,8 @@ export const taskUsageInputSchema = z.object({
    cacheWriteTokens: tokens,
    /** The gateway's own cost report (ADR-0017); see `taskUsageSchema` in runtime/lifecycle.ts. */
    reportedCostMicros: z.number().int().nonnegative().nullable().optional(),
+   /** The Berry tier that chose the model (ADR-0017); null when the agent named its own. */
+   tier: z.enum(TIERS).nullable().optional(),
 });
 
 export type TaskUsageInput = z.infer<typeof taskUsageInputSchema>;
@@ -84,11 +87,12 @@ export async function recordTaskUsage(sql: Sql, input: TaskUsageInput): Promise<
          INSERT INTO task_usage (
             id, workspace_id, run_id, issue_id, agent_id, runtime_id, model, event_id,
             input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-            cost_micros, currency
+            cost_micros, currency, tier
          )
          SELECT ${id}, ${usage.workspaceId}, r.id, r.issue_id, ${usage.agentId}, ${runtimeId},
                 ${usage.model}, ${usage.eventId ?? null}, ${usage.inputTokens}, ${usage.outputTokens},
-                ${usage.cacheReadTokens}, ${usage.cacheWriteTokens}, ${costMicros}, ${currency}
+                ${usage.cacheReadTokens}, ${usage.cacheWriteTokens}, ${costMicros}, ${currency},
+                ${usage.tier ?? null}
            FROM runs AS r
            LEFT JOIN boards AS b ON b.id = r.board_id
           WHERE r.id = ${usage.runId}
