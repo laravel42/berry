@@ -1260,6 +1260,7 @@ registry.registerAll(
          // The planner runs when there is a model credential to run it with.
          // Planning is a completion task, so it runs wherever tasks do.
          planner: executor !== null,
+         modelGateway: modelGateway !== null,
          // What the sign-in page believes: true only when the OAuth App is
          // configured and Better Auth is serving it.
          githubSignIn: auth !== null && config.auth.github !== null,

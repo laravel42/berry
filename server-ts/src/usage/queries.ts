@@ -1107,3 +1107,50 @@ export async function dashboardOverview(
       today,
    };
 }
+
+/** One tier's usage in a window (ADR-0017): what the comparison between tiers reads. */
+export interface TierUsageRow {
+   tier: string;
+   runs: number;
+   /** The calls' reported cost plus BerryAuto's share of the classifier fees. */
+   costMicros: number;
+   /** Records with no reported cost: a run that has any is priced low, not free. */
+   unpricedRecords: number;
+   inputTokens: number;
+   outputTokens: number;
+   cacheReadTokens: number;
+   /** Runs that had to switch to their fallback model. */
+   fellBackRuns: number;
+}
+
+/**
+ * Usage per Berry tier. Read from `task_usage`, not the hourly rollup: the
+ * tier and the classifier fee are recorded per usage record only. Usage from
+ * before tiers, or from an agent that named its own model, has no tier and is
+ * not compared.
+ */
+export async function tierUsage(q: ScopedQuery, window: UsageWindow): Promise<TierUsageRow[]> {
+   const rows = await q.sql`
+      SELECT u.tier,
+             count(DISTINCT u.run_id)::int AS runs,
+             (COALESCE(sum(u.cost_micros), 0) + COALESCE(sum(u.gateway_fee_micros), 0))::float8 AS cost_micros,
+             count(*) FILTER (WHERE u.cost_micros IS NULL)::int AS unpriced,
+             COALESCE(sum(u.input_tokens), 0)::float8 AS input_tokens,
+             COALESCE(sum(u.output_tokens), 0)::float8 AS output_tokens,
+             COALESCE(sum(u.cache_read_tokens), 0)::float8 AS cache_read_tokens,
+             count(DISTINCT u.run_id) FILTER (WHERE u.fell_back)::int AS fell_back_runs
+        FROM task_usage AS u
+       WHERE u.workspace_id = ${q.workspaceId} AND u.occurred_at >= ${window.from} AND u.tier IS NOT NULL
+       GROUP BY u.tier
+       ORDER BY u.tier`;
+   return rows.map((row) => ({
+      tier: row.tier as string,
+      runs: Number(row.runs),
+      costMicros: Math.round(Number(row.cost_micros)),
+      unpricedRecords: Number(row.unpriced),
+      inputTokens: Number(row.input_tokens),
+      outputTokens: Number(row.output_tokens),
+      cacheReadTokens: Number(row.cache_read_tokens),
+      fellBackRuns: Number(row.fell_back_runs),
+   }));
+}

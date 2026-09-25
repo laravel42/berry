@@ -23,6 +23,8 @@ export interface Capabilities {
    storage: boolean;
    valkey: boolean;
    planner: boolean;
+   /** Model calls go through a gateway with Berry tiers (ADR-0017): the UI shows tiers, not a model picker. */
+   modelGateway?: boolean;
    /**
     * Whether a person can sign in with GitHub: the OAuth App from
     * BERRY_AUTH_GITHUB_* is configured. A function is accepted for a value that
@@ -141,6 +143,7 @@ function configRoute(capabilities: Capabilities, version?: string): Hono {
             storage: capabilities.storage,
             valkey: capabilities.valkey,
             planner: capabilities.planner,
+            modelGateway: capabilities.modelGateway ?? false,
             githubSignIn:
                typeof capabilities.githubSignIn === 'function'
                   ? await capabilities.githubSignIn()

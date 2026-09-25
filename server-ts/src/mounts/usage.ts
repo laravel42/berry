@@ -18,6 +18,7 @@ import {
    projectInWorkspace,
    runtimeUsage,
    runtimeVisible,
+   tierUsage,
    usageWindow,
    workOverview,
    workspaceUsage,
@@ -64,6 +65,14 @@ function usageRoute(options: UsageMountOptions): Hono<{ Variables: ScopedVariabl
       const { window, scope } = await readWindow(context.req.url, db);
       const body = await scopedRead(db, (q) => workspaceUsage(q, window, filterOf(scope)));
       return json({ ...windowFields(window, scope), ...body });
+   });
+
+   // The Berry tiers side by side (ADR-0017): runs, cost, fallbacks.
+   route.get('/:workspaceId/tiers', async (context) => {
+      const db = context.get('scoped');
+      const { window, scope } = await readWindow(context.req.url, db);
+      const tiers = await scopedRead(db, (q) => tierUsage(q, window));
+      return json({ ...windowFields(window, scope), tiers });
    });
 
    // What the window's spend produced: tasks done, what was delivered, how long a task takes.

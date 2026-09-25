@@ -54,6 +54,7 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
       assert.equal(res.status, 200);
       assert.equal(res.body.tier, null);
       assert.equal(res.body.fallbackModel, null);
+      assert.equal(res.body.defaultTier, 'berry_low', 'an agent outside the organization defaults to BerryLow');
    });
 
    test('a tier is set and cleared; anything else is refused', async () => {

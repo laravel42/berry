@@ -48,7 +48,12 @@ test('a boolean capability is reported as it always was', async () => {
       valkey: false,
       planner: false,
       githubSignIn: true,
+      modelGateway: false,
    });
+});
+
+test('modelGateway says whether models are called through a gateway with tiers', async () => {
+   assert.equal((await capabilitiesOf({ ...base, modelGateway: true })()).modelGateway, true);
 });
 
 test('githubSignIn is answered at the time of asking, and flips with the App', async () => {

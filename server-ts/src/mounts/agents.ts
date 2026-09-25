@@ -35,6 +35,8 @@ import {
 import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
 import type { KiloCatalog } from '../agents/kilo/catalog.ts';
 import { isGatewayModelId, TIER_NAMES, TIERS, type Tier } from '../agents/kilo/tiers.ts';
+import { catalogRole } from '../organization/catalog.ts';
+import type { RoleKey } from '../organization/contract.ts';
 
 /**
  * `/api/v1/agents`.
@@ -761,6 +763,10 @@ export function serializeAgent(agent: Agent): Record<string, unknown> {
       autonomyLevel: agent.autonomyLevel,
       customized: agent.customized,
       contract: agent.contract,
+      // The tier the agent runs on when `tier` is null (ADR-0017), as the
+      // envelope builder resolves it: its contract's, else its role's in the
+      // catalogue, else BerryLow. Sent so the UI recommends what will run.
+      defaultTier: defaultTierOf(agent),
    };
 }
 
@@ -998,6 +1004,12 @@ async function listModels(catalog: ModelSource | null, logger?: Logger) {
       }
       throw error;
    }
+}
+
+function defaultTierOf(agent: Agent): Tier {
+   const contractTier = (agent.contract as { tier?: unknown } | null)?.tier;
+   if (typeof contractTier === 'string' && (TIERS as readonly string[]).includes(contractTier)) return contractTier as Tier;
+   return catalogRole((agent.roleKey ?? '') as RoleKey)?.tier ?? 'berry_low';
 }
 
 /** An agent's own tier (ADR-0017): one of Berry's, or null for "its contract's". */
