@@ -438,7 +438,7 @@ Each new workspace gets 19 agents in 7 departments: a protected Orchestrator and
 
 Opus is the most capable tier, Sonnet sits in the middle and Haiku is the fastest and cheapest. Because a role comes with a tier, picking the right agent for a job also picks a sensible model. You can still override the model for any agent. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
 
-You don't have to configure any of this. You can see the roster by department on the Organization settings page (the settings menu doesn't link to it yet), or open any agent's Role tab to read its full contract.
+You don't have to configure any of this. You can see the roster by department on the Organization settings page (the settings menu doesn't link to it yet), or open any agent under Settings → Agents to read its full contract.
 
 ### Autonomy levels
 
@@ -452,7 +452,7 @@ Each role has a fixed **autonomy level**, a hard limit on which tools it can eve
 | 4 | Autonomous | The same tools as Level 3, but trusted more: only Level 4 and 5 roles can have proposed work accepted without a person deciding (and only routine, low-risk work). |
 | 5 | Authority | Everything in Level 3, plus submit a review verdict. Whether it blocks or only advises is set by the reviewed agent's contract. |
 
-Each agent's Role tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused.
+Each agent's settings page (Settings → Agents) shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused.
 
 ### No agent merges or closes work
 
@@ -479,7 +479,7 @@ Every role that writes code is automatically given reviewers:
 
 On top of that, some reviewers depend on how a task came in. The Product Lead blocks any task routed into the full-delivery workflow, and any task from an accepted proposal with product impact. The Security Engineer blocks tasks from accepted proposals with security impact, the Software Architect those with architectural impact, and the CTO those whose architectural impact is critical. A task a person wrote carries no impact kinds, so these impact rules apply only to proposed work.
 
-Only the Level 5 roles (Product Lead, Software Architect, QA Engineer, Security Engineer and CTO) can submit a review verdict, and only in their own areas. A reviewer can never approve its own run. A rejection must cite findings with evidence. The Security Engineer's findings must also state how the issue could be exploited, its impact and how to fix it. Each agent's Role tab shows "Reviewed by" (with blocking or advisory tags) and, for Level 5 roles, what it reviews. The verdicts themselves appear on the task and in the Reviews page.
+Only the Level 5 roles (Product Lead, Software Architect, QA Engineer, Security Engineer and CTO) can submit a review verdict, and only in their own areas. A reviewer can never approve its own run. A rejection must cite findings with evidence. The Security Engineer's findings must also state how the issue could be exploited, its impact and how to fix it. Each agent's settings page shows "Reviewed by" (with blocking or advisory tags) and, for Level 5 roles, what it reviews. The verdicts themselves appear on the task and in the Reviews page.
 
 > **Needs setup:** each required review is a model call made through the agent runtime, and it happens only when the delivered work includes a pull request. Without a runtime, no required reviews run and the task simply waits in review for a person.
 
@@ -514,18 +514,18 @@ This page, described as "The roles your agents fill, what each may do, and the w
 
 - a *Work discovery* switch that owners and admins can change (others see an admin-only note)
 - every role grouped by department, with its autonomy level and whether its discovery is active or paused
-- a *Reset* action for any role whose contract has become invalid (a role that was only edited is reset from its Role tab)
+- a *Reset* action for any role whose contract has become invalid (a role that was only edited is reset from its settings page under Settings → Agents)
 - a Workflows section listing each named workflow as its chain of roles
 
-Clicking a healthy role opens that agent's Role tab.
+Clicking a healthy role opens that agent's settings page under Settings → Agents.
 
 ### Resetting a role to Berry's version
 
-*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote. There's no contract editor in the app today; a contract can be changed only through the API. A contract someone changed is never silently overwritten when Berry's definitions change; resetting is the deliberate way back. Only owners and admins can reset. An edited role is reset from the agent's Role tab; a role whose contract has become invalid can also be reset from the Organization settings page.
+*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote. There's no contract editor in the app today; a contract can be changed only through the API. A contract someone changed is never silently overwritten when Berry's definitions change; resetting is the deliberate way back. Only owners and admins can reset. An edited role is reset from the agent's settings page under Settings → Agents; a role whose contract has become invalid can also be reset from the Organization settings page.
 
-### The Role tab
+### An agent's role, in Settings → Agents
 
-Every agent's page has a Role tab that explains its contract in plain language:
+Every agent's settings page (Settings → Agents, then the agent) opens with its Role section, which explains its contract in plain language:
 
 - its title, department, and autonomy level with the level's name
 - its mission and responsibilities, and what it produces and works from
