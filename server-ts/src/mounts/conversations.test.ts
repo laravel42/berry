@@ -129,21 +129,6 @@ describe('conversations mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       assert.equal(res.status, 404);
    });
 
-   test('pinned agents are the caller’s own and stay inside the workspace', async () => {
-      const put = await call(app, world.ownerToken, 'PUT', '/api/v1/conversations/pinned-agents', {
-         agentIds: [world.agentId],
-      });
-      assert.equal(put.status, 200);
-      const get = await call(app, world.ownerToken, 'GET', '/api/v1/conversations/pinned-agents');
-      assert.deepEqual(get.body.agentIds, [world.agentId]);
-      const foreign = await call(app, world.ownerToken, 'PUT', '/api/v1/conversations/pinned-agents', {
-         agentIds: [world.otherAgentId],
-      });
-      assert.equal(foreign.status, 404);
-      const member = await call(app, world.memberToken, 'GET', '/api/v1/conversations/pinned-agents');
-      assert.deepEqual(member.body.agentIds, []);
-   });
-
    test('suggestions are scoped to the caller’s workspace', async () => {
       const res = await call(app, world.ownerToken, 'GET', `/api/v1/conversations/suggestions?agentId=${world.agentId}`);
       assert.equal(res.status, 200);

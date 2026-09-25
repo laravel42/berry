@@ -63,7 +63,6 @@ const patchSchema = z
    .refine((body) => Object.keys(body).length > 0, 'Provide at least one field.');
 const draftSchema = z.strictObject({ draft: z.string().max(20_000) });
 const messageSchema = z.strictObject({ body: z.string().trim().min(1).max(MAX_BODY) });
-const pinnedSchema = z.strictObject({ agentIds: z.array(z.string().uuid()).max(20) });
 
 export function conversationMounts(options: ConversationOptions): Mount[] {
    const route = new Hono<{ Variables: AuthVariables }>();
@@ -136,29 +135,6 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
       const workspaceId = await scoped(context.get('user'), false);
       const agentId = pathId(new URL(context.req.url).searchParams.get('agentId') ?? undefined, 'Agent');
       return json({ nodes: await chatSuggestions(sql, { workspaceId, agentId }) });
-   });
-
-   route.get('/pinned-agents', async (context) => {
-      const user = context.get('user');
-      const workspaceId = await scoped(user, false);
-      return json({ agentIds: await conversations.pinnedAgents(user.id, workspaceId) });
-   });
-
-   route.put('/pinned-agents', async (context) => {
-      const user = context.get('user');
-      const workspaceId = await scoped(user, true);
-      const { agentIds } = await readJson(context, pinnedSchema);
-      await conversations
-         .setPinnedAgents(
-            user.id,
-            workspaceId,
-            agentIds.map((id) => id.toLowerCase())
-         )
-         .catch((error: unknown) => {
-            if (error instanceof NotFound) throw ApiError.notFound('Agent');
-            throw error;
-         });
-      return json({ agentIds: await conversations.pinnedAgents(user.id, workspaceId) });
    });
 
    route.patch('/:conversationId', async (context) => {

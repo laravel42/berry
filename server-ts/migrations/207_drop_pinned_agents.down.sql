@@ -1,0 +1,1 @@
+-- A per-person list of favourite agents; nothing to restore once the picker is gone.

@@ -166,7 +166,6 @@ describe('agent layer tenant isolation', { skip: url ? false : 'BERRY_TEST_DATAB
       ['POST', `/api/v1/conversations/${ids.conversation}/read`],
       // Creates in the caller's own workspace that name a W agent: each must be refused, not cross-linked.
       ['POST', '/api/v1/conversations', { agentId: world.agentId }],
-      ['PUT', '/api/v1/conversations/pinned-agents', { agentIds: [world.agentId] }],
       ['POST', '/api/v1/mcp-servers', { agentId: world.agentId, name: 'ct-x', url: 'https://x.test/mcp' }],
    ];
 
@@ -192,7 +191,6 @@ describe('agent layer tenant isolation', { skip: url ? false : 'BERRY_TEST_DATAB
       assert.deepEqual(agent?.env_names, []);
       const [crossLinked] = await sql`
          SELECT (SELECT count(*) FROM mcp_servers WHERE agent_id = ${world.agentId} AND workspace_id = ${world.otherWorkspaceId})
-              + (SELECT count(*) FROM user_pinned_agents WHERE agent_id = ${world.agentId} AND user_id = ${world.outsiderId})
               + (SELECT count(*) FROM agents WHERE workspace_id = ${world.otherWorkspaceId} AND name LIKE '%(copy)')
               AS n`;
       assert.equal(Number(crossLinked?.n), 0);

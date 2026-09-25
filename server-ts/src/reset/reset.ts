@@ -161,7 +161,6 @@ export const EMPTIED_TABLES: readonly string[] = [
    'saved_issue_views',
    'issue_view_preferences',
    'user_pins',
-   'user_pinned_agents',
    // Autopilot runs and their deliveries; the autopilots themselves stay.
    'sys_cron_executions',
    'webhook_deliveries',

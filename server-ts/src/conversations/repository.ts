@@ -401,30 +401,6 @@ export class ConversationRepository {
                     ${tx.json({ conversationId: input.conversationId, runId: input.runId } as never)})`;
       });
    }
-
-   async pinnedAgents(userId: string, workspaceId: string): Promise<string[]> {
-      const rows = await this.#sql`
-         SELECT agent_id FROM user_pinned_agents
-          WHERE user_id = ${userId} AND workspace_id = ${workspaceId}
-          ORDER BY position`;
-      return rows.map((row) => row.agent_id as string);
-   }
-
-   /** Replaces the caller's pinned agents; one outside the workspace is NotFound. */
-   async setPinnedAgents(userId: string, workspaceId: string, agentIds: string[]): Promise<void> {
-      await this.#sql.begin(async (transaction) => {
-         const tx = transaction as unknown as Sql;
-         await tx`DELETE FROM user_pinned_agents WHERE user_id = ${userId} AND workspace_id = ${workspaceId}`;
-         for (const [position, agentId] of [...new Set(agentIds)].entries()) {
-            await tx`
-               INSERT INTO user_pinned_agents (user_id, workspace_id, agent_id, position)
-               VALUES (${userId}, ${workspaceId}, ${agentId}, ${position})`.catch((error: unknown) => {
-               if ((error as { code?: string }).code === '23503') throw new NotFound();
-               throw error;
-            });
-         }
-      });
-   }
 }
 
 /** Every per-person mutation checks participation in the same statement. */
