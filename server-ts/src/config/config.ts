@@ -550,6 +550,8 @@ export interface ModelGatewayConfig {
    baseUrl: string;
    /** Where the account routes live (`/api/profile/*`). */
    appUrl: string;
+   /** A credit balance below this is logged: BerryAuto is what spends credits (ADR-0017). */
+   minBalanceUsd: number;
 }
 
 /**
@@ -558,6 +560,11 @@ export interface ModelGatewayConfig {
  * an operator error, so it fails the boot rather than quietly serving the
  * Bedrock picker to a deployment whose runs go through Kilo.
  */
+function nonNegative(value: string | undefined, fallback: number): number {
+   const parsed = Number((value ?? '').trim());
+   return (value ?? '').trim() !== '' && Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
    const provider = (env.BERRY_MODEL_PROVIDER ?? 'bedrock').trim().toLowerCase();
    if (provider === 'bedrock' || provider === '') return null;
@@ -569,6 +576,7 @@ function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
       apiKey,
       baseUrl: (env.BERRY_KILO_BASE_URL ?? '').trim() || 'https://api.kilo.ai/api/gateway',
       appUrl: (env.BERRY_KILO_APP_URL ?? '').trim() || 'https://app.kilo.ai',
+      minBalanceUsd: nonNegative(env.BERRY_KILO_MIN_BALANCE_USD, 2),
    };
 }
 

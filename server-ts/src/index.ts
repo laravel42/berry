@@ -143,6 +143,7 @@ import { AgentRepository } from './agents/repository.ts';
 import { ModelCatalog, type ModelSource } from './agents/catalog.ts';
 import { KiloAccount } from './agents/kilo/account.ts';
 import { KiloCatalog } from './agents/kilo/catalog.ts';
+import { reconcileGateway } from './usage/gateway-fees.ts';
 import { createLogger } from './observability/log.ts';
 import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
@@ -577,6 +578,17 @@ const modelGateway = config.modelGateway
         account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
      }
    : null;
+if (modelGateway && config.modelGateway) {
+   // Hourly, and once a minute after start: BerryAuto's classifier fees and
+   // the credit balance, as the Kilo account reports them. Never blocks a run.
+   const minBalanceUsd = config.modelGateway.minBalanceUsd;
+   const reconcile = () =>
+      void reconcileGateway({ sql, account: modelGateway.account, logger, minBalanceUsd }).catch((error: unknown) =>
+         logger.error('gateway reconciliation failed', { error: error instanceof Error ? error.message : String(error) })
+      );
+   setTimeout(reconcile, 60_000).unref();
+   setInterval(reconcile, 60 * 60_000).unref();
+}
 
 const executor = defaultTarget
    ? new RuntimeTaskExecutor({

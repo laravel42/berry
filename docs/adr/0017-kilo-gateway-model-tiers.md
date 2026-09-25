@@ -20,12 +20,21 @@
   `task.usage` to `src/usage/record.ts`.
 - Runtime support for BerryAuto (`kilo-auto/*`) is in place: the own-key
   exemption, the session header, and usage recorded per model Kilo picked.
+- Tiers, routing and fallback are built:
+  - model choice per session and fallback model (`agents/kilo/tiers.ts`,
+    `runtime/envelope-builder.ts`, `agents/runtime/fallback-model.ts`);
+  - per-agent tier and fallback (migration 208);
+  - hourly gateway reconciliation (`usage/gateway-fees.ts`, migration 209),
+    which spreads BerryAuto's classifier fees into
+    `task_usage.gateway_fee_micros` and logs a balance below
+    `BERRY_KILO_MIN_BALANCE_USD`.
 - Not yet built:
-  - the tiers (BerryMax, BerryMid, BerryLow, BerryFree, BerryAuto), with
-    the first four computed from the Kilo leaderboard;
-  - per-role tier plus fallback model (migration 208);
-  - model routing per task;
-  - the model picker and Usage page changes.
+  - the interface for tiers: the picker, each agent's tier and fallback, and
+    a tier comparison on the Usage page;
+  - setting aside a model that keeps falling back, for a while.
+
+  The runtime image must be rebuilt for the fallback and usage changes to
+  apply.
 
 ## Context
 
