@@ -152,6 +152,23 @@
       "cancel": "Cancel",
       "columnRole": "Role"
    },
+   "agents": {
+      "title": "Agents",
+      "description": "Who can be assigned a task, and what each one may do. Revoking a permission makes the runtime refuse the call.",
+      "filter": "Filter by name…",
+      "loading": "Loading…",
+      "empty": "No agents. A workspace gets an Orchestrator when it is created.",
+      "noMatch": "No agents match that name.",
+      "noModel": "no model set",
+      "permissionCount": "{granted} of {total} permissions",
+      "mergeRisk": "can merge without review",
+      "backToList": "Back to agents",
+      "permissions": "Permissions",
+      "permissionsHint": "Revoking a permission makes the runtime refuse the call.",
+      "sections": "Sections",
+      "rolePermissions": "Role and Permissions",
+      "tabSettings": "Settings"
+   },
    "tokens": {
       "title": "API tokens",
       "subtitle": "Keys that act as you, for scripts and your own integrations.",

@@ -36,24 +36,23 @@ import { useAgentsStore } from '@/store/agents-store';
 import AgentCapabilitiesTab from './agent-capabilities-tab';
 import { AgentModelChip } from './agent-model-chip';
 import AgentOverviewTab from './agent-overview-tab';
-import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
 import { AutonomyLevelChip } from './autonomy-level-chip';
 import { AgentWorkloadChip } from './agent-workload-chip';
 
-const TABS = ['overview', 'role', 'capabilities', 'settings'] as const;
+const TABS = ['overview', 'capabilities', 'settings'] as const;
 type DetailTab = (typeof TABS)[number];
 
 const isTab = (value: string | null): value is DetailTab =>
    value !== null && (TABS as readonly string[]).includes(value);
 
 /**
- * One agent, across overview (stats, assignments, runs), role, capabilities
- * and settings.
+ * One agent, across overview (stats, assignments, runs), capabilities and
+ * settings. Its role, MCP servers, runtime, concurrency, access, starters and
+ * permissions live on its page under Settings → Agents.
  *
  * The open tab lives in the URL rather than in state, so a tab can be linked,
- * reopened and navigated back to — and so "needs a runtime" can point at the
- * settings tab instead of describing where to find it.
+ * reopened and navigated back to.
  */
 export default function AgentDetails({ agentId }: { agentId: string }) {
    const { orgId } = useParams<{ orgId: string }>();
@@ -77,9 +76,13 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const [loadingMore, setLoadingMore] = useState(false);
    const [readOnly, setReadOnly] = useState(false);
    const [dirty, setDirty] = useState(false);
-   const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
+   // Where a guarded move was headed: another tab, or another page.
+   const [pending, setPending] = useState<
+      { tab: DetailTab; href?: never } | { href: string; tab?: never } | null
+   >(null);
 
-   // Unknown or retired tab names (activity, work) fall back to overview.
+   // Unknown or retired tab names (activity, work, role) fall back to overview.
+   // The role now lives at /settings/ai/<agentId>.
    const view: DetailTab = isTab(searchParams?.get('view') ?? null)
       ? (searchParams?.get('view') as DetailTab)
       : 'overview';
@@ -145,10 +148,21 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
 
    const requestTab = (next: DetailTab) => {
       if (dirty && next !== view) {
-         setPendingTab(next);
+         setPending({ tab: next });
          return;
       }
       openTab(next);
+   };
+
+   const settingsHref = `/${orgId}/settings/ai/${agentId}`;
+
+   /** Leaves for the agent's settings page, through the same unsaved-changes guard as a tab. */
+   const openSettingsPage = () => {
+      if (dirty) {
+         setPending({ href: settingsHref });
+         return;
+      }
+      router.push(settingsHref);
    };
 
    const onChanged = (next: Agent) => {
@@ -197,7 +211,6 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
 
    const tabLabel: Record<DetailTab, string> = {
       overview: t('tabOverview'),
-      role: t('tabRole'),
       capabilities: t('tabCapabilities'),
       settings: t('tabSettings'),
    };
@@ -255,7 +268,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      {t('bannerNoRuntime')}
                      <button
                         type="button"
-                        onClick={() => requestTab('settings')}
+                        onClick={openSettingsPage}
                         className="underline underline-offset-2"
                      >
                         {t('bannerNoRuntimeLink')}
@@ -297,18 +310,9 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                            void loadTasks();
                            void loadRoster();
                         }}
-                        onOpenSettings={() => requestTab('settings')}
+                        onOpenSettings={openSettingsPage}
                      />
                   </div>
-               ) : null}
-               {view === 'role' ? (
-                  <AgentRoleTab
-                     agent={agent}
-                     readOnly={readOnly || archived}
-                     onReset={() => void loadAgent()}
-                     onChange={onChanged}
-                     onDirtyChange={setDirty}
-                  />
                ) : null}
                {view === 'capabilities' ? (
                   <AgentCapabilitiesTab
@@ -322,20 +326,19 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                {view === 'settings' ? (
                   <AgentSettingsTab
                      agent={agent}
-                     roster={roster}
                      readOnly={readOnly || archived}
                      onChange={onChanged}
-                     onRosterStale={() => void loadRoster()}
                      onDirtyChange={setDirty}
                      onForbidden={() => setReadOnly(true)}
+                     onOpenMoreSettings={openSettingsPage}
                   />
                ) : null}
             </div>
          </Tabs>
 
          <AlertDialog
-            open={pendingTab !== null}
-            onOpenChange={(open) => (open ? null : setPendingTab(null))}
+            open={pending !== null}
+            onOpenChange={(open) => (open ? null : setPending(null))}
          >
             <AlertDialogContent>
                <AlertDialogHeader>
@@ -346,10 +349,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   <AlertDialogCancel>{t('unsavedStay')}</AlertDialogCancel>
                   <AlertDialogAction
                      onClick={() => {
-                        const next = pendingTab;
-                        setPendingTab(null);
+                        const next = pending;
+                        setPending(null);
                         setDirty(false);
-                        if (next) openTab(next);
+                        if (next?.tab) openTab(next.tab);
+                        else if (next?.href) router.push(next.href);
                      }}
                   >
                      {t('unsavedLeave')}

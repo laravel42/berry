@@ -151,9 +151,7 @@
       "workEmpty": "Nothing is assigned to this agent.",
       "capInstructions": "Instructions",
       "capInstructionsHint": "The system prompt used on every task.",
-      "capStarters": "Conversation starters",
       "change_instructions": "instructions",
-      "change_starters": "conversation starters",
       "change_role": "role contract",
       "change_general": "name and description",
       "change_model": "model",
@@ -164,11 +162,6 @@
       "change_access": "access",
       "change_skills": "skills",
       "change_mcp": "MCP servers",
-      "capStartersHint": "Up to three openers offered at the top of a new chat.",
-      "capStarterAdd": "Add a starter",
-      "capStarterRemove": "Remove this starter",
-      "capStarterPreview": "Preview",
-      "capStartersFull": "Three is the most an empty chat can show.",
       "capSkills": "Skills",
       "capSkillsHint": "Reusable playbooks this agent can invoke while working.",
       "capSkillsAssign": "Assign skills",
@@ -219,7 +212,6 @@
       "envAuditReveal": "revealed",
       "envAuditUpdate": "changed",
       "envAuditBy": "{name} · {when}",
-      "tabRole": "Role",
       "tiers": {
          "title": "Tier",
          "recommended": "Recommended",
@@ -245,7 +237,8 @@
          "pinned": "Pinned: {model}",
          "legacy": "Bedrock model: {model} · ignored",
          "useTier": "Use tier"
-      }
+      },
+      "moreSettings": "More settings"
    },
    "create": {
       "title": "New agent",

@@ -1,21 +1,15 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, waitFor } from 'storybook/test';
+import { expect } from 'storybook/test';
 import AiAgents from './ai-agents';
 import { apiError, page, workspaceAgents } from './stories-fixtures';
 
 const meta = {
    component: AiAgents,
    tags: ['ai-generated', 'needs-work'],
+   parameters: { nextjs: { navigation: { segments: [['orgId', 'berry']] } } },
    beforeEach: ({ msw }) => {
-      msw.use(
-         http.get('*/api/v1/agents', () => HttpResponse.json(page(workspaceAgents))),
-         http.put('*/api/v1/agents/:id/permissions', async ({ params, request }) => {
-            const { permissions } = (await request.json()) as { permissions: string[] };
-            const found = workspaceAgents.find((entry) => entry.id === params.id);
-            return HttpResponse.json({ ...found, permissions });
-         })
-      );
+      msw.use(http.get('*/api/v1/agents', () => HttpResponse.json(page(workspaceAgents))));
    },
 } satisfies Meta<typeof AiAgents>;
 
@@ -31,14 +25,38 @@ export const Roster: Story = {
    },
 };
 
-export const GrantPermission: Story = {
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByText('Orchestrator'));
-      const branches = canvas.getByRole('switch', { name: /Create branches/ });
-      await expect(branches).toHaveAttribute('aria-checked', 'false');
-      await userEvent.click(branches);
-      await waitFor(() => expect(branches).toHaveAttribute('aria-checked', 'true'));
-      await expect(canvas.getByText('no model set · 2 of 5 permissions')).toBeVisible();
+/** Each card opens that agent's settings page. */
+export const OpensAgentSettings: Story = {
+   play: async ({ canvas }) => {
+      const card = await canvas.findByRole('link', { name: /Orchestrator/ });
+      await expect(card).toHaveAttribute('href', '/berry/settings/ai/agent-orch');
+      await expect(card).toHaveTextContent('no model set · 1 of 5 permissions');
+   },
+};
+
+/** Under a model gateway a card names the agent's tier, its own or its role's. */
+export const Gateway: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.get('*/api/v1/config', () =>
+            HttpResponse.json({ capabilities: { githubSignIn: true, modelGateway: true } })
+         ),
+         http.get('*/api/v1/agents', () =>
+            HttpResponse.json(
+               page(
+                  workspaceAgents.map((agent) =>
+                     agent.id === 'agent-eng'
+                        ? { ...agent, tier: 'berry_max', defaultTier: 'berry_mid' }
+                        : { ...agent, defaultTier: 'berry_low' }
+                  )
+               )
+            )
+         )
+      );
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('BerryMax · 4 of 5 permissions')).toBeVisible();
+      await expect(canvas.getByText('BerryLow · 1 of 5 permissions')).toBeVisible();
    },
 };
 

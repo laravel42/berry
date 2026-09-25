@@ -42,13 +42,10 @@ export default function OrganizationSettings() {
 
    const toggleDiscovery = (enabled: boolean) => {
       if (!value || !canEdit) return;
-      void org.mutate(
-         { ...value, discoveryEnabled: enabled },
-         async () => {
-            const discoveryEnabled = await setDiscovery(enabled);
-            return { ...value, discoveryEnabled };
-         }
-      );
+      void org.mutate({ ...value, discoveryEnabled: enabled }, async () => {
+         const discoveryEnabled = await setDiscovery(enabled);
+         return { ...value, discoveryEnabled };
+      });
    };
 
    const reset = async (roleKey: string) => {
@@ -119,7 +116,7 @@ export default function OrganizationSettings() {
                                  description={roleDescription(role)}
                                  chevron
                                  onClick={() =>
-                                    router.push(`/${orgId}/agents/${role.agentId}?view=role`)
+                                    router.push(`/${orgId}/settings/ai/${role.agentId}`)
                                  }
                               />
                            ) : (

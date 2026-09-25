@@ -31,9 +31,10 @@ function sameContract(left: RoleContract, right: RoleContract): boolean {
 
 /**
  * The organization role this agent fills: mission, permissions, delegation.
+ * Shown on the agent's page under Settings → Agents.
  *
- * Edits stay in a draft until Save — same unsaved bar as skills and
- * capabilities — so a half-finished contract change is not written mid-keystroke.
+ * Edits stay in a draft until Save — same unsaved bar as the agent's other
+ * settings — so a half-finished contract change is not written mid-keystroke.
  */
 export function AgentRoleTab({
    agent,
@@ -41,12 +42,19 @@ export function AgentRoleTab({
    onReset,
    onChange,
    onDirtyChange,
+   afterAutonomy,
 }: {
    agent: Agent;
    readOnly: boolean;
    onReset: () => void;
    onChange: (agent: Agent) => void;
    onDirtyChange?: (dirty: boolean) => void;
+   /**
+    * Shown right after the autonomy level — the agent's permissions, which
+    * with it decide what the agent may do. Shown after the notice when there
+    * is no contract to edit, so it is never lost with the editor.
+    */
+   afterAutonomy?: React.ReactNode;
 }) {
    const t = useTranslations('organization');
    const detail = useTranslations('agentsChat.detail');
@@ -98,7 +106,12 @@ export function AgentRoleTab({
    }, [dirty, onDirtyChange]);
 
    if (!agent.roleKey) {
-      return <p className="p-6 text-muted-foreground">{t('roleTab.notARole')}</p>;
+      return (
+         <div className="flex flex-col gap-4">
+            <p className="text-muted-foreground">{t('roleTab.notARole')}</p>
+            {afterAutonomy}
+         </div>
+      );
    }
 
    const reset = async () => {
@@ -130,7 +143,7 @@ export function AgentRoleTab({
 
    if (!saved || !draft) {
       return (
-         <div className="flex flex-col gap-3 p-6">
+         <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3">
                <div>
                   <p>{t('roleTab.contractInvalid')}</p>
@@ -138,6 +151,7 @@ export function AgentRoleTab({
                </div>
                {resetButton}
             </div>
+            {afterAutonomy}
          </div>
       );
    }
@@ -225,8 +239,8 @@ export function AgentRoleTab({
    const locked = !canEdit || saving;
 
    return (
-      <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-6">
+      <div className="flex flex-col gap-4">
+         <div className="flex flex-col gap-4">
             {agent.customized ? (
                <div className="flex items-center justify-between gap-4 rounded-md border px-4 py-3">
                   <span>{t('roleTab.customized')}</span>
@@ -280,6 +294,7 @@ export function AgentRoleTab({
                   </SelectContent>
                </Select>
             </SettingsSection>
+            {afterAutonomy}
             <StringListRepeater
                title={t('roleTab.responsibilities')}
                description={t('roleTab.responsibilitiesHint')}
@@ -306,7 +321,7 @@ export function AgentRoleTab({
                title={t('roleTab.delegatesTo')}
                description={t('roleTab.delegatesToHint')}
             >
-               <SettingsCard className="p-4">
+               <SettingsCard className="p-3">
                   <AgentMultiselect
                      value={draft.can_delegate_to}
                      options={roleOptions}
@@ -320,7 +335,7 @@ export function AgentRoleTab({
                title={t('roleTab.receivesFrom')}
                description={t('roleTab.receivesFromHint')}
             >
-               <SettingsCard className="p-4">
+               <SettingsCard className="p-3">
                   <AgentMultiselect
                      value={draft.receives_work_from}
                      options={roleOptions}
@@ -342,7 +357,7 @@ export function AgentRoleTab({
                title={t('roleTab.reviewsBlocking')}
                description={t('roleTab.reviewsBlockingHint')}
             >
-               <SettingsCard className="p-4">
+               <SettingsCard className="p-3">
                   <AgentMultiselect
                      value={blockingReviewers}
                      options={roleOptions}
@@ -356,7 +371,7 @@ export function AgentRoleTab({
                title={t('roleTab.reviewsAdvisory')}
                description={t('roleTab.reviewsAdvisoryHint')}
             >
-               <SettingsCard className="p-4">
+               <SettingsCard className="p-3">
                   <AgentMultiselect
                      value={advisoryReviewers}
                      options={roleOptions}

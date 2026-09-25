@@ -1,48 +1,37 @@
 'use client';
 
-import { Switch } from '@/components/ui/switch';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
+import { useModelGateway } from '@/hooks/use-model-gateway';
 import {
    AGENT_PERMISSIONS,
    bareModelName,
+   isTier,
    loadWorkspaceAgents,
-   setAgentPermissions,
+   TIER_NAMES,
    type Agent,
 } from '@/lib/agents';
-import { cn } from '@/lib/utils';
-import { Bot, ChevronDown } from 'lucide-react';
+import { Bot, ChevronRight } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { SettingsSection, SettingsShell } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
- * Workspace "Agents": who can be assigned work, and what each may do.
+ * Workspace "Agents": the roster. Each card opens that agent's settings page
+ * (role, MCP servers, runtime, concurrency, access, starters, permissions).
  *
- * This page used to list five product features — Coding sessions, Loops, Code
- * Intelligence, Triage Intelligence — with switches that wrote nothing. They
- * are gone. What is real is the roster and its permissions, and those are the
- * setting that actually decides what happens when an agent runs.
- *
- * Revoking a permission makes the *runtime* refuse the call, not this page
- * hide a button. That is the claim the whole permission model rests on, so the
+ * Revoking a permission makes the *runtime* refuse the call, not a page hide
+ * a button. That is the claim the whole permission model rests on, so the
  * page says it rather than leaving it to be assumed.
  */
 export default function AiAgents() {
+   const t = useTranslations('workspaceAdmin.agents');
+   const { orgId } = useParams<{ orgId: string }>();
    const agents = useSettingsResource<Agent[]>(loadWorkspaceAgents);
-   const [open, setOpen] = useState<string | null>(null);
+   const modelGateway = useModelGateway();
    const [query, setQuery] = useState('');
-
-   const toggle = (agent: Agent, key: string, granted: boolean) => {
-      const next = granted
-         ? [...new Set([...agent.permissions, key])]
-         : agent.permissions.filter((entry) => entry !== key);
-      void agents.mutate(
-         (agents.value ?? []).map((entry) =>
-            entry.id === agent.id ? { ...entry, permissions: next } : entry
-         ),
-         () => setAgentPermissions(agent.id, next).then(() => undefined)
-      );
-   };
 
    const roster = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -51,111 +40,69 @@ export default function AiAgents() {
          .sort((a, b) => a.name.localeCompare(b.name));
    }, [agents.value, query]);
 
+   /** Under a model gateway an agent runs on a tier; otherwise on a model. */
+   const runsOn = (agent: Agent): string => {
+      if (modelGateway === true) {
+         const tier = agent.tier ?? agent.defaultTier;
+         if (isTier(tier)) return TIER_NAMES[tier];
+      }
+      return agent.modelName ? bareModelName(agent.modelName) || agent.modelName : t('noModel');
+   };
+
    return (
-      <SettingsShell
-         wide
-         title="Agents"
-         description="Who can be assigned a task, and what each one may do. Revoking a permission makes the runtime refuse the call."
-      >
+      <SettingsShell wide title={t('title')} description={t('description')}>
          <SettingsSection description={agents.error ?? undefined}>
             <div className="mb-3">
                <Input
-                  placeholder="Filter by name…"
+                  placeholder={t('filter')}
+                  aria-label={t('filter')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   className="h-8 w-64"
                />
             </div>
 
-            {agents.loading ? <p className="text-muted-foreground">Loading…</p> : null}
+            {agents.loading ? <p className="text-muted-foreground">{t('loading')}</p> : null}
             {!agents.loading && (agents.value ?? []).length === 0 ? (
-               <p className="text-muted-foreground">
-                  No agents. A workspace gets an Orchestrator when it is created.
-               </p>
+               <p className="text-muted-foreground">{t('empty')}</p>
             ) : null}
             {!agents.loading &&
             (agents.value ?? []).length > 0 &&
             roster.length === 0 &&
             !agents.error ? (
-               <p className="text-muted-foreground">No agents match that name.</p>
+               <p className="text-muted-foreground">{t('noMatch')}</p>
             ) : null}
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                {roster.map((agent) => {
-                  const expanded = open === agent.id;
                   const risky = agent.permissions.includes('merge_without_approval');
-                  const model = agent.modelName
-                     ? bareModelName(agent.modelName) || agent.modelName
-                     : 'no model set';
                   return (
-                     <div
+                     <Link
                         key={agent.id}
-                        className="flex min-w-0 flex-col rounded-md border bg-container"
+                        href={`/${orgId}/settings/ai/${agent.id}`}
+                        className="flex min-w-0 items-start gap-2 rounded-md border bg-container px-2.5 py-2 outline-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50"
                      >
-                        <button
-                           type="button"
-                           className="flex min-w-0 items-start gap-2 px-2.5 py-2 text-left outline-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                           onClick={() => setOpen(expanded ? null : agent.id)}
-                           aria-expanded={expanded}
-                        >
-                           <Bot
-                              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                              aria-hidden
-                           />
-                           <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium">{agent.name}</span>
-                              <span className="mt-0.5 block truncate text-muted-foreground">
-                                 {[
-                                    model,
-                                    `${agent.permissions.length} of ${AGENT_PERMISSIONS.length} permissions`,
-                                    risky ? 'can merge without review' : null,
-                                 ]
-                                    .filter(Boolean)
-                                    .join(' · ')}
-                              </span>
+                        <Bot className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                           <span className="block truncate font-medium">{agent.name}</span>
+                           <span className="mt-0.5 block truncate text-muted-foreground">
+                              {[
+                                 runsOn(agent),
+                                 t('permissionCount', {
+                                    granted: agent.permissions.length,
+                                    total: AGENT_PERMISSIONS.length,
+                                 }),
+                                 risky ? t('mergeRisk') : null,
+                              ]
+                                 .filter(Boolean)
+                                 .join(' · ')}
                            </span>
-                           <ChevronDown
-                              className={cn(
-                                 'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
-                                 expanded && 'rotate-180'
-                              )}
-                              aria-hidden
-                           />
-                        </button>
-                        {expanded ? (
-                           <div className="border-t border-border/60 px-2.5 py-1.5">
-                              {AGENT_PERMISSIONS.map((permission) => (
-                                 <label
-                                    key={permission.key}
-                                    className="flex items-start gap-2 py-1.5"
-                                    htmlFor={`${agent.id}-${permission.key}`}
-                                 >
-                                    <span className="min-w-0 flex-1">
-                                       <span
-                                          className={cn(
-                                             'block',
-                                             'dangerous' in permission && 'text-status-danger'
-                                          )}
-                                       >
-                                          {permission.label}
-                                       </span>
-                                       <span className="block text-muted-foreground">
-                                          {permission.description}
-                                       </span>
-                                    </span>
-                                    <Switch
-                                       id={`${agent.id}-${permission.key}`}
-                                       checked={agent.permissions.includes(permission.key)}
-                                       disabled={agents.saving}
-                                       onCheckedChange={(granted) =>
-                                          toggle(agent, permission.key, granted)
-                                       }
-                                    />
-                                 </label>
-                              ))}
-                           </div>
-                        ) : null}
-                     </div>
+                        </span>
+                        <ChevronRight
+                           className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                           aria-hidden
+                        />
+                     </Link>
                   );
                })}
             </div>

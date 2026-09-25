@@ -60,7 +60,18 @@ export const Overview: Story = {
    },
 };
 
-export const RoleTab: Story = { parameters: navigation({ view: 'role' }) };
+/** The role moved to Settings → Agents; an old `?view=role` link opens the overview. */
+export const RetiredRoleTab: Story = {
+   parameters: navigation({ view: 'role' }),
+   play: async ({ canvas }) => {
+      await canvas.findByRole('heading', { level: 1, name: 'Frontend Engineer' });
+      await expect(canvas.queryByRole('tab', { name: 'Role' })).toBeNull();
+      await expect(canvas.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+         'aria-selected',
+         'true'
+      );
+   },
+};
 
 export const CapabilitiesTab: Story = { parameters: navigation({ view: 'capabilities' }) };
 

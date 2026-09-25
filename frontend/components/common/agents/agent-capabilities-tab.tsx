@@ -1,11 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { McpServerManager } from '@/components/common/settings/mcp-servers';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -43,12 +42,11 @@ interface AgentCapabilitiesTabProps {
 }
 
 /**
- * What the agent knows how to do: its instructions, the skills it carries, and
- * the MCP servers it may reach.
+ * What the agent knows how to do: its instructions and the skills it carries.
+ * Its MCP servers are set on its page under Settings → Agents.
  *
- * Instructions, skill assignments and MCP enable toggles are drafts until
- * saved — navigating away from half-written work is the failure mode this
- * tab reports upwards.
+ * Instructions and skill assignments are drafts until saved — navigating away
+ * from half-written work is the failure mode this tab reports upwards.
  */
 export default function AgentCapabilitiesTab({
    agent,
@@ -73,9 +71,6 @@ export default function AgentCapabilitiesTab({
    const [picking, setPicking] = useState(false);
    const [query, setQuery] = useState('');
    const [chosen, setChosen] = useState<string[]>([]);
-   const [mcpDirty, setMcpDirty] = useState(false);
-   const [mcpEpoch, setMcpEpoch] = useState(0);
-   const flushMcpEnabled = useRef<(() => Promise<void>) | null>(null);
 
    useEffect(() => {
       setInstructions(agent.instructions ?? '');
@@ -101,7 +96,7 @@ export default function AgentCapabilitiesTab({
 
    const instructionsDirty = instructions !== (agent.instructions ?? '');
    const skillsDirty = !sameIds(assignedIds, baselineIds);
-   const dirty = instructionsDirty || skillsDirty || mcpDirty;
+   const dirty = instructionsDirty || skillsDirty;
 
    useEffect(() => {
       onDirtyChange(dirty);
@@ -111,15 +106,12 @@ export default function AgentCapabilitiesTab({
       const parts: string[] = [];
       if (instructionsDirty) parts.push(t('change_instructions'));
       if (skillsDirty) parts.push(t('change_skills'));
-      if (mcpDirty) parts.push(t('change_mcp'));
       return parts.join(', ');
-   }, [instructionsDirty, skillsDirty, mcpDirty, t]);
+   }, [instructionsDirty, skillsDirty, t]);
 
    const discard = () => {
       setInstructions(agent.instructions ?? '');
       setAssignedIds(baselineIds);
-      setMcpDirty(false);
-      setMcpEpoch((value) => value + 1);
    };
 
    const save = async () => {
@@ -136,8 +128,6 @@ export default function AgentCapabilitiesTab({
             for (const id of toRemove) await setSkillForAgent(id, agent.id, null);
             await loadSkills();
          }
-
-         if (mcpDirty) await flushMcpEnabled.current?.();
 
          toast.success(common('saved'));
       } catch (error) {
@@ -230,21 +220,6 @@ export default function AgentCapabilitiesTab({
                      ))}
                   </ul>
                )}
-            </section>
-
-            <section className="flex flex-col gap-4 border-t border-border/70 pt-6">
-               <McpServerManager
-                  key={mcpEpoch}
-                  agentId={agent.id}
-                  readOnly={readOnly}
-                  title={t('capMcpAgent')}
-                  description={t('capMcpAgentHint')}
-                  deferEnabled
-                  onEnabledDirtyChange={setMcpDirty}
-                  onRegisterFlushEnabled={(flush) => {
-                     flushMcpEnabled.current = flush;
-                  }}
-               />
             </section>
 
             <Dialog open={picking} onOpenChange={setPicking}>
