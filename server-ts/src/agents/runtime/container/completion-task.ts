@@ -3,18 +3,20 @@ import {
    Agent,
    JsonValidationError,
    MessageAddedEvent,
+   ModelMetadataEvent,
+   ModelStreamUpdateEvent,
    StructuredOutputError,
    type Message,
 } from '@strands-agents/sdk';
-import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { TaskModelResponse } from '../../../runtime/lifecycle.ts';
 import { BerryRetryStrategy, classify } from '../failure.ts';
 import type { ModelFactory } from '../model.ts';
-import { textOf } from '../plugins/accounting.ts';
+import { textOf, UsageByModel } from '../plugins/accounting.ts';
 import type { Emit } from './emitter.ts';
 import { toConversation } from './conversation.ts';
+import { emitModelUsage } from './usage.ts';
 
 /**
  * One model call for the parts of Berry that are not an agent — the planner,
@@ -39,6 +41,7 @@ export async function runCompletionTask(
          credentials: null,
          stream: false,
          maxTokens: envelope.agent.maxTokens ?? undefined,
+         sessionId: envelope.runtimeSessionId,
       }),
       systemPrompt: spec.system,
       retryStrategy: new BerryRetryStrategy(),
@@ -63,6 +66,12 @@ export async function runCompletionTask(
       added.push(message);
    };
    let stopReason = 'unknown';
+   // Usage per serving model, with the gateway's reported cost (ADR-0017):
+   // neither is in the SDK's aggregated metrics.
+   const byModel = new UsageByModel();
+   agent.addHook(ModelStreamUpdateEvent, (event) => {
+      if (event.event instanceof ModelMetadataEvent && event.event.usage) byModel.add(event.event.usage);
+   });
    agent.addHook(MessageAddedEvent, (event) => keep(event.message));
    agent.addHook(AfterModelCallEvent, (event) => {
       if (!event.stopData) return;
@@ -77,18 +86,7 @@ export async function runCompletionTask(
          emit({ type: 'task.failed', failure: { code: 'RUN_CANCELLED', message: 'The completion was stopped.', retryable: false } });
          return;
       }
-      const usage = result.metrics?.accumulatedUsage;
-      emit({
-         type: 'task.usage',
-         usage: {
-            eventId: randomUUID(),
-            model: envelope.agent.model,
-            inputTokens: usage?.inputTokens ?? 0,
-            outputTokens: usage?.outputTokens ?? 0,
-            cacheReadTokens: usage?.cacheReadInputTokens ?? 0,
-            cacheWriteTokens: usage?.cacheWriteInputTokens ?? 0,
-         },
-      });
+      emitModelUsage(emit, envelope.agent.model, byModel.entries());
       const structured = schema ? mergedStructuredOutput(added, schema) ?? result.structuredOutput : undefined;
       if (schema && structured === undefined) {
          emit({ type: 'task.failed', failure: { code: 'COMPLETION_INVALID', message: textOf(result.lastMessage), retryable: false } });

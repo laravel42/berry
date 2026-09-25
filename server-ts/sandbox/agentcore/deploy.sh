@@ -12,6 +12,8 @@
 # BERRY_MEDIA_VIDEO_S3_URI and, when RUNTIME_USES_STATIC_KEYS=1, the
 # BERRY_BEDROCK_* key pair. Without static keys the runtime's execution role
 # must be allowed to invoke Bedrock, Polly and the artifact bucket.
+# With BERRY_MODEL_PROVIDER=kilo it also passes BERRY_KILO_API_KEY and, when
+# set, BERRY_KILO_BASE_URL and BERRY_KILO_ORG_ID (ADR-0017).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -66,6 +68,12 @@ out = {
 if sys.argv[2] == '1':
     out['BERRY_BEDROCK_ACCESS_KEY_ID'] = env['BERRY_BEDROCK_ACCESS_KEY_ID']
     out['BERRY_BEDROCK_SECRET_ACCESS_KEY'] = env['BERRY_BEDROCK_SECRET_ACCESS_KEY']
+if env.get('BERRY_MODEL_PROVIDER', '').strip().lower() == 'kilo':
+    out['BERRY_MODEL_PROVIDER'] = 'kilo'
+    for name in ('BERRY_KILO_API_KEY', 'BERRY_KILO_BASE_URL', 'BERRY_KILO_ORG_ID'):
+        out[name] = env.get(name, '')
+    if not out['BERRY_KILO_API_KEY']:
+        sys.exit('BERRY_MODEL_PROVIDER=kilo needs BERRY_KILO_API_KEY in ' + sys.argv[1])
 print(json.dumps({k: v for k, v in out.items() if v}))
 PY
 )"

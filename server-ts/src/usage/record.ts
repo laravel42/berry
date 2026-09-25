@@ -26,6 +26,8 @@ export const taskUsageInputSchema = z.object({
    outputTokens: tokens,
    cacheReadTokens: tokens,
    cacheWriteTokens: tokens,
+   /** The gateway's own cost report (ADR-0017); see `taskUsageSchema` in runtime/lifecycle.ts. */
+   reportedCostMicros: z.number().int().nonnegative().nullable().optional(),
 });
 
 export type TaskUsageInput = z.infer<typeof taskUsageInputSchema>;
@@ -61,7 +63,10 @@ async function priceOf(model: string, counts: TaskUsageInput): Promise<number | 
 
 export async function recordTaskUsage(sql: Sql, input: TaskUsageInput): Promise<void> {
    const usage = taskUsageInputSchema.parse(input);
-   const costMicros = await priceOf(usage.model, usage);
+   // A gateway that reports cost is the only source for it: its figure is what
+   // was billed, and a price table would be a second opinion that can only
+   // disagree. Null from it stays null — unpriced, not estimated.
+   const costMicros = usage.reportedCostMicros !== undefined ? usage.reportedCostMicros : await priceOf(usage.model, usage);
    const currency = costMicros === null ? null : 'USD';
    const runtimeId = usage.runtimeId ?? null;
    const id = randomUUID();

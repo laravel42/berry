@@ -61,6 +61,21 @@ class CheckTest(unittest.TestCase):
         })
         self.assertEqual(len(check.find_offences(root)), 2)
 
+    def test_the_runtime_manifest_may_depend_on_openai_only(self) -> None:
+        root = tree({
+            "server-ts/package.json": json.dumps({
+                "dependencies": {"openai": "^6"},
+                "devDependencies": {"openai": "^6"},
+            }),
+            "frontend/package.json": json.dumps({"dependencies": {"openai": "^6"}}),
+            "server-ts/src/plans/x.ts": "import OpenAI from 'openai';\n",
+        })
+        offences = check.find_offences(root)
+        self.assertEqual(len(offences), 3)
+        self.assertTrue(any("devDependencies" in o for o in offences))
+        self.assertTrue(any("frontend/package.json" in o for o in offences))
+        self.assertTrue(any("server-ts/src/plans/x.ts" in o for o in offences))
+
     def test_a_value_import_that_loads_the_sdk_through_the_runtime_tree_is_refused(self) -> None:
         root = tree({
             "server-ts/src/agents/runtime/agent.ts": (

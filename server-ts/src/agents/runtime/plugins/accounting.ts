@@ -26,9 +26,64 @@ export interface AccountingSnapshot {
    /** Prompt-cache tokens. Kept beside `usage` because the ledger's Usage has no place for them. */
    cacheReadTokens: number;
    cacheWriteTokens: number;
+   /**
+    * The cost the model gateway reported, summed over the run's calls (ADR-0017).
+    * Undefined when no call reported one — a Bedrock deployment, priced by
+    * Berry instead. Null when some call reported nothing: a partial sum would
+    * understate the run, so the whole run goes unpriced.
+    */
+   reportedCostMicros: number | null | undefined;
+   /**
+    * The same usage split by the model that served it. A gateway that routes
+    * (`kilo-auto/*`, ADR-0017) reports the model it picked per call, and a run
+    * may cross several; everything else is one entry with `model: null`,
+    * meaning the model the run asked for.
+    */
+   byModel: ModelUsage[];
    toolCalls: number;
    modelCalls: number;
    result: ResultText;
+}
+
+export interface ModelUsage {
+   /** The model the gateway reported serving the calls, or null for the one asked for. */
+   model: string | null;
+   inputTokens: number;
+   outputTokens: number;
+   cacheReadTokens: number;
+   cacheWriteTokens: number;
+   reportedCostMicros: number | null | undefined;
+}
+
+type MetadataUsage = {
+   inputTokens: number;
+   outputTokens: number;
+   cacheReadInputTokens?: number | undefined;
+   cacheWriteInputTokens?: number | undefined;
+};
+
+/** Model-call usage tallied per serving model, in the order models first appeared. */
+export class UsageByModel {
+   readonly #entries = new Map<string | null, ModelUsage>();
+
+   add(usage: MetadataUsage): void {
+      const reported = (usage as { reportedModel?: unknown }).reportedModel;
+      const model = typeof reported === 'string' && reported.length > 0 ? reported : null;
+      let entry = this.#entries.get(model);
+      if (!entry) {
+         entry = { model, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reportedCostMicros: undefined };
+         this.#entries.set(model, entry);
+      }
+      entry.inputTokens += usage.inputTokens;
+      entry.outputTokens += usage.outputTokens;
+      entry.cacheReadTokens += usage.cacheReadInputTokens ?? 0;
+      entry.cacheWriteTokens += usage.cacheWriteInputTokens ?? 0;
+      entry.reportedCostMicros = addReportedCost(entry.reportedCostMicros, usage);
+   }
+
+   entries(): ModelUsage[] {
+      return [...this.#entries.values()].map((entry) => ({ ...entry }));
+   }
 }
 
 export class AccountingPlugin implements Plugin {
@@ -45,6 +100,8 @@ export class AccountingPlugin implements Plugin {
    #modelCalls = 0;
    #cacheReadTokens = 0;
    #cacheWriteTokens = 0;
+   #reportedCostMicros: number | null | undefined = undefined;
+   readonly #byModel = new UsageByModel();
 
    initAgent(agent: LocalAgent): void {
       agent.addHook(ModelStreamUpdateEvent, (event) => {
@@ -58,6 +115,8 @@ export class AccountingPlugin implements Plugin {
             this.#usage.totalTokens = this.#usage.inputTokens + this.#usage.outputTokens;
             this.#cacheReadTokens += inner.usage.cacheReadInputTokens ?? 0;
             this.#cacheWriteTokens += inner.usage.cacheWriteInputTokens ?? 0;
+            this.#reportedCostMicros = addReportedCost(this.#reportedCostMicros, inner.usage);
+            this.#byModel.add(inner.usage);
          }
       });
       agent.addHook(AfterModelCallEvent, () => {
@@ -78,11 +137,25 @@ export class AccountingPlugin implements Plugin {
          usage: { ...this.#usage },
          cacheReadTokens: this.#cacheReadTokens,
          cacheWriteTokens: this.#cacheWriteTokens,
+         reportedCostMicros: this.#reportedCostMicros,
+         byModel: this.#byModel.entries(),
          toolCalls: this.#toolCalls,
          modelCalls: this.#modelCalls,
          result: this.#result,
       };
    }
+}
+
+/**
+ * A running total of gateway-reported cost, with one more call's usage added.
+ * A call whose usage carries no `costMicros` key (Bedrock) leaves the total
+ * as it was; one that carries `null` makes the whole total unknown.
+ */
+export function addReportedCost(total: number | null | undefined, usage: object): number | null | undefined {
+   if (!('costMicros' in usage)) return total;
+   const cost = (usage as { costMicros?: unknown }).costMicros;
+   if (total === null || typeof cost !== 'number') return null;
+   return (total ?? 0) + cost;
 }
 
 /** The text blocks of a message, joined. Tool-use blocks say nothing. */

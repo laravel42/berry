@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BedrockModel } from '@strands-agents/sdk';
-import { bedrockModel, DEFAULT_MAX_TOKENS } from './model.ts';
+import { BedrockModel, Message, TextBlock } from '@strands-agents/sdk';
+import { OpenAIModel } from '@strands-agents/sdk/models/openai';
+import { bedrockModel, DEFAULT_KILO_BASE_URL, DEFAULT_MAX_TOKENS, kiloModel, modelProviderFromEnv } from './model.ts';
 
 /**
  * The one place a Bedrock model is built. What matters is that the spec
@@ -67,4 +68,80 @@ test('a Bedrock model caches the part of the prompt that does not change', () =>
       region: 'us-east-1',
    }).getConfig();
    assert.deepEqual(config.cacheConfig, { strategy: 'auto' });
+});
+
+/**
+ * The Kilo gateway (ADR-0017): the provider is chosen by the runtime's
+ * environment, and a Kilo model is the SDK's OpenAI model pointed at it.
+ */
+
+test('the provider is Bedrock unless the environment says Kilo', () => {
+   assert.deepEqual(modelProviderFromEnv({}), { provider: 'bedrock' });
+   assert.deepEqual(modelProviderFromEnv({ BERRY_MODEL_PROVIDER: 'bedrock' }), { provider: 'bedrock' });
+   assert.deepEqual(modelProviderFromEnv({ BERRY_MODEL_PROVIDER: 'kilo', BERRY_KILO_API_KEY: ' k ' }), {
+      provider: 'kilo',
+      kilo: { apiKey: 'k', baseUrl: DEFAULT_KILO_BASE_URL },
+   });
+   assert.deepEqual(
+      modelProviderFromEnv({ BERRY_MODEL_PROVIDER: 'KILO', BERRY_KILO_API_KEY: 'k', BERRY_KILO_BASE_URL: 'https://gw', BERRY_KILO_ORG_ID: 'org' }),
+      { provider: 'kilo', kilo: { apiKey: 'k', baseUrl: 'https://gw', organizationId: 'org' } }
+   );
+});
+
+test('a Kilo deployment without a key, or an unknown provider, refuses to start', () => {
+   assert.throws(() => modelProviderFromEnv({ BERRY_MODEL_PROVIDER: 'kilo' }), /BERRY_KILO_API_KEY/);
+   assert.throws(() => modelProviderFromEnv({ BERRY_MODEL_PROVIDER: 'openrouter' }), /must be 'bedrock' or 'kilo'/);
+});
+
+test('a Kilo model carries the gateway id, the ceiling and the temperature', () => {
+   const model = kiloModel(
+      { model: 'anthropic/claude-haiku-4.5', region: 'ignored', maxTokens: 1234, temperature: 0.2 },
+      { apiKey: 'k', baseUrl: DEFAULT_KILO_BASE_URL }
+   );
+   assert.ok(model instanceof OpenAIModel);
+   const config = model.getConfig();
+   assert.equal(config.modelId, 'anthropic/claude-haiku-4.5');
+   assert.equal(config.maxTokens, 1234);
+   assert.equal(config.temperature, 0.2);
+});
+
+test('a Nova ceiling applies to its gateway id as well as its Bedrock profile', () => {
+   const kilo = { apiKey: 'k', baseUrl: DEFAULT_KILO_BASE_URL };
+   assert.equal(kiloModel({ model: 'amazon/nova-pro-v1', region: 'r' }, kilo).getConfig().maxTokens, 10_000);
+   assert.equal(kiloModel({ model: 'anthropic/claude-sonnet-5', region: 'r' }, kilo).getConfig().maxTokens, DEFAULT_MAX_TOKENS);
+});
+
+test('a Kilo model sends the session id, and records the picked model only for a router', async () => {
+   const real = globalThis.fetch;
+   const headers: Headers[] = [];
+   const sse = (served: string) =>
+      `data: {"id":"g","model":"${served}","choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}\n\n` +
+      `data: {"id":"g","model":"${served}","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],` +
+      '"usage":{"prompt_tokens":7,"completion_tokens":1,"is_byok":true,"cost":0,"cost_details":{"upstream_inference_cost":0.00004}}}\n\n' +
+      'data: [DONE]\n\n';
+   let served = '';
+   globalThis.fetch = (async (_input: unknown, init?: RequestInit) => {
+      headers.push(new Headers(init?.headers));
+      return new Response(sse(served), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+   }) as typeof fetch;
+   try {
+      const kilo = { apiKey: 'k', baseUrl: 'https://gw.test' };
+      const usageOf = async (model: string) => {
+         const found: Array<Record<string, unknown>> = [];
+         for await (const event of kiloModel({ model, region: 'r', sessionId: 'berry-abc' }, kilo).stream([new Message({ role: 'user', content: [new TextBlock('hi')] })])) {
+            if (event.type === 'modelMetadataEvent' && event.usage) found.push(event.usage as unknown as Record<string, unknown>);
+         }
+         return found;
+      };
+      served = 'z-ai/glm-5.3-flash';
+      const [routed] = await usageOf('kilo-auto/efficient');
+      assert.equal(routed?.reportedModel, 'z-ai/glm-5.3-flash');
+      assert.equal(routed?.costMicros, 40);
+      served = 'anthropic/claude-4.5-haiku-20251001';
+      const [fixed] = await usageOf('anthropic/claude-haiku-4.5');
+      assert.equal(fixed?.reportedModel, undefined);
+      assert.equal(headers[0]?.get('x-kilocode-taskid'), 'berry-abc');
+   } finally {
+      globalThis.fetch = real;
+   }
 });

@@ -31,6 +31,8 @@ export interface RunAgentSpec {
    maxTokens?: number | undefined;
    temperature?: number | undefined;
    traceAttributes: Record<string, string>;
+   /** Stable per agent and issue; see `ModelSpec.sessionId`. */
+   sessionId?: string | undefined;
    /**
     * The conversation so far: the live messages of a warm session, or the
     * transcript a cold one was restored from. Absent is a fresh conversation.
@@ -49,6 +51,7 @@ export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = b
          credentials: spec.credentials,
          maxTokens: spec.maxTokens,
          temperature: spec.temperature,
+         sessionId: spec.sessionId,
       }),
       name: toAgentName(spec.agentName),
       systemPrompt: spec.systemPrompt,

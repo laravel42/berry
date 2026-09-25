@@ -35,6 +35,12 @@ FORBIDDEN_IMPORTS = (
 # The model catalogue lists foundation models (a control-plane read); it never
 # invokes one. Anything else under the bedrock control plane is refused.
 CONTROL_PLANE_ALLOWED = {"server-ts/src/agents/catalog.ts": ("@aws-sdk/client-bedrock",)}
+# The runtime image reaches the Kilo gateway through the agent SDK's OpenAI
+# model, which needs `openai` installed (ADR-0017). The image is built from
+# server-ts/package.json, so that one manifest may depend on it, and only as a
+# runtime dependency. Importing it stays confined to the runtime tree by the
+# import rules above.
+RUNTIME_PROVIDER_ALLOWED = {"server-ts/package.json": {"dependencies": ("openai",)}}
 PROVIDER_PACKAGES = re.compile(
     r"^(openai|ai|@anthropic-ai/.*|@ai-sdk/.*|@google/genai|@google/generative-ai|"
     r"@mistralai/.*|cohere-ai|groq-sdk|ollama|@langchain/.*|langchain)$"
@@ -94,8 +100,10 @@ def package_offences(root: Path) -> list[str]:
         manifest = json.loads(path.read_text(encoding="utf-8"))
         for field in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
             for name in sorted((manifest.get(field) or {}).keys()):
+                rel = path.relative_to(root).as_posix()
+                if name in RUNTIME_PROVIDER_ALLOWED.get(rel, {}).get(field, ()):
+                    continue
                 if PROVIDER_PACKAGES.match(name):
-                    rel = path.relative_to(root).as_posix()
                     offences.append(f"{rel}: provider SDK '{name}' in {field}")
     return offences
 

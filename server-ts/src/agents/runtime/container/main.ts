@@ -1,5 +1,5 @@
 import type { Logger } from '../../../observability/log.ts';
-import { bedrockModel, type AwsCredentials } from '../model.ts';
+import { bedrockModel, kiloModel, modelProviderFromEnv, type AwsCredentials, type ModelFactory } from '../model.ts';
 import { setupTelemetry } from '../telemetry.ts';
 import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
@@ -22,6 +22,21 @@ const sessionToken = (env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
 const credentials: AwsCredentials | null =
    accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null;
 
+// Which gateway the model calls go through (ADR-0017). Bedrock's region and
+// credentials above stay read either way: Polly and Nova Reel use them.
+let modelFactory: ModelFactory;
+try {
+   const choice = modelProviderFromEnv(env);
+   modelFactory =
+      choice.provider === 'kilo'
+         ? (spec) => kiloModel(spec, choice.kilo)
+         : (spec) => bedrockModel({ ...spec, credentials: spec.credentials ?? credentials });
+   console.log(JSON.stringify({ msg: 'model provider', provider: choice.provider }));
+} catch (error) {
+   console.error(JSON.stringify({ level: 'ERROR', msg: (error as Error).message }));
+   process.exit(1);
+}
+
 const workRoot = env.BERRY_RUNTIME_WORK_ROOT ?? '/mnt/workspace';
 
 // One container serving every session: each gets a Unix user of its own. That
@@ -42,7 +57,7 @@ const server = createRuntimeServer({
    authMode: env.BERRY_RUNTIME_AUTH_MODE === 'agentcore' ? 'agentcore' : 'token',
    ...(env.BERRY_RUNTIME_AUTH_TOKEN ? { authToken: env.BERRY_RUNTIME_AUTH_TOKEN } : {}),
    registry: new SessionRegistry(),
-   modelFactory: (spec) => bedrockModel({ ...spec, credentials: spec.credentials ?? credentials }),
+   modelFactory,
    region,
    credentials,
    workRoot,

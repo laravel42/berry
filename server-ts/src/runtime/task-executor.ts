@@ -171,6 +171,7 @@ export class RuntimeTaskExecutor implements Executor {
                      model: event.usage.model || model,
                      inputTokens: event.usage.inputTokens, outputTokens: event.usage.outputTokens,
                      cacheReadTokens: event.usage.cacheReadTokens, cacheWriteTokens: event.usage.cacheWriteTokens,
+                     ...(event.usage.reportedCostMicros === undefined ? {} : { reportedCostMicros: event.usage.reportedCostMicros }),
                   })
                   .catch((error: unknown) => {
                      this.#o.onUsageError?.(error);

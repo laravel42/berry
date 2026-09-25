@@ -1,4 +1,6 @@
-import { BedrockModel, type BaseModelConfig, type Model } from '@strands-agents/sdk';
+import { BedrockModel, type BaseModelConfig, type Message, type Model, type ModelStreamEvent, type StreamOptions } from '@strands-agents/sdk';
+import { OpenAIModel, type OpenAIModelOptions } from '@strands-agents/sdk/models/openai';
+import { kiloFetch, reportedCostMicros, type GatewayUsage } from './kilo-fetch.ts';
 
 /**
  * The one place a model is built.
@@ -20,7 +22,11 @@ export interface AwsCredentials {
 }
 
 export interface ModelSpec {
-   /** A Bedrock inference profile id, e.g. `us.anthropic.claude-haiku-4-5-…`. */
+   /**
+    * The provider's model id: a Bedrock inference profile
+    * (`us.anthropic.claude-haiku-4-5-…`) or a Kilo gateway id
+    * (`anthropic/claude-haiku-4.5`), depending on the deployment's provider.
+    */
    model: string;
    region: string;
    /**
@@ -38,6 +44,12 @@ export interface ModelSpec {
     * streaming API would only widen the permission it needs.
     */
    stream?: boolean | undefined;
+   /**
+    * A stable id for the conversation, sent to the Kilo gateway as
+    * `X-KiloCode-TaskId`: its auto-routing keeps a model across a session's
+    * calls, and it keys prompt caching. Ignored by Bedrock.
+    */
+   sessionId?: string | undefined;
 }
 
 /** What builds a model. Production passes `bedrockModel`; tests pass a script. */
@@ -65,8 +77,9 @@ export const DEFAULT_MAX_TOKENS = 32_000;
  * come before the catch-all Nova one.
  */
 const MODEL_CEILINGS: ReadonlyArray<{ pattern: RegExp; ceiling: number }> = [
-   { pattern: /amazon\.nova-(pro|premier)/, ceiling: 10_000 },
-   { pattern: /amazon\.nova-/, ceiling: 5_000 },
+   // `.` for a Bedrock profile, `/` for the same model's Kilo gateway id.
+   { pattern: /amazon[./]nova-(pro|premier)/, ceiling: 10_000 },
+   { pattern: /amazon[./]nova-/, ceiling: 5_000 },
 ];
 
 export function maxTokensFor(model: string, requested: number): number {
@@ -106,6 +119,132 @@ export function bedrockModel(spec: ModelSpec): BedrockModel {
       // 'anthropic'/'claude' in the id, which the default inference profile
       // carries) and warns rather than failing on one that does not, so a
       // deployment on Nova or Llama is unaffected.
+      cacheConfig: { strategy: 'auto' },
+   });
+}
+
+/**
+ * Usage as a Kilo model reports it: the SDK's counts plus the cost the
+ * gateway reported for the call. `costMicros` is null when the gateway said
+ * nothing; `AccountingPlugin` reads it where present.
+ */
+export type ReportedUsage = NonNullable<Extract<ModelStreamEvent, { type: 'modelMetadataEvent' }>['usage']> & {
+   costMicros?: number | null;
+   /** For a routed model (`kilo-auto/*`), the model the gateway picked for the call. */
+   reportedModel?: string;
+};
+
+/** One reply's usage as `kiloFetch` saw it. */
+interface GatewayReport {
+   usage: GatewayUsage;
+   model: string | null;
+}
+
+/**
+ * The SDK's OpenAI model with the two things its OpenAI path cannot carry:
+ * the cache-write count and the gateway's reported cost. `kiloFetch` hands
+ * each call's usage to `reports` as the reply streams, and this puts it on the
+ * call's metadata event, which the SDK yields after the stream ends. One model
+ * serves one run and its calls are sequential, so the report belongs to the
+ * call whose event takes it.
+ */
+export class KiloModel extends OpenAIModel {
+   readonly #reports: GatewayReport[];
+
+   constructor(reports: GatewayReport[], options: OpenAIModelOptions) {
+      super(options);
+      this.#reports = reports;
+   }
+
+   override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
+      this.#reports.length = 0;
+      for await (const event of super.stream(messages, options)) {
+         if (event.type === 'modelMetadataEvent' && event.usage) {
+            const report = this.#reports.shift();
+            const usage = event.usage as ReportedUsage;
+            if (report) {
+               const written = report.usage.cache_creation_input_tokens ?? 0;
+               if (written > 0) usage.cacheWriteInputTokens = written;
+               // Only a router's pick is worth recording apart: for a fixed
+               // model the gateway may spell the same model another way (a
+               // dated id), which would split one model's usage in two.
+               if (report.model && this.getConfig().modelId?.startsWith('kilo-auto/')) usage.reportedModel = report.model;
+            }
+            usage.costMicros = report ? reportedCostMicros(report.usage) : null;
+         }
+         yield event;
+      }
+   }
+}
+
+/** Where the runtime reaches the Kilo gateway, and as whom (ADR-0017). */
+export interface KiloSettings {
+   apiKey: string;
+   baseUrl: string;
+   /** Sent as `X-KiloCode-OrganizationId`, so the organization's model policy applies. */
+   organizationId?: string | undefined;
+}
+
+export const DEFAULT_KILO_BASE_URL = 'https://api.kilo.ai/api/gateway';
+
+/**
+ * Which provider the runtime calls, read from its environment.
+ *
+ * `BERRY_MODEL_PROVIDER=kilo` needs `BERRY_KILO_API_KEY`; a Kilo deployment
+ * without one is a configuration error, not a quiet fallback to Bedrock, so
+ * this throws and the runtime refuses to start.
+ */
+export function modelProviderFromEnv(
+   env: Record<string, string | undefined>
+): { provider: 'bedrock' } | { provider: 'kilo'; kilo: KiloSettings } {
+   const provider = (env.BERRY_MODEL_PROVIDER ?? 'bedrock').trim().toLowerCase();
+   if (provider === 'bedrock' || provider === '') return { provider: 'bedrock' };
+   if (provider !== 'kilo') throw new Error(`BERRY_MODEL_PROVIDER must be 'bedrock' or 'kilo', not '${provider}'`);
+   const apiKey = (env.BERRY_KILO_API_KEY ?? '').trim();
+   if (!apiKey) throw new Error('BERRY_MODEL_PROVIDER=kilo needs BERRY_KILO_API_KEY');
+   const organizationId = (env.BERRY_KILO_ORG_ID ?? '').trim();
+   return {
+      provider: 'kilo',
+      kilo: {
+         apiKey,
+         baseUrl: (env.BERRY_KILO_BASE_URL ?? '').trim() || DEFAULT_KILO_BASE_URL,
+         ...(organizationId ? { organizationId } : {}),
+      },
+   };
+}
+
+/**
+ * A model reached through the Kilo gateway (ADR-0017).
+ *
+ * The gateway speaks OpenAI Chat Completions, so this is the SDK's OpenAI
+ * model pointed at it. `region` and `credentials` in the spec are Bedrock's and
+ * are ignored. The client's own retries are off: `BerryRetryStrategy` owns
+ * retrying, and two loops would retry a paid call twice over.
+ *
+ * Chat Completions always streams in the SDK, so `stream: false` has no
+ * effect here; on Bedrock it only narrowed an IAM permission, which the
+ * gateway does not have.
+ */
+export function kiloModel(spec: ModelSpec, kilo: KiloSettings): KiloModel {
+   const reports: GatewayReport[] = [];
+   const headers: Record<string, string> = {
+      ...(kilo.organizationId ? { 'X-KiloCode-OrganizationId': kilo.organizationId } : {}),
+      ...(spec.sessionId ? { 'X-KiloCode-TaskId': spec.sessionId } : {}),
+   };
+   return new KiloModel(reports, {
+      api: 'chat',
+      modelId: spec.model,
+      apiKey: kilo.apiKey,
+      clientConfig: {
+         baseURL: kilo.baseUrl,
+         maxRetries: 0,
+         fetch: kiloFetch({ onUsage: (usage, model) => reports.push({ usage, model }) }),
+         ...(Object.keys(headers).length > 0 ? { defaultHeaders: headers } : {}),
+      },
+      maxTokens: maxTokensFor(spec.model, spec.maxTokens ?? DEFAULT_MAX_TOKENS),
+      ...(spec.temperature === undefined ? {} : { temperature: spec.temperature }),
+      // Anthropic cache points are added to the request by `kiloFetch`; this
+      // gives the gateway a stable per-session key for providers that cache on one.
       cacheConfig: { strategy: 'auto' },
    });
 }

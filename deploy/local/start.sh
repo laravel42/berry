@@ -54,7 +54,7 @@ case "${1:-}" in
       # an agent's commands run in these containers and have no business near
       # the database URL, the auth secret or the integration key.
       umask 077
-      printenv | grep -E '^(BERRY_BEDROCK_REGION|BERRY_BEDROCK_ACCESS_KEY_ID|BERRY_BEDROCK_SECRET_ACCESS_KEY|BERRY_BEDROCK_SESSION_TOKEN|AWS_REGION|BERRY_RUNTIME_AUTH_MODE|BERRY_RUNTIME_AUTH_TOKEN|BERRY_RUNTIME_LOCAL_CONTROL|BERRY_MEDIA_VIDEO_S3_URI|OTEL_[A-Z0-9_]+)=' > /run/runtime.env || true
+      printenv | grep -E '^(BERRY_BEDROCK_REGION|BERRY_BEDROCK_ACCESS_KEY_ID|BERRY_BEDROCK_SECRET_ACCESS_KEY|BERRY_BEDROCK_SESSION_TOKEN|BERRY_MODEL_PROVIDER|BERRY_KILO_API_KEY|BERRY_KILO_BASE_URL|BERRY_KILO_ORG_ID|AWS_REGION|BERRY_RUNTIME_AUTH_MODE|BERRY_RUNTIME_AUTH_TOKEN|BERRY_RUNTIME_LOCAL_CONTROL|BERRY_MEDIA_VIDEO_S3_URI|OTEL_[A-Z0-9_]+)=' > /run/runtime.env || true
       export BERRY_ROUTER_ENV_FILE=/run/runtime.env
       exec node --experimental-strip-types --no-warnings src/runtime/local-router/main.ts
       ;;

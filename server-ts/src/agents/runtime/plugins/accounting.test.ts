@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Agent, tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { AccountingPlugin } from './accounting.ts';
+import { AccountingPlugin, addReportedCost, UsageByModel } from './accounting.ts';
 
 /**
  * What a run cost and what it said. Usage is summed across model calls
@@ -70,4 +70,33 @@ test('cache reads and writes are counted apart from input', async () => {
    assert.equal(snapshot.usage.inputTokens, 120);
    assert.equal(snapshot.cacheReadTokens, 1900);
    assert.equal(snapshot.cacheWriteTokens, 50);
+});
+
+test('gateway-reported cost sums over calls, and one unreported call makes the run unpriced', () => {
+   assert.equal(addReportedCost(undefined, { inputTokens: 1 }), undefined);
+   assert.equal(addReportedCost(undefined, { costMicros: 40 }), 40);
+   assert.equal(addReportedCost(40, { costMicros: 1153 }), 1193);
+   assert.equal(addReportedCost(40, { costMicros: null }), null);
+   assert.equal(addReportedCost(null, { costMicros: 10 }), null);
+});
+
+test('usage splits by the model a router reported, and stays one entry otherwise', () => {
+   const plain = new UsageByModel();
+   plain.add({ inputTokens: 10, outputTokens: 2 });
+   plain.add({ inputTokens: 5, outputTokens: 1, cacheReadInputTokens: 100 });
+   assert.deepEqual(plain.entries(), [
+      { model: null, inputTokens: 15, outputTokens: 3, cacheReadTokens: 100, cacheWriteTokens: 0, reportedCostMicros: undefined },
+   ]);
+
+   const routed = new UsageByModel();
+   routed.add({ inputTokens: 10, outputTokens: 2, reportedModel: 'z-ai/glm-5.3-flash', costMicros: 30 } as never);
+   routed.add({ inputTokens: 20, outputTokens: 4, reportedModel: 'anthropic/claude-sonnet-5', costMicros: 900 } as never);
+   routed.add({ inputTokens: 1, outputTokens: 1, reportedModel: 'z-ai/glm-5.3-flash', costMicros: 5 } as never);
+   assert.deepEqual(
+      routed.entries().map((e) => [e.model, e.inputTokens, e.reportedCostMicros]),
+      [
+         ['z-ai/glm-5.3-flash', 11, 35],
+         ['anthropic/claude-sonnet-5', 20, 900],
+      ]
+   );
 });

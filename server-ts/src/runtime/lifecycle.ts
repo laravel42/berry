@@ -29,6 +29,13 @@ export const taskUsageSchema = z.object({
    outputTokens: z.number().int().nonnegative(),
    cacheReadTokens: z.number().int().nonnegative(),
    cacheWriteTokens: z.number().int().nonnegative(),
+   /**
+    * What the model gateway reported the usage cost, in USD micros (ADR-0017).
+    * Present only when the runtime calls a gateway that reports cost, and then
+    * the only cost recorded: null means it reported none, and the usage is
+    * stored unpriced rather than priced by Berry. Absent means Berry prices it.
+    */
+   reportedCostMicros: z.number().int().nonnegative().nullable().optional(),
 });
 
 /**

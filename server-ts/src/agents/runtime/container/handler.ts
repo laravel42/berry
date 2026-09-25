@@ -13,6 +13,7 @@ import { buildRunAgent } from '../agent.ts';
 import { classify } from '../failure.ts';
 import type { ModelFactory } from '../model.ts';
 import { AccountingPlugin } from '../plugins/accounting.ts';
+import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
 import { StepBudgetPlugin, budgetContract } from '../plugins/step-budget.ts';
@@ -262,6 +263,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             maxTokens: envelope.agent.maxTokens ?? undefined,
             temperature: envelope.agent.temperature ?? undefined,
             traceAttributes: { 'berry.run_id': envelope.runId, 'berry.session': envelope.sessionKey },
+            sessionId: envelope.runtimeSessionId,
             messages: warm && held ? held.messages : toConversation(envelope.transcript),
          },
          deps.modelFactory
@@ -369,21 +371,9 @@ export function toolTable(
 }
 
 function emitUsage(emit: Emit, envelope: TaskEnvelope, accounting: AccountingPlugin): void {
-   const { usage, cacheReadTokens, cacheWriteTokens } = accounting.snapshot();
-   // Nothing to bill only when every counter is zero — cache-only calls still cost.
-   if (usage.inputTokens === 0 && usage.outputTokens === 0 && cacheReadTokens === 0 && cacheWriteTokens === 0) return;
-   emit({
-      type: 'task.usage',
-      usage: {
-         eventId: randomUUID(),
-         model: envelope.agent.model,
-         inputTokens: usage.inputTokens,
-         outputTokens: usage.outputTokens,
-         cacheReadTokens,
-         cacheWriteTokens,
-      },
-   });
+   emitModelUsage(emit, envelope.agent.model, accounting.snapshot().byModel);
 }
+
 
 /** What makes a warm conversation the same agent's. */
 export function agentFingerprint(envelope: TaskEnvelope): string {
