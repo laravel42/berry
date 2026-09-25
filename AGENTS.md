@@ -155,7 +155,9 @@ same-origin through the Next.js rewrites, which is the normal case.
 **Removed, do not re-add:** squads/Crew (a team module with a client-side
 roster); the Google ADK in-process runtime; OpenRouter; Docker Compose. Their
 replacements are, respectively, the organization above, ADR-0014's AgentCore
-Runtime, Bedrock, and host-run PostgreSQL/S3/AgentCore.
+Runtime, Bedrock, and host-run PostgreSQL/S3/AgentCore. The one gateway allowed
+in front of Bedrock is Kilo, under ADR-0017's rules (paid calls on the Bedrock
+key only, cost from Kilo's reports).
 
 **Descriptions are plain-text fields.** A rich editor round-tripped markdown
 through parse/serialize, which rewrote untouched content — bullet markers,

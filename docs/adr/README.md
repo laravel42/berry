@@ -51,6 +51,7 @@ of ADR-0008, ADR-0012 and ADR-0013. For the fuller current mechanism, see
 | [0014](0014-agentcore-runtime-control-plane.md) | Berry is a control plane; the agent loop runs in AgentCore Runtime | Accepted — current execution design | 2026-09-10 |
 | [0015](0015-default-agent-organization.md) | Provision every workspace with a default agent organization | Accepted; partially superseded by [0016](0016-autogate-delegated-release.md) (what a passing review does) | 2026-09-14 |
 | [0016](0016-autogate-delegated-release.md) | AutoGate delegates the release decision, once per plan | Accepted — current release policy | 2026-09-17 |
+| [0017](0017-kilo-gateway-model-tiers.md) | Model calls go through the Kilo gateway, in leaderboard-ranked tiers | Accepted — provider switch implemented; tiers in progress | 2026-09-25 |
 
 ### Withdrawn records
 
