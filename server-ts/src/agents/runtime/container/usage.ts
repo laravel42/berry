@@ -21,6 +21,7 @@ export function emitModelUsage(emit: Emit, requested: string, byModel: ModelUsag
             cacheReadTokens: entry.cacheReadTokens,
             cacheWriteTokens: entry.cacheWriteTokens,
             ...(entry.reportedCostMicros === undefined ? {} : { reportedCostMicros: entry.reportedCostMicros }),
+            ...(entry.fellBack ? { fellBack: true } : {}),
          },
       });
    }

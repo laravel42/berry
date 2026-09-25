@@ -264,6 +264,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             temperature: envelope.agent.temperature ?? undefined,
             traceAttributes: { 'berry.run_id': envelope.runId, 'berry.session': envelope.sessionKey },
             sessionId: envelope.runtimeSessionId,
+            fallbackModel: envelope.agent.fallbackModel ?? null,
             messages: warm && held ? held.messages : toConversation(envelope.transcript),
          },
          deps.modelFactory

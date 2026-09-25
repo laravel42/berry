@@ -35,6 +35,8 @@ export type UsageRecorder = (
       reportedCostMicros?: number | null;
       /** The Berry tier that chose the model; absent or null when the agent named its own. */
       tier?: Tier | null;
+      /** Served by the run's fallback model. */
+      fellBack?: boolean;
    }
 ) => Promise<void>;
 
@@ -178,6 +180,7 @@ export class RuntimeTaskExecutor implements Executor {
                      cacheReadTokens: event.usage.cacheReadTokens, cacheWriteTokens: event.usage.cacheWriteTokens,
                      ...(event.usage.reportedCostMicros === undefined ? {} : { reportedCostMicros: event.usage.reportedCostMicros }),
                      ...(tier ? { tier } : {}),
+                     ...(event.usage.fellBack ? { fellBack: true } : {}),
                   })
                   .catch((error: unknown) => {
                      this.#o.onUsageError?.(error);

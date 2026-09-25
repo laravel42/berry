@@ -36,6 +36,8 @@ export const taskUsageSchema = z.object({
     * stored unpriced rather than priced by Berry. Absent means Berry prices it.
     */
    reportedCostMicros: z.number().int().nonnegative().nullable().optional(),
+   /** These calls were served by the run's fallback model: the tier's choice had failed (ADR-0017). */
+   fellBack: z.boolean().optional(),
 });
 
 /**

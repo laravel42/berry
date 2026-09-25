@@ -104,3 +104,29 @@ test('a gateway id names a vendor; a Bedrock profile does not', async () => {
    assert.equal(isGatewayModelId('anthropic/claude-haiku-4.5'), true);
    assert.equal(isGatewayModelId('us.anthropic.claude-haiku-4-5-20251001-v1:0'), false);
 });
+
+test('a tier picks among its top three by rank, the same seed always the same model', async () => {
+   const { chooseForTier } = await import('./tiers.ts');
+   const pools = rankTiers(catalog, usage);
+   const seen = new Map<string, number>();
+   for (let index = 0; index < 600; index += 1) {
+      const choice = chooseForTier(pools, 'berry_max', `session-${index}`)!;
+      seen.set(choice.model, (seen.get(choice.model) ?? 0) + 1);
+   }
+   // Weighted 3:2:1 across the top three; every one of them is used.
+   assert.deepEqual([...seen.keys()].sort(), ['a/astra', 'a/fable', 'a/sol']);
+   assert.ok(seen.get('a/astra')! > seen.get('a/sol')!, 'the first rank is chosen more than the third');
+   assert.equal(chooseForTier(pools, 'berry_max', 'fixed')!.model, chooseForTier(pools, 'berry_max', 'fixed')!.model);
+});
+
+test('the default fallback is the top of the next tier down, never the model itself', async () => {
+   const { chooseForTier } = await import('./tiers.ts');
+   const pools = rankTiers(catalog, usage);
+   assert.equal(chooseForTier(pools, 'berry_max', 's')!.fallback, 'a/gpt-55', 'Max falls back to Mid');
+   assert.equal(chooseForTier(pools, 'berry_mid', 's')!.fallback, 'o/luna', 'Mid falls back to Low');
+   const low = chooseForTier(pools, 'berry_low', 's')!;
+   assert.notEqual(low.fallback, low.model, 'Low falls back to another Low model');
+   assert.equal(chooseForTier(pools, 'berry_free', 's')!.fallback, 'o/luna', 'Free falls back to a paid Low model');
+   assert.equal(chooseForTier(pools, 'berry_auto', 's')!.model, AUTO_MODEL);
+   assert.equal(chooseForTier({ ...pools, berry_max: [], berry_mid: [], berry_low: [] }, 'berry_max', 's'), null);
+});

@@ -85,7 +85,7 @@ test('usage splits by the model a router reported, and stays one entry otherwise
    plain.add({ inputTokens: 10, outputTokens: 2 });
    plain.add({ inputTokens: 5, outputTokens: 1, cacheReadInputTokens: 100 });
    assert.deepEqual(plain.entries(), [
-      { model: null, inputTokens: 15, outputTokens: 3, cacheReadTokens: 100, cacheWriteTokens: 0, reportedCostMicros: undefined },
+      { model: null, inputTokens: 15, outputTokens: 3, cacheReadTokens: 100, cacheWriteTokens: 0, reportedCostMicros: undefined, fellBack: false },
    ]);
 
    const routed = new UsageByModel();

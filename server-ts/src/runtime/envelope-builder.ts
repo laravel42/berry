@@ -22,7 +22,7 @@ import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import type { RoleKey } from '../organization/contract.ts';
-import { isGatewayModelId } from '../agents/kilo/tiers.ts';
+import { isGatewayModelId, type TierChoice } from '../agents/kilo/tiers.ts';
 import type { Tier } from '../agents/model-tiers.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
@@ -102,7 +102,7 @@ export interface EnvelopeDeps {
     * provisioned with — is not sent to it: the agent runs on its tier's
     * choice for today instead.
     */
-   gateway?: { modelFor(tier: Tier): Promise<string | null> } | undefined;
+   gateway?: { choose(tier: Tier, seed: string): Promise<TierChoice | null> } | undefined;
    memory: RunMemory;
    sealer: Sealer | null;
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
@@ -163,7 +163,10 @@ export class EnvelopeBuilder {
       const { task } = input;
       const agent = await this.#agent(task.agentId);
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
-      const { model, tier } = await this.#model(task, agent, profile.model);
+      const sessionKey = sessionKeyFor({
+         kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
+      });
+      const { model, tier, fallback } = await this.#model(task, agent, profile.model, sessionKey);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -176,9 +179,6 @@ export class EnvelopeBuilder {
       if (extensions && extensions.skipped.length > 0) this.#deps.onSkipped?.(extensions.skipped);
       const mcpServers = await this.#mcpServers(task, extensions?.mcpServers ?? []);
       const instructions = agent.instructions;
-      const sessionKey = sessionKeyFor({
-         kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
-      });
 
       const base = {
          runId: task.runId,
@@ -188,6 +188,7 @@ export class EnvelopeBuilder {
             name: agent.name,
             instructions,
             model,
+            ...(fallback ? { fallbackModel: fallback } : {}),
             // EnvelopeSkill and EnvelopeMcpServer are SkillRef and McpServerRef
             // field for field: no mapping, and tsc refuses a drift.
             skills: extensions?.skills ?? [],
@@ -361,10 +362,17 @@ export class EnvelopeBuilder {
     * named the agent runs on its tier's choice for today. A completion that
     * names none runs on BerryLow's, as it ran on Haiku before.
     */
-   async #model(task: TaskRow, agent: AgentConfig, profileModel: string | null): Promise<{ model: string; tier: Tier | null }> {
+   async #model(
+      task: TaskRow,
+      agent: AgentConfig,
+      profileModel: string | null,
+      seed: string
+   ): Promise<{ model: string; tier: Tier | null; fallback: string | null }> {
       const completionModel = task.kind === 'completion' ? (task.completionSpec?.model ?? null) : null;
       const gateway = this.#deps.gateway;
-      if (!gateway) return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null };
+      if (!gateway) {
+         return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null, fallback: null };
+      }
 
       const named = [
          completionModel,
@@ -372,11 +380,19 @@ export class EnvelopeBuilder {
          task.kind === 'completion' ? null : profileModel,
          isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
       ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
-      if (named) return { model: named, tier: null };
       const tier: Tier = task.kind === 'completion' ? 'berry_low' : agent.tier;
-      const chosen = await gateway.modelFor(tier);
-      if (!chosen) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
-      return { model: chosen, tier };
+      // A session keeps its model while the leaderboard does: the seed is the
+      // (agent, issue) session, not the run.
+      const choice = await gateway.choose(tier, seed);
+      // The agent's own fallback wins; otherwise Berry's default from the
+      // leaderboard (decided 2026-09-25). Never the model itself.
+      const own = agent.fallbackModel && isGatewayModelId(agent.fallbackModel) ? agent.fallbackModel : null;
+      if (named) {
+         const tierDefault = choice ? (choice.model !== named ? choice.model : choice.fallback) : null;
+         return { model: named, tier: null, fallback: own && own !== named ? own : tierDefault };
+      }
+      if (!choice) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
+      return { model: choice.model, tier, fallback: own && own !== choice.model ? own : choice.fallback };
    }
 
    async #agent(agentId: string): Promise<AgentConfig> {

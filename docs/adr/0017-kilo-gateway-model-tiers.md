@@ -119,7 +119,19 @@ show cost before work and record actual cost after. The Kilo gateway
      before tiers existed, else BerryLow.
    - There is no tier-to-Bedrock mapping. Without the gateway, an agent that
      names no model runs on the server default.
-8. **BerryAuto, a fifth tier, is an experiment.** It sends every call to
+8. **Choosing a model, and falling back.**
+   - A session (an agent on an issue) gets one of its tier's top three, weighted
+     3:2:1 by rank and seeded by the session. It keeps that model, and its
+     prompt cache, while the leaderboard keeps it there.
+   - The fallback is the agent's own `fallback_model`, or Berry's default from
+     the leaderboard: the top of the next tier down (Max → Mid, Mid → Low,
+     Low → Low's next, Free and Auto → Low), never the model itself.
+   - In the runtime, `FallbackModel` moves the run to the fallback when the
+     chosen model fails before producing anything, and keeps it there.
+     Content-filter refusals and cancellations do not switch.
+   - Usage served by the fallback is recorded as that model, with
+     `task_usage.fell_back`.
+9. **BerryAuto, a fifth tier, is an experiment.** It sends every call to
    Kilo's `kilo-auto/efficient`, so that Kilo's routing can be compared with
    Berry's ranked tiers on the same roles.
    - It is exempt from the own-key refusal. Kilo's fallback model (GLM Flash)

@@ -17,6 +17,7 @@ import { textOf, UsageByModel } from '../plugins/accounting.ts';
 import type { Emit } from './emitter.ts';
 import { toConversation } from './conversation.ts';
 import { emitModelUsage } from './usage.ts';
+import { withFallback } from '../agent.ts';
 
 /**
  * One model call for the parts of Berry that are not an agent — the planner,
@@ -35,14 +36,18 @@ export async function runCompletionTask(
    const spec = envelope.completion ?? { system: '', jsonSchema: null };
    const schema = spec.jsonSchema ? z.fromJSONSchema(spec.jsonSchema) : undefined;
    const agent = new Agent({
-      model: deps.modelFactory({
-         model: envelope.agent.model,
-         region: deps.region,
-         credentials: null,
-         stream: false,
-         maxTokens: envelope.agent.maxTokens ?? undefined,
-         sessionId: envelope.runtimeSessionId,
-      }),
+      model: withFallback(
+         deps.modelFactory,
+         {
+            model: envelope.agent.model,
+            region: deps.region,
+            credentials: null,
+            stream: false,
+            maxTokens: envelope.agent.maxTokens ?? undefined,
+            sessionId: envelope.runtimeSessionId,
+         },
+         envelope.agent.fallbackModel
+      ),
       systemPrompt: spec.system,
       retryStrategy: new BerryRetryStrategy(),
       printer: false,

@@ -86,9 +86,11 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
             gateway: {
-               modelFor: async (tier) => {
+               choose: async (tier) => {
                   asked.push(tier);
-                  return tier === 'berry_low' ? 'openai/gpt-6-luna' : `vendor/${tier}-choice`;
+                  return tier === 'berry_low'
+                     ? { tier, model: 'openai/gpt-6-luna', fallback: 'openai/gpt-5.6-luna' }
+                     : { tier, model: `vendor/${tier}-choice`, fallback: 'openai/gpt-6-luna' };
                },
             },
          });
@@ -98,13 +100,32 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          await sql`UPDATE agents SET model_provider = NULL, model_name = NULL WHERE id = ${fixture!.agentId}`;
       });
 
-      async function modelOf(): Promise<string> {
+      async function envelopeOf() {
          const f = fixture!;
          const issueId = await createIssue(sql, f);
          const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
-         const { envelope } = await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
-         return envelope.agent.model;
+         return (await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' })).envelope;
       }
+      async function modelOf(): Promise<string> {
+         return (await envelopeOf()).agent.model;
+      }
+
+      test('the envelope carries the default fallback from the leaderboard, and an agent\'s own fallback wins', async () => {
+         assert.equal((await envelopeOf()).agent.fallbackModel, 'openai/gpt-5.6-luna');
+         await sql`UPDATE agents SET fallback_model = 'anthropic/claude-haiku-4.5' WHERE id = ${fixture!.agentId}`;
+         try {
+            assert.equal((await envelopeOf()).agent.fallbackModel, 'anthropic/claude-haiku-4.5');
+         } finally {
+            await sql`UPDATE agents SET fallback_model = NULL WHERE id = ${fixture!.agentId}`;
+         }
+      });
+
+      test('a named model falls back to its tier\'s choice for today', async () => {
+         await sql`UPDATE agents SET model_provider = 'kilo', model_name = 'anthropic/claude-haiku-4.5' WHERE id = ${fixture!.agentId}`;
+         const envelope = await envelopeOf();
+         assert.equal(envelope.agent.model, 'anthropic/claude-haiku-4.5');
+         assert.equal(envelope.agent.fallbackModel, 'openai/gpt-6-luna');
+      });
 
       test('a Bedrock pairing is not sent to the gateway: the agent runs on its tier\'s choice', async () => {
          await sql`UPDATE agents SET model_provider = 'bedrock', model_name = 'us.anthropic.claude-sonnet-5' WHERE id = ${fixture!.agentId}`;
@@ -144,7 +165,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       test('a gateway model the agent names is used as is', async () => {
          await sql`UPDATE agents SET model_provider = 'kilo', model_name = 'anthropic/claude-haiku-4.5' WHERE id = ${fixture!.agentId}`;
          assert.equal(await modelOf(), 'anthropic/claude-haiku-4.5');
-         assert.deepEqual(asked, []);
+         assert.deepEqual(asked, ['berry_low'], 'the tier is still asked, for the fallback');
       });
 
       test('an empty tier fails the build with its name rather than sending a model the gateway refuses', async () => {
@@ -152,7 +173,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          const empty = new EnvelopeBuilder({
             sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
-            gateway: { modelFor: async () => null },
+            gateway: { choose: async () => null },
          });
          const issueId = await createIssue(sql, f);
          const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });

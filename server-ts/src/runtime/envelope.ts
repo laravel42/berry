@@ -120,6 +120,12 @@ export const taskEnvelopeSchema = z.object({
       name: z.string().min(1),
       instructions: z.string(),
       model: z.string().min(1),
+      /**
+       * The model the runtime switches to when `model` fails before
+       * producing anything (ADR-0017): the agent's own fallback, or Berry's
+       * default from the leaderboard. Absent or null: no fallback.
+       */
+      fallbackModel: z.string().min(1).nullable().optional(),
       skills: z.array(skillRefSchema),
       mcpServers: z.array(mcpServerRefSchema),
       permissions: z.array(z.string()),

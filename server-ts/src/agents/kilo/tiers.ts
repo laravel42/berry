@@ -227,3 +227,69 @@ export function modelForTier(pools: TierPools, tier: Tier): string | null {
 export function isGatewayModelId(id: string): boolean {
    return id.includes('/');
 }
+
+/** How much more often each rank of a tier is chosen than the next: first, second, third. */
+export const RANK_WEIGHTS = [3, 2, 1] as const;
+
+/**
+ * Where a tier's default fallback comes from (decided 2026-09-25): the top of
+ * the next tier down, so a failure costs less, not more. BerryLow has nothing
+ * below it, so it falls back within itself, then up; BerryFree and BerryAuto
+ * fall back to a paid model on BerryLow.
+ */
+export const FALLBACK_SOURCE: Record<Tier, Tier[]> = {
+   berry_max: ['berry_mid', 'berry_low'],
+   berry_mid: ['berry_low', 'berry_mid'],
+   berry_low: ['berry_low', 'berry_mid'],
+   berry_free: ['berry_low', 'berry_mid'],
+   berry_auto: ['berry_low', 'berry_mid'],
+};
+
+/** A stable number in [0, 1) for a key: the same session lands on the same rank. */
+export function unitHash(key: string): number {
+   let hash = 2166136261;
+   for (let index = 0; index < key.length; index += 1) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+   }
+   return (hash >>> 0) / 4294967296;
+}
+
+export interface TierChoice {
+   /** The tier the model came from: the requested one, or a fallback tier when it was empty. */
+   tier: Tier;
+   model: string;
+   /** The default fallback, or null when the leaderboard offers none other than `model`. */
+   fallback: string | null;
+}
+
+/**
+ * Today's model for a tier, and its default fallback.
+ *
+ * The model is one of the tier's top three, weighted by rank, and picked by
+ * `seed` rather than at random: a session (an agent on an issue) keeps its
+ * model — and its prompt cache — for as long as the leaderboard does, while
+ * different sessions spread across the tier. An empty tier falls to the
+ * nearest one in price (`TIER_FALLBACK`).
+ */
+export function chooseForTier(pools: TierPools, tier: Tier, seed: string): TierChoice | null {
+   const source = TIER_FALLBACK[tier].find((candidate) => pools[candidate].length > 0);
+   if (!source) return null;
+   const ranked = pools[source].slice(0, RANK_WEIGHTS.length);
+   const weights = ranked.map((_, index) => RANK_WEIGHTS[index]!);
+   const total = weights.reduce((sum, weight) => sum + weight, 0);
+   let point = unitHash(seed) * total;
+   let pick = ranked[0]!;
+   for (let index = 0; index < ranked.length; index += 1) {
+      point -= weights[index]!;
+      if (point < 0) {
+         pick = ranked[index]!;
+         break;
+      }
+   }
+   const fallback =
+      FALLBACK_SOURCE[tier]
+         .flatMap((candidate) => pools[candidate])
+         .find((model) => model.id !== pick.id)?.id ?? null;
+   return { tier: source, model: pick.id, fallback };
+}

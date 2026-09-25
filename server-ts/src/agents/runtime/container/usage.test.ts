@@ -8,7 +8,7 @@ import { emitModelUsage } from './usage.ts';
  * what it resolved to, a plain one as what the task asked for.
  */
 
-const zero = { cacheReadTokens: 0, cacheWriteTokens: 0 };
+const zero = { cacheReadTokens: 0, cacheWriteTokens: 0, fellBack: false };
 
 test('one usage event per serving model, named for the model that served it', () => {
    const events: LifecycleEvent[] = [];

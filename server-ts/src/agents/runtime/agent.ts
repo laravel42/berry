@@ -8,7 +8,8 @@ import {
 } from '@strands-agents/sdk';
 import { toAgentName } from './agent-name.ts';
 import { BerryRetryStrategy } from './failure.ts';
-import { bedrockModel, type AwsCredentials, type ModelFactory } from './model.ts';
+import { FallbackModel } from './fallback-model.ts';
+import { bedrockModel, type AwsCredentials, type ModelFactory, type ModelSpec } from './model.ts';
 
 /**
  * The agent for one run, built in one place.
@@ -33,6 +34,8 @@ export interface RunAgentSpec {
    traceAttributes: Record<string, string>;
    /** Stable per agent and issue; see `ModelSpec.sessionId`. */
    sessionId?: string | undefined;
+   /** The model to switch to when `model` fails before producing anything (ADR-0017). */
+   fallbackModel?: string | null | undefined;
    /**
     * The conversation so far: the live messages of a warm session, or the
     * transcript a cold one was restored from. Absent is a fresh conversation.
@@ -44,15 +47,16 @@ export interface RunAgentSpec {
 export const WINDOW_SIZE = 60;
 
 export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = bedrockModel): Agent {
+   const modelSpec: ModelSpec = {
+      model: spec.model,
+      region: spec.region,
+      credentials: spec.credentials,
+      maxTokens: spec.maxTokens,
+      temperature: spec.temperature,
+      sessionId: spec.sessionId,
+   };
    return new Agent({
-      model: modelFactory({
-         model: spec.model,
-         region: spec.region,
-         credentials: spec.credentials,
-         maxTokens: spec.maxTokens,
-         temperature: spec.temperature,
-         sessionId: spec.sessionId,
-      }),
+      model: withFallback(modelFactory, modelSpec, spec.fallbackModel),
       name: toAgentName(spec.agentName),
       systemPrompt: spec.systemPrompt,
       tools: spec.tools,
@@ -80,6 +84,13 @@ export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = b
       traceAttributes: spec.traceAttributes,
       printer: false,
    });
+}
+
+/** The spec's model, wrapped with its fallback when there is one that differs from it. */
+export function withFallback(modelFactory: ModelFactory, spec: ModelSpec, fallbackModel: string | null | undefined) {
+   const primary = modelFactory(spec);
+   if (!fallbackModel || fallbackModel === spec.model) return primary;
+   return new FallbackModel(primary, { id: fallbackModel, make: () => modelFactory({ ...spec, model: fallbackModel }) });
 }
 
 export { toAgentName } from './agent-name.ts';

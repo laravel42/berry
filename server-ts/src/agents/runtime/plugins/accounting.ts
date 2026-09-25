@@ -53,6 +53,8 @@ export interface ModelUsage {
    cacheReadTokens: number;
    cacheWriteTokens: number;
    reportedCostMicros: number | null | undefined;
+   /** The tier's choice had failed and the run's fallback model served these calls. */
+   fellBack: boolean;
 }
 
 type MetadataUsage = {
@@ -71,7 +73,7 @@ export class UsageByModel {
       const model = typeof reported === 'string' && reported.length > 0 ? reported : null;
       let entry = this.#entries.get(model);
       if (!entry) {
-         entry = { model, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reportedCostMicros: undefined };
+         entry = { model, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reportedCostMicros: undefined, fellBack: false };
          this.#entries.set(model, entry);
       }
       entry.inputTokens += usage.inputTokens;
@@ -79,6 +81,7 @@ export class UsageByModel {
       entry.cacheReadTokens += usage.cacheReadInputTokens ?? 0;
       entry.cacheWriteTokens += usage.cacheWriteInputTokens ?? 0;
       entry.reportedCostMicros = addReportedCost(entry.reportedCostMicros, usage);
+      if ((usage as { fellBack?: unknown }).fellBack === true) entry.fellBack = true;
    }
 
    entries(): ModelUsage[] {
