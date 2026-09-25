@@ -104,7 +104,7 @@ export const frontendContract: RoleContract = {
    ],
    capabilities: ['frontend', 'react', 'accessibility'],
    allowed_tools: ['read_repository', 'create_branches', 'run_commands', 'open_pull_requests'],
-   preferred_model: 'us.anthropic.claude-sonnet-5',
+   tier: 'berry_mid',
    inputs: ['Screen specifications', 'Component specifications', 'API contracts'],
    outputs: ['Pull requests', 'Component tests'],
    can_delegate_to: ['qa-engineer'],
