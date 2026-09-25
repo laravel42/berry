@@ -91,6 +91,20 @@ show cost before work and record actual cost after. The Kilo gateway
    - **BerryFree:** KiloBench where a model is scored, else real usage in the
      role's mode.
 
+   *Revised 2026-09-25.* Only 11 of the 45 own-key models have a KiloBench
+   score, and all are frontier-priced, so the ranking uses both halves of the
+   leaderboard:
+   - **Eligible (paid tiers):** `hasUserByokAvailable` on the authenticated
+     `/models`, excluding `~` aliases, models without tools, and expiring
+     models.
+   - **BerryMax:** KiloBench completion.
+   - **BerryMid:** completion per dollar, among scored models at or above the
+     median.
+   - **BerryLow:** real code-mode usage per dollar, among unscored models
+     priced below BerryMid's cheapest.
+   - **One tier per model:** each model sits only in the highest tier it
+     qualifies for.
+
    Real usage in the role's mode breaks ties. Berry picks among the top 3 of a
    tier, weighted by rank, and uses the fallback model once on failure. No
    model list is hard-coded.

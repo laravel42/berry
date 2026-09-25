@@ -41,6 +41,14 @@ export interface CatalogModel {
    supportsVision: boolean;
 }
 
+/**
+ * What the model picker and the pairing check read: the Bedrock catalogue, or
+ * the Kilo gateway's (ADR-0017, agents/kilo/catalog.ts).
+ */
+export interface ModelSource {
+   list(): Promise<CatalogModel[]>;
+}
+
 export interface CatalogOptions {
    /** The AWS region Bedrock is called in. */
    region: string;

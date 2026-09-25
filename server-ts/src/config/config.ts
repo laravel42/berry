@@ -35,6 +35,13 @@ export interface Config {
    organization: OrganizationLimits;
    storage: StorageConfig | null;
    agents: AgentConfig | null;
+   /**
+    * The Kilo model gateway (ADR-0017), when `BERRY_MODEL_PROVIDER=kilo`. The
+    * server only reads with it — which models the account's own keys serve,
+    * the account's usage and balance — and never calls a model: model calls
+    * stay in the runtime image, which reads the same variables.
+    */
+   modelGateway: ModelGatewayConfig | null;
    /** Where tasks run and how they are bounded (ADR-0014). */
    runtime: RuntimeConfig;
    /**
@@ -413,6 +420,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       docker: dockerAddressing(env),
       storage: storage(env),
       agents: agents(env),
+      modelGateway: modelGateway(env),
       runtime: runtime(env),
       // Trimmed and required to be non-empty: a variable set to whitespace is
       // an operator who meant to set it, and treating that as "configured"
@@ -532,6 +540,35 @@ function agents(env: NodeJS.ProcessEnv): AgentConfig | null {
       mediaVideoS3Uri: /^s3:\/\/[^/]+/.test((env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim())
          ? (env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim()
          : null,
+   };
+}
+
+export interface ModelGatewayConfig {
+   provider: 'kilo';
+   apiKey: string;
+   /** The OpenAI-compatible gateway, e.g. `https://api.kilo.ai/api/gateway`. */
+   baseUrl: string;
+   /** Where the account routes live (`/api/profile/*`). */
+   appUrl: string;
+}
+
+/**
+ * The model gateway, read the same way the runtime reads it
+ * (`modelProviderFromEnv` in agents/runtime/model.ts). Kilo without a key is
+ * an operator error, so it fails the boot rather than quietly serving the
+ * Bedrock picker to a deployment whose runs go through Kilo.
+ */
+function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
+   const provider = (env.BERRY_MODEL_PROVIDER ?? 'bedrock').trim().toLowerCase();
+   if (provider === 'bedrock' || provider === '') return null;
+   if (provider !== 'kilo') throw new Error(`BERRY_MODEL_PROVIDER must be 'bedrock' or 'kilo', not '${provider}'`);
+   const apiKey = (env.BERRY_KILO_API_KEY ?? '').trim();
+   if (!apiKey) throw new Error('BERRY_MODEL_PROVIDER=kilo needs BERRY_KILO_API_KEY');
+   return {
+      provider: 'kilo',
+      apiKey,
+      baseUrl: (env.BERRY_KILO_BASE_URL ?? '').trim() || 'https://api.kilo.ai/api/gateway',
+      appUrl: (env.BERRY_KILO_APP_URL ?? '').trim() || 'https://app.kilo.ai',
    };
 }
 

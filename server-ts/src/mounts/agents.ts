@@ -30,8 +30,11 @@ import {
    CatalogUnavailable,
    normalizeModelId,
    resolveModel,
-   type ModelCatalog,
+   type ModelSource,
 } from '../agents/catalog.ts';
+import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
+import type { KiloCatalog } from '../agents/kilo/catalog.ts';
+import { TIER_NAMES, TIERS } from '../agents/kilo/tiers.ts';
 
 /**
  * `/api/v1/agents`.
@@ -99,7 +102,12 @@ export interface AgentOptions {
    agents: AgentRepository;
    idempotency: IdempotencyStore;
    /** Null when no model credential is configured; the picker then 503s. */
-   catalog: ModelCatalog | null;
+   catalog: ModelSource | null;
+   /**
+    * The Kilo gateway's tiers and account (ADR-0017), when the deployment
+    * calls models through it. Their routes 503 without it.
+    */
+   gateway?: { catalog: KiloCatalog; account: KiloAccount };
    /**
     * Optional: records why the catalogue was unreachable. The client only ever
     * sees an opaque 502, so without this the underlying Bedrock cause (bad
@@ -223,6 +231,45 @@ export function agentMounts(options: AgentOptions): Mount[] {
       const guide = await agents.guide(workspaceId);
       if (!guide) throw ApiError.notFound('Agent');
       return json(serializeAgent(guide));
+   });
+
+   /**
+    * The model tiers as the Kilo leaderboard ranks them today (ADR-0017): what
+    * each tier would choose between, and the numbers that placed each model.
+    */
+   route.get('/tiers', async (context) => {
+      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
+      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
+         .catch(rethrowWorkspace);
+      const gateway = requireGateway(options.gateway);
+      const snapshot = await gatewaySnapshot(gateway.catalog, logger);
+      return json({
+         tiers: TIERS.map((tier) => ({ tier, name: TIER_NAMES[tier], models: snapshot.pools[tier] })),
+         refreshedAt: new Date(snapshot.fetchedAt).toISOString(),
+         stale: snapshot.stale,
+         usageStale: snapshot.usageStale,
+      });
+   });
+
+   /**
+    * The gateway account as Kilo reports it: balance, this week's usage per
+    * model, and the auto-routing classifier's fees per day. Deployment-wide
+    * spend, so it is for workspace admins.
+    */
+   route.get('/model-gateway', async (context) => {
+      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
+      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'workspace.admin')
+         .catch(rethrowWorkspace);
+      const gateway = requireGateway(options.gateway);
+      const [balance, usage] = await Promise.all([gateway.account.balance(), gateway.account.dailyUsage()]);
+      const fees = usage ? classifierFeesByDay(usage.rows) : new Map();
+      return json({
+         balance: balance
+            ? { usd: balance.usd, isDepleted: balance.isDepleted, readAt: new Date(balance.readAt).toISOString(), stale: balance.stale }
+            : null,
+         usage: usage ? { rows: usage.rows, readAt: new Date(usage.readAt).toISOString(), stale: usage.stale } : null,
+         classifierFees: [...fees.entries()].map(([date, fee]) => ({ date, ...fee })),
+      });
    });
 
    route.get('/models', async (context) => {
@@ -885,7 +932,7 @@ function skillsInvalid(): ApiError {
  */
 async function parseModelPair(
    body: Record<string, unknown>,
-   catalog: ModelCatalog | null,
+   catalog: ModelSource | null,
    logger?: Logger
 ): Promise<{ provider: string | null; model: string | null } | undefined> {
    // Both sent as null clears the pairing: an agent that runs on whatever its
@@ -914,7 +961,7 @@ async function parseModelPair(
    return { provider, model };
 }
 
-async function listModels(catalog: ModelCatalog | null, logger?: Logger) {
+async function listModels(catalog: ModelSource | null, logger?: Logger) {
    if (!catalog) {
       // A picker with nothing behind it would offer models that cannot run.
       throw new ApiError(
@@ -938,6 +985,25 @@ async function listModels(catalog: ModelCatalog | null, logger?: Logger) {
             'DEPENDENCY_UNAVAILABLE',
             'The model catalogue could not be reached.'
          );
+      }
+      throw error;
+   }
+}
+
+function requireGateway(gateway: AgentOptions['gateway']): NonNullable<AgentOptions['gateway']> {
+   if (!gateway) {
+      throw new ApiError(503, 'MODEL_GATEWAY_UNAVAILABLE', 'This server does not call models through a gateway.');
+   }
+   return gateway;
+}
+
+async function gatewaySnapshot(catalog: KiloCatalog, logger?: Logger) {
+   try {
+      return await catalog.snapshot();
+   } catch (error) {
+      if (error instanceof CatalogUnavailable) {
+         logger?.error('model gateway catalogue unavailable', { error: error.message });
+         throw new ApiError(502, 'DEPENDENCY_UNAVAILABLE', 'The model gateway could not be reached.');
       }
       throw error;
    }

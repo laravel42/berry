@@ -140,7 +140,9 @@ import { ReviewQueue } from './core/review-queue.ts';
 import { reviewMounts } from './mounts/reviews.ts';
 import { GitHubClient } from './integrations/github.ts';
 import { AgentRepository } from './agents/repository.ts';
-import { ModelCatalog } from './agents/catalog.ts';
+import { ModelCatalog, type ModelSource } from './agents/catalog.ts';
+import { KiloAccount } from './agents/kilo/account.ts';
+import { KiloCatalog } from './agents/kilo/catalog.ts';
 import { createLogger } from './observability/log.ts';
 import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
@@ -657,16 +659,29 @@ await seedDefaultsEverywhere(sql, deploySkills, (workspaceId, error) =>
 // The model picker's catalogue. Null without a credential rather than an
 // empty list: "no models exist" and "this server cannot ask" are different
 // answers, and only one of them is true.
-const modelCatalog = config.agents
-   ? new ModelCatalog({
-        region: config.agents.region,
-        ...(config.agents.credentials ? { credentials: config.agents.credentials } : {}),
-     })
+//
+// Through the Kilo gateway (ADR-0017) the picker lists what the gateway's own
+// catalogue says the account's keys can serve, ranked into tiers.
+const modelGateway = config.modelGateway
+   ? {
+        catalog: new KiloCatalog({ apiKey: config.modelGateway.apiKey, baseUrl: config.modelGateway.baseUrl }),
+        account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
+     }
    : null;
+const modelCatalog: ModelSource | null = modelGateway
+   ? modelGateway.catalog
+   : config.agents
+     ? new ModelCatalog({
+          region: config.agents.region,
+          ...(config.agents.credentials ? { credentials: config.agents.credentials } : {}),
+       })
+     : null;
 
 // Usage is priced on write from the same open feed the model picker reads.
 // Not gated on agent config: runs executed elsewhere still report usage here.
-configureUsagePricing(new PriceBook());
+// Through Kilo, cost is only what the gateway reports per call: no price
+// table second-guesses it, and a call it reported nothing for stays unpriced.
+configureUsagePricing(modelGateway ? null : new PriceBook());
 
 // Reading the ledger, and admitting a run. The executor builds its own ledger
 // per run because it writes as the run happens; this one is for the request
@@ -1141,6 +1156,7 @@ registry.registerAll(
       agents,
       idempotency,
       catalog: modelCatalog,
+      ...(modelGateway ? { gateway: modelGateway } : {}),
       logger,
       runs: runOptions.runs,
       ledger: runOptions.ledger,
