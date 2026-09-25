@@ -132,3 +132,11 @@ describe('the Berry organization catalog', () => {
       }
    });
 });
+
+test('a contract\'s preferred model reads back as its catalogue tier', async () => {
+   const { MODELS, tierOfPreferredModel } = await import('./catalog.ts');
+   assert.equal(tierOfPreferredModel(MODELS.opus), 'opus');
+   assert.equal(tierOfPreferredModel(MODELS.haiku), 'haiku');
+   assert.equal(tierOfPreferredModel('anthropic/claude-haiku-4.5'), null);
+   assert.equal(tierOfPreferredModel(undefined), null);
+});

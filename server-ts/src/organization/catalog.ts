@@ -22,6 +22,18 @@ export const MODELS: { opus: string; sonnet: string; haiku: string } = {
 type Tier = keyof typeof MODELS;
 
 /**
+ * The catalogue tier a contract's `preferred_model` was set from. Contracts
+ * store the model, not the tier, and the model is always one of `MODELS`;
+ * null for anything else (a hand-edited contract, a custom agent).
+ */
+export function tierOfPreferredModel(model: unknown): Tier | null {
+   for (const tier of Object.keys(MODELS) as Tier[]) {
+      if (MODELS[tier] === model) return tier;
+   }
+   return null;
+}
+
+/**
  * `max_output_tokens` is cumulative over a whole run, not per response, and it
  * is the ceiling that decides whether an agent can finish a task at all.
  *

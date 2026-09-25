@@ -89,3 +89,18 @@ test('with no scores at all, Max and Mid are empty and Low is uncapped', () => {
    assert.deepEqual(pools.berry_mid, []);
    assert.equal(pools.berry_low.length, 3);
 });
+
+test('a tier falls back to the nearest tier in price when empty today', async () => {
+   const { modelForTier } = await import('./tiers.ts');
+   const pools = rankTiers(catalog, usage);
+   assert.equal(modelForTier(pools, 'berry_low'), 'o/luna');
+   const noLow = { ...pools, berry_low: [] };
+   assert.equal(modelForTier(noLow, 'berry_low'), 'a/gpt-55', 'empty Low falls to Mid, not Max');
+   assert.equal(modelForTier({ ...noLow, berry_mid: [], berry_max: [] }, 'berry_low'), null);
+});
+
+test('a gateway id names a vendor; a Bedrock profile does not', async () => {
+   const { isGatewayModelId } = await import('./tiers.ts');
+   assert.equal(isGatewayModelId('anthropic/claude-haiku-4.5'), true);
+   assert.equal(isGatewayModelId('us.anthropic.claude-haiku-4-5-20251001-v1:0'), false);
+});

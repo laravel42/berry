@@ -203,3 +203,32 @@ export function tierOf(pools: TierPools, modelId: string): Tier | null {
    }
    return null;
 }
+
+/**
+ * Where a role looks when its own tier is empty today: the nearest tier in
+ * price first, so an empty BerryLow falls to Mid rather than to Max.
+ */
+export const TIER_FALLBACK: Record<Tier, Tier[]> = {
+   berry_max: ['berry_max', 'berry_mid', 'berry_low'],
+   berry_mid: ['berry_mid', 'berry_low', 'berry_max'],
+   berry_low: ['berry_low', 'berry_mid', 'berry_max'],
+   berry_free: ['berry_free', 'berry_low'],
+   berry_auto: ['berry_auto'],
+};
+
+/** Today's first choice for a tier, falling back as `TIER_FALLBACK` says; null only when every fallback is empty. */
+export function modelForTier(pools: TierPools, tier: Tier): string | null {
+   for (const candidate of TIER_FALLBACK[tier]) {
+      const first = pools[candidate][0];
+      if (first) return first.id;
+   }
+   return null;
+}
+
+/**
+ * Whether an id names a gateway model (`vendor/model`) rather than a Bedrock
+ * inference profile (`us.anthropic.claude-…`), which the gateway refuses.
+ */
+export function isGatewayModelId(id: string): boolean {
+   return id.includes('/');
+}

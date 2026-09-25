@@ -20,6 +20,8 @@ import { pluginMcpServers } from '../plugins/mcp.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
+import { tierOfPreferredModel } from '../organization/catalog.ts';
+import { isGatewayModelId, type Tier } from '../agents/kilo/tiers.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
 const RELATED_PARENT_CHARS = 1500;
@@ -51,6 +53,13 @@ export interface TaskRow {
    runtimeId: string | null;
 }
 
+/** The organization catalogue's tiers as gateway tiers (ADR-0017). */
+const CATALOG_TIER_TO_GATEWAY: Record<'opus' | 'sonnet' | 'haiku', Tier> = {
+   opus: 'berry_max',
+   sonnet: 'berry_mid',
+   haiku: 'berry_low',
+};
+
 export interface AgentConfig {
    maxTurns?: number;
    maxOutputTokens?: number;
@@ -58,6 +67,14 @@ export interface AgentConfig {
    name: string;
    instructions: string;
    model: string;
+   /** Who serves `model`: `bedrock`, `kilo`, or null when the agent names none. */
+   modelProvider: string | null;
+   /**
+    * The gateway tier the agent runs on when it names no gateway model
+    * (ADR-0017): its role's catalogue tier, or BerryLow for an agent outside
+    * the organization — the cheap default Haiku used to be.
+    */
+   tier: Tier;
    permissions: string[];
    /** The tools this agent's role contract allows; null outside the organization. */
    tools: string[] | null;
@@ -81,6 +98,13 @@ export interface EnvelopeDeps {
    /** `BERRY_PUBLIC_URL`: where the runtime calls the Berry tool API. */
    publicUrl: string;
    defaultModel: string;
+   /**
+    * The model gateway (ADR-0017), when runs call models through it. A model
+    * the gateway cannot serve — a Bedrock profile id, as every agent was
+    * provisioned with — is not sent to it: the agent runs on its tier's
+    * choice for today instead.
+    */
+   gateway?: { modelFor(tier: Tier): Promise<string | null> } | undefined;
    memory: RunMemory;
    sealer: Sealer | null;
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
@@ -139,8 +163,7 @@ export class EnvelopeBuilder {
       const { task } = input;
       const agent = await this.#agent(task.agentId);
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
-      const model =
-         (task.kind === 'completion' ? task.completionSpec?.model : null) ?? (agent.model || profile.model || this.#deps.defaultModel);
+      const model = await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -327,9 +350,35 @@ export class EnvelopeBuilder {
       };
    }
 
+   /**
+    * The model a task runs on. Without a gateway: the completion's own model,
+    * else the agent's, else its runtime profile's, else the server default.
+    * Through the gateway (ADR-0017) the same order, but only a gateway model
+    * id counts — a Bedrock profile id would be refused — and when none is
+    * named the agent runs on its tier's choice for today. A completion that
+    * names none runs on BerryLow's, as it ran on Haiku before.
+    */
+   async #model(task: TaskRow, agent: AgentConfig, profileModel: string | null): Promise<string> {
+      const completionModel = task.kind === 'completion' ? (task.completionSpec?.model ?? null) : null;
+      const gateway = this.#deps.gateway;
+      if (!gateway) return completionModel ?? (agent.model || profileModel || this.#deps.defaultModel);
+
+      const named = [
+         completionModel,
+         task.kind === 'completion' ? null : agent.modelProvider === 'kilo' || isGatewayModelId(agent.model) ? agent.model : null,
+         task.kind === 'completion' ? null : profileModel,
+         isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
+      ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
+      if (named) return named;
+      const tier: Tier = task.kind === 'completion' ? 'berry_low' : agent.tier;
+      const chosen = await gateway.modelFor(tier);
+      if (!chosen) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
+      return chosen;
+   }
+
    async #agent(agentId: string): Promise<AgentConfig> {
       const [row] = await this.#deps.sql`
-         SELECT id, name, instructions, model_name, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
+         SELECT id, name, instructions, model_name, model_provider, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
            FROM agents WHERE id = ${agentId} AND archived_at IS NULL`;
       if (!row) throw new Error(`agent ${agentId} does not exist`);
       const name = row.name as string;
@@ -349,6 +398,8 @@ export class EnvelopeBuilder {
             ((row.instructions as string | null) ?? '').trim() ||
             `You are ${name}, an agent working a task in Berry. Do the task you are given and report what you did.`,
          model: (row.model_name as string | null) ?? '',
+         modelProvider: (row.model_provider as string | null) ?? null,
+         tier: CATALOG_TIER_TO_GATEWAY[tierOfPreferredModel(contract?.preferred_model) ?? 'haiku'],
          permissions: (row.permissions as string[] | null) ?? [],
          tools: toolsForAgentRow({ role_key: (row.role_key as string | null) ?? null, role_contract: row.role_contract }),
          runtimeProfileId: (row.runtime_profile_id as string | null) ?? null,

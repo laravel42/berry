@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { CatalogUnavailable, type CatalogModel } from '../catalog.ts';
-import { AUTO_MODEL, isFreeEligible, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type TierPools, type UsageRow } from './tiers.ts';
+import { AUTO_MODEL, isFreeEligible, isPaidEligible, modelForTier, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierPools, type UsageRow } from './tiers.ts';
 
 /**
  * The Kilo gateway's models and leaderboard, read live (ADR-0017).
@@ -155,6 +155,11 @@ export class KiloCatalog {
       return models
          .filter((model) => isPaidEligible(model) || isFreeEligible(model) || model.id === AUTO_MODEL)
          .map((model) => toCatalogModel(model, pools));
+   }
+
+   /** The model a role on `tier` runs on today: the tier's first choice, or the nearest tier's. */
+   async modelFor(tier: Tier): Promise<string | null> {
+      return modelForTier((await this.snapshot()).pools, tier);
    }
 
    async #refresh(): Promise<KiloSnapshot> {

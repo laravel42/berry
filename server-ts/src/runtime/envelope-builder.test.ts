@@ -77,6 +77,59 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       assert.equal(delivery, null, 'no git credential means no repository');
    });
 
+   describe('through the model gateway (ADR-0017)', () => {
+      const asked: string[] = [];
+      let gatewayBuilder: EnvelopeBuilder;
+      before(() => {
+         gatewayBuilder = new EnvelopeBuilder({
+            sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+            memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
+            gateway: {
+               modelFor: async (tier) => {
+                  asked.push(tier);
+                  return tier === 'berry_low' ? 'openai/gpt-6-luna' : null;
+               },
+            },
+         });
+      });
+      afterEach(async () => {
+         asked.length = 0;
+         await sql`UPDATE agents SET model_provider = NULL, model_name = NULL WHERE id = ${fixture!.agentId}`;
+      });
+
+      async function modelOf(): Promise<string> {
+         const f = fixture!;
+         const issueId = await createIssue(sql, f);
+         const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
+         const { envelope } = await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+         return envelope.agent.model;
+      }
+
+      test('a Bedrock pairing is not sent to the gateway: the agent runs on its tier\'s choice', async () => {
+         await sql`UPDATE agents SET model_provider = 'bedrock', model_name = 'us.anthropic.claude-sonnet-5' WHERE id = ${fixture!.agentId}`;
+         assert.equal(await modelOf(), 'openai/gpt-6-luna');
+         assert.deepEqual(asked, ['berry_low'], 'an agent outside the organization is on BerryLow');
+      });
+
+      test('a gateway model the agent names is used as is', async () => {
+         await sql`UPDATE agents SET model_provider = 'kilo', model_name = 'anthropic/claude-haiku-4.5' WHERE id = ${fixture!.agentId}`;
+         assert.equal(await modelOf(), 'anthropic/claude-haiku-4.5');
+         assert.deepEqual(asked, []);
+      });
+
+      test('an empty tier fails the build with its name rather than sending a model the gateway refuses', async () => {
+         const f = fixture!;
+         const empty = new EnvelopeBuilder({
+            sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+            memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
+            gateway: { modelFor: async () => null },
+         });
+         const issueId = await createIssue(sql, f);
+         const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
+         await assert.rejects(empty.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' }), /berry_low tier/);
+      });
+   });
+
    describe('a task with a repository', () => {
       const BRANCH_HEAD = 'b'.repeat(40);
       const MAIN_HEAD = 'c'.repeat(40);

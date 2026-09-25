@@ -568,6 +568,16 @@ const transport = routingTransport({
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
+// The Kilo model gateway (ADR-0017): its catalogue and tiers, and the
+// account's own spend. Declared before the executor, which picks a tier's
+// model for an agent that names no gateway model.
+const modelGateway = config.modelGateway
+   ? {
+        catalog: new KiloCatalog({ apiKey: config.modelGateway.apiKey, baseUrl: config.modelGateway.baseUrl }),
+        account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
+     }
+   : null;
+
 const executor = defaultTarget
    ? new RuntimeTaskExecutor({
         sql,
@@ -581,6 +591,7 @@ const executor = defaultTarget
               config.integrations.publicUrl ??
               `http://${config.apiAddr.host}:${config.apiAddr.port}`,
            defaultModel: config.runtime.defaultModel,
+           ...(modelGateway ? { gateway: modelGateway.catalog } : {}),
            maxTokens: config.runtime.maxTokens,
            memory: runMemory ?? nullRunMemory(),
            sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
@@ -662,12 +673,6 @@ await seedDefaultsEverywhere(sql, deploySkills, (workspaceId, error) =>
 //
 // Through the Kilo gateway (ADR-0017) the picker lists what the gateway's own
 // catalogue says the account's keys can serve, ranked into tiers.
-const modelGateway = config.modelGateway
-   ? {
-        catalog: new KiloCatalog({ apiKey: config.modelGateway.apiKey, baseUrl: config.modelGateway.baseUrl }),
-        account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
-     }
-   : null;
 const modelCatalog: ModelSource | null = modelGateway
    ? modelGateway.catalog
    : config.agents
