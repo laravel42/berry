@@ -17,6 +17,12 @@ const agentSchema = z.object({
    instructions: z.string().nullish(),
    modelProvider: z.string().nullish(),
    modelName: z.string().nullish(),
+   /** Its own Berry tier; null runs on its role's (ADR-0017). */
+   tier: z.string().nullish(),
+   /** Its own fallback model (a gateway id); null lets Berry choose from the leaderboard. */
+   fallbackModel: z.string().nullish(),
+   /** The tier the agent runs on when `tier` is null, as the server resolves it. */
+   defaultTier: z.string().nullish(),
    /**
     * What this agent may do. Absence is denial, so an empty list is an agent
     * that can be assigned work and cannot act on it.
@@ -295,6 +301,89 @@ export function modelVendor(model: Pick<AgentModel, 'id' | 'provider'>): string 
    return model.provider;
 }
 
+/** Berry's model tiers (ADR-0017), in the order a person reads them. */
+export const TIERS = ['berry_max', 'berry_mid', 'berry_low', 'berry_free', 'berry_auto'] as const;
+export type Tier = (typeof TIERS)[number];
+
+/** Product names, not translated: they are Berry's, like its own name. */
+export const TIER_NAMES: Record<Tier, string> = {
+   berry_max: 'BerryMax',
+   berry_mid: 'BerryMid',
+   berry_low: 'BerryLow',
+   berry_free: 'BerryFree',
+   berry_auto: 'BerryAuto',
+};
+
+/** The three a person chooses between; Free and Auto are experiments. */
+export const MAIN_TIERS = [
+   'berry_max',
+   'berry_mid',
+   'berry_low',
+] as const satisfies readonly Tier[];
+
+export function isTier(value: unknown): value is Tier {
+   return typeof value === 'string' && (TIERS as readonly string[]).includes(value);
+}
+
+const rankedModelSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   /** KiloBench completion rate, 0–1. */
+   completion: z.number().nullable(),
+   costPerAttemptUsd: z.number().nullable(),
+   usageTokens: z.number(),
+   /** USD per million tokens, three input to one output. */
+   blendedPricePerM: z.number().nullable(),
+});
+
+const modelTiersSchema = z.object({
+   tiers: z.array(
+      z.object({
+         tier: z.enum(TIERS),
+         name: z.string(),
+         /** Today's ranking; the first is the tier's top model. */
+         models: z.array(rankedModelSchema),
+      })
+   ),
+   refreshedAt: z.string(),
+   stale: z.boolean(),
+   usageStale: z.boolean(),
+});
+
+export type RankedModel = z.infer<typeof rankedModelSchema>;
+export type ModelTiers = z.infer<typeof modelTiersSchema>;
+
+/** Each tier as the gateway leaderboard fills it today. 503 without a gateway. */
+export async function getModelTiers(): Promise<ModelTiers> {
+   const json: unknown = await apiFetch('/api/v1/agents/tiers');
+   const parsed = modelTiersSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Tier response was not recognized');
+   return parsed.data;
+}
+
+/** Where a tier's default fallback comes from: the top of the next tier down. */
+const FALLBACK_SOURCE: Record<Tier, Tier[]> = {
+   berry_max: ['berry_mid', 'berry_low'],
+   berry_mid: ['berry_low', 'berry_mid'],
+   berry_low: ['berry_low', 'berry_mid'],
+   berry_free: ['berry_low', 'berry_mid'],
+   berry_auto: ['berry_low', 'berry_mid'],
+};
+
+/**
+ * The fallback Berry would use for `tier` today, for display. The server
+ * decides at run time; this mirrors its rule so the line says what it will do.
+ */
+export function defaultFallback(tiers: ModelTiers, tier: Tier): RankedModel | null {
+   const pool = (name: Tier) => tiers.tiers.find((entry) => entry.tier === name)?.models ?? [];
+   const own = pool(tier)[0]?.id;
+   for (const source of FALLBACK_SOURCE[tier]) {
+      const pick = pool(source).find((model) => model.id !== own);
+      if (pick) return pick;
+   }
+   return null;
+}
+
 export async function updateAgentConfig(
    agentId: string,
    config: {
@@ -309,6 +398,10 @@ export async function updateAgentConfig(
       starters?: string[];
       /** Null clears the ceiling; omitting it leaves the stored one alone. */
       maxConcurrency?: number | null;
+      /** Null inherits the role's tier. */
+      tier?: Tier | null;
+      /** A gateway model id from `listAgentModels`, or null for Berry's choice. */
+      fallbackModel?: string | null;
    }
 ): Promise<Agent> {
    const json: unknown = await apiFetch(`/api/v1/agents/${encodeURIComponent(agentId)}/config`, {

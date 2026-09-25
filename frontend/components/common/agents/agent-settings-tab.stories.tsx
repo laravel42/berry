@@ -3,6 +3,8 @@ import { expect, fn, waitFor } from 'storybook/test';
 import AgentSettingsTab from './agent-settings-tab';
 import {
    frontendAgent,
+   gatewayAgent,
+   gatewayHandlers,
    importerAgent,
    rosterMap,
    seedSession,
@@ -54,3 +56,15 @@ export const Unconfigured: Story = {
 };
 
 export const ReadOnly: Story = { args: { readOnly: true } };
+
+/** Models go through the gateway: the tier choice replaces the model picker and saves as a draft. */
+export const Gateway: Story = {
+   args: { agent: gatewayAgent },
+   beforeEach: ({ msw }) => {
+      msw.use(...gatewayHandlers);
+   },
+   play: async ({ args, canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('radio', { name: /BerryLow/ }));
+      await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
+   },
+};

@@ -39,7 +39,11 @@ const bootstrapSchema = z.object({
 });
 
 const configSchema = z.object({
-   capabilities: z.looseObject({ githubSignIn: z.boolean().optional() }),
+   capabilities: z.looseObject({
+      githubSignIn: z.boolean().optional(),
+      /** Models are reached through a gateway with Berry tiers (ADR-0017). */
+      modelGateway: z.boolean().optional(),
+   }),
 });
 
 export type LoginUser = z.infer<typeof userSchema>;
@@ -93,6 +97,20 @@ export async function fetchGitHubSignInAvailable(): Promise<boolean> {
    const json: unknown = await apiFetch('/api/v1/config');
    const parsed = configSchema.safeParse(json);
    return parsed.success && parsed.data.capabilities.githubSignIn === true;
+}
+
+/**
+ * Whether agents run on Berry tiers through a model gateway. False when the
+ * server does not say so, or cannot be asked: the model picker is the safe UI.
+ */
+export async function fetchModelGatewayAvailable(): Promise<boolean> {
+   try {
+      const json: unknown = await apiFetch('/api/v1/config');
+      const parsed = configSchema.safeParse(json);
+      return parsed.success && parsed.data.capabilities.modelGateway === true;
+   } catch {
+      return false;
+   }
 }
 
 /** Ends the session on the server; the cookie is cleared by the response. */

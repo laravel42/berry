@@ -157,6 +157,8 @@
       "change_role": "role contract",
       "change_general": "name and description",
       "change_model": "model",
+      "change_tier": "tier",
+      "change_fallback": "fallback model",
       "change_runtime": "runtime",
       "change_concurrency": "concurrency",
       "change_access": "access",
@@ -217,7 +219,33 @@
       "envAuditReveal": "revealed",
       "envAuditUpdate": "changed",
       "envAuditBy": "{name} · {when}",
-      "tabRole": "Role"
+      "tabRole": "Role",
+      "tiers": {
+         "title": "Tier",
+         "recommended": "Recommended",
+         "outcome": {
+            "berry_max": "Best results",
+            "berry_mid": "Balanced",
+            "berry_low": "Lowest cost",
+            "berry_free": "No cost",
+            "berry_auto": "Routed per call"
+         },
+         "completion": "{percent} KiloBench",
+         "price": "{price}/M tokens",
+         "noModel": "No model today",
+         "freeTraining": "Prompts may be used for training",
+         "experiments": "Experiments",
+         "leaderboardUnavailable": "Leaderboard unavailable",
+         "fallback": "Fallback: {model}",
+         "fallbackBerry": "Fallback: {model} · Berry",
+         "fallbackBerryOnly": "Fallback: Berry",
+         "fallbackChange": "Change",
+         "fallbackDone": "Done",
+         "fallbackReset": "Use Berry's choice",
+         "pinned": "Pinned: {model}",
+         "legacy": "Bedrock model: {model} · ignored",
+         "useTier": "Use tier"
+      }
    },
    "create": {
       "title": "New agent",

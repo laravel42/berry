@@ -443,6 +443,17 @@
          "tokens": "Tokens",
          "cost": "Cost"
       },
+      "tiers": {
+         "title": "Tiers",
+         "tier": "Tier",
+         "runs": "Runs",
+         "cost": "Cost",
+         "perRun": "Cost/run",
+         "fallbackRate": "Fallback rate",
+         "unpriced": "Unpriced",
+         "empty": "No tier runs in this window.",
+         "unavailable": "Tiers unavailable"
+      },
       "leaderboard": {
          "agents": "Agents by spend",
          "models": "Models by spend"

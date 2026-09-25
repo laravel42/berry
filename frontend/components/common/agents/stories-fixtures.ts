@@ -17,6 +17,7 @@ import {
    type AgentModel,
    type AgentRoster,
    type AgentTask,
+   type ModelTiers,
 } from '@/lib/agents';
 import type { Autopilot, AutopilotDetail, AutopilotRun, WebhookDelivery } from '@/lib/autopilots';
 import type { RoleContract } from '@/lib/organization';
@@ -1232,4 +1233,142 @@ export const storyHandlers = [
       const body = (await request.json()) as Partial<Autopilot>;
       return HttpResponse.json({ ...autopilots[0]!, ...body });
    }),
+];
+
+// ------------------------------------------------------------------ model gateway (ADR-0017)
+
+/** `GET /api/v1/agents/tiers`: each tier's ranking today, top model first. */
+export const modelTiers: ModelTiers = {
+   tiers: [
+      {
+         tier: 'berry_max',
+         name: 'BerryMax',
+         models: [
+            {
+               id: 'openai/gpt-5.2',
+               name: 'GPT-5.2',
+               completion: 0.81,
+               costPerAttemptUsd: 1.42,
+               usageTokens: 4_100_000_000,
+               blendedPricePerM: 4.38,
+            },
+            {
+               id: 'google/gemini-3-pro',
+               name: 'Gemini 3 Pro',
+               completion: 0.78,
+               costPerAttemptUsd: 1.1,
+               usageTokens: 2_600_000_000,
+               blendedPricePerM: 4.5,
+            },
+         ],
+      },
+      {
+         tier: 'berry_mid',
+         name: 'BerryMid',
+         models: [
+            {
+               id: 'z-ai/glm-5',
+               name: 'GLM-5',
+               completion: 0.72,
+               costPerAttemptUsd: 0.31,
+               usageTokens: 3_900_000_000,
+               blendedPricePerM: 1.1,
+            },
+            {
+               id: 'moonshotai/kimi-k2.5',
+               name: 'Kimi K2.5',
+               completion: 0.7,
+               costPerAttemptUsd: 0.36,
+               usageTokens: 2_200_000_000,
+               blendedPricePerM: 1.2,
+            },
+         ],
+      },
+      {
+         tier: 'berry_low',
+         name: 'BerryLow',
+         models: [
+            {
+               id: 'minimax/minimax-m2.5',
+               name: 'MiniMax M2.5',
+               completion: null,
+               costPerAttemptUsd: null,
+               usageTokens: 6_800_000_000,
+               blendedPricePerM: 0.45,
+            },
+            {
+               id: 'deepseek/deepseek-v3.2',
+               name: 'DeepSeek V3.2',
+               completion: null,
+               costPerAttemptUsd: null,
+               usageTokens: 5_100_000_000,
+               blendedPricePerM: 0.3,
+            },
+         ],
+      },
+      {
+         tier: 'berry_free',
+         name: 'BerryFree',
+         models: [
+            {
+               id: 'qwen/qwen3-coder:free',
+               name: 'Qwen3 Coder (free)',
+               completion: null,
+               costPerAttemptUsd: null,
+               usageTokens: 1_900_000_000,
+               blendedPricePerM: 0,
+            },
+         ],
+      },
+      {
+         tier: 'berry_auto',
+         name: 'BerryAuto',
+         models: [
+            {
+               id: 'kilo-auto/efficient',
+               name: 'Kilo Auto Efficient',
+               completion: null,
+               costPerAttemptUsd: null,
+               usageTokens: 0,
+               blendedPricePerM: null,
+            },
+         ],
+      },
+   ],
+   refreshedAt: '2026-09-18T11:00:00Z',
+   stale: false,
+   usageStale: false,
+};
+
+/** `GET /api/v1/agents/models` behind the gateway: every model is `kilo` + a `vendor/model` id. */
+export const gatewayModels: AgentModel[] = modelTiers.tiers.flatMap((entry) =>
+   entry.models.map((ranked) => ({
+      id: ranked.id,
+      displayName: ranked.name,
+      provider: 'kilo',
+      tier: entry.name,
+      contextWindow: 200_000,
+      inputCostPerM: ranked.blendedPricePerM ?? 0,
+      outputCostPerM: (ranked.blendedPricePerM ?? 0) * 4,
+      supportsTools: true,
+      supportsVision: false,
+   }))
+);
+
+/** A role agent on the gateway, on its role's tier with Berry's fallback. */
+export const gatewayAgent: Agent = {
+   ...frontendAgent,
+   modelProvider: null,
+   modelName: null,
+   tier: null,
+   fallbackModel: null,
+};
+
+/** Handlers for a deployment whose models go through the gateway; put them before `storyHandlers`. */
+export const gatewayHandlers = [
+   http.get('*/api/v1/config', () =>
+      HttpResponse.json({ capabilities: { githubSignIn: true, modelGateway: true } })
+   ),
+   http.get('*/api/v1/agents/tiers', () => HttpResponse.json(modelTiers)),
+   http.get('*/api/v1/agents/models', () => HttpResponse.json({ nodes: gatewayModels })),
 ];

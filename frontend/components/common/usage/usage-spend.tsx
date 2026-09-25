@@ -6,6 +6,7 @@ import {
    formatCost,
    formatSpan,
    formatTokens,
+   getWorkspaceTierUsage,
    getWorkspaceUsage,
    getWorkspaceWork,
    seriesLabel,
@@ -29,7 +30,9 @@ import {
    Treemap,
    type TreemapItem,
 } from '@/components/common/charts/charts';
+import { useModelGateway } from '@/hooks/use-model-gateway';
 import { useUsage } from './use-usage';
+import { UsageTiersTable } from './usage-tiers-table';
 
 /** The theme's chart colours, in the order a ring's slices take them. */
 const SLICE_COLORS = [
@@ -57,6 +60,7 @@ export default function UsageSpend({
    onState?: (state: { lastUpdated: Date | null; loading: boolean; reload: () => void }) => void;
 }) {
    const t = useTranslations('areas.usage.spend');
+   const tierT = useTranslations('areas.usage.tiers');
    const { orgId } = useParams<{ orgId: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? null);
    const { data, error, loading, lastUpdated, reload } = useUsage(
@@ -70,6 +74,13 @@ export default function UsageSpend({
            }
          : null,
       `spend:${workspaceId}:${usageQueryKey(query)}`
+   );
+
+   // Tiers exist only behind the model gateway (ADR-0017); without one the panel is not drawn.
+   const modelGateway = useModelGateway();
+   const tiers = useUsage(
+      workspaceId && modelGateway ? () => getWorkspaceTierUsage(workspaceId, query) : null,
+      `tiers:${workspaceId}:${modelGateway}:${usageQueryKey(query)}`
    );
 
    useEffect(() => {
@@ -244,6 +255,18 @@ export default function UsageSpend({
                </div>
             </ChartPanel>
          </div>
+
+         {modelGateway && (tiers.data || tiers.error) ? (
+            <div className="grid gap-5 lg:grid-cols-12">
+               <ChartPanel title={tierT('title')} className="lg:col-span-7">
+                  {tiers.data ? (
+                     <UsageTiersTable rows={tiers.data.tiers} />
+                  ) : (
+                     <p className="text-muted-foreground">{tierT('unavailable')}</p>
+                  )}
+               </ChartPanel>
+            </div>
+         ) : null}
 
          <div className="grid gap-5 lg:grid-cols-12">
             <ChartPanel

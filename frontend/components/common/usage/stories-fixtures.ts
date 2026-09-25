@@ -4,6 +4,7 @@ import type {
    DashboardOverview,
    IssueUsage,
    RuntimeUsage,
+   TierUsage,
    UsageBucket,
    UsageErrors,
    WorkspaceUsage,
@@ -425,6 +426,53 @@ export const issueUsage: IssueUsage = {
    byModel: [bucket('us.anthropic.claude-sonnet-4-5-20250929-v1:0', 1.9)],
 };
 
+/** `GET /api/v1/usage/:id/tiers`: the Berry tiers over the same 30 days. */
+export const tierUsage: TierUsage = {
+   ...window30,
+   tiers: [
+      {
+         tier: 'berry_low',
+         runs: 142,
+         costMicros: 9_860_000,
+         unpricedRecords: 0,
+         inputTokens: 41_200_000,
+         outputTokens: 3_100_000,
+         cacheReadTokens: 22_800_000,
+         fellBackRuns: 6,
+      },
+      {
+         tier: 'berry_max',
+         runs: 18,
+         costMicros: 21_400_000,
+         unpricedRecords: 0,
+         inputTokens: 9_800_000,
+         outputTokens: 1_200_000,
+         cacheReadTokens: 6_100_000,
+         fellBackRuns: 1,
+      },
+      {
+         tier: 'berry_mid',
+         runs: 64,
+         costMicros: 14_900_000,
+         unpricedRecords: 0,
+         inputTokens: 24_600_000,
+         outputTokens: 2_300_000,
+         cacheReadTokens: 13_400_000,
+         fellBackRuns: 3,
+      },
+      {
+         tier: 'berry_auto',
+         runs: 9,
+         costMicros: 820_000,
+         unpricedRecords: 4,
+         inputTokens: 2_100_000,
+         outputTokens: 180_000,
+         cacheReadTokens: 0,
+         fellBackRuns: 0,
+      },
+   ],
+};
+
 /** The error envelope every Berry route answers a failure with. */
 export function errorEnvelope(status: number, code: string, message: string) {
    return HttpResponse.json({ error: { code, message, requestId: 'req-story' } }, { status });
@@ -433,6 +481,7 @@ export function errorEnvelope(status: number, code: string, message: string) {
 /** Handlers answering every usage read with its loaded fixture. */
 export const usageHandlers = [
    http.get('*/api/v1/usage/:workspaceId/summary', () => HttpResponse.json(workspaceUsage)),
+   http.get('*/api/v1/usage/:workspaceId/tiers', () => HttpResponse.json(tierUsage)),
    http.get('*/api/v1/usage/:workspaceId/errors', () => HttpResponse.json(usageErrors)),
    http.get('*/api/v1/usage/:workspaceId/runtimes/:runtimeId', () =>
       HttpResponse.json(runtimeUsage)

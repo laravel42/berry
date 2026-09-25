@@ -261,6 +261,23 @@ const dashboardSchema = windowSchema.extend({
    today: bucketSchema.nullable().default(null),
 });
 
+/** Usage per Berry tier (ADR-0017). Runs on a pinned model or before tiers carry none. */
+const tierUsageSchema = windowSchema.extend({
+   tiers: z.array(
+      z.object({
+         tier: z.string(),
+         runs: z.number(),
+         costMicros: z.number(),
+         unpricedRecords: z.number(),
+         inputTokens: z.number(),
+         outputTokens: z.number(),
+         cacheReadTokens: z.number(),
+         /** Runs that switched to their fallback model. */
+         fellBackRuns: z.number(),
+      })
+   ),
+});
+
 export type UsageBucket = z.infer<typeof bucketSchema>;
 export type AgentUsageBucket = z.infer<typeof agentBucketSchema>;
 export type RunTotals = z.infer<typeof runTotalsSchema>;
@@ -272,6 +289,8 @@ export type RuntimeUsage = z.infer<typeof runtimeUsageSchema>;
 export type IssueUsage = z.infer<typeof issueUsageSchema>;
 export type UsageErrors = z.infer<typeof errorsSchema>;
 export type DashboardOverview = z.infer<typeof dashboardSchema>;
+export type TierUsage = z.infer<typeof tierUsageSchema>;
+export type TierUsageRow = TierUsage['tiers'][number];
 
 export const USAGE_DAY_OPTIONS = [7, 30, 90] as const;
 /** A runtime's own page reaches back further: the heatmap wants 26 weeks. */
@@ -313,6 +332,10 @@ async function read<T>(path: string, schema: z.ZodType<T>): Promise<T> {
 
 export function getWorkspaceUsage(workspaceId: string, query: UsageQuery): Promise<WorkspaceUsage> {
    return read(`${base(workspaceId)}/summary${search(query)}`, workspaceUsageSchema);
+}
+
+export function getWorkspaceTierUsage(workspaceId: string, query: UsageQuery): Promise<TierUsage> {
+   return read(`${base(workspaceId)}/tiers${search(query)}`, tierUsageSchema);
 }
 
 export function getWorkspaceWork(workspaceId: string, query: UsageQuery): Promise<WorkspaceWork> {

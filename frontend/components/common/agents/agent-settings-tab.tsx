@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { AgentModelPicker } from '@/components/common/agents/agent-model-picker';
+import { AgentTierSection } from '@/components/common/agents/agent-tier-section';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,10 +23,13 @@ import {
    setAgentAccess,
    updateAgentConfig,
    getAgentAccess,
+   isTier,
    type Agent,
    type AgentAccess,
    type AgentRoster,
+   type Tier,
 } from '@/lib/agents';
+import { useModelGateway } from '@/hooks/use-model-gateway';
 import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { useSessionStore } from '@/store/session-store';
 
@@ -37,6 +41,9 @@ const reason = (error: unknown, fallback: string) =>
    error instanceof BerryApiError ? error.message : fallback;
 
 const concurrencyOf = (agent: Agent) => agent.maxConcurrency ?? DEFAULT_CONCURRENCY;
+/** The agent's own tier; anything the server sends that is not one reads as none. */
+const tierOf = (agent: Agent): Tier | null => (isTier(agent.tier) ? agent.tier : null);
+const fallbackOf = (agent: Agent) => agent.fallbackModel ?? null;
 
 interface AgentSettingsTabProps {
    agent: Agent;
@@ -126,11 +133,14 @@ export default function AgentSettingsTab({
       toast.error(reason(error, t('failureUnknown')));
    };
    const sessionUserId = useSessionStore((state) => state.user?.id);
+   const modelGateway = useModelGateway();
 
    const [name, setName] = useState(agent.name);
    const [description, setDescription] = useState(agent.description ?? '');
    const [provider, setProvider] = useState(agent.modelProvider ?? null);
    const [model, setModel] = useState(agent.modelName ?? null);
+   const [tier, setTier] = useState<Tier | null>(() => tierOf(agent));
+   const [fallbackModel, setFallbackModel] = useState<string | null>(() => fallbackOf(agent));
    const [runtimeId, setRuntimeId] = useState(roster?.runtimeId ?? null);
    const [concurrency, setConcurrency] = useState(() => concurrencyOf(agent));
    const [starters, setStarters] = useState<string[]>(agent.conversationStarters);
@@ -144,6 +154,8 @@ export default function AgentSettingsTab({
       setDescription(agent.description ?? '');
       setProvider(agent.modelProvider ?? null);
       setModel(agent.modelName ?? null);
+      setTier(tierOf(agent));
+      setFallbackModel(fallbackOf(agent));
       setConcurrency(concurrencyOf(agent));
       setStarters(agent.conversationStarters);
    }, [
@@ -151,6 +163,8 @@ export default function AgentSettingsTab({
       agent.description,
       agent.modelProvider,
       agent.modelName,
+      agent.tier,
+      agent.fallbackModel,
       agent.maxConcurrency,
       agent.conversationStarters,
    ]);
@@ -180,6 +194,8 @@ export default function AgentSettingsTab({
    const modelDirty =
       (provider ?? null) !== (agent.modelProvider ?? null) ||
       (model ?? null) !== (agent.modelName ?? null);
+   const tierDirty = tier !== tierOf(agent);
+   const fallbackDirty = fallbackModel !== fallbackOf(agent);
    const runtimeDirty = (runtimeId ?? null) !== (roster?.runtimeId ?? null);
    const concurrencyDirty = concurrency !== concurrencyOf(agent);
    const accessDirty = accessMode !== baselineAccessMode;
@@ -191,6 +207,8 @@ export default function AgentSettingsTab({
       nameDirty ||
       descriptionDirty ||
       modelDirty ||
+      tierDirty ||
+      fallbackDirty ||
       runtimeDirty ||
       concurrencyDirty ||
       accessDirty ||
@@ -204,6 +222,8 @@ export default function AgentSettingsTab({
       const parts: string[] = [];
       if (nameDirty || descriptionDirty) parts.push(t('change_general'));
       if (modelDirty) parts.push(t('change_model'));
+      if (tierDirty) parts.push(t('change_tier'));
+      if (fallbackDirty) parts.push(t('change_fallback'));
       if (runtimeDirty) parts.push(t('change_runtime'));
       if (concurrencyDirty) parts.push(t('change_concurrency'));
       if (accessDirty) parts.push(t('change_access'));
@@ -213,6 +233,8 @@ export default function AgentSettingsTab({
       nameDirty,
       descriptionDirty,
       modelDirty,
+      tierDirty,
+      fallbackDirty,
       runtimeDirty,
       concurrencyDirty,
       accessDirty,
@@ -225,6 +247,8 @@ export default function AgentSettingsTab({
       setDescription(agent.description ?? '');
       setProvider(agent.modelProvider ?? null);
       setModel(agent.modelName ?? null);
+      setTier(tierOf(agent));
+      setFallbackModel(fallbackOf(agent));
       setRuntimeId(roster?.runtimeId ?? null);
       setConcurrency(concurrencyOf(agent));
       setStarters(agent.conversationStarters);
@@ -246,6 +270,8 @@ export default function AgentSettingsTab({
             config.provider = provider;
             config.model = model;
          }
+         if (tierDirty) config.tier = tier;
+         if (fallbackDirty) config.fallbackModel = fallbackModel;
          if (concurrencyDirty) config.maxConcurrency = concurrency;
          if (startersDirty) config.starters = starters.filter((entry) => entry.trim());
 
@@ -312,15 +338,32 @@ export default function AgentSettingsTab({
             </Section>
 
             <section className="flex flex-col gap-2 border-t border-border/70 pt-6">
-               <AgentModelPicker
-                  provider={provider}
-                  model={model}
-                  disabled={readOnly}
-                  onChange={(nextProvider, nextModel) => {
-                     setProvider(nextProvider);
-                     setModel(nextModel);
-                  }}
-               />
+               {modelGateway === true ? (
+                  <AgentTierSection
+                     agent={agent}
+                     tier={tier}
+                     fallbackModel={fallbackModel}
+                     provider={provider}
+                     model={model}
+                     disabled={readOnly}
+                     onTierChange={setTier}
+                     onFallbackChange={setFallbackModel}
+                     onUnpin={() => {
+                        setProvider(null);
+                        setModel(null);
+                     }}
+                  />
+               ) : modelGateway === false ? (
+                  <AgentModelPicker
+                     provider={provider}
+                     model={model}
+                     disabled={readOnly}
+                     onChange={(nextProvider, nextModel) => {
+                        setProvider(nextProvider);
+                        setModel(nextModel);
+                     }}
+                  />
+               ) : null}
             </section>
 
             <div className="grid grid-cols-1 gap-6 border-t border-border/70 pt-6 md:grid-cols-3 md:items-stretch md:gap-0">
