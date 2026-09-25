@@ -4,6 +4,7 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { nullRunMemory } from '../agentcore/memory.ts';
 import { GitHubClient } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
+import { catalogRole } from '../organization/catalog.ts';
 import { EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
@@ -87,7 +88,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             gateway: {
                modelFor: async (tier) => {
                   asked.push(tier);
-                  return tier === 'berry_low' ? 'openai/gpt-6-luna' : null;
+                  return tier === 'berry_low' ? 'openai/gpt-6-luna' : `vendor/${tier}-choice`;
                },
             },
          });
@@ -109,6 +110,21 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          await sql`UPDATE agents SET model_provider = 'bedrock', model_name = 'us.anthropic.claude-sonnet-5' WHERE id = ${fixture!.agentId}`;
          assert.equal(await modelOf(), 'openai/gpt-6-luna');
          assert.deepEqual(asked, ['berry_low'], 'an agent outside the organization is on BerryLow');
+      });
+
+      test('a role agent runs on its contract\'s tier, or its catalogue role\'s when the contract predates tiers', async () => {
+         const f = fixture!;
+         const { tier: _tier, ...current } = catalogRole('cto')!;
+         // As a contract customised before catalogue 13 reads: no tier, an old model.
+         const legacy = { ...current, preferred_model: 'us.anthropic.claude-opus-5' };
+         const [before] = await sql`SELECT role_key, role_contract FROM agents WHERE id = ${f.agentId}`;
+         await sql`UPDATE agents SET role_key = 'cto', role_contract = ${sql.json(legacy as never)} WHERE id = ${f.agentId}`;
+         try {
+            assert.equal(await modelOf(), 'vendor/berry_max-choice');
+            assert.deepEqual(asked, ['berry_max'], 'the CTO is on BerryMax in the catalogue');
+         } finally {
+            await sql`UPDATE agents SET role_key = ${before!.role_key as string | null}, role_contract = ${before!.role_contract === null ? null : sql.json(before!.role_contract as never)} WHERE id = ${f.agentId}`;
+         }
       });
 
       test('a gateway model the agent names is used as is', async () => {

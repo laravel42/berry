@@ -6,7 +6,7 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { AgentRepository } from '../agents/repository.ts';
-import { CATALOG, CATALOG_VERSION, catalogRole, MODELS } from './catalog.ts';
+import { CATALOG, CATALOG_VERSION, catalogRole } from './catalog.ts';
 import { hashContract } from './contract.ts';
 import { ensureOrganizationAgents, KEPT_INSTRUCTIONS_SUFFIX, resetRole } from './provision.ts';
 
@@ -51,7 +51,8 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       assert.equal(orchestrator?.protected, true);
       assert.equal(roles.filter((row) => row.protected).length, 1);
       assert.equal(roles.find((row) => row.role_key === 'engineering-manager')?.protected, false);
-      assert.equal(roles.find((row) => row.role_key === 'cto')?.model_name, MODELS.opus);
+      // No model is written: the role's tier chooses one per run (ADR-0017).
+      assert.equal(roles.find((row) => row.role_key === 'cto')?.model_name, null);
       assert.deepEqual(roles.find((row) => row.role_key === 'product-lead')?.permissions, ['read_repository']);
       assert.ok(roles.every((row) => row.contract_version === CATALOG_VERSION));
    });

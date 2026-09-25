@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { KNOWN_TOOLS, toolCeiling } from './autonomy.ts';
-import { CATALOG, catalogRole, MODELS, WORKFLOWS } from './catalog.ts';
+import { CATALOG, catalogRole, WORKFLOWS } from './catalog.ts';
 import { roleContractSchema } from './contract.ts';
 
 const keys = new Set(CATALOG.map((role) => role.id));
@@ -82,14 +82,15 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('models are the three tiers the spec fixes', () => {
-      assert.equal(catalogRole('cto')?.preferred_model, MODELS.opus);
-      assert.equal(catalogRole('software-architect')?.preferred_model, MODELS.opus);
+   test('roles are on Berry tiers, and name no model or vendor', () => {
+      assert.equal(catalogRole('cto')?.tier, 'berry_max');
+      assert.equal(catalogRole('software-architect')?.tier, 'berry_max');
       for (const key of ['business-analyst', 'ux-researcher', 'technical-writer', 'data-analytics-engineer', 'growth-engineer']) {
-         assert.equal(catalogRole(key)?.preferred_model, MODELS.haiku, key);
+         assert.equal(catalogRole(key)?.tier, 'berry_low', key);
       }
       for (const role of CATALOG) {
-         assert.ok(Object.values(MODELS).includes(role.preferred_model), role.id);
+         assert.ok(['berry_max', 'berry_mid', 'berry_low'].includes(role.tier ?? ''), role.id);
+         assert.equal(role.preferred_model, undefined, role.id);
       }
    });
 
@@ -131,12 +132,4 @@ describe('the Berry organization catalog', () => {
          for (const step of workflow.chain) assert.ok(keys.has(step), `${workflow.key}: ${step}`);
       }
    });
-});
-
-test('a contract\'s preferred model reads back as its catalogue tier', async () => {
-   const { MODELS, tierOfPreferredModel } = await import('./catalog.ts');
-   assert.equal(tierOfPreferredModel(MODELS.opus), 'opus');
-   assert.equal(tierOfPreferredModel(MODELS.haiku), 'haiku');
-   assert.equal(tierOfPreferredModel('anthropic/claude-haiku-4.5'), null);
-   assert.equal(tierOfPreferredModel(undefined), null);
 });

@@ -108,7 +108,17 @@ show cost before work and record actual cost after. The Kilo gateway
    Real usage in the role's mode breaks ties. Berry picks among the top 3 of a
    tier, weighted by rank, and uses the fallback model once on failure. No
    model list is hard-coded.
-7. **BerryAuto, a fifth tier, is an experiment.** It sends every call to
+7. **Roles are on Berry tiers, not vendor model families.** From catalogue
+   13, the default organization assigns each role `berry_max`, `berry_mid` or
+   `berry_low`, stored as the contract's `tier`, and provisioning writes no
+   model pair.
+   - Through the gateway, a run's model is the agent's named gateway model;
+     failing that, its tier's first choice today. The tier comes from the
+     contract, else from the role's catalogue entry for contracts customised
+     before tiers existed, else BerryLow.
+   - There is no tier-to-Bedrock mapping. Without the gateway, an agent that
+     names no model runs on the server default.
+8. **BerryAuto, a fifth tier, is an experiment.** It sends every call to
    Kilo's `kilo-auto/efficient`, so that Kilo's routing can be compared with
    Berry's ranked tiers on the same roles.
    - It is exempt from the own-key refusal. Kilo's fallback model (GLM Flash)

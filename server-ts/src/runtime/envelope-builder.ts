@@ -20,8 +20,10 @@ import { pluginMcpServers } from '../plugins/mcp.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
-import { tierOfPreferredModel } from '../organization/catalog.ts';
-import { isGatewayModelId, type Tier } from '../agents/kilo/tiers.ts';
+import { catalogRole } from '../organization/catalog.ts';
+import type { RoleKey } from '../organization/contract.ts';
+import { isGatewayModelId } from '../agents/kilo/tiers.ts';
+import type { Tier } from '../agents/model-tiers.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
 const RELATED_PARENT_CHARS = 1500;
@@ -53,13 +55,6 @@ export interface TaskRow {
    runtimeId: string | null;
 }
 
-/** The organization catalogue's tiers as gateway tiers (ADR-0017). */
-const CATALOG_TIER_TO_GATEWAY: Record<'opus' | 'sonnet' | 'haiku', Tier> = {
-   opus: 'berry_max',
-   sonnet: 'berry_mid',
-   haiku: 'berry_low',
-};
-
 export interface AgentConfig {
    maxTurns?: number;
    maxOutputTokens?: number;
@@ -71,8 +66,9 @@ export interface AgentConfig {
    modelProvider: string | null;
    /**
     * The gateway tier the agent runs on when it names no gateway model
-    * (ADR-0017): its role's catalogue tier, or BerryLow for an agent outside
-    * the organization — the cheap default Haiku used to be.
+    * (ADR-0017): its contract's tier, else its role's tier in the catalogue
+    * (a contract customised before tiers existed), else BerryLow for an agent
+    * outside the organization.
     */
    tier: Tier;
    permissions: string[];
@@ -399,7 +395,7 @@ export class EnvelopeBuilder {
             `You are ${name}, an agent working a task in Berry. Do the task you are given and report what you did.`,
          model: (row.model_name as string | null) ?? '',
          modelProvider: (row.model_provider as string | null) ?? null,
-         tier: CATALOG_TIER_TO_GATEWAY[tierOfPreferredModel(contract?.preferred_model) ?? 'haiku'],
+         tier: contract?.tier ?? catalogRole((row.role_key as RoleKey | null) ?? ('' as RoleKey))?.tier ?? 'berry_low',
          permissions: (row.permissions as string[] | null) ?? [],
          tools: toolsForAgentRow({ role_key: (row.role_key as string | null) ?? null, role_contract: row.role_contract }),
          runtimeProfileId: (row.runtime_profile_id as string | null) ?? null,

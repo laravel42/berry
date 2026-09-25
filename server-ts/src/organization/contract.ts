@@ -1,3 +1,4 @@
+import { TIERS } from '../agents/model-tiers.ts';
 import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
@@ -48,7 +49,13 @@ export const roleContractSchema = z.object({
    responsibilities: list,
    capabilities: z.array(z.string().regex(/^[a-z][a-z0-9-]*$/)).max(20),
    allowed_tools: z.array(z.string().min(1).max(64)).max(40),
-   preferred_model: z.string().min(1).max(200),
+   /** The Berry tier the role runs on (ADR-0017); the model is chosen from it per run. */
+   tier: z.enum(TIERS).optional(),
+   /**
+    * Superseded by `tier` (catalogue 13). Kept readable so a contract a
+    * workspace customised before then still validates; nothing reads it.
+    */
+   preferred_model: z.string().min(1).max(200).optional(),
    inputs: list,
    outputs: list,
    can_delegate_to: z.array(roleKey).max(30),

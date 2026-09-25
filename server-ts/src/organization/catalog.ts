@@ -1,6 +1,7 @@
 import { toolCeiling } from './autonomy.ts';
 import { MAX_RUN_OUTPUT_TOKENS, type AutonomyLevel, type Department, type RoleContract, type RoleKey } from './contract.ts';
 import { renderSystemPrompt } from './prompt.ts';
+import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
  * Berry's default organization: the Orchestrator plus 18 professional roles.
@@ -11,27 +12,15 @@ import { renderSystemPrompt } from './prompt.ts';
 
 // 12: read-only repository and skill tools at every level; designer and
 // researcher at level 3 with code.
-export const CATALOG_VERSION = 12;
-
-export const MODELS: { opus: string; sonnet: string; haiku: string } = {
-   opus: 'us.anthropic.claude-opus-5',
-   sonnet: 'us.anthropic.claude-sonnet-5',
-   haiku: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-};
-
-type Tier = keyof typeof MODELS;
+// 13: roles carry a Berry tier (berry_max/mid/low) instead of a preferred
+// Bedrock model; the model is chosen per run from the tier (ADR-0017).
+export const CATALOG_VERSION = 13;
 
 /**
- * The catalogue tier a contract's `preferred_model` was set from. Contracts
- * store the model, not the tier, and the model is always one of `MODELS`;
- * null for anything else (a hand-edited contract, a custom agent).
+ * A role's tier is Berry's (ADR-0017), not a vendor's model family: which
+ * model it runs on is chosen at run time from the gateway's leaderboard.
  */
-export function tierOfPreferredModel(model: unknown): Tier | null {
-   for (const tier of Object.keys(MODELS) as Tier[]) {
-      if (MODELS[tier] === model) return tier;
-   }
-   return null;
-}
+type Tier = RoleTier;
 
 /**
  * `max_output_tokens` is cumulative over a whole run, not per response, and it
@@ -49,9 +38,9 @@ export function tierOfPreferredModel(model: unknown): Tier | null {
  * still end a run that loops.
  */
 const RUN_LIMITS: Record<Tier, RoleContract['run_limits']> = {
-   opus: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
-   sonnet: { max_turns: 80, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
-   haiku: { max_turns: 60, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   berry_max: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   berry_mid: { max_turns: 80, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   berry_low: { max_turns: 60, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
 };
 
 interface RoleSpec {
@@ -93,7 +82,7 @@ const SPECS: RoleSpec[] = [
       name: 'Orchestrator',
       role: 'Orchestrator',
       department: 'operations',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 2,
       mission: 'Take in every piece of incoming work, select the workflow it needs and hand it to the first responsible role.',
       responsibilities: [
@@ -127,7 +116,7 @@ const SPECS: RoleSpec[] = [
       name: 'Product Lead',
       role: 'Head of Product',
       department: 'product',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 5,
       mission: 'Transform business objectives and user problems into a coherent product strategy and executable roadmap.',
       responsibilities: [
@@ -158,7 +147,7 @@ const SPECS: RoleSpec[] = [
       name: 'Business Analyst',
       role: 'Business Analyst',
       department: 'product',
-      tier: 'haiku',
+      tier: 'berry_low',
       level: 2,
       mission: 'Translate business requirements into precise functional requirements.',
       responsibilities: [
@@ -186,7 +175,7 @@ const SPECS: RoleSpec[] = [
       name: 'UX Researcher',
       role: 'UX Researcher',
       department: 'product',
-      tier: 'haiku',
+      tier: 'berry_low',
       // Level 3 with code (2026-09-22): research reads the product as built and
       // runs it, so the role gets a checkout it can run and deliver findings
       // from, not only a snapshot it may read.
@@ -216,7 +205,7 @@ const SPECS: RoleSpec[] = [
       name: 'Product Designer',
       role: 'Senior Product Designer',
       department: 'product',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       // Level 3 with code (2026-09-22): a designer who can run the design
       // system, build a screen and open a pull request delivers a spec that
       // is already an implementation. Reviews still gate every delivery.
@@ -247,7 +236,7 @@ const SPECS: RoleSpec[] = [
       name: 'Software Architect',
       role: 'Principal Software Architect',
       department: 'engineering',
-      tier: 'opus',
+      tier: 'berry_max',
       level: 5,
       mission: 'Own the technical architecture and long-term structural integrity of the system.',
       responsibilities: [
@@ -280,7 +269,7 @@ const SPECS: RoleSpec[] = [
       name: 'Backend Engineer',
       role: 'Senior Backend Engineer',
       department: 'engineering',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 4,
       mission: 'Implement reliable backend systems according to the approved architecture.',
       responsibilities: [
@@ -312,7 +301,7 @@ const SPECS: RoleSpec[] = [
       name: 'Frontend Engineer',
       role: 'Senior Frontend Engineer',
       department: 'engineering',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 4,
       mission: 'Implement high-quality product interfaces.',
       responsibilities: [
@@ -341,7 +330,7 @@ const SPECS: RoleSpec[] = [
       name: 'Database Engineer',
       role: 'Database and Data Architecture Engineer',
       department: 'engineering',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 3,
       mission: 'Maintain reliable, scalable and understandable application data.',
       responsibilities: [
@@ -370,7 +359,7 @@ const SPECS: RoleSpec[] = [
       name: 'Integration Engineer',
       role: 'API and Integration Engineer',
       department: 'engineering',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 3,
       mission: 'Own integrations with external platforms and services.',
       responsibilities: [
@@ -398,7 +387,7 @@ const SPECS: RoleSpec[] = [
       name: 'QA Engineer',
       role: 'Senior QA and Test Automation Engineer',
       department: 'quality-security',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 5,
       mission: 'Prevent defects from reaching users.',
       responsibilities: [
@@ -427,7 +416,7 @@ const SPECS: RoleSpec[] = [
       name: 'Security Engineer',
       role: 'Application Security Engineer',
       department: 'quality-security',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 5,
       mission: 'Continuously reduce security risk.',
       responsibilities: [
@@ -459,7 +448,7 @@ const SPECS: RoleSpec[] = [
       name: 'DevOps Engineer',
       role: 'DevOps and Platform Engineer',
       department: 'platform',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 3,
       mission: 'Make software reproducibly deployable and operable.',
       responsibilities: [
@@ -488,7 +477,7 @@ const SPECS: RoleSpec[] = [
       name: 'Site Reliability Engineer',
       role: 'Site Reliability Engineer',
       department: 'platform',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 4,
       mission: 'Keep production systems reliable.',
       responsibilities: [
@@ -520,7 +509,7 @@ const SPECS: RoleSpec[] = [
       name: 'Data & Analytics Engineer',
       role: 'Product Data Engineer',
       department: 'growth-insight',
-      tier: 'haiku',
+      tier: 'berry_low',
       level: 3,
       mission: 'Turn product activity into measurable information.',
       responsibilities: [
@@ -548,7 +537,7 @@ const SPECS: RoleSpec[] = [
       name: 'Technical Writer',
       role: 'Technical Documentation Engineer',
       department: 'growth-insight',
-      tier: 'haiku',
+      tier: 'berry_low',
       level: 3,
       mission: 'Keep technical and user-facing knowledge accurate and understandable.',
       responsibilities: [
@@ -575,7 +564,7 @@ const SPECS: RoleSpec[] = [
       name: 'Growth Engineer',
       role: 'Growth and SEO Engineer',
       department: 'growth-insight',
-      tier: 'haiku',
+      tier: 'berry_low',
       level: 3,
       mission: 'Improve product acquisition and activation through measurable engineering and content initiatives.',
       responsibilities: [
@@ -603,7 +592,7 @@ const SPECS: RoleSpec[] = [
       name: 'Engineering Manager',
       role: 'Engineering Manager',
       department: 'engineering',
-      tier: 'sonnet',
+      tier: 'berry_mid',
       level: 2,
       mission: 'Coordinate engineering execution without replacing specialist judgment.',
       responsibilities: [
@@ -635,7 +624,7 @@ const SPECS: RoleSpec[] = [
       name: 'CTO',
       role: 'Chief Technology Officer',
       department: 'leadership',
-      tier: 'opus',
+      tier: 'berry_max',
       level: 5,
       mission: 'Provide final technical governance across the organization.',
       responsibilities: [
@@ -719,7 +708,7 @@ function build(): RoleContract[] {
          responsibilities: spec.responsibilities,
          capabilities: spec.capabilities,
          allowed_tools: [...allowed],
-         preferred_model: MODELS[spec.tier],
+         tier: spec.tier,
          inputs: spec.inputs,
          outputs: spec.outputs,
          can_delegate_to: spec.delegates,

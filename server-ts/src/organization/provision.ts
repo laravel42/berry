@@ -99,7 +99,7 @@ async function insertRole(q: Queryable, workspaceId: string, contract: RoleContr
          permissions, manifest_limits, role_key, role_contract, contract_version, contract_hash, autonomy_level
       ) VALUES (
          ${randomUUID()}, ${workspaceId}, ${contract.name}, ${contract.mission}, ${contract.system_prompt},
-         'available', ${c.capabilities}, 'bedrock', ${contract.preferred_model},
+         'available', ${c.capabilities}, NULL, NULL,
          ${c.permissions}, ${q.json(c.manifest_limits as never)}, ${c.role_key}, ${q.json(contract as never)},
          ${c.contract_version}, ${c.contract_hash}, ${c.autonomy_level}
       )`;
@@ -141,7 +141,6 @@ async function adoptOrchestrator(q: Queryable, agentId: string, contract: RoleCo
              instructions = CASE WHEN instructions IS NULL OR instructions = ${ORCHESTRATOR_184}
                                  THEN ${contract.system_prompt} ELSE instructions END,
              capabilities = ${c.capabilities}, permissions = ${c.permissions},
-             model_name = COALESCE(model_name, ${contract.preferred_model}),
              manifest_limits = ${q.json(c.manifest_limits as never)},
              role_key = ${c.role_key}, role_contract = ${q.json(contract as never)},
              contract_version = ${c.contract_version},

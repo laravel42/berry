@@ -20,16 +20,9 @@
  * A model sits in one tier only, the highest it reaches.
  */
 
-export const TIERS = ['berry_max', 'berry_mid', 'berry_low', 'berry_free', 'berry_auto'] as const;
-export type Tier = (typeof TIERS)[number];
+import { TIERS, type Tier } from '../model-tiers.ts';
 
-export const TIER_NAMES: Record<Tier, string> = {
-   berry_max: 'BerryMax',
-   berry_mid: 'BerryMid',
-   berry_low: 'BerryLow',
-   berry_free: 'BerryFree',
-   berry_auto: 'BerryAuto',
-};
+export { TIERS, TIER_NAMES, type RoleTier, type Tier } from '../model-tiers.ts';
 
 /** The model BerryAuto sends every call to. */
 export const AUTO_MODEL = 'kilo-auto/efficient';
