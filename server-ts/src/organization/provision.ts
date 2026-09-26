@@ -26,9 +26,9 @@ export async function ensureOrganizationAgents(
    workspaceId: string
 ): Promise<{ inserted: string[]; upgraded: string[]; customised: string[]; archived: number }> {
    const existing = await q<
-      Array<{ id: string; role_key: string | null; role_contract: unknown; contract_version: number | null; contract_hash: string | null; protected: boolean }>
+      Array<{ id: string; role_key: string | null; role_contract: unknown; contract_version: number | null; contract_hash: string | null; protected: boolean; instructions: string | null }>
    >`
-      SELECT id, role_key, role_contract, contract_version, contract_hash, protected
+      SELECT id, role_key, role_contract, contract_version, contract_hash, protected, instructions
         FROM agents WHERE workspace_id = ${workspaceId} AND archived_at IS NULL`;
    const byRole = new Map(existing.filter((row) => row.role_key).map((row) => [row.role_key as string, row]));
    // A role whose agent a person archived was removed on purpose: it is not
@@ -47,7 +47,9 @@ export async function ensureOrganizationAgents(
       if (current) {
          if ((current.contract_version ?? 0) >= CATALOG_VERSION) continue;
          const stored = parseContract(current.role_contract);
-         if (!stored || hashContract(stored) !== current.contract_hash) {
+         // Instructions a person rewrote are theirs too, even where the
+         // contract itself is untouched: an upgrade rewrites them.
+         if (!stored || hashContract(stored) !== current.contract_hash || current.instructions !== stored.system_prompt) {
             customised.push(contract.id);
             continue;
          }

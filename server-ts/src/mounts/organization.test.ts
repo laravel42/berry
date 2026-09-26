@@ -125,6 +125,35 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       );
    });
 
+   test('instructions a person wrote survive a new autonomy level, and read as customised', async () => {
+      const agentId = await agentIdFor('business-analyst');
+      const analyst = catalogRole('business-analyst')!;
+      assert.match(analyst.system_prompt, /^## Role\n/);
+      const written = `${analyst.system_prompt}\n\n## Notes\n\nWrite in British English.`;
+      const config = await call(`/api/v1/agents/${agentId}/config`, {
+         method: 'PUT',
+         body: JSON.stringify({ instructions: written }),
+      });
+      assert.equal(config.status, 200);
+      assert.equal(((await config.json()) as { customized: boolean }).customized, true);
+
+      // The web app sends back the contract it read, with the new level.
+      const read = (await (await call(`/api/v1/agents/${agentId}`)).json()) as {
+         contract: Record<string, unknown>;
+      };
+      const saved = await call(`/api/v1/agents/${agentId}/contract`, {
+         method: 'PUT',
+         body: JSON.stringify({ ...read.contract, autonomy_level: 3 }),
+      });
+      assert.equal(saved.status, 200);
+      assert.equal(((await saved.json()) as { instructions: string }).instructions, written);
+
+      const reset = await call('/api/v1/organization/roles/business-analyst/reset', { method: 'POST', body: '{}' });
+      assert.equal(reset.status, 200);
+      const [row] = await sql`SELECT instructions FROM agents WHERE id = ${agentId}`;
+      assert.equal(row!.instructions, analyst.system_prompt);
+   });
+
    test('an edited contract is customised until reset', async () => {
       const contract = {
          ...catalogRole('technical-writer')!,

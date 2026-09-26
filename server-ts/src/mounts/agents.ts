@@ -506,8 +506,14 @@ export function agentMounts(options: AgentOptions): Mount[] {
       // A new autonomy level brings the tools it allows, and with them the
       // agent's permissions; an unchanged level keeps the tools as they are.
       const levelChanged = requested.autonomy_level !== current.contract?.autonomy_level;
+      // The prompt is edited on the Instructions tab. A request that leaves the
+      // contract's copy as it was keeps the instructions the agent runs on,
+      // which an older edit may have left ahead of that copy.
+      const keepsPrompt =
+         requested.system_prompt === current.contract?.system_prompt && Boolean(current.instructions);
       const contract = {
          ...requested,
+         ...(keepsPrompt ? { system_prompt: current.instructions as string } : {}),
          ...(levelChanged
             ? { allowed_tools: toolsForLevel(requested.id, requested.autonomy_level) }
             : {}),

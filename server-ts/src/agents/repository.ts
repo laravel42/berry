@@ -422,6 +422,14 @@ export class AgentRepository {
          UPDATE agents SET
             instructions = CASE WHEN ${setsInstructions}
                THEN ${patch.instructions ?? null}::text ELSE instructions END,
+            -- A role's prompt is also its contract's system_prompt, kept in
+            -- step so a contract write never puts an older copy back, and an
+            -- edited prompt reads as customised until Reset. The contract
+            -- needs a prompt, so clearing one leaves the contract's copy.
+            role_contract = CASE WHEN ${setsInstructions} AND role_contract IS NOT NULL
+                  AND coalesce(${patch.instructions ?? null}::text, '') <> ''
+               THEN jsonb_set(role_contract, '{system_prompt}', to_jsonb(${patch.instructions ?? ''}::text))
+               ELSE role_contract END,
             description = CASE WHEN ${setsDescription}
                THEN ${patch.description ?? null}::text ELSE description END,
             model_provider = CASE WHEN ${setsModel}

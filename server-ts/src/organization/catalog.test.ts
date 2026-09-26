@@ -4,6 +4,7 @@ import { describe, test } from 'node:test';
 import { KNOWN_TOOLS, toolCeiling } from './autonomy.ts';
 import { CATALOG, catalogRole, WORKFLOWS } from './catalog.ts';
 import { roleContractSchema } from './contract.ts';
+import { PROMPT_SECTIONS } from './prompt.ts';
 
 const keys = new Set(CATALOG.map((role) => role.id));
 
@@ -101,6 +102,14 @@ describe('the Berry organization catalog', () => {
          assert.ok(role.system_prompt.includes(role.mission), `${role.id}: mission`);
          for (const rule of role.never) assert.ok(role.system_prompt.includes(rule), `${role.id}: ${rule}`);
          assert.doesNotMatch(role.system_prompt, /helpful (software engineering )?(agent|assistant)/i);
+      }
+   });
+
+   test('prompts are written in the Instructions sections, in order', () => {
+      const headings = Object.values(PROMPT_SECTIONS).map((heading) => `## ${heading}`);
+      for (const role of CATALOG) {
+         const found = role.system_prompt.split('\n').filter((line) => line.startsWith('## '));
+         assert.deepEqual(found, headings, role.id);
       }
    });
 
