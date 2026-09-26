@@ -240,8 +240,9 @@ export function agentMounts(options: AgentOptions): Mount[] {
    });
 
    /**
-    * The model tiers as the Kilo leaderboard ranks them today (ADR-0017): what
-    * each tier would choose between, and the numbers that placed each model.
+    * The model tiers as the leaderboards rank them today (ADR-0017): what
+    * each tier would choose between, the numbers that placed each model, and
+    * the leaderboard whose scale the ratings are on.
     */
    route.get('/tiers', async (context) => {
       const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
@@ -254,6 +255,8 @@ export function agentMounts(options: AgentOptions): Mount[] {
          refreshedAt: new Date(snapshot.fetchedAt).toISOString(),
          stale: snapshot.stale,
          usageStale: snapshot.usageStale,
+         ratingScale: snapshot.ratingScale,
+         ratingsStale: snapshot.ratingsStale,
       });
    });
 

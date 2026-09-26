@@ -1,20 +1,25 @@
 /**
- * The model tiers, ranked from the Kilo leaderboard (ADR-0017).
+ * The model tiers, ranked from the leaderboards (ADR-0017).
  *
  * A role picks a tier, not a model; Berry fills each tier from what the
- * leaderboard says today. Nothing here names a model: the pools move when
- * Kilo's benchmarks, real usage or prices do.
+ * leaderboards say today. Nothing here names a model: the pools move when
+ * ratings, real usage or prices do.
  *
- * Only a minority of the models the account's own keys serve carry a
- * KiloBench score, and those are frontier-priced, so the ranking uses both
- * halves of the leaderboard (decided 2026-09-25):
+ * A model's rating is its Terminal-Bench score on one scale (`ratings.ts`).
+ * The paid tiers hold only rated models, so every paid model an agent runs
+ * on has a rating to show (decided 2026-09-25):
  *
- * - BerryMax: highest KiloBench completion.
- * - BerryMid: completion per dollar (per benchmark attempt), among scored
- *   models at or above the median completion.
- * - BerryLow: real code-mode usage per dollar (blended token price), among
- *   unscored models cheaper than BerryMid's cheapest.
- * - BerryFree: free models by real usage, benchmark only breaking ties.
+ * - BerryMax: the best rated.
+ * - BerryMid: the best rated of the rest priced below Max's cheapest.
+ * - BerryLow: the best rated of the rest priced below Mid's cheapest.
+ *
+ *   So each tier costs less than the one above, and is the best that its
+ *   price buys. A model priced at or above Max's cheapest, and not in Max,
+ *   is in no tier: that Max model is rated higher for no more money. Rating
+ *   per dollar is not the rule: with cheap, weak models rated, it would put
+ *   the weakest in front. Only when no model is rated at all: unrated models
+ *   by real usage per dollar, so paid runs still have a model.
+ * - BerryFree: free models by real usage, rating only breaking ties.
  * - BerryAuto: Kilo's own routing, `kilo-auto/efficient`, as a comparison.
  *
  * A model sits in one tier only, the highest it reaches.
@@ -46,8 +51,11 @@ export interface GatewayModel {
    ownKey: boolean;
    /** USD per million tokens. */
    price: { input: number; output: number; cacheRead: number | null; cacheWrite: number | null };
-   /** KiloBench: completion rate (0–1) and the average cost of one benchmark attempt. */
-   bench: { completion: number; costPerAttemptUsd: number } | null;
+   /**
+    * The rating (0–1, `ratings.ts`), and Kilo's average cost of one benchmark
+    * attempt where Kilo lists one. Null for a model no leaderboard rates.
+    */
+   bench: { completion: number; costPerAttemptUsd: number | null } | null;
 }
 
 /** One day of real Kilo usage for a model, as the public leaderboard reports it. */
@@ -114,12 +122,6 @@ export function usageByModel(rows: UsageRow[], mode: string | null): Map<string,
    return totals;
 }
 
-function median(values: number[]): number {
-   const sorted = [...values].sort((a, b) => a - b);
-   const middle = Math.floor(sorted.length / 2);
-   return sorted.length % 2 === 1 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
-}
-
 function ranked(model: GatewayModel, usage: Map<string, number>): RankedModel {
    const unpriced = model.price.input < 0 || model.price.output < 0;
    return {
@@ -136,44 +138,39 @@ function ranked(model: GatewayModel, usage: Map<string, number>): RankedModel {
 
 /**
  * The tiers for today's leaderboard. `mode` is the usage mode that ranks
- * unscored models and breaks ties — `code` for a coding role.
+ * free models and breaks ties — `code` for a coding role.
  */
 export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: string | null = 'code'): TierPools {
    const usage = usageByModel(usageRows, mode);
    const used = (model: GatewayModel) => usage.get(model.id) ?? 0;
    const paid = models.filter(isPaidEligible);
-   const scored = paid.filter((model) => model.bench !== null);
-   const completion = (model: GatewayModel) => model.bench!.completion;
-   const perDollar = (model: GatewayModel) => model.bench!.completion / Math.max(model.bench!.costPerAttemptUsd, 1e-9);
+   const rated = paid.filter((model) => model.bench !== null);
+   const byRating = (a: GatewayModel, b: GatewayModel) =>
+      b.bench!.completion - a.bench!.completion || used(b) - used(a) || a.id.localeCompare(b.id);
 
-   const max = [...scored]
-      .sort((a, b) => completion(b) - completion(a) || used(b) - used(a) || a.id.localeCompare(b.id))
-      .slice(0, TIER_SIZE);
+   const max = [...rated].sort(byRating).slice(0, TIER_SIZE);
    const taken = new Set(max.map((model) => model.id));
 
-   const bar = scored.length > 0 ? median(scored.map(completion)) : 0;
-   const mid = scored
-      .filter((model) => !taken.has(model.id) && completion(model) >= bar)
-      .sort((a, b) => perDollar(b) - perDollar(a) || used(b) - used(a) || a.id.localeCompare(b.id))
-      .slice(0, TIER_SIZE);
+   // Blended token price: each tier stops below the cheapest of the one above.
+   const floorOf = (tier: GatewayModel[]) =>
+      tier.length > 0 ? Math.min(...tier.map(blendedPrice)) : Number.POSITIVE_INFINITY;
+   const bestBelow = (price: number) =>
+      rated.filter((model) => !taken.has(model.id) && blendedPrice(model) < price).sort(byRating).slice(0, TIER_SIZE);
+   const mid = bestBelow(floorOf(max));
    for (const model of mid) taken.add(model.id);
 
-   // Low is for work that should cost little, so it stops below Mid's
-   // cheapest (or Max's, when Mid is empty): a popular model priced like a
-   // frontier one does not belong in it.
-   const above = mid.length > 0 ? mid : max;
-   const ceiling = above.length > 0 ? Math.min(...above.map(blendedPrice)) : Number.POSITIVE_INFINITY;
-   const low = paid
-      .filter((model) => model.bench === null && !taken.has(model.id) && used(model) > 0 && blendedPrice(model) < ceiling)
-      .sort(
-         (a, b) =>
-            used(b) / Math.max(blendedPrice(b), 1e-9) - used(a) / Math.max(blendedPrice(a), 1e-9) ||
-            a.id.localeCompare(b.id)
-      )
-      .slice(0, TIER_SIZE);
+   // Only when no model is rated at all does Low rank the unrated by real
+   // usage per dollar: every paid tier would otherwise be empty, and every
+   // paid run would fail for want of a model.
+   const perDollar = (model: GatewayModel) => used(model) / Math.max(blendedPrice(model), 1e-9);
+   const low = (
+      rated.length > 0
+         ? bestBelow(mid.length > 0 ? floorOf(mid) : floorOf(max))
+         : paid.filter((model) => used(model) > 0).sort((a, b) => perDollar(b) - perDollar(a) || a.id.localeCompare(b.id))
+   ).slice(0, TIER_SIZE);
 
-   // Real usage first: few free models are benchmarked, and a weak score
-   // (15%) would otherwise outrank the free models people actually run.
+   // Real usage first: few free models are rated, and a weak rating would
+   // otherwise outrank the free models people actually run.
    const free = models
       .filter(isFreeEligible)
       .sort(

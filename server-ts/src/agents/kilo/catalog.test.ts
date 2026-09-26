@@ -35,7 +35,8 @@ function catalogWith(responses: { models: () => Response; usage: () => Response 
       seen.push(`${url} ${new Headers(init?.headers).get('authorization') ?? '-'}`);
       return url.endsWith('/models') ? responses.models() : responses.usage();
    }) as typeof globalThis.fetch;
-   return { catalog: new KiloCatalog({ apiKey: 'k', baseUrl: 'https://gw/', usageUrl: 'https://site/usage', fetch, clock, ttlMs: 1000 }), seen };
+   // Terminal-Bench is left out here: the test below reads it.
+   return { catalog: new KiloCatalog({ apiKey: 'k', baseUrl: 'https://gw/', usageUrl: 'https://site/usage', ratingsUrl: null, fetch, clock, ttlMs: 1000 }), seen };
 }
 const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
 
@@ -69,4 +70,51 @@ test('a failed refresh keeps the last snapshot as stale; with none, the catalogu
 
    const { catalog: cold } = catalogWith({ models: () => new Response('down', { status: 503 }), usage: () => ok([]) }, () => 0);
    await assert.rejects(cold.snapshot(), CatalogUnavailable);
+});
+
+test('Terminal-Bench rates the models on its newest scale, Kilo filling gaps; a failed leaderboard keeps its last copy', async () => {
+   let now = 0;
+   let tbenchDown = false;
+   const boards: string[] = [];
+   const board = (rows: Array<[string, number]>) =>
+      ok({ rows: rows.map(([label, accuracy]) => ({ metadata: { model_display: { label } }, metrics: { accuracy } })) });
+   const fetch = (async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      if (url === 'https://tb/read') {
+         const { name } = JSON.parse(String(init?.body)) as { name: string };
+         boards.push(`${name} ${new Headers(init?.headers).get('authorization') ?? '-'}`);
+         if (tbenchDown) return new Response('down', { status: 503 });
+         // The newest leaderboard rates a, b, c; the oldest also rates d. Kilo scores e.
+         return name === '4-0-0'
+            ? board([['Model A', 60], ['Model B', 40], ['Model C', 20]])
+            : name === '2-0'
+              ? board([['Model A', 90], ['Model B', 70], ['Model C', 50], ['Model D', 30]])
+              : ok({ rows: [] });
+      }
+      if (url.endsWith('/models')) {
+         return ok({
+            data: ['a', 'b', 'c', 'd', 'e', 'f'].map((id) =>
+               raw(`v/model-${id}`, id === 'e' || id === 'a' ? { terminalBench: { overallScore: id === 'a' ? 0.8 : 0.5, avgAttemptCostUsd: 9 } } : {})
+            ),
+         });
+      }
+      return ok([]);
+   }) as typeof globalThis.fetch;
+   const catalog = new KiloCatalog({ apiKey: 'k', baseUrl: 'https://gw/', usageUrl: 'https://site/usage', ratingsUrl: 'https://tb/read', fetch, clock: () => now, ttlMs: 1000 });
+
+   const snapshot = await catalog.snapshot();
+   assert.ok(boards.every((entry) => entry.endsWith(' -')), 'read without the key');
+   assert.equal(snapshot.ratingScale, 'Terminal-Bench 4.0');
+   const rating = (id: string) => snapshot.models.find((m) => m.id === `v/model-${id}`)!.bench;
+   assert.equal(rating('a')!.completion, 0.6, 'the newest score stands');
+   assert.equal(rating('a')!.costPerAttemptUsd, 9, "Kilo's attempt cost is kept");
+   assert.ok(rating('d')!.completion < rating('c')!.completion, 'the oldest-only model is converted below c');
+   assert.equal(rating('e'), null, 'Kilo shares one model with the scale: too few to convert through');
+   assert.equal(rating('f'), null);
+
+   now = 5000;
+   tbenchDown = true;
+   const again = await catalog.snapshot();
+   assert.equal(again.ratingsStale, true);
+   assert.equal(again.models.find((m) => m.id === 'v/model-d')!.bench!.completion, rating('d')!.completion);
 });

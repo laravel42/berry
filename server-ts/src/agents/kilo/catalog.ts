@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { CatalogUnavailable, type CatalogModel } from '../catalog.ts';
+import { combineRatings, modelKey, readLeaderboard, TBENCH_LEADERBOARD_URL, TBENCH_LEADERBOARDS, type RatingSource, type Scores } from './ratings.ts';
 import { AUTO_MODEL, chooseForTier, isFreeEligible, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
 
 /**
@@ -12,8 +13,11 @@ import { AUTO_MODEL, chooseForTier, isFreeEligible, isPaidEligible, rankTiers, t
  *   serve it — which is exactly what a paid tier may use. It also carries
  *   prices (cache included), tool support, and the KiloBench scores.
  * - `GET {site}/api/public/leaderboard-model-usage`, public: a week of real
- *   Kilo usage per model and mode, which ranks the models KiloBench has not
- *   scored.
+ *   Kilo usage per model and mode, which ranks the free models and breaks
+ *   ties.
+ * - The Terminal-Bench leaderboards (tbench.ai), public: the ratings, with
+ *   Kilo's own benchmark scores filling gaps, on one scale (`ratings.ts`).
+ *   A leaderboard that cannot be read keeps its last good copy.
  *
  * Refreshed hourly. A failed refresh keeps the last good snapshot and marks
  * it stale; with nothing to fall back on, the catalogue is unavailable rather
@@ -33,12 +37,20 @@ export interface KiloSnapshot {
    stale: boolean;
    /** The usage leaderboard could not be refreshed; the ranking uses the last good one (or none). */
    usageStale: boolean;
+   /** The leaderboard whose scale ratings are given on; null when nothing is rated. */
+   ratingScale: string | null;
+   /** A Terminal-Bench leaderboard could not be refreshed; its last good copy (or none) is used. */
+   ratingsStale: boolean;
+   /** The Terminal-Bench leaderboards as last read, newest first. */
+   leaderboards: RatingSource[];
 }
 
 export interface KiloCatalogOptions {
    apiKey: string;
    baseUrl: string;
    usageUrl?: string;
+   /** Terminal-Bench's leaderboard read; null reads none, and Kilo's scores alone rate the models. */
+   ratingsUrl?: string | null;
    fetch?: typeof globalThis.fetch;
    ttlMs?: number;
    clock?: () => number;
@@ -119,10 +131,36 @@ export function parseUsageRows(body: unknown): UsageRow[] {
    });
 }
 
+/**
+ * The models with their ratings: the Terminal-Bench leaderboards, newest
+ * first, then Kilo's own scores, combined on one scale (`combineRatings`).
+ * Kilo's cost per benchmark attempt is kept where it has one.
+ */
+export function rateModels(models: GatewayModel[], leaderboards: RatingSource[]): { models: GatewayModel[]; scale: string | null } {
+   const kilo: Scores = new Map();
+   for (const model of models) {
+      if (!model.bench) continue;
+      const key = modelKey(model.id);
+      kilo.set(key, Math.max(kilo.get(key) ?? 0, model.bench.completion));
+   }
+   const { scale, ratings } = combineRatings([...leaderboards, { title: 'Kilo', scores: kilo }]);
+   return {
+      scale,
+      models: models.map((model) => {
+         const rating = ratings.get(modelKey(model.id));
+         return {
+            ...model,
+            bench: rating === undefined ? null : { completion: rating, costPerAttemptUsd: model.bench?.costPerAttemptUsd ?? null },
+         };
+      }),
+   };
+}
+
 export class KiloCatalog {
    readonly #apiKey: string;
    readonly #baseUrl: string;
    readonly #usageUrl: string;
+   readonly #ratingsUrl: string | null;
    readonly #fetch: typeof globalThis.fetch;
    readonly #ttlMs: number;
    readonly #clock: () => number;
@@ -133,6 +171,7 @@ export class KiloCatalog {
       this.#apiKey = options.apiKey;
       this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
       this.#usageUrl = options.usageUrl ?? DEFAULT_LEADERBOARD_USAGE_URL;
+      this.#ratingsUrl = options.ratingsUrl === undefined ? TBENCH_LEADERBOARD_URL : options.ratingsUrl;
       this.#fetch = options.fetch ?? globalThis.fetch;
       this.#ttlMs = options.ttlMs ?? DEFAULT_KILO_TTL_MS;
       this.#clock = options.clock ?? Date.now;
@@ -164,7 +203,10 @@ export class KiloCatalog {
 
    async #refresh(): Promise<KiloSnapshot> {
       const previous = this.#snapshot;
+      // Read together; the leaderboards never fail the refresh.
+      const reading = this.#readLeaderboards(previous?.leaderboards ?? []);
       const [models, usage] = await Promise.allSettled([this.#readModels(), this.#readUsage()]);
+      const boards = await reading;
       if (models.status === 'rejected') {
          if (previous) {
             // Stale, and retried on the next read rather than an hour later.
@@ -176,13 +218,17 @@ export class KiloCatalog {
             : new CatalogUnavailable(`the Kilo model list could not be read: ${String((models.reason as Error)?.message ?? models.reason)}`);
       }
       const usageRows = usage.status === 'fulfilled' ? usage.value : (previous?.usage ?? []);
+      const rated = rateModels(models.value, boards.leaderboards);
       this.#snapshot = {
-         models: models.value,
+         models: rated.models,
          usage: usageRows,
-         pools: rankTiers(models.value, usageRows),
+         pools: rankTiers(rated.models, usageRows),
          fetchedAt: this.#clock(),
          stale: false,
          usageStale: usage.status === 'rejected',
+         ratingScale: rated.scale,
+         ratingsStale: boards.stale,
+         leaderboards: boards.leaderboards,
       };
       return this.#snapshot;
    }
@@ -194,6 +240,23 @@ export class KiloCatalog {
       });
       if (!response.ok) throw new CatalogUnavailable(`the Kilo model list answered ${response.status}`);
       return parseGatewayModels(await response.json());
+   }
+
+   /** Every Terminal-Bench leaderboard, newest first; one that fails keeps its last good copy. */
+   async #readLeaderboards(previous: RatingSource[]): Promise<{ leaderboards: RatingSource[]; stale: boolean }> {
+      const url = this.#ratingsUrl;
+      if (url === null) return { leaderboards: [], stale: false };
+      const read = await Promise.allSettled(
+         TBENCH_LEADERBOARDS.map((board) => readLeaderboard(this.#fetch, url, board, TIMEOUT_MS))
+      );
+      let stale = false;
+      const leaderboards = TBENCH_LEADERBOARDS.map((board, index): RatingSource => {
+         const result = read[index]!;
+         if (result.status === 'fulfilled') return { title: board.title, scores: result.value };
+         stale = true;
+         return previous.find((entry) => entry.title === board.title) ?? { title: board.title, scores: new Map() };
+      });
+      return { leaderboards, stale };
    }
 
    async #readUsage(): Promise<UsageRow[]> {

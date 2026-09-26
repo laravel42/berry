@@ -20,6 +20,10 @@
   `task.usage` to `src/usage/record.ts`.
 - Runtime support for BerryAuto (`kilo-auto/*`) is in place: the own-key
   exemption, the session header, and usage recorded per model Kilo picked.
+- Ratings are Terminal-Bench resolution rates on the 4.0 scale, older
+  versions and Kilo's scores converted onto it (`agents/kilo/ratings.ts`).
+  The paid tiers hold only rated models: Max the best rated, Mid the best
+  below Max's cheapest, Low the best below Mid's cheapest (Decision 6).
 - Tiers, routing and fallback are built:
   - model choice per session and fallback model (`agents/kilo/tiers.ts`,
     `runtime/envelope-builder.ts`, `agents/runtime/fallback-model.ts`);
@@ -112,6 +116,30 @@ show cost before work and record actual cost after. The Kilo gateway
      median.
    - **BerryLow:** real code-mode usage per dollar, among unscored models
      priced below BerryMid's cheapest.
+
+     *Revised again 2026-09-25:* BerryLow takes scored models only, by
+     completion per dollar, among those left after Max and Mid and priced no
+     higher than BerryMid's dearest, so every paid model an agent runs on has
+     a rating. (Capped below Mid's cheapest, as first tried, it held one
+     model.) Unscored models are in no paid tier. Only when the gateway sends
+     no scores at all does BerryLow fall back to the usage rule above, so
+     paid runs still have a model.
+
+     *Revised a third time 2026-09-25: ratings from Terminal-Bench.* Kilo
+     rated 11 of the 34 own-key models. The ratings now come from the public
+     Terminal-Bench leaderboards (tbench.ai, versions 4.0, 3.0, 2.1 and 2.0,
+     read hourly with no key), with Kilo's scores filling gaps
+     (`agents/kilo/ratings.ts`). The versions are on different scales, so
+     every source is put on 4.0's by a line fitted in log-odds through the
+     models it shares with what is already on the scale; a model 4.0 lists
+     keeps its 4.0 score. That rated 24 of the 34. With cheap, weak models
+     rated, rating per dollar put the weakest first, so the paid tiers
+     changed as well:
+     - **BerryMax:** the three best rated.
+     - **BerryMid:** the best rated of the rest priced below Max's cheapest.
+       A model priced at or above it is in no tier: that Max model is rated
+       higher for no more money.
+     - **BerryLow:** the best rated of the rest priced below Mid's cheapest.
    - **One tier per model:** each model sits only in the highest tier it
      qualifies for.
 
