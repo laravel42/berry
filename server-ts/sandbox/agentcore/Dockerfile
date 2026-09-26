@@ -38,6 +38,18 @@ RUN corepack enable \
    && corepack prepare pnpm@10.12.1 --activate \
    && corepack prepare yarn@stable --activate
 
+# Playwright and a headless Chromium, so an agent can open what it built —
+# screenshot a page, run a browser test — without fetching a browser and its
+# system libraries mid-run: well over 100 MB, and the libraries need root,
+# which a session does not have. Installed globally, so `npx playwright …` and
+# `require('playwright')` work anywhere; the browsers folder stays writable,
+# so a repository pinned to another Playwright version can still fetch its own.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright NODE_PATH=/usr/local/lib/node_modules
+RUN npm install -g playwright@1.63.0 \
+   && playwright install --with-deps chromium \
+   && chown -R node:node /ms-playwright \
+   && rm -rf /var/lib/apt/lists/* /root/.npm
+
 ENV BUN_INSTALL=/usr/local/bun
 RUN curl -fsSL https://bun.sh/install | bash \
    && ln -s /usr/local/bun/bin/bun /usr/local/bin/bun \

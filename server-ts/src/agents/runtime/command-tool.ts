@@ -55,7 +55,15 @@ export interface CommandToolScope {
    session: () => Promise<ExecutionSession>;
    newId: () => string;
    clock?: () => Date;
+   /** A command's time limit when the agent asks for none; ten minutes by default. */
+   timeoutMs?: number;
 }
+
+/** How long a command may run unless the agent asks for longer, and the most it may ask for. */
+export const DEFAULT_COMMAND_TIMEOUT_MS = 10 * 60_000;
+export const MAX_COMMAND_TIMEOUT_MINUTES = 30;
+/** The workspace's own ceiling sits past the tool's, so the tool's is the one reported. */
+const SUBSTRATE_GRACE_MS = 30_000;
 
 /** Ledger bytes per command. Beyond this the run is still recorded as truncated. */
 const MAX_RECORDED_BYTES = 256 * 1024;
@@ -77,15 +85,25 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'The files saved on this task (see list_files) are present in the workspace at the same paths. ' +
          'The workspace is yours alone and is destroyed when the run ends; a file a command produces ' +
          'is kept only if you collect_file it. ' +
-         'A non-zero exit code is a result you should read and act on, not an error.',
+         'A non-zero exit code is a result you should read and act on, not an error. ' +
+         'Playwright with Chromium is installed: `npx playwright screenshot <url> <file>`, or ' +
+         "`require('playwright')` in a Node script. Use it; do not install a browser. " +
+         `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,
       inputSchema: z.object({
          command: z.string().describe('A shell command, e.g. "pnpm install" or "pnpm test"'),
          cwd: z
             .string()
             .optional()
             .describe('Directory to run in, relative to the workspace root. Defaults to the root.'),
+         timeoutMinutes: z
+            .number()
+            .int()
+            .min(1)
+            .max(MAX_COMMAND_TIMEOUT_MINUTES)
+            .optional()
+            .describe(`How long the command may run before it is stopped. Defaults to ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000}.`),
       }),
-      callback: async ({ command, cwd }, context?: ToolContext) => {
+      callback: async ({ command, cwd, timeoutMinutes }, context?: ToolContext) => {
          const trimmed = command.trim();
          if (trimmed === '') {
             return { error: 'command was empty', exitCode: null };
@@ -113,6 +131,12 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          // The run's cancellation, so a `pnpm test` three minutes in stops
          // with the run rather than finishing in a container nobody will reap.
          const signal = context?.cancelSignal;
+         // The command's own limit, on top of the run's cancellation: a command
+         // that hangs (an install waiting on a prompt, a server that never
+         // exits) is stopped, and the agent told so, instead of holding the run.
+         const limitMs = timeoutMinutes ? timeoutMinutes * 60_000 : (scope.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS);
+         const timer = AbortSignal.timeout(limitMs);
+         const stop = signal ? AbortSignal.any([signal, timer]) : timer;
 
          await scope.ledger.appendCommandStarted(scope.runId, {
             commandId,
@@ -128,7 +152,8 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          try {
             const options = {
                ...(directory === null ? {} : { cwd: directory }),
-               ...(signal ? { signal } : {}),
+               signal: stop,
+               timeoutMs: limitMs + SUBSTRATE_GRACE_MS,
             };
             for await (const event of session.stream(trimmed, options)) {
                switch (event.type) {
@@ -157,6 +182,16 @@ export function runCommandTool(scope: CommandToolScope): Tool {
                  ? error.message
                  : String(error);
          }
+         // A command stopped at its limit ends however the workspace ends a
+         // killed process; what the agent needs to know is that it ran out of time.
+         const timedOut = timer.aborted && !signal?.aborted;
+         if (timedOut) {
+            exitCode = null;
+            failure =
+               `the command ran for ${Math.round(limitMs / 60_000)} minutes and was stopped. ` +
+               'If it is a long build or test, run it again with a larger timeoutMinutes; if it was waiting on input ' +
+               'or downloading something large, find a lighter way.';
+         }
 
          // The ledger refuses an append to a run that has ended, which is
          // exactly the case a cancellation creates: the run went terminal
@@ -176,6 +211,9 @@ export function runCommandTool(scope: CommandToolScope): Tool {
             })
             .catch(() => undefined);
 
+         if (timedOut) {
+            return { error: failure, exitCode: null, stdout: tail.text('stdout'), stderr: tail.text('stderr') };
+         }
          if (failure !== null && exitCode === null) {
             return { error: failure, exitCode: null };
          }

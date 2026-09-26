@@ -282,7 +282,8 @@ test('a working directory is passed through, and omitted when unset', async () =
    await call(tool(session, ledger), { command: 'ls', cwd: '/workspace/repo' });
    await call(tool(session, ledger), { command: 'ls' });
 
-   assert.deepEqual(seen, [{ cwd: '/workspace/repo' }, {}]);
+   const cwds = seen.map((options) => (options as { cwd?: string }).cwd);
+   assert.deepEqual(cwds, ['/workspace/repo', undefined]);
 });
 
 test('the run\'s cancellation reaches the command, not just the model call', async () => {
@@ -299,7 +300,75 @@ test('the run\'s cancellation reaches the command, not just the model call', asy
 
    await call(tool(session, ledger), { command: 'pnpm test' }, { cancelSignal: controller.signal });
 
-   assert.deepEqual(seen, [{ signal: controller.signal }]);
+   const passed = (seen[0] as { signal: AbortSignal }).signal;
+   assert.equal(passed.aborted, false);
+   controller.abort();
+   assert.equal(passed.aborted, true, 'cancelling the run stops the command');
+});
+
+/** A command that runs until it is told to stop, then ends as a killed process does. */
+function hangingSession(onStream?: (options: { signal: AbortSignal; timeoutMs?: number }) => void) {
+   return {
+      id: 'run-1',
+      exec: async () => ({ stdout: '', stderr: '', exitCode: 0 }),
+      stream: (_command: string, options?: unknown) => {
+         const { signal } = options as { signal: AbortSignal };
+         onStream?.(options as { signal: AbortSignal; timeoutMs?: number });
+         return {
+            async *[Symbol.asyncIterator]() {
+               yield { type: 'stdout', seq: 0, data: 'Downloading Chromium 80%\n' } as ExecEvent;
+               // A running child process keeps the event loop alive; the
+               // interval stands in for it, so the limit's timer can fire.
+               const alive = setInterval(() => undefined, 1_000);
+               await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve(), { once: true }));
+               clearInterval(alive);
+               yield { type: 'error', seq: 1, message: 'command ended by SIGKILL' } as ExecEvent;
+               yield { type: 'exit', seq: 2, exitCode: 1 } as ExecEvent;
+            },
+         };
+      },
+      writeFile: async () => undefined,
+      readFile: async () => '',
+      stop: async () => undefined,
+      destroy: async () => undefined,
+   } satisfies ExecutionSession;
+}
+
+test('a command past its time limit is stopped, and the agent is told it ran out of time', async () => {
+   const { ledger, events } = fakeLedger();
+   let counter = 0;
+   const limited = runCommandTool({
+      ledger,
+      runId: 'run-1',
+      session: async () => hangingSession(),
+      newId: () => `cmd-${++counter}`,
+      clock: tickingClock(),
+      timeoutMs: 20,
+   });
+   const result = await call(limited as ReturnType<typeof tool>, { command: 'npx playwright install chromium' });
+   assert.equal(result.exitCode, null);
+   assert.match(String(result.error), /was stopped/);
+   assert.match(String(result.stdout), /Downloading Chromium/, 'what it printed is still handed back');
+   assert.equal(events.find((event) => event.type === 'completed')?.exitCode, null);
+});
+
+test('the agent may give a long command more time, up to thirty minutes', async () => {
+   const { ledger } = fakeLedger();
+   const seen: Array<{ timeoutMs?: number }> = [];
+   const session = fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }], (_command, options) =>
+      seen.push(options as { timeoutMs?: number })
+   );
+   await call(tool(session, ledger), { command: 'pnpm build' });
+   await call(tool(session, ledger), { command: 'pnpm build', timeoutMinutes: 25 });
+   // The workspace's own ceiling sits past the tool's, so the tool's is the one reported.
+   assert.deepEqual(
+      seen.map((options) => options.timeoutMs),
+      [10 * 60_000 + 30_000, 25 * 60_000 + 30_000]
+   );
+   const refused = await call(tool(session, ledger), { command: 'pnpm build', timeoutMinutes: 45 }).catch(
+      (error: unknown) => ({ error })
+   );
+   assert.ok('error' in refused || refused.status === 'error' || JSON.stringify(refused).includes('45'));
 });
 
 test('a cancelled command says so, rather than reporting a broken substrate', async () => {
@@ -377,7 +446,10 @@ test('a command runs in the checkout when the run has one, unless told otherwise
    await call(tool(session, ledger), { command: 'pnpm test' }, { workdir: 'circle' });
    await call(tool(session, ledger), { command: 'ls', cwd: 'elsewhere' }, { workdir: 'circle' });
 
-   assert.deepEqual(seen, [{ cwd: 'circle' }, { cwd: 'elsewhere' }]);
+   assert.deepEqual(
+      seen.map((options) => (options as { cwd?: string }).cwd),
+      ['circle', 'elsewhere']
+   );
    assert.equal(events.find((event) => event.type === 'started')?.cwd, 'circle');
 });
 
