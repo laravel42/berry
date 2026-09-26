@@ -11,11 +11,9 @@ const meta = {
       // The Frontend Engineer's role runs on BerryMid.
       agent: gatewayAgent,
       tier: null,
-      fallbackModel: null,
       provider: null,
       model: null,
       onTierChange: fn(),
-      onFallbackChange: fn(),
       onUnpin: fn(),
    },
    beforeEach: ({ msw }) => {
@@ -33,7 +31,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** On the role's tier: BerryMid is selected and Recommended; the fallback is Berry's. */
+/** On the role's tier: BerryMid is selected and Recommended. */
 export const RoleDefault: Story = {
    play: async ({ args, canvas, userEvent }) => {
       await expect(await canvas.findByText('GLM-5')).toBeVisible();
@@ -41,7 +39,6 @@ export const RoleDefault: Story = {
          'aria-checked',
          'true'
       );
-      await expect(canvas.getByText('Fallback: MiniMax M2.5 · Berry')).toBeVisible();
       await userEvent.click(canvas.getByRole('radio', { name: /BerryMax/ }));
       await expect(args.onTierChange).toHaveBeenCalledWith('berry_max');
    },
@@ -61,24 +58,6 @@ export const Experiment: Story = {
    args: { tier: 'berry_free' },
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Prompts may be used for training')).toBeVisible();
-   },
-};
-
-export const OwnFallback: Story = {
-   args: { fallbackModel: 'deepseek/deepseek-v3.2' },
-   play: async ({ args, canvas, userEvent }) => {
-      await expect(await canvas.findByText('Fallback: DeepSeek V3.2')).toBeVisible();
-      await userEvent.click(canvas.getByRole('button', { name: "Use Berry's choice" }));
-      await expect(args.onFallbackChange).toHaveBeenCalledWith(null);
-   },
-};
-
-/** Change reveals the model picker; a pick stores the gateway id as the fallback. */
-export const ChangingFallback: Story = {
-   play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Change' }));
-      await userEvent.click(await canvas.findByRole('option', { name: /Kimi K2.5/ }));
-      await expect(args.onFallbackChange).toHaveBeenCalledWith('moonshotai/kimi-k2.5');
    },
 };
 
@@ -121,7 +100,6 @@ export const GatewayUnavailable: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Leaderboard unavailable')).toBeVisible();
-      await expect(canvas.getByText('Fallback: Berry')).toBeVisible();
    },
 };
 

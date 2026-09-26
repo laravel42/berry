@@ -116,7 +116,7 @@ export default function OrganizationSettings() {
                                  description={roleDescription(role)}
                                  chevron
                                  onClick={() =>
-                                    router.push(`/${orgId}/settings/ai/${role.agentId}`)
+                                    router.push(`/${orgId}/agents/${role.agentId}?view=role`)
                                  }
                               />
                            ) : (

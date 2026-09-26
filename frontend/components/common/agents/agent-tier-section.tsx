@@ -1,19 +1,17 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { AgentModelPicker } from '@/components/common/agents/agent-model-picker';
+import { TierChip } from '@/components/common/agents/tier-chip';
 import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
-   defaultFallback,
    isTier,
    getModelTiers,
    MAIN_TIERS,
    modelPrice,
-   TIER_NAMES,
+   tierShares,
    type Agent,
    type ModelTiers,
    type RankedModel,
@@ -21,9 +19,20 @@ import {
 } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 
-const EXPERIMENT_TIERS = ['berry_free', 'berry_auto'] as const satisfies readonly Tier[];
+/** The list's order: Kilo's own routing first, then the three paid tiers, then free models. */
+const TIER_ORDER = ['berry_auto', ...MAIN_TIERS, 'berry_free'] as const satisfies readonly Tier[];
 
-/** The gateway provider; a pinned or fallback model is `kilo` + a `vendor/model` id. */
+/**
+ * The models table's columns — share, model, rating, input and output price —
+ * shared by the
+ * header and every tier, so the columns line up down the whole list.
+ */
+const MODEL_COLUMNS = 'grid grid-cols-[2.5rem_minmax(0,1fr)_3.5rem_4rem_4rem] gap-x-3';
+
+const priceOf = (perMillion: number | null | undefined) =>
+   perMillion != null ? modelPrice(perMillion) : '—';
+
+/** The gateway provider; a pinned model is `kilo` + a `vendor/model` id. */
 const GATEWAY_PROVIDER = 'kilo';
 
 /**
@@ -40,16 +49,15 @@ interface AgentTierSectionProps {
    agent: Pick<Agent, 'contract' | 'defaultTier'>;
    /** Draft: the agent's own tier, or null to run on its role's. */
    tier: Tier | null;
-   /** Draft: its own fallback model id, or null for Berry's choice. */
-   fallbackModel: string | null;
    /** Draft pinned model pair; a pinned gateway model overrides the tier. */
    provider: string | null;
    model: string | null;
    disabled?: boolean;
    onTierChange: (tier: Tier | null) => void;
-   onFallbackChange: (model: string | null) => void;
    /** Clear the pinned model so the tier chooses again. */
    onUnpin: () => void;
+   /** Leave out the section's own heading, when a form row already names it. */
+   bare?: boolean;
 }
 
 type Leaderboard =
@@ -62,29 +70,25 @@ function percent(completion: number): string {
 /**
  * Which Berry tier an agent runs on (ADR-0017), for a deployment whose models
  * go through the gateway. Three outcomes to choose from, the role's own marked
- * Recommended; Free and Auto sit behind Experiments. Every change is a draft
- * the settings tab saves.
+ * Recommended; Auto leads the list and Free follows the three paid tiers. Each
+ * tier lists the models it runs today and their share of its tasks. Every
+ * change is a draft the settings tab saves.
  */
 export function AgentTierSection({
    agent,
    tier,
-   fallbackModel,
    provider,
    model,
    disabled = false,
    onTierChange,
-   onFallbackChange,
    onUnpin,
+   bare = false,
 }: AgentTierSectionProps) {
    const t = useTranslations('agentsChat.detail.tiers');
    const [board, setBoard] = useState<Leaderboard>({ status: 'loading' });
-   const [changingFallback, setChangingFallback] = useState(false);
 
    const recommended = roleDefaultTier(agent);
    const effective = tier ?? recommended;
-   const [experimentsOpen, setExperimentsOpen] = useState(
-      () => !(MAIN_TIERS as readonly Tier[]).includes(effective)
-   );
 
    useEffect(() => {
       let alive = true;
@@ -102,8 +106,8 @@ export function AgentTierSection({
    }, []);
 
    const data = board.status === 'ready' ? board.data : null;
-   const topOf = (name: Tier): RankedModel | null =>
-      data?.tiers.find((entry) => entry.tier === name)?.models[0] ?? null;
+   const modelsOf = (name: Tier): RankedModel[] =>
+      data?.tiers.find((entry) => entry.tier === name)?.models ?? [];
    const nameOf = (id: string): string => {
       for (const entry of data?.tiers ?? []) {
          const found = entry.models.find((candidate) => candidate.id === id);
@@ -118,14 +122,9 @@ export function AgentTierSection({
    };
 
    const option = (name: Tier) => {
-      const top = topOf(name);
+      const models = modelsOf(name);
+      const shares = tierShares(models.length);
       const selected = name === effective;
-      const facts = [
-         top?.completion != null ? t('completion', { percent: percent(top.completion) }) : null,
-         top?.blendedPricePerM != null
-            ? t('price', { price: modelPrice(top.blendedPricePerM) })
-            : null,
-      ].filter((fact): fact is string => fact !== null);
       return (
          <button
             key={name}
@@ -135,121 +134,126 @@ export function AgentTierSection({
             disabled={disabled}
             onClick={() => choose(name)}
             className={cn(
-               'flex min-h-11 min-w-0 flex-col gap-1 rounded-lg border p-3 text-left outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60',
-               selected ? 'border-foreground bg-accent/50' : 'border-border hover:bg-accent/30'
+               'flex min-w-0 items-start gap-3 border-t px-3 py-2 text-left outline-none first:border-t-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
+               selected ? 'bg-accent/60' : 'enabled:hover:bg-accent/30'
             )}
          >
-            <span className="flex flex-wrap items-center gap-2">
-               <span className="font-medium">{TIER_NAMES[name]}</span>
-               {name === recommended ? (
-                  <span className="rounded-full border border-border px-2 text-muted-foreground">
-                     {t('recommended')}
+            <span className="w-24 shrink-0">
+               <TierChip tier={name} className="px-2 py-1" />
+            </span>
+            <span className="flex min-w-0 flex-1 flex-col">
+               <span className="flex flex-wrap items-center gap-2">
+                  <span className={cn(!selected && 'text-muted-foreground')}>
+                     {t(`outcome.${name}`)}
+                  </span>
+                  {name === recommended ? (
+                     <span className="rounded-full border border-border px-2 text-muted-foreground">
+                        {t('recommended')}
+                     </span>
+                  ) : null}
+                  {name === 'berry_free' ? (
+                     <span className="text-status-warning">{t('freeTraining')}</span>
+                  ) : null}
+               </span>
+               {data && models.length === 0 ? (
+                  <span className="text-muted-foreground">{t('noModel')}</span>
+               ) : null}
+               {/* Every model the tier runs today, best first, with its share of
+                   the tier's tasks. */}
+               {models.length > 0 ? (
+                  <span className="mt-1 flex flex-col tabular-nums text-muted-foreground">
+                     {models.map((entry, index) => (
+                        <span key={entry.id} className={MODEL_COLUMNS}>
+                           <span className="text-right" title={t('shareHint')}>
+                              <span className="sr-only">{t('columns.share')} </span>
+                              {`${shares[index] ?? 0}%`}
+                           </span>
+                           <span className="min-w-0 truncate" title={entry.id}>
+                              {entry.name}
+                           </span>
+                           <span className="text-right">
+                              <span className="sr-only">{t('columns.rating')} </span>
+                              {entry.completion != null ? percent(entry.completion) : '—'}
+                           </span>
+                           <span className="text-right">
+                              <span className="sr-only">{t('columns.priceIn')} </span>
+                              {priceOf(entry.inputPricePerM)}
+                           </span>
+                           <span className="text-right">
+                              <span className="sr-only">{t('columns.priceOut')} </span>
+                              {priceOf(entry.outputPricePerM)}
+                           </span>
+                        </span>
+                     ))}
                   </span>
                ) : null}
             </span>
-            <span className="text-muted-foreground">{t(`outcome.${name}`)}</span>
-            {data ? (
-               <>
-                  <span className="truncate" title={top?.id}>
-                     {top ? top.name : t('noModel')}
-                  </span>
-                  {facts.length > 0 ? (
-                     <span className="tabular-nums text-muted-foreground">{facts.join(' · ')}</span>
-                  ) : null}
-               </>
-            ) : null}
-            {name === 'berry_free' ? (
-               <span className="text-status-warning">{t('freeTraining')}</span>
-            ) : null}
+            {/* Always takes its place, so the columns do not shift on the chosen row. */}
+            <span className="size-4 shrink-0">
+               {selected ? <Check aria-hidden className="size-4" /> : null}
+            </span>
          </button>
       );
    };
 
-   const berryFallback = data ? defaultFallback(data, effective) : null;
-   const fallbackLine = fallbackModel
-      ? t('fallback', { model: nameOf(fallbackModel) })
-      : berryFallback
-        ? t('fallbackBerry', { model: berryFallback.name })
-        : t('fallbackBerryOnly');
-
    const pinnedModel = model?.trim() ? model.trim() : null;
    const pinned =
       pinnedModel !== null && (provider === GATEWAY_PROVIDER || pinnedModel.includes('/'));
-   const legacy = pinnedModel !== null && !pinned;
 
    return (
       <section className="flex flex-col gap-3">
-         <div className="flex flex-wrap items-baseline gap-2">
-            <h3 className="font-medium">{t('title')}</h3>
-            {board.status === 'unavailable' ? (
-               <p className="text-muted-foreground">{t('leaderboardUnavailable')}</p>
-            ) : null}
-         </div>
+         {bare && board.status !== 'unavailable' ? null : (
+            <div className="flex flex-wrap items-baseline gap-2">
+               {bare ? null : <h3 className="font-medium">{t('title')}</h3>}
+               {board.status === 'unavailable' ? (
+                  <p className="text-muted-foreground">{t('leaderboardUnavailable')}</p>
+               ) : null}
+            </div>
+         )}
 
          <div
             role="radiogroup"
             aria-label={t('title')}
-            className="grid grid-cols-1 gap-2 md:grid-cols-3"
+            className="flex flex-col overflow-hidden rounded-md border"
          >
-            {MAIN_TIERS.map(option)}
-         </div>
-
-         <Collapsible open={experimentsOpen} onOpenChange={setExperimentsOpen}>
-            <CollapsibleTrigger asChild>
-               <Button variant="ghost" size="xs" className="w-fit text-muted-foreground">
-                  <ChevronRight
-                     className={cn('size-3.5 transition-transform', experimentsOpen && 'rotate-90')}
-                  />
-                  {t('experiments')}
-               </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
+            {/* Column labels for the models under each tier; the cells carry
+                their own for assistive technology. */}
+            {data ? (
                <div
-                  role="radiogroup"
-                  aria-label={t('experiments')}
-                  className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3"
+                  aria-hidden
+                  className="flex items-center gap-3 bg-muted/30 px-3 py-1.5 text-muted-foreground"
                >
-                  {EXPERIMENT_TIERS.map(option)}
+                  <span className="w-24 shrink-0">{t('columns.tier')}</span>
+                  <span className={cn(MODEL_COLUMNS, 'min-w-0 flex-1')}>
+                     <span className="text-right">{t('columns.share')}</span>
+                     <span>{t('columns.model')}</span>
+                     <span
+                        className="text-right"
+                        title={
+                           data.ratingScale
+                              ? t('columns.ratingHint', { scale: data.ratingScale })
+                              : undefined
+                        }
+                     >
+                        {t('columns.rating')}
+                     </span>
+                     <span className="text-right" title={t('columns.priceHint')}>
+                        {t('columns.priceIn')}
+                     </span>
+                     <span className="text-right" title={t('columns.priceHint')}>
+                        {t('columns.priceOut')}
+                     </span>
+                  </span>
+                  <span className="size-4 shrink-0" />
                </div>
-            </CollapsibleContent>
-         </Collapsible>
-
-         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="tabular-nums">{fallbackLine}</span>
-            {disabled ? null : (
-               <>
-                  <Button
-                     variant="secondary"
-                     size="xs"
-                     aria-expanded={changingFallback}
-                     onClick={() => setChangingFallback((open) => !open)}
-                  >
-                     {changingFallback ? t('fallbackDone') : t('fallbackChange')}
-                  </Button>
-                  {fallbackModel ? (
-                     <Button variant="ghost" size="xs" onClick={() => onFallbackChange(null)}>
-                        {t('fallbackReset')}
-                     </Button>
-                  ) : null}
-               </>
-            )}
+            ) : null}
+            {TIER_ORDER.map(option)}
          </div>
 
-         {changingFallback && !disabled ? (
-            <AgentModelPicker
-               provider={fallbackModel ? GATEWAY_PROVIDER : null}
-               model={fallbackModel}
-               onChange={(_provider, next) => onFallbackChange(next)}
-            />
-         ) : null}
-
-         {pinnedModel ? (
+         {/* An old Bedrock pair is ignored under the gateway, so only a gateway pin is shown. */}
+         {pinned && pinnedModel ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-               <span className={cn(legacy && 'text-muted-foreground')}>
-                  {pinned
-                     ? t('pinned', { model: nameOf(pinnedModel) })
-                     : t('legacy', { model: pinnedModel })}
-               </span>
+               <span>{t('pinned', { model: nameOf(pinnedModel) })}</span>
                {disabled ? null : (
                   <Button variant="secondary" size="xs" onClick={onUnpin}>
                      {t('useTier')}

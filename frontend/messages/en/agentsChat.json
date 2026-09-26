@@ -97,9 +97,6 @@
    },
    "detail": {
       "loading": "Loading agent…",
-      "tabOverview": "Overview",
-      "tabCapabilities": "Capabilities",
-      "tabSettings": "Settings",
       "chat": "Chat",
       "assignWork": "Assign work",
       "archive": "Archive",
@@ -150,26 +147,54 @@
       "workTitle": "Tasks assigned to this agent",
       "workEmpty": "Nothing is assigned to this agent.",
       "capInstructions": "Instructions",
-      "capInstructionsHint": "The system prompt used on every task.",
+      "instructionSections": {
+         "role": {
+            "label": "Role and goal",
+            "caption": "Who the agent is and what it is for, in a sentence or two.",
+            "example": "You are the frontend engineer for Berry. You turn issues into small pull requests that are easy to review."
+         },
+         "context": {
+            "label": "Context",
+            "caption": "What it should know before it starts: the product, who uses it, where things live.",
+            "example": "Berry is a self-hosted issue tracker. The web app is in frontend/, built with Next.js. Design tokens are in docs/design-system.md."
+         },
+         "approach": {
+            "label": "How to work",
+            "caption": "The steps and habits to follow on every task.",
+            "example": "Read the issue and its linked docs first.\nWrite a short plan before changing code.\nRun lint and tests before opening a pull request."
+         },
+         "done": {
+            "label": "Definition of done",
+            "caption": "What finished work looks like, and how to report it.",
+            "example": "One pull request per issue.\nEvery change has a test.\nEnd with a summary of what changed and what to check."
+         },
+         "boundaries": {
+            "label": "Boundaries",
+            "caption": "What it must never do, and when to stop and ask a person.",
+            "example": "Never change the database schema.\nAsk before adding a dependency.\nStop and ask when the issue is unclear."
+         },
+         "notes": {
+            "label": "Anything else",
+            "caption": "Guidance that fits none of the above. A prompt written as one block is kept here.",
+            "example": "Write in British English."
+         }
+      },
+      "instructionsPrompt": "Full prompt",
+      "instructionsPromptHint": "What the agent receives on every task, built from the sections above.",
+      "instructionsPromptEmpty": "No instructions yet. Fill in a section above to write them.",
       "change_instructions": "instructions",
-      "change_role": "role contract",
       "change_general": "name and description",
       "change_model": "model",
       "change_tier": "tier",
-      "change_fallback": "fallback model",
       "change_runtime": "runtime",
       "change_concurrency": "concurrency",
       "change_access": "access",
       "change_skills": "skills",
       "change_mcp": "MCP servers",
+      "change_autonomy": "autonomy level",
+      "change_permissions": "permissions",
       "capSkills": "Skills",
       "capSkillsHint": "Reusable playbooks this agent can invoke while working.",
-      "capSkillsAssign": "Assign skills",
-      "capSkillsEmpty": "No skills are assigned to this agent.",
-      "capSkillsDialogTitle": "Assign skills",
-      "capSkillsSearch": "Search skills…",
-      "capSkillsAdd": "Assign selected",
-      "capSkillRemove": "Remove {name}",
       "capMcpAgent": "MCP servers",
       "capMcpAgentHint": "Tools this agent may call over MCP during a run.",
       "capMcpWorkspace": "Workspace library",
@@ -183,7 +208,6 @@
       "capMcpEdit": "Edit",
       "capMcpInvalidJson": "That is not a server definition Berry understands.",
       "capMcpAssign": "Add to this agent",
-      "setGeneral": "General",
       "setName": "Name",
       "setNameRequired": "An agent needs a name.",
       "setDescription": "Description",
@@ -222,23 +246,36 @@
             "berry_free": "No cost",
             "berry_auto": "Routed per call"
          },
-         "completion": "{percent} KiloBench",
-         "price": "{price}/M tokens",
+         "columns": {
+            "tier": "Tier",
+            "share": "Share",
+            "model": "Model",
+            "rating": "Rating",
+            "ratingHint": "Share of {scale} tasks solved (tbench.ai). A model it does not list is placed on its scale from an older Terminal-Bench, or Kilo's benchmark, through the models they share.",
+            "priceIn": "In",
+            "priceOut": "Out",
+            "priceHint": "USD per million tokens: In is what the agent sends, Out is what the model writes."
+         },
          "noModel": "No model today",
+         "shareHint": "Share of this tier's tasks. Each task keeps one model, so its prompt cache stays warm.",
          "freeTraining": "Prompts may be used for training",
-         "experiments": "Experiments",
          "leaderboardUnavailable": "Leaderboard unavailable",
-         "fallback": "Fallback: {model}",
-         "fallbackBerry": "Fallback: {model} · Berry",
-         "fallbackBerryOnly": "Fallback: Berry",
-         "fallbackChange": "Change",
-         "fallbackDone": "Done",
-         "fallbackReset": "Use Berry's choice",
          "pinned": "Pinned: {model}",
-         "legacy": "Bedrock model: {model} · ignored",
          "useTier": "Use tier"
       },
-      "moreSettings": "More settings"
+      "tabGeneral": "General",
+      "tabUsage": "Usage",
+      "setNameHint": "Shown wherever the agent appears.",
+      "setDescriptionHint": "What it is for, in a line or two.",
+      "setTierHint": "Which models its work runs on.",
+      "capSkillsNone": "No skills in this workspace.",
+      "skillsSearch": "Search skills",
+      "skillsLabel": "Label",
+      "skillsLabelAll": "All labels",
+      "skillsShow": "Show",
+      "skillsShowActive": "Active",
+      "skillsShowAll": "All",
+      "skillsNoMatch": "No skills match."
    },
    "create": {
       "title": "New agent",

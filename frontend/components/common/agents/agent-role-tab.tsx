@@ -1,40 +1,46 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Check } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { AgentMultiselect } from '@/components/common/agents/agent-multiselect';
 import { AutonomyLevelChip } from '@/components/common/agents/autonomy-level-chip';
-import { EscalationRulesRepeater } from '@/components/common/agents/escalation-rules-repeater';
-import { StringListRepeater } from '@/components/common/agents/string-list-repeater';
-import { SettingsCard, SettingsSection } from '@/components/common/settings/shared';
+import { FormRow } from '@/components/common/settings/form-row';
+import { SettingsCard } from '@/components/common/settings/shared';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { BerryApiError } from '@/lib/api';
-import { updateAgentContract, type Agent } from '@/lib/agents';
-import { asAutonomyLevel, type AutonomyLevel } from '@/lib/autonomy-level';
 import {
-   getOrganization,
-   resetRole,
-   type OrganizationRole,
-   type RoleContract,
-} from '@/lib/organization';
+   AGENT_PERMISSIONS,
+   setAgentPermissions,
+   updateAgentContract,
+   type Agent,
+} from '@/lib/agents';
+import { permissionsForLevel, type AutonomyLevel } from '@/lib/autonomy-level';
+import { cn } from '@/lib/utils';
+import { resetRole } from '@/lib/organization';
 import { useSessionStore } from '@/store/session-store';
 
 const AUTONOMY_LEVELS: AutonomyLevel[] = [1, 2, 3, 4, 5];
 
-function sameContract(left: RoleContract, right: RoleContract): boolean {
-   return JSON.stringify(left) === JSON.stringify(right);
-}
+type LevelKey = '1' | '2' | '3' | '4' | '5';
+
+const sameSet = (a: readonly string[], b: readonly string[]) =>
+   a.length === b.length && a.every((entry) => b.includes(entry));
 
 /**
- * The organization role this agent fills: mission, permissions, delegation.
- * Shown on the agent's page under Settings → Agents.
+ * The organization role this agent fills, on the agent's Role and Permissions
+ * tab: its autonomy level, then its permissions. The rest of the contract is
+ * Berry's and is not shown here. An agent with no role shows only its
+ * permissions.
  *
- * Edits stay in a draft until Save — same unsaved bar as the agent's other
- * settings — so a half-finished contract change is not written mid-keystroke.
+ * Both are a draft until Save. Choosing a level sets the switches to what the
+ * server will give that level, so the change can be seen and adjusted first;
+ * choosing the saved level again brings back the saved permissions. Save
+ * writes the level, then any permissions that still differ from what the
+ * level gave.
  */
 export function AgentRoleTab({
    agent,
@@ -42,82 +48,89 @@ export function AgentRoleTab({
    onReset,
    onChange,
    onDirtyChange,
-   afterAutonomy,
+   onForbidden,
 }: {
    agent: Agent;
    readOnly: boolean;
    onReset: () => void;
    onChange: (agent: Agent) => void;
-   onDirtyChange?: (dirty: boolean) => void;
-   /**
-    * Shown right after the autonomy level — the agent's permissions, which
-    * with it decide what the agent may do. Shown after the notice when there
-    * is no contract to edit, so it is never lost with the editor.
-    */
-   afterAutonomy?: React.ReactNode;
+   /** Told whenever the tab holds unsaved changes, for the page's leave guard. */
+   onDirtyChange: (dirty: boolean) => void;
+   /** Called when the server refuses a write, so the page can say so once. */
+   onForbidden: () => void;
 }) {
    const t = useTranslations('organization');
    const detail = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
+   const admin = useTranslations('workspaceAdmin.agents');
    const [resetting, setResetting] = useState(false);
    const [saving, setSaving] = useState(false);
-   const [roles, setRoles] = useState<OrganizationRole[]>([]);
-   const [draft, setDraft] = useState<RoleContract | null>(agent.contract ?? null);
+   const [levelDraft, setLevelDraft] = useState<AutonomyLevel | null>(null);
+   const [permissionsDraft, setPermissionsDraft] = useState<string[] | null>(null);
    const workspaceRole = useSessionStore((state) => state.workspace?.role);
    const canEdit = !readOnly && (workspaceRole === 'owner' || workspaceRole === 'admin');
 
-   useEffect(() => {
-      setDraft(agent.contract ?? null);
-   }, [agent.contract]);
+   const saved = agent.roleKey ? (agent.contract ?? null) : null;
+   const level = levelDraft ?? saved?.autonomy_level ?? null;
+   const permissions = permissionsDraft ?? agent.permissions;
+
+   const levelDirty = saved !== null && level !== saved.autonomy_level;
+   const permissionsDirty = !sameSet(permissions, agent.permissions);
+   const dirty = levelDirty || permissionsDirty;
 
    useEffect(() => {
-      let cancelled = false;
-      void getOrganization()
-         .then((org) => {
-            if (cancelled) return;
-            setRoles(org.departments.flatMap((department) => department.roles));
-         })
-         .catch(() => {
-            if (!cancelled) setRoles([]);
-         });
-      return () => {
-         cancelled = true;
-      };
-   }, []);
-
-   const roleOptions = useMemo(
-      () =>
-         roles
-            .filter((role) => role.roleKey !== agent.roleKey)
-            .map((role) => ({
-               id: role.roleKey,
-               label: role.name,
-               colorSeed: role.agentId,
-            }))
-            .sort((left, right) => left.label.localeCompare(right.label)),
-      [roles, agent.roleKey]
-   );
-
-   const saved = agent.contract;
-   const dirty = draft !== null && saved != null && !sameContract(draft, saved);
-
-   useEffect(() => {
-      onDirtyChange?.(dirty);
+      onDirtyChange(dirty);
    }, [dirty, onDirtyChange]);
 
-   if (!agent.roleKey) {
-      return (
-         <div className="flex flex-col gap-4">
-            <p className="text-muted-foreground">{t('roleTab.notARole')}</p>
-            {afterAutonomy}
-         </div>
+   const discard = () => {
+      setLevelDraft(null);
+      setPermissionsDraft(null);
+   };
+
+   const chooseLevel = (next: AutonomyLevel) => {
+      if (!saved) return;
+      if (next === saved.autonomy_level) {
+         discard();
+         return;
+      }
+      setLevelDraft(next);
+      setPermissionsDraft(permissionsForLevel(next));
+   };
+
+   const togglePermission = (key: string, granted: boolean) => {
+      setPermissionsDraft(
+         granted
+            ? [...new Set([...permissions, key])]
+            : permissions.filter((entry) => entry !== key)
       );
-   }
+   };
+
+   const save = async () => {
+      setSaving(true);
+      try {
+         let next = agent;
+         if (saved && levelDirty && level !== null) {
+            next = await updateAgentContract(agent.id, { ...saved, autonomy_level: level });
+         }
+         if (!sameSet(permissions, next.permissions)) {
+            next = await setAgentPermissions(agent.id, permissions);
+         }
+         onChange(next);
+         discard();
+         toast.success(common('saved'));
+      } catch (error) {
+         if (error instanceof BerryApiError && error.status === 403) onForbidden();
+         toast.error(error instanceof BerryApiError ? error.message : t('roleTab.saveFailed'));
+      } finally {
+         setSaving(false);
+      }
+   };
 
    const reset = async () => {
       setResetting(true);
       try {
          await resetRole(agent.roleKey as string);
+         discard();
          toast.success(t('roleTab.resetDone'));
          onReset();
       } catch (error) {
@@ -127,12 +140,77 @@ export function AgentRoleTab({
       }
    };
 
+   const whatChanged = [
+      levelDirty ? detail('change_autonomy') : null,
+      permissionsDirty ? detail('change_permissions') : null,
+   ]
+      .filter(Boolean)
+      .join(', ');
+
+   const permissionsLocked = readOnly || saving;
+
+   const permissionsPanel = (
+      <FormRow label={admin('permissions')} caption={admin('permissionsHint')}>
+         <SettingsCard>
+            {AGENT_PERMISSIONS.map((permission) => (
+               <label
+                  key={permission.key}
+                  className="flex items-start gap-3 px-4 py-3"
+                  htmlFor={`${agent.id}-${permission.key}`}
+               >
+                  <span className="min-w-0 flex-1">
+                     <span
+                        className={cn('block', 'dangerous' in permission && 'text-status-danger')}
+                     >
+                        {permission.label}
+                     </span>
+                     <span className="block text-muted-foreground">{permission.description}</span>
+                  </span>
+                  <Switch
+                     id={`${agent.id}-${permission.key}`}
+                     checked={permissions.includes(permission.key)}
+                     disabled={permissionsLocked}
+                     onCheckedChange={(granted) => togglePermission(permission.key, granted)}
+                  />
+               </label>
+            ))}
+         </SettingsCard>
+      </FormRow>
+   );
+
+   const saveBar =
+      !readOnly && dirty ? (
+         <UnsavedChangesBar
+            what={whatChanged}
+            busy={saving}
+            onDiscard={discard}
+            onSave={() => void save()}
+         />
+      ) : null;
+
+   // The form scrolls; the save bar stays on the bottom edge of the tab.
+   const pane = (body: ReactNode) => (
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+         <div className="min-h-0 flex-1 overflow-auto px-8 py-6">{body}</div>
+         {saveBar}
+      </div>
+   );
+
+   if (!agent.roleKey) {
+      return pane(
+         <div className="flex flex-col gap-4">
+            <p className="text-muted-foreground">{t('roleTab.notARole')}</p>
+            {permissionsPanel}
+         </div>
+      );
+   }
+
    const resetButton = !readOnly ? (
       <div className="flex flex-col items-end gap-1">
          <Button
             size="sm"
             variant="outline"
-            disabled={resetting || !canEdit || dirty}
+            disabled={resetting || !canEdit || saving}
             onClick={() => void reset()}
          >
             {t('roleTab.reset')}
@@ -141,8 +219,8 @@ export function AgentRoleTab({
       </div>
    ) : null;
 
-   if (!saved || !draft) {
-      return (
+   if (!saved) {
+      return pane(
          <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-4 rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3">
                <div>
@@ -151,273 +229,54 @@ export function AgentRoleTab({
                </div>
                {resetButton}
             </div>
-            {afterAutonomy}
+            {permissionsPanel}
          </div>
       );
    }
 
-   const patch = (next: RoleContract) => setDraft(next);
+   const levelLocked = !canEdit || saving;
 
-   const discard = () => setDraft(saved);
-
-   const save = async () => {
-      const mission = draft.mission.trim();
-      if (!mission) {
-         toast.error(t('roleTab.saveFailed'));
-         return;
-      }
-      const trimList = (items: string[]) =>
-         items.map((item) => item.trim()).filter((item) => item.length > 0);
-      setSaving(true);
-      try {
-         onChange(
-            await updateAgentContract(agent.id, {
-               ...draft,
-               mission,
-               responsibilities: trimList(draft.responsibilities),
-               outputs: trimList(draft.outputs),
-               inputs: trimList(draft.inputs),
-               never: trimList(draft.never),
-               review_domains: trimList(draft.review_domains),
-               discovery: draft.discovery
-                  ? { ...draft.discovery, focus: trimList(draft.discovery.focus) }
-                  : draft.discovery,
-               escalation_rules: draft.escalation_rules
-                  .map((rule) => ({ ...rule, when: rule.when.trim() }))
-                  .filter((rule) => rule.when.length > 0),
-            })
-         );
-         toast.success(common('saved'));
-      } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('roleTab.saveFailed'));
-      } finally {
-         setSaving(false);
-      }
-   };
-
-   const reviewerAuthority = (reviewer: string): 'blocking' | 'advisory' => {
-      const rules = draft.review_requirements.filter((rule) => rule.reviewer === reviewer);
-      return rules.some((rule) => rule.authority === 'blocking') ? 'blocking' : 'advisory';
-   };
-
-   const blockingReviewers = [
-      ...new Set(
-         draft.review_requirements
-            .map((rule) => rule.reviewer)
-            .filter((reviewer) => reviewerAuthority(reviewer) === 'blocking')
-      ),
-   ];
-   const advisoryReviewers = [
-      ...new Set(
-         draft.review_requirements
-            .map((rule) => rule.reviewer)
-            .filter((reviewer) => reviewerAuthority(reviewer) === 'advisory')
-      ),
-   ];
-
-   const setReviewers = (authority: 'blocking' | 'advisory', nextIds: string[]) => {
-      const other: 'blocking' | 'advisory' = authority === 'blocking' ? 'advisory' : 'blocking';
-      const otherIds = (authority === 'blocking' ? advisoryReviewers : blockingReviewers).filter(
-         (id) => !nextIds.includes(id)
-      );
-
-      const keptOther = draft.review_requirements
-         .filter((rule) => otherIds.includes(rule.reviewer))
-         .map((rule) => ({ ...rule, authority: other }));
-
-      const forThis = nextIds.flatMap((reviewer) => {
-         const existing = draft.review_requirements.filter((rule) => rule.reviewer === reviewer);
-         if (existing.length > 0) {
-            return existing.map((rule) => ({ ...rule, authority }));
-         }
-         return [{ reviewer, authority, when: { always: true as const } }];
-      });
-
-      patch({ ...draft, review_requirements: [...keptOther, ...forThis] });
-   };
-
-   const locked = !canEdit || saving;
-
-   return (
-      <div className="flex flex-col gap-4">
-         <div className="flex flex-col gap-4">
-            {agent.customized ? (
-               <div className="flex items-center justify-between gap-4 rounded-md border px-4 py-3">
-                  <span>{t('roleTab.customized')}</span>
-                  {resetButton}
-               </div>
-            ) : null}
-            <SettingsSection
-               panel
-               title={t('roleTab.autonomyLevel')}
-               description={t('roleTab.autonomyLevelHint')}
+   return pane(
+      <>
+         <FormRow label={t('roleTab.autonomyLevel')} caption={t('roleTab.autonomyLevelHint')}>
+            <div
+               role="radiogroup"
+               aria-label={t('roleTab.autonomyLevel')}
+               className="flex flex-col overflow-hidden rounded-md border"
             >
-               <Select
-                  value={String(draft.autonomy_level)}
-                  disabled={locked}
-                  onValueChange={(value) => {
-                     const next = asAutonomyLevel(Number(value));
-                     if (next === null || next === draft.autonomy_level) return;
-                     patch({ ...draft, autonomy_level: next });
-                  }}
-               >
-                  <SelectTrigger className="w-full">
-                     <span className="flex min-w-0 items-center gap-2">
+               {AUTONOMY_LEVELS.map((entry) => {
+                  const selected = entry === level;
+                  return (
+                     <button
+                        key={entry}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        disabled={levelLocked}
+                        onClick={() => {
+                           if (!selected) chooseLevel(entry);
+                        }}
+                        className={cn(
+                           'flex min-w-0 items-center gap-3 border-t px-3 py-2 text-left outline-none first:border-t-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
+                           selected ? 'bg-accent/60' : 'enabled:hover:bg-accent/30'
+                        )}
+                     >
                         <AutonomyLevelChip
-                           level={draft.autonomy_level}
-                           className="inline-flex items-center rounded-md px-2 py-1"
+                           level={entry}
+                           className="inline-flex shrink-0 items-center rounded-md px-2 py-1"
                         />
-                        <span className="truncate text-muted-foreground">
-                           {t(
-                              `levels.${String(draft.autonomy_level) as '1' | '2' | '3' | '4' | '5'}`
-                           )}
+                        <span
+                           className={cn('min-w-0 flex-1', !selected && 'text-muted-foreground')}
+                        >
+                           {t(`levels.${String(entry) as LevelKey}`)}
                         </span>
-                     </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                     {AUTONOMY_LEVELS.map((entry) => {
-                        const key = String(entry) as '1' | '2' | '3' | '4' | '5';
-                        return (
-                           <SelectItem key={entry} value={key}>
-                              <span className="flex min-w-0 items-center gap-2">
-                                 <AutonomyLevelChip
-                                    level={entry}
-                                    className="inline-flex items-center rounded-md px-2 py-1"
-                                 />
-                                 <span className="truncate text-muted-foreground">
-                                    {t(`levels.${key}`)}
-                                 </span>
-                              </span>
-                           </SelectItem>
-                        );
-                     })}
-                  </SelectContent>
-               </Select>
-            </SettingsSection>
-            {afterAutonomy}
-            <StringListRepeater
-               title={t('roleTab.responsibilities')}
-               description={t('roleTab.responsibilitiesHint')}
-               value={draft.responsibilities}
-               disabled={locked}
-               onChange={(responsibilities) => patch({ ...draft, responsibilities })}
-            />
-            <StringListRepeater
-               title={t('roleTab.outputs')}
-               description={t('roleTab.outputsHint')}
-               value={draft.outputs}
-               disabled={locked}
-               onChange={(outputs) => patch({ ...draft, outputs })}
-            />
-            <StringListRepeater
-               title={t('roleTab.inputs')}
-               description={t('roleTab.inputsHint')}
-               value={draft.inputs}
-               disabled={locked}
-               onChange={(inputs) => patch({ ...draft, inputs })}
-            />
-            <SettingsSection
-               panel
-               title={t('roleTab.delegatesTo')}
-               description={t('roleTab.delegatesToHint')}
-            >
-               <SettingsCard className="p-3">
-                  <AgentMultiselect
-                     value={draft.can_delegate_to}
-                     options={roleOptions}
-                     disabled={locked}
-                     onChange={(can_delegate_to) => patch({ ...draft, can_delegate_to })}
-                  />
-               </SettingsCard>
-            </SettingsSection>
-            <SettingsSection
-               panel
-               title={t('roleTab.receivesFrom')}
-               description={t('roleTab.receivesFromHint')}
-            >
-               <SettingsCard className="p-3">
-                  <AgentMultiselect
-                     value={draft.receives_work_from}
-                     options={roleOptions}
-                     disabled={locked}
-                     onChange={(receives_work_from) => patch({ ...draft, receives_work_from })}
-                  />
-               </SettingsCard>
-            </SettingsSection>
-            <EscalationRulesRepeater
-               title={t('roleTab.escalation')}
-               description={t('roleTab.escalationHint')}
-               value={draft.escalation_rules}
-               roleOptions={roleOptions}
-               disabled={locked}
-               onChange={(escalation_rules) => patch({ ...draft, escalation_rules })}
-            />
-            <SettingsSection
-               panel
-               title={t('roleTab.reviewsBlocking')}
-               description={t('roleTab.reviewsBlockingHint')}
-            >
-               <SettingsCard className="p-3">
-                  <AgentMultiselect
-                     value={blockingReviewers}
-                     options={roleOptions}
-                     disabled={locked}
-                     onChange={(next) => setReviewers('blocking', next)}
-                  />
-               </SettingsCard>
-            </SettingsSection>
-            <SettingsSection
-               panel
-               title={t('roleTab.reviewsAdvisory')}
-               description={t('roleTab.reviewsAdvisoryHint')}
-            >
-               <SettingsCard className="p-3">
-                  <AgentMultiselect
-                     value={advisoryReviewers}
-                     options={roleOptions}
-                     disabled={locked}
-                     onChange={(next) => setReviewers('advisory', next)}
-                  />
-               </SettingsCard>
-            </SettingsSection>
-            <StringListRepeater
-               title={t('roleTab.reviewDomains')}
-               description={t('roleTab.reviewDomainsHint')}
-               value={draft.review_domains}
-               disabled={locked}
-               onChange={(review_domains) => patch({ ...draft, review_domains })}
-            />
-            <StringListRepeater
-               title={t('roleTab.never')}
-               description={t('roleTab.neverHint')}
-               value={draft.never}
-               disabled={locked}
-               onChange={(never) => patch({ ...draft, never })}
-            />
-            {draft.discovery ? (
-               <StringListRepeater
-                  title={t('roleTab.discovery')}
-                  description={t('roleTab.discoveryHint')}
-                  value={draft.discovery.focus}
-                  disabled={locked}
-                  onChange={(focus) =>
-                     patch({
-                        ...draft,
-                        discovery: { ...draft.discovery!, focus },
-                     })
-                  }
-               />
-            ) : null}
-         </div>
-
-         {canEdit && dirty ? (
-            <UnsavedChangesBar
-               what={detail('change_role')}
-               busy={saving}
-               onDiscard={discard}
-               onSave={() => void save()}
-            />
-         ) : null}
-      </div>
+                        {selected ? <Check aria-hidden className="size-4 shrink-0" /> : null}
+                     </button>
+                  );
+               })}
+            </div>
+         </FormRow>
+         {permissionsPanel}
+      </>
    );
 }

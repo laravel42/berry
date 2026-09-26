@@ -1,7 +1,7 @@
 'use client';
 
-import { CheckIcon, Plus, X } from 'lucide-react';
-import { type ReactNode, useMemo, useState } from 'react';
+import { CheckIcon, Plus } from 'lucide-react';
+import { type ReactNode, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
@@ -224,102 +224,5 @@ export function AgentPicker({
             />
          </PopoverContent>
       </Popover>
-   );
-}
-
-interface AgentMultiselectProps {
-   value: string[];
-   options: AgentOption[];
-   onChange: (next: string[]) => void;
-   disabled?: boolean;
-   /** Chip text; defaults to the option label or the raw id. */
-   chipLabel?: (id: string) => string;
-   emptyLabel?: string;
-   addLabel?: string;
-   searchPlaceholder?: string;
-   noneLabel?: string;
-}
-
-/**
- * Agents as coloured chips with a searchable catalogue to add or remove.
- *
- * Shared wherever the product needs to pick one or more agents by id (role
- * contracts use the role key as `id` and pass `colorSeed` as the agent id).
- */
-export function AgentMultiselect({
-   value,
-   options,
-   onChange,
-   disabled = false,
-   chipLabel,
-   emptyLabel,
-   addLabel,
-   searchPlaceholder,
-   noneLabel,
-}: AgentMultiselectProps) {
-   const t = useTranslations('common.agentPicker');
-   const byId = useMemo(() => new Map(options.map((option) => [option.id, option])), [options]);
-
-   const labelFor = (id: string) => chipLabel?.(id) ?? byId.get(id)?.label ?? id;
-
-   const remove = (id: string) => {
-      onChange(value.filter((entry) => entry !== id));
-   };
-
-   return (
-      <div className="flex flex-col gap-2">
-         <div className="flex flex-wrap items-center gap-1.5">
-            {value.length === 0 ? (
-               <span className="text-muted-foreground">{noneLabel ?? t('none')}</span>
-            ) : (
-               value.map((id) => {
-                  const option = byId.get(id);
-                  const color = colorForAgent(option?.colorSeed ?? option?.id ?? id);
-                  return (
-                     <div
-                        key={id}
-                        title={id}
-                        className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full border px-2 py-[2px] text-foreground"
-                        style={{
-                           backgroundColor: `${color}26`,
-                           borderColor: color,
-                        }}
-                     >
-                        <BerryMark
-                           size="sm"
-                           tone="working"
-                           dotColor={color}
-                           label={option?.label ?? id}
-                           className="size-3"
-                        />
-                        <span className="truncate leading-none">{labelFor(id)}</span>
-                        {disabled ? null : (
-                           <button
-                              type="button"
-                              className="inline-flex size-3.5 shrink-0 items-center justify-center rounded-sm opacity-80 hover:opacity-100"
-                              aria-label={t('remove', { name: labelFor(id) })}
-                              onClick={() => remove(id)}
-                           >
-                              <X className="size-3" />
-                           </button>
-                        )}
-                     </div>
-                  );
-               })
-            )}
-            <AgentPicker
-               options={options}
-               value={value}
-               multiple
-               disabled={disabled}
-               addLabel={addLabel}
-               searchPlaceholder={searchPlaceholder}
-               emptyLabel={emptyLabel}
-               onChange={(next) => {
-                  if (Array.isArray(next)) onChange(next);
-               }}
-            />
-         </div>
-      </div>
    );
 }

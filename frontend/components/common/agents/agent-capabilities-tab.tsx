@@ -1,24 +1,33 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
+import { MarkdownFile } from '@/components/common/markdown-file';
+import { FormRow } from '@/components/common/settings/form-row';
+import { SettingsCard } from '@/components/common/settings/shared';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-   Dialog,
-   DialogContent,
-   DialogDescription,
-   DialogHeader,
-   DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+} from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { BerryApiError } from '@/lib/api';
 import { updateAgentConfig, type Agent } from '@/lib/agents';
+import {
+   composeInstructions,
+   INSTRUCTION_SECTIONS,
+   parseInstructions,
+   sameInstructionSections,
+   type InstructionSections,
+} from '@/lib/instructions';
 import { listSkills, setSkillForAgent, type Skill } from '@/lib/skills';
 
 const reason = (error: unknown, fallback: string) =>
@@ -39,21 +48,32 @@ interface AgentCapabilitiesTabProps {
    onDirtyChange: (dirty: boolean) => void;
    /** Called when the server refuses a write, so the page can say so once. */
    onForbidden: () => void;
+   /** Which section to show: the Instructions tab or the Skills tab. */
+   section: 'instructions' | 'skills';
 }
 
 /**
- * What the agent knows how to do: its instructions and the skills it carries.
- * Its MCP servers are set on its page under Settings → Agents.
+ * What the agent knows how to do: its instructions (the Instructions tab) or
+ * the skills it carries (the Skills tab), one section per tab. Its MCP servers
+ * have their own tab.
+ *
+ * Instructions are edited as sections, one form row each, whose caption says
+ * what kind of guidance belongs there; they are saved as one Markdown prompt
+ * (see `lib/instructions.ts`), shown whole at the end.
  *
  * Instructions and skill assignments are drafts until saved — navigating away
  * from half-written work is the failure mode this tab reports upwards.
  */
+/** The label filter's value for no label filter. */
+const ALL_LABELS = '__all__';
+
 export default function AgentCapabilitiesTab({
    agent,
    readOnly,
    onChange,
    onDirtyChange,
    onForbidden,
+   section,
 }: AgentCapabilitiesTabProps) {
    const t = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
@@ -63,18 +83,25 @@ export default function AgentCapabilitiesTab({
       toast.error(reason(error, t('failureUnknown')));
    };
 
-   const [instructions, setInstructions] = useState(agent.instructions ?? '');
+   const savedSections = useMemo(
+      () => parseInstructions(agent.instructions ?? ''),
+      [agent.instructions]
+   );
+   const [sections, setSections] = useState<InstructionSections>(savedSections);
    const [saving, setSaving] = useState(false);
    const [skills, setSkills] = useState<Skill[] | null>(null);
+   // Filters over the skill list: free text, one label, and active or all.
+   const [skillQuery, setSkillQuery] = useState('');
+   const [skillLabel, setSkillLabel] = useState<string>(ALL_LABELS);
+   const [skillShow, setSkillShow] = useState<'active' | 'all' | null>(null);
    const [assignedIds, setAssignedIds] = useState<string[]>([]);
    const [baselineIds, setBaselineIds] = useState<string[]>([]);
-   const [picking, setPicking] = useState(false);
-   const [query, setQuery] = useState('');
-   const [chosen, setChosen] = useState<string[]>([]);
 
    useEffect(() => {
-      setInstructions(agent.instructions ?? '');
-   }, [agent.instructions]);
+      setSections(savedSections);
+   }, [savedSections]);
+
+   const instructions = composeInstructions(sections);
 
    const loadSkills = useCallback(async () => {
       try {
@@ -84,6 +111,8 @@ export default function AgentCapabilitiesTab({
             .filter((skill) => skill.agentEnabled === true)
             .map((skill) => skill.id);
          setBaselineIds(enabled);
+         // Opens on the agent's own skills when it has any.
+         setSkillShow((current) => current ?? (enabled.length > 0 ? 'active' : 'all'));
          setAssignedIds(enabled);
       } catch (error) {
          toast.error(reason(error, t('failureUnknown')));
@@ -94,7 +123,7 @@ export default function AgentCapabilitiesTab({
       void loadSkills();
    }, [loadSkills]);
 
-   const instructionsDirty = instructions !== (agent.instructions ?? '');
+   const instructionsDirty = !sameInstructionSections(sections, savedSections);
    const skillsDirty = !sameIds(assignedIds, baselineIds);
    const dirty = instructionsDirty || skillsDirty;
 
@@ -110,7 +139,7 @@ export default function AgentCapabilitiesTab({
    }, [instructionsDirty, skillsDirty, t]);
 
    const discard = () => {
-      setInstructions(agent.instructions ?? '');
+      setSections(savedSections);
       setAssignedIds(baselineIds);
    };
 
@@ -137,156 +166,144 @@ export default function AgentCapabilitiesTab({
       }
    };
 
-   const assigned = (skills ?? []).filter((skill) => assignedIds.includes(skill.id));
-   const available = (skills ?? []).filter(
+   const skillLabels = [...new Set((skills ?? []).flatMap((skill) => skill.labels))].sort((a, b) =>
+      a.localeCompare(b)
+   );
+   const needle = skillQuery.trim().toLowerCase();
+   // Active is what was saved on or is switched on now, so switching one off
+   // does not make it vanish before the change is saved.
+   const shownSkills = (skills ?? []).filter(
       (skill) =>
-         !assignedIds.includes(skill.id) &&
-         (query.trim() === '' ||
-            skill.name.toLowerCase().includes(query.trim().toLowerCase()) ||
-            skill.description.toLowerCase().includes(query.trim().toLowerCase()))
+         (skillShow !== 'active' ||
+            baselineIds.includes(skill.id) ||
+            assignedIds.includes(skill.id)) &&
+         (skillLabel === ALL_LABELS || skill.labels.includes(skillLabel)) &&
+         (needle === '' ||
+            skill.name.toLowerCase().includes(needle) ||
+            skill.description.toLowerCase().includes(needle))
    );
 
    return (
       <div className="flex h-full min-h-0 flex-col">
          <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-auto px-8 py-6">
-            <section className="flex flex-col gap-2">
-               <div className="flex items-baseline gap-2">
-                  <h3 className="font-medium">{t('capInstructions')}</h3>
-                  <p className="text-muted-foreground">{t('capInstructionsHint')}</p>
-               </div>
-               <Textarea
-                  rows={10}
-                  value={instructions}
-                  disabled={readOnly}
-                  aria-label={t('capInstructions')}
-                  onChange={(event) => setInstructions(event.target.value)}
-               />
-            </section>
-
-            <section className="flex flex-col gap-2 border-t border-border/70 pt-6">
-               <div className="flex items-baseline gap-2">
-                  <h3 className="font-medium">{t('capSkills')}</h3>
-                  <p className="text-muted-foreground">{t('capSkillsHint')}</p>
-                  {readOnly ? null : (
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        className="ml-auto"
-                        onClick={() => {
-                           setChosen([]);
-                           setQuery('');
-                           setPicking(true);
-                        }}
-                     >
-                        <Plus className="size-4" />
-                        {t('capSkillsAssign')}
-                     </Button>
+            <div className="flex flex-col" hidden={section !== 'instructions'}>
+               {INSTRUCTION_SECTIONS.map(({ key }) => (
+                  <FormRow
+                     key={key}
+                     label={t(`instructionSections.${key}.label`)}
+                     caption={t(`instructionSections.${key}.caption`)}
+                     htmlFor={`instructions-${key}`}
+                  >
+                     <Textarea
+                        id={`instructions-${key}`}
+                        rows={3}
+                        value={sections[key]}
+                        placeholder={t(`instructionSections.${key}.example`)}
+                        disabled={readOnly || saving}
+                        onChange={(event) =>
+                           setSections((current) => ({ ...current, [key]: event.target.value }))
+                        }
+                     />
+                  </FormRow>
+               ))}
+               <FormRow label={t('instructionsPrompt')} caption={t('instructionsPromptHint')}>
+                  {instructions === '' ? (
+                     <p className="text-muted-foreground">{t('instructionsPromptEmpty')}</p>
+                  ) : (
+                     <MarkdownFile
+                        collapsible
+                        testId="instructions"
+                        label={t('instructionsPrompt')}
+                        fileName="instructions.md"
+                        markdown={instructions}
+                     />
                   )}
-               </div>
-               {skills === null ? (
-                  <p className="text-muted-foreground">{common('loading')}</p>
-               ) : assigned.length === 0 ? (
-                  <p className="text-muted-foreground">{t('capSkillsEmpty')}</p>
-               ) : (
-                  <ul className="flex flex-col rounded-md border border-border">
-                     {assigned.map((skill) => (
-                        <li
-                           key={skill.id}
-                           className="flex items-center justify-between gap-4 border-b border-border px-3 py-2.5 last:border-b-0"
-                        >
-                           <div className="min-w-0">
-                              <p className="truncate font-medium">{skill.name}</p>
-                              {skill.description ? (
-                                 <p className="line-clamp-1 text-muted-foreground">
-                                    {skill.description}
-                                 </p>
-                              ) : null}
-                           </div>
-                           {readOnly ? null : (
-                              <Button
-                                 size="xs"
-                                 variant="ghost"
-                                 aria-label={t('capSkillRemove', { name: skill.name })}
-                                 onClick={() =>
-                                    setAssignedIds((current) =>
-                                       current.filter((id) => id !== skill.id)
-                                    )
-                                 }
-                              >
-                                 <Trash2 className="size-4" />
-                              </Button>
-                           )}
-                        </li>
-                     ))}
-                  </ul>
-               )}
-            </section>
+               </FormRow>
+            </div>
 
-            <Dialog open={picking} onOpenChange={setPicking}>
-               <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                     <DialogTitle>{t('capSkillsDialogTitle')}</DialogTitle>
-                     <DialogDescription>{t('capSkillsEmpty')}</DialogDescription>
-                  </DialogHeader>
-                  <Input
-                     autoFocus
-                     value={query}
-                     placeholder={t('capSkillsSearch')}
-                     aria-label={t('capSkillsSearch')}
-                     onChange={(event) => setQuery(event.target.value)}
-                  />
-                  <ul className="max-h-72 overflow-y-auto rounded-md border border-border">
-                     {available.length === 0 ? (
-                        <li className="px-3 py-2.5 text-muted-foreground">{t('capSkillsEmpty')}</li>
-                     ) : (
-                        available.map((skill) => (
-                           <li
-                              key={skill.id}
-                              className="flex items-start gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
-                           >
-                              <Checkbox
-                                 checked={chosen.includes(skill.id)}
-                                 aria-label={skill.name}
-                                 onCheckedChange={() =>
-                                    setChosen(
-                                       chosen.includes(skill.id)
-                                          ? chosen.filter((id) => id !== skill.id)
-                                          : [...chosen, skill.id]
-                                    )
-                                 }
+            <div hidden={section !== 'skills'}>
+               <FormRow label={t('capSkills')} caption={t('capSkillsHint')}>
+                  {skills === null ? (
+                     <p className="text-muted-foreground">{common('loading')}</p>
+                  ) : skills.length === 0 ? (
+                     <p className="text-muted-foreground">{t('capSkillsNone')}</p>
+                  ) : (
+                     <div className="flex flex-col gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                           <Input
+                              value={skillQuery}
+                              placeholder={t('skillsSearch')}
+                              aria-label={t('skillsSearch')}
+                              onChange={(event) => setSkillQuery(event.target.value)}
+                              className="h-8 w-56"
+                           />
+                           <Select value={skillLabel} onValueChange={setSkillLabel}>
+                              <SelectTrigger className="h-8 w-44" aria-label={t('skillsLabel')}>
+                                 <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value={ALL_LABELS}>{t('skillsLabelAll')}</SelectItem>
+                                 {skillLabels.map((label) => (
+                                    <SelectItem key={label} value={label}>
+                                       {label}
+                                    </SelectItem>
+                                 ))}
+                              </SelectContent>
+                           </Select>
+                           <span className="ml-auto flex items-center gap-2">
+                              <span className="text-muted-foreground">{t('skillsShow')}</span>
+                              <SegmentedControl
+                                 aria-label={t('skillsShow')}
+                                 value={skillShow ?? 'all'}
+                                 onValueChange={setSkillShow}
+                                 options={[
+                                    { value: 'active', label: t('skillsShowActive') },
+                                    { value: 'all', label: t('skillsShowAll') },
+                                 ]}
                               />
-                              <div className="min-w-0">
-                                 <p className="truncate font-medium">{skill.name}</p>
-                                 {skill.description ? (
-                                    <p className="line-clamp-2 text-muted-foreground">
-                                       {skill.description}
-                                    </p>
-                                 ) : null}
-                              </div>
-                           </li>
-                        ))
-                     )}
-                  </ul>
-                  <div className="flex items-center gap-2">
-                     <Button
-                        size="sm"
-                        disabled={chosen.length === 0}
-                        onClick={() => {
-                           setAssignedIds((current) => [
-                              ...current,
-                              ...chosen.filter((id) => !current.includes(id)),
-                           ]);
-                           setPicking(false);
-                        }}
-                     >
-                        {t('capSkillsAdd')}
-                     </Button>
-                     <Button size="sm" variant="ghost" onClick={() => setPicking(false)}>
-                        {common('cancel')}
-                     </Button>
-                  </div>
-               </DialogContent>
-            </Dialog>
+                           </span>
+                        </div>
+                        {shownSkills.length === 0 ? (
+                           <p className="text-muted-foreground">{t('skillsNoMatch')}</p>
+                        ) : (
+                           <SettingsCard>
+                              {shownSkills.map((skill) => (
+                                 <label
+                                    key={skill.id}
+                                    className="flex items-start gap-3 px-4 py-3"
+                                    htmlFor={`${agent.id}-skill-${skill.id}`}
+                                 >
+                                    <span className="min-w-0 flex-1">
+                                       <span className="block">{skill.name}</span>
+                                       {skill.description ? (
+                                          <span className="block text-muted-foreground">
+                                             {skill.description}
+                                          </span>
+                                       ) : null}
+                                    </span>
+                                    <Switch
+                                       id={`${agent.id}-skill-${skill.id}`}
+                                       checked={assignedIds.includes(skill.id)}
+                                       disabled={readOnly || saving}
+                                       onCheckedChange={(on) =>
+                                          setAssignedIds((current) =>
+                                             on
+                                                ? [
+                                                     ...current.filter((id) => id !== skill.id),
+                                                     skill.id,
+                                                  ]
+                                                : current.filter((id) => id !== skill.id)
+                                          )
+                                       }
+                                    />
+                                 </label>
+                              ))}
+                           </SettingsCard>
+                        )}
+                     </div>
+                  )}
+               </FormRow>
+            </div>
          </div>
 
          {!readOnly && dirty ? (

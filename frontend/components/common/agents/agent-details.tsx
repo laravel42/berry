@@ -21,7 +21,6 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
 import {
    getWorkspaceAgent,
@@ -34,22 +33,25 @@ import {
 } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
 import AgentCapabilitiesTab from './agent-capabilities-tab';
+import AgentExecutionSettings from './agent-execution-settings';
 import { AgentModelChip } from './agent-model-chip';
 import AgentOverviewTab from './agent-overview-tab';
+import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
-import { AutonomyLevelChip } from './autonomy-level-chip';
 import { AgentWorkloadChip } from './agent-workload-chip';
 
-const TABS = ['overview', 'capabilities', 'settings'] as const;
+const TABS = ['settings', 'instructions', 'role', 'skills', 'mcp', 'overview'] as const;
 type DetailTab = (typeof TABS)[number];
 
 const isTab = (value: string | null): value is DetailTab =>
    value !== null && (TABS as readonly string[]).includes(value);
 
 /**
- * One agent, across overview (stats, assignments, runs), capabilities and
- * settings. Its role, MCP servers, runtime, concurrency, access, starters and
- * permissions live on its page under Settings → Agents.
+ * One agent, across overview (stats, assignments, runs), its role and
+ * permissions, capabilities (skills), MCP servers and settings (name,
+ * description, model or tier, runtime, concurrency and access).
+ *
+ * Every tab's changes are a draft until Save on its unsaved bar.
  *
  * The open tab lives in the URL rather than in state, so a tab can be linked,
  * reopened and navigated back to.
@@ -61,7 +63,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const searchParams = useSearchParams();
    const t = useTranslations('agentsChat.detail');
    const coverage = useAgentCoverage();
-   const org = useTranslations('organization');
+   const admin = useTranslations('workspaceAdmin.agents');
 
    const storedAgent = useAgentsStore((state) => state.getAgentById(agentId));
    const upsertAgent = useAgentsStore((state) => state.upsertAgent);
@@ -76,16 +78,18 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    const [loadingMore, setLoadingMore] = useState(false);
    const [readOnly, setReadOnly] = useState(false);
    const [dirty, setDirty] = useState(false);
-   // Where a guarded move was headed: another tab, or another page.
-   const [pending, setPending] = useState<
-      { tab: DetailTab; href?: never } | { href: string; tab?: never } | null
-   >(null);
+   // The Settings tab holds two editors, each with its own draft.
+   const [runtimeDirty, setRuntimeDirty] = useState(false);
+   const [pendingTab, setPendingTab] = useState<DetailTab | null>(null);
+   const unsaved = dirty || runtimeDirty;
 
-   // Unknown or retired tab names (activity, work, role) fall back to overview.
-   // The role now lives at /settings/ai/<agentId>.
-   const view: DetailTab = isTab(searchParams?.get('view') ?? null)
-      ? (searchParams?.get('view') as DetailTab)
-      : 'overview';
+   // Unknown or retired tab names (activity, work) open General.
+   // `capabilities` is the Instructions tab's old name; links to it still land.
+   const requestedView =
+      searchParams?.get('view') === 'capabilities'
+         ? 'instructions'
+         : (searchParams?.get('view') ?? null);
+   const view: DetailTab = isTab(requestedView) ? requestedView : 'settings';
 
    const avatarSrc = useAgentAvatarSrc(agent?.avatarUrl);
 
@@ -131,11 +135,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    // A half-written instruction is the one thing on this page that a stray
    // click can destroy, so the browser is asked to confirm as well.
    useEffect(() => {
-      if (!dirty) return;
+      if (!unsaved) return;
       const warn = (event: BeforeUnloadEvent) => event.preventDefault();
       window.addEventListener('beforeunload', warn);
       return () => window.removeEventListener('beforeunload', warn);
-   }, [dirty]);
+   }, [unsaved]);
 
    const openTab = useCallback(
       (next: DetailTab) => {
@@ -147,22 +151,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    );
 
    const requestTab = (next: DetailTab) => {
-      if (dirty && next !== view) {
-         setPending({ tab: next });
+      if (unsaved && next !== view) {
+         setPendingTab(next);
          return;
       }
       openTab(next);
-   };
-
-   const settingsHref = `/${orgId}/settings/ai/${agentId}`;
-
-   /** Leaves for the agent's settings page, through the same unsaved-changes guard as a tab. */
-   const openSettingsPage = () => {
-      if (dirty) {
-         setPending({ href: settingsHref });
-         return;
-      }
-      router.push(settingsHref);
    };
 
    const onChanged = (next: Agent) => {
@@ -201,18 +194,17 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
 
    // Workload from the roster: runs in flight, queued, or idle. The stored
    // agent.status (Online/Busy/Offline) is not shown here.
-   // The level lives on the contract; the agent row carries a copy for lists.
-   // Only an organization role has one: a plain agent's permissions govern it.
-   const level = agent.roleKey
-      ? (agent.contract?.autonomy_level ?? agent.autonomyLevel ?? null)
-      : null;
    const archived = Boolean(agent.archivedAt);
+   const locked = readOnly || archived;
    const needsRuntime = roster !== undefined && !agentHasRuntime(coverage, agentId) && !archived;
 
    const tabLabel: Record<DetailTab, string> = {
-      overview: t('tabOverview'),
-      capabilities: t('tabCapabilities'),
-      settings: t('tabSettings'),
+      settings: t('tabGeneral'),
+      instructions: t('capInstructions'),
+      role: admin('rolePermissions'),
+      skills: t('capSkills'),
+      mcp: t('capMcpAgent'),
+      overview: t('tabUsage'),
    };
 
    return (
@@ -237,14 +229,6 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      <h1 className="leading-none">{agent.name}</h1>
                      <AgentWorkloadChip roster={roster} />
                      <AgentModelChip agent={agent} />
-                     {level !== null ? (
-                        <Tooltip>
-                           <TooltipTrigger asChild>
-                              <AutonomyLevelChip level={level} tabIndex={0} />
-                           </TooltipTrigger>
-                           <TooltipContent side="bottom">{org('levelHint')}</TooltipContent>
-                        </Tooltip>
-                     ) : null}
                   </div>
                   {agent.description ? (
                      <p className="mt-2 max-w-3xl text-muted-foreground">{agent.description}</p>
@@ -268,7 +252,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      {t('bannerNoRuntime')}
                      <button
                         type="button"
-                        onClick={openSettingsPage}
+                        onClick={() => requestTab('settings')}
                         className="underline underline-offset-2"
                      >
                         {t('bannerNoRuntimeLink')}
@@ -310,35 +294,71 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                            void loadTasks();
                            void loadRoster();
                         }}
-                        onOpenSettings={openSettingsPage}
+                        onOpenSettings={() => requestTab('settings')}
                      />
                   </div>
                ) : null}
-               {view === 'capabilities' ? (
-                  <AgentCapabilitiesTab
+               {view === 'role' ? (
+                  <AgentRoleTab
                      agent={agent}
-                     readOnly={readOnly || archived}
+                     readOnly={locked}
+                     onReset={() => void loadAgent()}
                      onChange={onChanged}
                      onDirtyChange={setDirty}
                      onForbidden={() => setReadOnly(true)}
                   />
+               ) : null}
+               {view === 'instructions' || view === 'skills' ? (
+                  <AgentCapabilitiesTab
+                     key={view}
+                     agent={agent}
+                     readOnly={locked}
+                     onChange={onChanged}
+                     onDirtyChange={setDirty}
+                     onForbidden={() => setReadOnly(true)}
+                     section={view === 'skills' ? 'skills' : 'instructions'}
+                  />
+               ) : null}
+               {view === 'mcp' ? (
+                  <div className="min-h-0 flex-1 overflow-auto px-8 py-6">
+                     <AgentExecutionSettings
+                        agent={agent}
+                        roster={roster}
+                        readOnly={locked}
+                        onChange={onChanged}
+                        onRosterStale={() => void loadRoster()}
+                        onDirtyChange={setDirty}
+                        onForbidden={() => setReadOnly(true)}
+                        view="mcp"
+                     />
+                  </div>
                ) : null}
                {view === 'settings' ? (
                   <AgentSettingsTab
                      agent={agent}
-                     readOnly={readOnly || archived}
+                     readOnly={locked}
                      onChange={onChanged}
                      onDirtyChange={setDirty}
                      onForbidden={() => setReadOnly(true)}
-                     onOpenMoreSettings={openSettingsPage}
-                  />
+                  >
+                     <AgentExecutionSettings
+                        agent={agent}
+                        roster={roster}
+                        readOnly={locked}
+                        onChange={onChanged}
+                        onRosterStale={() => void loadRoster()}
+                        onDirtyChange={setRuntimeDirty}
+                        onForbidden={() => setReadOnly(true)}
+                        view="runtime"
+                     />
+                  </AgentSettingsTab>
                ) : null}
             </div>
          </Tabs>
 
          <AlertDialog
-            open={pending !== null}
-            onOpenChange={(open) => (open ? null : setPending(null))}
+            open={pendingTab !== null}
+            onOpenChange={(open) => (open ? null : setPendingTab(null))}
          >
             <AlertDialogContent>
                <AlertDialogHeader>
@@ -349,11 +369,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   <AlertDialogCancel>{t('unsavedStay')}</AlertDialogCancel>
                   <AlertDialogAction
                      onClick={() => {
-                        const next = pending;
-                        setPending(null);
+                        const next = pendingTab;
+                        setPendingTab(null);
                         setDirty(false);
-                        if (next?.tab) openTab(next.tab);
-                        else if (next?.href) router.push(next.href);
+                        setRuntimeDirty(false);
+                        if (next) openTab(next);
                      }}
                   >
                      {t('unsavedLeave')}

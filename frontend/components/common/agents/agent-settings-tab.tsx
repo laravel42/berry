@@ -1,14 +1,12 @@
 'use client';
 
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { AgentModelPicker } from '@/components/common/agents/agent-model-picker';
 import { AgentTierSection } from '@/components/common/agents/agent-tier-section';
+import { FormRow } from '@/components/common/settings/form-row';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,7 +19,6 @@ const reason = (error: unknown, fallback: string) =>
 
 /** The agent's own tier; anything the server sends that is not one reads as none. */
 const tierOf = (agent: Agent): Tier | null => (isTier(agent.tier) ? agent.tier : null);
-const fallbackOf = (agent: Agent) => agent.fallbackModel ?? null;
 
 interface AgentSettingsTabProps {
    agent: Agent;
@@ -31,23 +28,13 @@ interface AgentSettingsTabProps {
    onDirtyChange: (dirty: boolean) => void;
    /** Called when the server refuses a write, so the page can say so once. */
    onForbidden: () => void;
-   /** Opens the agent's page under Settings → Agents, through the page's leave guard. */
-   onOpenMoreSettings: () => void;
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-   return (
-      <section className="flex flex-col gap-2 border-t border-border/70 pt-6 first:border-t-0 first:pt-0">
-         <h3 className="font-medium">{title}</h3>
-         {children}
-      </section>
-   );
+   /** Shown after the model: the agent's runtime, concurrency and access, with their own draft. */
+   children?: React.ReactNode;
 }
 
 /**
  * The agent's name, description and model (or tier, under a model gateway).
- * Edits stay local until Save on the unsaved bar. Everything else about how it
- * runs lives on its page under Settings → Agents.
+ * Edits stay local until Save on the unsaved bar.
  */
 export default function AgentSettingsTab({
    agent,
@@ -55,11 +42,10 @@ export default function AgentSettingsTab({
    onChange,
    onDirtyChange,
    onForbidden,
-   onOpenMoreSettings,
+   children,
 }: AgentSettingsTabProps) {
    const t = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
-   const { orgId } = useParams<{ orgId: string }>();
 
    const failed = (error: unknown) => {
       if (error instanceof BerryApiError && error.status === 403) onForbidden();
@@ -72,7 +58,6 @@ export default function AgentSettingsTab({
    const [provider, setProvider] = useState(agent.modelProvider ?? null);
    const [model, setModel] = useState(agent.modelName ?? null);
    const [tier, setTier] = useState<Tier | null>(() => tierOf(agent));
-   const [fallbackModel, setFallbackModel] = useState<string | null>(() => fallbackOf(agent));
    const [saving, setSaving] = useState(false);
 
    useEffect(() => {
@@ -81,15 +66,7 @@ export default function AgentSettingsTab({
       setProvider(agent.modelProvider ?? null);
       setModel(agent.modelName ?? null);
       setTier(tierOf(agent));
-      setFallbackModel(fallbackOf(agent));
-   }, [
-      agent.name,
-      agent.description,
-      agent.modelProvider,
-      agent.modelName,
-      agent.tier,
-      agent.fallbackModel,
-   ]);
+   }, [agent.name, agent.description, agent.modelProvider, agent.modelName, agent.tier]);
 
    const nameDirty = name.trim() !== agent.name;
    const descriptionDirty = description !== (agent.description ?? '');
@@ -97,9 +74,8 @@ export default function AgentSettingsTab({
       (provider ?? null) !== (agent.modelProvider ?? null) ||
       (model ?? null) !== (agent.modelName ?? null);
    const tierDirty = tier !== tierOf(agent);
-   const fallbackDirty = fallbackModel !== fallbackOf(agent);
 
-   const dirty = nameDirty || descriptionDirty || modelDirty || tierDirty || fallbackDirty;
+   const dirty = nameDirty || descriptionDirty || modelDirty || tierDirty;
 
    useEffect(() => {
       onDirtyChange(dirty);
@@ -110,9 +86,8 @@ export default function AgentSettingsTab({
       if (nameDirty || descriptionDirty) parts.push(t('change_general'));
       if (modelDirty) parts.push(t('change_model'));
       if (tierDirty) parts.push(t('change_tier'));
-      if (fallbackDirty) parts.push(t('change_fallback'));
       return parts.join(', ');
-   }, [nameDirty, descriptionDirty, modelDirty, tierDirty, fallbackDirty, t]);
+   }, [nameDirty, descriptionDirty, modelDirty, tierDirty, t]);
 
    const discard = () => {
       setName(agent.name);
@@ -120,7 +95,6 @@ export default function AgentSettingsTab({
       setProvider(agent.modelProvider ?? null);
       setModel(agent.modelName ?? null);
       setTier(tierOf(agent));
-      setFallbackModel(fallbackOf(agent));
    };
 
    const save = async () => {
@@ -138,7 +112,6 @@ export default function AgentSettingsTab({
             config.model = model;
          }
          if (tierDirty) config.tier = tier;
-         if (fallbackDirty) config.fallbackModel = fallbackModel;
 
          onChange(await updateAgentConfig(agent.id, config));
          toast.success(common('saved'));
@@ -149,49 +122,52 @@ export default function AgentSettingsTab({
       }
    };
 
-   const moreSettingsHref = `/${orgId}/settings/ai/${agent.id}`;
-
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-auto px-8 py-6">
-            <Section title={t('setGeneral')}>
-               <label className="flex flex-col gap-1.5">
-                  <span className="text-muted-foreground">{t('setName')}</span>
+         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-8 py-6">
+            <div className="flex flex-col">
+               <FormRow label={t('setName')} caption={t('setNameHint')} htmlFor="agent-name">
                   <Input
+                     id="agent-name"
                      value={name}
                      disabled={readOnly}
                      onChange={(event) => setName(event.target.value)}
                   />
-               </label>
-
-               <label className="flex flex-col gap-1.5">
-                  <span className="text-muted-foreground">{t('setDescription')}</span>
+               </FormRow>
+               <FormRow
+                  label={t('setDescription')}
+                  caption={t('setDescriptionHint')}
+                  htmlFor="agent-description"
+               >
                   <Textarea
+                     id="agent-description"
                      rows={3}
                      value={description}
                      disabled={readOnly}
                      onChange={(event) => setDescription(event.target.value)}
                   />
-               </label>
-            </Section>
-
-            <section className="flex flex-col gap-2 border-t border-border/70 pt-6">
+               </FormRow>
                {modelGateway === true ? (
-                  <AgentTierSection
-                     agent={agent}
-                     tier={tier}
-                     fallbackModel={fallbackModel}
-                     provider={provider}
-                     model={model}
-                     disabled={readOnly}
-                     onTierChange={setTier}
-                     onFallbackChange={setFallbackModel}
-                     onUnpin={() => {
-                        setProvider(null);
-                        setModel(null);
-                     }}
-                  />
-               ) : modelGateway === false ? (
+                  <FormRow label={t('tiers.title')} caption={t('setTierHint')}>
+                     <AgentTierSection
+                        bare
+                        agent={agent}
+                        tier={tier}
+                        provider={provider}
+                        model={model}
+                        disabled={readOnly}
+                        onTierChange={setTier}
+                        onUnpin={() => {
+                           setProvider(null);
+                           setModel(null);
+                        }}
+                     />
+                  </FormRow>
+               ) : null}
+            </div>
+
+            {modelGateway === false ? (
+               <section className="flex flex-col gap-2 border-t border-border/70 pt-6">
                   <AgentModelPicker
                      provider={provider}
                      model={model}
@@ -201,24 +177,10 @@ export default function AgentSettingsTab({
                         setModel(nextModel);
                      }}
                   />
-               ) : null}
-            </section>
+               </section>
+            ) : null}
 
-            <p className="border-t border-border/70 pt-6">
-               <Link
-                  href={moreSettingsHref}
-                  className="inline-flex items-center gap-1 underline-offset-2 hover:underline"
-                  onClick={(event) => {
-                     // Modified clicks open a new tab and leave this one's draft alone.
-                     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                     event.preventDefault();
-                     onOpenMoreSettings();
-                  }}
-               >
-                  {t('moreSettings')}
-                  <ArrowRight className="size-4" aria-hidden />
-               </Link>
-            </p>
+            {children ? <div className="border-t border-border/70 pt-4">{children}</div> : null}
          </div>
 
          {!readOnly && dirty ? (

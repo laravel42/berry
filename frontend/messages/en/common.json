@@ -3,10 +3,8 @@
    "retry": "Try again",
    "agentPicker": {
       "add": "Add agent",
-      "remove": "Remove {name}",
       "search": "Search agents",
-      "empty": "No agents match that.",
-      "none": "None"
+      "empty": "No agents match that."
    },
    "unsavedBar": {
       "unsaved": "Unsaved: {what}",
@@ -22,5 +20,14 @@
    },
    "filters": {
       "clear": "Clear"
+   },
+   "markdownFile": {
+      "view": "View",
+      "preview": "Preview",
+      "raw": "Raw",
+      "copy": "Copy",
+      "copied": "Copied",
+      "copyFailed": "The clipboard could not be reached.",
+      "download": "Download"
    }
 }

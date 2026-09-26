@@ -5,16 +5,10 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { McpServerManager } from '@/components/common/settings/mcp-servers';
+import { FormRow } from '@/components/common/settings/form-row';
 import { SettingsSection } from '@/components/common/settings/shared';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Button } from '@/components/ui/button';
-import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
-} from '@/components/ui/select';
 import { BerryApiError } from '@/lib/api';
 import {
    getAgentAccess,
@@ -247,30 +241,35 @@ export default function AgentExecutionSettings({
             </SettingsSection>
          </div>
 
-         {/* Runtime, concurrency and access: three short choices, read side by side. */}
-         <div hidden={hidden('runtime')} className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <SettingsSection title={t('setRuntime')} description={t('setRuntimeHint')}>
-               <Select
-                  value={runtimeId ?? NO_RUNTIME}
-                  disabled={readOnly}
-                  onValueChange={(value) => setRuntimeId(value === NO_RUNTIME ? null : value)}
-               >
-                  <SelectTrigger className="w-full" aria-label={t('setRuntime')}>
-                     <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                     <SelectItem value={NO_RUNTIME}>{t('setRuntimeNone')}</SelectItem>
-                     {runtimes.map((runtime) => (
-                        <SelectItem key={runtime.id} value={runtime.id}>
-                           {runtime.name}
-                           {runtime.status === 'active' ? '' : ` · ${list('runtimeUnreachable')}`}
-                        </SelectItem>
-                     ))}
-                  </SelectContent>
-               </Select>
-            </SettingsSection>
+         {/* Runtime, concurrency and access: form rows, label and caption beside the control. */}
+         <div hidden={hidden('runtime')} className="flex flex-col">
+            <FormRow label={t('setRuntime')} caption={t('setRuntimeHint')}>
+               <div className="flex flex-wrap gap-2" role="group" aria-label={t('setRuntime')}>
+                  {[
+                     { id: null, label: t('setRuntimeNone') },
+                     ...runtimes.map((runtime) => ({
+                        id: runtime.id,
+                        label:
+                           runtime.status === 'active'
+                              ? runtime.name
+                              : `${runtime.name} · ${list('runtimeUnreachable')}`,
+                     })),
+                  ].map((choice) => (
+                     <Button
+                        key={choice.id ?? NO_RUNTIME}
+                        size="xs"
+                        variant={(runtimeId ?? null) === choice.id ? 'default' : 'secondary'}
+                        disabled={readOnly}
+                        aria-pressed={(runtimeId ?? null) === choice.id}
+                        onClick={() => setRuntimeId(choice.id)}
+                     >
+                        {choice.label}
+                     </Button>
+                  ))}
+               </div>
+            </FormRow>
 
-            <SettingsSection title={t('setConcurrency')} description={t('setConcurrencyHint')}>
+            <FormRow label={t('setConcurrency')} caption={t('setConcurrencyHint')}>
                <div className="flex flex-wrap gap-2">
                   {([1, 2, 3, 4, 5] as const).map((level) => (
                      <Button
@@ -285,9 +284,9 @@ export default function AgentExecutionSettings({
                      </Button>
                   ))}
                </div>
-            </SettingsSection>
+            </FormRow>
 
-            <SettingsSection title={t('setAccess')} description={t('setAccessHint')}>
+            <FormRow label={t('setAccess')} caption={t('setAccessHint')}>
                <div className="flex flex-wrap gap-2">
                   {(
                      [
@@ -307,7 +306,7 @@ export default function AgentExecutionSettings({
                      </Button>
                   ))}
                </div>
-            </SettingsSection>
+            </FormRow>
          </div>
 
          {!readOnly && dirty ? (

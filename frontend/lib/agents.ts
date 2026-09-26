@@ -314,12 +314,35 @@ export const TIER_NAMES: Record<Tier, string> = {
    berry_auto: 'BerryAuto',
 };
 
-/** The three a person chooses between; Free and Auto are experiments. */
+/** A tier's chip colours, from the same status tokens as the autonomy level chips. */
+export const TIER_STYLE: Record<Tier, string> = {
+   berry_auto: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
+   berry_max: 'border-primary/40 bg-primary/10 text-primary',
+   berry_mid: 'border-status-info/40 bg-status-info/10 text-status-info',
+   berry_low: 'border-status-success/40 bg-status-success/10 text-status-success',
+   berry_free: 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral',
+};
+
+/** The three paid tiers; Auto and Free are listed around them. */
 export const MAIN_TIERS = [
    'berry_max',
    'berry_mid',
    'berry_low',
 ] as const satisfies readonly Tier[];
+
+/**
+ * How a tier spreads its tasks over its models, best first: each task (an
+ * agent on an issue) keeps one of the top three, picked 3:2:1 by rank.
+ * Mirrors `RANK_WEIGHTS` in server-ts/src/agents/kilo/tiers.ts.
+ */
+const RANK_WEIGHTS = [3, 2, 1] as const;
+
+/** Each model's share of a tier's tasks, in percent, for a pool of `count`. */
+export function tierShares(count: number): number[] {
+   const weights = RANK_WEIGHTS.slice(0, count);
+   const total = weights.reduce((sum, weight) => sum + weight, 0);
+   return weights.map((weight) => Math.round((weight / total) * 100));
+}
 
 export function isTier(value: unknown): value is Tier {
    return typeof value === 'string' && (TIERS as readonly string[]).includes(value);
@@ -328,12 +351,15 @@ export function isTier(value: unknown): value is Tier {
 const rankedModelSchema = z.object({
    id: z.string(),
    name: z.string(),
-   /** KiloBench completion rate, 0–1. */
+   /** Rating, 0–1: a Terminal-Bench resolution rate on `ratingScale`'s scale. */
    completion: z.number().nullable(),
    costPerAttemptUsd: z.number().nullable(),
    usageTokens: z.number(),
    /** USD per million tokens, three input to one output. */
    blendedPricePerM: z.number().nullable(),
+   /** USD per million input and output tokens; absent from an older server. */
+   inputPricePerM: z.number().nullable().optional(),
+   outputPricePerM: z.number().nullable().optional(),
 });
 
 const modelTiersSchema = z.object({
@@ -348,6 +374,8 @@ const modelTiersSchema = z.object({
    refreshedAt: z.string(),
    stale: z.boolean(),
    usageStale: z.boolean(),
+   /** The leaderboard the ratings are given on; absent from an older server. */
+   ratingScale: z.string().nullable().optional(),
 });
 
 export type RankedModel = z.infer<typeof rankedModelSchema>;
@@ -359,29 +387,6 @@ export async function getModelTiers(): Promise<ModelTiers> {
    const parsed = modelTiersSchema.safeParse(json);
    if (!parsed.success) throw new Error('Tier response was not recognized');
    return parsed.data;
-}
-
-/** Where a tier's default fallback comes from: the top of the next tier down. */
-const FALLBACK_SOURCE: Record<Tier, Tier[]> = {
-   berry_max: ['berry_mid', 'berry_low'],
-   berry_mid: ['berry_low', 'berry_mid'],
-   berry_low: ['berry_low', 'berry_mid'],
-   berry_free: ['berry_low', 'berry_mid'],
-   berry_auto: ['berry_low', 'berry_mid'],
-};
-
-/**
- * The fallback Berry would use for `tier` today, for display. The server
- * decides at run time; this mirrors its rule so the line says what it will do.
- */
-export function defaultFallback(tiers: ModelTiers, tier: Tier): RankedModel | null {
-   const pool = (name: Tier) => tiers.tiers.find((entry) => entry.tier === name)?.models ?? [];
-   const own = pool(tier)[0]?.id;
-   for (const source of FALLBACK_SOURCE[tier]) {
-      const pick = pool(source).find((model) => model.id !== own);
-      if (pick) return pick;
-   }
-   return null;
 }
 
 export async function updateAgentConfig(

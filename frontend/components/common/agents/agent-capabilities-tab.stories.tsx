@@ -7,6 +7,7 @@ const meta = {
    component: AgentCapabilitiesTab,
    tags: ['ai-generated', 'needs-work'],
    args: {
+      section: 'skills',
       agent: frontendAgent,
       readOnly: false,
       onChange: fn(),

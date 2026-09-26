@@ -21,7 +21,6 @@ const meta = {
       onChange: fn(),
       onDirtyChange: fn(),
       onForbidden: fn(),
-      onOpenMoreSettings: fn(),
    },
    beforeEach: ({ msw }) => {
       msw.use(...storyHandlers);
@@ -43,16 +42,6 @@ export const Editable: Story = {
    play: async ({ args, canvas, userEvent }) => {
       await userEvent.type(canvas.getByRole('textbox', { name: 'Name' }), ' 2');
       await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
-   },
-};
-
-/** Runtime, concurrency, access and the rest are one link away, under Settings → Agents. */
-export const MoreSettings: Story = {
-   play: async ({ args, canvas, userEvent }) => {
-      const link = canvas.getByRole('link', { name: 'More settings' });
-      await expect(link).toHaveAttribute('href', `/berry/settings/ai/${frontendAgent.id}`);
-      await userEvent.click(link);
-      await expect(args.onOpenMoreSettings).toHaveBeenCalled();
    },
 };
 

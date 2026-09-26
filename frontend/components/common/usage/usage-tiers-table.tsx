@@ -2,8 +2,9 @@
 
 import { useTranslations } from 'next-intl';
 
-import { isTier, TIER_NAMES, TIERS } from '@/lib/agents';
+import { isTier, TIERS } from '@/lib/agents';
 import { formatCost, type TierUsageRow } from '@/lib/usage';
+import { TierChip } from '@/components/common/agents/tier-chip';
 import { cn } from '@/lib/utils';
 
 /** Tiers in Berry's order, Max first; a tier the server knows and this build does not goes last. */
@@ -51,7 +52,7 @@ export function UsageTiersTable({ rows }: { rows: TierUsageRow[] }) {
                {sorted.map((row) => (
                   <tr key={row.tier} className="border-t">
                      <td className="py-1.5 pr-4 font-medium">
-                        {isTier(row.tier) ? TIER_NAMES[row.tier] : row.tier}
+                        {isTier(row.tier) ? <TierChip tier={row.tier} /> : row.tier}
                      </td>
                      <td className="py-1.5 pr-4 text-right tabular-nums">{row.runs}</td>
                      <td className="py-1.5 pr-4 text-right tabular-nums">

@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, waitFor } from 'storybook/test';
+import { http, HttpResponse } from 'msw';
+import { expect, fn } from 'storybook/test';
+import type { RoleContract } from '@/lib/organization';
 import { AgentRoleTab } from './agent-role-tab';
 import { frontendAgent, releaseAgent, seedSession, storyHandlers } from './stories-fixtures';
 
@@ -12,9 +14,19 @@ const meta = {
       onReset: fn(),
       onChange: fn(),
       onDirtyChange: fn(),
+      onForbidden: fn(),
    },
    beforeEach: ({ msw }) => {
-      msw.use(...storyHandlers);
+      msw.use(
+         http.put('*/api/v1/agents/:id/contract', async ({ request }) =>
+            HttpResponse.json({
+               ...frontendAgent,
+               customized: true,
+               contract: (await request.json()) as RoleContract,
+            })
+         ),
+         ...storyHandlers
+      );
       seedSession('admin');
    },
    decorators: [
@@ -28,16 +40,10 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+/** An admin sets the autonomy level. */
+export const AdminEditing: Story = {};
 
-/** A customized role an admin can edit; the reset control is offered. */
-export const AdminEditing: Story = {
-   play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Add escalation' }));
-      await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
-   },
-};
-
-/** A member reads the contract but cannot change it. */
+/** A member reads the level; nothing to change. */
 export const MemberReadOnly: Story = {
    beforeEach: () => {
       seedSession('member');

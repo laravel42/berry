@@ -10,6 +10,18 @@ export function asAutonomyLevel(value: number | null | undefined): AutonomyLevel
    return null;
 }
 
+/**
+ * The permissions the server gives a role when its level changes: from level 3
+ * the ceiling holds run_command, which brings the code permissions; below it,
+ * reading only. Mirrors `effectivePermissions` in server-ts; merging is never
+ * a default.
+ */
+export function permissionsForLevel(level: AutonomyLevel): string[] {
+   return level >= 3
+      ? ['read_repository', 'create_branches', 'run_commands', 'open_pull_requests']
+      : ['read_repository'];
+}
+
 /** Border / fill / text for a level chip. Matches workspace-role badge density. */
 export const AUTONOMY_LEVEL_STYLE: Record<AutonomyLevel, string> = {
    1: 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral',

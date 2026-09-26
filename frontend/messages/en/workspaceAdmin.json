@@ -162,12 +162,9 @@
       "noModel": "no model set",
       "permissionCount": "{granted} of {total} permissions",
       "mergeRisk": "can merge without review",
-      "backToList": "Back to agents",
       "permissions": "Permissions",
       "permissionsHint": "Revoking a permission makes the runtime refuse the call.",
-      "sections": "Sections",
-      "rolePermissions": "Role and Permissions",
-      "tabSettings": "Settings"
+      "rolePermissions": "Role and Permissions"
    },
    "tokens": {
       "title": "API tokens",

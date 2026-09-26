@@ -2,14 +2,33 @@
 
 import { useEffect, useState } from 'react';
 
-import { listAgentModels, modelKey, type Agent, type AgentModel } from '@/lib/agents';
+import { useModelGateway } from '@/hooks/use-model-gateway';
+import {
+   isTier,
+   listAgentModels,
+   modelKey,
+   type Agent,
+   type AgentModel,
+   type Tier,
+} from '@/lib/agents';
 import { cn } from '@/lib/utils';
 
 import { agentModelName, MODEL_TIER_NEUTRAL, MODEL_TIER_STYLE, modelTier } from './model-name';
+import { TierChip } from './tier-chip';
 
 interface AgentModelChipProps {
-   agent: Pick<Agent, 'modelName' | 'modelProvider'>;
+   agent: Pick<Agent, 'modelName' | 'modelProvider' | 'tier' | 'defaultTier' | 'contract'>;
    className?: string;
+}
+
+/**
+ * The tier this agent runs on when it has no pinned model: its own stored
+ * tier, else the one the server resolved (same order as `roleDefaultTier`).
+ */
+function storedTier(agent: Pick<Agent, 'tier' | 'defaultTier' | 'contract'>): Tier {
+   if (isTier(agent.tier)) return agent.tier;
+   if (isTier(agent.defaultTier)) return agent.defaultTier;
+   return agent.contract?.tier ?? 'berry_low';
 }
 
 /** One shared catalog fetch so every chip on a roster pays one round trip. */
@@ -26,10 +45,14 @@ function loadModelPrices(): Promise<Map<string, AgentModel>> {
 }
 
 /**
- * Coloured model badge by input $/MTok: ≤$1 low, ≤$2 mid, ≤$3 mid-high,
- * >$3 high. Density matches AutonomyLevelChip.
+ * What the agent runs on, as a chip.
+ *
+ * A pinned model is coloured by input $/MTok: ≤$1 low, ≤$2 mid, ≤$3 mid-high,
+ * >$3 high. With no model, under a gateway, the chip is the stored tier.
+ * Density matches AutonomyLevelChip.
  */
 export function AgentModelChip({ agent, className }: AgentModelChipProps) {
+   const gateway = useModelGateway();
    const [prices, setPrices] = useState<Map<string, AgentModel>>(() => new Map());
    useEffect(() => {
       let alive = true;
@@ -45,6 +68,10 @@ export function AgentModelChip({ agent, className }: AgentModelChipProps) {
          alive = false;
       };
    }, []);
+
+   if (gateway === true && !agent.modelName?.trim()) {
+      return <TierChip tier={storedTier(agent)} className={className} />;
+   }
 
    const tier = modelTier(agent, prices);
 

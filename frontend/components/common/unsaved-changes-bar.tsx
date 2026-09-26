@@ -10,6 +10,8 @@ interface UnsavedChangesBarProps {
    onDiscard: () => void;
    onSave: () => void;
    busy?: boolean;
+   /** Holds Save back while the draft cannot be written, e.g. it does not parse. */
+   saveDisabled?: boolean;
    discardLabel?: string;
    saveLabel?: string;
 }
@@ -25,6 +27,7 @@ export function UnsavedChangesBar({
    onDiscard,
    onSave,
    busy = false,
+   saveDisabled = false,
    discardLabel,
    saveLabel,
 }: UnsavedChangesBarProps) {
@@ -36,7 +39,7 @@ export function UnsavedChangesBar({
          <Button size="xs" variant="ghost" disabled={busy} onClick={onDiscard}>
             {discardLabel ?? t('discard')}
          </Button>
-         <Button size="xs" disabled={busy} onClick={onSave}>
+         <Button size="xs" disabled={busy || saveDisabled} onClick={onSave}>
             {saveLabel ?? (busy ? t('saving') : t('save'))}
          </Button>
       </div>

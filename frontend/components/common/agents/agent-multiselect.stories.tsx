@@ -1,15 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { useState } from 'react';
 import { expect, fn, within } from 'storybook/test';
-import { AgentCommandList, AgentMultiselect, AgentPicker } from './agent-multiselect';
+import { AgentCommandList, AgentPicker } from './agent-multiselect';
 import { roleOptions } from './stories-fixtures';
 
 const meta = {
-   component: AgentMultiselect,
+   component: AgentPicker,
    tags: ['ai-generated', 'needs-work'],
    args: {
       value: ['qa-engineer'],
       options: roleOptions,
+      multiple: true,
       onChange: fn(),
    },
    decorators: [
@@ -19,22 +20,12 @@ const meta = {
          </div>
       ),
    ],
-} satisfies Meta<typeof AgentMultiselect>;
+} satisfies Meta<typeof AgentPicker>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Delegation targets on a role contract: role keys as ids, agent ids as colour seeds. */
-export const Chips: Story = {
-   args: { value: ['qa-engineer', 'product-designer'] },
-   play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Remove QA Engineer' }));
-      await expect(args.onChange).toHaveBeenCalledWith(['product-designer']);
-   },
-};
-
-export const Empty: Story = { args: { value: [] } };
-
+/** The multi-pick catalogue: picking an agent adds it to the value. */
 export const OpenCatalogue: Story = {
    play: async ({ args, canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Add agent' }));
@@ -43,14 +34,6 @@ export const OpenCatalogue: Story = {
       await userEvent.type(await body.findByPlaceholderText('Search agents'), 'back');
       await userEvent.click(await body.findByText('Backend Engineer'));
       await expect(args.onChange).toHaveBeenCalledWith(['qa-engineer', 'backend-engineer']);
-   },
-};
-
-/** Read-only: chips without remove buttons, and no add control. */
-export const Disabled: Story = {
-   args: { value: ['qa-engineer', 'orchestrator'], disabled: true },
-   play: async ({ canvas }) => {
-      await expect(canvas.queryByRole('button')).toBeNull();
    },
 };
 

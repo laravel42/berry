@@ -19,8 +19,8 @@ import { SettingsSection, SettingsShell } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
- * Workspace "Agents": the roster. Each card opens that agent's settings page
- * (role, MCP servers, runtime, concurrency, access, starters, permissions).
+ * Workspace "Agents": the roster. Each card opens that agent on its Role and
+ * Permissions tab.
  *
  * Revoking a permission makes the *runtime* refuse the call, not a page hide
  * a button. That is the claim the whole permission model rests on, so the
@@ -79,7 +79,7 @@ export default function AiAgents() {
                   return (
                      <Link
                         key={agent.id}
-                        href={`/${orgId}/settings/ai/${agent.id}`}
+                        href={`/${orgId}/agents/${agent.id}?view=role`}
                         className="flex min-w-0 items-start gap-2 rounded-md border bg-container px-2.5 py-2 outline-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50"
                      >
                         <Bot className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
