@@ -9,6 +9,16 @@ import { AutonomyLevelChip } from '@/components/common/agents/autonomy-level-chi
 import { FormRow } from '@/components/common/settings/form-row';
 import { SettingsCard } from '@/components/common/settings/shared';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
+import {
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { BerryApiError } from '@/lib/api';
@@ -41,6 +51,9 @@ const sameSet = (a: readonly string[], b: readonly string[]) =>
  * choosing the saved level again brings back the saved permissions. Save
  * writes the level, then any permissions that still differ from what the
  * level gave.
+ *
+ * A role someone changed offers Reset, after a confirmation: it puts the
+ * level, permissions, instructions and description back to Berry's.
  */
 export function AgentRoleTab({
    agent,
@@ -64,6 +77,7 @@ export function AgentRoleTab({
    const common = useTranslations('agentsChat.common');
    const admin = useTranslations('workspaceAdmin.agents');
    const [resetting, setResetting] = useState(false);
+   const [confirmingReset, setConfirmingReset] = useState(false);
    const [saving, setSaving] = useState(false);
    const [levelDraft, setLevelDraft] = useState<AutonomyLevel | null>(null);
    const [permissionsDraft, setPermissionsDraft] = useState<string[] | null>(null);
@@ -277,6 +291,37 @@ export function AgentRoleTab({
             </div>
          </FormRow>
          {permissionsPanel}
+         {agent.customized && !readOnly ? (
+            <FormRow label={t('roleTab.customized')} caption={t('roleTab.customizedHint')}>
+               <div className="flex flex-col items-start gap-1">
+                  <Button
+                     size="sm"
+                     variant="outline"
+                     disabled={resetting || !canEdit || saving}
+                     onClick={() => setConfirmingReset(true)}
+                  >
+                     {t('roleTab.reset')}
+                  </Button>
+                  {!canEdit ? (
+                     <p className="text-muted-foreground">{t('roleTab.adminOnly')}</p>
+                  ) : null}
+               </div>
+            </FormRow>
+         ) : null}
+         <AlertDialog open={confirmingReset} onOpenChange={setConfirmingReset}>
+            <AlertDialogContent>
+               <AlertDialogHeader>
+                  <AlertDialogTitle>{t('roleTab.resetConfirmTitle')}</AlertDialogTitle>
+                  <AlertDialogDescription>{t('roleTab.resetConfirmBody')}</AlertDialogDescription>
+               </AlertDialogHeader>
+               <AlertDialogFooter>
+                  <AlertDialogCancel>{common('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => void reset()}>
+                     {t('roleTab.reset')}
+                  </AlertDialogAction>
+               </AlertDialogFooter>
+            </AlertDialogContent>
+         </AlertDialog>
       </>
    );
 }

@@ -17,6 +17,10 @@
       "contractInvalid": "This role's stored contract is no longer valid.",
       "contractInvalidHint": "Reset it to Berry's version to restore its mission, permissions and delegation.",
       "adminOnly": "Only workspace owners and admins can reset a role.",
+      "customized": "Customized",
+      "customizedHint": "Someone changed this role's autonomy level, instructions or contract, so it differs from Berry's version.",
+      "resetConfirmTitle": "Reset this role to Berry's version?",
+      "resetConfirmBody": "Its autonomy level, permissions, instructions and description go back to Berry's, and the changes made to them are lost. Its name, tier, skills and MCP servers stay as they are.",
       "saveFailed": "The role could not be updated."
    },
    "levels": {
