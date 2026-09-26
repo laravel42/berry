@@ -29,7 +29,7 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    if (contract.can_delegate_to.length > 0) {
       approach.push(
          '',
-         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by key, e.g. L42-341) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role.`
+         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by key, e.g. L42-341) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role. Hand on new work only: never ask another role to review or test what you did, because the reviews your work needs run by themselves when you deliver it.`
       );
    }
    if (contract.autonomy_level === 5) {
@@ -47,6 +47,14 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
       '',
       'When you find worthwhile work outside your task, file it with propose_work, with evidence, impact, severity, effort, dependencies, the responsible role and required reviewers.'
    );
+   // A run once spent its time downloading a browser and its system
+   // libraries to screenshot its own work, and hung there.
+   if (contract.allowed_tools.includes('run_command')) {
+      approach.push(
+         '',
+         'Check your work with what the workspace already has: its toolchain, and Playwright with Chromium for a page. Do not install browsers or other large tools just to check it; your work is reviewed after you deliver it.'
+      );
+   }
 
    const done = [`You produce: ${contract.outputs.join('; ')}.`];
    if (contract.review_requirements.length > 0) {

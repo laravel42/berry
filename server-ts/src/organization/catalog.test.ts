@@ -152,3 +152,17 @@ test('a level set by a person brings every tool it allows; planning stays with t
    assert.ok(toolsForLevel('product-lead', 5).includes('create_plan'));
    for (const tool of toolsForLevel('backend-engineer', 4)) assert.ok(toolCeiling(4).includes(tool), tool);
 });
+
+test('a role that hands work on is told not to hand on a review of its own work', () => {
+   for (const role of CATALOG) {
+      if (role.can_delegate_to.length === 0) continue;
+      assert.match(role.system_prompt, /never ask another role to review or test what you did/, role.id);
+   }
+});
+
+test('a role that runs commands is told not to install large tools to check its work; others are not', () => {
+   for (const role of CATALOG) {
+      const told = /Do not install browsers or other large tools just to check it/.test(role.system_prompt);
+      assert.equal(told, role.allowed_tools.includes('run_command'), role.id);
+   }
+});

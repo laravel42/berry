@@ -16,7 +16,9 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 13: roles carry a Berry tier (berry_max/mid/low) instead of a preferred
 // Bedrock model; the model is chosen per run from the tier (ADR-0017).
 // 14: prompts are written in the Instructions tab's sections (## Role, …).
-export const CATALOG_VERSION = 14;
+// 15: roles hand on new work only, never a review of their own.
+// 16: roles that run commands check their work without installing large tools.
+export const CATALOG_VERSION = 16;
 
 /**
  * A role's tier is Berry's (ADR-0017), not a vendor's model family: which
