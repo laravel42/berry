@@ -36,14 +36,16 @@ export const OpenList: Story = {
    },
 };
 
-/** Switching to Timeline swaps in the timeline-only switches. */
-export const SwitchToTimeline: Story = {
+/** No timeline view any more; the ordering direction flips in place. */
+export const ReverseOrdering: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('button', { name: 'Timeline' }));
-      await expect(useProjectsDisplayStore.getState().viewType).toBe('timeline');
-      await expect(await body.findByText('Show week numbers')).toBeVisible();
+      await expect(await body.findByText('List options')).toBeVisible();
+      await expect(body.queryByRole('button', { name: 'Timeline' })).not.toBeInTheDocument();
+      await userEvent.click(body.getByRole('button', { name: 'Ascending' }));
+      await expect(useProjectsDisplayStore.getState().direction).toBe('desc');
+      await expect(body.getByRole('button', { name: 'Descending' })).toBeVisible();
    },
 };
 

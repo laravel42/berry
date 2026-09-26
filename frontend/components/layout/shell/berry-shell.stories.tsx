@@ -49,11 +49,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
    play: async ({ canvas }) => {
-      // No tab strip: the bar holds the chat button only. Notifications live
-      // on Inbox in the rail.
+      // No tab strip, and the Agents launcher is hidden for now. Notifications
+      // live on Inbox in the rail.
       await expect(canvas.queryByRole('tablist')).toBeNull();
       await expect(canvas.queryByRole('button', { name: /notifications/i })).toBeNull();
-      await expect(canvas.getByRole('button', { name: /agents/i })).toBeVisible();
+      await expect(canvas.queryByRole('button', { name: /agents/i })).toBeNull();
+      await expect(canvas.getByRole('navigation', { name: 'Workspace' })).toBeVisible();
    },
 };
 
@@ -84,6 +85,9 @@ export const MobileMenu: Story = {
 export const CollapseAndExpandRail: Story = {
    play: async ({ canvas, userEvent }) => {
       useShellStore.setState({ railOpen: false });
+      // Wait for the store change to render the folded column before
+      // checking the rail left the accessibility tree.
+      await expect(await canvas.findByRole('button', { name: 'Expand sidebar' })).toBeVisible();
       await expect(canvas.queryByRole('navigation', { name: 'Workspace' })).toBeNull();
       await userEvent.click(canvas.getByRole('button', { name: 'Expand sidebar' }));
       await expect(canvas.getByRole('navigation', { name: 'Workspace' })).toBeVisible();

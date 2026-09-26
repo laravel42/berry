@@ -60,11 +60,15 @@ export const TasksTab: Story = {
    },
 };
 
+/** Delete sits in the actions menu and still asks before it goes. */
 export const ConfirmDelete: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Delete project' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Project actions' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('alertdialog')).toBeVisible();
+      await userEvent.click(await body.findByRole('menuitem', { name: 'Delete' }));
+      const dialog = await body.findByRole('alertdialog');
+      await expect(dialog).toBeVisible();
+      await expect(within(dialog).getByText('Delete Berry Server?')).toBeVisible();
    },
 };
 

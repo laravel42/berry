@@ -51,6 +51,8 @@ interface CreateOrJoinProps {
     * joined). The parent refreshes session state and routes into it.
     */
    onEntered: (workspaceId: string) => Promise<void> | void;
+   /** The tab it opens on; create by default. */
+   initialTab?: 'create' | 'join';
 }
 
 /**
@@ -59,7 +61,7 @@ interface CreateOrJoinProps {
  * success; the parent owns the refresh-and-route so this component stays
  * presentational.
  */
-export function CreateOrJoin({ onEntered }: CreateOrJoinProps) {
+export function CreateOrJoin({ onEntered, initialTab = 'create' }: CreateOrJoinProps) {
    const [createError, setCreateError] = useState<string | null>(null);
    const [joinError, setJoinError] = useState<string | null>(null);
 
@@ -108,7 +110,7 @@ export function CreateOrJoin({ onEntered }: CreateOrJoinProps) {
    };
 
    return (
-      <Tabs defaultValue="create" className="gap-4">
+      <Tabs defaultValue={initialTab} className="gap-4">
          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="create">Create</TabsTrigger>
             <TabsTrigger value="join">Join</TabsTrigger>

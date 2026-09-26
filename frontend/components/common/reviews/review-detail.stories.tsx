@@ -31,9 +31,14 @@ type Story = StoryObj<typeof meta>;
 /** A waiting pull request under AutoGate: overview, verdicts and diff tabs, and the decision bar. */
 export const WaitingPullRequest: Story = {
    play: async ({ canvas }) => {
-      await expect(
-         await canvas.findByRole('heading', { name: 'Persist project health to the database' })
-      ).toBeVisible();
+      // The pane leads with what the run delivered, not the task's title.
+      await expect(await canvas.findByRole('link', { name: 'PR #412' })).toHaveAttribute(
+         'href',
+         'https://github.com/berry/berry/pull/412'
+      );
+      await expect(canvas.getByText('Backend Engineer').closest('p')).toHaveTextContent(
+         'Backend Engineer delivered PR #412'
+      );
       await expect(canvas.getByRole('tab', { name: /Verdicts/ })).toBeVisible();
       await expect(canvas.getByRole('tab', { name: 'Diff' })).toBeVisible();
       await expect(canvas.getByRole('button', { name: 'Approve' })).toBeVisible();
@@ -62,7 +67,10 @@ export const DiffSection: Story = {
 export const StoppedRun: Story = {
    args: { reviewId: 'issue-102' },
    play: async ({ canvas }) => {
-      await canvas.findByRole('heading', { name: 'Move approvals and proposals into the inbox' });
+      const author = await canvas.findByText('Frontend Engineer');
+      await expect(author.closest('p')).toHaveTextContent(
+         'Frontend Engineer stopped without delivering.'
+      );
       await expect(canvas.getAllByRole('tab')).toHaveLength(1);
    },
 };
@@ -71,7 +79,7 @@ export const StoppedRun: Story = {
 export const Decided: Story = {
    args: { reviewId: 'issue-090', listTab: 'created' },
    play: async ({ canvas }) => {
-      await canvas.findByRole('heading', { name: 'Render run transcript steps in a code editor' });
+      await expect(await canvas.findByRole('link', { name: 'PR #412' })).toBeVisible();
       await expect(canvas.queryByRole('button', { name: 'Approve' })).toBeNull();
    },
 };

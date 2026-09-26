@@ -47,29 +47,38 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Overview: Story = {
+/** With no `?view=` the page opens on General; the tabs run in a fixed order. */
+export const General: Story = {
    play: async ({ canvas }) => {
       // GET /api/v1/agents/:id, the 30-day roster and the task page all come from MSW.
       await expect(
          await canvas.findByRole('heading', { level: 1, name: 'Frontend Engineer' })
       ).toBeVisible();
-      await expect(canvas.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      await expect(canvas.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+         'General',
+         'Instructions',
+         'Role and Permissions',
+         'Skills',
+         'MCP servers',
+         'Usage',
+      ]);
+      await expect(canvas.getByRole('tab', { name: 'General' })).toHaveAttribute(
          'aria-selected',
          'true'
       );
    },
 };
 
-/** The role moved to Settings → Agents; an old `?view=role` link opens the overview. */
-export const RetiredRoleTab: Story = {
+/** Settings → Agents links here with `?view=role`, which opens Role and Permissions. */
+export const RoleTab: Story = {
    parameters: navigation({ view: 'role' }),
    play: async ({ canvas }) => {
       await canvas.findByRole('heading', { level: 1, name: 'Frontend Engineer' });
-      await expect(canvas.queryByRole('tab', { name: 'Role' })).toBeNull();
-      await expect(canvas.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+      await expect(canvas.getByRole('tab', { name: 'Role and Permissions' })).toHaveAttribute(
          'aria-selected',
          'true'
       );
+      await expect(await canvas.findByRole('radiogroup')).toBeVisible();
    },
 };
 

@@ -3,10 +3,12 @@ import { expect } from 'storybook/test';
 import { getIssueDetail } from '@/data/issue-details';
 import { IssuePropertiesPanel } from './issue-properties-panel';
 import {
+   approvalsInbox,
    healthTests,
    issueApiHandlers,
    issueDetailHandlers,
    persistHealth,
+   rotateKey,
    seedIssuesWorkspace,
    sharedFilter,
 } from '../stories-fixtures';
@@ -75,7 +77,16 @@ export const WithRelatedAndDiffs: Story = {
       },
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getByText('Health persisted')).toBeInTheDocument();
+      // Related tasks resolve to their titles from the list.
+      await expect(canvas.getByText('Related')).toBeInTheDocument();
+      await expect(
+         canvas.getByRole('link', { name: new RegExp(approvalsInbox.title) })
+      ).toHaveAttribute('href', expect.stringContaining('/issue/BERR-43'));
+      await expect(
+         canvas.getByRole('link', { name: new RegExp(rotateKey.title) })
+      ).toBeInTheDocument();
       await expect(canvas.getByText('Diffs')).toBeInTheDocument();
+      await expect(canvas.getByText('Persist project health')).toBeInTheDocument();
+      await expect(canvas.getByText('merged')).toBeInTheDocument();
    },
 };

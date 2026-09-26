@@ -26,26 +26,34 @@ const meta = {
    },
    beforeEach: ({ msw }) => {
       seedProjectStores({ sessionReady: true });
+      useProjectUpdatesStore.setState({ updatesByProject: {} });
+      const posted: (typeof apiProjectUpdates.nodes)[number][] = [];
       msw.use(
          projectPatchHandler,
-         http.get('*/api/v1/projects/:id/updates', () => HttpResponse.json(apiProjectUpdates)),
+         // Like the server: a posted update is in the next read, so the feed's
+         // refetch (it reloads whenever the project changes) keeps it.
+         http.get('*/api/v1/projects/:id/updates', () =>
+            HttpResponse.json({
+               ...apiProjectUpdates,
+               nodes: [...posted, ...apiProjectUpdates.nodes],
+            })
+         ),
          http.get('*/api/v1/integrations/github/repositories', () =>
             HttpResponse.json(apiRepositories)
          ),
          http.post('*/api/v1/projects/:id/updates', async ({ params, request }) => {
             const body = (await request.json()) as { body: string; health: string };
-            return HttpResponse.json(
-               {
-                  id: 'upd-3',
-                  projectId: String(params.id),
-                  body: body.body,
-                  health: body.health,
-                  author: { type: 'user', id: 'user-1', name: 'Andrea Lunelio', avatarUrl: null },
-                  createdAt: '2026-09-18T12:00:00Z',
-                  updatedAt: '2026-09-18T12:00:00Z',
-               },
-               { status: 201 }
-            );
+            const created = {
+               id: 'upd-3',
+               projectId: String(params.id),
+               body: body.body,
+               health: body.health,
+               author: { type: 'user', id: 'user-1', name: 'Andrea Lunelio', avatarUrl: null },
+               createdAt: '2026-09-18T12:00:00Z',
+               updatedAt: '2026-09-18T12:00:00Z',
+            };
+            posted.unshift(created);
+            return HttpResponse.json(created, { status: 201 });
          })
       );
    },
@@ -110,5 +118,6 @@ export const PostUpdate: Story = {
          )
       );
       await expect(canvas.getByRole('textbox', { name: 'Project update' })).toHaveValue('');
+      await expect(await canvas.findByText('Backfill is running on staging.')).toBeVisible();
    },
 };

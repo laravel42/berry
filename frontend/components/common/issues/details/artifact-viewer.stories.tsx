@@ -79,7 +79,7 @@ type Story = StoryObj<typeof meta>;
 /** A markdown document opens formatted — tables included — and flips to its source. */
 export const MarkdownDocument: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Preview docs/README.md' }));
+      await userEvent.click(await canvas.findByTitle('Preview docs/README.md'));
       await expect(await canvas.findByRole('heading', { name: 'Landing page' })).toBeVisible();
       await expect(canvas.getByRole('cell', { name: 'Pricing' })).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Source' }));
@@ -90,30 +90,33 @@ export const MarkdownDocument: Story = {
 /** An HTML file opens as source, like other code — the site runs on the Preview tab. */
 export const SitePreview: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Preview site/index.html' }));
+      await userEvent.click(await canvas.findByTitle('Preview site/index.html'));
       await expect(await canvas.findByText(/<!doctype html>/i)).toBeVisible();
       await expect(canvas.queryByTitle('Page preview of site/index.html')).toBeNull();
    },
 };
 
-/** An SVG stored as text still shows as an image; code gets the code view; the arrows walk the tree. */
+/** An SVG stored as text still shows as an image; code gets the code view; the tree walks the files. */
 export const ImageAndCode: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Preview site/logo.svg' }));
+      await userEvent.click(await canvas.findByTitle('Preview site/logo.svg'));
       const image = (await canvas.findByRole('img', { name: 'site/logo.svg' })) as HTMLImageElement;
       await expect(image.src).toMatch(/^blob:/);
-      // The tree lists a folder's files by name: after logo.svg comes style.css.
-      await userEvent.click(canvas.getByRole('button', { name: 'Next file' }));
+      // Beside the tree there are no next/previous arrows: the tree is how you move.
+      await expect(canvas.queryByRole('button', { name: 'Next file' })).toBeNull();
+      await userEvent.click(canvas.getByTitle('Preview site/style.css'));
       await expect(await canvas.findByTitle('site/style.css')).toBeVisible();
       await expect(await canvas.findByText(/tomato/)).toBeVisible();
    },
 };
 
-/** A file with no viewer offers only the download. */
+/** A file with no viewer is listed by name only: nothing to open. */
 export const NoPreviewForBinary: Story = {
    play: async ({ canvas }) => {
-      await canvas.findByText('output.bin');
-      await expect(canvas.queryByRole('button', { name: 'Preview build/output.bin' })).toBeNull();
-      await expect(canvas.getByRole('button', { name: 'Download build/output.bin' })).toBeVisible();
+      await expect(await canvas.findByText('output.bin')).toBeVisible();
+      await expect(canvas.queryByTitle('Preview build/output.bin')).toBeNull();
+      await expect(canvas.queryByRole('button', { name: 'output.bin' })).toBeNull();
+      // A file that does have a viewer is a button, for contrast.
+      await expect(canvas.getByRole('button', { name: 'README.md' })).toBeVisible();
    },
 };

@@ -7,6 +7,13 @@ import Goals from './goals';
 
 const openGoals = storyGoals.filter((goal) => goal.status !== 'completed');
 
+/** The rail rows: one button per goal, named by its title. */
+function goalRows(canvas: { queryAllByRole: (role: 'button') => HTMLElement[] }) {
+   return canvas
+      .queryAllByRole('button')
+      .filter((row) => storyGoals.some((goal) => row.textContent?.includes(goal.title)));
+}
+
 const meta = {
    component: Goals,
    tags: ['ai-generated', 'needs-work'],
@@ -30,7 +37,10 @@ type Story = StoryObj<typeof meta>;
 
 export const List: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getAllByRole('link')).toHaveLength(openGoals.length);
+      const rows = goalRows(canvas);
+      await expect(rows).toHaveLength(openGoals.length);
+      // The first goal opens beside the list.
+      await expect(rows[0]).toHaveAttribute('aria-current', 'true');
    },
 };
 
@@ -41,7 +51,7 @@ export const All: Story = {
       useGoalsListStore.setState({ scope: 'all', query: '' });
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getAllByRole('link')).toHaveLength(storyGoals.length);
+      await expect(goalRows(canvas)).toHaveLength(storyGoals.length);
    },
 };
 
@@ -53,7 +63,7 @@ export const Search: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('No goal matches this search.')).toBeVisible();
-      await expect(canvas.queryAllByRole('link')).toHaveLength(0);
+      await expect(goalRows(canvas)).toHaveLength(0);
    },
 };
 
@@ -68,8 +78,10 @@ export const Empty: Story = {
       useGoalsStore.setState({ goals: [], loaded: true, error: null });
    },
    play: async ({ canvas }) => {
-      // The empty state sends people to projects, where planning makes goals.
-      await expect(canvas.getByRole('link')).toHaveAttribute('href', '/berry/projects');
+      // The empty state explains that planning in a project makes goals.
+      await expect(canvas.getByText('No goals yet.')).toBeVisible();
+      await expect(canvas.getByText(/Plan work in a project/)).toBeVisible();
+      await expect(goalRows(canvas)).toHaveLength(0);
    },
 };
 

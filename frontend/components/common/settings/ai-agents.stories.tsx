@@ -25,11 +25,11 @@ export const Roster: Story = {
    },
 };
 
-/** Each card opens that agent's settings page. */
+/** Each card opens that agent's Role and Permissions tab. */
 export const OpensAgentSettings: Story = {
    play: async ({ canvas }) => {
       const card = await canvas.findByRole('link', { name: /Orchestrator/ });
-      await expect(card).toHaveAttribute('href', '/berry/settings/ai/agent-orch');
+      await expect(card).toHaveAttribute('href', '/berry/agents/agent-orch?view=role');
       await expect(card).toHaveTextContent('no model set · 1 of 5 permissions');
    },
 };

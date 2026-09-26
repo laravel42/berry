@@ -60,7 +60,8 @@ type Story = StoryObj<typeof meta>;
 export const RunningAndFailed: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('Running now')).toBeInTheDocument();
-      await expect(canvas.getByText('1 past run')).toBeInTheDocument();
+      // Past runs sit under their own heading, below the running one.
+      await expect(canvas.getByRole('heading', { name: 'Past runs' })).toBeInTheDocument();
       // The failure's reason is on the row, not behind a click.
       await expect(
          canvas.getByText('Failed: Migration 061 collided with an applied checksum.')

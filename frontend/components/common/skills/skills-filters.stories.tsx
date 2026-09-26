@@ -42,12 +42,19 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-export const ChangeSort: Story = {
+/**
+ * Sorting lives on the table headings now; the toolbar's own criterion is
+ * which columns show. Adding one keeps the sort as it was.
+ */
+export const AddColumn: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Name' }));
+      await expect(canvas.queryByRole('button', { name: 'Name' })).not.toBeInTheDocument();
+      await userEvent.click(canvas.getByRole('button', { name: 'Columns' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('option', { name: 'Recently updated' }));
-      await expect(canvas.getByTestId('criteria')).toHaveTextContent('updated');
+      await userEvent.click(await body.findByRole('option', { name: 'Labels' }));
+      await expect(canvas.getByTestId('criteria')).toHaveTextContent(
+         'name · agents, files, labels'
+      );
    },
 };
 

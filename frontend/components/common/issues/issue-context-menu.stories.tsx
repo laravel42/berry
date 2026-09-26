@@ -64,7 +64,11 @@ export const SetPriorityFromSubmenu: Story = {
       });
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('menuitem', { name: /Priority/ }));
-      await userEvent.click(await body.findByRole('menuitem', { name: /^Low/ }));
+      // A synthetic pointer click on a Radix submenu item closes the menu
+      // without selecting (the submenu's pointer-grace logic has no real
+      // coordinates to work with), so the item is chosen the keyboard way.
+      (await body.findByRole('menuitem', { name: /^Low/ })).focus();
+      await userEvent.keyboard('{Enter}');
       await waitFor(() =>
          expect(useIssuesStore.getState().getIssueById(sharedFilter.id)?.priority.id).toBe('low')
       );

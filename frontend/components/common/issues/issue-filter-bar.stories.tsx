@@ -1,8 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
-import { useRunsStore } from '@/store/runs-store';
 import { IssueFilterBar } from './issue-filter-bar';
-import { deliveredRun, seedIssuesWorkspace } from './stories-fixtures';
+import { seedIssuesWorkspace } from './stories-fixtures';
 import { frontendAgentsOnly, urgentOnly, withUrlFilters } from './stories-filters';
 
 const meta = {
@@ -24,17 +23,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const NoFiltersAgentsWorking: Story = {
+/**
+ * Without filters the row is not rendered at all: the "agents at work" chip
+ * that used to sit here was removed, so there is nothing left to show.
+ */
+export const NoFilters: Story = {
    play: async ({ canvas }) => {
-      // Without filters the row carries only the "agents at work" chip.
-      await expect(canvas.getByRole('button', { name: /2 agents/ })).toBeInTheDocument();
-      await expect(canvas.queryByRole('button', { name: 'Clear' })).toBeNull();
-   },
-};
-
-export const NothingToShow: Story = {
-   beforeEach: () => {
-      useRunsStore.setState({ runs: [deliveredRun] });
+      await expect(canvas.queryByRole('button')).toBeNull();
+      await expect(canvas.queryByText('Assignee')).toBeNull();
    },
 };
 
@@ -45,14 +41,16 @@ export const PriorityFilter: Story = {
    },
 };
 
-export const AgentFilterFromChip: Story = {
+/** An assignee filter naming two agents reads back as one chip for both. */
+export const AgentFilter: Story = {
    decorators: [withUrlFilters(frontendAgentsOnly)],
    play: async ({ canvas }) => {
-      // The chip reads the same filter it would have applied, so it shows pressed.
-      await expect(canvas.getByRole('button', { name: /2 agents/ })).toHaveAttribute(
-         'aria-pressed',
-         'true'
-      );
+      await expect(canvas.getByText('Assignee')).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'is any of' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: /2 assignees/ })).toBeVisible();
+      await expect(canvas.getByRole('img', { name: 'Frontend Engineer, agent' })).toBeVisible();
+      await expect(canvas.getByRole('img', { name: 'Backend Engineer, agent' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Clear' })).toBeVisible();
    },
 };
 

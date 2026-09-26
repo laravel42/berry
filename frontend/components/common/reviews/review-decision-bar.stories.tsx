@@ -4,12 +4,23 @@ import { expect, fn, waitFor, within } from 'storybook/test';
 import { ReviewDecisionBar } from './review-decision-bar';
 import { deliveredReview, reviewHandlers, stoppedReview } from './review-fixtures';
 
+/** Run ids the merge handler was called with, for Approve to prove it merged. */
+const merged: string[] = [];
+
 const meta = {
    component: ReviewDecisionBar,
    tags: ['ai-generated', 'needs-work'],
    args: { item: deliveredReview, onDecided: fn() },
    beforeEach: ({ msw }) => {
-      msw.use(...reviewHandlers);
+      merged.length = 0;
+      msw.use(
+         ...reviewHandlers,
+         // Approve merges the pull request before it moves the task to done.
+         http.post('*/api/v1/reviews/:runId/merge', ({ params }) => {
+            merged.push(String(params.runId));
+            return HttpResponse.json({ merged: true, number: 412, sha: '4a0b5fb', already: false });
+         })
+      );
    },
    decorators: [
       (Story) => (
@@ -31,7 +42,8 @@ export const ApproveADelivery: Story = {
       const dialog = within(await body.findByRole('alertdialog', { name: 'Mark BERR-101 done?' }));
       await expect(dialog.getByText(/The pull request stays open on GitHub/)).toBeVisible();
       await userEvent.click(dialog.getByRole('button', { name: 'Mark done' }));
-      // PATCH /api/v1/issues/BERR-101 (MSW) moves it to done.
+      // POST /api/v1/reviews/run-71/merge merges the pull request first, then
+      // PATCH /api/v1/issues/BERR-101 (MSW) moves the task to done.
       await waitFor(() =>
          expect(args.onDecided).toHaveBeenCalledWith({
             reviewId: 'issue-101',
@@ -39,6 +51,7 @@ export const ApproveADelivery: Story = {
             decision: 'approve',
          })
       );
+      await expect(merged).toEqual(['run-71']);
    },
 };
 
@@ -90,5 +103,8 @@ export const DecisionFails: Story = {
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('button', { name: 'Mark done' }));
       await expect(await canvas.findByRole('button', { name: 'Try again' })).toBeVisible();
+      await expect(canvas.getByRole('alert')).toHaveTextContent(
+         'Only an admin may close this task.'
+      );
    },
 };
