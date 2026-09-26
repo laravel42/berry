@@ -99,6 +99,32 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       assert.equal(((await response.json()) as { error: { code: string } }).error.code, 'TOOLS_ABOVE_LEVEL');
    });
 
+   test('a new autonomy level brings its tools, and with them the permissions', async () => {
+      const agentId = await agentIdFor('business-analyst');
+      const analyst = catalogRole('business-analyst')!;
+      const save = async (level: number) => {
+         const response = await call(`/api/v1/agents/${agentId}/contract`, {
+            method: 'PUT',
+            body: JSON.stringify({ ...analyst, autonomy_level: level }),
+         });
+         assert.equal(response.status, 200);
+         return (await response.json()) as { permissions: string[] };
+      };
+      // Level 2 reads; the analyst's catalogue tools hold no commands.
+      assert.deepEqual((await save(3)).permissions.sort(), [
+         'create_branches',
+         'open_pull_requests',
+         'read_repository',
+         'run_commands',
+      ]);
+      // Back down: the commands go, and saving is not refused for them.
+      assert.deepEqual((await save(2)).permissions, ['read_repository']);
+      assert.equal(
+         (await call('/api/v1/organization/roles/business-analyst/reset', { method: 'POST', body: '{}' })).status,
+         200
+      );
+   });
+
    test('an edited contract is customised until reset', async () => {
       const contract = {
          ...catalogRole('technical-writer')!,

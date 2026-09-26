@@ -1,6 +1,7 @@
 import { toolCeiling } from './autonomy.ts';
 import { MAX_RUN_OUTPUT_TOKENS, type AutonomyLevel, type Department, type RoleContract, type RoleKey } from './contract.ts';
 import { renderSystemPrompt } from './prompt.ts';
+import { deriveReviewRequirements } from './derived.ts';
 import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
@@ -69,12 +70,18 @@ interface RoleSpec {
 const PLANNING_TOOLS = ['create_goal', 'create_plan'];
 const PLANNERS: RoleKey[] = ['orchestrator', 'product-lead'];
 
-const CODE_PATHS = {
-   security: ['**/auth/**', '**/integrations/**', '**/*secret*', '**/Dockerfile', '.github/**', '**/iam/**', '**/sealing*'],
-   architecture: ['server-ts/src/index.ts', '**/migrations/**', 'server-ts/src/http/**', 'server-ts/src/runtime/**'],
-   database: ['**/migrations/**', '**/*.sql'],
-   frontend: ['frontend/components/**', 'frontend/app/**'],
-};
+/**
+ * The tools a role holds at an autonomy level a person set: everything the
+ * level allows, goal and plan filing still only for the planners. Unlike the
+ * catalogue's own defaults, a role marked as not writing code gains the code
+ * tools when a person raises it to a level that includes them — the level
+ * names what the agent does ("Executor — changes code").
+ */
+export function toolsForLevel(roleKey: string, level: AutonomyLevel): string[] {
+   return toolCeiling(level).filter(
+      (tool) => PLANNERS.includes(roleKey as RoleKey) || !PLANNING_TOOLS.includes(tool)
+   );
+}
 
 const SPECS: RoleSpec[] = [
    {
@@ -650,35 +657,6 @@ const SPECS: RoleSpec[] = [
 ];
 
 /** Review rules applied to the output of roles that write code (level 3+). */
-function reviewRequirementsFor(spec: RoleSpec): RoleContract['review_requirements'] {
-   const rules: RoleContract['review_requirements'] = [];
-   const add = (rule: RoleContract['review_requirements'][number]) => {
-      if (rule.reviewer !== spec.id) rules.push(rule);
-   };
-   if (spec.code) {
-      add({ reviewer: 'qa-engineer', authority: 'blocking', when: { always: true } });
-      add({ reviewer: 'security-engineer', authority: 'blocking', when: { labels_any: ['security'], paths_any: CODE_PATHS.security } });
-      add({ reviewer: 'software-architect', authority: 'blocking', when: { labels_any: ['architecture'], paths_any: CODE_PATHS.architecture } });
-      add({ reviewer: 'database-engineer', authority: 'advisory', when: { paths_any: CODE_PATHS.database } });
-      add({ reviewer: 'product-designer', authority: 'advisory', when: { labels_any: ['design'], paths_any: CODE_PATHS.frontend } });
-   }
-   add({ reviewer: 'product-lead', authority: 'blocking', when: { workflow_any: ['full-delivery'], impact_any: ['product'] } });
-   add({ reviewer: 'security-engineer', authority: 'blocking', when: { impact_any: ['security'] } });
-   add({ reviewer: 'software-architect', authority: 'blocking', when: { impact_any: ['architectural'] } });
-   // Spec §9: the CTO reviews proposals whose impact is architectural and whose severity is critical.
-   add({ reviewer: 'cto', authority: 'blocking', when: { impact_any: ['architectural:critical'] } });
-   return dedupe(rules);
-}
-
-function dedupe(rules: RoleContract['review_requirements']): RoleContract['review_requirements'] {
-   const seen = new Set<string>();
-   return rules.filter((rule) => {
-      const key = JSON.stringify(rule);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-   });
-}
 
 /** Five weekdays × eight hours: no two roles share a slot. UTC. */
 function discoveryCron(index: number): string {
@@ -714,7 +692,8 @@ function build(): RoleContract[] {
          can_delegate_to: spec.delegates,
          receives_work_from: receives.get(spec.id) ?? [],
          escalation_rules: spec.escalation,
-         review_requirements: reviewRequirementsFor(spec),
+         // Derived, as for every role (organization/derived.ts).
+         review_requirements: deriveReviewRequirements({ id: spec.id, allowed_tools: [...allowed] }),
          autonomy_level: spec.level,
          review_domains: spec.reviewDomains,
          discovery: spec.discovery ? { cron: discoveryCron(discoveryIndex++), ...spec.discovery } : null,

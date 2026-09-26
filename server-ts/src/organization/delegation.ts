@@ -1,9 +1,13 @@
 import type { Sql } from '../db/pool.ts';
 import { parseContract, type RoleContract } from './contract.ts';
 
-/** Both sides must agree: the sender lists the receiver and the receiver lists the sender. */
+/**
+ * Whether `from` may hand work to `to`: the sender's contract lists the
+ * receiver. Who a role receives work from is derived from the senders' lists
+ * (organization/derived.ts), so the receiving side can no longer disagree.
+ */
 export function canDelegate(from: RoleContract, to: RoleContract): boolean {
-   return from.can_delegate_to.includes(to.id) && to.receives_work_from.includes(from.id);
+   return from.can_delegate_to.includes(to.id);
 }
 
 export async function roleAgent(

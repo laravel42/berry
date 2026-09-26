@@ -1,3 +1,4 @@
+import { deriveReviewRequirements } from '../organization/derived.ts';
 import { z } from 'zod';
 import { withinTx, type Sql } from '../db/pool.ts';
 import type { CompletionResult, RuntimeCompletion } from '../runtime/completion.ts';
@@ -590,7 +591,8 @@ export class ReviewGate {
    /** The roles the author's contract requires for this run; `reviewer` is null when no agent holds the role. Never the author. */
    async #requiredFor(material: ReviewMaterial, contract: RoleContract): Promise<RequiredEntry[]> {
       const proposal = await this.#proposalImpact(material.issue.id);
-      const required = requiredReviews(contract.review_requirements, {
+      // Derived from the contract, as for every role (organization/derived.ts).
+      const required = requiredReviews(deriveReviewRequirements(contract), {
          labels: material.labels,
          paths: material.delivered?.files ?? [],
          impactClasses: proposal.impactClasses,

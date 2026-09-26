@@ -133,3 +133,13 @@ describe('the Berry organization catalog', () => {
       }
    });
 });
+
+test('a level set by a person brings every tool it allows; planning stays with the planners', async () => {
+   const { toolsForLevel } = await import('./catalog.ts');
+   const { toolCeiling } = await import('./autonomy.ts');
+   assert.ok(toolsForLevel('business-analyst', 3).includes('run_command'));
+   assert.ok(!toolsForLevel('business-analyst', 2).includes('run_command'));
+   assert.ok(!toolsForLevel('business-analyst', 3).includes('create_plan'));
+   assert.ok(toolsForLevel('product-lead', 5).includes('create_plan'));
+   for (const tool of toolsForLevel('backend-engineer', 4)) assert.ok(toolCeiling(4).includes(tool), tool);
+});

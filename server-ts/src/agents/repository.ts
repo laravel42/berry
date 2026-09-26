@@ -247,6 +247,21 @@ export class AgentRepository {
       return rows.map(toAgent);
    }
 
+   /**
+    * The workspace's live role contracts: what "receives work from" is
+    * derived from (organization/derived.ts). One that no longer validates
+    * hands work to nobody.
+    */
+   async roleContracts(workspaceId: string): Promise<RoleContract[]> {
+      const rows = await this.sql`
+         SELECT role_contract FROM agents
+          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND role_key IS NOT NULL`;
+      return rows.flatMap((row) => {
+         const contract = parseContract(row.role_contract);
+         return contract ? [contract] : [];
+      });
+   }
+
    async get(agentId: string, workspaceId: string): Promise<Agent> {
       const [row] = await this.sql`
          SELECT ${this.sql.unsafe(AGENT_COLUMNS)}

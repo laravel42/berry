@@ -21,7 +21,7 @@ import {
 } from '../agents/repository.ts';
 import { PERMISSIONS } from '../agents/permissions.ts';
 import { toolCeiling, effectivePermissions } from '../organization/autonomy.ts';
-import { roleContractSchema } from '../organization/contract.ts';
+import { roleContractSchema, type RoleContract } from '../organization/contract.ts';
 import type { Logger } from '../observability/log.ts';
 import type { RunLedger } from '../runs/ledger.ts';
 import type { RunRepository } from '../runs/repository.ts';
@@ -35,7 +35,8 @@ import {
 import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
 import type { KiloCatalog } from '../agents/kilo/catalog.ts';
 import { isGatewayModelId, TIER_NAMES, TIERS, type Tier } from '../agents/kilo/tiers.ts';
-import { catalogRole } from '../organization/catalog.ts';
+import { catalogRole, toolsForLevel } from '../organization/catalog.ts';
+import { deriveReviewRequirements, effectiveContract } from '../organization/derived.ts';
 import type { RoleKey } from '../organization/contract.ts';
 
 /**
@@ -155,8 +156,9 @@ export function agentMounts(options: AgentOptions): Mount[] {
       const hasNextPage = rows.length > query.first;
       const nodes = hasNextPage ? rows.slice(0, query.first) : rows;
       const last = nodes.at(-1);
+      const peers = await agents.roleContracts(workspaceId);
       return json({
-         nodes: nodes.map(serializeAgent),
+         nodes: nodes.map((agent) => serializeAgent(agent, peers)),
          pageInfo: {
             hasNextPage,
             endCursor: last ? encodeCursor(scope, { name: last.name, id: last.id }) : null,
@@ -335,7 +337,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
          .authorizeAgent(context.get('user').id, agentId, 'product.read')
          .catch(rethrowAgent);
       const found = await agents.get(agentId, scope.workspaceId).catch(rethrowAgent);
-      return json(serializeAgent(found));
+      return json(serializeAgent(found, await agents.roleContracts(scope.workspaceId)));
    });
 
    /**
@@ -500,7 +502,16 @@ export function agentMounts(options: AgentOptions): Mount[] {
             })),
          });
       }
-      const contract = parsed.data;
+      const requested = parsed.data;
+      // A new autonomy level brings the tools it allows, and with them the
+      // agent's permissions; an unchanged level keeps the tools as they are.
+      const levelChanged = requested.autonomy_level !== current.contract?.autonomy_level;
+      const contract = {
+         ...requested,
+         ...(levelChanged
+            ? { allowed_tools: toolsForLevel(requested.id, requested.autonomy_level) }
+            : {}),
+      };
       if (contract.id !== current.roleKey) {
          throw new ApiError(400, 'ROLE_MISMATCH', 'The contract is for a different role.');
       }
@@ -522,10 +533,14 @@ export function agentMounts(options: AgentOptions): Mount[] {
          );
       }
 
+      // Who it receives work from and who reviews it are Berry's to work out,
+      // not the editor's: whatever the request says for them is replaced.
+      const peers = await agents.roleContracts(scope.workspaceId);
+      const stored = effectiveContract(contract, peers);
       const updated = await agents
-         .writeRoleContract(agentId, scope.workspaceId, contract, effectivePermissions(contract))
+         .writeRoleContract(agentId, scope.workspaceId, stored, effectivePermissions(stored))
          .catch(rethrowAgent);
-      return json(serializeAgent(updated));
+      return json(serializeAgent(updated, peers));
    });
 
    route.put('/:agentId/labels', async (context) => {
@@ -730,7 +745,13 @@ export function agentMounts(options: AgentOptions): Mount[] {
 }
 
 /** The wire shape Go serves, field for field. Exported for `organization.ts`. */
-export function serializeAgent(agent: Agent): Record<string, unknown> {
+/**
+ * An agent as the API returns it. Its contract carries the derived parts
+ * (organization/derived.ts) worked out again: reviewers always, and who it
+ * receives work from when the workspace's role contracts are given — a route
+ * that serves the role editor passes them.
+ */
+export function serializeAgent(agent: Agent, peers?: RoleContract[]): Record<string, unknown> {
    return {
       id: agent.id,
       name: agent.name,
@@ -762,7 +783,11 @@ export function serializeAgent(agent: Agent): Record<string, unknown> {
       department: agent.department,
       autonomyLevel: agent.autonomyLevel,
       customized: agent.customized,
-      contract: agent.contract,
+      contract: agent.contract
+         ? peers
+            ? effectiveContract(agent.contract, peers)
+            : { ...agent.contract, review_requirements: deriveReviewRequirements(agent.contract) }
+         : null,
       // The tier the agent runs on when `tier` is null (ADR-0017), as the
       // envelope builder resolves it: its contract's, else its role's in the
       // catalogue, else BerryLow. Sent so the UI recommends what will run.

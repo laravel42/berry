@@ -10,10 +10,11 @@ const role = (key: string) => {
    return found;
 };
 
-test('delegation needs both sides of the edge', () => {
+test('the sender\'s contract decides; what the receiver lists is derived from senders', () => {
    assert.equal(canDelegate(role('engineering-manager'), role('backend-engineer')), true);
    assert.equal(canDelegate(role('backend-engineer'), role('engineering-manager')), false);
-   assert.equal(canDelegate({ ...role('engineering-manager') }, { ...role('backend-engineer'), receives_work_from: [] }), false);
+   // The receiver's stored list no longer vetoes: it is worked out from who hands it work.
+   assert.equal(canDelegate({ ...role('engineering-manager') }, { ...role('backend-engineer'), receives_work_from: [] }), true);
 });
 
 test('the Orchestrator can route to every role', () => {
