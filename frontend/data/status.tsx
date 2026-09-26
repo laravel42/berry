@@ -91,6 +91,18 @@ export const CancelledIcon = statusIcon('attention', { state: 'crossed', label: 
 export const PausedIcon = statusIcon('neutral', { state: 'hollow', label: 'Paused' });
 
 /**
+ * Project-only workflow state: projects pause, issues do not, so it sits
+ * outside `status` and the API mapping reaches it by id (`lib/catalog.ts`).
+ */
+export const projectPausedStatus: Status = {
+   id: 'paused',
+   name: 'Paused',
+   color: 'var(--status-neutral)',
+   category: 'started',
+   icon: PausedIcon,
+};
+
+/**
  * Berry issue workflow statuses in board/list order.
  * IDs stay stable for UI state; API mapping lives in `lib/catalog.ts`.
  *

@@ -2,7 +2,7 @@ import {
    CancelledIcon,
    DoneIcon,
    InProgressIcon,
-   PausedIcon,
+   projectPausedStatus,
    ToDoIcon,
    type Status,
 } from '@/data/status';
@@ -11,14 +11,6 @@ export interface ProjectCreateStatusOption {
    status: Status;
    label: string;
 }
-
-const projectPausedStatus: Status = {
-   id: 'paused',
-   name: 'Paused',
-   color: 'var(--status-neutral)',
-   category: 'started',
-   icon: PausedIcon,
-};
 
 const PROJECT_STATUS_OPTIONS: ProjectCreateStatusOption[] = [
    {

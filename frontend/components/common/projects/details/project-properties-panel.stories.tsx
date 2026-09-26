@@ -51,7 +51,10 @@ type Story = StoryObj<typeof meta>;
 export const Full: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('3 members')).toBeVisible();
-      await expect(canvas.getByText('Schema and migration')).toBeVisible();
+      await expect(canvas.getByRole('heading', { name: 'Progress' })).toBeVisible();
+      await expect(canvas.getByText(/moved health to on track/)).toBeVisible();
+      // Milestones are gone from projects.
+      await expect(canvas.queryByText('Milestones')).not.toBeInTheDocument();
    },
 };
 
@@ -87,11 +90,9 @@ export const Compact: Story = {
 };
 
 /**
- * A change from the compact sidebar writes through the projects store.
- *
- * Currently fails, and should: the server echoes `paused`, and
- * `uiStatusFromProjectApi` maps it back to Backlog because `data/status.tsx`
- * has no paused entry (lib/catalog.ts `catalogStatus` fallback).
+ * A change from the compact sidebar writes through the projects store. The
+ * server echoes `paused`, and the project keeps Paused (a project-only
+ * status) rather than falling back to Backlog.
  */
 export const CompactChangeStatus: Story = {
    args: { compact: true },
@@ -115,8 +116,8 @@ export const CompactChangeStatus: Story = {
       // not the optimistic one.
       await waitFor(() => expect(patchAnswered).toBe(true));
       await new Promise((resolve) => setTimeout(resolve, 100));
-      await expect(useProjectsStore.getState().getProjectById(projectHealth.id)?.status.id).toBe(
-         'paused'
-      );
+      const settled = useProjectsStore.getState().getProjectById(projectHealth.id)?.status;
+      await expect(settled?.id).toBe('paused');
+      await expect(settled?.name).toBe('Paused');
    },
 };

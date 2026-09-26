@@ -1,7 +1,7 @@
 import type { Priority } from '@/data/priorities';
 import { priorities } from '@/data/priorities';
 import type { Status } from '@/data/status';
-import { status } from '@/data/status';
+import { projectPausedStatus, status } from '@/data/status';
 import type { User } from '@/data/users';
 
 /** API `IssueStatus` → UI status ids. */
@@ -93,7 +93,9 @@ export function apiProjectStatusFromUi(id: string): string {
 }
 
 export function uiStatusFromProjectApi(value: string): Status | undefined {
-   return catalogStatus(PROJECT_STATUS_BY_API[value] ?? 'to-do');
+   const id = PROJECT_STATUS_BY_API[value] ?? 'to-do';
+   // Paused is project-only, so the issue catalogue would read it as Backlog.
+   return id === projectPausedStatus.id ? projectPausedStatus : catalogStatus(id);
 }
 
 export function toUiUser(actor: {
