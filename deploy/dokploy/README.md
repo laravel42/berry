@@ -52,7 +52,7 @@ Check it: `https://dev.berry.pm/ready` answers `200`.
 - **Long requests:** Cloudflare drops a response that stays silent for 100 seconds. Berry's event stream and the build terminal write continuously, so they hold. A single preview page that takes longer than that to answer will show Cloudflare's 524.
 - **Agent sessions call the API back** at `https://dev.berry.pm`, out through Cloudflare and in again. It works and costs a few milliseconds per tool call. To keep it on the machine, set `BERRY_RUNTIME_CALLBACK_URL` to an address the session containers can reach directly.
 - **Cloudflare Access:** if you put Access in front of `dev.berry.pm`, exempt `/api/auth/callback/*`, `/api/v1/agent-tools/*` and the webhook path, or GitHub and the agent sessions are asked to log in. Do not put Access in front of preview hosts that agents' tests need to reach.
-- **Bedrock** is reached outward with an AWS key that may invoke models (`BERRY_BEDROCK_*`). Without it Berry runs, and agents do not.
+- **Bedrock** is reached outward with an AWS key that may invoke models (`BERRY_BEDROCK_*`). Without it Berry runs, and agents do not. Agents call Bedrock directly unless you turn on the optional Kilo AI gateway ([ADR-0017](../../docs/adr/0017-kilo-gateway-model-tiers.md)): set `BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` in Dokploy's environment, and `docker-compose.yml` passes them to the `api` service and to every agent session.
 
 ## Without the tunnel
 

@@ -29,7 +29,7 @@ Rough cost in us-east-1, running all month: host about $98, load balancer about 
 ## Before the first deploy
 
 1. A Route 53 public hosted zone for your domain, in the same account.
-2. Bedrock model access enabled in the Bedrock region (default `us-east-1`) for the models your agents use.
+2. Bedrock model access enabled in the Bedrock region (default `us-east-1`) for the models your agents use. Agents call Bedrock directly unless you turn on the optional Kilo AI gateway ([ADR-0017](../../docs/adr/0017-kilo-gateway-model-tiers.md)): add `BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` (and, if needed, `BERRY_KILO_BASE_URL` or `BERRY_KILO_ORG_ID`) to the application secret. The next release gives them to the API and to the host's agent sessions alike. The Bedrock settings stay in use for speech and video.
 3. Docker running locally (the images are built on your machine), AWS credentials for the target account, Node 22.
 4. Once per account and region: `npx cdk bootstrap`.
 

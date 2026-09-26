@@ -102,6 +102,13 @@ BERRY_BEDROCK_ACCESS_KEY_ID=$(printf '%s\n' "$bedrock" | jq -r .accessKeyId)
 BERRY_BEDROCK_SECRET_ACCESS_KEY=$(printf '%s\n' "$bedrock" | jq -r .secretAccessKey)
 BERRY_RUNTIME_AUTH_TOKEN=$(value BERRY_RUNTIME_AUTH_TOKEN)
 ENV
+# The sessions call the model, so a provider set in the application secret
+# (ADR-0017: `kilo`, with its key) reaches them as well as the API.
+for name in BERRY_MODEL_PROVIDER BERRY_KILO_API_KEY BERRY_KILO_BASE_URL BERRY_KILO_ORG_ID; do
+   if [ -n "$(value "$name")" ]; then
+      printf '%s=%s\n' "$name" "$(value "$name")" >> /opt/berry/env/runtime.env
+   fi
+done
 chmod 0600 /opt/berry/env/*.env
 
 aws ecr get-login-password | docker login --username AWS --password-stdin "$BERRY_REGISTRY" >/dev/null
