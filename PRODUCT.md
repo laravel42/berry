@@ -517,14 +517,14 @@ If the same role files the same problem with the same evidence while its earlier
 
 ### Weekly discovery
 
-All 18 professional roles have a *discovery brief*: what to look for from their professional angle and where to find evidence. Each role gets a standing task and a weekly scheduled autopilot that looks over the workspace and files findings as proposals, at most five per run. Every finding must come with concrete evidence, and the role is told explicitly not to build anything during discovery. Roles fire on different days and hours so they don't pile up. Some examples:
+All 18 professional roles have a *discovery brief*: what to look for from their professional angle and where to find evidence. Discovery is off until an owner or admin switches on *Work discovery* on the Organization settings page. Switching it on gives each role a standing task and a weekly scheduled autopilot that looks over the workspace and files findings as proposals, at most five per run. Nothing is created before that: no discovery autopilots are set up when a workspace is created or when Berry starts. Every finding must come with concrete evidence, and the role is told explicitly not to build anything during discovery. Roles fire on different days and hours so they don't pile up. Some examples:
 
 - The **QA Engineer** looks for critical user flows without automated tests and for flaky or skipped tests.
 - The **Security Engineer** looks for vulnerable or unpinned dependencies, secrets in code or logs, and missing authorization checks.
 - The **Technical Writer** looks for outdated setup or API docs and behaviour nobody documented.
 - The **Engineering Manager** looks for blocked or ownerless tasks and conflicting parallel work.
 
-Discovery only runs when the workspace's *Work discovery* switch is on (it is by default) and there's something to look at: a connected repository or at least one real task. Otherwise the run is skipped with a stated reason.
+Discovery only runs when the workspace's *Work discovery* switch is on (a new workspace starts with it off) and there's something to look at: a connected repository or at least one real task. Otherwise the run is skipped with a stated reason.
 
 > **Needs setup:** discovery runs are agent runs, so they need an agent runtime.
 
@@ -541,7 +541,7 @@ Clicking a healthy role opens that agent's Role and Permissions tab.
 
 ### Resetting a role to Berry's version
 
-*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, instructions, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote, as happens when a person changes its autonomy level or its instructions. Who a role receives work from and who reviews it are always worked out by Berry. A contract someone changed is never silently overwritten when Berry's definitions change, and neither are instructions someone edited; resetting is the deliberate way back. Only owners and admins can reset. The app offers *Reset* only for a role whose contract has become invalid, on the agent's Role and Permissions tab and on the Organization settings page; an edited role can be reset only through the API.
+*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, instructions, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote, as happens when a person changes its autonomy level or its instructions. Who a role receives work from and who reviews it are always worked out by Berry. A contract someone changed is never silently overwritten when Berry's definitions change, and neither are instructions someone edited; resetting is the deliberate way back. Only owners and admins can reset. An edited role shows as *Customized* on the agent's Role and Permissions tab, with a *Reset* button that asks for confirmation first: the role's autonomy level, permissions, instructions and description go back to Berry's, while its name, tier, skills and MCP servers stay as they are. A role whose contract has become invalid can be reset from the same tab or from the Organization settings page.
 
 ### The Role and Permissions tab
 
