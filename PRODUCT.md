@@ -438,7 +438,7 @@ Each new workspace gets 19 agents in 7 departments: a protected Orchestrator and
 
 Opus is the most capable tier, Sonnet sits in the middle and Haiku is the fastest and cheapest. Because a role comes with a tier, picking the right agent for a job also picks a sensible model. You can still override the model for any agent. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
 
-You don't have to configure any of this. You can see the roster by department on the Organization settings page (the settings menu doesn't link to it yet), or open any agent under Settings → Agents to read its full contract.
+You don't have to configure any of this. You can see the roster by department on the Organization settings page (the settings menu doesn't link to it yet). An agent's own page shows its instructions, written from its contract, and its autonomy level and permissions.
 
 ### Autonomy levels
 
@@ -452,13 +452,13 @@ Each role has a fixed **autonomy level**, a hard limit on which tools it can eve
 | 4 | Autonomous | The same tools as Level 3, but trusted more: only Level 4 and 5 roles can have proposed work accepted without a person deciding (and only routine, low-risk work). |
 | 5 | Authority | Everything in Level 3, plus submit a review verdict. Whether it blocks or only advises is set by the reviewed agent's contract. |
 
-Each agent's settings page (Settings → Agents) shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused.
+Each agent's Role and Permissions tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused.
 
 ### No agent merges or closes work
 
 This rule is built into the tools themselves, not just a policy agents are asked to follow. No autonomy level includes a tool that merges code. The status tool agents use only accepts *todo*, *in progress*, *in review* and *blocked*, never *done* or *cancelled*. Even a Level 5 reviewer is told that its approval never releases the work: a person approves the release. In practice, agent runs stop at *In review* or *Blocked*, and a person makes the final call.
 
-One setting comes close to this rule, and it's worth naming. An admin can give a single agent outside the organization a permission called *Merge without approval*; Berry refuses it for the organization's role agents, because it's above every autonomy level. It's off by default, marked as dangerous in Settings → Agents, and the agent list flags any agent that has it. Nothing in an agent's own instructions can turn it on, only a workspace admin can. Today it changes only what the agent's pull request says: the note that a person must approve before it merges is left out. Berry still only opens the pull request and never merges it.
+One setting comes close to this rule, and it's worth naming. An admin can give a single agent outside the organization a permission called *Merge without approval*; Berry refuses it for the organization's role agents, because it's above every autonomy level. It's off by default, marked as dangerous on the agent's Role and Permissions tab, and the agent list in Settings → Agents flags any agent that has it. Nothing in an agent's own instructions can turn it on, only a workspace admin can. Today it changes only what the agent's pull request says: the note that a person must approve before it merges is left out. Berry still only opens the pull request and never merges it.
 
 ### Handing work to another role
 
@@ -514,28 +514,20 @@ This page, described as "The roles your agents fill, what each may do, and the w
 
 - a *Work discovery* switch that owners and admins can change (others see an admin-only note)
 - every role grouped by department, with its autonomy level and whether its discovery is active or paused
-- a *Reset* action for any role whose contract has become invalid (a role that was only edited is reset from its settings page under Settings → Agents)
+- a *Reset* action for any role whose contract has become invalid
 - a Workflows section listing each named workflow as its chain of roles
 
-Clicking a healthy role opens that agent's settings page under Settings → Agents.
+Clicking a healthy role opens that agent's Role and Permissions tab.
 
 ### Resetting a role to Berry's version
 
-*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote. There's no contract editor in the app today; a contract can be changed only through the API. A contract someone changed is never silently overwritten when Berry's definitions change; resetting is the deliberate way back. Only owners and admins can reset. An edited role is reset from the agent's settings page under Settings → Agents; a role whose contract has become invalid can also be reset from the Organization settings page.
+*Reset* puts one role's contract back to Berry's current definition: mission, permissions, hand-offs, instructions, everything. It also repairs a contract that has become invalid. Berry marks a role *Customized* when its stored contract no longer matches what Berry last wrote, as happens when a person changes its autonomy level or its instructions. Who a role receives work from and who reviews it are always worked out by Berry. A contract someone changed is never silently overwritten when Berry's definitions change, and neither are instructions someone edited; resetting is the deliberate way back. Only owners and admins can reset. The app offers *Reset* only for a role whose contract has become invalid, on the agent's Role and Permissions tab and on the Organization settings page; an edited role can be reset only through the API.
 
-### An agent's role, in Settings → Agents
+### The Role and Permissions tab
 
-Every agent's settings page (Settings → Agents, then the agent) opens with its Role section, which explains its contract in plain language:
+Every agent's page has a Role and Permissions tab. For a role agent it lists the five autonomy levels by name, the current one marked, and below them the agent's permissions as switches. Owners and admins change both as a draft and save them together: choosing a level shows straight away the permissions it brings, which can still be adjusted before saving. The rest of the contract isn't shown or edited here; Berry keeps it. The role's instructions, written from its contract under the sections Role, Context, How to work, Definition of done and Boundaries, are on the agent's Instructions tab.
 
-- its title, department, and autonomy level with the level's name
-- its mission and responsibilities, and what it produces and works from
-- which roles it hands work to and takes work from
-- its escalation paths
-- who reviews its work, and what it reviews itself
-- its "never" rules
-- its weekly discovery focus
-
-An agent outside the organization shows a note saying so, with its permissions managed under Settings → Agents.
+An agent outside the organization shows a note saying so, with its permissions on the same tab.
 
 ### The Proposals page
 
@@ -709,7 +701,7 @@ The address is permanent and shown read-only. The task prefix can be changed, bu
 
 ### Agent permissions
 
-Settings → Agents lists every agent in alphabetical order, with its model and how many permissions it has. Admins turn each agent's permissions on and off there; an agent's model, environment variables and avatar are changed on its own profile. An agent has five separate permissions for working in a repository: read the repository, create branches, run commands, open pull requests, and merge without approval. For an agent that fills a role in the organization, Berry refuses any permission above what its autonomy level allows. "Merge without approval" is off by default, marked as dangerous, and flagged in the agent list for any agent that has it. Despite its name, it merges nothing: it only removes the note on the agent's pull request saying a person must approve it before merging (see [No agent merges or closes work](#no-agent-merges-or-closes-work)). If a permission is revoked, that step isn't allowed in the agent's later runs.
+Settings → Agents lists every agent in alphabetical order, with its model and how many permissions it has. Admins turn an agent's permissions on and off on the Role and Permissions tab of its page; an agent's tier, environment variables and avatar are changed on its own page too. An agent has five separate permissions for working in a repository: read the repository, create branches, run commands, open pull requests, and merge without approval. For an agent that fills a role in the organization, Berry refuses any permission above what its autonomy level allows. "Merge without approval" is off by default, marked as dangerous, and flagged in the agent list for any agent that has it. Despite its name, it merges nothing: it only removes the note on the agent's pull request saying a person must approve it before merging (see [No agent merges or closes work](#no-agent-merges-or-closes-work)). If a permission is revoked, that step isn't allowed in the agent's later runs.
 
 ### Runtime and organization settings
 
