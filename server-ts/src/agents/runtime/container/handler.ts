@@ -175,13 +175,11 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    const identity = deps.identities ? await deps.identities.for(key) : undefined;
    const workspace = new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env, signal, ...(identity ? { identity } : {}) });
    const sink = emitterSink(emit);
-   const accounting = new AccountingPlugin();
-   let usageEmitted = false;
-   const flushUsage = () => {
-      if (usageEmitted) return;
-      usageEmitted = true;
-      emitUsage(emit, envelope, accounting);
-   };
+   // Each model call's usage goes out as it happens: a running task shows its
+   // tokens, model and cost, and a run cut off keeps what it already spent.
+   const accounting = new AccountingPlugin({
+      onCall: (entry) => emitModelUsage(emit, envelope.agent.model, [entry]),
+   });
    const ledger = new LedgerPlugin({ ledger: sink, runId: envelope.runId });
    const outcome = new ToolOutcomePlugin();
    const api: BerryApi = { ...envelope.berry, ...(deps.fetch ? { fetch: deps.fetch } : {}) };
@@ -287,7 +285,6 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          },
       });
       await ledger.flush();
-      flushUsage();
       if (LIMIT_STOPS.includes(result.stopReason)) {
          deps.registry.drop(key);
          // The work so far goes back as a checkpoint rather than dying with the
@@ -337,7 +334,6 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       });
    } catch (error) {
       await ledger.flush().catch(() => undefined);
-      flushUsage();
       // A conversation that ended mid-turn may hold a tool call with no
       // result, which the model refuses on the next invoke. Cold is safe.
       deps.registry.drop(key);
@@ -371,9 +367,6 @@ export function toolTable(
    };
 }
 
-function emitUsage(emit: Emit, envelope: TaskEnvelope, accounting: AccountingPlugin): void {
-   emitModelUsage(emit, envelope.agent.model, accounting.snapshot().byModel);
-}
 
 
 /** What makes a warm conversation the same agent's. */

@@ -105,6 +105,16 @@ export class AccountingPlugin implements Plugin {
    #cacheWriteTokens = 0;
    #reportedCostMicros: number | null | undefined = undefined;
    readonly #byModel = new UsageByModel();
+   readonly #onCall: ((usage: ModelUsage) => void) | undefined;
+
+   /**
+    * `onCall` hears each model call's usage as it happens, so a run's tokens
+    * and cost are recorded while it works — and kept if it is cut off —
+    * rather than only when it ends.
+    */
+   constructor(options: { onCall?: (usage: ModelUsage) => void } = {}) {
+      this.#onCall = options.onCall;
+   }
 
    initAgent(agent: LocalAgent): void {
       agent.addHook(ModelStreamUpdateEvent, (event) => {
@@ -120,6 +130,12 @@ export class AccountingPlugin implements Plugin {
             this.#cacheWriteTokens += inner.usage.cacheWriteInputTokens ?? 0;
             this.#reportedCostMicros = addReportedCost(this.#reportedCostMicros, inner.usage);
             this.#byModel.add(inner.usage);
+            if (this.#onCall) {
+               const call = new UsageByModel();
+               call.add(inner.usage);
+               const [entry] = call.entries();
+               if (entry) this.#onCall(entry);
+            }
          }
       });
       agent.addHook(AfterModelCallEvent, () => {

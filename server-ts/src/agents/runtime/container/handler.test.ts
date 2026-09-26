@@ -77,12 +77,18 @@ test('cache tokens the model reported reach the usage event', async () => {
       ],
    });
    const events = await run(envelope());
-   const usage = events.find((event) => event.type === 'task.usage');
-   assert.ok(usage?.type === 'task.usage');
-   assert.equal(usage.usage.inputTokens, 120);
-   assert.equal(usage.usage.outputTokens, 15);
-   assert.equal(usage.usage.cacheReadTokens, 1900);
-   assert.equal(usage.usage.cacheWriteTokens, 50);
+   // One usage event per model call, sent as each call ends — so a run that
+   // is cut off keeps what it spent — and all before the run's own end.
+   const usage = events.flatMap((event) => (event.type === 'task.usage' ? [event.usage] : []));
+   assert.equal(usage.length, 2);
+   const end = events.findIndex((event) => event.type === 'task.completed');
+   assert.ok(events.findLastIndex((event) => event.type === 'task.usage') < end);
+   const sum = (key: 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheWriteTokens') =>
+      usage.reduce((total, entry) => total + entry[key], 0);
+   assert.equal(sum('inputTokens'), 120);
+   assert.equal(sum('outputTokens'), 15);
+   assert.equal(sum('cacheReadTokens'), 1900);
+   assert.equal(sum('cacheWriteTokens'), 50);
 });
 
 test('warm: a second task on a live session appends to the same conversation', async () => {
