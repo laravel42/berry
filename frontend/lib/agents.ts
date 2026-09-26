@@ -1,7 +1,7 @@
 import type { User } from '@/data/users';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
-import { apiBlob, apiFetch, BerryApiError } from './api';
+import { apiBlob, apiFetch } from './api';
 import { connectionSchema } from './api-schemas';
 import { toUiUser } from './catalog';
 import { roleContractSchema, type RoleContract } from './organization';
@@ -639,16 +639,6 @@ export const setAgentAccess = async (id: string, access: AgentAccess) =>
          body: JSON.stringify({ access }),
       })
    );
-
-/** The workspace's guide agent, or null when it has none (archived, say). */
-export async function getGuideAgent(): Promise<Agent | null> {
-   try {
-      return parseAgent(await apiFetch('/api/v1/agents/guide'));
-   } catch (error) {
-      if (error instanceof BerryApiError && error.status === 404) return null;
-      throw error;
-   }
-}
 
 const avatarCache = new Map<string, Promise<string>>();
 

@@ -6,11 +6,8 @@ import { toast } from 'sonner';
 
 import { AuthCard } from '@/components/auth/auth-card';
 import { CreateOrJoin } from '@/components/onboarding/create-or-join';
-import { OnboardingSteps } from '@/components/onboarding/onboarding-steps';
-import { loadOnboarding } from '@/lib/onboarding';
+import { WorkspaceStep } from '@/components/onboarding/workspace-step';
 import { BerryMark } from '@/components/brand/berry-mark';
-import { Button } from '@/components/ui/button';
-import { getGuideAgent } from '@/lib/agents';
 import { fetchBootstrap } from '@/lib/auth';
 import { nextGitHubInstallStep } from '@/lib/integrations';
 import { selectWorkspace } from '@/lib/workspaces';
@@ -93,29 +90,7 @@ export default function OnboardingPage() {
 
    const [phase, setPhase] = useState<Phase>('resolving');
    const [error, setError] = useState<string | null>(null);
-   /**
-    * Whether to run the guided steps rather than the short create-or-join.
-    *
-    * Read from the account, where the server has modelled it all along: it is
-    * first run only, and adding a second workspace from the switcher is not
-    * first run. A read that fails leaves it off, so a broken call costs a
-    * welcome screen rather than the ability to make a workspace.
-    */
-   const [guided, setGuided] = useState(false);
-
-   useEffect(() => {
-      if (status !== 'ready' || addIntent) return;
-      let cancelled = false;
-      void loadOnboarding()
-         .then((state) => {
-            if (!cancelled) setGuided(!state.completed && !state.skipped);
-         })
-         .catch(() => undefined);
-      return () => {
-         cancelled = true;
-      };
-   }, [status, addIntent]);
-
+   const [joining, setJoining] = useState(false);
    useEffect(() => {
       // The gate owns the anonymous and booting cases; only a ready session
       // resolves here. No cross-render ref guard: under React Strict Mode the
@@ -188,12 +163,8 @@ export default function OnboardingPage() {
       };
    }, [status, router, addIntent]);
 
-   // After a create or join: the workspace, and its Guide agent if it has one.
-   const [ready, setReady] = useState<{ slug: string; guideId: string } | null>(null);
-
    // Shared by create and join: make the workspace the selected one, refresh
-   // the store from the server, and route into it — or, when the workspace has
-   // a Guide, offer it first, since a new member is who it is for.
+   // the store from the server, and route into it.
    const enterWorkspace = useCallback(
       async (workspaceId: string) => {
          setError(null);
@@ -206,44 +177,14 @@ export default function OnboardingPage() {
             window.location.assign(step.installUrl);
             return;
          }
-         const guide = await getGuideAgent().catch(() => null);
-         if (guide) {
-            setReady({ slug: selected.slug, guideId: guide.id });
-            return;
-         }
          router.replace(workspacePath(selected.slug));
       },
       [refreshWorkspaces, router]
    );
 
-   if (ready) {
-      return (
-         <AuthCard
-            title="Your workspace is ready"
-            description="Start with your tasks, or ask the Guide how Berry works."
-         >
-            <div className="flex flex-col gap-2">
-               <Button onClick={() => router.replace(workspacePath(ready.slug))}>
-                  Go to my tasks
-               </Button>
-               <Button
-                  variant="secondary"
-                  onClick={() =>
-                     router.push(`/${ready.slug}/chat?agent=${encodeURIComponent(ready.guideId)}`)
-                  }
-               >
-                  Questions? Ask the Guide
-               </Button>
-            </div>
-         </AuthCard>
-      );
-   }
-
    if (phase === 'choose') {
-      // First run gets the steps; somebody who has been through them once —
-      // or who came here from the switcher to add a second workspace — gets
-      // the short form, because they already know what all of it is.
-      if (guided) {
+      // Naming a new workspace first; joining one by invitation is a link away.
+      if (!joining) {
          return (
             <>
                {error ? (
@@ -251,7 +192,7 @@ export default function OnboardingPage() {
                      {error}
                   </p>
                ) : null}
-               <OnboardingSteps onEntered={enterWorkspace} onSkipped={() => setGuided(false)} />
+               <WorkspaceStep onEntered={enterWorkspace} onJoin={() => setJoining(true)} />
             </>
          );
       }
@@ -265,7 +206,7 @@ export default function OnboardingPage() {
                   {error}
                </p>
             ) : null}
-            <CreateOrJoin onEntered={enterWorkspace} />
+            <CreateOrJoin onEntered={enterWorkspace} initialTab="join" />
          </AuthCard>
       );
    }
