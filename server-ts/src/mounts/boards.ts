@@ -413,6 +413,7 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 function serializeBoard(board: Board): Record<string, unknown> {
    return {
       id: board.id,
+      workspaceId: board.workspaceId,
       name: board.name,
       slug: board.slug,
       description: board.description,

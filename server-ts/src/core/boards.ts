@@ -13,7 +13,7 @@ import type { TimeCursor } from '../http/cursor.ts';
  * exist by probing.
  */
 
-const BOARD_COLUMNS = `boards.id, boards.name, boards.slug, boards.description,
+const BOARD_COLUMNS = `boards.id, boards.workspace_id, boards.name, boards.slug, boards.description,
                        boards.columns, boards.created_at, boards.updated_at`;
 
 /** A status column. `id` is an issue status, not free text. */
@@ -24,6 +24,7 @@ export type BoardColumn = {
 
 export interface Board {
    id: string;
+   workspaceId: string;
    name: string;
    slug: string;
    description: string | null;
@@ -234,6 +235,7 @@ function classifyWrite(error: unknown): never {
 function toBoard(row: Record<string, unknown>): Board {
    return {
       id: row.id as string,
+      workspaceId: row.workspace_id as string,
       name: row.name as string,
       slug: row.slug as string,
       description: (row.description as string | null) ?? null,

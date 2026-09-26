@@ -635,6 +635,11 @@ export async function startPlan(options: PlanOptions, input: PlanStartInput): Pr
    if (!boardId) {
       throw new ApiError(409, 'BOARD_REQUIRED', 'This workspace has no board to plan into.');
    }
+   // A board from another workspace would fail only later, when the plan's
+   // tasks are written; refused now, as a project from elsewhere is.
+   if (input.boardId && !(await boardInWorkspace(options.sql, input.boardId, input.workspaceId))) {
+      throw ApiError.notFound('Board');
+   }
 
    let record: PlanRecord;
    try {
@@ -663,6 +668,11 @@ export async function startPlan(options: PlanOptions, input: PlanStartInput): Pr
    // moment the connection dropped.
    void generate(options, record, input.prompt, input.createdBy, input.autoStart === true);
    return record;
+}
+
+async function boardInWorkspace(sql: Sql, boardId: string, workspaceId: string): Promise<boolean> {
+   const [row] = await sql`SELECT 1 FROM boards WHERE id = ${boardId} AND workspace_id = ${workspaceId}`;
+   return Boolean(row);
 }
 
 async function oldestBoard(sql: Sql, workspaceId: string): Promise<string | null> {
