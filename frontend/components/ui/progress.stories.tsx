@@ -19,9 +19,8 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Partial: Story = {
-   // Fails on purpose: Progress destructures `value` for the indicator's
-   // transform and never passes it to the Radix root, so the bar always
-   // reports aria-valuenow=null / data-state="indeterminate" to assistive tech.
+   // The value reaches the Radix root, so assistive tech hears the progress
+   // instead of an indeterminate bar.
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('progressbar', { name: 'Goal progress' })).toHaveAttribute(
          'aria-valuenow',
