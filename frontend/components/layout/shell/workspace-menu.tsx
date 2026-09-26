@@ -21,6 +21,7 @@ import {
    DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
 import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
+import { useCreateWorkspaceStore } from '@/store/create-workspace-store';
 import { loadInboxUnreadCount } from '@/lib/inbox';
 import {
    declineInvitation,
@@ -57,6 +58,7 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
    const refreshWorkspaces = useSessionStore((state) => state.refreshWorkspaces);
    const { signOut, pending } = useSignOut();
 
+   const openCreateWorkspace = useCreateWorkspaceStore((state) => state.openModal);
    const [unread, setUnread] = useState<Record<string, number>>({});
    const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
    const [busyInvitation, setBusyInvitation] = useState<string | null>(null);
@@ -179,8 +181,11 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
                      <DropdownMenuItem disabled>{t('none')}</DropdownMenuItem>
                   )}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                     <Link href="/workspaces/new">{t('create')}</Link>
+                  {/* A dialog over the current workspace; `/workspaces/new` is the
+                      same form as a page. Opened after the menu has closed, so the
+                      menu's own focus handling does not fight the dialog's. */}
+                  <DropdownMenuItem onSelect={() => window.setTimeout(openCreateWorkspace, 0)}>
+                     {t('create')}
                   </DropdownMenuItem>
                </DropdownMenuSubContent>
             </DropdownMenuPortal>
