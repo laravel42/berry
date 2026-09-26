@@ -29,25 +29,24 @@ export interface AutoseedWorkspaceOptions {
    skills: PackedSkill[];
    /** Best-effort platform runtime row; a failure must not skip skills. */
    syncRuntime?: () => Promise<void>;
-   /** Weekly discovery autopilots for every role that carries a discovery block. */
-   ensureDiscovery: (workspaceId: string) => Promise<unknown>;
-   onError?: (step: 'organization' | 'runtime' | 'skills' | 'discovery', error: unknown) => void;
+   onError?: (step: 'organization' | 'runtime' | 'skills', error: unknown) => void;
 }
 
 /**
  * Everything a brand-new workspace needs before a person opens it: the role
- * organization, the skills pack (and bindings), the platform runtime binding,
- * and weekly discovery autopilots.
+ * organization, the skills pack (and bindings) and the platform runtime
+ * binding. No autopilots: weekly discovery is switched on by a person, which
+ * is what provisions it (organization/discovery.ts).
  *
- * Idempotent. Each step is independent — a missing runtime never blocks skills
- * or discovery. Called from workspace create and safe to re-run on boot.
+ * Idempotent. Each step is independent — a missing runtime never blocks
+ * skills. Called from workspace create and safe to re-run on boot.
  */
 export async function autoseedWorkspace(
    sql: Sql,
    workspaceId: string,
    options: AutoseedWorkspaceOptions
 ): Promise<void> {
-   const fail = (step: 'organization' | 'runtime' | 'skills' | 'discovery', error: unknown) => {
+   const fail = (step: 'organization' | 'runtime' | 'skills', error: unknown) => {
       options.onError?.(step, error);
    };
 
@@ -60,8 +59,6 @@ export async function autoseedWorkspace(
    await seedWorkspaceDefaults(sql, workspaceId, options.skills).catch((error: unknown) =>
       fail('skills', error)
    );
-
-   await options.ensureDiscovery(workspaceId).catch((error: unknown) => fail('discovery', error));
 }
 
 export async function seedWorkspaceDefaults(

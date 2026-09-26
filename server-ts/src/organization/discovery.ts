@@ -10,6 +10,11 @@ import { parseContract, type RoleContract } from './contract.ts';
  * findings against it. `ensureDiscovery` is idempotent per role, keyed on
  * `autopilots.discovery_role`, so a second call after the first creates
  * nothing.
+ *
+ * Opt-in: nothing seeds it, at boot or when a workspace is created. It is
+ * provisioned when an owner or admin switches Work discovery on
+ * (`PUT /api/v1/organization/discovery`), and new workspaces start with it
+ * off (migration 211).
  */
 
 export const MAX_PROPOSALS_PER_RUN = 5;
@@ -146,22 +151,4 @@ export async function ensureDiscovery(
       }
       return { created };
    });
-}
-
-/**
- * `ensureDiscovery` for every workspace, at boot. A separate pass from
- * `ensureOrganizationEverywhere`: discovery needs `AutopilotRepository` and
- * `IssueRepository`, which are not yet built at the point in `index.ts`
- * where the organization is provisioned, so this runs later in boot, after
- * both exist.
- */
-export async function ensureDiscoveryEverywhere(
-   sql: Sql,
-   deps: { autopilots: AutopilotRepository; issues: IssueRepository },
-   onError: (workspaceId: string, error: unknown) => void
-): Promise<void> {
-   const workspaces = await sql<Array<{ id: string }>>`SELECT id FROM workspaces WHERE deleted_at IS NULL`;
-   for (const workspace of workspaces) {
-      await ensureDiscovery(sql, workspace.id, deps).catch((error: unknown) => onError(workspace.id, error));
-   }
 }

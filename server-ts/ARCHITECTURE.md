@@ -243,11 +243,14 @@ Orchestrator agent plus 18 role agents (`src/organization/catalog.ts`,
   QA is always blocking; security and architecture are blocking on matching
   labels or paths). `submit_review` (autonomy level 5 only) records a
   blocking review; approval never releases work by itself.
-- **Provisioning and discovery** (`src/organization/provision.ts`,
-  `discovery.ts`) — idempotent per `role_key`, runs at boot for every
-  workspace; a person-edited contract (hash mismatch) is never overwritten.
-  Roles with a `discovery` block get a standing task and a weekly cron
-  autopilot.
+- **Provisioning** (`src/organization/provision.ts`) — idempotent per
+  `role_key`, runs at boot for every workspace; a person-edited contract
+  (hash mismatch) is never overwritten.
+- **Discovery** (`src/organization/discovery.ts`) — opt-in: nothing seeds
+  it, at boot or on workspace create. Switching Work discovery on
+  (`PUT /api/v1/organization/discovery`) gives each role with a `discovery`
+  block a standing task and a weekly cron autopilot; new workspaces start
+  with it off (migration 211).
 - **Work proposals** (`src/organization/proposals.ts`) — `propose_work`
   creates a labelled, deduplicated task; depending on catalog rules it either
   goes straight to `todo` or waits behind an approval of kind

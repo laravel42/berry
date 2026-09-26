@@ -86,7 +86,8 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          discoveryEnabled: boolean;
       };
       assert.equal(body.departments.flatMap((d) => d.roles).length, 19);
-      assert.equal(body.discoveryEnabled, true);
+      // A new workspace starts with weekly discovery off (migration 211).
+      assert.equal(body.discoveryEnabled, false);
    });
 
    test('a contract with tools above its level is refused', async () => {
@@ -242,17 +243,20 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       assert.equal(response.status, 400);
    });
 
-   test('discovery can be turned off for the workspace', async () => {
-      const response = await call('/api/v1/organization/discovery', {
-         method: 'PUT',
-         body: JSON.stringify({ enabled: false }),
-      });
-      assert.equal(response.status, 200);
-      assert.equal(((await response.json()) as { discoveryEnabled: boolean }).discoveryEnabled, false);
-      const after = (await (await call('/api/v1/organization')).json()) as { discoveryEnabled: boolean };
-      assert.equal(after.discoveryEnabled, false);
-      // Restore, so this test does not leak state into any test that runs after it.
-      await call('/api/v1/organization/discovery', { method: 'PUT', body: JSON.stringify({ enabled: true }) });
+   test('discovery is switched on and off for the workspace', async () => {
+      const toggle = async (enabled: boolean) => {
+         const response = await call('/api/v1/organization/discovery', {
+            method: 'PUT',
+            body: JSON.stringify({ enabled }),
+         });
+         assert.equal(response.status, 200);
+         assert.equal(((await response.json()) as { discoveryEnabled: boolean }).discoveryEnabled, enabled);
+         const after = (await (await call('/api/v1/organization')).json()) as { discoveryEnabled: boolean };
+         assert.equal(after.discoveryEnabled, enabled);
+      };
+      await toggle(true);
+      // Back off, as a new workspace starts, so no test after this one inherits it.
+      await toggle(false);
    });
 
    test('a role agent is never granted repository permissions above its level', async () => {

@@ -155,7 +155,7 @@ import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
 import { syncPlatformRuntime } from './runtime/runtimes.ts';
-import { ensureDiscovery, ensureDiscoveryEverywhere } from './organization/discovery.ts';
+import { ensureDiscovery } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
 import { autoseedWorkspace, loadDeploySkills, seedDefaultsEverywhere } from './seed/deploy.ts';
 import { applyLifecycle } from './runtime/runtime-control.ts';
@@ -719,14 +719,10 @@ registry.registerAll(
       sessions,
       workspaces,
       secrets,
-      // `autopilots` is declared later in this module (with the rest of the
-      // autopilot wiring), but this closure only reads it once a request
-      // reaches the route, well after module load has finished.
       autoseed: async (workspaceId) =>
          autoseedWorkspace(sql, workspaceId, {
             skills: deploySkills,
             syncRuntime: () => syncPlatformRuntime(sql, defaultTarget, { workspaceId }),
-            ensureDiscovery: (id) => ensureDiscovery(sql, id, { autopilots, issues }),
             onError: (step, error) =>
                logger.error('could not autoseed workspace', {
                   workspaceId,
@@ -894,17 +890,6 @@ const autopilots = new AutopilotRepository({
 });
 const fireAutopilotNow = (input: FireInput) =>
    fireAutopilot({ sql, issues, enqueue: autopilotEnqueue }, input);
-
-// Weekly discovery, for every workspace's organization. A separate pass from
-// ensureOrganizationEverywhere above: it needs AutopilotRepository, built
-// only here. A failure costs that workspace its missing discovery autopilots
-// until the next boot, never the boot itself.
-await ensureDiscoveryEverywhere(sql, { autopilots, issues }, (workspaceId, error) =>
-   logger.error('could not provision discovery', {
-      workspaceId,
-      error: error instanceof Error ? error.message : String(error),
-   })
-);
 
 registry.registerAll(autopilotMounts({ sessions, sql, autopilots, fire: fireAutopilotNow, idempotency }));
 registry.registerAll(autopilotWebhookMounts({ autopilots, fire: fireAutopilotNow, logger }));

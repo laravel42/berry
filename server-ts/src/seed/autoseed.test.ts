@@ -2,12 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 
-import { AutopilotRepository } from '../autopilots/repository.ts';
-import { IssueRepository } from '../core/issues.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
-import { unavailableSealer } from '../integrations/sealing.ts';
 import { CATALOG } from '../organization/catalog.ts';
-import { ensureDiscovery } from '../organization/discovery.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { autoseedWorkspace } from './deploy.ts';
@@ -20,8 +16,6 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
    let workspaceId: string;
    let userId: string;
    let boardId: string;
-   let autopilots: AutopilotRepository;
-   let issues: IssueRepository;
 
    const pack: PackedSkill[] = [
       {
@@ -50,8 +44,6 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
          VALUES (${workspaceId}, ${userId}, 'owner')`;
       const [board] = await sql`SELECT id FROM boards WHERE workspace_id = ${workspaceId}`;
       boardId = board!.id as string;
-      issues = new IssueRepository(sql);
-      autopilots = new AutopilotRepository({ sql, sealer: unavailableSealer('test') });
    });
 
    after(async () => {
@@ -69,7 +61,7 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
       await closeDatabase(sql);
    });
 
-   test('a new workspace gets role agents, pack skills and discovery autopilots', async () => {
+   test('a new workspace gets role agents and pack skills, and no autopilots', async () => {
       const steps: string[] = [];
       await autoseedWorkspace(sql, workspaceId, {
          skills: pack,
@@ -77,15 +69,11 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
             steps.push('runtime');
             throw new Error('runtime unavailable');
          },
-         ensureDiscovery: async (id) => {
-            steps.push('discovery');
-            return ensureDiscovery(sql, id, { autopilots, issues });
-         },
          onError: (step) => steps.push(`error:${step}`),
       });
 
-      // Runtime failure is logged and does not block skills or discovery.
-      assert.deepEqual(steps, ['runtime', 'error:runtime', 'discovery']);
+      // Runtime failure is logged and does not block skills.
+      assert.deepEqual(steps, ['runtime', 'error:runtime']);
 
       const [agents] = await sql<Array<{ n: number }>>`
          SELECT count(*)::int AS n FROM agents
@@ -100,19 +88,11 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
          SELECT count(*)::int AS n FROM agent_skills WHERE workspace_id = ${workspaceId}`;
       assert.ok((bindings!.n ?? 0) >= 1, 'pack skill is bound to the matching role');
 
-      const [discovery] = await sql<Array<{ n: number }>>`
-         SELECT count(*)::int AS n FROM autopilots
-          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL
-            AND discovery_role IS NOT NULL AND issue_id IS NOT NULL`;
-      assert.equal(discovery!.n, 18);
-
-      await autoseedWorkspace(sql, workspaceId, {
-         skills: pack,
-         ensureDiscovery: (id) => ensureDiscovery(sql, id, { autopilots, issues }),
-      });
-      const [again] = await sql<Array<{ n: number }>>`
-         SELECT count(*)::int AS n FROM autopilots
-          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND discovery_role IS NOT NULL`;
-      assert.equal(again!.n, 18);
+      // Weekly discovery is switched on by a person, even where the flag is
+      // already on: nothing seeds its autopilots.
+      await autoseedWorkspace(sql, workspaceId, { skills: pack });
+      const [autopilots] = await sql<Array<{ n: number }>>`
+         SELECT count(*)::int AS n FROM autopilots WHERE workspace_id = ${workspaceId}`;
+      assert.equal(autopilots!.n, 0);
    });
 });

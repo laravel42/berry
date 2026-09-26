@@ -31,8 +31,8 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
          RETURNING id`;
       userId = user!.id as string;
       const [workspace] = await sql`
-         INSERT INTO workspaces (id, slug, name, created_by)
-         VALUES (${randomUUID()}, ${`disc-${suffix}`}, 'Discovery org', ${userId})
+         INSERT INTO workspaces (id, slug, name, created_by, discovery_enabled)
+         VALUES (${randomUUID()}, ${`disc-${suffix}`}, 'Discovery org', ${userId}, true)
          RETURNING id`;
       workspaceId = workspace!.id as string;
       await sql`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (${workspaceId}, ${userId}, 'owner')`;
@@ -169,8 +169,8 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
             RETURNING id`;
          raceUserId = user!.id as string;
          const [workspace] = await sql`
-            INSERT INTO workspaces (id, slug, name, created_by)
-            VALUES (${randomUUID()}, ${`disc-race-${suffix}`}, 'Discovery race org', ${raceUserId})
+            INSERT INTO workspaces (id, slug, name, created_by, discovery_enabled)
+            VALUES (${randomUUID()}, ${`disc-race-${suffix}`}, 'Discovery race org', ${raceUserId}, true)
             RETURNING id`;
          raceWorkspaceId = workspace!.id as string;
          await sql`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (${raceWorkspaceId}, ${raceUserId}, 'owner')`;
@@ -222,8 +222,8 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
             RETURNING id`;
          const orphanUserId = user!.id as string;
          const [workspace] = await sql`
-            INSERT INTO workspaces (id, slug, name, created_by)
-            VALUES (${randomUUID()}, ${`disc-orphan-${suffix}`}, 'Discovery orphan org', ${orphanUserId})
+            INSERT INTO workspaces (id, slug, name, created_by, discovery_enabled)
+            VALUES (${randomUUID()}, ${`disc-orphan-${suffix}`}, 'Discovery orphan org', ${orphanUserId}, true)
             RETURNING id`;
          const orphanWorkspaceId = workspace!.id as string;
          await sql`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (${orphanWorkspaceId}, ${orphanUserId}, 'owner')`;
