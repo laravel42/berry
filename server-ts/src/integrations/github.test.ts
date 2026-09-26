@@ -227,3 +227,14 @@ test('an unreachable GitHub is a failure with no status, not a crash', async () 
       return true;
    });
 });
+
+test('an empty repository and a missing branch both have no head; other failures still throw', async () => {
+   const empty = stub(() => json({ message: 'Git Repository is empty.' }, 409));
+   assert.equal(await empty.client.branchHead('andrealune', 'nova8-pro', 'main'), null);
+   const missing = stub(() => json({ message: 'Not Found' }, 404));
+   assert.equal(await missing.client.branchHead('berry', 'frontend', 'feature'), null);
+   const found = stub(() => json({ object: { sha: 'abc123' } }));
+   assert.equal(await found.client.branchHead('berry', 'frontend', 'main'), 'abc123');
+   const refused = stub(() => json({ message: 'Bad credentials' }, 401));
+   await assert.rejects(refused.client.branchHead('berry', 'frontend', 'main'), GitHubError);
+});

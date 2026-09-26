@@ -125,7 +125,10 @@ export class GitHubClient {
          const ref = await this.#json<{ object: { sha: string } }>('GET', `/repos/${encode(owner)}/${encode(name)}/git/ref/heads/${encode(branch)}`);
          return ref.object.sha;
       } catch (error) {
-         if (error instanceof GitHubError && error.status === 404) return null;
+         // No such branch is a 404; a repository with no commits at all
+         // answers 409 "Git Repository is empty". Neither has a head, and the
+         // envelope builder gives an empty repository its first commit.
+         if (error instanceof GitHubError && (error.status === 404 || error.status === 409)) return null;
          throw error;
       }
    }
