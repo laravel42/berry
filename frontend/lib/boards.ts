@@ -5,6 +5,8 @@ import { BOARD_ID } from './config';
 
 const boardSchema = z.object({
    id: z.string(),
+   /** Absent from an older server, whose list could not be told apart by workspace. */
+   workspaceId: z.string().optional(),
    name: z.string(),
    slug: z.string(),
    description: z.string().nullable(),
@@ -35,7 +37,9 @@ export function slugFromBoardName(name: string): string {
    return slug;
 }
 
-async function fetchBoardPage(after?: string): Promise<{ boards: BoardSummary[]; nextCursor?: string }> {
+async function fetchBoardPage(
+   after?: string
+): Promise<{ boards: BoardSummary[]; nextCursor?: string }> {
    const params = new URLSearchParams({ first: '100' });
    if (after) params.set('after', after);
 
@@ -80,6 +84,29 @@ export async function createBoard(body: CreateBoardBody): Promise<BoardSummary> 
 }
 
 /** Env override wins; otherwise the first board the session can see. */
-export function selectBoardId(boards: BoardSummary[]): string | null {
-   return BOARD_ID || boards[0]?.id || null;
+/**
+ * The boards of one workspace. `GET /api/v1/boards` lists every board the
+ * person can see, across all their workspaces, newest first.
+ */
+export function boardsIn(
+   boards: BoardSummary[],
+   workspaceId: string | null | undefined
+): BoardSummary[] {
+   if (!workspaceId) return boards;
+   return boards.filter(
+      (board) => board.workspaceId === undefined || board.workspaceId === workspaceId
+   );
+}
+
+/**
+ * The board a workspace's pages show: its first board, as the server takes
+ * it when a plan names none. Never another workspace's: the list spans them
+ * all, and its newest board belongs to whichever workspace was made last.
+ */
+export function selectBoardId(
+   boards: BoardSummary[],
+   workspaceId: string | null | undefined
+): string | null {
+   if (BOARD_ID) return BOARD_ID;
+   return boardsIn(boards, workspaceId).at(-1)?.id ?? null;
 }

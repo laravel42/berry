@@ -90,7 +90,7 @@ async function loadReadyState(): Promise<
       }),
       workspace: workspace ? toSessionWorkspace(workspace) : null,
       workspaces: bootstrap.workspaces.map(toSessionWorkspace),
-      boardId: selectBoardId(boards),
+      boardId: selectBoardId(boards, workspace?.id),
       preferredLocale: isLocale(bootstrap.user.settings.locale)
          ? bootstrap.user.settings.locale
          : null,
@@ -172,7 +172,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (get().workspace?.id === workspaceId) return target;
 
       await selectWorkspace(workspaceId);
-      set({ workspace: target });
+      // The board goes with the workspace: one left from the last workspace
+      // would send new tasks and plans onto another workspace's board.
+      const boards = await listBoards().catch(() => []);
+      set({ workspace: target, boardId: selectBoardId(boards, target.id) });
       return target;
    },
 }));

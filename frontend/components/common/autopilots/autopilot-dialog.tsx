@@ -46,7 +46,7 @@ import {
    type AutopilotDraft,
    type WebhookSecrets,
 } from '@/lib/autopilots';
-import { listBoards, type BoardSummary } from '@/lib/boards';
+import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { localTimezone } from '@/lib/cron-schedule';
 import { loadWorkspaceMembers } from '@/lib/members';
@@ -147,7 +147,8 @@ export default function AutopilotDialog({
       setSecrets(null);
       setError(null);
       void listBoards()
-         .then(setBoards)
+         // Only this workspace's: the list spans every workspace.
+         .then((found) => setBoards(boardsIn(found, workspaceId)))
          .catch(() => setBoards([]));
       void getAgentCoverage()
          .then(setCoverage)

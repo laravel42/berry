@@ -34,7 +34,7 @@ import {
    updateAutopilot,
    type AutopilotDetail as Autopilot,
 } from '@/lib/autopilots';
-import { listBoards, type BoardSummary } from '@/lib/boards';
+import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { agentHasRuntime, getAgentCoverage, type AgentCoverage } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
@@ -66,6 +66,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const inDrawer = useInDetailDrawer();
    const closeDrawer = useDetailDrawerClose();
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
+   const workspaceId = useSessionStore((state) => state.workspace?.id);
    const agents = useAgentsStore((state) => state.agents);
 
    const { autopilot, runs, deliveries, error, loading, reload } = useAutopilot(autopilotId);
@@ -97,14 +98,15 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       );
       void listBoards().then(
          (found) => {
-            if (!cancelled) setBoards(found);
+            // Only this workspace's: the list spans every workspace.
+            if (!cancelled) setBoards(boardsIn(found, workspaceId));
          },
          () => undefined
       );
       return () => {
          cancelled = true;
       };
-   }, []);
+   }, [workspaceId]);
 
    if (loading) {
       return <EmptyStateLoading label={t('detail.loading')} />;
