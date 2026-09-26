@@ -295,7 +295,6 @@ export default function Members() {
          />
          <div className="mx-auto max-w-3xl px-6 py-8 pb-20">
             <SettingsSection
-               description={members.error ?? undefined}
                action={
                   canManage ? (
                      <Button size="xs" onClick={() => setInviting(true)}>
@@ -307,7 +306,11 @@ export default function Members() {
             >
                <SettingsCard>
                   {members.loading ? <SettingsRow title={t('loading')} /> : null}
-                  {!members.loading && displayed.length === 0 ? (
+                  {/* A failed read is said here: the section has no title, so its
+                      description is not rendered, and an empty list would read
+                      as "no members". */}
+                  {!members.loading && members.error ? <SettingsRow title={members.error} /> : null}
+                  {!members.loading && !members.error && displayed.length === 0 ? (
                      <SettingsRow title={t('empty')} />
                   ) : null}
                   {displayed.map((member) => {
