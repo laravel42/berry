@@ -4,7 +4,7 @@ import type { CompleteFn, CompletionRequest, EnqueueInput } from '../agents/seam
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from '../mounts/agent-layer.fixture.ts';
 import type { Run } from '../runs/ledger.ts';
-import { chatReplyBody, chatSuggestions, generateTitle, sendChatMessage } from './chat-tasks.ts';
+import { chatReplyBody, chatSuggestions, generateTitle, sendChatMessage, STARTER_SUGGESTIONS } from './chat-tasks.ts';
 import { ConversationRepository } from './repository.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -126,10 +126,11 @@ describe('chat on tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       assert.equal((await conversations.messages(id, { before: first })).length, 0);
    });
 
-   test('suggestions come from quick actions for the agent and its enabled skills', async () => {
+   test('a chat not yet opened gets the starters, then quick actions for the agent', async () => {
       await sql`INSERT INTO quick_action_definitions (workspace_id, name, target_agent_id, prompt, created_by)
                 VALUES (${world.workspaceId}, 'Triage', ${world.agentId}, 'Triage the inbox', ${world.ownerId})`;
       const suggestions = await chatSuggestions(sql, { workspaceId: world.workspaceId, agentId: world.agentId });
-      assert.deepEqual(suggestions[0], { label: 'Triage', prompt: 'Triage the inbox' });
+      assert.deepEqual(suggestions.slice(0, 3), STARTER_SUGGESTIONS);
+      assert.deepEqual(suggestions[3], { label: 'Triage', prompt: 'Triage the inbox' });
    });
 });

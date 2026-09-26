@@ -244,6 +244,21 @@ export function isTerminalTaskEvent(type: string): boolean {
    return type === 'run.completed' || type === 'run.failed' || type === 'run.cancelled';
 }
 
+/**
+ * What the person might say next in an open conversation: starters while it
+ * has no subject, otherwise follow-ups from its latest messages, then the
+ * agent's quick actions. `fresh` asks the model again instead of the cache.
+ */
+export async function listConversationSuggestions(
+   conversationId: string,
+   options: { fresh?: boolean } = {}
+): Promise<ChatSuggestion[]> {
+   const json: unknown = await apiFetch(
+      `${base}/${encodeURIComponent(conversationId)}/suggestions${options.fresh ? '?fresh=1' : ''}`
+   );
+   return z.object({ nodes: z.array(suggestionSchema) }).parse(json).nodes;
+}
+
 export async function listSuggestions(agentId: string): Promise<ChatSuggestion[]> {
    const json: unknown = await apiFetch(
       `${base}/suggestions?agentId=${encodeURIComponent(agentId)}`

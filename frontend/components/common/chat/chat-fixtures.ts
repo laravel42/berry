@@ -273,6 +273,9 @@ export const chatHandlers = [
    http.get('*/api/v1/conversations/suggestions', () =>
       HttpResponse.json({ nodes: chatSuggestions })
    ),
+   http.get('*/api/v1/conversations/:id/suggestions', () =>
+      HttpResponse.json({ nodes: chatSuggestions })
+   ),
    http.get('*/api/v1/conversations/:id/messages', () =>
       HttpResponse.json({ nodes: chatMessages })
    ),

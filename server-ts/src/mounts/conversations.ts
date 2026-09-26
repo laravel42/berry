@@ -7,6 +7,7 @@ import type { BoardRepository } from '../core/boards.ts';
 import {
    ChatNotAnswerable,
    chatSuggestions,
+   conversationSuggestions,
    generateTitle,
    sendChatMessage,
 } from '../conversations/chat-tasks.ts';
@@ -135,6 +136,24 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
       const workspaceId = await scoped(context.get('user'), false);
       const agentId = pathId(new URL(context.req.url).searchParams.get('agentId') ?? undefined, 'Agent');
       return json({ nodes: await chatSuggestions(sql, { workspaceId, agentId }) });
+   });
+
+   // What the person might say next in this conversation (`fresh` skips the cache).
+   route.get('/:conversationId/suggestions', async (context) => {
+      const conversation = await load(context);
+      if (!conversation.agentId) return json({ nodes: [] });
+      const fresh = new URL(context.req.url).searchParams.get('fresh') === '1';
+      return json({
+         nodes: await conversationSuggestions(
+            { sql, complete: options.complete, conversations },
+            {
+               workspaceId: conversation.workspaceId,
+               agentId: conversation.agentId,
+               conversationId: conversation.id,
+               fresh,
+            }
+         ),
+      });
    });
 
    route.patch('/:conversationId', async (context) => {

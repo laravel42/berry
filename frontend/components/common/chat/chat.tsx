@@ -32,7 +32,7 @@ import {
    deleteSession,
    listMessages,
    listSessionTasks,
-   listSuggestions,
+   listConversationSuggestions,
    listThreads,
    markSessionRead,
    openAgentThread,
@@ -142,9 +142,6 @@ export function Chat() {
             setMessages(page);
             setHasEarlier(page.length === PAGE);
             setTasks(await listSessionTasks(thread.id).catch(() => []));
-            if (thread.agentId) {
-               setSuggestions(await listSuggestions(thread.agentId).catch(() => []));
-            }
             await markSessionRead(thread.id).catch(() => undefined);
             void refreshThreads().catch(() => undefined);
          } catch (cause) {
@@ -173,6 +170,35 @@ export function Chat() {
       },
       [pathname, router, searchParams]
    );
+
+   // Suggestions follow the conversation: asked for when it opens and after
+   // each agent reply, never on the person's own message, which the agent has
+   // not answered yet. The server caches them per latest message.
+   const suggestIn = active?.agentId ? active.id : null;
+   const lastMessage = messages.at(-1);
+   const suggestFor = !suggestIn
+      ? null
+      : !lastMessage
+        ? `${suggestIn}:`
+        : lastMessage.authorType === 'agent' || messages.length === 1
+          ? `${suggestIn}:${lastMessage.id}`
+          : null;
+   useEffect(() => {
+      if (!suggestIn || !suggestFor) {
+         setSuggestions([]);
+         return;
+      }
+      let cancelled = false;
+      void listConversationSuggestions(suggestIn).then(
+         (next) => {
+            if (!cancelled) setSuggestions(next);
+         },
+         () => undefined
+      );
+      return () => {
+         cancelled = true;
+      };
+   }, [suggestIn, suggestFor]);
 
    useEffect(() => {
       let cancelled = false;
@@ -442,7 +468,7 @@ export function Chat() {
       if (!active?.agentId) return;
       setRegenerating(true);
       try {
-         setSuggestions(await listSuggestions(active.agentId));
+         setSuggestions(await listConversationSuggestions(active.id, { fresh: true }));
       } catch {
          /* Suggestions are a nicety; a failure is not worth a banner. */
       } finally {
