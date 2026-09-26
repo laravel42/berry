@@ -303,10 +303,6 @@ Admins can give an agent private settings, such as API keys, that are passed int
 
 You can copy an agent's instructions and skills into a new agent. The copy doesn't include environment variables or MCP servers. Archiving an agent stops it taking work but keeps its history, so it can be restored. There is no permanent delete: removing an agent archives it. A separate action cancels every running and queued run for one agent at once. The workspace Orchestrator is protected: Berry refuses to archive it.
 
-### The Guide
-
-Every workspace has a Guide agent that new members can ask how Berry works. After someone creates or joins a workspace, the "Your workspace is ready" screen offers "Questions? Ask the Guide", which opens a chat with it.
-
 ### The Orchestrator and the built-in organization
 
 Every workspace starts with a protected Orchestrator agent and 18 role agents, each with a defined job and limits. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
@@ -650,7 +646,7 @@ Berry supports many workspaces, and a person can belong to several. The workspac
 
 ### Onboarding
 
-The first time someone signs in without a workspace, Berry walks them through a short setup. A welcome screen comes first, then an optional "about you" step, then the workspace itself: its name, its address (which is permanent) and its task prefix. Last is an optional pick of the workspace's default AgentCore runtime. You can skip setup at any step. Once the workspace is ready, Berry offers a chat with the Guide, if the workspace has one. Workspaces created later from the workspace menu use a plain form instead.
+Someone who signs in without a workspace names one: its name, its address (which is permanent) and its task prefix, with the address and prefix shown as they're derived so they can be corrected before anything depends on them. A link offers joining a workspace by invitation instead. There's no other setup; people with a workspace go straight into it. Workspaces created later from the workspace menu use their own form.
 
 ### Members and roles
 
