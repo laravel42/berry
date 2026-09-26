@@ -475,6 +475,11 @@ export class GoalRepository {
                 compile_status::text AS compile_status, created_at
            FROM plans
           WHERE goal_id = ${goalId}
+             -- A plan names one goal but can create several; the others
+             -- reach it through their tasks, which remember both.
+             OR EXISTS (SELECT 1 FROM plan_issues AS made
+                          JOIN goal_issues AS membership ON membership.issue_id = made.issue_id
+                         WHERE made.plan_id = plans.id AND membership.goal_id = ${goalId})
           ORDER BY created_at DESC, id DESC
           LIMIT ${limit}`;
       return rows.map((row) => ({
