@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { TierChip } from '@/components/common/agents/tier-chip';
 import { Button } from '@/components/ui/button';
 import {
+   gatewayPin,
    isTier,
    getModelTiers,
    MAIN_TIERS,
@@ -32,9 +33,6 @@ const MODEL_COLUMNS = 'grid grid-cols-[2.5rem_minmax(0,1fr)_3.5rem_4rem_4rem] ga
 const priceOf = (perMillion: number | null | undefined) =>
    perMillion != null ? modelPrice(perMillion) : '—';
 
-/** The gateway provider; a pinned model is `kilo` + a `vendor/model` id. */
-const GATEWAY_PROVIDER = 'kilo';
-
 /**
  * The tier an agent runs on when it names none, as the server resolves it
  * (its contract's, else its role's in the catalogue, else BerryLow); read
@@ -49,8 +47,7 @@ interface AgentTierSectionProps {
    agent: Pick<Agent, 'contract' | 'defaultTier'>;
    /** Draft: the agent's own tier, or null to run on its role's. */
    tier: Tier | null;
-   /** Draft pinned model pair; a pinned gateway model overrides the tier. */
-   provider: string | null;
+   /** Draft pinned model; a gateway id (`vendor/model`) overrides the tier. */
    model: string | null;
    disabled?: boolean;
    onTierChange: (tier: Tier | null) => void;
@@ -77,7 +74,6 @@ function percent(completion: number): string {
 export function AgentTierSection({
    agent,
    tier,
-   provider,
    model,
    disabled = false,
    onTierChange,
@@ -196,9 +192,8 @@ export function AgentTierSection({
       );
    };
 
-   const pinnedModel = model?.trim() ? model.trim() : null;
-   const pinned =
-      pinnedModel !== null && (provider === GATEWAY_PROVIDER || pinnedModel.includes('/'));
+   const pinnedModel = gatewayPin({ modelName: model });
+   const pinned = pinnedModel !== null;
 
    return (
       <section className="flex flex-col gap-3">

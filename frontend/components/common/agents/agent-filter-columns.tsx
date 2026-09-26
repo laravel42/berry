@@ -3,13 +3,14 @@
 import { byLabel, memberFilterOption } from '@/components/common/filters/filter-options';
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import type { ColumnOption } from '@/components/data-table-filter/core/types';
-import { modelPairKey, type Agent } from '@/lib/agents';
+import { useModelGateway } from '@/hooks/use-model-gateway';
+import { agentTier, gatewayPin, modelPairKey, TIER_NAMES, type Agent } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
 import { useMembersStore } from '@/store/members-store';
 import { Activity, Cpu, KeyRound, Server, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo } from 'react';
-import { agentModelName } from './model-name';
+import { agentModelName, readableModelName } from './model-name';
 
 /** Stand-in for "no model", which no option offers. */
 const NO_MODEL = '__none__';
@@ -25,8 +26,23 @@ export function useAgentFilterColumns() {
    const agents = useAgentsStore((state) => state.agents);
    const roster = useAgentsStore((state) => state.roster);
    const members = useMembersStore((state) => state.members);
+   const gateway = useModelGateway();
 
    return useMemo(() => {
+      // What an agent runs on, as a filter value: under a gateway its tier, or
+      // the gateway model it is pinned to (a stored Bedrock id is ignored there,
+      // as runs ignore it); otherwise its model.
+      const runsOn = (agent: Agent): { key: string; label: string } | null => {
+         if (gateway === true) {
+            const pin = gatewayPin(agent);
+            if (pin) return { key: pin, label: readableModelName(pin) };
+            const tier = agentTier(agent);
+            return { key: `tier:${tier}`, label: TIER_NAMES[tier] };
+         }
+         const key = modelPairKey(agent);
+         return key ? { key, label: agentModelName(agent) } : null;
+      };
+
       const runtimes = new Map<string, string>();
       const owners = new Map<string, string>();
       const models = new Map<string, string>();
@@ -34,8 +50,8 @@ export function useAgentFilterColumns() {
          const entry = roster.get(agent.id);
          if (entry?.runtimeId) runtimes.set(entry.runtimeId, entry.runtimeName ?? entry.runtimeId);
          if (entry?.ownerId) owners.set(entry.ownerId, entry.ownerName ?? entry.ownerId);
-         const key = modelPairKey(agent);
-         if (key) models.set(key, agentModelName(agent));
+         const model = runsOn(agent);
+         if (model) models.set(model.key, model.label);
       }
       const named = (map: Map<string, string>, icon: React.ReactElement): ColumnOption[] =>
          [...map.entries()].map(([value, label]) => ({ value, label, icon })).sort(byLabel);
@@ -107,11 +123,11 @@ export function useAgentFilterColumns() {
          dtf
             .option()
             .id('model')
-            .accessor((agent: Agent) => modelPairKey(agent) || NO_MODEL)
+            .accessor((agent: Agent) => runsOn(agent)?.key ?? NO_MODEL)
             .displayName(t('filterModel'))
             .icon(Cpu)
             .options(named(models, <Cpu className={muted} />))
             .build(),
       ] as const;
-   }, [agents, roster, members, t]);
+   }, [agents, roster, members, gateway, t]);
 }

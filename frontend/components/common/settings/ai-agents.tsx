@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { useModelGateway } from '@/hooks/use-model-gateway';
 import {
    AGENT_PERMISSIONS,
+   agentTier,
    bareModelName,
-   isTier,
+   gatewayPin,
    loadWorkspaceAgents,
    TIER_NAMES,
    type Agent,
@@ -40,11 +41,11 @@ export default function AiAgents() {
          .sort((a, b) => a.name.localeCompare(b.name));
    }, [agents.value, query]);
 
-   /** Under a model gateway an agent runs on a tier; otherwise on a model. */
+   /** Under a model gateway an agent runs on its tier, or a gateway model it is pinned to; otherwise on a model. */
    const runsOn = (agent: Agent): string => {
       if (modelGateway === true) {
-         const tier = agent.tier ?? agent.defaultTier;
-         if (isTier(tier)) return TIER_NAMES[tier];
+         const pin = gatewayPin(agent);
+         return pin ? bareModelName(pin) || pin : TIER_NAMES[agentTier(agent)];
       }
       return agent.modelName ? bareModelName(agent.modelName) || agent.modelName : t('noModel');
    };

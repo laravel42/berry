@@ -153,7 +153,6 @@ export default function AgentSettingsTab({
                         bare
                         agent={agent}
                         tier={tier}
-                        provider={provider}
                         model={model}
                         disabled={readOnly}
                         onTierChange={setTier}

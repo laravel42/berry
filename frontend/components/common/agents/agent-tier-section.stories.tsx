@@ -11,7 +11,6 @@ const meta = {
       // The Frontend Engineer's role runs on BerryMid.
       agent: gatewayAgent,
       tier: null,
-      provider: null,
       model: null,
       onTierChange: fn(),
       onUnpin: fn(),
@@ -62,7 +61,7 @@ export const Experiment: Story = {
 };
 
 export const Pinned: Story = {
-   args: { provider: 'kilo', model: 'z-ai/glm-5' },
+   args: { model: 'z-ai/glm-5' },
    play: async ({ args, canvas, userEvent }) => {
       await expect(await canvas.findByText('Pinned: GLM-5')).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Use tier' }));
@@ -72,7 +71,7 @@ export const Pinned: Story = {
 
 /** A Bedrock pair from before the gateway: shown, and ignored at run time. */
 export const LegacyModel: Story = {
-   args: { provider: 'bedrock', model: 'us.anthropic.claude-sonnet-5' },
+   args: { model: 'us.anthropic.claude-sonnet-5' },
 };
 
 export const Stale: Story = {

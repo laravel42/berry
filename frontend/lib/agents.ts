@@ -344,6 +344,27 @@ export function tierShares(count: number): number[] {
    return weights.map((weight) => Math.round((weight / total) * 100));
 }
 
+/**
+ * The gateway model an agent is pinned to, or null. Under a model gateway a
+ * run takes the agent's stored model only when it is a gateway id
+ * (`vendor/model`); an older Bedrock profile id is ignored and the agent runs
+ * on its tier. Mirrors `#model` in server-ts/src/runtime/envelope-builder.ts.
+ */
+export function gatewayPin(agent: Pick<Agent, 'modelName'>): string | null {
+   const model = agent.modelName?.trim();
+   return model && model.includes('/') ? model : null;
+}
+
+/**
+ * The tier an agent runs on under a gateway when it has no pin: its own, else
+ * the one the server resolved for it, else its contract's, else BerryLow.
+ */
+export function agentTier(agent: Pick<Agent, 'tier' | 'defaultTier' | 'contract'>): Tier {
+   if (isTier(agent.tier)) return agent.tier;
+   if (isTier(agent.defaultTier)) return agent.defaultTier;
+   return agent.contract?.tier ?? 'berry_low';
+}
+
 export function isTier(value: unknown): value is Tier {
    return typeof value === 'string' && (TIERS as readonly string[]).includes(value);
 }

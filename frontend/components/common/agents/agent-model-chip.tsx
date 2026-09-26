@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 
 import { useModelGateway } from '@/hooks/use-model-gateway';
 import {
-   isTier,
+   agentTier,
+   gatewayPin,
    listAgentModels,
    modelKey,
    type Agent,
    type AgentModel,
-   type Tier,
 } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 
@@ -19,16 +19,6 @@ import { TierChip } from './tier-chip';
 interface AgentModelChipProps {
    agent: Pick<Agent, 'modelName' | 'modelProvider' | 'tier' | 'defaultTier' | 'contract'>;
    className?: string;
-}
-
-/**
- * The tier this agent runs on when it has no pinned model: its own stored
- * tier, else the one the server resolved (same order as `roleDefaultTier`).
- */
-function storedTier(agent: Pick<Agent, 'tier' | 'defaultTier' | 'contract'>): Tier {
-   if (isTier(agent.tier)) return agent.tier;
-   if (isTier(agent.defaultTier)) return agent.defaultTier;
-   return agent.contract?.tier ?? 'berry_low';
 }
 
 /** One shared catalog fetch so every chip on a roster pays one round trip. */
@@ -48,7 +38,8 @@ function loadModelPrices(): Promise<Map<string, AgentModel>> {
  * What the agent runs on, as a chip.
  *
  * A pinned model is coloured by input $/MTok: ≤$1 low, ≤$2 mid, ≤$3 mid-high,
- * >$3 high. With no model, under a gateway, the chip is the stored tier.
+ * >$3 high. Under a gateway the chip is the agent's tier unless it is pinned
+ * to a gateway model: a stored Bedrock id is ignored there, as runs ignore it.
  * Density matches AutonomyLevelChip.
  */
 export function AgentModelChip({ agent, className }: AgentModelChipProps) {
@@ -69,8 +60,8 @@ export function AgentModelChip({ agent, className }: AgentModelChipProps) {
       };
    }, []);
 
-   if (gateway === true && !agent.modelName?.trim()) {
-      return <TierChip tier={storedTier(agent)} className={className} />;
+   if (gateway === true && !gatewayPin(agent)) {
+      return <TierChip tier={agentTier(agent)} className={className} />;
    }
 
    const tier = modelTier(agent, prices);
