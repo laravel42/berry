@@ -67,6 +67,9 @@ export interface RankedModel {
    usageTokens: number;
    /** Null when the gateway lists no price (a router such as `kilo-auto/*` reports -1). */
    blendedPricePerM: number | null;
+   /** USD per million input and output tokens; null as for the blended price. */
+   inputPricePerM: number | null;
+   outputPricePerM: number | null;
 }
 
 export type TierPools = Record<Tier, RankedModel[]>;
@@ -118,13 +121,16 @@ function median(values: number[]): number {
 }
 
 function ranked(model: GatewayModel, usage: Map<string, number>): RankedModel {
+   const unpriced = model.price.input < 0 || model.price.output < 0;
    return {
       id: model.id,
       name: model.name,
       completion: model.bench?.completion ?? null,
       costPerAttemptUsd: model.bench?.costPerAttemptUsd ?? null,
       usageTokens: usage.get(model.id) ?? 0,
-      blendedPricePerM: model.price.input < 0 || model.price.output < 0 ? null : blendedPrice(model),
+      blendedPricePerM: unpriced ? null : blendedPrice(model),
+      inputPricePerM: unpriced ? null : model.price.input,
+      outputPricePerM: unpriced ? null : model.price.output,
    };
 }
 
@@ -186,7 +192,16 @@ export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: s
       berry_auto: [
          auto
             ? ranked(auto, usage)
-            : { id: AUTO_MODEL, name: 'Auto Efficient', completion: null, costPerAttemptUsd: null, usageTokens: 0, blendedPricePerM: null },
+            : {
+                 id: AUTO_MODEL,
+                 name: 'Auto Efficient',
+                 completion: null,
+                 costPerAttemptUsd: null,
+                 usageTokens: 0,
+                 blendedPricePerM: null,
+                 inputPricePerM: null,
+                 outputPricePerM: null,
+              },
       ],
    };
 }

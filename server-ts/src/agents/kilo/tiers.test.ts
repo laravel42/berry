@@ -79,7 +79,10 @@ test('the account\'s own key, a real id, tools, and no retirement are required f
 test('Free ranks by real usage, a weak benchmark only breaking ties; Auto is always Kilo\'s router, price unknown', () => {
    const pools = rankTiers(catalog, usage);
    assert.deepEqual(pools.berry_free.map((m) => m.id), ['p/free-a:free', 'p/free-b:free'], 'the used model outranks the scored one');
-   assert.deepEqual(pools.berry_auto.map((m) => [m.id, m.blendedPricePerM]), [[AUTO_MODEL, null]]);
+   assert.deepEqual(
+      pools.berry_auto.map((m) => [m.id, m.blendedPricePerM, m.inputPricePerM, m.outputPricePerM]),
+      [[AUTO_MODEL, null, null, null]]
+   );
    assert.deepEqual(rankTiers([], []).berry_auto.map((m) => m.id), [AUTO_MODEL]);
 });
 
@@ -129,4 +132,14 @@ test('the default fallback is the top of the next tier down, never the model its
    assert.equal(chooseForTier(pools, 'berry_free', 's')!.fallback, 'o/luna', 'Free falls back to a paid Low model');
    assert.equal(chooseForTier(pools, 'berry_auto', 's')!.model, AUTO_MODEL);
    assert.equal(chooseForTier({ ...pools, berry_max: [], berry_mid: [], berry_low: [] }, 'berry_max', 's'), null);
+});
+
+test('a ranked model carries its input and output prices beside the blended one', () => {
+   const pools = rankTiers(catalog, usage);
+   assert.ok(pools.berry_max.length > 0);
+   for (const model of pools.berry_max) {
+      const listed = catalog.find((entry) => entry.id === model.id)!;
+      assert.equal(model.inputPricePerM, listed.price.input, model.id);
+      assert.equal(model.outputPricePerM, listed.price.output, model.id);
+   }
 });
