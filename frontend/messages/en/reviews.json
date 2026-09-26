@@ -138,7 +138,7 @@
       "retry": "Try again",
       "failed": "The decision was not saved. {reason}",
       "confirmTitle": "Mark {identifier} done?",
-      "confirmPullRequest": "The pull request stays open on GitHub for you to merge. The task leaves the review queue.",
+      "confirmPullRequest": "Approving merges the pull request on GitHub, then marks the task done. If the merge fails, the task stays in review.",
       "confirmCommitted": "The changes are committed but no pull request was opened. The task leaves the review queue.",
       "confirmNothingCommitted": "Nothing was committed. The task leaves the review queue.",
       "markDone": "Mark done",

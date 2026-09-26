@@ -40,7 +40,7 @@ export const ApproveADelivery: Story = {
       await userEvent.click(canvas.getByRole('button', { name: 'Approve' }));
       const body = within(canvasElement.ownerDocument.body);
       const dialog = within(await body.findByRole('alertdialog', { name: 'Mark BERR-101 done?' }));
-      await expect(dialog.getByText(/The pull request stays open on GitHub/)).toBeVisible();
+      await expect(dialog.getByText(/Approving merges the pull request on GitHub/)).toBeVisible();
       await userEvent.click(dialog.getByRole('button', { name: 'Mark done' }));
       // POST /api/v1/reviews/run-71/merge merges the pull request first, then
       // PATCH /api/v1/issues/BERR-101 (MSW) moves the task to done.
