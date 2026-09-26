@@ -1,6 +1,6 @@
 # ADR-0017: Model calls go through the Kilo gateway, in leaderboard-ranked tiers
 
-- **Status:** Accepted — runtime provider switch implemented; tiers and routing in progress
+- **Status:** Accepted — provider switch, tiers, routing and the tier interface implemented
 - **Date:** 2026-09-25
 - **Deciders:** Berry platform
 - **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md), [ADR-0015](0015-default-agent-organization.md)
@@ -9,7 +9,7 @@
   ADR-0014's control-plane split stands: the loop runs in the runtime image,
   and the server still imports no model SDK.
 
-## Current state (2026-09-25)
+## Current state (2026-09-26)
 
 - `BERRY_MODEL_PROVIDER=kilo` makes the runtime image call the Kilo gateway
   (`src/agents/runtime/model.ts`, `kiloModel`). Unset or `bedrock` keeps the
@@ -32,10 +32,16 @@
     which spreads BerryAuto's classifier fees into
     `task_usage.gateway_fee_micros` and logs a balance below
     `BERRY_KILO_MIN_BALANCE_USD`.
-- Not yet built:
-  - the interface for tiers: the picker, each agent's tier and fallback, and
-    a tier comparison on the Usage page;
-  - setting aside a model that keeps falling back, for a while.
+- The interface is built: an agent's General tab picks its tier and shows
+  each tier's models (share of tasks, rating, input and output price); the
+  Usage page's Spend tab compares the tiers. The fallback model is Berry's
+  and has no control in the app.
+- Every shipped deployment passes the gateway settings to the runtime as
+  well as the server: `sandbox/agentcore/deploy.sh` for AgentCore, the AWS
+  host's session env file (`deploy/aws/host/update.sh`, from the
+  application secret) and the Dokploy stack
+  (`deploy/dokploy/docker-compose.yml`).
+- Not yet built: setting aside a model that keeps falling back, for a while.
 
   The runtime image must be rebuilt for the fallback and usage changes to
   apply.

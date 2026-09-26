@@ -73,8 +73,17 @@ commit values):
   `AWS_SESSION_TOKEN`, `STORAGE_MAX_BYTES`. AWS S3 is the default; any
   S3-compatible endpoint works via `S3_ENDPOINT`.
 - **Agents / Bedrock**: `BERRY_BEDROCK_REGION` (or `AWS_REGION`),
-  `BERRY_BEDROCK_*` credentials, `BERRY_AGENT_DEFAULT_MODEL`,
-  `BERRY_RUN_CONCURRENCY`.
+  `BERRY_BEDROCK_*` credentials, `BERRY_AGENT_DEFAULT_MODEL` (a Bedrock
+  inference profile id), `BERRY_RUN_CONCURRENCY`.
+- **Model gateway (ADR-0017)**: `BERRY_MODEL_PROVIDER` (`bedrock`, the
+  default, or `kilo` to call models through the Kilo AI gateway in Berry
+  tiers), `BERRY_KILO_API_KEY` (required with `kilo`; from app.kilo.ai → Your
+  Profile), `BERRY_KILO_BASE_URL`, `BERRY_KILO_APP_URL`,
+  `BERRY_KILO_MIN_BALANCE_USD` (a Kilo credit balance below it, default 2,
+  is logged hourly). The runtime reads the provider, the key,
+  `BERRY_KILO_BASE_URL` and `BERRY_KILO_ORG_ID` (sent as
+  `X-KiloCode-OrganizationId`; unused today) itself, so set the provider and
+  key on both. `BERRY_BEDROCK_*` stays in use for Polly and Nova Reel.
 - **Runtime (ADR-0014)**: `BERRY_AGENT_RUNTIME_URL` (HTTP fallback target),
   `BERRY_AGENTCORE_RUNTIME_ARN` (managed target), `BERRY_AGENTCORE_REGION`,
   `BERRY_RUNTIME_CALLBACK_URL` (must be reachable from AWS), `BERRY_TASK_TOKEN_TTL_SECONDS`.

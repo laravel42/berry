@@ -124,6 +124,18 @@ served over HTTP). The runtime's lifecycle stream is written to the run ledger.
 The runtime calls Berry's tools back at `/api/v1/agent-tools` with a
 task-scoped token. There is no other external worker.
 
+**Models are reached one of two ways**
+([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)). By default
+(`BERRY_MODEL_PROVIDER=bedrock`) the runtime calls Bedrock directly, on the
+agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
+and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
+the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryMid,
+BerryLow, BerryFree, BerryAuto) unless it pins a gateway model.
+`server-ts/src/agents/kilo/` refills the tiers hourly from Terminal-Bench
+ratings and Kilo's prices and usage, so do not name a tier's current models in
+code or docs. The server only reads Kilo's model list, leaderboard and account;
+it never calls a model.
+
 **The organization gates and routes agent work.** Each role agent has a
 contract (mission, allowed tools, delegation and escalation targets, required
 reviewers) and an autonomy level from 1–5 that ceilings its effective tools
@@ -145,8 +157,9 @@ exists.
 **`GET /api/v1/config` is how the browser learns what works.** It reports only
 capabilities this process actually has — for example, `agentExecution` is true
 only when a runtime target (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) is
-configured, not merely when a model credential exists. A capability reported
-true that the server cannot deliver is worse than one reported false.
+configured, not merely when a model credential exists; `modelGateway` is true
+only when the Kilo gateway is configured. A capability reported true that the
+server cannot deliver is worse than one reported false.
 
 **Frontend is wired to the API** through `lib/api.ts` (`apiUrl` / `apiFetch`).
 Do not reintroduce demo/mock datasets. `NEXT_PUBLIC_BERRY_API_URL` empty means

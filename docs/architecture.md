@@ -31,6 +31,7 @@ flowchart LR
         planner["Planner & triage<br/>plan → goals → tasks → Orchestrator routes"]:::server
         org["Organization<br/>19 role contracts, autonomy levels 1–5,<br/>required reviews, proposals, discovery"]:::server
         dispatcher["Run dispatcher<br/>lease with SKIP LOCKED, envelope"]:::server
+        tiers["Model tiers — Kilo gateway only<br/>BerryMax · Mid · Low · Free · Auto,<br/>ranked hourly from Terminal-Bench, Kilo prices & usage"]:::server
         ledger["Run ledger<br/>append-only events, task status"]:::server
         gate["Review gate<br/>AutoGate reviews, merges, closes,<br/>and advances the task graph"]:::server
         tools["Agent tools API<br/>/api/v1/agent-tools — task-scoped token,<br/>autonomy allowlist"]:::server
@@ -47,8 +48,13 @@ flowchart LR
         direction TB
         agentcore["Bedrock AgentCore Runtime<br/>one isolated microVM per session"]:::aws
         image["Berry runtime image<br/>Strands agent loop + permission plugin<br/>clone · edit · run checks · push"]:::aws
-        bedrock["Amazon Bedrock<br/>Claude Opus · Sonnet · Haiku"]:::aws
+        bedrock["Amazon Bedrock<br/>inference profiles (the default path)"]:::aws
         s3[("S3<br/>run artifacts")]:::aws
+    end
+
+    subgraph KILO["Kilo AI gateway — optional (ADR-0017)"]
+        direction TB
+        kilo["OpenAI-compatible gateway<br/>paid models on your own provider key,<br/>free models, kilo-auto routing"]:::ext
     end
 
     subgraph GH["GitHub"]
@@ -76,7 +82,11 @@ flowchart LR
     org --> dispatcher
     dispatcher -->|"InvokeAgentRuntime"| agentcore
     agentcore --> image
-    image <-->|"model calls"| bedrock
+    image <-->|"model calls (default)"| bedrock
+    image -->|"model calls with<br/>BERRY_MODEL_PROVIDER=kilo"| kilo
+    kilo -->|"paid models, BYOK"| bedrock
+    dispatcher -->|"tier's model for the session"| tiers
+    tiers -.->|"reads models, usage, balance —<br/>never a model call"| kilo
     image -.->|"lifecycle event stream"| ledger
     image -->|"named tool calls<br/>with the run's token"| tools
     tools --> org
@@ -105,7 +115,7 @@ sequenceDiagram
     participant B as Berry server
     participant DB as PostgreSQL
     participant R as AgentCore Runtime
-    participant M as Bedrock (Claude)
+    participant M as Model (Bedrock, or the Kilo gateway)
     participant G as GitHub
 
     P->>W: Create project, lead = AI workflow
@@ -128,11 +138,11 @@ sequenceDiagram
     R-->>B: run.delivered
     B->>G: open pull request
     B->>DB: task → In review
-    opt AutoGate on
+    alt AutoGate on
         B->>R: required role reviews (QA, Security, …)
         R-->>B: approve or send back with findings
         B->>G: merge approved pull request
-        B->>DB: Done; release dependents → Todo; queue runs
+        B->>DB: Done, release dependents → Todo, queue runs
     else Manual gate
         P->>W: Reviews: Approve or Send back
         W->>B: decision
@@ -143,7 +153,8 @@ sequenceDiagram
 
 ## Reading the diagram
 
-- **The server never calls a model.** Every model call happens inside the runtime image on AWS. A repository check fails if a model SDK is imported by the server.
+- **The server never calls a model.** Every model call happens inside the runtime image on AWS. A repository check fails if a model SDK is imported by the server. With the Kilo gateway, the server reads Kilo's model list, usage leaderboard and account balance, and the public Terminal-Bench leaderboards, but only to rank models and reconcile costs.
+- **Two ways to reach a model.** By default the runtime calls Amazon Bedrock directly, on the agent's model or the server's default. With `BERRY_MODEL_PROVIDER=kilo` it calls the Kilo AI gateway ([ADR-0017](adr/0017-kilo-gateway-model-tiers.md)), and an agent runs on a Berry tier rather than a fixed model: BerryMax, BerryMid or BerryLow (paid), BerryFree, or BerryAuto (Kilo's own routing). Berry fills the tiers from the leaderboards, so their models change over time; each task keeps one of its tier's top three models so its prompt cache stays warm, with a fallback model if that one fails. Paid calls must be served by the deployment's own Bedrock key added to Kilo, and a run costs exactly what Kilo reports.
 - **One narrow door for agents.** An agent reaches Berry only through the agent tools API, with a token minted for its run. The token names the workspace and the task; the model can't choose them. Each tool call is checked against the agent's autonomy level.
 - **A person releases the work.** No agent tool can set *Done* or *Cancelled*, no autonomy level includes a merge tool, and a reviewer agent's approval leaves the task in review.
 - **Everything is a record.** Runs are append-only event logs, task changes write outbox events in the same transaction, and live pages replay from that table.

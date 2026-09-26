@@ -49,7 +49,8 @@ what a folder is allowed to do.
 - **Infrastructure** — cross-cutting plumbing every layer leans on (the HTTP
   framework glue, the database pool, config, logging, realtime fan-out).
 - **External integration** — everything that talks to a system outside Berry
-  (Bedrock, GitHub, object storage, the agent runtime transport).
+  (Bedrock, the Kilo gateway's catalogue and account, GitHub, object storage,
+  the agent runtime transport).
 - **Dev-script** — run by an operator or CI, not by a request (migrate, seed,
   reset).
 
@@ -67,14 +68,16 @@ what a folder is allowed to do.
 | `auth/` | Sessions, Better Auth wiring, personal-access tokens, dev-login, and the `requireSession` middleware. | domain (security) |
 | `core/` | The tracker itself: `boards`, `issues`, `comments`, `dependencies`, `reviews`, `goals`, `projects`, `attachments`. | domain |
 | `organization/` | The role catalog, autonomy ceilings, provisioning, discovery and work proposals. See [below](#the-organization). | domain |
-| `agents/` | The agent registry: `repository`, model `catalog`, triggers/mentions. Does not itself call a model. | domain |
+| `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
+| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryMid, BerryLow and BerryFree (BerryAuto is `kilo-auto/efficient`), picks a session's model by rank 3:2:1 from its tier's top three, and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
 | `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API, runtime registrations. See [below](#agent-execution-the-control-plane). | domain + integration |
-| `agents/runtime/` | The Strands agent loop that runs *inside* the runtime image (not in this process). Bedrock model client, tools, plugins. Only place Bedrock/Strands imports are allowed (`check:models`). | integration (builds into the runtime image) |
+| `agents/runtime/` | The Strands agent loop that runs *inside* the runtime image (not in this process). The model client — Bedrock, or the Kilo gateway through the SDK's OpenAI model (`model.ts`, `kilo-fetch.ts` for own-key enforcement, cache points and reported cost, `fallback-model.ts`) — tools, plugins. Only place model SDK imports (Strands, Bedrock runtime, `openai`) are allowed (`check:models`). | integration (builds into the runtime image) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
 | `plans/` | The planner: `repository`, `generator`, `triage` (routing), `answers`. | domain + integration |
 | `conversations/` | Conversation threads and their model-backed responder. | domain + integration |
 | `approvals/` | The approval-gate records, including work-proposal decisions. | domain |
 | `inbox/` | Per-user inbox notifications. | domain |
+| `usage/` | Model usage and cost: `record.ts` writes each `task.usage` report with its cost (priced from `PriceBook` on the Bedrock path; through Kilo, exactly the cost Kilo reported, or unpriced), `queries.ts` behind the Usage page and dashboard (including the per-tier comparison), `prompt-logs.ts`. `gateway-fees.ts` is the hourly Kilo reconciliation: it spreads BerryAuto's classifier fees into `task_usage.gateway_fee_micros` and logs a credit balance below `BERRY_KILO_MIN_BALANCE_USD`. | domain |
 | `editor/` | Model-backed editor assistance. | integration |
 | `integrations/` | Sealed provider credentials — connections, the GitHub App manifest flow, OAuth, sealing. **The only place a provider secret is decrypted**, using `INTEGRATION_ENCRYPTION_KEY`. | external integration (security) |
 | `scm/` | Source control: the provider interface, GitHub providers, provisioning, sync, inbound webhooks. | external integration |
@@ -144,6 +147,29 @@ AgentCore Gateway (`agentcore`, default) or directly (`legacy`).
 `src/storage/` is enabled once `S3_BUCKET` is set. AWS S3 is the default
 target; `S3_ENDPOINT` can point at any S3-compatible store instead.
 
+## Models
+
+Every model call happens in the runtime image, and `BERRY_MODEL_PROVIDER`
+picks where it goes; the server and the runtime must agree on it.
+
+- **`bedrock`** (the default) — the runtime calls Amazon Bedrock directly. An
+  agent runs on its own model, else its runtime profile's, else
+  `BERRY_AGENT_DEFAULT_MODEL`, each a Bedrock inference profile id. The model
+  picker lists the account's inference profiles; usage is priced from
+  `PriceBook`. There are no tiers on this path.
+- **`kilo`** (ADR-0017) — the runtime calls the Kilo AI gateway
+  (OpenAI-compatible) with `BERRY_KILO_API_KEY`. An agent that names no
+  gateway model runs on its tier (its own, else its role's), and
+  `agents/kilo/` picks the tier's model for the session plus a fallback; a
+  completion that names no model runs on BerryLow. Paid models must be
+  served by one of the deployment's own provider keys added to Kilo (its
+  Bedrock key): a paid call Kilo bills to its own credits is refused
+  (`NOT_OWN_KEY`), while `kilo-auto/*` and `:free` models are exempt. Cost
+  is exactly what Kilo reports per call.
+  The server reads Kilo's model list, usage leaderboard and account, never a
+  model, and `GET /api/v1/config` reports `modelGateway: true`. The
+  `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
+
 ## Agent execution: the control plane
 
 Berry never calls a model directly from the product server — it is the
@@ -166,7 +192,8 @@ them:
    `src/runtime/runtimes.ts`, mounted at `/api/v1/runtimes`).
 4. **Envelope and transport** (`src/runtime/envelope.ts`,
    `envelope-builder.ts`, `transport.ts`, `http-transport.ts`,
-   `agentcore-transport.ts`) — builds a `TaskEnvelope` (transcript rebuilt
+   `agentcore-transport.ts`) — builds a `TaskEnvelope` (the model, and
+   through the Kilo gateway the tier and fallback model; transcript rebuilt
    from `run_events`, agent skills, MCP servers, plugin env) and sends it via
    `InvokeAgentRuntime` or HTTP. Single model calls (planner, triage, review
    gate, chat, editor) are sent as `kind: 'completion'` tasks rather than full
@@ -178,8 +205,9 @@ them:
 6. **Lifecycle stream** (`src/runtime/lifecycle.ts`) — the runtime streams
    `task.started | message | usage | completed | failed` back;
    `task-executor.ts` consumes it and `src/runs/ledger.ts` is the only writer
-   of run state. Usage is recorded and priced (`usage/record.ts`,
-   `PriceBook`).
+   of run state. Usage is recorded and priced (`usage/record.ts`): from
+   `PriceBook` on the Bedrock path, or through the Kilo gateway exactly as
+   Kilo reported it, a call with no report leaving the run unpriced.
 7. **Agent-tools API** (`src/runtime/agent-tools/`) — the only way the agent
    acts on Berry, at `/api/v1/agent-tools/:name` with a task-scoped bearer
    token (TTL at most 8 hours), never through the database directly. Core
@@ -188,10 +216,11 @@ them:
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
    separately.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
-   from `src/agents/runtime/` (the Strands loop, Bedrock model client, tools,
-   plugins) plus `src/execution/`, `src/runtime/envelope.ts`,
+   from `src/agents/runtime/` (the Strands loop, the Bedrock and Kilo model
+   clients, tools, plugins) plus `src/execution/`, `src/runtime/envelope.ts`,
    `lifecycle.ts` and `src/scm/commit-trailer.ts`. `deploy.sh` builds, pushes
-   and publishes it to AWS; it needs account-owner credentials.
+   and publishes it to AWS; it needs account-owner credentials, and with
+   `BERRY_MODEL_PROVIDER=kilo` it passes the Kilo settings to the runtime.
    `runtimeSessionId = "berry-" + sha256(agentId:issueId)`.
 
 ## The organization

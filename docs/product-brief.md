@@ -14,9 +14,11 @@ drive both.
 Berry is the control plane; it does not run agents in-process and imports no
 model SDK ([ADR-0014](adr/0014-agentcore-runtime-control-plane.md)). A run is
 dispatched to an AWS Bedrock AgentCore Runtime container (or the same runtime
-image reached over HTTP), where a Strands Agents SDK loop calls Amazon
-Bedrock models. Berry does not reimplement sandboxing or provider plumbing
-beyond that seam.
+image reached over HTTP), where a Strands Agents SDK loop calls models on
+Amazon Bedrock directly, or through the Kilo AI gateway on the
+organization's own provider keys, in Berry tiers filled from public
+benchmark leaderboards ([ADR-0017](adr/0017-kilo-gateway-model-tiers.md)). Berry does not
+reimplement sandboxing or provider plumbing beyond that seam.
 
 Berry owns the product motion and its durable facts: users and workspaces,
 memberships, issues and projects, collaboration, configuration, the
@@ -96,7 +98,7 @@ those execution responsibilities.
 ## Licensing posture
 
 - **Berry's own code** is developed against permissive licenses only. Every dependency must be MIT / Apache-2.0 (or equivalently permissive); no copyleft in the shipped product.
-- **The agent runtime** runs the Strands Agents SDK against Amazon Bedrock; Berry retains upstream notices.
+- **The agent runtime** runs the Strands Agents SDK against Amazon Bedrock, directly or through the Kilo AI gateway; Berry retains upstream notices.
 - **Circle** (frontend template origin) is MIT; its notice is retained in the frontend.
 - Berry's API uses conventional resource-oriented JSON and pagination. No
   third-party product schema, brand, or marks become Berry product identity.

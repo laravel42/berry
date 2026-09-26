@@ -2,7 +2,7 @@
 The product server saves and queues work. Its dispatcher sends a task to the agent runtime. The runtime runs the model loop and calls Berry's tools through a task-scoped token. Lifecycle events return to the server and appear in the run ledger and chat.
 
 ```text
-Browser → Berry API → run queue → agent runtime → Bedrock
+Browser → Berry API → run queue → agent runtime → Bedrock, or the Kilo gateway
               ↑                       │
               └──── task tool calls ───┘
 ```
@@ -20,6 +20,8 @@ The current `server-ts/src/index.ts` selects `BERRY_AGENTCORE_RUNTIME_ARN` first
 
 The callback address is selected from `BERRY_RUNTIME_CALLBACK_URL`, then `BERRY_PUBLIC_URL`, then a local fallback. Use an address that the runtime can actually reach.
 
+The runtime decides where model calls go from its own `BERRY_MODEL_PROVIDER`: Amazon Bedrock by default, or the Kilo AI gateway with `kilo` and `BERRY_KILO_API_KEY`. Give the runtime the same provider as the product server, which picks each run's model or tier from that setting. See [Configuration](configuration.html#model-provider).
+
 > **Configuration compatibility:** the repository still contains older `BERRY_RUNTIME_DRIVER`, `BERRY_RUNTIME_URL`, and `BERRY_RUNTIME_TOKEN` settings. Those alone do not select the current chat executor. Verify the code and `/api/v1/config` response for your checkout; the older Docker sandbox is not interchangeable with the current agent image.
 
 ## Local container example
@@ -33,11 +35,11 @@ BERRY_AGENT_RUNTIME_URL=http://127.0.0.1:8081
 BERRY_RUNTIME_CALLBACK_URL=http://host.docker.internal:4000
 BERRY_RUNTIME_AUTH_TOKEN=<the-same-random-token-on-both-services>
 ```
-Generate a token with `openssl rand -hex 32` and store it privately. Put the runtime's matching token and any required Bedrock settings in a separate, untracked environment file. Then run:
+Generate a token with `openssl rand -hex 32` and store it privately. Put the runtime's matching token and its model settings (Bedrock, or `BERRY_MODEL_PROVIDER=kilo` with `BERRY_KILO_API_KEY`) in a separate, untracked environment file. Then run:
 ```sh
 docker run --rm --name berry-agent-runtime   -p 127.0.0.1:8081:8080   --env-file /absolute/path/to/runtime.env   berry-agent-runtime
 ```
-Do not pass the whole product `.env` into the container. Model credentials can also be supplied through Berry's configured model connection; the runtime does not need database credentials. On Linux, configure a host gateway address appropriate to your container engine.
+Do not pass the whole product `.env` into the container. The runtime reads model credentials from its own environment only, and it does not need database credentials. On Linux, configure a host gateway address appropriate to your container engine.
 
 ### Launch scripts and session isolation
 Two root scripts do the above for you. Both build the image and pass the container only the variables the runtime reads, filtered out of `.env` (the list is in `scripts/runtime-docker.sh`); the database URL, auth secret and integration key never reach it. Both publish on loopback only.
@@ -48,7 +50,7 @@ Two root scripts do the above for you. Both build the image and pass the contain
 Neither applies on AgentCore, where the image runs as `node` and the microVM is the boundary. Setting `BERRY_RUNTIME_ISOLATE_SESSIONS=true` without running as root is refused at start-up rather than ignored.
 
 ## Managed AgentCore
-Deploy the current runtime image using the repository's `server-ts/sandbox/agentcore/deploy.sh` after reviewing its account, role, region, and network inputs. Set the returned ARN on the product server. The runtime execution role needs model access. Its callback address must reach Berry from AWS.
+Deploy the current runtime image using the repository's `server-ts/sandbox/agentcore/deploy.sh` after reviewing its account, role, region, and network inputs. Set the returned ARN on the product server. The runtime execution role needs model access. With `BERRY_MODEL_PROVIDER=kilo` in the environment file it reads, the helper also passes the Kilo settings to the runtime. Its callback address must reach Berry from AWS.
 
 The deployment helper creates or updates AWS resources. Review its inputs and AWS permissions before running it. This guide does not provision anything for you.
 

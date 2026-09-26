@@ -157,5 +157,6 @@ test:server` works on a machine with no database running.
 This server replaced an earlier Go implementation (ADR-0009); some historical
 notes and comments elsewhere in the repo still describe that transition, the
 removed Docker Compose stack, or an OpenRouter-backed model catalogue — none
-of that reflects the current code. The model client is Bedrock, reached only
-from `src/agents/runtime/`, and there is no Compose stack to run.
+of that reflects the current code. The model client is Bedrock, or the Kilo
+AI gateway with `BERRY_MODEL_PROVIDER=kilo` (ADR-0017), reached only from
+`src/agents/runtime/`, and there is no Compose stack to run.

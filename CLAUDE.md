@@ -57,7 +57,7 @@ To run DB-backed tests, create a schema-only copy of the dev database and point 
 2. `src/runs/dispatcher.ts` claims it with `SKIP LOCKED` under a renewed lease and sweeps expired leases.
 3. The dispatcher builds a `TaskEnvelope` and sends it via `InvokeAgentRuntime` (`src/runtime/agentcore-transport.ts`). With only `BERRY_AGENT_RUNTIME_URL` set, it goes over HTTP to the same image instead.
 4. The runtime streams `LifecycleEvent`s back (`task.started|message|usage|completed|failed`). `src/runs/ledger.ts` is the only writer of run state.
-5. The Strands loop runs inside the runtime image, built from `server-ts/sandbox/agentcore/Dockerfile` using the sources in `src/agents/runtime/`. Models are Bedrock inference profiles (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`), not bare model ids.
+5. The Strands loop runs inside the runtime image, built from `server-ts/sandbox/agentcore/Dockerfile` using the sources in `src/agents/runtime/`. By default it calls Bedrock, and models are Bedrock inference profiles (for example `us.anthropic.claude-haiku-4-5-20251001-v1:0`), not bare model ids. With `BERRY_MODEL_PROVIDER=kilo` it calls the Kilo AI gateway instead (ADR-0017, below), and models are gateway ids such as `kilo-auto/efficient`.
 6. The agent acts on Berry only through `/api/v1/agent-tools/*` with a task-scoped token, never through the database.
 7. Single model calls (planner, triage, review gate, chat, editor) are `kind: 'completion'` tasks.
 8. `runtimeSessionId = "berry-" + sha256(agentId:issueId)`. The envelope always carries a transcript rebuilt from `run_events`, so cold restores work.
@@ -69,7 +69,8 @@ To run DB-backed tests, create a schema-only copy of the dev database and point 
 - Sign-in is Better Auth at `/api/auth/*` with GitHub only, through a separate OAuth App.
 - `/v1` is the public API for PATs and plugin tokens, backed by `src/public-api/` and `packages/plugin-sdk`.
 - Artifacts go to S3 via `src/storage/`. The default is AWS S3; `S3_ENDPOINT` can point at any S3-compatible store.
-- `GET /api/v1/config` must report only capabilities the process actually has. For example, `agentExecution` is true only when an agent runtime target is configured (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) — not merely because a model credential exists.
+- `GET /api/v1/config` must report only capabilities the process actually has. For example, `agentExecution` is true only when an agent runtime target is configured (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) — not merely because a model credential exists. `modelGateway` is true only when the Kilo gateway is configured.
+- Models (ADR-0017): `BERRY_MODEL_PROVIDER=bedrock` (default) calls Bedrock directly, on the agent's model or `BERRY_AGENT_DEFAULT_MODEL`, with no tiers. `kilo` goes through the Kilo AI gateway and needs `BERRY_KILO_API_KEY` on both the server and the runtime (`deploy.sh` passes it). An agent then runs on a tier (BerryMax/Mid/Low paid, BerryFree, BerryAuto) unless it pins a gateway model; `src/agents/kilo/` refills the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so never hard-code a tier's models. Paid calls must be served by one of the deployment's own provider keys added to Kilo (BYOK; Berry uses its Bedrock key) or they are refused; cost is only what Kilo reports; `src/usage/gateway-fees.ts` reconciles hourly. The server only reads Kilo (model list, leaderboard, account) and never calls a model. `BERRY_BEDROCK_*` stays in use for Polly and Nova Reel.
 - Every workspace gets an organization: the Orchestrator plus 18 role agents (`src/organization/`), each with a contract, an autonomy level (1–5) that ceilings its tools, delegation/escalation rules and required reviewers. No autonomy level includes a merge tool, and `set_status` never allows `done` or `cancelled` — release is always a human decision.
 
 **Migrations:** `server-ts/migrations/` are forward-only and SHA-256 checksummed by `src/migrate`. Never edit an applied migration; add a new numbered one.
@@ -86,14 +87,13 @@ The request path is `app/[orgId]/…` route → `components/` → `lib/<domain>.
 
 ## Stale docs to be aware of
 
-Code comments, `.env.example` and some historical records still describe the older design:
+Code comments and some historical records still describe the older design:
 - Docker Compose was removed. Code comments that mention "Compose" (for example in `src/config/config.ts` and `src/config/config.test.ts`) describe how env values used to arrive.
-- `.env.example` still lists variables nothing reads: `BERRY_OPENROUTER_API_KEY`, `BERRY_INTERNAL_TOKEN` and `BERRY_API_PORT`.
 - `BERRY_RUNTIME_DRIVER` is parsed in `src/config/config.ts`, but the Docker execution driver is not wired: `src/execution/factory.ts` is imported nowhere, and `src/index.ts` picks a runtime target only from the AgentCore ARN or `BERRY_AGENT_RUNTIME_URL` (see `server-ts/sandbox/docker/README.md`).
 - The dated plans and specs in `docs/superpowers/`, `CHANGELOG.md` and the Context/Decision/Consequences bodies of ADRs are history. Each ADR's Status line and "Current state" section say what holds today.
-- Squads/Crew, the Google ADK runtime and OpenRouter are gone; do not re-add them.
+- Squads/Crew, the Google ADK runtime and OpenRouter are gone; do not re-add them. The one model gateway allowed is Kilo, under ADR-0017.
 
-When a doc conflicts with ADR-0014, `AGENTS.md`, `server-ts/SCOPE.md` or `src/index.ts`, trust the latter.
+When a doc conflicts with ADR-0014, ADR-0017, `AGENTS.md`, `server-ts/SCOPE.md` or `src/index.ts`, trust the latter.
 
 ## Commits
 

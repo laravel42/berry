@@ -45,6 +45,7 @@ Berry runs on the host; there is no container stack in this repository.
 | PostgreSQL 16 | Berry's durable product state, reached through `DATABASE_URL` |
 | AWS S3 (or an S3-compatible store) | Artifact storage, through the `S3_*` variables |
 | AWS Bedrock AgentCore Runtime | Where agents run ([ADR-0014](docs/adr/0014-agentcore-runtime-control-plane.md)) |
+| Kilo AI gateway (optional) | Model calls in Berry's model tiers instead of straight to Bedrock ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)) |
 
 Provider keys and object-store credentials are server-side only, never under a
 `NEXT_PUBLIC_*` name.
@@ -101,10 +102,11 @@ Berry queues a task (from an assignment, a mention, chat, an autopilot, a quick 
 agent builder, or a completion request such as the planner's calls), a dispatcher claims it under a lease, and the task is sent as a
 `TaskEnvelope` to an agent runtime — either an AWS Bedrock AgentCore Runtime, or the same
 runtime image reached over plain HTTP. Inside that runtime, a Strands Agents SDK loop
-calls Bedrock models and streams lifecycle events (`task.started`, `task.message`,
-`task.usage`, `task.completed`, `task.failed`) back to Berry, which is the only writer of
-run state. The agent acts on Berry exclusively through `/api/v1/agent-tools/*` with a
-short-lived, task-scoped token — never through the database directly.
+calls the model — Amazon Bedrock directly by default, or the Kilo AI gateway — and
+streams lifecycle events (`task.started`, `task.message`, `task.usage`, `task.completed`,
+`task.failed`) back to Berry, which is the only writer of run state. The agent acts on
+Berry exclusively through `/api/v1/agent-tools/*` with a short-lived, task-scoped token —
+never through the database directly.
 
 To run agents yourself, you need:
 
@@ -119,6 +121,20 @@ To run agents yourself, you need:
   `BERRY_PUBLIC_URL`), which AWS must be able to reach — a tunnel when developing locally.
 - `S3_BUCKET` so a run's files have somewhere to land, and `INTEGRATION_ENCRYPTION_KEY`
   if the run needs GitHub or plugin credentials.
+
+By default the runtime calls Bedrock itself, on the agent's model or
+`BERRY_AGENT_DEFAULT_MODEL` (a Bedrock inference profile). To go through the Kilo AI
+gateway instead ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)), set
+`BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` on both the server and the runtime
+(`deploy.sh` passes them to AgentCore). Agents then run on a Berry tier rather than a
+fixed model: BerryMax, BerryMid and BerryLow (paid), BerryFree, and BerryAuto (Kilo's
+own routing, kept as a comparison). Each role has a default tier, and an agent can be
+moved to another tier on its page. Berry refills the paid tiers hourly from
+Terminal-Bench ratings and Kilo's prices, and the free tier from Kilo's usage
+leaderboard, so which models a tier holds changes over time. Paid models must be served
+by your own provider key added to the Kilo account, such as your Bedrock key — a paid call Kilo would bill to its
+own credits is refused — and a run's cost is exactly what Kilo reports for it. The
+`BERRY_BEDROCK_*` settings stay in use for speech and video either way.
 
 Without a runtime target, `agentExecution` reports `false` in `GET /api/v1/config` and
 the dispatcher, scheduler and review gate simply do not start — the rest of Berry works
