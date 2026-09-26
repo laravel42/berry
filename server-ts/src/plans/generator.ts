@@ -254,7 +254,12 @@ export interface PlanGeneratorOptions {
    maxCriticRounds?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 120_000;
+/**
+ * One planner, repair or critic call's budget. A plan is the longest single
+ * answer Berry asks a model for — measured at ~14k output tokens on a
+ * verbose model, past the two minutes other completions get.
+ */
+const DEFAULT_TIMEOUT_MS = 300_000;
 
 export class PlanGenerator {
    readonly #sql: Sql;
@@ -335,7 +340,7 @@ export class PlanGenerator {
       let { plan, problems } = readPlan(first.json);
       let validation = validatePlan(plan, { seed: problems });
       stages.push(
-         stageOf('generate', 'planner', planner, first, validation, { issues: plan.issues.length })
+         stageOf('generate', 'planner', first.served, first, validation, { issues: plan.issues.length })
       );
       input.onStage?.('validate');
 
@@ -371,8 +376,8 @@ export class PlanGenerator {
                      validation,
                      critique: reviewed.critique,
                      usage,
-                     model: planner.model,
-                     provider: planner.provider,
+                     model: first.served.model,
+                     provider: first.served.provider,
                      stages,
                      exhausted: false,
                   };
@@ -416,8 +421,8 @@ export class PlanGenerator {
                validation,
                critique,
                usage,
-               model: planner.model,
-               provider: planner.provider,
+               model: first.served.model,
+               provider: first.served.provider,
                stages,
                exhausted: false,
             };
@@ -429,8 +434,8 @@ export class PlanGenerator {
          validation,
          critique: null,
          usage,
-         model: planner.model,
-         provider: planner.provider,
+         model: first.served.model,
+         provider: first.served.provider,
          stages,
          // The last document is kept either way: a plan with named errors is
          // something a person can fix, and throwing it away would leave them
@@ -462,7 +467,7 @@ export class PlanGenerator {
          plan: repaired,
          validation,
          result,
-         record: stageOf('repair', 'repair', role, result, validation, {
+         record: stageOf('repair', 'repair', result.served, result, validation, {
             fixing: problems.length,
          }),
       };
@@ -487,8 +492,8 @@ export class PlanGenerator {
          record: {
             stage: 'critic' as const,
             role: 'critic' as const,
-            provider: role.provider,
-            model: role.model,
+            provider: result.served.provider,
+            model: result.served.model,
             inputTokens: result.inputTokens,
             outputTokens: result.outputTokens,
             durationMs: result.durationMs,
@@ -518,6 +523,7 @@ export class PlanGenerator {
             system: input.system,
             user: input.user,
             schema: input.shape,
+            timeoutMs: this.#timeoutMs,
             ...(input.signal ? { signal: input.signal } : {}),
          })
          .catch((cause: unknown) => {
@@ -535,6 +541,7 @@ export class PlanGenerator {
          inputTokens: result.inputTokens,
          outputTokens: result.outputTokens,
          durationMs: result.durationMs,
+         served: servedBy(input.model, result.model),
       };
    }
 }
@@ -580,6 +587,18 @@ settled fact and plan accordingly. Do not raise them again as assumptions, and
 do not block on them:
 
 ${answered}`;
+}
+
+/**
+ * Who answered a call: the model its usage recorded, else the one asked for.
+ * A gateway id (`vendor/model`) is the Kilo gateway's; anything else Bedrock's.
+ */
+function servedBy(
+   asked: { provider: string; model: string },
+   served: string | null | undefined
+): { provider: string; model: string } {
+   if (!served) return asked;
+   return { provider: served.includes('/') ? 'kilo' : 'bedrock', model: served };
 }
 
 function stageOf(

@@ -21,11 +21,11 @@ const NO_ROLES = (() => Promise.resolve([])) as unknown as Sql;
 
 /** Answers each model call in order, and records what it was asked. */
 function scripted(answers: unknown[]) {
-   const prompts: Array<{ system: string; user: string }> = [];
+   const prompts: Array<{ system: string; user: string; timeoutMs: number | undefined }> = [];
    let index = 0;
    const completion = {
-      async structured(input: { system: string; user: string }) {
-         prompts.push({ system: input.system, user: input.user });
+      async structured(input: { system: string; user: string; timeoutMs?: number }) {
+         prompts.push({ system: input.system, user: input.user, timeoutMs: input.timeoutMs });
          const value = answers[index++] ?? {};
          return { value, text: JSON.stringify(value), inputTokens: 10, outputTokens: 20, durationMs: 1 };
       },
@@ -68,6 +68,34 @@ test('a good plan goes straight to the critic', async () => {
       ['generate', 'critic']
    );
    assert.equal(script.calls(), 2);
+});
+
+test('every call gets the planner budget: five minutes unless configured', async () => {
+   const standard = generator([GOOD, ACCEPT]);
+   await standard.planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+   assert.deepEqual(standard.script.prompts.map((prompt) => prompt.timeoutMs), [300_000, 300_000]);
+   const configured = generator([GOOD, ACCEPT], { timeoutMs: 30_000 });
+   await configured.planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+   assert.deepEqual(configured.script.prompts.map((prompt) => prompt.timeoutMs), [30_000, 30_000]);
+});
+
+test('the plan records the model that answered, not the one asked for', async () => {
+   const answers = [GOOD, ACCEPT];
+   let index = 0;
+   const completion = {
+      async structured() {
+         const value = answers[index++] ?? {};
+         return { value, text: '', inputTokens: 1, outputTokens: 1, durationMs: 1, model: 'anthropic/claude-sonnet-5' };
+      },
+   } as unknown as Pick<RuntimeCompletion, 'structured'>;
+   const planner = new PlanGenerator({ sql: NO_ROLES, defaultModel: 'us.anthropic.claude-haiku', completion });
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+   assert.deepEqual([result.provider, result.model], ['kilo', 'anthropic/claude-sonnet-5']);
+   assert.ok(result.stages.every((stage) => stage.model === 'anthropic/claude-sonnet-5'));
+
+   // Nothing reported: the model asked for.
+   const { planner: plain } = generator([GOOD, ACCEPT]);
+   assert.equal((await plain.generate({ workspaceId: 'w', prompt: 'ship it' })).model, 'test/model');
 });
 
 test('a broken plan is sent back with its errors, and fixed', async () => {

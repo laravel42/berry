@@ -27,6 +27,12 @@ export interface CompletionResult<T> {
    inputTokens: number;
    outputTokens: number;
    durationMs: number;
+   /**
+    * The model that served the call, as its usage recorded it: under a model
+    * gateway the tier's choice, or the fallback, rather than the one asked for.
+    * Null or absent when no usage was recorded.
+    */
+   model?: string | null;
 }
 
 export class CompletionFailed extends Error {
@@ -136,12 +142,18 @@ export async function runCompletionTask(
             if (!parsed.success) throw new CompletionInvalid('the model did not answer in the shape it was asked for', text);
             value = parsed.data;
          }
+         // The last usage recorded is the model that answered: after a
+         // fallback, the fallback.
+         const [usage] = await deps.sql`
+            SELECT model FROM task_usage WHERE run_id = ${runId}
+             ORDER BY occurred_at DESC, id DESC LIMIT 1`;
          return {
             value,
             text,
             inputTokens: Number(row!.input_tokens),
             outputTokens: Number(row!.output_tokens),
             durationMs: Date.now() - started,
+            model: (usage?.model as string | undefined) ?? null,
          };
       }
       if (status === 'failed') {
