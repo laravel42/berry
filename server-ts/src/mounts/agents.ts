@@ -229,16 +229,6 @@ export function agentMounts(options: AgentOptions): Mount[] {
       return json({ nodes: await agents.roster(workspaceId, days) });
    });
 
-   /** The workspace's guide agent, found by role. Before `/:agentId`, like the rest. */
-   route.get('/guide', async (context) => {
-      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
-      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
-         .catch(rethrowWorkspace);
-      const guide = await agents.guide(workspaceId);
-      if (!guide) throw ApiError.notFound('Agent');
-      return json(serializeAgent(guide));
-   });
-
    /**
     * The model tiers as the leaderboards rank them today (ADR-0017): what
     * each tier would choose between, the numbers that placed each model, and

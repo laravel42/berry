@@ -1,0 +1,2 @@
+-- Not restored: the Guide's trigger and functions are migration 091's (and
+-- 184's) to recreate, and the archived Guides can be restored like any agent.

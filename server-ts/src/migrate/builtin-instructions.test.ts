@@ -73,9 +73,9 @@ describe('the built-in agents’ instructions', { skip: url ? false : 'BERRY_TES
       await closeDatabase(sql);
    });
 
-   test('a new workspace’s Orchestrator and Guide are told to say when they have no tool', async () => {
+   test('a new workspace’s Orchestrator is told to say when it has no tool', async () => {
       const workspaceId = await createWorkspace('honest-new');
-      for (const name of ['Orchestrator', 'Guide']) {
+      for (const name of ['Orchestrator']) {
          const instructions = await instructionsOf(workspaceId, name);
          assert.match(instructions, /no tool for what someone asks/, name);
          assert.match(instructions, /never describe the action as done/, name);
@@ -86,7 +86,7 @@ describe('the built-in agents’ instructions', { skip: url ? false : 'BERRY_TES
       const workspaceId = await createWorkspace('honest-again');
       await sql.unsafe(migration);
       await sql.unsafe(migration);
-      for (const name of ['Orchestrator', 'Guide']) {
+      for (const name of ['Orchestrator']) {
          const instructions = await instructionsOf(workspaceId, name);
          assert.equal(instructions.split('never describe the action as done').length - 1, 1, name);
       }
@@ -96,9 +96,9 @@ describe('the built-in agents’ instructions', { skip: url ? false : 'BERRY_TES
       const workspaceId = await createWorkspace('honest-edited');
       await sql`
          UPDATE agents SET instructions = 'Mine, and only mine.'
-          WHERE workspace_id = ${workspaceId} AND name IN ('Orchestrator', 'Guide')`;
+          WHERE workspace_id = ${workspaceId} AND name IN ('Orchestrator')`;
       await sql.unsafe(migration);
-      for (const name of ['Orchestrator', 'Guide']) {
+      for (const name of ['Orchestrator']) {
          assert.equal(await instructionsOf(workspaceId, name), 'Mine, and only mine.', name);
       }
    });

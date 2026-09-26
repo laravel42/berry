@@ -57,12 +57,10 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       assert.ok(roles.every((row) => row.contract_version === CATALOG_VERSION));
    });
 
-   test('legacy fleet and media agents are archived; the Guide is untouched', async () => {
+   test('legacy fleet and media agents are archived', async () => {
       const all = await rows();
       assert.ok(all.find((row) => row.name === 'us-nova-micro')?.archived_at);
       assert.ok(all.find((row) => row.name === 'text-to-speech')?.archived_at);
-      const guide = all.find((row) => row.name === 'Guide');
-      assert.ok(guide && guide.archived_at === null && guide.role_key === null);
    });
 
    test('running it again changes nothing', async () => {

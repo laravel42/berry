@@ -586,15 +586,6 @@ export class AgentRepository {
       return this.get(id, workspaceId);
    }
 
-   /** The workspace's live guide agent, if it has one. */
-   async guide(workspaceId: string): Promise<Agent | null> {
-      const [row] = await this.sql`
-         SELECT ${this.sql.unsafe(AGENT_COLUMNS)} FROM agents AS agent
-          WHERE agent.workspace_id = ${workspaceId} AND agent.system_role = 'guide'
-            AND agent.archived_at IS NULL`;
-      return row ? toAgent(row) : null;
-   }
-
    /**
     * Writes a person's edit to a role agent's contract.
     *
