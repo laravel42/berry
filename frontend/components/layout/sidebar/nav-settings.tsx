@@ -11,7 +11,6 @@ import {
    Puzzle,
    Server,
    Settings,
-   Sparkles,
    Tag,
    Users,
    UsersRound,
@@ -37,7 +36,6 @@ export type SettingsNavKey =
    | 'connectedAccounts'
    | 'general'
    | 'members'
-   | 'agents'
    | 'runtimes'
    | 'labels'
    | 'properties'
@@ -88,7 +86,6 @@ export const settingsNav: SettingsNavGroup[] = [
       items: [
          { labelKey: 'general', url: '/settings/general', icon: Building2 },
          { labelKey: 'members', url: '/settings/members', icon: UsersRound },
-         { labelKey: 'agents', url: '/settings/ai', icon: Sparkles },
          { labelKey: 'runtimes', url: '/settings/runtimes', icon: Server },
          { labelKey: 'labels', url: '/settings/issue-labels', icon: Tag },
          { labelKey: 'properties', url: '/settings/issue-properties', icon: ListChecks },
