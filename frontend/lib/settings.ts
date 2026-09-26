@@ -106,14 +106,15 @@ export function describeDevice(userAgent: string | null): string {
             : /Firefox\//.test(userAgent)
               ? 'Firefox'
               : 'A browser';
-   const platform = /Mac OS X|Macintosh/.test(userAgent)
-      ? 'macOS'
-      : /Windows/.test(userAgent)
-        ? 'Windows'
-        : /Android/.test(userAgent)
-          ? 'Android'
-          : /iPhone|iPad/.test(userAgent)
-            ? 'iOS'
+   // iPhone and iPad user agents say "like Mac OS X", so they are tested first.
+   const platform = /iPhone|iPad/.test(userAgent)
+      ? 'iOS'
+      : /Mac OS X|Macintosh/.test(userAgent)
+        ? 'macOS'
+        : /Windows/.test(userAgent)
+          ? 'Windows'
+          : /Android/.test(userAgent)
+            ? 'Android'
             : /Linux/.test(userAgent)
               ? 'Linux'
               : null;

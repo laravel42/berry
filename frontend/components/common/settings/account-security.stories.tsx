@@ -23,9 +23,7 @@ export const Sessions: Story = {
       // Devices are named from their user agent, not shown raw.
       await expect(await canvas.findByText('Chrome on macOS')).toBeVisible();
       await expect(canvas.getByText('Firefox on Linux')).toBeVisible();
-      // KNOWN BUG (lib/settings.ts describeDevice): an iPhone user agent says
-      // "like Mac OS X", which is tested before iPhone/iPad, so it reads as
-      // macOS. Left failing so the bug stays visible.
+      // An iPhone user agent says "like Mac OS X"; it still reads as iOS.
       await expect(canvas.getByText('Safari on iOS')).toBeVisible();
       // Signing a device out removes it optimistically once DELETE succeeds.
       const [first] = canvas.getAllByRole('button', { name: 'Sign out' });
