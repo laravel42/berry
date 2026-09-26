@@ -3,11 +3,10 @@ import { withinTx } from '../db/pool.ts';
 import { installStarterLabels } from '../core/starter-labels.ts';
 import { ensureOrganizationAgents } from '../organization/provision.ts';
 import {
-   AgentModelName,
-   AgentModelProvider,
    BoardID,
    BoardName,
    BoardSlug,
+   LegacySeedModel,
    UserEmail,
    UserID,
    UserName,
@@ -59,33 +58,29 @@ export async function apply(
       if (options.demoWork ?? true) {
          await upsertProjects(tx, now);
       }
-      await assignAgentModels(tx, now);
+      await clearSeededModels(tx, now);
    });
 }
 
 /**
- * Gives the workspace's agents a model to run on.
+ * Seeded agents run on Berry tiers (ADR-0017), never on a pinned model: a role
+ * on its contract's tier, any other agent on BerryLow, until someone gives it
+ * a tier of its own. An agent with no model can run: the tier picks one
+ * through the gateway, and on a deployment that calls Bedrock directly the
+ * server's default model does.
  *
- * Berry does not create agents here — a trigger inserts the protected
- * Orchestrator when the workspace appears, and it inserts it with no model. The
- * effect in a fresh environment is an agent that exists, can be assigned an
- * issue, and then cannot run, because the picker shows no model and nothing
- * chose one. This closes that gap for local development.
- *
- * Only rows with no model are touched. An agent someone deliberately pointed at
- * a different model keeps it: a seed that runs on every boot must not quietly
- * undo a choice a developer made, and `COALESCE` in a single statement would do
- * exactly that on the next run.
+ * Earlier seeds pinned every agent here to a Bedrock Claude Haiku profile so
+ * that it could run. That exact pin is taken off again, so a workspace seeded
+ * before holds no model nobody chose; a model a developer picked is anything
+ * else, and is kept.
  */
-async function assignAgentModels(tx: Sql, now: string): Promise<void> {
+async function clearSeededModels(tx: Sql, now: string): Promise<void> {
    await tx`
       UPDATE agents
-         SET model_provider = ${AgentModelProvider},
-             model_name = ${AgentModelName},
-             updated_at = ${now}
+         SET model_provider = NULL, model_name = NULL, updated_at = ${now}
        WHERE workspace_id = ${WorkspaceID}
-         AND archived_at IS NULL
-         AND (model_provider IS NULL OR model_name IS NULL)
+         AND model_provider = ${LegacySeedModel.provider}
+         AND model_name = ${LegacySeedModel.name}
    `;
 }
 

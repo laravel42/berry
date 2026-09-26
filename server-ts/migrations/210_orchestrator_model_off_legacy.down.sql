@@ -1,0 +1,3 @@
+-- The model names cleared by the up migration are not restored: they were the
+-- old catalogue's defaults, not anyone's choice, and nothing records which
+-- agents had them.
