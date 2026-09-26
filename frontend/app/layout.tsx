@@ -1,18 +1,22 @@
 import type { Metadata } from 'next';
-import { DM_Serif_Display, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
 
-const dmSerifDisplay = DM_Serif_Display({
+// Shipped with the app. next/font/google fetches at compile time, and Turbopack
+// fails once Google's font URLs carry their own query string.
+const dmSerifDisplay = localFont({
+   src: './fonts/dm-serif-display-400-latin.woff2',
    variable: '--font-dm-serif',
-   subsets: ['latin'],
    weight: '400',
+   display: 'swap',
 });
 
-const jetBrainsMono = JetBrains_Mono({
+const jetBrainsMono = localFont({
+   src: './fonts/jetbrains-mono-variable.ttf',
    variable: '--font-jetbrains-mono',
-   subsets: ['latin'],
-   weight: ['300', '400', '500', '600'],
+   weight: '100 800',
+   display: 'swap',
 });
 
 export const metadata: Metadata = {
