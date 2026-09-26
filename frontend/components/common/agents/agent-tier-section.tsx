@@ -64,6 +64,22 @@ function percent(completion: number): string {
    return `${Math.round(completion * 100)}%`;
 }
 
+/** A model's name without Kilo's price marker ("($$$$)"): the table has price columns. */
+function modelName(name: string): string {
+   return name.replace(/\s*\(\$+\)\s*$/, '');
+}
+
+/**
+ * A model's rating cell. A free model's rating is borrowed from its paid
+ * twin and converted far outside the range the conversion was fitted on, so
+ * one that rounds to 0% says nothing and is shown as no rating.
+ */
+function ratingOf(tier: Tier, completion: number | null): string {
+   if (completion === null) return '—';
+   if (tier === 'berry_free' && Math.round(completion * 100) === 0) return '—';
+   return percent(completion);
+}
+
 /**
  * Which Berry tier an agent runs on (ADR-0017), for a deployment whose models
  * go through the gateway. Three outcomes to choose from, the role's own marked
@@ -107,7 +123,7 @@ export function AgentTierSection({
    const nameOf = (id: string): string => {
       for (const entry of data?.tiers ?? []) {
          const found = entry.models.find((candidate) => candidate.id === id);
-         if (found) return found.name;
+         if (found) return modelName(found.name);
       }
       return id;
    };
@@ -165,11 +181,11 @@ export function AgentTierSection({
                               {`${shares[index] ?? 0}%`}
                            </span>
                            <span className="min-w-0 truncate" title={entry.id}>
-                              {entry.name}
+                              {modelName(entry.name)}
                            </span>
                            <span className="text-right">
                               <span className="sr-only">{t('columns.rating')} </span>
-                              {entry.completion != null ? percent(entry.completion) : '—'}
+                              {ratingOf(name, entry.completion)}
                            </span>
                            <span className="text-right">
                               <span className="sr-only">{t('columns.priceIn')} </span>
