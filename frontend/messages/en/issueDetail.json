@@ -172,6 +172,7 @@
    },
    "usage": {
       "title": "Usage",
+      "model": "{count, plural, one {Model} other {Models}}",
       "cost": "Cost",
       "tokens": "Tokens",
       "runs": "Runs",
