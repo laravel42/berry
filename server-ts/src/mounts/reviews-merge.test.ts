@@ -91,7 +91,12 @@ function app(
       })
    );
    const server = createApp(registry);
-   return { calls, admitted, merge: (runId = RUN) => server.request(`/api/v1/reviews/${runId}/merge`, { method: 'POST' }) };
+   return {
+      calls,
+      admitted,
+      merge: (runId = RUN) => server.request(`/api/v1/reviews/${runId}/merge`, { method: 'POST' }),
+      state: (runId = RUN) => server.request(`/api/v1/reviews/${runId}/pull-request`),
+   };
 }
 
 /** Lets work the route started but did not wait for run to its end. */
@@ -199,4 +204,24 @@ test('someone who may only read the task cannot merge', async () => {
 test('a run without a pull request has nothing to merge', async () => {
    const { merge } = app({});
    assert.equal((await merge('00000000-0000-4000-8000-000000000000')).status, 404);
+});
+
+test('the pull request\'s standing reads a conflict before anyone approves, and merges nothing', async () => {
+   const { calls, state } = app({ conflicts: true });
+   const response = await state();
+   assert.equal(response.status, 200);
+   assert.deepEqual(await response.json(), { number: 13, state: 'open', conflicts: true, base: 'main' });
+   assert.deepEqual(calls, ['authorize:product.read']);
+});
+
+test('a pull request merged on GitHub reads as merged, and never as conflicting', async () => {
+   const { state } = app({ merged: true, open: false, conflicts: true });
+   assert.deepEqual(await (await state()).json(), { number: 13, state: 'merged', conflicts: false, base: 'main' });
+   const closed = app({ open: false });
+   assert.equal(((await (await closed.state()).json()) as { state: string }).state, 'closed');
+});
+
+test('a run without a pull request has no standing to read', async () => {
+   const { state } = app({});
+   assert.equal((await state('00000000-0000-4000-8000-000000000000')).status, 404);
 });

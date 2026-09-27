@@ -174,6 +174,30 @@ describe(
          assert.equal(completed.length, 1);
       });
 
+      test('a run’s pull request merged on GitHub closes its task waiting in review, and nothing else', async () => {
+         const w = await tenant();
+         const [waiting, reworked] = [w.issues[0]!, w.issues[1]!];
+         await sql`UPDATE issues SET status = 'in_review' WHERE id = ${waiting}`;
+         await sql`UPDATE issues SET status = 'in_progress' WHERE id = ${reworked}`;
+         const branches = ['forge/prs-1-merged', 'forge/prs-2-reworked'];
+         for (const [index, issueId] of [waiting, reworked].entries()) {
+            await sql`
+               INSERT INTO runs (id, issue_id, board_id, agent_id, requested_by, status, completed_at, branch)
+               VALUES (${randomUUID()}, ${issueId}, ${w.boardId}, ${w.agentId}, ${userId}, 'succeeded', now(), ${branches[index]!})`;
+         }
+         for (const [index, issueId] of [waiting, reworked].entries()) {
+            const pr = pullRequest({ headRef: branches[index]!, state: 'merged', mergedAt: '2026-09-10T12:00:00Z' });
+            const { id } = await store.upsertPullRequest(w.workspaceId, pr);
+            await store.linkIssues(w.workspaceId, id, pr, { autoLink: false });
+            const closed = await store.closeLinkedIssues(w.workspaceId, id, userId);
+            assert.deepEqual(closed, issueId === waiting ? [waiting] : []);
+         }
+         const rows = await sql`SELECT id, status::text AS status FROM issues WHERE id IN (${waiting}, ${reworked})`;
+         const status = new Map(rows.map((row) => [row.id as string, row.status as string]));
+         assert.equal(status.get(waiting), 'done');
+         assert.equal(status.get(reworked), 'in_progress');
+      });
+
       test('an issue’s pull requests carry their checks, and a foreign issue reads as absent', async () => {
          const w1 = await tenant();
          const w2 = await tenant();

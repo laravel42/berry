@@ -23,7 +23,19 @@ export interface ReviewItem {
    id: string;
    issue: { id: string; identifier: string; title: string; status: string; autoGate: boolean };
    author: { id: string; name: string } | null;
-   run: { id: string; summary: string | null; completedAt: string | null; branch: string | null };
+   run: {
+      id: string;
+      summary: string | null;
+      completedAt: string | null;
+      branch: string | null;
+      /**
+       * The run's report is its deliverable: it had no repository it could
+       * change, or its author's job is to verify (quality and security). Such
+       * a run that changed nothing finished its work — a QA pass that found no
+       * defects — rather than stopping without delivering.
+       */
+      reports: boolean;
+   };
    repository: string | null;
    pullRequest: { number: number; url: string | null; branch: string | null; headCommit: string | null } | null;
    delivery: {
@@ -45,6 +57,13 @@ export interface ReviewItem {
       complete: boolean;
       results: Array<{ command: string; exitCode: number | null; passed: boolean }>;
    } | null;
+   /**
+    * The commands the agent itself ran in the delivering run, in order, with
+    * how each ended — what its summary's claims can be read against. A test
+    * the summary says passed and that never ran is not in this list. The
+    * newest are kept when there are more than a reviewer would read.
+    */
+   commands: Array<{ command: string; exitCode: number | null }>;
    verdicts: Array<{
       id: string;
       reviewer: string;
@@ -71,6 +90,8 @@ export interface PullRequestTarget {
 }
 
 const DEFAULT_LIMIT = 50;
+/** The agent's commands a review lists; a run that ran more is summarised by its latest. */
+const MAX_COMMANDS = 60;
 
 export class ReviewQueue {
    readonly #sql: Sql;
@@ -94,8 +115,10 @@ export class ReviewQueue {
                 berry_issue_identifier(board.workspace_id, issue.number) AS identifier,
                 run.id AS run_id, run.summary, run.completed_at, run.pull_request_number, run.branch, run.head_commit,
                 run.agent_id, agent.name AS agent_name,
+                (snapshot.read_only IS DISTINCT FROM false
+                   OR agent.role_contract->>'department' = 'quality-security') AS reports,
                 project.github_repo_full_name AS repository,
-                delivered.payload AS delivered, verified.payload AS verified
+                delivered.payload AS delivered, verified.payload AS verified, commands.list AS commands
            FROM issues AS issue
            JOIN boards AS board ON board.id = issue.board_id
            JOIN LATERAL (
@@ -115,7 +138,26 @@ export class ReviewQueue {
                WHERE e.run_id = run.id AND e.event_type = 'run.verified'
                ORDER BY e.occurred_at DESC LIMIT 1
            ) AS verified ON true
+           LEFT JOIN LATERAL (
+              SELECT COALESCE(jsonb_agg(jsonb_build_object('command', ran.command, 'exitCode', ran.exit_code)
+                                        ORDER BY ran.sequence), '[]'::jsonb) AS list
+                FROM (
+                   SELECT started.sequence, started.payload->>'command' AS command,
+                          (ended.payload->>'exitCode')::int AS exit_code
+                     FROM run_events AS started
+                     LEFT JOIN LATERAL (
+                        SELECT e.payload FROM run_events e
+                         WHERE e.run_id = run.id AND e.event_type = 'run.command.completed'
+                           AND e.payload->>'commandId' = started.payload->>'commandId'
+                         LIMIT 1
+                     ) AS ended ON true
+                    WHERE started.run_id = run.id AND started.event_type = 'run.command.started'
+                    ORDER BY started.sequence DESC
+                    LIMIT ${MAX_COMMANDS}
+                ) AS ran
+           ) AS commands ON true
            LEFT JOIN agents AS agent ON agent.id = run.agent_id
+           LEFT JOIN run_repository_snapshots AS snapshot ON snapshot.run_id = run.id
            LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
            LEFT JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE board.workspace_id = ${workspaceId}
@@ -192,6 +234,7 @@ export class ReviewQueue {
                summary: (row.summary as string | null) ?? null,
                completedAt: toRFC3339(row.completed_at as string | null),
                branch: (row.branch as string | null) ?? null,
+               reports: Boolean(row.reports),
             },
             repository: (row.repository as string | null) ?? null,
             pullRequest:
@@ -212,6 +255,7 @@ export class ReviewQueue {
                producedFiles: produced.get(row.run_id as string) ?? 0,
             },
             checks: (row.verified as ReviewItem['checks']) ?? null,
+            commands: (row.commands as ReviewItem['commands'] | null) ?? [],
             verdicts: verdicts.get(row.id as string) ?? [],
             updatedAt: toRFC3339(row.updated_at as string) ?? '',
          };

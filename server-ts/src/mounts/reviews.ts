@@ -245,6 +245,43 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
    });
 
    /**
+    * Where the pull request under review stands on GitHub now: still open,
+    * merged there by someone, or closed; and whether it conflicts with its base.
+    *
+    * Two tasks that ran in parallel on the same file both reach the gate, and
+    * the second can no longer merge once the first has. A reviewer should see
+    * that before Approve rather than learn it from a failed merge, and should
+    * see a pull request somebody already merged on GitHub for what it is.
+    * GitHub computes mergeability lazily, so `conflicts` is true only on its
+    * definite answer; an unknown one reads as no conflict, and Approve's merge
+    * attempt stays the final word.
+    */
+   route.get('/:runId/pull-request', async (context) => {
+      const runId = context.req.param('runId');
+      if (!UUID.test(runId)) throw ApiError.notFound('Run');
+      const target = await options.queue.pullRequestOf(runId);
+      if (!target) throw ApiError.notFound('Pull request');
+      await authorize(options, context.get('user').id, target.workspaceId);
+      if (!options.gitCredential) {
+         throw new ApiError(412, 'GITHUB_UNAVAILABLE', 'This deployment has no GitHub credential to read the pull request with.');
+      }
+      const { owner, name } = parseRepository(target.repository);
+      const client = clientFor(options, (await options.gitCredential(target.workspaceId)).password);
+      try {
+         const state = await client.pullRequestState(owner, name, target.number);
+         return json({
+            number: target.number,
+            state: state.merged ? 'merged' : state.open ? 'open' : 'closed',
+            conflicts: state.open && state.conflicts,
+            base: state.base,
+         });
+      } catch (error) {
+         if (error instanceof GitHubError) throw new ApiError(502, 'GITHUB_UNAVAILABLE', `GitHub could not report on #${target.number}: ${error.message}`);
+         throw error;
+      }
+   });
+
+   /**
     * Merges the pull request a run opened: the first half of Approve. Already
     * merged is success, so a retried Approve does not fail.
     *

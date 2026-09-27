@@ -202,6 +202,13 @@ export class PullRequestStore {
     * Moves the issues a merged pull request closes to done, and answers with
     * the ones it moved.
     *
+    * Two kinds of link close. One whose pull request said so (`Fixes ABC-7`).
+    * And the pull request a Berry run opened for a task that is waiting in
+    * review with no run working it: somebody merged it on GitHub rather than
+    * approving it here, and that merge is a person releasing the work — the
+    * task would otherwise sit at the gate over code already on main. A run's
+    * link on a task anywhere else (being reworked, sent back) closes nothing.
+    *
     * Through the issue repository, one legal step at a time, so the normal
     * `issue.updated` and `issue.completed` events fire and the state machine
     * is never bypassed. An issue that refuses a step (an approval gate, a
@@ -223,7 +230,12 @@ export class PullRequestStore {
            FROM github_pull_request_links AS link
            JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
            JOIN boards AS board ON board.id = issue.board_id AND board.workspace_id = ${workspaceId}
-          WHERE link.pull_request_id = ${pullRequestId} AND link.close_intent`;
+          WHERE link.pull_request_id = ${pullRequestId}
+            AND (link.close_intent
+                 OR (link.source = 'run' AND issue.status = 'in_review'
+                     AND NOT EXISTS (
+                        SELECT 1 FROM runs AS active
+                         WHERE active.issue_id = issue.id AND active.status IN ('queued', 'running'))))`;
       if (targets.length === 0) return [];
 
       const actor = actorId ?? (await this.#systemActor(workspaceId));
