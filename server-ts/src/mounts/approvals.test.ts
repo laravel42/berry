@@ -12,7 +12,7 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { createApp, type BerryApp } from '../http/app.ts';
 import { IdempotencyStore } from '../http/idempotency.ts';
 import { Registry } from '../http/registry.ts';
-import { ensureOrganizationAgents } from '../organization/provision.ts';
+import { provisionFullOrganization } from '../test-support/organization.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { cleanupFixture, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
 import { approvalMounts } from './approvals.ts';
@@ -36,7 +36,7 @@ describe('/api/v1/approvals releases work to agents', { skip: url ? false : 'BER
    before(async () => {
       sql = openDatabase({ url: url as string });
       fixture = await seedFixture(sql, 'approvals-dispatch');
-      await ensureOrganizationAgents(sql, fixture.workspaceId);
+      await provisionFullOrganization(sql, fixture.workspaceId);
       await sql`UPDATE users SET last_workspace_id = ${fixture.workspaceId} WHERE id = ${fixture.userId}`;
       token = await issueTestToken(sql, fixture.userId);
       issues = new IssueRepository(sql);

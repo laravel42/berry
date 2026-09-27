@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Queryable, Sql } from '../db/pool.ts';
 import { effectivePermissions } from './autonomy.ts';
-import { CATALOG, CATALOG_VERSION, catalogRole } from './catalog.ts';
+import { CATALOG, CATALOG_VERSION, catalogRole, isCoreRole } from './catalog.ts';
 import { hashContract, parseContract, type RoleContract } from './contract.ts';
 
 /** Thrown by {@link resetRole}: an unknown catalog role, or no live agent fills it here. */
@@ -16,7 +16,10 @@ export class RoleNotFound extends Error {
 /**
  * Makes a workspace's organization match the catalog, keyed on role_key.
  * Idempotent: a second call changes nothing. A contract a person edited is
- * never overwritten — it no longer hashes to what Berry last wrote.
+ * never overwritten — it no longer hashes to what Berry last wrote. Only core
+ * roles are inserted (ADR-0018); a specialist the workspace already has is
+ * kept and upgraded like any other role, and one it lacks waits for a person
+ * to add it ({@link addRole}).
  */
 
 const LEGACY_MEDIA = ['text-to-speech', 'text-to-video'];
@@ -57,7 +60,7 @@ export async function ensureOrganizationAgents(
          upgraded.push(contract.id);
          continue;
       }
-      if (removed.has(contract.id)) continue;
+      if (removed.has(contract.id) || !isCoreRole(contract.id)) continue;
       if (contract.id === 'orchestrator') {
          // The workspace trigger made it; adopt it rather than insert a second.
          const orchestrator = existing.find((row) => row.protected && !row.role_key);
@@ -168,6 +171,31 @@ export async function resetRole(q: Queryable, workspaceId: string, roleKey: stri
        WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NULL`;
    if (!row) throw new RoleNotFound();
    await writeContract(q, row.id, contract);
+}
+
+/**
+ * Gives a workspace one catalogue role, a specialist as a rule (ADR-0018):
+ * the agent it archived for that role comes back if there is one, so its
+ * history and edits come with it; otherwise the catalogue's contract is
+ * inserted. A role the workspace already has is left as it is.
+ */
+export async function addRole(q: Queryable, workspaceId: string, roleKey: string): Promise<{ agentId: string; added: boolean }> {
+   const contract = catalogRole(roleKey);
+   if (!contract || contract.id === 'orchestrator') throw new RoleNotFound();
+   const [live] = await q<Array<{ id: string }>>`
+      SELECT id FROM agents WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NULL`;
+   if (live) return { agentId: live.id, added: false };
+   const [archived] = await q<Array<{ id: string }>>`
+      UPDATE agents SET archived_at = NULL, updated_at = now()
+       WHERE id = (SELECT id FROM agents
+                    WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NOT NULL
+                    ORDER BY archived_at DESC LIMIT 1)
+      RETURNING id`;
+   if (archived) return { agentId: archived.id, added: true };
+   await insertRole(q, workspaceId, contract);
+   const [row] = await q<Array<{ id: string }>>`
+      SELECT id FROM agents WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NULL`;
+   return { agentId: row!.id, added: true };
 }
 
 export async function ensureOrganizationEverywhere(

@@ -11,9 +11,13 @@ import { unavailableSealer } from '../integrations/sealing.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { ensureOrganizationAgents } from './provision.ts';
+import { provisionFullOrganization } from '../test-support/organization.ts';
+import { CATALOG } from './catalog.ts';
 import { ensureDiscovery } from './discovery.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
+/** Every catalogue role but the Orchestrator carries a discovery block. */
+const DISCOVERY_ROLES = CATALOG.filter((role) => role.discovery !== null).length;
 
 describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
    let sql: Sql;
@@ -40,7 +44,7 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
       boardId = board!.id as string;
       issues = new IssueRepository(sql);
       autopilots = new AutopilotRepository({ sql, sealer: unavailableSealer('test') });
-      await ensureOrganizationAgents(sql, workspaceId);
+      await provisionFullOrganization(sql, workspaceId);
    });
 
    after(async () => {
@@ -64,10 +68,10 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
 
    test('every discovery role gets one active weekly autopilot with one enabled cron trigger', async () => {
       const result = await ensureDiscovery(sql, workspaceId, { autopilots, issues });
-      assert.equal(result.created.length, 18, 'every role but the Orchestrator carries a discovery block');
+      assert.equal(result.created.length, DISCOVERY_ROLES, 'every role but the Orchestrator carries a discovery block');
 
       const rows = await discoveryAutopilots();
-      assert.equal(rows.length, 18);
+      assert.equal(rows.length, DISCOVERY_ROLES);
       for (const row of rows) {
          assert.equal(row.status, 'active');
          assert.equal(row.quota_period, 'week');
@@ -84,7 +88,7 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
       const result = await ensureDiscovery(sql, workspaceId, { autopilots, issues });
       assert.deepEqual(result.created, []);
       const rows = await discoveryAutopilots();
-      assert.equal(rows.length, 18);
+      assert.equal(rows.length, DISCOVERY_ROLES);
    });
 
    test('discovery turned off for the workspace skips with DISCOVERY_OFF', async () => {
@@ -176,7 +180,7 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
          await sql`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (${raceWorkspaceId}, ${raceUserId}, 'owner')`;
          const [board] = await sql`SELECT id FROM boards WHERE workspace_id = ${raceWorkspaceId}`;
          raceBoardId = board!.id as string;
-         await ensureOrganizationAgents(sql, raceWorkspaceId);
+         await provisionFullOrganization(sql, raceWorkspaceId);
       });
 
       after(async () => {
@@ -195,20 +199,20 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
             ensureDiscovery(sql, raceWorkspaceId, { autopilots, issues }),
             ensureDiscovery(sql, raceWorkspaceId, { autopilots, issues }),
          ]);
-         assert.equal(first.created.length + second.created.length, 18, 'every role is accounted for exactly once between the two calls');
+         assert.equal(first.created.length + second.created.length, DISCOVERY_ROLES, 'every role is accounted for exactly once between the two calls');
 
          const rows = await sql<Array<{ id: string; discovery_role: string; issue_id: string | null }>>`
             SELECT id, discovery_role, issue_id FROM autopilots
              WHERE workspace_id = ${raceWorkspaceId} AND archived_at IS NULL AND discovery_role IS NOT NULL`;
-         assert.equal(rows.length, 18, 'exactly one live discovery autopilot per role');
-         assert.equal(new Set(rows.map((row) => row.discovery_role)).size, 18, 'no role is duplicated');
+         assert.equal(rows.length, DISCOVERY_ROLES, 'exactly one live discovery autopilot per role');
+         assert.equal(new Set(rows.map((row) => row.discovery_role)).size, DISCOVERY_ROLES, 'no role is duplicated');
          assert.ok(rows.every((row) => row.issue_id), 'every autopilot points at a task');
-         assert.equal(new Set(rows.map((row) => row.issue_id)).size, 18, 'no two autopilots share a task');
+         assert.equal(new Set(rows.map((row) => row.issue_id)).size, DISCOVERY_ROLES, 'no two autopilots share a task');
 
          const [tasks] = await sql<Array<{ n: number }>>`
             SELECT count(*)::int AS n FROM issues
              WHERE board_id = ${raceBoardId} AND title LIKE 'Discovery: %' AND deleted_at IS NULL`;
-         assert.equal(tasks?.n, 18, 'exactly one Discovery task per role, not one per call');
+         assert.equal(tasks?.n, DISCOVERY_ROLES, 'exactly one Discovery task per role, not one per call');
       });
 
       test('an orphaned autopilot (created but never marked) is adopted rather than duplicated', async () => {
@@ -229,7 +233,7 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
          await sql`INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES (${orphanWorkspaceId}, ${orphanUserId}, 'owner')`;
          const [board] = await sql`SELECT id FROM boards WHERE workspace_id = ${orphanWorkspaceId}`;
          const orphanBoardId = board!.id as string;
-         await ensureOrganizationAgents(sql, orphanWorkspaceId);
+         await provisionFullOrganization(sql, orphanWorkspaceId);
 
          try {
             const [agent] = await sql<Array<{ id: string; name: string }>>`

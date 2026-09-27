@@ -6,7 +6,7 @@ import { ApprovalRepository } from '../approvals/repository.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
-import { ensureOrganizationAgents } from './provision.ts';
+import { provisionFullOrganization } from '../test-support/organization.ts';
 import { acceptDecision, applyProposalDecision, fingerprintProposal, proposalSchema, type ProposalInput } from './proposals.ts';
 
 const valid: ProposalInput = {
@@ -66,7 +66,7 @@ describe('applyProposalDecision', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
          VALUES (${randomUUID()}, ${workspaceId}, 'Board', ${`p-${randomUUID().slice(0, 8)}`}, ${userId})
          RETURNING id`;
       boardId = board!.id as string;
-      await ensureOrganizationAgents(sql, workspaceId);
+      await provisionFullOrganization(sql, workspaceId);
    });
 
    after(async () => {

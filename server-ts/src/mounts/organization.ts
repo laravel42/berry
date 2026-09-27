@@ -10,7 +10,8 @@ import type { Mount } from '../http/registry.ts';
 import { CATALOG, WORKFLOWS, catalogRole } from '../organization/catalog.ts';
 import { hashContract, parseContract } from '../organization/contract.ts';
 import { DEPARTMENTS } from '../organization/contract.ts';
-import { resetRole, RoleNotFound } from '../organization/provision.ts';
+import { addRole, resetRole, RoleNotFound } from '../organization/provision.ts';
+import { bindRolePackSkills } from '../seed/deploy.ts';
 import { serializeAgent } from './agents.ts';
 import { currentWorkspace, resolveScoped } from './shared.ts';
 
@@ -172,10 +173,21 @@ export function organizationMounts(options: {
             .map((target) => ({ from: entry.roleKey, to: target }))
       );
 
+      // The catalogue roles this workspace does not have, for a person to
+      // add (ADR-0018). An archived one is listed too: adding it restores it.
+      const specialists = CATALOG.filter((role) => !liveRoleKeys.has(role.id) && role.id !== 'orchestrator').map((role) => ({
+         roleKey: role.id,
+         name: role.name,
+         role: role.role,
+         department: role.department,
+         mission: role.mission,
+      }));
+
       return json({
          departments,
          delegation,
          workflows: WORKFLOWS,
+         specialists,
          discoveryEnabled: workspace.discovery_enabled,
       });
    });
@@ -195,6 +207,27 @@ export function organizationMounts(options: {
       // the Discovery task and weekly autopilot for each role.
       if (parsed.data.enabled) await options.ensureDiscovery?.(workspaceId);
       return json({ discoveryEnabled: parsed.data.enabled });
+   });
+
+   /** Adds a catalogue role to the workspace, restoring its archived agent if it has one. */
+   org.post('/roles/:roleKey', async (context) => {
+      const user = context.get('user');
+      const workspaceId = currentWorkspace(user.currentWorkspaceId);
+      await resolveScoped(sql, user.id, workspaceId, 'settings.write');
+      const roleKey = context.req.param('roleKey');
+
+      const { agentId, added } = await sql
+         .begin(async (tx) => {
+            const result = await addRole(tx as never, workspaceId, roleKey);
+            // Its pack skills, as a provisioned role gets them at deploy.
+            await bindRolePackSkills(tx as never, workspaceId);
+            return result;
+         })
+         .catch((error: unknown) => {
+            if (error instanceof RoleNotFound) throw ApiError.notFound('Role');
+            throw error;
+         });
+      return json(serializeAgent(await agents.get(agentId, workspaceId)), added ? 201 : 200);
    });
 
    org.post('/roles/:roleKey/reset', async (context) => {

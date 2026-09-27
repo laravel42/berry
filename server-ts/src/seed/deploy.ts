@@ -1,6 +1,7 @@
 import type { Queryable, Sql } from '../db/pool.ts';
 import { ensureOrganizationAgents } from '../organization/provision.ts';
 import type { PackedSkill } from './skill-pack.ts';
+import { ABSORBED_ROLES, catalogRole } from '../organization/catalog.ts';
 import { loadPackedSkills } from './skills.ts';
 
 /**
@@ -102,8 +103,9 @@ export async function seedWorkspaceDefaults(
 
 /**
  * Each pack skill is labeled with a role agent name. Bind those skills to the
- * matching live role agents. Idempotent: a binding that already exists is left
- * alone, including one a person switched off.
+ * matching live role agents, and a core role also to the skills of the
+ * specialists whose work it takes on (ADR-0018). Idempotent: a binding that
+ * already exists is left alone, including one a person switched off.
  */
 export async function bindRolePackSkills(q: Queryable, workspaceId: string): Promise<number> {
    const linked = await q`
@@ -116,7 +118,22 @@ export async function bindRolePackSkills(q: Queryable, workspaceId: string): Pro
          AND a.role_key IS NOT NULL
       ON CONFLICT (agent_id, skill_id) DO NOTHING
       RETURNING 1`;
-   return linked.length;
+   let absorbed = 0;
+   for (const [roleKey, specialists] of Object.entries(ABSORBED_ROLES)) {
+      const names = specialists.flatMap((key) => catalogRole(key)?.name ?? []);
+      const rows = await q`
+         INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
+         SELECT a.id, s.id, ${workspaceId}, true
+           FROM agents a
+           JOIN skills s ON s.workspace_id = a.workspace_id AND s.labels && ${names}::text[]
+          WHERE a.workspace_id = ${workspaceId}
+            AND a.archived_at IS NULL
+            AND a.role_key = ${roleKey}
+         ON CONFLICT (agent_id, skill_id) DO NOTHING
+         RETURNING 1`;
+      absorbed += rows.length;
+   }
+   return linked.length + absorbed;
 }
 
 /**

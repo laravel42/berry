@@ -8,8 +8,9 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { createApp, type BerryApp } from '../http/app.ts';
 import { IdempotencyStore } from '../http/idempotency.ts';
 import { Registry } from '../http/registry.ts';
-import { catalogRole } from '../organization/catalog.ts';
+import { CATALOG, CORE_ROLES, catalogRole } from '../organization/catalog.ts';
 import { ensureOrganizationAgents } from '../organization/provision.ts';
+import { provisionFullOrganization } from '../test-support/organization.ts';
 import { cleanupFixture, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
 import { agentMounts } from './agents.ts';
 import { AgentRepository } from '../agents/repository.ts';
@@ -78,16 +79,41 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       return row!.id as string;
    };
 
-   test('the organization lists every department and role with discovery state', async () => {
+   test('the organization lists the core roles it has and the specialists it can add', async () => {
       const response = await call('/api/v1/organization');
       assert.equal(response.status, 200);
       const body = (await response.json()) as {
          departments: Array<{ key: string; roles: Array<{ roleKey: string }> }>;
+         specialists: Array<{ roleKey: string; name: string; mission: string }>;
          discoveryEnabled: boolean;
       };
-      assert.equal(body.departments.flatMap((d) => d.roles).length, 19);
+      // ADR-0018: the Orchestrator and five core roles.
+      assert.deepEqual(
+         body.departments.flatMap((d) => d.roles.map((role) => role.roleKey)).sort(),
+         [...CORE_ROLES].sort()
+      );
+      assert.equal(body.specialists.length, CATALOG.length - CORE_ROLES.length);
+      assert.ok(body.specialists.some((role) => role.roleKey === 'security-engineer' && role.mission));
       // A new workspace starts with weekly discovery off (migration 211).
       assert.equal(body.discoveryEnabled, false);
+   });
+
+   test('an admin adds a specialist; a member may not, and an unknown role is not found', async () => {
+      assert.equal(
+         (await call('/api/v1/organization/roles/business-analyst', { method: 'POST', body: '{}' }, memberToken)).status,
+         403
+      );
+      const added = await call('/api/v1/organization/roles/business-analyst', { method: 'POST', body: '{}' });
+      assert.equal(added.status, 201);
+      assert.equal(((await added.json()) as { roleKey: string }).roleKey, 'business-analyst');
+      const again = await call('/api/v1/organization/roles/business-analyst', { method: 'POST', body: '{}' });
+      assert.equal(again.status, 200, 'a role the workspace has is left as it is');
+      assert.equal((await call('/api/v1/organization/roles/no-such-role', { method: 'POST', body: '{}' })).status, 404);
+      const listed = (await (await call('/api/v1/organization')).json()) as { specialists: Array<{ roleKey: string }> };
+      assert.equal(listed.specialists.some((role) => role.roleKey === 'business-analyst'), false);
+
+      // The tests after this one edit specialists' contracts: the workspace gets every role.
+      await provisionFullOrganization(sql, mine!.workspaceId);
    });
 
    test('a contract with tools above its level is refused', async () => {

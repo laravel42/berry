@@ -607,17 +607,18 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          assert.ok(notes.length >= 1, 'the failing reviewer is named where a person reads the task');
       });
 
-      test('a required role with no agent is named, and the reviews do not pass without it', async () => {
-         // Migrations require the Software Architect (blocking), and this workspace has none.
-         const { issueId, runId } = await delivered('Org missing role', true, { authorId: backend, files: ['server-ts/migrations/187_x.up.sql'] });
+      test('a specialist the workspace does not have is not waited on: QA\'s review is enough', async () => {
+         // Migrations call in the Software Architect, a specialist this workspace
+         // never added (ADR-0018): the task is not parked waiting for it.
+         const { issueId, runId } = await delivered('Org missing specialist', true, { authorId: backend, files: ['server-ts/migrations/187_x.up.sql'] });
          const { gate: g } = gate([{ approved: true, reason: 'Tested.' }]);
 
          await g.review(runId);
 
          const bodies = await comments(issueId);
-         assert.ok(!bodies.some((body) => /Required reviews passed/.test(body)));
-         assert.ok(bodies.some((body) => /software-architect/.test(body) && /no agent/.test(body)));
-         assert.equal((await issueState(issueId)).status, 'in_review');
+         assert.ok(bodies.some((body) => /Required reviews passed/.test(body)));
+         assert.ok(!bodies.some((body) => /software-architect/.test(body) && /no agent/.test(body)));
+         assert.deepEqual((await rows(issueId)).map((row) => row.reviewer_role), ['qa-engineer']);
       });
 
       test('a critical architectural proposal on the task requires the Architect and the CTO', async () => {
@@ -638,10 +639,10 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          assert.equal(ctoRow!.approved, true);
          const bodies = await comments(issueId);
          assert.ok(
-            bodies.some((body) => /software-architect/.test(body) && /no agent/.test(body)),
-            'the Architect is required too, and this workspace has none'
+            !bodies.some((body) => /software-architect/.test(body) && /no agent/.test(body)),
+            'the Architect is a specialist this workspace does not have, and is not waited on'
          );
-         assert.ok(!bodies.some((body) => /Required reviews passed/.test(body)));
+         assert.ok(bodies.some((body) => /Required reviews passed/.test(body)));
       });
 
       test('an architectural proposal that is not critical requires the Architect, not the CTO', async () => {
@@ -653,8 +654,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
          const found = await rows(issueId);
          assert.ok(!found.some((row) => row.reviewer_role === 'cto'), 'the CTO is not asked');
-         assert.ok((await comments(issueId)).some((body) => /software-architect/.test(body) && /no agent/.test(body)));
-         assert.equal((await issueState(issueId)).status, 'in_review');
+         assert.deepEqual(found.map((row) => row.reviewer_role), ['qa-engineer'], 'nor the Architect, which the workspace does not have');
       });
 
       test('work no required reviewer applies to is decided by another agent, never by its author', async () => {
@@ -729,8 +729,13 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
                     false, 'Consider an index.', now(), 'database-engineer', 'advisory')`;
 
          const feedback = await lastRejection(sql, issueId);
-         assert.match(feedback, /qa-engineer: No tests for the handler\./);
-         assert.match(feedback, /security-engineer: Secrets are logged\./);
+         // The two reviewers run at once, so which fake verdict each drew
+         // depends on timing: what is pinned is that both reach the next run.
+         assert.match(feedback, /^(qa|security)-engineer: /m);
+         assert.match(feedback, /qa-engineer: /);
+         assert.match(feedback, /security-engineer: /);
+         assert.match(feedback, /No tests for the handler\./);
+         assert.match(feedback, /Secrets are logged\./);
          assert.doesNotMatch(feedback, /Consider an index/);
       });
    });

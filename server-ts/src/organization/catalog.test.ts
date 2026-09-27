@@ -2,27 +2,45 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import { KNOWN_TOOLS, toolCeiling } from './autonomy.ts';
-import { CATALOG, catalogRole, WORKFLOWS } from './catalog.ts';
+import { CATALOG, CORE_ROLES, catalogRole, WORKFLOWS } from './catalog.ts';
 import { roleContractSchema } from './contract.ts';
 import { PROMPT_SECTIONS } from './prompt.ts';
 
 const keys = new Set(CATALOG.map((role) => role.id));
 
 describe('the Berry organization catalog', () => {
-   test('has the 18 roles and the Orchestrator, each a valid contract', () => {
-      assert.equal(CATALOG.length, 19);
-      assert.equal(keys.size, 19);
+   test('has the Orchestrator, five core roles and thirteen specialists, each a valid contract', () => {
+      assert.equal(CATALOG.length, 20);
+      assert.equal(keys.size, 20);
       for (const role of CATALOG) {
          const parsed = roleContractSchema.safeParse(role);
          assert.ok(parsed.success, `${role.id}: ${parsed.success ? '' : parsed.error.message}`);
       }
       for (const key of [
-         'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer',
+         'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'software-engineer',
          'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer',
          'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre',
          'data-analytics-engineer', 'technical-writer', 'growth-engineer', 'engineering-manager', 'cto',
       ]) {
          assert.ok(keys.has(key), `missing ${key}`);
+      }
+      // ADR-0018: what every workspace is given.
+      assert.deepEqual(
+         [...CORE_ROLES],
+         ['orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer']
+      );
+   });
+
+   test('the core roles hand work to each other, and workflows name only core roles', () => {
+      const core = new Set(CORE_ROLES);
+      for (const key of CORE_ROLES) assert.ok(keys.has(key), `core ${key} is not in the catalog`);
+      // Build work reaches the one core role that can push, from every role that plans or reviews it.
+      for (const from of ['orchestrator', 'product-lead', 'product-designer', 'qa-engineer', 'devops-engineer']) {
+         assert.ok(catalogRole(from)!.can_delegate_to.includes('software-engineer'), `${from} cannot reach the engineer`);
+      }
+      assert.ok(catalogRole('software-engineer')!.allowed_tools.includes('run_command'));
+      for (const workflow of WORKFLOWS) {
+         for (const role of workflow.chain) assert.ok(core.has(role), `${workflow.key} names specialist ${role}`);
       }
    });
 

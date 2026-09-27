@@ -230,11 +230,23 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             throw new ApiError(403, 'DELEGATION_NOT_ALLOWED', `${caller.id} cannot hand work to ${input.role}`);
          }
          const issueId = await taskOf(context, input.task);
-         const [task] = await context.sql<Array<{ status: string; identifier: string }>>`
-            SELECT i.status::text AS status, berry_issue_identifier(b.workspace_id, i.number) AS identifier
+         const [task] = await context.sql<Array<{ status: string; identifier: string; changes_repository: boolean | null; target_branches: boolean }>>`
+            SELECT i.status::text AS status, berry_issue_identifier(b.workspace_id, i.number) AS identifier,
+                   (i.metadata->>'berry.changesRepository')::boolean AS changes_repository,
+                   EXISTS (SELECT 1 FROM agents WHERE id = ${target.id} AND 'create_branches' = ANY(permissions)) AS target_branches
               FROM issues AS i JOIN boards AS b ON b.id = i.board_id
              WHERE i.id = ${issueId}`;
          if (!task) throw ApiError.notFound('Task');
+         // A plan task that changes the repository stays with someone who can
+         // branch it. Handed to a role that only reads, it came back as a spec
+         // and was passed on again, and no code was ever written.
+         if (task.changes_repository === true && !task.target_branches) {
+            throw new ApiError(
+               409,
+               'TASK_NEEDS_REPOSITORY_ACCESS',
+               `${task.identifier} changes the repository and ${input.role} cannot branch it; hand it to an engineer who can, or write your spec on it with write_file`
+            );
+         }
          // Released work is a person's decision; an agent does not reopen it.
          if (task.status === 'done' || task.status === 'cancelled') {
             throw new ApiError(409, 'TASK_CLOSED', `${task.identifier} is ${task.status}; a person reopens it, not an agent`);
@@ -361,8 +373,13 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             input.recommendation ? `Recommendation: ${input.recommendation}` : '',
          ].filter(Boolean).join('\n\n');
 
+         // A workspace without a CTO (a specialist, ADR-0018) asks a person:
+         // the decision still needs an owner, and a person is always one.
+         const owner = input.to === 'human' ? null : await roleAgent(context.sql, context.task.workspaceId, input.to);
+         const to = input.to === 'cto' && !owner ? 'human' : input.to;
+
          let reference: { approvalId?: string; taskId?: string };
-         if (input.to === 'human') {
+         if (to === 'human') {
             const approvalId = randomUUID();
             const title = `Decision needed: ${input.question.slice(0, 200)}`;
             const risk = input.decision === 'security' ? 'high' : 'medium';
@@ -387,7 +404,6 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             });
             reference = { approvalId };
          } else {
-            const owner = await roleAgent(context.sql, context.task.workspaceId, input.to);
             if (!owner) throw ApiError.notFound('Role');
             // A decision handed to a role is a sub-task like any other. One asked of a person is not, and is never refused here.
             await assertMayCreateSubTask(context, limits, issueId);
@@ -420,7 +436,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             // below reports the true state rather than a wish.
          }
          const [after] = await context.sql<Array<{ status: string }>>`SELECT status::text AS status FROM issues WHERE id = ${issueId}`;
-         return { escalatedTo: input.to, blocked: after?.status === 'blocked', ...reference };
+         return { escalatedTo: to, blocked: after?.status === 'blocked', ...reference };
       },
    });
 

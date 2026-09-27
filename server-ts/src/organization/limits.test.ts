@@ -5,7 +5,7 @@ import { IssueRepository } from '../core/issues.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { getAgentTool, type AgentToolContext } from '../runtime/agent-tools/registry.ts';
 import { cleanupFixture, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
-import { ensureOrganizationAgents } from './provision.ts';
+import { provisionFullOrganization } from '../test-support/organization.ts';
 import { registerOrganizationTools } from './tools.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -35,7 +35,7 @@ describe('organization limits', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
    before(async () => {
       sql = openDatabase({ url: url! });
       fixture = await seedFixture(sql, 'org-limits');
-      await ensureOrganizationAgents(sql, fixture.workspaceId);
+      await provisionFullOrganization(sql, fixture.workspaceId);
       for (const row of await sql<Array<{ id: string; role_key: string }>>`SELECT id, role_key FROM agents WHERE workspace_id = ${fixture.workspaceId} AND role_key IS NOT NULL`) agents.set(row.role_key, row.id);
       issues = new IssueRepository(sql);
       registerOrganizationTools({ sql, issues, gate: null, limits: { maxDelegationDepth: 1, maxDelegationsPerRun: 2, handoffWindow: 4, handoffMinUniqueAgents: 3 } });

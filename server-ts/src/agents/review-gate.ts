@@ -7,6 +7,7 @@ import { IssueRepository } from '../core/issues.ts';
 import { ReviewQueue } from '../core/review-queue.ts';
 import { conflictInstructions, refreshPullRequests, refusedInstructions, sendBack } from './send-back.ts';
 import { parseContract, type RoleContract } from '../organization/contract.ts';
+import { isCoreRole } from '../organization/catalog.ts';
 import { roleAgent } from '../organization/delegation.ts';
 import { requiredReviews } from '../organization/reviews.ts';
 import { RunRepository } from '../runs/repository.ts';
@@ -603,6 +604,11 @@ export class ReviewGate {
       for (const { reviewer: role, authority } of required) {
          const agent = await roleAgent(this.#sql, material.workspaceId, role);
          if (!agent) {
+            // A specialist the workspace does not have is not owed a review
+            // (ADR-0018): QA is always required, and a person still releases
+            // the work. Waiting on a role nobody holds only parked the task.
+            // A core role a person archived is still owed, and says so.
+            if (!isCoreRole(role)) continue;
             this.#onError(`required reviewer ${role} is not in this workspace's organization`, new Error(`no agent holds ${role}`));
             entries.push({ role, authority, reviewer: null });
             continue;

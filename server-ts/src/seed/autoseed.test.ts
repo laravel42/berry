@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
-import { CATALOG } from '../organization/catalog.ts';
+import { CORE_ROLES } from '../organization/catalog.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { autoseedWorkspace } from './deploy.ts';
@@ -78,7 +78,7 @@ describe('autoseedWorkspace', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is 
       const [agents] = await sql<Array<{ n: number }>>`
          SELECT count(*)::int AS n FROM agents
           WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND role_key IS NOT NULL`;
-      assert.equal(agents!.n, CATALOG.length);
+      assert.equal(agents!.n, CORE_ROLES.length, 'the core roles only (ADR-0018)');
 
       const [skills] = await sql<Array<{ n: number }>>`
          SELECT count(*)::int AS n FROM skills WHERE workspace_id = ${workspaceId} AND name = 'product-discovery'`;

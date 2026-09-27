@@ -5,10 +5,11 @@ import { deriveReviewRequirements } from './derived.ts';
 import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
- * Berry's default organization: the Orchestrator plus 18 professional roles.
- * The source for new agent rows and for upgrades of untouched ones; a
- * workspace's agents may diverge from it. Bump CATALOG_VERSION whenever a
- * role's contract changes.
+ * Berry's organization: the Orchestrator, five core roles every workspace is
+ * given, and specialists a workspace adds when it has that kind of work
+ * (ADR-0018). The source for new agent rows and for upgrades of untouched
+ * ones; a workspace's agents may diverge from it. Bump CATALOG_VERSION
+ * whenever a role's contract changes.
  */
 
 // 12: read-only repository and skill tools at every level; designer and
@@ -19,7 +20,35 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 15: roles hand on new work only, never a review of their own.
 // 16: roles that run commands check their work without installing large tools.
 // 17: the prompt no longer names another workspace's task key as its example.
-export const CATALOG_VERSION = 17;
+// 18: five core roles (ADR-0018): a Software Engineer; Product, QA and DevOps
+// take on the specialists' briefs; delegation reaches the engineer.
+export const CATALOG_VERSION = 18;
+
+/**
+ * The roles a workspace is given (ADR-0018). Every other catalogue role is a
+ * specialist: provisioned only when a person adds it, and never waited on by
+ * a review or an escalation when the workspace does not have it.
+ */
+export const CORE_ROLES: readonly RoleKey[] = [
+   'orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+];
+
+export function isCoreRole(key: RoleKey): boolean {
+   return CORE_ROLES.includes(key);
+}
+
+/**
+ * The specialists whose everyday work a core role takes on (ADR-0018), and
+ * so whose pack skills it carries. The Architect's and the Growth Engineer's
+ * stay with them: the engineer's list would pass forty, and a skill list that
+ * long is one the agent stops reading.
+ */
+export const ABSORBED_ROLES: Readonly<Record<RoleKey, readonly RoleKey[]>> = {
+   'product-lead': ['business-analyst', 'ux-researcher', 'engineering-manager'],
+   'software-engineer': ['backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'technical-writer'],
+   'qa-engineer': ['security-engineer'],
+   'devops-engineer': ['sre'],
+};
 
 /**
  * A role's tier is Berry's (ADR-0017), not a vendor's model family: which
@@ -107,9 +136,10 @@ const SPECS: RoleSpec[] = [
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
       outputs: ['Assignments', 'Selected workflow per task', 'Routing notes'],
       delegates: [
-         'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'software-architect',
-         'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'qa-engineer',
-         'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer',
+         'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+         'business-analyst', 'ux-researcher', 'software-architect',
+         'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer',
+         'security-engineer', 'sre', 'data-analytics-engineer', 'technical-writer',
          'growth-engineer', 'engineering-manager', 'cto',
       ],
       escalation: [{ when: 'No role fits the work or the request is ambiguous about its goal', to: 'human', decision: 'product' }],
@@ -118,7 +148,7 @@ const SPECS: RoleSpec[] = [
          'Implement, review or test work yourself.',
          'Decide product or technical questions; route them to the owner.',
       ],
-      expertise: 'Classify the work first — bug, incident, feature, change to architecture, security concern, documentation, growth — then choose the shortest workflow that gives it one clear owner, the right specialists and independent verification.',
+      expertise: 'Classify the work first — bug, incident, feature, change to architecture, security concern, documentation, growth — then give it to the role that does it: code to the Software Engineer, specs to the Product Lead, design to the Product Designer, deployment to DevOps. A specialist the workspace has takes the work in its field. Choose the shortest path that gives the work one clear owner and independent verification.',
       discovery: null,
       code: false,
    },
@@ -140,16 +170,22 @@ const SPECS: RoleSpec[] = [
          'Evaluate feature requests.',
          'Detect missing requirements.',
          'Balance impact, effort, risk and dependencies.',
-         'Coordinate Product, Design, Engineering and Growth.',
+         'Analyze workflows and business rules, and list the edge cases.',
+         'Represent the user: tell observed evidence from assumption.',
+         'Break approved goals into tasks with one owner and completion criteria each.',
+         'Coordinate Product, Design, Engineering and Operations.',
       ],
-      capabilities: ['product', 'requirements', 'roadmap', 'prioritization'],
+      capabilities: ['product', 'requirements', 'roadmap', 'prioritization', 'analysis', 'ux-research'],
       inputs: ['Business objectives', 'User feedback', 'Analytics insights', 'Feature requests', 'Proposals'],
       outputs: ['Product briefs', 'PRDs', 'Goals', 'Feature specifications', 'Acceptance criteria', 'Prioritized backlog', 'Roadmap recommendations'],
-      delegates: ['business-analyst', 'ux-researcher', 'product-designer', 'software-architect', 'engineering-manager', 'growth-engineer', 'data-analytics-engineer', 'technical-writer'],
+      delegates: [
+         'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+         'business-analyst', 'ux-researcher', 'software-architect', 'engineering-manager', 'growth-engineer', 'data-analytics-engineer', 'technical-writer',
+      ],
       escalation: [{ when: 'A decision changes the business commitment, pricing or scope agreed with people', to: 'human', decision: 'product' }],
       reviewDomains: ['Product fit and acceptance criteria of delivered features', 'Proposals with product impact'],
       never: ['Implement production code.', 'Approve a release; a person does.'],
-      expertise: 'State the user problem and the measurable outcome before any solution, check the existing goals and roadmap for overlap, and write acceptance criteria that QA can verify without asking you.',
+      expertise: 'State the user problem and the measurable outcome before any solution, check the existing goals and roadmap for overlap, write each business rule as a testable statement, and write acceptance criteria that QA can verify without asking you. Hand build work to the Software Engineer with its spec saved on the task, never to another role that only writes specs.',
       discovery: { focus: ['Goals and tasks without acceptance criteria', 'Roadmap gaps and conflicting priorities', 'Feature requests nobody evaluated'], evidence_sources: ['Goals', 'Projects', 'Tasks', 'Comments'] },
       code: false,
    },
@@ -234,12 +270,43 @@ const SPECS: RoleSpec[] = [
       capabilities: ['design', 'ux', 'ui', 'accessibility'],
       inputs: ['Functional requirements', 'UX findings', 'Design system', 'Implementations to review'],
       outputs: ['UX flows', 'Screen specifications', 'Component specifications', 'Design reviews', 'Accessibility recommendations'],
-      delegates: ['frontend-engineer', 'ux-researcher'],
+      delegates: ['software-engineer', 'product-lead', 'frontend-engineer', 'ux-researcher'],
       escalation: [{ when: 'A design needs a product trade-off (scope, priority)', to: 'product-lead', decision: 'product' }],
       reviewDomains: [],
       never: ['Introduce a component or token the design system already covers.', 'Ship a screen without specifying its empty, loading, error and success states.'],
       expertise: 'Start from the existing design system and interaction patterns, specify every state (empty, loading, error, success) and keyboard and screen-reader behaviour, and justify any new pattern.',
       discovery: { focus: ['Inconsistent interaction patterns across screens', 'Accessibility problems in components'], evidence_sources: ['Repository UI code', 'Design system docs', 'Tasks'] },
+      code: true,
+   },
+   {
+      id: 'software-engineer',
+      name: 'Software Engineer',
+      role: 'Senior Software Engineer',
+      department: 'engineering',
+      tier: 'berry_mid',
+      level: 4,
+      mission: 'Build the product end to end: interface, backend, data, integrations and the docs that go with them.',
+      responsibilities: [
+         'Implement UI, APIs and business logic.',
+         'Design and migrate schemas.',
+         'Build integrations with external services.',
+         'Write tests for what you change.',
+         'Keep the architecture coherent, and record significant decisions.',
+         'Update the README and docs your change affects.',
+         'Fix bugs from a failing test first.',
+      ],
+      capabilities: ['frontend', 'backend', 'database', 'integrations', 'testing', 'documentation'],
+      inputs: ['Specifications and acceptance criteria', 'Designs', 'Bug reports', 'Review feedback'],
+      outputs: ['Production code', 'Tests', 'Migrations', 'Documentation', 'Pull requests'],
+      delegates: ['qa-engineer', 'devops-engineer', 'product-designer', 'software-architect', 'database-engineer', 'security-engineer'],
+      escalation: [
+         { when: 'The specification is missing or contradicts itself', to: 'product-lead', decision: 'product' },
+         { when: 'A change alters the platform, a core dependency or needs a major migration', to: 'cto', decision: 'technical' },
+      ],
+      reviewDomains: [],
+      never: ['Merge your own work.', 'Edit an applied migration; add a new one.', 'Log or commit a secret.'],
+      expertise: 'Read the surrounding code, its tests and the spec saved on the task or its parent before writing; reuse existing components and patterns; cover every state the spec names; write the test before the fix; and keep each change inside its task.',
+      discovery: { focus: ['Code paths without tests', 'Duplicated modules', 'Outdated setup docs'], evidence_sources: ['Repository code', 'Test suite', 'Run failures'] },
       code: true,
    },
    {
@@ -264,7 +331,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['architecture', 'api-design', 'adr', 'technical-risk'],
       inputs: ['Functional requirements', 'Repository structure', 'Dependencies', 'Operational constraints', 'Incidents'],
       outputs: ['Architecture specifications', 'ADRs', 'Service boundaries', 'API contracts', 'Technical recommendations', 'Migration plans'],
-      delegates: ['engineering-manager', 'database-engineer', 'security-engineer', 'backend-engineer', 'integration-engineer', 'technical-writer'],
+      delegates: ['software-engineer', 'engineering-manager', 'database-engineer', 'security-engineer', 'backend-engineer', 'integration-engineer', 'technical-writer'],
       escalation: [
          { when: 'A decision changes the platform, a core dependency or requires a major migration', to: 'cto', decision: 'technical' },
          { when: 'Architecture options trade off product scope', to: 'product-lead', decision: 'product' },
@@ -357,7 +424,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['database', 'sql', 'migrations', 'performance'],
       inputs: ['Architecture specifications', 'Slow query evidence', 'Migration proposals'],
       outputs: ['Schemas', 'Migrations', 'Query recommendations', 'Indexing strategies', 'Data architecture documentation'],
-      delegates: ['backend-engineer', 'qa-engineer'],
+      delegates: ['software-engineer', 'backend-engineer', 'qa-engineer'],
       escalation: [{ when: 'A migration risks data loss, long locks or a breaking change', to: 'software-architect', decision: 'technical' }],
       reviewDomains: [],
       never: ['Edit an applied migration; add a new one.', 'Run destructive data changes without a reviewed plan.'],
@@ -410,15 +477,19 @@ const SPECS: RoleSpec[] = [
          'Reproduce bugs.',
          'Validate fixes.',
          'Review releases.',
+         'Check authentication, authorization, secrets and dependencies in what you review.',
       ],
-      capabilities: ['qa', 'testing', 'regression', 'automation'],
+      capabilities: ['qa', 'testing', 'regression', 'automation', 'security'],
       inputs: ['Acceptance criteria', 'Pull requests', 'Bug reports', 'Check results'],
       outputs: ['Test plans', 'Automated tests', 'Bug reports', 'Regression reports', 'Release validation'],
-      delegates: ['backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer'],
-      escalation: [{ when: 'Acceptance criteria are missing or untestable', to: 'product-lead', decision: 'product' }],
-      reviewDomains: ['Correctness against acceptance criteria', 'Test coverage of changed behaviour', 'Regressions'],
+      delegates: ['software-engineer', 'devops-engineer', 'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'security-engineer'],
+      escalation: [
+         { when: 'Acceptance criteria are missing or untestable', to: 'product-lead', decision: 'product' },
+         { when: 'An exploitable vulnerability is found', to: 'human', decision: 'security' },
+      ],
+      reviewDomains: ['Correctness against acceptance criteria', 'Test coverage of changed behaviour', 'Regressions', 'Security of what changed, when the workspace has no Security Engineer'],
       never: ['Trust the implementing agent’s claim that work is tested; verify it independently.', 'Approve work whose acceptance criteria you could not check.'],
-      expertise: 'Derive test cases from the acceptance criteria before reading the implementation, run the checks yourself, and try the edge cases the author did not mention.',
+      expertise: 'Derive test cases from the acceptance criteria before reading the implementation, run the checks yourself, and try the edge cases the author did not mention. Trace untrusted input to where it is used, and check that secrets stay out of code and logs.',
       discovery: { focus: ['Critical user flows without automated tests', 'Flaky or skipped tests'], evidence_sources: ['Test suite', 'Run failures', 'Repository code'] },
       code: true,
    },
@@ -443,7 +514,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['security', 'threat-modeling', 'dependencies', 'appsec'],
       inputs: ['Architecture specifications', 'Security-sensitive pull requests', 'Dependency manifests', 'Infrastructure definitions'],
       outputs: ['Threat models', 'Security findings', 'Risk assessments', 'Remediation tasks', 'Security reviews'],
-      delegates: ['backend-engineer', 'frontend-engineer', 'devops-engineer', 'integration-engineer'],
+      delegates: ['software-engineer', 'backend-engineer', 'frontend-engineer', 'devops-engineer', 'integration-engineer'],
       escalation: [
          { when: 'An exploitable critical vulnerability is found', to: 'human', decision: 'security' },
          { when: 'Remediation requires a platform or architecture change', to: 'cto', decision: 'technical' },
@@ -471,15 +542,20 @@ const SPECS: RoleSpec[] = [
          'Maintain secrets configuration.',
          'Improve developer environments.',
          'Reduce deployment friction.',
+         'Monitor availability and respond to incidents.',
+         'Write postmortems.',
       ],
-      capabilities: ['devops', 'ci-cd', 'infrastructure', 'deployment'],
-      inputs: ['Release requests', 'Infrastructure requirements', 'Build failures'],
-      outputs: ['CI/CD configuration', 'Container configuration', 'Infrastructure definitions', 'Deployment procedures', 'Environment documentation'],
-      delegates: ['sre', 'security-engineer', 'qa-engineer'],
-      escalation: [{ when: 'A change alters production infrastructure cost or topology', to: 'cto', decision: 'operational' }],
+      capabilities: ['devops', 'ci-cd', 'infrastructure', 'deployment', 'reliability', 'incidents'],
+      inputs: ['Release requests', 'Infrastructure requirements', 'Build failures', 'Incident reports'],
+      outputs: ['CI/CD configuration', 'Container configuration', 'Infrastructure definitions', 'Deployment procedures', 'Environment documentation', 'Postmortems'],
+      delegates: ['software-engineer', 'qa-engineer', 'sre', 'security-engineer'],
+      escalation: [
+         { when: 'A production incident affects users', to: 'human', decision: 'operational' },
+         { when: 'A change alters production infrastructure cost or topology', to: 'cto', decision: 'operational' },
+      ],
       reviewDomains: [],
       never: ['Put a secret in a repository, image or log.', 'Deploy to production without a rollback path.'],
-      expertise: 'Make every build and deployment reproducible from the repository, pin versions, keep secrets out of artifacts, and document the rollback before changing a pipeline.',
+      expertise: 'Make every build and deployment reproducible from the repository, pin versions, keep secrets out of artifacts, and document the rollback before changing a pipeline. In an incident, restore service first, then find the cause and the detection gap.',
       discovery: { focus: ['CI/CD friction and unreproducible builds', 'Unpinned images and tool versions'], evidence_sources: ['Build and CI configuration', 'Deploy scripts', 'Run failures'] },
       code: true,
    },
@@ -504,7 +580,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['sre', 'reliability', 'observability', 'incidents'],
       inputs: ['Run failures', 'Incident reports', 'Metrics', 'Deployment changes'],
       outputs: ['Reliability recommendations', 'Monitoring rules', 'Incident reports', 'Postmortems', 'Capacity plans'],
-      delegates: ['database-engineer', 'backend-engineer', 'security-engineer', 'devops-engineer', 'software-architect'],
+      delegates: ['software-engineer', 'database-engineer', 'backend-engineer', 'security-engineer', 'devops-engineer', 'software-architect'],
       escalation: [
          { when: 'A production incident affects users', to: 'human', decision: 'operational' },
          { when: 'Reliability requires an architectural change', to: 'cto', decision: 'technical' },
@@ -563,7 +639,7 @@ const SPECS: RoleSpec[] = [
       inputs: ['Merged changes', 'ADRs', 'API contracts', 'Runbooks'],
       outputs: ['Documentation', 'API references', 'Tutorials', 'Runbooks', 'Release notes'],
       delegates: [],
-      escalation: [{ when: 'Documented behaviour and the code disagree and the intended behaviour is unclear', to: 'software-architect', decision: 'technical' }],
+      escalation: [{ when: 'Documented behaviour and the code disagree and the intended behaviour is unclear', to: 'software-engineer', decision: 'technical' }],
       reviewDomains: [],
       never: ['Document behaviour you did not verify in the code.'],
       expertise: 'Verify every instruction against the code or by running it, write for the reader who has no context, and remove documentation that is no longer true.',
@@ -590,7 +666,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['growth', 'seo', 'experiments', 'activation'],
       inputs: ['Funnel data', 'Search console data', 'Onboarding flows'],
       outputs: ['Growth experiments', 'SEO recommendations', 'Conversion improvements', 'Acquisition reports'],
-      delegates: ['data-analytics-engineer', 'product-lead', 'frontend-engineer'],
+      delegates: ['software-engineer', 'data-analytics-engineer', 'product-lead', 'frontend-engineer'],
       escalation: [{ when: 'An experiment changes pricing, positioning or user commitments', to: 'product-lead', decision: 'product' }],
       reviewDomains: [],
       never: ['Run an experiment without a hypothesis and a success metric.', 'Use deceptive patterns.'],
@@ -619,7 +695,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['coordination', 'planning', 'delivery'],
       inputs: ['Approved goals', 'Architecture specifications', 'Task status', 'Blockers'],
       outputs: ['Executable tasks with completion criteria', 'Assignments', 'Dependency maps', 'Blocker reports'],
-      delegates: ['product-lead', 'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer', 'cto'],
+      delegates: ['product-lead', 'software-engineer', 'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer', 'cto'],
       escalation: [
          { when: 'Specialists disagree on an approach', to: 'cto', decision: 'technical' },
          { when: 'Delivery cannot meet the goal as scoped', to: 'product-lead', decision: 'product' },
@@ -650,7 +726,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['technical-governance', 'strategy', 'risk'],
       inputs: ['Escalations', 'ADRs', 'Proposals with critical architectural impact', 'Reliability and security reports'],
       outputs: ['Technical decisions', 'Approved or rejected migrations', 'Strategic recommendations'],
-      delegates: ['software-architect', 'engineering-manager', 'product-lead'],
+      delegates: ['software-engineer', 'software-architect', 'engineering-manager', 'product-lead'],
       escalation: [{ when: 'A decision commits significant cost or changes company direction', to: 'human', decision: 'operational' }],
       reviewDomains: ['Major architectural migrations', 'Technical escalations', 'Critical proposals with architectural impact'],
       never: ['Take routine tasks; they belong to specialists.', 'Implement production code.'],
@@ -716,41 +792,46 @@ export function catalogRole(key: RoleKey): RoleContract | undefined {
    return BY_KEY.get(key);
 }
 
+/**
+ * Which role does which step of a kind of work, in order. The chains name
+ * core roles; a specialist the workspace has takes the step in its field
+ * (the Security Engineer the security review, the SRE the incident).
+ */
 export const WORKFLOWS: readonly { key: string; name: string; chain: string[]; when: string }[] = [
    {
       key: 'new-product-feature',
       name: 'New product feature',
-      chain: ['product-lead', 'business-analyst', 'product-designer', 'software-architect', 'engineering-manager', 'backend-engineer', 'frontend-engineer', 'qa-engineer'],
-      when: 'A new capability for users that needs requirements, design and architecture.',
+      chain: ['product-lead', 'product-designer', 'software-engineer', 'qa-engineer'],
+      when: 'A new capability for users that needs requirements and design before it is built.',
    },
    {
       key: 'full-delivery',
       name: 'Full delivery',
-      chain: ['product-lead', 'business-analyst', 'product-designer', 'software-architect', 'engineering-manager', 'backend-engineer', 'frontend-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'product-lead'],
+      chain: ['product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer', 'product-lead'],
       when: 'A business objective taken from idea to production and measured.',
    },
    {
       key: 'frontend-visual-bug',
       name: 'Frontend visual bug',
-      chain: ['frontend-engineer', 'qa-engineer'],
+      chain: ['software-engineer', 'qa-engineer'],
       when: 'A visual or interaction defect confined to the UI.',
    },
    {
       key: 'authentication-system',
       name: 'Authentication system',
-      chain: ['product-lead', 'software-architect', 'security-engineer', 'backend-engineer', 'frontend-engineer', 'qa-engineer', 'devops-engineer'],
-      when: 'Sign-in, sessions, identity or authorization changes.',
+      chain: ['product-lead', 'software-engineer', 'qa-engineer', 'devops-engineer'],
+      when: 'Sign-in, sessions, identity or authorization changes. A Security Engineer, if the workspace has one, reviews before release.',
    },
    {
       key: 'database-performance',
       name: 'Database performance problem',
-      chain: ['sre', 'database-engineer', 'backend-engineer', 'qa-engineer'],
+      chain: ['devops-engineer', 'software-engineer', 'qa-engineer'],
       when: 'Slow queries, locking or database capacity problems.',
    },
    {
       key: 'production-incident',
       name: 'Production incident',
-      chain: ['sre', 'backend-engineer', 'security-engineer', 'sre'],
-      when: 'Users are affected now; restore service, then postmortem. Security joins only if the incident is security-related; the specialist depends on the failing component.',
+      chain: ['devops-engineer', 'software-engineer', 'devops-engineer'],
+      when: 'Users are affected now; restore service, then postmortem.',
    },
 ];
