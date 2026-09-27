@@ -56,7 +56,27 @@ export interface EnvironmentStatus {
    log: string;
    /** Why there is no preview, or why it failed, in a sentence. */
    message: string | null;
+   /**
+    * Whose problem a failure is. `code`: the task's code did not come up, which
+    * an agent can fix. `credentials`: Berry's access to the repository was
+    * refused, which only reconnecting fixes. `infrastructure`: this server
+    * (Docker, the preview image, the network) failed, which no change to the
+    * code fixes. Null while nothing has failed.
+    */
+   failure: PreviewFailureKind | null;
    startedAt: string | null;
+}
+
+export type PreviewFailureKind = 'code' | 'credentials' | 'infrastructure';
+
+/** A preview that failed for a known reason, and whose that reason is. */
+export class PreviewFault extends Error {
+   override readonly name = 'PreviewFault';
+   readonly kind: PreviewFailureKind;
+   constructor(kind: PreviewFailureKind, message: string) {
+      super(message);
+      this.kind = kind;
+   }
 }
 
 /** The commit to preview and the way to fetch its tree (a gzipped tarball with one top-level folder). */
@@ -147,6 +167,7 @@ interface Environment {
    network: string | null;
    log: string;
    message: string | null;
+   failure: PreviewFailureKind | null;
    startedAt: number;
    lastUsed: number;
    stops: Array<() => void>;
@@ -207,7 +228,7 @@ export class PreviewEnvironments {
 
    status(issueId: string): EnvironmentStatus {
       const env = this.#byIssue.get(issueId);
-      if (!env) return { state: 'idle', commit: null, plan: null, url: null, log: '', message: null, startedAt: null };
+      if (!env) return { state: 'idle', commit: null, plan: null, url: null, log: '', message: null, failure: null, startedAt: null };
       const primary = env.apps.find((running) => running.app.primary);
       return {
          state: env.state,
@@ -228,6 +249,8 @@ export class PreviewEnvironments {
          url: env.state === 'ready' && primary ? this.#o.origin(env.id, primary.app.name) : null,
          log: env.log,
          message: env.message,
+         // A preview with nothing runnable in it is the code's to change.
+         failure: env.state === 'unavailable' ? 'code' : env.failure,
          startedAt: new Date(env.startedAt).toISOString(),
       };
    }
@@ -256,6 +279,7 @@ export class PreviewEnvironments {
          network: null,
          log: '',
          message: null,
+         failure: null,
          startedAt: this.#clock(),
          lastUsed: this.#clock(),
          stops: [],
@@ -404,15 +428,23 @@ export class PreviewEnvironments {
          env.log = (env.log + shown).slice(-LOG_LIMIT);
       };
 
-      if (!(await this.available())) throw new Error('This server cannot run previews: Docker is not available.');
+      if (!(await this.available())) throw new PreviewFault('infrastructure', 'This server cannot run previews: Docker is not available.');
       say(`Fetching commit ${source.commit.slice(0, 7)}…\n`);
       const folder = join(this.#root, env.issueId.replace(/[^A-Za-z0-9-]/g, ''));
       const tree = join(folder, 'src');
       await rm(tree, { recursive: true, force: true });
       await mkdir(tree, { recursive: true });
       const archive = join(folder, 'src.tar.gz');
-      const response = await source.archive();
-      if (!response.ok || !response.body) throw new Error(`The repository could not be downloaded (${response.status}).`);
+      const response = await source.archive().catch((error: unknown) => {
+         throw new PreviewFault('infrastructure', `The repository could not be downloaded: ${error instanceof Error ? error.message : String(error)}`);
+      });
+      if (response.status === 401 || response.status === 403) {
+         throw new PreviewFault(
+            'credentials',
+            `GitHub refused Berry's access to the repository (${response.status}). Reconnect GitHub in Settings, then start the preview again.`
+         );
+      }
+      if (!response.ok || !response.body) throw new PreviewFault('infrastructure', `The repository could not be downloaded (${response.status}).`);
       await pipeline(Readable.fromWeb(response.body as never), createWriteStream(archive));
       await extract(archive, tree);
       await rm(archive, { force: true });
@@ -484,7 +516,7 @@ export class PreviewEnvironments {
             // `--rm` takes a finished container away, so not finding it is the same answer as finding it stopped.
             const stopped = /^false (\d+)/.exec(state.output.trim());
             if (state.code !== 0 || stopped) {
-               throw new Error(`${running.app.name} stopped before it answered${stopped ? ` (exit ${stopped[1]})` : ''}. Its output above says why.`);
+               throw new PreviewFault('code', `${running.app.name} stopped before it answered${stopped ? ` (exit ${stopped[1]})` : ''}. Its output above says why.`);
             }
          }
          if (env.apps.every((running) => running.ready)) {
@@ -492,7 +524,7 @@ export class PreviewEnvironments {
             say('The preview is ready.\n');
             return;
          }
-         if (this.#clock() > deadline) throw new Error('The preview did not start in time. The log above shows how far it got.');
+         if (this.#clock() > deadline) throw new PreviewFault('code', 'The preview did not start in time. The log above shows how far it got.');
          await new Promise((resolve) => setTimeout(resolve, 1_000));
       }
    }
@@ -517,17 +549,19 @@ export class PreviewEnvironments {
          }
          say('Building the preview image (Node with pnpm, yarn, bun, nvm and Python). This happens once per machine and takes a few minutes…\n');
          const built = await this.#docker(['build', '--tag', PREVIEW_IMAGE, PREVIEW_IMAGE_SOURCE], { timeoutMs: 20 * 60_000 });
-         if (built.code !== 0) throw new Error(`The preview image could not be built: ${built.output.trim().slice(-400)}`);
+         if (built.code !== 0) throw new PreviewFault('infrastructure', `The preview image could not be built: ${built.output.trim().slice(-400)}`);
          say('The preview image is built.\n');
          return PREVIEW_IMAGE;
       })();
       const pending = this.#imageReady;
+      // Shared while it is being got ready, not remembered after: an image
+      // removed since (a prune, a server update) is looked for, and built,
+      // again, rather than handed to `docker run` as if it were still there.
       pending
-         .catch(() => {
-            if (this.#imageReady === pending) this.#imageReady = null;
-         })
+         .catch(() => undefined)
          .finally(() => {
             this.#imagePending = false;
+            if (this.#imageReady === pending) this.#imageReady = null;
          });
       return pending;
    }
@@ -540,13 +574,26 @@ export class PreviewEnvironments {
 
    async #must(args: string[], what: string, timeoutMs = 60_000, env?: Record<string, string>): Promise<void> {
       const result = await this.#docker(args, { timeoutMs, ...(env ? { env } : {}) });
-      if (result.code !== 0) throw new Error(`Could not ${what}: ${result.output.trim().slice(-400) || `docker exited ${result.code}`}`);
+      if (result.code !== 0) {
+         const output = result.output.trim();
+         // Docker failing to start a container is this server's problem, not the code's.
+         throw new PreviewFault(
+            'infrastructure',
+            /Unable to find image|No such image/i.test(output)
+               ? `Could not ${what}: Berry's preview image is missing on this server. Start the preview again and Berry will build it.`
+               : `Could not ${what}: ${output.slice(-400) || `docker exited ${result.code}`}`
+         );
+      }
    }
 
    #fail(env: Environment, error: unknown): void {
       if (this.#byId.get(env.id) !== env) return;
       env.state = 'failed';
       env.message = error instanceof Error ? error.message : String(error);
+      // Only a failure known to be the code's is offered to an agent to fix;
+      // anything unforeseen (an archive that would not unpack, a file system
+      // error) is Berry's.
+      env.failure = error instanceof PreviewFault ? error.kind : 'infrastructure';
       env.log = (env.log + `\n${env.message}\n`).slice(-LOG_LIMIT);
       // A failed environment holds nothing a person can look at; its log is kept, its containers are not.
       void this.#release(env);

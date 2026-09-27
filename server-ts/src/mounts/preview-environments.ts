@@ -122,6 +122,13 @@ export function issuePreviewEnvironmentRoutes(options: {
       if (!status || (status.state !== 'failed' && status.state !== 'unavailable')) {
          throw new ApiError(409, 'NOTHING_TO_FIX', 'There is no failed preview to fix: start the preview first, and use this when it does not come up.');
       }
+      // An agent changes code. Sent in over a refused login or a missing
+      // image, it could only end without fixing anything, and be paid for.
+      if (status.failure === 'credentials' || status.failure === 'infrastructure') {
+         throw new ApiError(409, 'NOT_A_CODE_FAILURE', status.failure === 'credentials'
+            ? "The preview failed because GitHub refused Berry's access, which no change to the code fixes. Reconnect GitHub, then start the preview again."
+            : 'The preview failed on this server, not in the code, so there is nothing for an agent to fix. Start it again, or ask whoever runs Berry.');
+      }
       if (!options.fix) throw new ApiError(503, 'AGENTS_UNAVAILABLE', 'This server cannot run agents, so it cannot fix the preview.');
       try {
          const queued = await options.fix(

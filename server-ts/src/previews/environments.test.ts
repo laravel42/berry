@@ -140,7 +140,32 @@ test('an app that exits before it answers fails the preview and leaves nothing r
    const status = await settled(envs, 'issue-2');
    assert.equal(status.state, 'failed');
    assert.match(status.message!, /web stopped before it answered \(exit 1\)/);
+   // The code's to fix: Fix with AI is offered for this one.
+   assert.equal(status.failure, 'code');
    assert.ok(calls.some((args) => args[0] === 'rm'));
+});
+
+test('a failure that is not the code’s says whose it is, so no agent is sent in to fix it', async () => {
+   const { docker } = fakeDocker();
+   const page = archiveOf({ 'index.html': '<h1>x</h1>' });
+
+   const refused = environments(docker);
+   refused.start('login', { commit: 'c0ffee1', archive: async () => new Response('Bad credentials', { status: 401 }) });
+   const login = await settled(refused, 'login');
+   assert.deepEqual([login.state, login.failure], ['failed', 'credentials']);
+   assert.match(login.message!, /Reconnect GitHub/);
+
+   const noImage: DockerRunner = async (args) =>
+      args[0] === 'run' ? { code: 125, output: "Unable to find image 'berry-preview:node22' locally" } : docker(args);
+   const missing = environments(noImage);
+   missing.start('image', page);
+   const image = await settled(missing, 'image');
+   assert.deepEqual([image.state, image.failure], ['failed', 'infrastructure']);
+   assert.match(image.message!, /preview image is missing on this server/);
+
+   const nothing = environments(docker);
+   nothing.start('docs', archiveOf({ 'README.md': '# hi' }));
+   assert.equal((await settled(nothing, 'docs')).failure, 'code');
 });
 
 test('only a few environments run at once, and one nobody looks at is stopped', async () => {
@@ -204,6 +229,12 @@ test('Berry’s own image is built once when it is missing, and a named image is
    assert.equal(logs.filter((log) => /Building the preview image/.test(log)).length, 1);
    assert.equal(logs.filter((log) => /Waiting for the preview image/.test(log)).length, 1);
    assert.ok(calls.filter((args) => args[0] === 'run').every((args) => args.includes(PREVIEW_IMAGE)));
+
+   // Removed since (a prune, a server update): the next preview looks again
+   // and builds it, instead of handing `docker run` an image that is gone.
+   envs.start('four', page());
+   assert.equal((await settled(envs, 'four')).state, 'ready');
+   assert.equal(calls.filter((args) => args[0] === 'build').length, 2);
 
    const named = fakeDocker();
    const given = environments(named.docker);
