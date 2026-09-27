@@ -31,6 +31,7 @@ import {
    type ProviderTool,
    type ToolGrant,
 } from '@/lib/integrations';
+import { signInWithGitHub } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
@@ -252,6 +253,12 @@ function ProviderCard({
                      enable Connect.
                   </p>
                )}
+               {provider.id === 'github' && provider.status === 'reconnect' && (
+                  <p className="mt-1 text-muted-foreground">
+                     GitHub refused the sign-in agents were using, so tasks that need a repository
+                     fail. Sign in with GitHub again to reconnect.
+                  </p>
+               )}
                {builtIn && (
                   <p className="mt-1 text-muted-foreground">
                      Runs inside Berry; agents use these tools with nothing to connect.
@@ -271,6 +278,22 @@ function ProviderCard({
                )}
             </div>
             <div className="flex shrink-0 items-center gap-2">
+               {provider.id === 'github' && provider.status === 'reconnect' && (
+                  <Button
+                     size="xs"
+                     onClick={() =>
+                        void signInWithGitHub().catch((failure: unknown) =>
+                           toast.error(
+                              failure instanceof Error
+                                 ? failure.message
+                                 : 'GitHub sign-in could not start'
+                           )
+                        )
+                     }
+                  >
+                     Reconnect GitHub
+                  </Button>
+               )}
                {!builtIn && provider.id !== 'github' && provider.connected && (
                   <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
                      {busy ? 'Working…' : 'Disconnect'}

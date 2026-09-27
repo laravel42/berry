@@ -199,18 +199,20 @@ export function agentHasRuntime(coverage: AgentCoverage | null, agentId: string)
 /**
  * How alive a runtime looks, from its status and when it was last reached.
  *
- * `disabled` is a decision someone made, so it is its own level; the rest is
- * silence, and how long the silence has lasted is the whole story.
+ * `disabled` is a decision someone made, so it is its own level; `unchecked`
+ * is a runtime nobody has probed yet, which is not evidence it is online; the
+ * rest is silence, and how long the silence has lasted is the whole story.
  */
-export type RuntimeHealth = 'online' | 'recentlyLost' | 'offline' | 'longOffline' | 'disabled';
+export type RuntimeHealth =
+   'online' | 'unchecked' | 'recentlyLost' | 'offline' | 'longOffline' | 'disabled';
 
 const MINUTE = 60 * 1000;
 
 export function runtimeHealth(runtime: Runtime, now: number = Date.now()): RuntimeHealth {
    if (runtime.status === 'disabled') return 'disabled';
    const seen = runtime.lastHealthAt ? new Date(runtime.lastHealthAt).getTime() : null;
-   if (runtime.status === 'active' && (seen === null || now - seen < 15 * MINUTE)) return 'online';
-   if (seen === null) return 'offline';
+   if (seen === null) return runtime.status === 'active' ? 'unchecked' : 'offline';
+   if (runtime.status === 'active' && now - seen < 15 * MINUTE) return 'online';
    const silent = now - seen;
    if (silent < 60 * MINUTE) return 'recentlyLost';
    if (silent < 24 * 60 * MINUTE) return 'offline';

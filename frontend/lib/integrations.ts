@@ -178,6 +178,10 @@ export function describeProviderState(provider: Provider): {
    switch (provider.status) {
       case 'not_installed':
          return { label: 'Not installed', tone: 'attention' };
+      // GitHub refused the sign-in token agents were using: it worked, and
+      // runs that need it are failing until someone signs in again.
+      case 'reconnect':
+         return { label: 'Needs reconnecting', tone: 'danger' };
       case 'expired':
          return { label: 'Expired', tone: 'attention' };
       case 'revoked':

@@ -577,7 +577,7 @@
          "volumeLabel": "Each agent by how many runs it made and what a run of it cost.",
          "noRuns": "No runs in this window.",
          "tasksTitle": "Most expensive tasks",
-         "tasksHint": "bar = dollars",
+         "tasksHint": "cost in this period; a task's own page counts all of it",
          "runCount": "{count, plural, =1 {1 run} other {# runs}}",
          "volumeRuns": "Runs",
          "volumePerRun": "Per run"
@@ -621,6 +621,7 @@
    "runtimes": {
       "health": {
          "online": "Online",
+         "unchecked": "Not checked yet",
          "recentlyLost": "Recently lost",
          "offline": "Offline",
          "longOffline": "Offline for a long time",

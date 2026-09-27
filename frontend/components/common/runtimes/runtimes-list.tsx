@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 /** The colour a health level wears, from alive to long silent. */
 const HEALTH_DOT: Record<string, string> = {
    online: 'bg-status-success',
+   unchecked: 'bg-muted-foreground/60',
    recentlyLost: 'bg-status-warning',
    offline: 'bg-destructive',
    longOffline: 'bg-destructive/60',
@@ -78,9 +79,12 @@ export default function RuntimesList() {
                )}
                {runtimes.value?.map((runtime) => {
                   const health = runtimeHealth(runtime);
+                  // "Not checked yet" already says it was never reached.
                   const seen = runtime.lastHealthAt
                      ? t('lastSeen', { when: new Date(runtime.lastHealthAt).toLocaleString() })
-                     : t('neverSeen');
+                     : health === 'unchecked'
+                       ? null
+                       : t('neverSeen');
                   return (
                      <SettingsRow
                         key={runtime.id}
@@ -105,8 +109,12 @@ export default function RuntimesList() {
                               <span aria-hidden>·</span>
                               {t('active', { count: runtime.activeRuns })}
                               <span aria-hidden>·</span>
-                              {seen}
-                              <span aria-hidden>·</span>
+                              {seen && (
+                                 <>
+                                    {seen}
+                                    <span aria-hidden>·</span>
+                                 </>
+                              )}
                               {`idle ${formatSeconds(runtime.idleTimeoutS)} · life ${formatSeconds(runtime.maxLifetimeS)}`}
                            </span>
                         }
