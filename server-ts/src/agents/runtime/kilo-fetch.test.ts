@@ -91,7 +91,7 @@ test('a free model has no own key to be served by, so it is never refused', asyn
    assert.equal(response.status, 200);
 });
 
-test('an Anthropic request marks its system prompt and last tool for caching', async () => {
+test('an Anthropic request marks its system prompt, last tool and newest message for caching', async () => {
    const seen: { body?: string } = {};
    const init = {
       method: 'POST',
@@ -104,9 +104,31 @@ test('an Anthropic request marks its system prompt and last tool for caching', a
    await kiloFetch({}, upstream('{}', 'application/json', seen))('https://gw', init);
    const sent = JSON.parse(seen.body!);
    assert.deepEqual(sent.messages[0].content, [{ type: 'text', text: 'rules', cache_control: { type: 'ephemeral' } }]);
-   assert.equal(sent.messages[1].content, 'hi');
+   assert.deepEqual(sent.messages[1].content, [{ type: 'text', text: 'hi', cache_control: { type: 'ephemeral' } }]);
    assert.equal(sent.tools[0].cache_control, undefined);
    assert.deepEqual(sent.tools[1].cache_control, { type: 'ephemeral' });
+});
+
+test('an agent step marks its newest message and the one that ended the previous request, and no more than four in all', () => {
+   const cached = (content: unknown) => JSON.stringify(content).includes('cache_control');
+   const body = withAnthropicCachePoints({
+      model: 'anthropic/claude-opus-5.5',
+      messages: [
+         { role: 'system', content: 'rules' },
+         { role: 'user', content: 'Build the page.' },
+         { role: 'assistant', content: null, tool_calls: [{ id: 'a' }] } as never,
+         { role: 'tool', content: 'file a' } as never,
+         { role: 'assistant', content: null, tool_calls: [{ id: 'b' }, { id: 'c' }] } as never,
+         { role: 'tool', content: 'file b' } as never,
+         { role: 'tool', content: [{ type: 'text', text: 'file c' }] } as never,
+      ],
+      tools: [{ type: 'function', function: { name: 'read_file' } }],
+   });
+   const marks = body.messages!.map((message) => cached(message.content));
+   // system, the tool result that ended the previous request, and the newest.
+   assert.deepEqual(marks, [true, false, false, true, false, false, true]);
+   const total = marks.filter(Boolean).length + (body.tools ?? []).filter((tool) => 'cache_control' in tool).length;
+   assert.equal(total, 4, "Anthropic's limit");
 });
 
 test('any other vendor is sent exactly as the SDK built it', () => {

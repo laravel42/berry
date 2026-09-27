@@ -154,22 +154,46 @@ type ChatBody = {
 const EPHEMERAL = { type: 'ephemeral' } as const;
 
 /**
- * The request with Anthropic cache points on its stable prefix: the system
- * message and the last tool definition. Anthropic allows four; two cover what
- * does not change within a run.
+ * The request with Anthropic cache points, all four Anthropic allows.
+ *
+ * Two on what does not change within a run: the system message and the last
+ * tool definition. Two on the conversation, which is most of what an agent's
+ * request carries — every tool result, file and command output so far — and
+ * which was sent uncached on every step: Opus 5.5 read 13% of its input from
+ * cache in a day and paid full price for 5.6M tokens. Anthropic caches up to a
+ * marker, so the newest message is marked, and so is the message that ended
+ * the previous request (the one before the last assistant turn), where that
+ * request's cache was written: found there even when a burst of tool results
+ * put the newest marker far past it.
  */
 export function withAnthropicCachePoints(body: ChatBody): ChatBody {
    if (typeof body.model !== 'string' || !body.model.startsWith('anthropic/')) return body;
-   const messages = body.messages?.map((message) => {
-      if (message.role !== 'system' || typeof message.content !== 'string') return message;
-      return { ...message, content: [{ type: 'text', text: message.content, cache_control: EPHEMERAL }] };
+   const all = body.messages ?? [];
+   const lastAssistant = all.map((message) => message.role).lastIndexOf('assistant');
+   const marked = new Set([all.length - 1, lastAssistant - 1].filter((index) => index > 0 && all[index]?.role !== 'system'));
+   const messages = body.messages?.map((message, index) => {
+      if (message.role === 'system' && typeof message.content === 'string') {
+         return { ...message, content: [{ type: 'text', text: message.content, cache_control: EPHEMERAL }] };
+      }
+      return marked.has(index) ? withCachePoint(message) : message;
    });
-   const tools = body.tools?.map((tool, index, all) => (index === all.length - 1 ? { ...tool, cache_control: EPHEMERAL } : tool));
+   const tools = body.tools?.map((tool, index, list) => (index === list.length - 1 ? { ...tool, cache_control: EPHEMERAL } : tool));
    return {
       ...body,
       ...(messages ? { messages } : {}),
       ...(tools ? { tools } : {}),
    };
+}
+
+/** A message with a cache point on its last content part; one with no text to hang it on is left as it is. */
+function withCachePoint(message: { role?: unknown; content?: unknown }): { role?: unknown; content?: unknown } {
+   if (typeof message.content === 'string') {
+      return message.content === '' ? message : { ...message, content: [{ type: 'text', text: message.content, cache_control: EPHEMERAL }] };
+   }
+   if (!Array.isArray(message.content) || message.content.length === 0) return message;
+   const parts = [...(message.content as Array<Record<string, unknown>>)];
+   parts[parts.length - 1] = { ...parts[parts.length - 1], cache_control: EPHEMERAL };
+   return { ...message, content: parts };
 }
 
 function parseBody(init: RequestInit | undefined): ChatBody | null {
