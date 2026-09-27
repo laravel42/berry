@@ -170,7 +170,12 @@
       "outcomeStopped": "{name} stopped without delivering {when}.",
       "outcomeReported": "{name} finished {when} with a report and changed nothing.",
       "openInReviews": "Open in Reviews",
-      "pullRequest": "Pull request #{number}"
+      "pullRequest": "Pull request #{number}",
+      "outdated": "Outdated",
+      "outdatedHint": "A newer run on this task has replaced this one.",
+      "showOutput": "Show the output",
+      "hideOutput": "Hide the output",
+      "noOutput": "This run left no output."
    },
    "usage": {
       "title": "Usage",
@@ -399,12 +404,6 @@
          "modified": "Modified in this pull request",
          "deleted": "Deleted in this pull request"
       }
-   },
-   "attachments": {
-      "title": "Files",
-      "titleCount": "Files ({count})",
-      "add": "Add a file",
-      "uploading": "Uploading…"
    },
    "reviews": {
       "title": "AutoGate review"

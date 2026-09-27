@@ -15,6 +15,8 @@ const commentSchema = z.object({
    revision: z.number(),
    resolvedAt: z.string().nullish(),
    resolvedBy: actorRefSchema.nullish(),
+   /** The run whose result this comment is; absent on other comments and from an older server. */
+   runId: z.string().nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
 });

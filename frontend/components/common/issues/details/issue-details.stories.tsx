@@ -51,10 +51,12 @@ export const AgentAtWork: Story = {
       await expect(
          canvas.getByRole('heading', { level: 1, name: 'Persist project health and updates' })
       ).toBeInTheDocument();
-      // Comments, runs and files all arrive after the task itself.
+      // Comments and runs arrive after the task itself, in one list: the
+      // running run is an entry with Cancel. No Files or Execution log section.
       await expect(await canvas.findByText(/the endpoint change is next/)).toBeInTheDocument();
-      await expect(await canvas.findByText('Running now')).toBeInTheDocument();
-      await expect(await canvas.findByText('Files (1)')).toBeInTheDocument();
+      await expect(await canvas.findByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+      await expect(canvas.queryByText(/^Files/)).not.toBeInTheDocument();
+      await expect(canvas.queryByText('Execution log')).not.toBeInTheDocument();
    },
 };
 
@@ -68,7 +70,9 @@ export const InReview: Story = {
       );
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText(/Frontend Engineer delivered/)).toBeInTheDocument();
+      // The delivered run is an Activity entry; the decision is on the Reviews page.
+      await expect(await canvas.findByText('succeeded')).toBeInTheDocument();
+      await expect(canvas.queryByText('Execution log')).not.toBeInTheDocument();
    },
 };
 

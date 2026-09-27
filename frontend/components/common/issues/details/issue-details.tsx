@@ -20,9 +20,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './activity-feed';
-import { ExecutionLog } from './execution-log';
 import { FindInIssue } from './find-in-issue';
-import { IssueAttachments } from './issue-attachments';
 import { IssueDescription } from './issue-description';
 import { IssuePropertiesPanel } from './issue-properties-panel';
 import { IssueQuickActions } from './issue-quick-actions';
@@ -276,7 +274,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   </div>
 
                   <SubIssues issue={issue} />
-                  <IssueAttachments issueRef={issue.identifier} />
                   <IssueReviews issueRef={issue.identifier} />
 
                   <ActivityFeedList
@@ -284,20 +281,13 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                      events={activity.events}
                      runs={activity.runs}
                      error={activity.error}
+                     issueId={issue.id}
                      issueRef={issue.identifier}
                      highlightedCommentId={highlighted}
                      onCommentChanged={activity.replaceComment}
                      onCommentDeleted={activity.removeComment}
                      onCommentPosted={activity.addComment}
                      onRunChanged={activity.upsertRun}
-                  />
-
-                  <ExecutionLog
-                     issueId={issue.id}
-                     issueRef={issue.identifier}
-                     inReview={issue.status.id === 'in-review'}
-                     runs={activity.runs}
-                     onRunsChanged={activity.upsertRun}
                   />
 
                   {stickyCommentBar ? null : (
