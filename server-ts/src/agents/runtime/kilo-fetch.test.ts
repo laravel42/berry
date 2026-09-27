@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { kiloFetch, NOT_OWN_KEY_MARKER, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
+import { kiloFetch, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
 
 /**
- * The gateway rules, against a scripted upstream: a paid model not served by
- * the deployment's own key is refused, a free one is not, and Anthropic
- * requests carry cache points on their stable prefix.
+ * The gateway rules, against a scripted upstream: a paid reply passes whether
+ * the deployment's own key served it or Kilo credits did (2026-09-26), its
+ * usage made uncached, and Anthropic requests carry cache points on their
+ * stable prefix.
  */
 
 function upstream(body: string, type: string, seen?: { body?: string }): typeof fetch {
@@ -24,11 +25,12 @@ async function drain(response: Response): Promise<string> {
    return await response.text();
 }
 
-test('a paid JSON reply billed to gateway credits is refused as a final 403', async () => {
-   const guarded = kiloFetch({}, upstream('{"usage":{"is_byok":false,"cost":0.01}}', 'application/json'));
-   const response = await guarded('https://gw/chat/completions', request('openai/gpt-5.6-sol'));
-   assert.equal(response.status, 403);
-   assert.match(await response.text(), new RegExp(NOT_OWN_KEY_MARKER));
+test('a paid JSON reply billed to gateway credits passes, its cost the one Kilo billed', async () => {
+   const reports: GatewayUsage[] = [];
+   const guarded = kiloFetch({ onUsage: (u) => reports.push(u) }, upstream('{"usage":{"is_byok":false,"cost":0.01}}', 'application/json'));
+   const response = await guarded('https://gw/chat/completions', request('deepseek/deepseek-v4.1-flash'));
+   assert.equal(response.status, 200);
+   assert.equal(reportedCostMicros(reports[0]!), 10_000);
 });
 
 test('a paid JSON reply served by the own key passes, with its usage made uncached', async () => {
@@ -41,7 +43,7 @@ test('a paid JSON reply served by the own key passes, with its usage made uncach
    assert.equal(reports[0]!.prompt_tokens, 120);
 });
 
-test('a paid stream that reports gateway billing errors, even across a chunk boundary', async () => {
+test('a paid stream billed to gateway credits streams through, even with its usage split across chunks', async () => {
    const chunks = ['data: {"choices":[{"delta":{"content":"pong"}}]}\n\n', 'data: {"usage":{"is_b', 'yok": false}}\n\n'];
    const inner: typeof fetch = async () =>
       new Response(
@@ -53,8 +55,10 @@ test('a paid stream that reports gateway billing errors, even across a chunk bou
          }),
          { status: 200, headers: { 'content-type': 'text/event-stream' } }
       );
-   const response = await kiloFetch({}, inner)('https://gw', request('openai/gpt-5.6-sol'));
-   await assert.rejects(drain(response), new RegExp(NOT_OWN_KEY_MARKER));
+   const reports: GatewayUsage[] = [];
+   const response = await kiloFetch({ onUsage: (u) => reports.push(u) }, inner)('https://gw', request('openai/gpt-5.6-sol'));
+   assert.match(await drain(response), /pong/);
+   assert.equal(reports[0]!.is_byok, false);
 });
 
 test('a streamed reply keeps its content and gets its usage on a chunk of its own, uncached', async () => {

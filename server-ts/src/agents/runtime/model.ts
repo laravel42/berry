@@ -158,7 +158,7 @@ export class KiloModel extends OpenAIModel {
 
    override async *stream(messages: Message[], options?: StreamOptions): AsyncIterable<ModelStreamEvent> {
       this.#reports.length = 0;
-      for await (const event of super.stream(messages, options)) {
+      for await (const event of blocksInOrder(super.stream(messages, options))) {
          if (event.type === 'modelMetadataEvent' && event.usage) {
             const report = this.#reports.shift();
             const usage = event.usage as ReportedUsage;
@@ -174,6 +174,41 @@ export class KiloModel extends OpenAIModel {
          }
          yield event;
       }
+   }
+}
+
+/**
+ * A reply's content blocks, each closed before the next one starts.
+ *
+ * The SDK's Chat Completions adapter opens a block for every tool call a reply
+ * streams but closes them all only at the end, while the SDK assembles one
+ * block at a time: each new tool call replaced the one before it, and of a
+ * reply that asked for seven tools only the last ran. The agent never heard
+ * back from the other six and asked for them again — one task read the same
+ * skills thirty-two times — and the transcript showed six calls that never
+ * finished. Here a block still open when the next one starts is closed first,
+ * and the adapter's closes for blocks already closed are dropped.
+ */
+export async function* blocksInOrder(events: AsyncIterable<ModelStreamEvent>): AsyncIterable<ModelStreamEvent> {
+   let open = false;
+   for await (const event of events) {
+      if (event.type === 'modelContentBlockStartEvent') {
+         if (open) yield { type: 'modelContentBlockStopEvent' } as ModelStreamEvent;
+         open = true;
+         yield event;
+         continue;
+      }
+      if (event.type === 'modelContentBlockStopEvent') {
+         if (!open) continue;
+         open = false;
+         yield event;
+         continue;
+      }
+      if (event.type === 'modelMessageStopEvent' && open) {
+         open = false;
+         yield { type: 'modelContentBlockStopEvent' } as ModelStreamEvent;
+      }
+      yield event;
    }
 }
 

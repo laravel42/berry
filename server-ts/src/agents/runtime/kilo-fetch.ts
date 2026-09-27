@@ -1,16 +1,13 @@
 /**
  * What sits between the OpenAI client and the Kilo gateway (ADR-0017).
  *
- * Three jobs, all about a request Berry has already decided to send:
+ * Two jobs, both about a request Berry has already decided to send. (A
+ * third, refusing a paid call Kilo billed to credits rather than to the
+ * deployment's own key, was dropped on 2026-09-26: the tiers now take models
+ * from every provider Kilo serves, and the cost is what Kilo reports either
+ * way.)
  *
- * 1. A paid model must be served by the deployment's own provider key (Bedrock
- *    BYOK). Kilo reports that per request as `usage.is_byok`; a paid request
- *    that reports `false` was billed to Kilo credits instead, which the
- *    deployment has ruled out. The call is refused as it arrives, not
- *    discovered on an invoice. A `:free` model has no key to be served by and
- *    is exempt.
- *
- * 2. Anthropic models cache only where the request says so. The SDK's
+ * 1. Anthropic models cache only where the request says so. The SDK's
  *    OpenAI-shaped request has nowhere to say it (it drops cache points with a
  *    warning), so the stable prefix — the system prompt and the tool schemas,
  *    about 6,200 tokens re-sent on every loop iteration — is marked here with
@@ -18,7 +15,7 @@
  *    Measured through the gateway: a call that read an 11,200-token prefix
  *    from cache cost a twelfth of the call that wrote it.
  *
- * 3. Usage reaches Berry's accounting in Bedrock's terms, with the cost the
+ * 2. Usage reaches Berry's accounting in Bedrock's terms, with the cost the
  *    gateway reported for the call (the only cost a Kilo deployment records). The gateway puts
  *    usage on the last chunk that still carries a choice, where the SDK does
  *    not look (it reads usage only from a chunk with no choices, as OpenAI
@@ -28,22 +25,8 @@
  *    and the cost, which the SDK's OpenAI path has no field for, go to `onUsage`.
  */
 
-/** Marks the refusal so `classify` can name it; the gateway's own errors never carry it. */
-export const NOT_OWN_KEY_MARKER = 'BERRY_NOT_OWN_KEY';
-
 export function isFreeModel(model: string): boolean {
    return model.endsWith(':free');
-}
-
-/**
- * Whether a request is exempt from the own-key rule: a free model has no key
- * to be served by, and Kilo's auto-routing (`kilo-auto/*`, the BerryAuto
- * tier) is an explicit experiment whose own fallback model and classifier are
- * billed to Kilo credits by design. Everything else is refused when Kilo
- * bills it to credits.
- */
-export function isOwnKeyExempt(model: string): boolean {
-   return isFreeModel(model) || model.startsWith('kilo-auto/');
 }
 
 /** The usage fields the gateway reports that Berry reads. */
@@ -81,25 +64,6 @@ export interface KiloFetchOptions {
    onUsage?: (usage: GatewayUsage, model: string | null) => void;
 }
 
-function notOwnKeyMessage(model: string): string {
-   return (
-      `${NOT_OWN_KEY_MARKER}: Kilo served ${model} without this deployment's own provider key, ` +
-      'so it would have been billed to Kilo credits.'
-   );
-}
-
-/**
- * The refusal, shaped as the gateway's own error body so the OpenAI client
- * raises it like any other 403: final, not retried, and classified by the
- * marker in its message.
- */
-function refusal(model: string): Response {
-   return new Response(JSON.stringify({ error: { message: notOwnKeyMessage(model), code: 403 } }), {
-      status: 403,
-      headers: { 'content-type': 'application/json' },
-   });
-}
-
 /** `prompt_tokens` without the cached part, which Berry prices apart. */
 export function toUncachedUsage(usage: GatewayUsage): GatewayUsage {
    const cached = usage.prompt_tokens_details?.cached_tokens ?? 0;
@@ -112,9 +76,9 @@ type Chunk = { choices?: unknown[]; usage?: GatewayUsage | null } & Record<strin
 /**
  * One SSE event's `data:` payload, rewritten: the usage checked, reported,
  * made uncached, and moved onto a chunk of its own. Returns the payloads to
- * send in its place, or throws the refusal.
+ * send in its place.
  */
-function rewriteChunk(payload: string, model: string, paid: boolean, options: KiloFetchOptions): string[] {
+function rewriteChunk(payload: string, options: KiloFetchOptions): string[] {
    let chunk: Chunk;
    try {
       chunk = JSON.parse(payload) as Chunk;
@@ -123,7 +87,6 @@ function rewriteChunk(payload: string, model: string, paid: boolean, options: Ki
    }
    const usage = chunk.usage;
    if (!usage) return [payload];
-   if (paid && usage.is_byok === false) throw new Error(notOwnKeyMessage(model));
    options.onUsage?.(usage, typeof chunk.model === 'string' ? chunk.model : null);
    const { usage: _moved, ...rest } = chunk;
    const usageOnly = { ...rest, choices: [], usage: toUncachedUsage(usage) };
@@ -136,7 +99,7 @@ function rewriteChunk(payload: string, model: string, paid: boolean, options: Ki
  * is held until one completes; anything that is not a `data:` event with a
  * usage passes through as it came.
  */
-function rewriteStream(body: ReadableStream<Uint8Array>, model: string, paid: boolean, options: KiloFetchOptions): ReadableStream<Uint8Array> {
+function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptions): ReadableStream<Uint8Array> {
    const decoder = new TextDecoder();
    const encoder = new TextEncoder();
    let pending = '';
@@ -146,7 +109,7 @@ function rewriteStream(body: ReadableStream<Uint8Array>, model: string, paid: bo
          controller.enqueue(encoder.encode(`${event}\n\n`));
          return;
       }
-      for (const payload of rewriteChunk(data, model, paid, options)) {
+      for (const payload of rewriteChunk(data, options)) {
          controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
       }
    };
@@ -226,11 +189,10 @@ export function kiloFetch(options: KiloFetchOptions = {}, inner: typeof fetch = 
       const request = parsed ? { ...init, body: JSON.stringify(withAnthropicCachePoints(parsed)) } : init;
       const response = await inner(input, request);
       if (model === null || !response.ok) return response;
-      const paid = !isOwnKeyExempt(model);
 
       const type = response.headers.get('content-type') ?? '';
       if (type.includes('text/event-stream') && response.body) {
-         return new Response(rewriteStream(response.body, model, paid, options), {
+         return new Response(rewriteStream(response.body, options), {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,
@@ -239,7 +201,6 @@ export function kiloFetch(options: KiloFetchOptions = {}, inner: typeof fetch = 
       if (type.includes('application/json')) {
          const body = (await response.json()) as Chunk;
          if (body.usage) {
-            if (paid && body.usage.is_byok === false) return refusal(model);
             options.onUsage?.(body.usage, typeof body.model === 'string' ? body.model : null);
             body.usage = toUncachedUsage(body.usage);
          }

@@ -1,6 +1,5 @@
 import { DefaultModelRetryStrategy, ExponentialBackoff, ModelThrottledError } from '@strands-agents/sdk';
 import type { Failure } from '../../runs/ledger.ts';
-import { NOT_OWN_KEY_MARKER } from './kilo-fetch.ts';
 import { truncateUtf8 } from './utf8.ts';
 
 /**
@@ -161,26 +160,16 @@ function chainHas(error: unknown, test: (error: unknown) => boolean): boolean {
 }
 
 export function classify(error: unknown): Failure {
-   // Kilo (ADR-0017): a paid model must be served by the deployment's own
-   // provider key. Both of these mean it was not, and both repeat on every
-   // run until a person changes the model or the key, so neither retries.
-   if (carries(error, NOT_OWN_KEY_MARKER)) {
-      return {
-         code: 'NOT_OWN_KEY',
-         message:
-            "The model gateway served this paid model without the deployment's own provider key (Bedrock), so it " +
-            "would have been billed to gateway credits. The run was stopped. Pick a model the deployment's Bedrock " +
-            'account serves, or add that model to the Bedrock key in the Kilo dashboard.',
-         retryable: false,
-      };
-   }
+   // Kilo (ADR-0017): a paid model not served by the deployment's own key is
+   // billed to Kilo credits, and 402 is the balance run out. It repeats on
+   // every run until someone tops the balance up, so it does not retry.
    if (httpStatus(error) === 402) {
       return {
-         code: 'NOT_OWN_KEY',
+         code: 'GATEWAY_CREDITS',
          message:
-            "The model gateway refused the request for lack of credits, which means the deployment's own provider " +
-            "key (Bedrock) does not serve this model: the gateway balance is kept at zero on purpose. Pick a model " +
-            `the Bedrock account serves. Provider message: ${truncateUtf8(String((error as Error)?.message ?? error), 500)}`,
+            'The model gateway refused the request for lack of credits: this model is billed to the Kilo balance, ' +
+            'not to one of the deployment\'s own provider keys, and the balance has run out. Top it up in the Kilo ' +
+            `dashboard, or move the agent to a tier its own key serves. Provider message: ${truncateUtf8(String((error as Error)?.message ?? error), 500)}`,
          retryable: false,
       };
    }

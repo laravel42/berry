@@ -134,17 +134,11 @@ test('a model the account may not use for want of data retention says how to fix
    assert.match(failure.message, /pick a different model for this agent/);
 });
 
-test('a paid model the gateway did not serve with the own key is a named, final failure', () => {
-   const refused = Object.assign(new Error('403 BERRY_NOT_OWN_KEY: Kilo served openai/gpt-5.6-sol without …'), { status: 403 });
-   const failure = classify(new Error('model call failed', { cause: refused }));
-   assert.equal(failure.code, 'NOT_OWN_KEY');
-   assert.equal(failure.retryable, false);
-});
-
-test('a 402 from the gateway means the own key does not serve the model, and is final', () => {
+test('a 402 from the gateway means the Kilo balance ran out, and is final', () => {
    const failure = classify(Object.assign(new Error('402 Insufficient balance'), { status: 402 }));
-   assert.equal(failure.code, 'NOT_OWN_KEY');
+   assert.equal(failure.code, 'GATEWAY_CREDITS');
    assert.equal(failure.retryable, false);
+   assert.match(failure.message, /Top it up/);
    assert.match(failure.message, /Insufficient balance/);
 });
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BedrockModel, Message, TextBlock } from '@strands-agents/sdk';
 import { OpenAIModel } from '@strands-agents/sdk/models/openai';
-import { bedrockModel, DEFAULT_KILO_BASE_URL, DEFAULT_MAX_TOKENS, kiloModel, modelProviderFromEnv } from './model.ts';
+import { bedrockModel, KiloModel, DEFAULT_KILO_BASE_URL, DEFAULT_MAX_TOKENS, kiloModel, modelProviderFromEnv } from './model.ts';
 
 /**
  * The one place a Bedrock model is built. What matters is that the spec
@@ -144,4 +144,38 @@ test('a Kilo model sends the session id, and records the picked model only for a
    } finally {
       globalThis.fetch = real;
    }
+});
+
+test('a reply that asks for several tools keeps every one of them, not only the last', async () => {
+   // As the gateway streams it: two tool calls, one after the other, with the
+   // adapter closing neither until the reply ends.
+   const chunk = (delta: Record<string, unknown>, finish: string | null = null) =>
+      `data: ${JSON.stringify({ id: 'r', choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`;
+   const sse =
+      chunk({ role: 'assistant' }) +
+      chunk({ tool_calls: [{ index: 0, id: 'call-0', type: 'function', function: { name: 'read_skill', arguments: '' } }] }) +
+      chunk({ tool_calls: [{ index: 0, function: { arguments: '{"name":"a"}' } }] }) +
+      chunk({ tool_calls: [{ index: 1, id: 'call-1', type: 'function', function: { name: 'read_skill', arguments: '' } }] }) +
+      chunk({ tool_calls: [{ index: 1, function: { arguments: '{"name":"b"}' } }] }) +
+      chunk({}, 'tool_calls') +
+      'data: [DONE]\n\n';
+   const model = new KiloModel([], {
+      api: 'chat',
+      modelId: 'x-ai/grok-4.7',
+      apiKey: 'k',
+      clientConfig: {
+         baseURL: 'https://gateway.test',
+         maxRetries: 0,
+         fetch: (async () => new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } })) as typeof fetch,
+      },
+   });
+
+   const stream = model.streamAggregated([new Message({ role: 'user', content: [new TextBlock('go')] })]);
+   let result: IteratorResult<unknown, { message: Message }>;
+   do result = await stream.next();
+   while (!result.done);
+   const calls = result.value.message.content
+      .filter((block) => block.type === 'toolUseBlock')
+      .map((block) => [(block as { toolUseId: string }).toolUseId, (block as { input: unknown }).input]);
+   assert.deepEqual(calls, [['call-0', { name: 'a' }], ['call-1', { name: 'b' }]]);
 });
