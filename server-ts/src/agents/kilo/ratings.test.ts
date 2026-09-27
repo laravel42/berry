@@ -40,13 +40,15 @@ test('the newest leaderboard keeps its scores; an older one is converted through
    const toNew = (old: number) => sigmoid(2 * logit(old) - 3);
    const newest = scores({ a: toNew(0.9), b: toNew(0.8), c: toNew(0.7) });
    const older = scores({ a: 0.9, b: 0.8, c: 0.7, cheap: 0.4 });
-   const { scale, ratings } = combineRatings([
+   const { scale, ratings, estimatedFrom } = combineRatings([
       { title: 'TB 4', scores: newest },
       { title: 'TB 2', scores: older },
    ]);
    assert.equal(scale, 'TB 4');
    assert.equal(ratings.get('a'), newest.get('a'), 'a model on the scale keeps its own score');
    assert.ok(Math.abs(ratings.get('cheap')! - toNew(0.4)) < 1e-9, 'the older-only model lands on the new scale');
+   assert.equal(estimatedFrom.has('a'), false, 'a measured score is not an estimate');
+   assert.deepEqual(estimatedFrom.get('cheap'), ['TB 2'], 'a converted one names where it came from');
 });
 
 test('a source reaches the scale through another, and one sharing too few models is left out', () => {
@@ -73,5 +75,5 @@ test('with no leaderboard at all, the first source present sets the scale', () =
    ]);
    assert.equal(scale, 'Kilo');
    assert.equal(ratings.get('a'), 0.7);
-   assert.deepEqual(combineRatings([]), { scale: null, ratings: new Map() });
+   assert.deepEqual(combineRatings([]), { scale: null, ratings: new Map(), estimatedFrom: new Map() });
 });

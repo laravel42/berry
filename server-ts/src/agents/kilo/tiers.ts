@@ -9,16 +9,28 @@
  * The paid tiers hold only rated models, so every paid model an agent runs
  * on has a rating to show (decided 2026-09-25):
  *
- * - BerryMax: the best rated.
- * - BerryMid: the best rated of the rest priced below Max's cheapest.
- * - BerryLow: the best rated of the rest priced below Mid's cheapest.
+ * Every paid tier holds three models (decided 2026-09-26), from the models one
+ * of the deployment's own keys serves — its Bedrock key — unless the policy
+ * opens them to every provider Kilo bills to its credits (`anyProvider`). A tier is
+ * defined by what it is for, not by the tier above's prices: with every
+ * provider in, a few cheap models outrate almost everything priced between
+ * them and the frontier, and "below the cheapest of the tier above" left Low
+ * empty.
  *
- *   So each tier costs less than the one above, and is the best that its
- *   price buys. A model priced at or above Max's cheapest, and not in Max,
- *   is in no tier: that Max model is rated higher for no more money. Rating
- *   per dollar is not the rule: with cheap, weak models rated, it would put
- *   the weakest in front. Only when no model is rated at all: unrated models
- *   by real usage per dollar, so paid runs still have a model.
+ * - BerryMax: the three best rated, at any price.
+ * - BerryLow: the best among the cheap, the cheapest third of rated models
+ *   by price (`LOW_PRICE_SHARE`). Models that earn their place come first:
+ *   not outclassed (no other eligible model rates at least as well for less —
+ *   a price ceiling alone once put Sonnet 5 in Low beside a model rated
+ *   higher at a ninth of its price), and at least a quarter of the best
+ *   rating (`LOW_FLOOR`). Fewer than three of those, and the best rated of
+ *   the rest fill it, so no role is left on one model.
+ * - BerryMid: the best rated of the rest priced below Max's cheapest.
+ *
+ *   A model priced at or above Max's cheapest, and not in Max, is in no tier:
+ *   a Max model is rated higher for no more money. Only when no model is
+ *   rated at all: unrated models by real usage per dollar, so paid runs
+ *   still have a model.
  * - BerryFree: free models by real usage, rating only breaking ties.
  * - BerryAuto: Kilo's own routing, `kilo-auto/efficient`, as a comparison.
  *
@@ -29,11 +41,77 @@ import { TIERS, type Tier } from '../model-tiers.ts';
 
 export { TIERS, TIER_NAMES, type RoleTier, type Tier } from '../model-tiers.ts';
 
+/**
+ * A deployment's own say over the tiers (`BERRY_KILO_EXCLUDE`, `BERRY_KILO_PREFER`),
+ * as model ids or id prefixes such as `z-ai/`. Excluded models are in no tier;
+ * they still count as evidence when ratings are converted. A preferred model
+ * goes first in the tier its rating and price reach, so it takes the largest
+ * share of that tier's tasks, but it is not lifted into a tier it did not reach:
+ * a tier still means what it says (2026-09-26: GLM out after a runaway reply,
+ * Grok first).
+ */
+export interface TierPolicy {
+   exclude?: readonly string[];
+   prefer?: readonly string[];
+   /**
+    * Paid tiers take models Kilo bills to its credits as well as those one of
+    * the deployment's own keys serves (`BERRY_KILO_ANY_PROVIDER=true`). Off by
+    * default: the paid tiers are the models the Bedrock key serves (decided
+    * 2026-09-27, reversing the day before).
+    */
+   anyProvider?: boolean;
+   /**
+    * Models a person placed in a paid tier (`BERRY_KILO_MAX|MID|LOW`): each
+    * takes one of the tier's three places whatever its rating, and the rule
+    * fills the rest. Placed models are in no other tier.
+    */
+   place?: Partial<Record<'berry_max' | 'berry_mid' | 'berry_low', readonly string[]>>;
+}
+
+/** Whether an id is one of `patterns`: equal to one, or starting with one that ends in `/` or `-`. */
+export function matchesAny(id: string, patterns: readonly string[] | undefined): boolean {
+   const lower = id.toLowerCase();
+   return (patterns ?? []).some((pattern) => lower === pattern || lower.startsWith(pattern));
+}
+
 /** The model BerryAuto sends every call to. */
 export const AUTO_MODEL = 'kilo-auto/efficient';
 
 /** How many models a tier offers to choose between. */
 export const TIER_SIZE = 3;
+
+/** The rating a Low model must reach to earn its place, as a share of the best rating today. */
+export const LOW_FLOOR = 0.25;
+
+/** BerryLow's range: this share of the rated models, cheapest first. */
+export const LOW_PRICE_SHARE = 1 / 3;
+
+/**
+ * How much an estimated rating counts for when models are ranked, against a
+ * measured one: converted from another benchmark, it is a prediction, and a
+ * measured score of similar value goes first. Shown as it is either way.
+ */
+export const ESTIMATE_WEIGHT = 0.85;
+
+/** The rating models are ranked by: the measured one, or an estimate discounted by `ESTIMATE_WEIGHT`. */
+export function rankingRating(model: GatewayModel): number {
+   const bench = model.bench;
+   if (!bench) return 0;
+   return bench.estimatedFrom && bench.estimatedFrom.length > 0 ? bench.completion * ESTIMATE_WEIGHT : bench.completion;
+}
+
+/**
+ * Whether another model rates at least as well and costs less: then this one
+ * is never the model to pay for, whichever tier its price would put it in.
+ */
+export function isOutclassed(model: GatewayModel, rivals: GatewayModel[]): boolean {
+   return rivals.some(
+      (rival) =>
+         rival.id !== model.id &&
+         rankingRating(rival) >= rankingRating(model) &&
+         blendedPrice(rival) < blendedPrice(model)
+   );
+}
 
 /** One model as the gateway's catalogue describes it. */
 export interface GatewayModel {
@@ -54,8 +132,10 @@ export interface GatewayModel {
    /**
     * The rating (0–1, `ratings.ts`), and Kilo's average cost of one benchmark
     * attempt where Kilo lists one. Null for a model no leaderboard rates.
+    * `estimatedFrom` names the sources a rating was converted from; absent or
+    * null when the scale's own leaderboard measured it.
     */
-   bench: { completion: number; costPerAttemptUsd: number | null } | null;
+   bench: { completion: number; costPerAttemptUsd: number | null; estimatedFrom?: string[] | null } | null;
 }
 
 /** One day of real Kilo usage for a model, as the public leaderboard reports it. */
@@ -71,6 +151,8 @@ export interface RankedModel {
    name: string;
    /** What placed it: the numbers the rule read. */
    completion: number | null;
+   /** The sources the rating was converted from; null when it was measured on the scale. */
+   estimatedFrom: string[] | null;
    costPerAttemptUsd: number | null;
    usageTokens: number;
    /** Null when the gateway lists no price (a router such as `kilo-auto/*` reports -1). */
@@ -92,13 +174,13 @@ export function blendedPrice(model: GatewayModel): number {
 }
 
 /**
- * Whether a paid model may serve a paid tier: served by the account's own key,
- * a real id rather than a `~…-latest` alias that changes model under it,
- * able to call tools, not being retired, and not training on prompts.
+ * Whether a paid model may serve a paid tier: a real id rather than a
+ * `~…-latest` alias that changes model under it, able to call tools, not
+ * being retired, and not training on prompts. Served by the deployment's own
+ * key or billed to Kilo credits alike (decided 2026-09-26).
  */
 export function isPaidEligible(model: GatewayModel): boolean {
    return (
-      model.ownKey &&
       !model.isFree &&
       !model.id.startsWith('~') &&
       model.supportsTools &&
@@ -128,6 +210,7 @@ function ranked(model: GatewayModel, usage: Map<string, number>): RankedModel {
       id: model.id,
       name: model.name,
       completion: model.bench?.completion ?? null,
+      estimatedFrom: model.bench?.estimatedFrom ?? null,
       costPerAttemptUsd: model.bench?.costPerAttemptUsd ?? null,
       usageTokens: usage.get(model.id) ?? 0,
       blendedPricePerM: unpriced ? null : blendedPrice(model),
@@ -140,24 +223,62 @@ function ranked(model: GatewayModel, usage: Map<string, number>): RankedModel {
  * The tiers for today's leaderboard. `mode` is the usage mode that ranks
  * free models and breaks ties — `code` for a coding role.
  */
-export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: string | null = 'code'): TierPools {
+export function rankTiers(
+   allModels: GatewayModel[],
+   usageRows: UsageRow[],
+   mode: string | null = 'code',
+   policy: TierPolicy = {}
+): TierPools {
+   const models = allModels.filter((model) => !matchesAny(model.id, policy.exclude));
    const usage = usageByModel(usageRows, mode);
    const used = (model: GatewayModel) => usage.get(model.id) ?? 0;
-   const paid = models.filter(isPaidEligible);
+   const paid = models.filter((model) => isPaidEligible(model) && (policy.anyProvider === true || model.ownKey));
    const rated = paid.filter((model) => model.bench !== null);
    const byRating = (a: GatewayModel, b: GatewayModel) =>
-      b.bench!.completion - a.bench!.completion || used(b) - used(a) || a.id.localeCompare(b.id);
+      rankingRating(b) - rankingRating(a) || used(b) - used(a) || a.id.localeCompare(b.id);
+   const best = rated.reduce((top, model) => Math.max(top, rankingRating(model)), 0);
+   const earns = new Set(
+      rated.filter((model) => rankingRating(model) >= best * LOW_FLOOR && !isOutclassed(model, rated)).map((model) => model.id)
+   );
+   // Placed by a person: set aside first, so no other tier takes them.
+   const placed = {
+      berry_max: paid.filter((model) => matchesAny(model.id, policy.place?.berry_max)).slice(0, TIER_SIZE),
+      berry_mid: paid.filter((model) => matchesAny(model.id, policy.place?.berry_mid)).slice(0, TIER_SIZE),
+      berry_low: paid.filter((model) => matchesAny(model.id, policy.place?.berry_low)).slice(0, TIER_SIZE),
+   };
+   const taken = new Set<string>(Object.values(placed).flat().map((model) => model.id));
+   // Preferred first, then placed, then the rule's own picks; the rule fills
+   // what the placed models leave.
+   const compose = (tier: keyof typeof placed, chosen: GatewayModel[]) => {
+      const all = [...placed[tier], ...chosen];
+      const preferred = all.filter((model) => matchesAny(model.id, policy.prefer));
+      return [...preferred, ...all.filter((model) => !preferred.includes(model))];
+   };
+   const pick = (
+      tier: keyof typeof placed,
+      inRange: (model: GatewayModel) => boolean,
+      order: (a: GatewayModel, b: GatewayModel) => number
+   ) => {
+      const chosen = rated
+         .filter((model) => !taken.has(model.id) && inRange(model))
+         .sort(order)
+         .slice(0, TIER_SIZE - placed[tier].length);
+      for (const model of chosen) taken.add(model.id);
+      return chosen;
+   };
 
-   const max = [...rated].sort(byRating).slice(0, TIER_SIZE);
-   const taken = new Set(max.map((model) => model.id));
-
-   // Blended token price: each tier stops below the cheapest of the one above.
-   const floorOf = (tier: GatewayModel[]) =>
-      tier.length > 0 ? Math.min(...tier.map(blendedPrice)) : Number.POSITIVE_INFINITY;
-   const bestBelow = (price: number) =>
-      rated.filter((model) => !taken.has(model.id) && blendedPrice(model) < price).sort(byRating).slice(0, TIER_SIZE);
-   const mid = bestBelow(floorOf(max));
-   for (const model of mid) taken.add(model.id);
+   const max = pick('berry_max', () => true, byRating);
+   // The cheap end: the cheapest third of rated models. Models that earn
+   // their place first, then the best rated, so Low is never short.
+   const byPrice = rated.map(blendedPrice).sort((a, b) => a - b);
+   const cheap = byPrice[Math.max(0, Math.ceil(byPrice.length * LOW_PRICE_SHARE) - 1)] ?? 0;
+   const ratedLow = pick(
+      'berry_low',
+      (model) => blendedPrice(model) <= cheap,
+      (a, b) => Number(earns.has(b.id)) - Number(earns.has(a.id)) || byRating(a, b)
+   );
+   const maxCheapest = max.length > 0 ? Math.min(...max.map(blendedPrice)) : Number.POSITIVE_INFINITY;
+   const mid = pick('berry_mid', (model) => blendedPrice(model) < maxCheapest, byRating);
 
    // Only when no model is rated at all does Low rank the unrated by real
    // usage per dollar: every paid tier would otherwise be empty, and every
@@ -165,7 +286,7 @@ export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: s
    const perDollar = (model: GatewayModel) => used(model) / Math.max(blendedPrice(model), 1e-9);
    const low = (
       rated.length > 0
-         ? bestBelow(mid.length > 0 ? floorOf(mid) : floorOf(max))
+         ? ratedLow
          : paid.filter((model) => used(model) > 0).sort((a, b) => perDollar(b) - perDollar(a) || a.id.localeCompare(b.id))
    ).slice(0, TIER_SIZE);
 
@@ -182,9 +303,9 @@ export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: s
    const auto = models.find((model) => model.id === AUTO_MODEL);
 
    return {
-      berry_max: max.map((model) => ranked(model, usage)),
-      berry_mid: mid.map((model) => ranked(model, usage)),
-      berry_low: low.map((model) => ranked(model, usage)),
+      berry_max: compose('berry_max', max).map((model) => ranked(model, usage)),
+      berry_mid: compose('berry_mid', mid).map((model) => ranked(model, usage)),
+      berry_low: compose('berry_low', low).slice(0, TIER_SIZE).map((model) => ranked(model, usage)),
       berry_free: free.map((model) => ranked(model, usage)),
       berry_auto: [
          auto
@@ -193,6 +314,7 @@ export function rankTiers(models: GatewayModel[], usageRows: UsageRow[], mode: s
                  id: AUTO_MODEL,
                  name: 'Auto Efficient',
                  completion: null,
+                 estimatedFrom: null,
                  costPerAttemptUsd: null,
                  usageTokens: 0,
                  blendedPricePerM: null,

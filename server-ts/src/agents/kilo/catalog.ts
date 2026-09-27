@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CatalogUnavailable, type CatalogModel } from '../catalog.ts';
 import { combineRatings, modelKey, readLeaderboard, TBENCH_LEADERBOARD_URL, TBENCH_LEADERBOARDS, type RatingSource, type Scores } from './ratings.ts';
-import { AUTO_MODEL, chooseForTier, isFreeEligible, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
+import { AUTO_MODEL, blendedPrice, chooseForTier, type TierPolicy, isFreeEligible, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
 
 /**
  * The Kilo gateway's models and leaderboard, read live (ADR-0017).
@@ -54,6 +54,8 @@ export interface KiloCatalogOptions {
    fetch?: typeof globalThis.fetch;
    ttlMs?: number;
    clock?: () => number;
+   /** Which models no tier offers, and which go first in theirs (`TierPolicy`). */
+   policy?: TierPolicy;
 }
 
 const priceString = z.union([z.string(), z.number()]).transform((value) => Number(value));
@@ -136,6 +138,70 @@ export function parseUsageRows(body: unknown): UsageRow[] {
  * first, then Kilo's own scores, combined on one scale (`combineRatings`).
  * Kilo's cost per benchmark attempt is kept where it has one.
  */
+/**
+ * A model id split into its family and version: `anthropic/claude-opus-5.5`
+ * is family `anthropic/claude-opus` at version [5, 5]. The version is the
+ * first dash-separated part that is a number (`v4.1` too); an id without one
+ * has no version and no predecessor.
+ */
+export function modelVersion(id: string): { family: string; version: number[] } | null {
+   if (id.startsWith('~') || id.endsWith(':free') || !id.includes('/')) return null;
+   const slash = id.indexOf('/');
+   const parts = id.slice(slash + 1).split('-');
+   const index = parts.findIndex((part) => /^v?\d+(\.\d+)*$/i.test(part));
+   if (index === -1) return null;
+   const version = parts[index]!.replace(/^v/i, '').split('.').map(Number);
+   const family = `${id.slice(0, slash)}/${parts.filter((_, at) => at !== index).join('-')}`;
+   return { family, version };
+}
+
+function compareVersions(a: number[], b: number[]): number {
+   for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+      const difference = (a[index] ?? 0) - (b[index] ?? 0);
+      if (difference !== 0) return difference;
+   }
+   return 0;
+}
+
+/**
+ * A new version no leaderboard rates yet borrows the rating of the newest
+ * rated earlier version of the same family (decided 2026-09-26): Opus 5.5
+ * arrives unrated and would otherwise sit in no tier until a leaderboard
+ * gets to it. Only when it costs no more than that predecessor, since a
+ * dearer version is not assumed to be worth it. The rating is marked as
+ * estimated from the predecessor, and ranked like any estimate
+ * (`ESTIMATE_WEIGHT`); a rating is only ever borrowed from one of the
+ * model's own, never from another borrowed one.
+ */
+export function borrowPredecessorRatings(models: GatewayModel[]): GatewayModel[] {
+   const rated = models.filter((model) => model.bench !== null);
+   return models.map((model) => {
+      if (model.bench !== null) return model;
+      const own = modelVersion(model.id);
+      if (!own) return model;
+      const predecessor = rated
+         .map((candidate) => ({ candidate, version: modelVersion(candidate.id) }))
+         .filter(
+            ({ candidate, version }) =>
+               version !== null &&
+               version.family === own.family &&
+               compareVersions(version.version, own.version) < 0 &&
+               blendedPrice(model) <= blendedPrice(candidate)
+         )
+         .sort((a, b) => compareVersions(b.version!.version, a.version!.version))[0]?.candidate;
+      if (!predecessor) return model;
+      return {
+         ...model,
+         bench: {
+            completion: predecessor.bench!.completion,
+            costPerAttemptUsd: null,
+            // Its display name without the vendor: "Claude Opus 5".
+            estimatedFrom: [predecessor.name.replace(/^[^:]+:\s*/, '')],
+         },
+      };
+   });
+}
+
 export function rateModels(models: GatewayModel[], leaderboards: RatingSource[]): { models: GatewayModel[]; scale: string | null } {
    const kilo: Scores = new Map();
    for (const model of models) {
@@ -143,16 +209,23 @@ export function rateModels(models: GatewayModel[], leaderboards: RatingSource[])
       const key = modelKey(model.id);
       kilo.set(key, Math.max(kilo.get(key) ?? 0, model.bench.completion));
    }
-   const { scale, ratings } = combineRatings([...leaderboards, { title: 'Kilo', scores: kilo }]);
+   const { scale, ratings, estimatedFrom } = combineRatings([...leaderboards, { title: 'Kilo', scores: kilo }]);
    return {
       scale,
-      models: models.map((model) => {
+      models: borrowPredecessorRatings(models.map((model) => {
          const rating = ratings.get(modelKey(model.id));
          return {
             ...model,
-            bench: rating === undefined ? null : { completion: rating, costPerAttemptUsd: model.bench?.costPerAttemptUsd ?? null },
+            bench:
+               rating === undefined
+                  ? null
+                  : {
+                       completion: rating,
+                       costPerAttemptUsd: model.bench?.costPerAttemptUsd ?? null,
+                       estimatedFrom: estimatedFrom.get(modelKey(model.id)) ?? null,
+                    },
          };
-      }),
+      })),
    };
 }
 
@@ -164,6 +237,7 @@ export class KiloCatalog {
    readonly #fetch: typeof globalThis.fetch;
    readonly #ttlMs: number;
    readonly #clock: () => number;
+   readonly #policy: TierPolicy;
    #snapshot: KiloSnapshot | null = null;
    #inFlight: Promise<KiloSnapshot> | null = null;
 
@@ -175,6 +249,7 @@ export class KiloCatalog {
       this.#fetch = options.fetch ?? globalThis.fetch;
       this.#ttlMs = options.ttlMs ?? DEFAULT_KILO_TTL_MS;
       this.#clock = options.clock ?? Date.now;
+      this.#policy = options.policy ?? {};
    }
 
    /** Today's models, usage and tiers, refreshed when older than the TTL. */
@@ -222,7 +297,7 @@ export class KiloCatalog {
       this.#snapshot = {
          models: rated.models,
          usage: usageRows,
-         pools: rankTiers(rated.models, usageRows),
+         pools: rankTiers(rated.models, usageRows, 'code', this.#policy),
          fetchedAt: this.#clock(),
          stale: false,
          usageStale: usage.status === 'rejected',

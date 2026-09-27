@@ -16,7 +16,10 @@ import { z } from 'zod';
  *   harder benchmark is a shift and a stretch rather than a curve. A source
  *   joins once it shares at least three models; sources join most-shared
  *   first, so an old version reaches the scale through a newer one.
- * - A model rated by several converted sources takes their mean.
+ * - A model rated by several converted sources takes their mean, and is
+ *   marked as estimated, with the sources it came from: a converted score is
+ *   a prediction of the newest leaderboard, and a loose one (Kilo scores two
+ *   models alike that Terminal-Bench 4.0 puts 0.2 apart).
  *
  * Nothing here names a model: the leaderboards move, and so do the ratings.
  */
@@ -118,10 +121,16 @@ function fitLine(pairs: Array<[number, number]>): { intercept: number; slope: nu
  * module comment describes. A source that shares too few models, or whose
  * scores run against the scale's, is left out rather than guessed at.
  */
-export function combineRatings(sources: RatingSource[]): { scale: string | null; ratings: Scores } {
+export function combineRatings(sources: RatingSource[]): {
+   scale: string | null;
+   ratings: Scores;
+   /** The sources an estimated rating was converted from; a rating the scale measured has none. */
+   estimatedFrom: Map<string, string[]>;
+} {
    const present = sources.filter((source) => source.scores.size > 0);
    const reference = present[0];
-   if (!reference) return { scale: null, ratings: new Map() };
+   const estimatedFrom = new Map<string, string[]>();
+   if (!reference) return { scale: null, ratings: new Map(), estimatedFrom };
 
    // On the scale, in log-odds.
    const known = new Map([...reference.scores].map(([key, rate]) => [key, logit(rate)]));
@@ -142,6 +151,7 @@ export function combineRatings(sources: RatingSource[]): { scale: string | null;
          const values = converted.get(key) ?? [];
          values.push(line.intercept + line.slope * logit(rate));
          converted.set(key, values);
+         estimatedFrom.set(key, [...(estimatedFrom.get(key) ?? []), next.source.title]);
          known.set(key, values.reduce((sum, value) => sum + value, 0) / values.length);
       }
    }
@@ -151,7 +161,7 @@ export function combineRatings(sources: RatingSource[]): { scale: string | null;
    for (const [key, values] of converted) {
       ratings.set(key, sigmoid(values.reduce((sum, value) => sum + value, 0) / values.length));
    }
-   return { scale: reference.title, ratings };
+   return { scale: reference.title, ratings, estimatedFrom };
 }
 
 /** Reads one leaderboard; throws when it cannot be read or has no rows. */

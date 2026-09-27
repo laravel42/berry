@@ -560,6 +560,14 @@ export interface ModelGatewayConfig {
    appUrl: string;
    /** A credit balance below this is logged: BerryAuto is what spends credits (ADR-0017). */
    minBalanceUsd: number;
+   /** Model ids or id prefixes (`z-ai/`) no tier offers (`BERRY_KILO_EXCLUDE`). */
+   exclude: string[];
+   /** Model ids or id prefixes ranked first within the tier they reach (`BERRY_KILO_PREFER`). */
+   prefer: string[];
+   /** Paid tiers also take models billed to Kilo credits (`BERRY_KILO_ANY_PROVIDER=true`); off, only the deployment's own keys'. */
+   anyProvider: boolean;
+   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_MID`, `_LOW`). */
+   place: { berry_max: string[]; berry_mid: string[]; berry_low: string[] };
 }
 
 /**
@@ -585,7 +593,20 @@ function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
       baseUrl: (env.BERRY_KILO_BASE_URL ?? '').trim() || 'https://api.kilo.ai/api/gateway',
       appUrl: (env.BERRY_KILO_APP_URL ?? '').trim() || 'https://app.kilo.ai',
       minBalanceUsd: nonNegative(env.BERRY_KILO_MIN_BALANCE_USD, 2),
+      exclude: idList(env.BERRY_KILO_EXCLUDE),
+      prefer: idList(env.BERRY_KILO_PREFER),
+      anyProvider: (env.BERRY_KILO_ANY_PROVIDER ?? '').trim().toLowerCase() === 'true',
+      place: {
+         berry_max: idList(env.BERRY_KILO_MAX),
+         berry_mid: idList(env.BERRY_KILO_MID),
+         berry_low: idList(env.BERRY_KILO_LOW),
+      },
    };
+}
+
+/** A comma-separated list of model ids or id prefixes, lower-cased, blanks dropped. */
+function idList(value: string | undefined): string[] {
+   return (value ?? '').split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
 }
 
 /**

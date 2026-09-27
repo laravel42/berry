@@ -575,7 +575,16 @@ const transport = routingTransport({
 // model for an agent that names no gateway model.
 const modelGateway = config.modelGateway
    ? {
-        catalog: new KiloCatalog({ apiKey: config.modelGateway.apiKey, baseUrl: config.modelGateway.baseUrl }),
+        catalog: new KiloCatalog({
+           apiKey: config.modelGateway.apiKey,
+           baseUrl: config.modelGateway.baseUrl,
+           policy: {
+              exclude: config.modelGateway.exclude,
+              prefer: config.modelGateway.prefer,
+              place: config.modelGateway.place,
+              anyProvider: config.modelGateway.anyProvider,
+           },
+        }),
         account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
      }
    : null;

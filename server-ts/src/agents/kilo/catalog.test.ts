@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CatalogUnavailable } from '../catalog.ts';
-import { KiloCatalog, parseGatewayModel } from './catalog.ts';
+import { borrowPredecessorRatings, KiloCatalog, modelVersion, parseGatewayModel } from './catalog.ts';
+import type { GatewayModel } from './tiers.ts';
 
 /** The gateway catalogue: parsed defensively, refreshed hourly, the last good one kept. */
 
@@ -117,4 +118,41 @@ test('Terminal-Bench rates the models on its newest scale, Kilo filling gaps; a 
    const again = await catalog.snapshot();
    assert.equal(again.ratingsStale, true);
    assert.equal(again.models.find((m) => m.id === 'v/model-d')!.bench!.completion, rating('d')!.completion);
+});
+
+test('a model id splits into its family and version', () => {
+   assert.deepEqual(modelVersion('anthropic/claude-opus-5.5'), { family: 'anthropic/claude-opus', version: [5, 5] });
+   assert.deepEqual(modelVersion('openai/gpt-5.6-sol'), { family: 'openai/gpt-sol', version: [5, 6] });
+   assert.deepEqual(modelVersion('deepseek/deepseek-v4.1-flash'), { family: 'deepseek/deepseek-flash', version: [4, 1] });
+   assert.equal(modelVersion('~anthropic/claude-opus-latest'), null, 'an alias has no version');
+   assert.equal(modelVersion('p/model-2:free'), null);
+   assert.equal(modelVersion('kilo-auto/efficient'), null);
+});
+
+test('an unrated new version borrows its newest rated predecessor, only when it costs no more', () => {
+   const gateway = (id: string, name: string, input: number, output: number, completion: number | null): GatewayModel => ({
+      id,
+      name,
+      contextLength: 200_000,
+      supportsTools: true,
+      supportsVision: false,
+      isFree: false,
+      mayTrain: false,
+      expiresAt: null,
+      ownKey: true,
+      price: { input, output, cacheRead: null, cacheWrite: null },
+      bench: completion === null ? null : { completion, costPerAttemptUsd: 100, estimatedFrom: null },
+   });
+   const borrowed = borrowPredecessorRatings([
+      gateway('anthropic/claude-opus-4.8', 'Anthropic: Claude Opus 4.8', 5, 25, 0.236),
+      gateway('anthropic/claude-opus-5', 'Anthropic: Claude Opus 5', 5, 25, 0.539),
+      gateway('anthropic/claude-opus-5.5', 'Anthropic: Claude Opus 5.5 (new)', 4, 20, null),
+      gateway('anthropic/claude-opus-6', 'Anthropic: Claude Opus 6', 10, 50, null),
+      gateway('anthropic/claude-sonnet-6', 'Anthropic: Claude Sonnet 6', 1, 5, null),
+   ]);
+   const bench = (id: string) => borrowed.find((model) => model.id === id)!.bench;
+   assert.deepEqual(bench('anthropic/claude-opus-5.5'), { completion: 0.539, costPerAttemptUsd: null, estimatedFrom: ['Claude Opus 5'] });
+   assert.equal(bench('anthropic/claude-opus-6'), null, 'dearer than its predecessor: not assumed to be worth it');
+   assert.equal(bench('anthropic/claude-sonnet-6'), null, 'another family lends nothing');
+   assert.equal(bench('anthropic/claude-opus-5')!.completion, 0.539, 'a rated model keeps its own rating');
 });
