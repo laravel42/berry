@@ -36,6 +36,12 @@ export interface PreviewEnvironment {
    url: string | null;
    log: string;
    message: string | null;
+   /**
+    * Whose problem a failure is: the task's `code` (an agent can fix it),
+    * Berry's access to the repository (`credentials`, reconnect), or this
+    * server (`infrastructure`). Absent from an older server.
+    */
+   failure?: 'code' | 'credentials' | 'infrastructure' | null;
    startedAt: string | null;
 }
 

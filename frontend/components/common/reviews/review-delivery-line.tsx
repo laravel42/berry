@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { stoppedWithoutDelivering, type ReviewItem } from '@/lib/reviews';
+import { reportedWithoutChanges, stoppedWithoutDelivering, type ReviewItem } from '@/lib/reviews';
 import { cn } from '@/lib/utils';
 import { ExternalLink } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -55,25 +55,18 @@ export function ReviewDeliveryLine({
           })
         : item.delivery.committed
           ? t.rich('delivery.committed', { agent, name })
-          : t.rich('delivery.produced', {
-               agent,
-               count: item.delivery.producedFiles,
-               name,
-            });
+          : reportedWithoutChanges(item)
+            ? t.rich('delivery.reported', { agent, name })
+            : t.rich('delivery.produced', {
+                 agent,
+                 count: item.delivery.producedFiles,
+                 name,
+              });
 
    return (
-      <div
-         className={cn(
-            'flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-lg',
-            className
-         )}
-      >
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-lg', className)}>
          <p className="flex min-w-0 flex-1 items-center gap-2">
-            <BerryMark
-               size="sm"
-               tone={stopped ? 'attention' : 'complete'}
-               className="shrink-0"
-            />
+            <BerryMark size="sm" tone={stopped ? 'attention' : 'complete'} className="shrink-0" />
             <span className="min-w-0">{outcome}</span>
          </p>
          {waiting ? <ReviewDecisionBar key={item.id} item={item} onDecided={onDecided} /> : null}

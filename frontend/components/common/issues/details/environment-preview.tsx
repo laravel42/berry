@@ -22,6 +22,8 @@ import {
 import { cn } from '@/lib/utils';
 import { ExternalLink, Hammer, PanelBottom, RotateCw, Sparkles, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PreviewPanel, type PanelAction } from './preview-panel';
@@ -59,6 +61,7 @@ export function EnvironmentPreview({
    toolbarSlot?: HTMLElement | null;
 }) {
    const t = useTranslations('issueDetail.environmentPreview');
+   const { orgId } = useParams<{ orgId: string }>();
    const [env, setEnv] = useState<PreviewEnvironment | null>(null);
    const [failed, setFailed] = useState(false);
    const [reload, setReload] = useState(0);
@@ -369,20 +372,34 @@ export function EnvironmentPreview({
                                   ? t('fetching')
                                   : t('starting')))}
                      </p>
-                     {(env?.state === 'failed' || env?.state === 'unavailable') && (
-                        <Button
-                           size="xs"
-                           className="shrink-0 cursor-pointer gap-1.5"
-                           disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
-                           onClick={fixWithAi}
-                           title={t('fixHint')}
-                        >
-                           <Sparkles className="size-3.5" aria-hidden />
-                           {fix?.phase === 'working' || fix?.phase === 'asking'
-                              ? t('fixingShort')
-                              : t('fix')}
+                     {/* Only the code's failures go to an agent: a refused login or a
+                         server fault is not something a change to the code fixes. */}
+                     {env?.state === 'failed' && env.failure === 'credentials' && (
+                        <Button asChild size="xs" className="shrink-0">
+                           <Link href={`/${orgId}/settings/integrations`}>{t('reconnect')}</Link>
                         </Button>
                      )}
+                     {env?.state === 'failed' && env.failure === 'infrastructure' && (
+                        <Button size="xs" className="shrink-0" onClick={() => start(true)}>
+                           {t('retry')}
+                        </Button>
+                     )}
+                     {(env?.state === 'failed' || env?.state === 'unavailable') &&
+                        env.failure !== 'credentials' &&
+                        env.failure !== 'infrastructure' && (
+                           <Button
+                              size="xs"
+                              className="shrink-0 cursor-pointer gap-1.5"
+                              disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
+                              onClick={fixWithAi}
+                              title={t('fixHint')}
+                           >
+                              <Sparkles className="size-3.5" aria-hidden />
+                              {fix?.phase === 'working' || fix?.phase === 'asking'
+                                 ? t('fixingShort')
+                                 : t('fix')}
+                           </Button>
+                        )}
                   </div>
                )}
             </div>

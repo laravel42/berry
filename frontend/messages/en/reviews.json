@@ -51,7 +51,8 @@
       "stopped": "<name>{agent}</name> stopped without delivering.",
       "pullRequest": "<name>{agent}</name> delivered <pr>PR #{number}</pr>",
       "committed": "<name>{agent}</name> committed changes but opened no pull request.",
-      "produced": "<name>{agent}</name> delivered {count, plural, one {# file} other {# files}} without a commit."
+      "produced": "<name>{agent}</name> delivered {count, plural, one {# file} other {# files}} without a commit.",
+      "reported": "<name>{agent}</name> finished with a report and changed nothing."
    },
    "sections": {
       "overview": "Overview",
@@ -109,6 +110,12 @@
       "failed": "failed",
       "budgetSpent": "The remaining checks did not run: the verification budget was spent."
    },
+   "ran": {
+      "title": "Commands the agent ran",
+      "hint": "What the agent ran itself, and how each command ended. A result the summary reports with no command here was not measured.",
+      "none": "The agent ran no commands. Nothing in the summary was measured by it.",
+      "noExit": "no exit code"
+   },
    "changed": {
       "title": "What changed",
       "nothing": "The run committed nothing. Its answer is the summary above and the files it produced."
@@ -138,7 +145,12 @@
       "retry": "Try again",
       "failed": "The decision was not saved. {reason}",
       "confirmTitle": "Mark {identifier} done?",
-      "confirmPullRequest": "Approving merges the pull request on GitHub, then marks the task done. If the merge fails, the task stays in review.",
+      "confirmPullRequest": "Approving merges the pull request on GitHub, then marks the task done. If it conflicts with the base branch, it goes back to its agent to bring up to date. If GitHub refuses the merge for another reason, the task stays in review.",
+      "confirmConflict": "This pull request conflicts with {base}, so it cannot merge. Approving sends it back to {agent} to bring up to date; it returns here for your decision.",
+      "confirmMerged": "This pull request is already merged on GitHub. Approving marks the task done.",
+      "conflicts": "Conflicts with {base}: another task changed the same lines after this branch was cut. Approving sends it back to {agent} to bring up to date.",
+      "mergedOnGitHub": "Already merged on GitHub. Approve to mark the task done.",
+      "defaultBranch": "the base branch",
       "confirmCommitted": "The changes are committed but no pull request was opened. The task leaves the review queue.",
       "confirmNothingCommitted": "Nothing was committed. The task leaves the review queue.",
       "markDone": "Mark done",
@@ -152,6 +164,7 @@
    "outcome": {
       "approved": "{identifier} approved and moved to Done.",
       "sentBack": "{identifier} rejected and moved to To do with your note.",
+      "conflict": "{identifier} conflicts with the base branch, so it went back to its agent to bring up to date.",
       "caughtUp": "All caught up",
       "caughtUpBody": "Nothing else is waiting for a decision.",
       "dismiss": "Dismiss"

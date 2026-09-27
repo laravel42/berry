@@ -176,8 +176,9 @@ const modelSchema = z.object({
    provider: z.string(),
    tier: z.string(),
    contextWindow: z.number(),
-   inputCostPerM: z.number(),
-   outputCostPerM: z.number(),
+   /** Null when no price is published: unknown, never shown as $0. */
+   inputCostPerM: z.number().nullable(),
+   outputCostPerM: z.number().nullable(),
    supportsTools: z.boolean(),
    supportsVision: z.boolean(),
 });
@@ -207,8 +208,8 @@ export async function listAgentModels(): Promise<AgentModel[]> {
  * ($3.00) or a lie at the bottom ($0.02, and $0.00 for anything cheaper).
  * Trailing zeros are dropped so the common whole-dollar prices stay short.
  */
-export function modelPrice(perMillion: number): string {
-   if (!Number.isFinite(perMillion) || perMillion < 0) return '—';
+export function modelPrice(perMillion: number | null): string {
+   if (perMillion === null || !Number.isFinite(perMillion) || perMillion < 0) return '—';
    if (perMillion === 0) return '$0';
    // Above $100 a cent is not information, and toPrecision would switch to
    // exponential notation at four digits anyway.
@@ -218,6 +219,18 @@ export function modelPrice(perMillion: number): string {
    // whole number turns $100 into $1.
    const trimmed = figures.includes('.') ? figures.replace(/0+$/, '').replace(/\.$/, '') : figures;
    return `$${trimmed}`;
+}
+
+/**
+ * A model's price as a list shows it: `$3/$15`, `Free`, or a dash when the
+ * provider publishes none. Unknown is not free, so it is never `$0/$0`.
+ */
+export function modelPriceLabel(
+   model: Pick<AgentModel, 'inputCostPerM' | 'outputCostPerM'>
+): string {
+   if (model.inputCostPerM === null || model.outputCostPerM === null) return '—';
+   if (model.inputCostPerM === 0 && model.outputCostPerM === 0) return 'Free';
+   return `${modelPrice(model.inputCostPerM)}/${modelPrice(model.outputCostPerM)}`;
 }
 
 export interface AgentPriceDisplay {
@@ -247,7 +260,8 @@ export function agentPriceDisplay(
    const model = agent.modelName?.trim();
    if (!provider || !model) return { label: '—' };
    const entry = prices.get(`${provider}/${model}`);
-   if (!entry) return { label: '—' };
+   if (!entry || entry.inputCostPerM === null || entry.outputCostPerM === null)
+      return { label: '—' };
    if (entry.inputCostPerM === 0 && entry.outputCostPerM === 0) {
       return { label: 'Free', title: `${entry.displayName} costs nothing to run` };
    }

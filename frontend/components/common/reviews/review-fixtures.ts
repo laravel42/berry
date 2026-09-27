@@ -60,7 +60,12 @@ export const deliveredReview: ReviewItem = {
       autoGate: true,
    },
    author: { id: 'agent-backend', name: 'Backend Engineer' },
-   run: { id: 'run-71', summary: RUN_SUMMARY, completedAt: '2026-09-18T10:45:00Z' },
+   run: {
+      id: 'run-71',
+      summary: RUN_SUMMARY,
+      completedAt: '2026-09-18T10:45:00Z',
+      reports: false,
+   },
    repository: 'berry/berry',
    pullRequest: {
       number: 412,
@@ -88,6 +93,11 @@ export const deliveredReview: ReviewItem = {
          { command: 'pnpm test:server', exitCode: 0, passed: true },
       ],
    },
+   commands: [
+      { command: 'pnpm typecheck:server', exitCode: 0 },
+      { command: 'grep -rn "projectHealth" frontend/store', exitCode: 1 },
+      { command: 'pnpm test:server', exitCode: 0 },
+   ],
    verdicts: [
       {
          id: 'verdict-2',
@@ -127,6 +137,7 @@ export const stoppedReview: ReviewItem = {
       summary:
          'I could not find the inbox route in `app/[orgId]/`. Which page should approvals move to?',
       completedAt: '2026-09-18T08:10:00Z',
+      reports: false,
    },
    repository: 'berry/berry',
    pullRequest: null,
@@ -139,6 +150,7 @@ export const stoppedReview: ReviewItem = {
       producedFiles: 0,
    },
    checks: null,
+   commands: [],
    verdicts: [],
    updatedAt: '2026-09-18T08:10:00Z',
 };
@@ -158,6 +170,7 @@ export const producedFilesReview: ReviewItem = {
       id: 'run-73',
       summary: 'Three directions for the empty queue, each as a static page.',
       completedAt: '2026-09-17T17:00:00Z',
+      reports: false,
    },
    repository: null,
    pullRequest: null,
@@ -177,6 +190,7 @@ export const producedFilesReview: ReviewItem = {
          { command: 'python3 scripts/check-locale-catalogues.py', exitCode: null, passed: false },
       ],
    },
+   commands: [],
    verdicts: [],
    updatedAt: '2026-09-17T17:00:00Z',
 };

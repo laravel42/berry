@@ -178,6 +178,50 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
                </div>
             </Section>
 
+            {/* Only for a run that delivered: the list is what the summary's
+                claims are read against, and a stopped run claims nothing. */}
+            {!stopped && (
+               <Section title={t('ran.title')}>
+                  <p className="text-muted-foreground">{t('ran.hint')}</p>
+                  {item.commands.length === 0 ? (
+                     <p className="text-muted-foreground">{t('ran.none')}</p>
+                  ) : (
+                     <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+                        {item.commands.map((ran, index) => (
+                           <li
+                              key={`${index}-${ran.command}`}
+                              className="flex min-w-0 items-center gap-2 font-mono"
+                           >
+                              {ran.exitCode === 0 ? (
+                                 <Check
+                                    className="size-3.5 shrink-0 text-status-success"
+                                    aria-hidden
+                                 />
+                              ) : (
+                                 <X className="size-3.5 shrink-0 text-status-danger" aria-hidden />
+                              )}
+                              <span className="min-w-0 flex-1 truncate" title={ran.command}>
+                                 {ran.command}
+                              </span>
+                              <span
+                                 className={cn(
+                                    'shrink-0',
+                                    ran.exitCode === 0
+                                       ? 'text-muted-foreground'
+                                       : 'text-status-danger'
+                                 )}
+                              >
+                                 {ran.exitCode === null
+                                    ? t('ran.noExit')
+                                    : t('checks.exit', { code: ran.exitCode })}
+                              </span>
+                           </li>
+                        ))}
+                     </ul>
+                  )}
+               </Section>
+            )}
+
             {checkResults.length > 0 && (
                <Section title={t('checks.title')}>
                   <ul className="flex flex-col gap-1">

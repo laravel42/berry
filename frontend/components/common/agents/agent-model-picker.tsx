@@ -11,7 +11,13 @@ import {
    CommandList,
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
-import { listAgentModels, modelKey, modelPrice, type AgentModel } from '@/lib/agents';
+import {
+   listAgentModels,
+   modelKey,
+   modelPrice,
+   modelPriceLabel,
+   type AgentModel,
+} from '@/lib/agents';
 
 interface AgentModelPickerProps {
    provider: string | null;
@@ -153,7 +159,7 @@ export function AgentModelPicker({
                               />
                               <span className="min-w-0 flex-1 truncate">{item.displayName}</span>
                               <span className="shrink-0 text-muted-foreground">
-                                 {modelPrice(item.inputCostPerM)}/{modelPrice(item.outputCostPerM)}
+                                 {modelPriceLabel(item)}
                               </span>
                            </CommandItem>
                         );
@@ -183,10 +189,14 @@ export function AgentModelPicker({
                            </DetailRow>
                         ) : null}
                         <DetailRow label="Input">
-                           {modelPrice(focused.inputCostPerM)} per million tokens
+                           {focused.inputCostPerM === null
+                              ? 'Not published'
+                              : `${modelPrice(focused.inputCostPerM)} per million tokens`}
                         </DetailRow>
                         <DetailRow label="Output">
-                           {modelPrice(focused.outputCostPerM)} per million tokens
+                           {focused.outputCostPerM === null
+                              ? 'Not published'
+                              : `${modelPrice(focused.outputCostPerM)} per million tokens`}
                         </DetailRow>
                         <DetailRow label="Context">
                            {focused.contextWindow > 0

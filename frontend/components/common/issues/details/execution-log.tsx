@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { BerryApiError } from '@/lib/api';
 import { uiStatusFromApi } from '@/lib/catalog';
 import { loadIssuePullRequests, type LinkedPullRequest } from '@/lib/github';
-import { stoppedWithoutDelivering } from '@/lib/reviews';
+import { reportedWithoutChanges, stoppedWithoutDelivering } from '@/lib/reviews';
 import {
    cancelRun,
    createIssueRun,
@@ -256,7 +256,9 @@ function LatestOutcome({
       run.status === 'succeeded'
          ? stopped
             ? t('outcomeStopped', { name, when })
-            : t('outcomeDelivered', { name, when })
+            : review && reportedWithoutChanges(review)
+              ? t('outcomeReported', { name, when })
+              : t('outcomeDelivered', { name, when })
          : run.status === 'failed'
            ? t('outcomeFailed', {
                 name,
@@ -332,6 +334,56 @@ function LatestOutcome({
    );
 }
 
+/**
+ * The latest run failed and nothing has run since: what went wrong, said in
+ * full rather than cut to a row's width, and Run again as a labelled action.
+ */
+function FailedOutcome({
+   run,
+   busy,
+   onRetry,
+   onTranscript,
+}: {
+   run: RunRecord;
+   busy: boolean;
+   onRetry: (run: RunRecord) => void;
+   onTranscript: (run: RunRecord) => void;
+}) {
+   const t = useTranslations('issueDetail.log');
+   const getAgentById = useAgentsStore((state) => state.getAgentById);
+   const name = getAgentById(run.agentId)?.name ?? t('trigger.assignment');
+   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
+
+   return (
+      <div
+         role="status"
+         className="mb-1.5 flex flex-col gap-2 rounded-sm border border-status-danger/40 bg-container px-3 py-2"
+      >
+         <div className="flex min-w-0 items-start gap-2">
+            <BerryMark size="sm" tone="danger" className="mt-0.5" />
+            <p className="min-w-0 break-words">
+               <span className="sr-only">{t('latest')}: </span>
+               {t('outcomeFailed', {
+                  name,
+                  when,
+                  reason: run.failure?.message || t('reasonUnknown'),
+               })}
+            </p>
+         </div>
+         <div className="flex flex-wrap items-center gap-2">
+            <Button size="xs" disabled={busy} onClick={() => onRetry(run)}>
+               <RotateCcw className="mr-1 size-3.5" aria-hidden />
+               {t('retry')}
+            </Button>
+            <Button variant="secondary" size="xs" onClick={() => onTranscript(run)}>
+               <ScrollText className="mr-1 size-3.5" aria-hidden />
+               {t('transcript')}
+            </Button>
+         </div>
+      </div>
+   );
+}
+
 export function ExecutionLog({
    issueId,
    issueRef,
@@ -363,7 +415,10 @@ export function ExecutionLog({
 
    const { active, past } = useMemo(() => orderRunsForLog(runs), [runs]);
    const latest = inReview && active.length === 0 ? (past[0] ?? null) : null;
-   const older = latest ? past.slice(1) : past;
+   // A task whose last run failed and nothing has replaced: the failure and
+   // the way to try again sit at the top, not as one row among the past.
+   const failed = !latest && active.length === 0 && past[0]?.status === 'failed' ? past[0] : null;
+   const older = latest || failed ? past.slice(1) : past;
 
    // The decision already went through the API; the page reflects it at once
    // rather than waiting for the stream, and the outcome line stays put after
@@ -414,7 +469,11 @@ export function ExecutionLog({
                />
                <span className="min-w-0">
                   {tReviews(
-                     decided.decision === 'approve' ? 'outcome.approved' : 'outcome.sentBack',
+                     decided.conflict
+                        ? 'outcome.conflict'
+                        : decided.decision === 'approve'
+                          ? 'outcome.approved'
+                          : 'outcome.sentBack',
                      { identifier: decided.identifier }
                   )}
                </span>
@@ -452,9 +511,18 @@ export function ExecutionLog({
                   />
                ) : null}
 
+               {failed ? (
+                  <FailedOutcome
+                     run={failed}
+                     busy={busy}
+                     onRetry={(target) => void doRetry(target)}
+                     onTranscript={setTranscript}
+                  />
+               ) : null}
+
                {older.length > 0 ? (
                   <>
-                     {active.length > 0 || latest ? (
+                     {active.length > 0 || latest || failed ? (
                         <h2 data-heading="label" className="mt-5 mb-1 pb-1 text-muted-foreground">
                            {t('past')}
                         </h2>

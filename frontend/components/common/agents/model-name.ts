@@ -98,7 +98,7 @@ export function modelTier(
    const key = modelPairKey(agent);
    if (key && prices) {
       const entry = prices.get(key);
-      if (entry && entry.inputCostPerM > 0) {
+      if (entry?.inputCostPerM != null && entry.inputCostPerM > 0) {
          return modelTierFromInputCost(entry.inputCostPerM);
       }
    }

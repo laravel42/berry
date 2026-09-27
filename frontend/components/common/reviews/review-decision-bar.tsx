@@ -23,11 +23,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { describePatchFailure } from '@/lib/issues';
 import {
    decideReview,
+   loadReviewPullRequestState,
+   sentBackForConflict,
    stoppedWithoutDelivering,
    type ReviewDecision,
    type ReviewItem,
+   type ReviewPullRequestState,
 } from '@/lib/reviews';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, GitMerge, Loader2, TriangleAlert, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 
@@ -36,6 +39,11 @@ export interface ReviewOutcome {
    reviewId: string;
    identifier: string;
    decision: ReviewDecision;
+   /**
+    * Approve found the pull request in conflict with its base, and the server
+    * sent the task back to its author to bring it up to date instead.
+    */
+   conflict?: boolean;
 }
 
 /**
@@ -75,6 +83,26 @@ export function ReviewDecisionBar({
    const noteRef = useRef<HTMLTextAreaElement>(null);
    const noteId = useId();
    const errorId = useId();
+   // Where the pull request stands on GitHub, asked once per run: a conflict
+   // with the base, or a merge somebody already made there, is said before
+   // Approve rather than learned from it.
+   const [pullRequest, setPullRequest] = useState<ReviewPullRequestState | null>(null);
+   const runId = item.run.id;
+   const hasPullRequest = item.pullRequest !== null;
+
+   useEffect(() => {
+      setPullRequest(null);
+      if (!hasPullRequest) return;
+      let cancelled = false;
+      void loadReviewPullRequestState(runId)
+         .then((state) => {
+            if (!cancelled) setPullRequest(state);
+         })
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [runId, hasPullRequest]);
 
    // The note field lives in a dialog; take focus when it opens so typing
    // starts immediately.
@@ -101,7 +129,18 @@ export function ReviewDecisionBar({
                decision,
             });
          })
-         .catch((error: unknown) => {
+         .catch(async (error: unknown) => {
+            // Not a failure to retry: the merge conflicted and the server
+            // already returned the task to its author to bring up to date.
+            if (decision === 'approve' && sentBackForConflict(error)) {
+               await onDecided?.({
+                  reviewId: item.id,
+                  identifier: item.issue.identifier,
+                  decision: 'send-back',
+                  conflict: true,
+               });
+               return;
+            }
             setFailure({ decision, reason: describePatchFailure(error) });
          })
          .finally(() => setPending(null));
@@ -138,8 +177,14 @@ export function ReviewDecisionBar({
       else request(primary);
    };
 
+   const base = pullRequest?.base ?? t('decision.defaultBranch');
+   const agent = item.author?.name ?? t('facts.noAuthor');
    const consequence = item.pullRequest
-      ? t('decision.confirmPullRequest')
+      ? pullRequest?.state === 'merged'
+         ? t('decision.confirmMerged')
+         : pullRequest?.conflicts
+           ? t('decision.confirmConflict', { base, agent })
+           : t('decision.confirmPullRequest')
       : item.delivery.committed
         ? t('decision.confirmCommitted')
         : t('decision.confirmNothingCommitted');
@@ -202,6 +247,17 @@ export function ReviewDecisionBar({
                </Button>
             </div>
          )}
+         {pullRequest?.conflicts && pullRequest.state === 'open' ? (
+            <p className="mb-2 flex items-start gap-1.5 text-status-warning">
+               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+               <span>{t('decision.conflicts', { base, agent })}</span>
+            </p>
+         ) : pullRequest?.state === 'merged' ? (
+            <p className="mb-2 flex items-start gap-1.5 text-status-success">
+               <GitMerge className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+               <span>{t('decision.mergedOnGitHub')}</span>
+            </p>
+         ) : null}
          <div className="flex flex-wrap items-center gap-2">
             {primary === 'approve' ? (
                <>

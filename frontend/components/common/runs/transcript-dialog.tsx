@@ -545,6 +545,21 @@ export function RunTranscriptDialog({
       target?.scrollIntoView({ block: 'center' });
    };
 
+   // Usage is recorded per model call, so a running run's totals move. The
+   // stream carries no usage, so the run is re-read while it works rather than
+   // showing what it had spent when the dialog opened (often nothing).
+   const live = status === 'running' || status === 'queued';
+   useEffect(() => {
+      if (!open || !runId || !live) return;
+      const timer = window.setInterval(() => {
+         void getRun(runId).then(
+            (loaded) => setRun(loaded),
+            () => undefined
+         );
+      }, 10_000);
+      return () => window.clearInterval(timer);
+   }, [open, runId, live]);
+
    const totalTokens = run ? run.usage.totalTokens : 0;
    const cost = run?.usage.costMicros ?? null;
 
@@ -659,7 +674,11 @@ export function RunTranscriptDialog({
                </span>
                <span>
                   {t('cost')}{' '}
-                  <span className="tabular-nums text-foreground">{formatCost(cost ?? 0)}</span>
+                  <span className="tabular-nums text-foreground">
+                     {/* No price is unknown, not free: tokens spent on a model with no
+                         published price must not read as $0. */}
+                     {cost === null && totalTokens > 0 ? t('unpriced') : formatCost(cost ?? 0)}
+                  </span>
                </span>
                <span className="ml-auto flex flex-wrap items-center gap-x-3">
                   <span>

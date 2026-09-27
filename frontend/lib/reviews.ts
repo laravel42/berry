@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiFetch, apiText } from './api';
+import { apiFetch, apiText, BerryApiError } from './api';
 import { createIssueComment } from './comments';
 import { patchBoardIssue } from './issues';
 import type { FileDiff } from '@/data/reviews';
@@ -38,6 +38,11 @@ export const reviewItemSchema = z.object({
       completedAt: z.string().nullable(),
       /** The run's working branch, even when no pull request was opened. */
       branch: z.string().nullable().optional(),
+      /**
+       * Its report is the deliverable: no repository it could change, or a
+       * verifying role. Changing nothing is then finishing, not stopping.
+       */
+      reports: z.boolean().default(false),
    }),
    repository: z.string().nullable(),
    pullRequest: z
@@ -72,6 +77,13 @@ export const reviewItemSchema = z.object({
             .default([]),
       })
       .nullable(),
+   /**
+    * The commands the agent itself ran in the delivering run, and how each
+    * ended: what the summary's claims can be read against.
+    */
+   commands: z
+      .array(z.object({ command: z.string(), exitCode: z.number().nullable() }))
+      .default([]),
    verdicts: z.array(reviewVerdictSchema).default([]),
    updatedAt: z.string(),
 });
@@ -121,10 +133,27 @@ export function preloadReviewDiff(runId: string): void {
  * pane and the task page all read it that way.
  */
 export function stoppedWithoutDelivering(
-   item: Pick<ReviewItem, 'delivery' | 'pullRequest'>
+   item: Pick<ReviewItem, 'delivery' | 'pullRequest' | 'run'>
 ): boolean {
-   // A design task delivers files without a commit; only a run that left
-   // nothing at all behind stopped without delivering.
+   // A design task delivers files without a commit, and a verifying or
+   // read-only run delivers its report; only a run that could have changed
+   // something and left nothing at all behind stopped without delivering.
+   return leftNoChanges(item) && !item.run.reports;
+}
+
+/**
+ * The run finished with its report and changed nothing: a QA pass that found
+ * no defects, an audit, a read-only investigation. The report is the
+ * deliverable, so it is decided like any other rather than filed under needs
+ * help.
+ */
+export function reportedWithoutChanges(
+   item: Pick<ReviewItem, 'delivery' | 'pullRequest' | 'run'>
+): boolean {
+   return leftNoChanges(item) && item.run.reports;
+}
+
+function leftNoChanges(item: Pick<ReviewItem, 'delivery' | 'pullRequest'>): boolean {
    return !item.delivery.committed && !item.pullRequest && item.delivery.producedFiles === 0;
 }
 
@@ -164,6 +193,47 @@ export async function mergeReviewPullRequest(runId: string): Promise<void> {
       method: 'POST',
       body: '{}',
    });
+}
+
+/**
+ * Where a review's pull request stands on GitHub now. `conflicts` is GitHub's
+ * definite answer only: while it is still working mergeability out, the pull
+ * request reads as not conflicting and Approve's merge is the final word.
+ */
+export interface ReviewPullRequestState {
+   number: number;
+   state: 'open' | 'merged' | 'closed';
+   conflicts: boolean;
+   base: string | null;
+}
+
+const pullRequestStateSchema = z.object({
+   number: z.number(),
+   state: z.enum(['open', 'merged', 'closed']),
+   conflicts: z.boolean(),
+   base: z.string().nullable(),
+});
+
+/** Asks GitHub, through Berry, whether the review's pull request is still mergeable. Null when it cannot say. */
+export async function loadReviewPullRequestState(
+   runId: string
+): Promise<ReviewPullRequestState | null> {
+   const json: unknown = await apiFetch(
+      `/api/v1/reviews/${encodeURIComponent(runId)}/pull-request`
+   );
+   const parsed = pullRequestStateSchema.safeParse(json);
+   return parsed.success ? parsed.data : null;
+}
+
+/**
+ * Approve's merge was refused for a conflict and the server already sent the
+ * task back to its author to bring up to date: the decision happened, just not
+ * the one asked for, so it is not a failure to retry.
+ */
+export function sentBackForConflict(error: unknown): boolean {
+   if (!(error instanceof BerryApiError) || error.code !== 'MERGE_CONFLICT') return false;
+   const details = error.details as { sentBack?: unknown } | null;
+   return details?.sentBack === true;
 }
 
 /** A relative time short enough for a list row. */
