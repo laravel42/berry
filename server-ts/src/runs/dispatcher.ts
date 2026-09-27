@@ -1,5 +1,6 @@
 import type { Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
+import { retryAfterFault } from './continuation.ts';
 
 /**
  * What turns a queued run into a running one.
@@ -304,7 +305,13 @@ export class Dispatcher {
          if (this.#inflight.has(runId)) continue;
          try {
             await this.#abandon(runId);
-            this.#logger.info('recorded an abandoned run', { runId });
+            // The process went away, not the task: it is started once more,
+            // as any other fault outside the task is (continuation.ts).
+            const retry = await retryAfterFault(this.#sql, { runId });
+            this.#logger.info('recorded an abandoned run', {
+               runId,
+               ...(retry.retried ? { retriedAs: retry.runId } : {}),
+            });
          } catch (error) {
             this.#logger.error('could not record an abandoned run', {
                runId,

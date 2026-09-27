@@ -233,9 +233,12 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.equal(failed.failure?.retryable, true);
 
       // Released, which is the point — a run nobody is working on must not
-      // hold the task forever.
+      // hold the task forever — and, the fault being the process's and not
+      // the task's, started once more (continuation.ts retryAfterFault).
       const [issue] = await sql`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
-      assert.equal(issue!.active_run_id, null);
+      assert.notEqual(issue!.active_run_id, run.id);
+      const [retry] = await sql`SELECT id FROM runs WHERE issue_id = ${issueId} AND origin->>'runId' = ${run.id}`;
+      assert.ok(retry);
 
       // And it reaches the stream a person watches.
       const events = await runs.events(run.id, null, 10);

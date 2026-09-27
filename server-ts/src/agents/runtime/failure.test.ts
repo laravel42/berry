@@ -147,3 +147,16 @@ test('a 402 from the gateway means the own key does not serve the model, and is 
    assert.equal(failure.retryable, false);
    assert.match(failure.message, /Insufficient balance/);
 });
+
+test('a connection that failed is transient; a request that failed is not', () => {
+   const refused = new TypeError('fetch failed', { cause: Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }) });
+   assert.equal(isTransient(refused), true);
+   assert.deepEqual(
+      { code: classify(refused).code, retryable: classify(refused).retryable },
+      { code: 'UPSTREAM_UNAVAILABLE', retryable: true }
+   );
+   const idle = Object.assign(new Error('Stream timed out because of no activity for 120000 ms'), { name: 'TimeoutError' });
+   assert.equal(classify(new Error('model call failed', { cause: idle })).retryable, true);
+   // Not every TypeError is the network: a bug stays final.
+   assert.equal(isTransient(new TypeError('x is not a function')), false);
+});

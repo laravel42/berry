@@ -140,6 +140,13 @@ export class LocalSession implements ExecutionSession {
          // exposure; shell execution still requires an isolated OS trust boundary.
          env: { PATH: process.env.PATH, LANG: 'C.UTF-8', HOME: this.root, TMPDIR: this.root, ...toolEnv(), ...this.#env, ...(options.env ?? {}) },
          detached: true,
+         // Nobody is at the keyboard. A command that stops to ask (a password,
+         // "Proceed? [y/N]") reads end-of-file and fails at once, instead of
+         // waiting on a pipe nobody writes until the time limit stops it — the
+         // field saw a run held for twenty minutes by an install asking for
+         // sudo. Detached, it has no terminal either, so sudo itself refuses
+         // rather than prompts.
+         stdio: ['ignore', 'pipe', 'pipe'],
          ...(this.#identity ?? {}),
       });
       const pid = child.pid;

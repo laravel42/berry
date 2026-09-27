@@ -211,7 +211,7 @@ describe('routing a compiled plan', () => {
       assert.deepEqual(result.failures, []);
    });
 
-   test('a batch the orchestrator never answers costs its own tasks only', async () => {
+   test('a batch the orchestrator did not answer is asked once more', async () => {
       const tasks = Array.from({ length: 12 }, (_, index) => ({
          id: `t${index + 1}`,
          status: 'todo',
@@ -221,6 +221,34 @@ describe('routing a compiled plan', () => {
          agents: ['a1'],
          answerFor: (call, taskIds) => {
             if (call === 1) throw new Error('the completion did not finish in time');
+            return { assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })) };
+         },
+         answer: {},
+      });
+
+      const result = await run(f);
+
+      // One slow call no longer leaves a whole batch owned by nobody: the
+      // eight it carried are asked again, and nothing is left to report.
+      assert.deepEqual(
+         f.calls().map((call) => call.length),
+         [8, 4, 8]
+      );
+      assert.equal(result.assigned, 12);
+      assert.deepEqual(result.unassigned, []);
+      assert.deepEqual(result.failures, []);
+   });
+
+   test('a batch the orchestrator never answers costs its own tasks only', async () => {
+      const tasks = Array.from({ length: 12 }, (_, index) => ({
+         id: `t${index + 1}`,
+         status: 'todo',
+      }));
+      const f = fake({
+         tasks,
+         agents: ['a1'],
+         answerFor: (_call, taskIds) => {
+            if (taskIds.includes('t1')) throw new Error('the completion did not finish in time');
             return { assignments: taskIds.map((taskId) => ({ taskId, agentId: 'a1' })) };
          },
          answer: {},

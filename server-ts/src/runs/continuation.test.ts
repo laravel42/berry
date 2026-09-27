@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
-import { LIMIT_CODE, continuationInstructions, continuationNote, continueAfterLimit } from './continuation.ts';
+import { LIMIT_CODE, continuationInstructions, continuationNote, continueAfterLimit, retryAfterFault, retryNote } from './continuation.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -46,17 +46,18 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
    }
 
    /** A finished run on the task, each later than the one before. */
-   async function ended(issueId: string, input: { code: string | null; commit: string | null }): Promise<string> {
+   async function ended(issueId: string, input: { code: string | null; commit: string | null; retryable?: boolean; prompt?: string }): Promise<string> {
       const f = fixture!;
       const id = randomUUID();
       clock += 1;
       await sql`
          INSERT INTO runs (id, workspace_id, issue_id, board_id, agent_id, kind, source, status,
                            failure_code, failure_message, failure_retryable, head_commit, branch,
-                           requested_by, created_at, completed_at)
+                           requested_by, prompt, created_at, completed_at)
          VALUES (${id}, ${f.workspaceId}, ${issueId}, ${f.boardId}, ${f.agentId}, 'agent', 'assignment',
                  ${input.code ? 'failed' : 'succeeded'}, ${input.code}, ${input.code ? 'stopped' : null},
-                 ${input.code ? false : null}, ${input.commit}, 'agent/task', ${f.userId},
+                 ${input.code ? (input.retryable ?? false) : null}, ${input.commit}, 'agent/task', ${f.userId},
+                 ${input.prompt ?? null},
                  now() - interval '1 hour' + ${clock} * interval '1 minute', now())`;
       return id;
    }
@@ -113,6 +114,33 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       assert.equal((await continueAfterLimit(sql, { runId: later })).continued, true);
    });
 
+   test('a fault outside the task starts it once more, with the instructions it had', async () => {
+      const issueId = await task();
+      const runId = await ended(issueId, { code: 'RUNTIME_UNAVAILABLE', commit: null, retryable: true, prompt: 'Build the page' });
+      const outcome = await retryAfterFault(sql, { runId });
+      assert.equal(outcome.retried, true);
+      const [next] = await sql`
+         SELECT status, agent_id, source, instructions, origin, requested_by FROM runs
+          WHERE id = ${outcome.retried ? outcome.runId : ''}`;
+      assert.equal(next!.status, 'queued');
+      assert.equal(next!.source, 'assignment');
+      assert.equal(next!.instructions, 'Build the page');
+      assert.deepEqual(next!.origin, { runId });
+      assert.equal(next!.requested_by, fixture!.userId);
+   });
+
+   test('a second fault in a row stands, and a final failure is never retried', async () => {
+      const issueId = await task();
+      await ended(issueId, { code: 'RUNTIME_UNAVAILABLE', commit: null, retryable: true });
+      const again = await ended(issueId, { code: 'RUNTIME_STREAM_ENDED', commit: null, retryable: true });
+      assert.deepEqual(await retryAfterFault(sql, { runId: again }), { retried: false, reason: 'already_retried' });
+      const final = await ended(issueId, { code: 'UPSTREAM_REJECTED', commit: null });
+      assert.deepEqual(await retryAfterFault(sql, { runId: final }), { retried: false, reason: 'not_retryable' });
+      await sql`UPDATE issues SET assignee_type = 'user', assignee_id = ${fixture!.userId} WHERE id = ${issueId}`;
+      const moved = await ended(issueId, { code: 'RUNTIME_UNAVAILABLE', commit: null, retryable: true });
+      assert.deepEqual(await retryAfterFault(sql, { runId: moved }), { retried: false, reason: 'task_moved_on' });
+   });
+
    test('other failures, a reassigned or closed task, and zero are all left alone', async () => {
       const issueId = await task();
       const other = await ended(issueId, { code: 'MODEL_ERROR', commit: 'c1' });
@@ -128,4 +156,10 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       const [queued] = await sql`SELECT count(*)::int AS n FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
       assert.equal(queued!.n, 0);
    });
+});
+
+test('a failed run’s comment says Berry tried again, or why it stopped', () => {
+   assert.match(retryNote({ retried: true, runId: 'r' }), /started it again; nothing needs to be done/);
+   assert.match(retryNote({ retried: false, reason: 'already_retried' }), /already tried again/);
+   assert.equal(retryNote({ retried: false, reason: 'busy' }), '');
 });

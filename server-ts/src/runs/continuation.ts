@@ -1,6 +1,6 @@
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
-import { EnqueueRejected, enqueueTask } from './queue.ts';
+import { EnqueueRejected, enqueueTask, type TaskSource } from './queue.ts';
 import { ActiveRunExists } from './repository.ts';
 
 /**
@@ -118,6 +118,75 @@ export function continuationNote(outcome: ContinuationOutcome): string {
    }
    if (outcome.reason === 'no_progress') {
       return ' It was not continued automatically, because the run left no new commit to continue from.';
+   }
+   return '';
+}
+
+/**
+ * A run the infrastructure failed is tried once more, by itself.
+ *
+ * A retryable failure — the runtime unreachable, its stream cut, the process
+ * holding the lease gone, a model provider that never answered — says nothing
+ * about the task, only about the moment. It used to be recorded and left: the
+ * task dropped back to To do, with no comment (retryable failures were not
+ * reported), until a person noticed and pressed run. Now the task is queued
+ * again once, with the instructions it had; a second fault in a row stands,
+ * so a lasting outage costs one extra attempt, not a loop.
+ */
+export type RetryOutcome =
+   | { retried: true; runId: string }
+   | { retried: false; reason: 'not_retryable' | 'already_retried' | 'superseded' | 'task_moved_on' | 'busy' };
+
+export async function retryAfterFault(sql: Sql, input: { runId: string }): Promise<RetryOutcome> {
+   const [run] = await sql`
+      SELECT r.id, r.workspace_id, r.issue_id, r.agent_id, r.kind, r.status, r.failure_retryable,
+             r.source, r.prompt, r.requested_by,
+             i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at
+        FROM runs r JOIN issues i ON i.id = r.issue_id
+       WHERE r.id = ${input.runId}`;
+   if (!run || run.kind !== 'agent' || run.status !== 'failed' || run.failure_retryable !== true) {
+      return { retried: false, reason: 'not_retryable' };
+   }
+   const open = run.issue_status === 'todo' || run.issue_status === 'in_progress';
+   if (run.deleted_at || !open || run.assignee_type !== 'agent' || run.assignee_id !== run.agent_id) {
+      return { retried: false, reason: 'task_moved_on' };
+   }
+
+   const history = await sql`
+      SELECT id, status, failure_retryable FROM runs
+       WHERE issue_id = ${run.issue_id as string} AND kind = 'agent'
+       ORDER BY created_at DESC, id DESC LIMIT 2`;
+   if (history[0]?.id !== run.id) return { retried: false, reason: 'superseded' };
+   // The run before this one failed the same way: this was the retry.
+   const previous = history[1];
+   if (previous && previous.status === 'failed' && previous.failure_retryable === true) {
+      return { retried: false, reason: 'already_retried' };
+   }
+
+   try {
+      const queued = await enqueueTask(sql, {
+         workspaceId: run.workspace_id as string,
+         issueId: run.issue_id as string,
+         agentId: run.agent_id as string,
+         kind: 'agent',
+         source: run.source as TaskSource,
+         ...(run.prompt ? { prompt: run.prompt as string } : {}),
+         origin: { runId: run.id as string },
+         ...(run.requested_by ? { requestedBy: run.requested_by as string } : {}),
+      });
+      return { retried: true, runId: queued.runId };
+   } catch (error) {
+      if (error instanceof ActiveRunExists) return { retried: false, reason: 'busy' };
+      if (error instanceof NotFound || error instanceof EnqueueRejected) return { retried: false, reason: 'task_moved_on' };
+      throw error;
+   }
+}
+
+/** The sentence added to the failed run's comment when Berry tried again, or why it did not. */
+export function retryNote(outcome: RetryOutcome): string {
+   if (outcome.retried) return ' This was a fault outside the task, so Berry started it again; nothing needs to be done.';
+   if (outcome.reason === 'already_retried') {
+      return ' Berry had already tried again after the same kind of fault, so it stopped here. Run the task again once the service is back.';
    }
    return '';
 }

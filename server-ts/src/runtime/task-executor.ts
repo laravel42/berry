@@ -8,7 +8,7 @@ import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledg
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
-import { LIMIT_CODE, continuationNote, continueAfterLimit, type ContinuationOutcome } from '../runs/continuation.ts';
+import { LIMIT_CODE, continuationNote, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
 import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
@@ -324,14 +324,16 @@ export class RuntimeTaskExecutor implements Executor {
       // After the run is recorded as ended, because a task admits one run at a
       // time; before the comment, so the comment can say what happens next.
       const next = await this.#continue(task, failure);
+      const retry = await this.#retry(task, failure);
       if (task.issueId) {
-         if (!failure.retryable) {
-            await postRunResult(this.#o.sql, {
-               issueId: task.issueId, agentId: task.agentId,
-               text: `This run failed (${failure.code}). ${failure.message}${next ? continuationNote(next) : ''}`, cut: false,
-               occurredAt: new Date().toISOString(),
-            }).catch(() => null);
-         }
+         // A retryable failure used to post nothing, which left a task back in
+         // To do with no word of why. It is reported like any other now, with
+         // what Berry did about it.
+         await postRunResult(this.#o.sql, {
+            issueId: task.issueId, agentId: task.agentId,
+            text: `This run failed (${failure.code}). ${failure.message}${next ? continuationNote(next) : ''}${retry ? retryNote(retry) : ''}`, cut: false,
+            occurredAt: new Date().toISOString(),
+         }).catch(() => null);
          await this.#memory.record({
             agentId: task.agentId, issueId: task.issueId, role: 'ASSISTANT',
             text: `An earlier run failed with ${failure.code}: ${failure.message}`, runId: task.runId,
@@ -352,6 +354,17 @@ export class RuntimeTaskExecutor implements Executor {
             runId: task.runId,
             ...(this.#o.maxContinuations === undefined ? {} : { maxContinuations: this.#o.maxContinuations }),
          });
+      } catch (error) {
+         this.#o.onContinuationError?.(error);
+         return null;
+      }
+   }
+
+   /** Queues the task once more after a fault outside it; never fails the failure. */
+   async #retry(task: TaskRow, failure: Failure): Promise<RetryOutcome | null> {
+      if (!failure.retryable || !task.issueId || task.kind !== 'agent') return null;
+      try {
+         return await retryAfterFault(this.#o.sql, { runId: task.runId });
       } catch (error) {
          this.#o.onContinuationError?.(error);
          return null;

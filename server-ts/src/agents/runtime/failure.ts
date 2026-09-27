@@ -56,11 +56,44 @@ export function isTransient(error: unknown): boolean {
    if (error instanceof ModelThrottledError) return true;
    const name = (error as { name?: unknown })?.name;
    if (typeof name === 'string' && TRANSIENT_NAMES.has(name)) return true;
+   if (isNetworkFault(error)) return true;
    const status = httpStatus(error);
    if (status === 429 || status === 502 || status === 503 || status === 504) return true;
    // The SDK wraps a provider error; the name is on the one underneath.
    const cause = (error as { cause?: unknown })?.cause;
    return cause !== undefined && cause !== error && isTransient(cause);
+}
+
+/**
+ * The connection failed, not the request: the provider never answered.
+ *
+ * Seen in the field as `fetch failed` and as the AWS SDK's
+ * `Stream timed out because of no activity`, both recorded as final runtime
+ * errors — the task dropped back to To do over a network blip. The system
+ * error code is on the cause (undici puts it there); the SDK's stream timeout
+ * has only its text. A model call has no side effects, so asking again is safe.
+ */
+const NETWORK_CODES = new Set([
+   'ECONNRESET',
+   'ECONNREFUSED',
+   'ETIMEDOUT',
+   'ENOTFOUND',
+   'EAI_AGAIN',
+   'EPIPE',
+   'ENETUNREACH',
+   'EHOSTUNREACH',
+   'UND_ERR_SOCKET',
+   'UND_ERR_CONNECT_TIMEOUT',
+   'UND_ERR_HEADERS_TIMEOUT',
+   'UND_ERR_BODY_TIMEOUT',
+]);
+const NETWORK_TEXT = /Stream timed out because of no activity|socket hang up/i;
+
+function isNetworkFault(error: unknown): boolean {
+   const code = (error as { code?: unknown })?.code;
+   if (typeof code === 'string' && NETWORK_CODES.has(code)) return true;
+   const message = (error as { message?: unknown })?.message;
+   return typeof message === 'string' && NETWORK_TEXT.test(message);
 }
 
 /**
@@ -121,6 +154,12 @@ function carries(error: unknown, marker: string): boolean {
    return cause !== undefined && cause !== error && carries(cause, marker);
 }
 
+function chainHas(error: unknown, test: (error: unknown) => boolean): boolean {
+   if (test(error)) return true;
+   const cause = (error as { cause?: unknown })?.cause;
+   return cause !== undefined && cause !== error && chainHas(cause, test);
+}
+
 export function classify(error: unknown): Failure {
    // Kilo (ADR-0017): a paid model must be served by the deployment's own
    // provider key. Both of these mean it was not, and both repeat on every
@@ -175,7 +214,9 @@ export function classify(error: unknown): Failure {
         ? 'UPSTREAM_UNAVAILABLE'
         : status !== null
           ? 'UPSTREAM_REJECTED'
-          : 'RUNTIME_ERROR';
+          : chainHas(error, isNetworkFault)
+            ? 'UPSTREAM_UNAVAILABLE'
+            : 'RUNTIME_ERROR';
    return {
       code,
       message: truncateUtf8(String((error as Error)?.message ?? error), 2_000),

@@ -68,7 +68,8 @@ ENV BASH_ENV=/etc/berry/bash-env.sh
 # socket takes itself to have been started by a remote-shell daemon: it reads
 # /etc/bash.bashrc and ~/.bashrc and never looks at BASH_ENV. So the same file
 # is sourced from the top of bash.bashrc, ahead of its "not interactive, stop"
-# line. BASH_ENV still covers a shell started any other way.
+# line. BASH_ENV still covers a shell started any other way — which now
+# includes an agent's command, whose stdin is closed (local-session.ts).
 RUN sed -i '1i . /etc/berry/bash-env.sh' /etc/bash.bashrc
 
 # Debian marks its Python as externally managed and refuses a bare `pip

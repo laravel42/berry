@@ -39,6 +39,13 @@ test('a backgrounded child that outlives the shell does not hold the command ope
    assert.ok(Date.now() - started < 5_000);
 });
 
+test('a command that asks for input reads end-of-file instead of waiting', async () => {
+   const started = Date.now();
+   const result = await session().exec('read -r answer; echo "status:$?"');
+   assert.equal(result.stdout, 'status:1\n');
+   assert.ok(Date.now() - started < 5_000);
+});
+
 test('an aborted command ends with an error and a non-zero exit', async () => {
    const controller = new AbortController();
    setTimeout(() => controller.abort(), 50);

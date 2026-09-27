@@ -42,6 +42,8 @@ export interface TriageResult {
 const BATCH = 8;
 /** Maximum routing completions in flight; leaves dispatcher slots for real work. */
 const BATCH_CONCURRENCY = 4;
+/** A batch that goes unanswered is asked once more before it is reported. */
+const ROUTING_ATTEMPTS = 2;
 
 export class TriageUnavailable extends Error {
    override readonly name = 'TriageUnavailable';
@@ -296,64 +298,75 @@ export class PlanTriage {
       const decided = new Map<string, { agentId: string; workflow: string | null }>();
       const failures: string[] = [];
       let assigned = 0;
-      const batches = Array.from(
+      let batches = Array.from(
          { length: Math.ceil(tasks.length / BATCH) },
          (_, index) => tasks.slice(index * BATCH, (index + 1) * BATCH)
       );
-      for (let from = 0; from < batches.length; from += BATCH_CONCURRENCY) {
-         const wave = batches.slice(from, from + BATCH_CONCURRENCY);
-         const results = await Promise.all(
-            wave.map(async (batch) => {
-               try {
-                  return {
-                     batch,
-                     decisions: await this.#decide(
-                        input.workspaceId,
+      // A batch the orchestrator did not answer (a timeout, a dropped
+      // connection) is asked once more before its tasks are left to a person:
+      // the field saw whole plans sit unowned after one slow call. Only the
+      // last attempt's failures are reported.
+      for (let attempt = 0; attempt < ROUTING_ATTEMPTS && batches.length > 0; attempt += 1) {
+         const retry: TriageTask[][] = [];
+         failures.length = 0;
+         for (let from = 0; from < batches.length; from += BATCH_CONCURRENCY) {
+            const wave = batches.slice(from, from + BATCH_CONCURRENCY);
+            const results = await Promise.all(
+               wave.map(async (batch) => {
+                  try {
+                     return {
                         batch,
-                        roster,
-                        input.signal
-                     ),
-                     failure: null,
-                  };
-               } catch (cause) {
-                  return {
-                     batch,
-                     decisions: null,
-                     failure: cause instanceof Error ? cause.message : String(cause),
-                  };
-               }
-            })
-         );
+                        decisions: await this.#decide(
+                           input.workspaceId,
+                           batch,
+                           roster,
+                           input.signal
+                        ),
+                        failure: null,
+                     };
+                  } catch (cause) {
+                     return {
+                        batch,
+                        decisions: null,
+                        failure: cause instanceof Error ? cause.message : String(cause),
+                     };
+                  }
+               })
+            );
 
-         for (const result of results) {
-            if (!result.decisions) {
-               if (result.failure) failures.push(result.failure);
-               continue;
-            }
-            for (const task of result.batch) {
-               const decision = result.decisions.get(task.id);
-               if (!decision) continue;
-               const updated = await this.#sql`
-                  UPDATE issues
-                     SET assignee_type = 'agent', assignee_id = ${decision.agentId}, updated_at = now()
-                   WHERE id = ${task.id} AND assignee_id IS NULL
-                   RETURNING id`;
-               // Another routing request won the task. Do not count or start it
-               // from this decision — its winner owns that responsibility.
-               if (updated.length === 0) continue;
-               decided.set(task.id, decision);
-               assigned += 1;
-               if (decision.workflow) {
-                  const workflow = decision.workflow;
-                  await this.#sql.begin((tx) =>
-                     patchMetadata(tx as never, task.id, {
-                        set: { 'berry.workflow': workflow },
-                     })
-                  );
+            for (const result of results) {
+               if (!result.decisions) {
+                  if (result.failure) failures.push(result.failure);
+                  retry.push(result.batch);
+                  continue;
+               }
+               for (const task of result.batch) {
+                  const decision = result.decisions.get(task.id);
+                  if (!decision) continue;
+                  const updated = await this.#sql`
+                     UPDATE issues
+                        SET assignee_type = 'agent', assignee_id = ${decision.agentId}, updated_at = now()
+                      WHERE id = ${task.id} AND assignee_id IS NULL
+                      RETURNING id`;
+                  // Another routing request won the task. Do not count or start it
+                  // from this decision — its winner owns that responsibility.
+                  if (updated.length === 0) continue;
+                  decided.set(task.id, decision);
+                  assigned += 1;
+                  if (decision.workflow) {
+                     const workflow = decision.workflow;
+                     await this.#sql.begin((tx) =>
+                        patchMetadata(tx as never, task.id, {
+                           set: { 'berry.workflow': workflow },
+                        })
+                     );
+                  }
                }
             }
+            if (input.signal?.aborted) break;
          }
          if (input.signal?.aborted) break;
+         batches = retry;
       }
       // Only an orchestrator that never answered is a failure. An answer whose
       // ids were all dropped is a decision — a poor one — and leaves the tasks
