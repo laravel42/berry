@@ -148,7 +148,13 @@ export function runScript(manager: PackageManager, script: string): string {
    return manager === 'yarn' ? `yarn run ${script}` : `${manager} run ${script}`;
 }
 
-const DEFAULT_INSTALL = installCommand('npm');
+/**
+ * What a manifest app installs with when it names nothing: npm, but only where
+ * there is a package.json. A static site's manifest names a start command and
+ * no install, and an unconditional `npm install` failed its preview at
+ * "Installing…" for want of a package.json it never needed.
+ */
+const DEFAULT_INSTALL = `if [ -f package.json ]; then ${installCommand('npm')}; else echo "No package.json: nothing to install."; fi`;
 
 /** A manifest, checked and completed. Throws `PlanRefused` with a sentence a person can act on. */
 export function planFromManifest(text: string): PreviewPlan {

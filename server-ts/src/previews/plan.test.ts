@@ -96,6 +96,8 @@ test('the repository’s own manifest wins, completed with defaults', () => {
    assert.equal(plan.source, 'manifest');
    assert.deepEqual(plan.apps.map((app) => [app.name, app.dir, app.primary]), [['api', 'server', false], ['site', 'web', true]]);
    assert.match(plan.apps[1]!.install, /npm ci/);
+   // A manifest names no install: npm, but only where there is a package.json.
+   assert.match(plan.apps[1]!.install, /^if \[ -f package\.json \]; then .*npm ci.*; else echo "No package\.json: nothing to install\."; fi$/);
    assert.equal(resolveEnv(plan, plan.apps[0]!, { url: () => '' }).DATABASE_URL, 'postgres://postgres:pw@db:5432/gifs');
 });
 
@@ -137,4 +139,19 @@ test('a manifest’s APIs are told which page may call them, unless the manifest
    assert.equal('CORS_ORIGIN' in web!.env, false, 'the page itself is not an API');
    assert.equal(resolveEnv(plan, api!, { url: (name) => `https://p-abc-${name}.preview.test` }).CORS_ORIGIN, 'https://p-abc-web.preview.test');
    assert.equal(planFromManifest(manifest({ CORS_ORIGIN: 'https://mine.example' })).apps[0]!.env.CORS_ORIGIN, 'https://mine.example');
+});
+
+test('a static site’s manifest installs nothing, so its preview is not stopped for want of a package.json', async () => {
+   const { execFileSync } = await import('node:child_process');
+   const { mkdtempSync, rmSync } = await import('node:fs');
+   const { tmpdir } = await import('node:os');
+   const plan = planFromManifest(JSON.stringify({ apps: [{ name: 'web', dir: '.', start: 'npx -y serve -l 3000 -s .', port: 3000 }] }));
+   const folder = mkdtempSync(`${tmpdir()}/berry-static-`);
+   try {
+      // The install as the container runs it, in a folder with only static files.
+      const output = execFileSync('sh', ['-c', `set -e\n${plan.apps[0]!.install}`], { cwd: folder, encoding: 'utf8' });
+      assert.match(output, /No package\.json: nothing to install\./);
+   } finally {
+      rmSync(folder, { recursive: true, force: true });
+   }
 });
