@@ -275,8 +275,9 @@ export function toCatalogModel(model: GatewayModel, pools: TierPools): CatalogMo
       provider: 'kilo',
       tier: tier ? TIER_NAMES[tier] : '',
       contextWindow: model.contextLength,
-      inputCostPerM: Math.max(model.price.input, 0),
-      outputCostPerM: Math.max(model.price.output, 0),
+      // Negative is the gateway's "no fixed price" (a router): unknown, not free.
+      inputCostPerM: model.price.input < 0 ? null : model.price.input,
+      outputCostPerM: model.price.output < 0 ? null : model.price.output,
       supportsTools: model.supportsTools,
       supportsVision: model.supportsVision,
    };

@@ -35,8 +35,12 @@ export interface CatalogModel {
    provider: string;
    tier: string;
    contextWindow: number;
-   inputCostPerM: number;
-   outputCostPerM: number;
+   /**
+    * USD per million tokens. Null when no price is published: unknown, which
+    * the picker must not show as $0, because $0 reads as free.
+    */
+   inputCostPerM: number | null;
+   outputCostPerM: number | null;
    supportsTools: boolean;
    supportsVision: boolean;
 }
@@ -279,7 +283,7 @@ function toCatalogModel(
    // (`us.anthropic.claude-…`, `global.anthropic.claude-…`); the foundation
    // list and the Portkey price data key off the bare id. Strip a known routing
    // prefix to look both up. An id that does not resolve leaves capability
-   // undefined (treated as "unknown") and price zero (shown as unknown).
+   // undefined (treated as "unknown") and price null (shown as unknown).
    const modelId = stripRoutingPrefix(id);
    const known = capability.get(modelId);
    const price = priceForModel(pricing, modelId);
@@ -291,8 +295,8 @@ function toCatalogModel(
       // Portkey's dataset carries prices but not context window; zero stays
       // "unknown" in the UI rather than an invented number.
       contextWindow: 0,
-      inputCostPerM: price?.inputPerM ?? 0,
-      outputCostPerM: price?.outputPerM ?? 0,
+      inputCostPerM: price?.inputPerM ?? null,
+      outputCostPerM: price?.outputPerM ?? null,
       // Converse carries tools across every family Bedrock exposes this way,
       // and Berry only keeps text models, all of which accept them.
       supportsTools: true,

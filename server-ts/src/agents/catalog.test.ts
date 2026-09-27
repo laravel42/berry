@@ -194,7 +194,7 @@ test('a profile carries what the picker shows about it', async () => {
    // Bedrock publishes neither on this API. Zero is a fact the UI can render as
    // unknown; a plausible guess would be shown as though it were true.
    assert.equal(model!.contextWindow, 0);
-   assert.equal(model!.inputCostPerM, 0);
+   assert.equal(model!.inputCostPerM, null);
 });
 
 test('a leading US geo label is stripped from the display name', async () => {
@@ -394,9 +394,9 @@ test('prices come from the Portkey feed, converted from cents/token to per milli
    // 0.0003 cents/token × 10,000 = $3/M; 0.0015 × 10,000 = $15/M. Compared with
    // a tolerance because the ×10,000 scaling is not exact in binary floating
    // point (3 comes back as 2.9999999999999996).
-   assert.ok(Math.abs(model!.inputCostPerM - 3) < 1e-6, `input ~$3/M, got ${model!.inputCostPerM}`);
+   assert.ok(Math.abs((model!.inputCostPerM ?? NaN) - 3) < 1e-6, `input ~$3/M, got ${model!.inputCostPerM}`);
    assert.ok(
-      Math.abs(model!.outputCostPerM - 15) < 1e-6,
+      Math.abs((model!.outputCostPerM ?? NaN) - 15) < 1e-6,
       `output ~$15/M, got ${model!.outputCostPerM}`
    );
 });
@@ -416,9 +416,9 @@ test('a model Portkey keys by its full id (Meta, DeepSeek) is priced too', async
    );
 
    const [model] = await models.list();
-   assert.ok(model!.inputCostPerM > 0, 'the full-id keyed model is priced');
+   assert.ok((model!.inputCostPerM ?? 0) > 0, 'the full-id keyed model is priced');
    assert.ok(
-      Math.abs(model!.outputCostPerM - 0.072) < 1e-6,
+      Math.abs((model!.outputCostPerM ?? NaN) - 0.072) < 1e-6,
       `output ~$0.072/M, got ${model!.outputCostPerM}`
    );
 });
@@ -434,8 +434,8 @@ test('a model absent from the Portkey feed reads as unknown, not free', async ()
       pricingFetch({ 'claude-sonnet-4-20250514': portkeyEntry(0.0003, 0.0015) })
    );
    const [model] = await models.list();
-   assert.equal(model!.inputCostPerM, 0);
-   assert.equal(model!.outputCostPerM, 0);
+   assert.equal(model!.inputCostPerM, null);
+   assert.equal(model!.outputCostPerM, null);
 });
 
 test('a pricing feed failure leaves prices unknown without emptying the catalogue', async () => {
@@ -453,5 +453,5 @@ test('a pricing feed failure leaves prices unknown without emptying the catalogu
    );
    const listed = await models.list();
    assert.equal(listed.length, 1, 'the model is still listed');
-   assert.equal(listed[0]!.inputCostPerM, 0, 'its price is just unknown');
+   assert.equal(listed[0]!.inputCostPerM, null, 'its price is just unknown');
 });

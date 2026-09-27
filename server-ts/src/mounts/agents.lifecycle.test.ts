@@ -38,10 +38,10 @@ describe('agent lifecycle', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
       await closeDatabase(sql);
    });
 
-   test('every workspace has a guide, and it is reachable by role', async () => {
-      const res = await call(app, world.ownerToken, 'GET', '/api/v1/agents/guide');
+   test('a workspace gets no Guide agent (migration 212)', async () => {
+      const res = await call(app, world.ownerToken, 'GET', '/api/v1/agents');
       assert.equal(res.status, 200);
-      assert.equal(res.body.systemRole, 'guide');
+      assert.ok(!(res.body.nodes as { systemRole?: string | null }[]).some((a) => a.systemRole === 'guide'));
    });
 
    test('an archived agent leaves the list, appears under archived, and comes back on restore', async () => {

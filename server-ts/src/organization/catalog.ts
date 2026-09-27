@@ -18,7 +18,8 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 14: prompts are written in the Instructions tab's sections (## Role, …).
 // 15: roles hand on new work only, never a review of their own.
 // 16: roles that run commands check their work without installing large tools.
-export const CATALOG_VERSION = 16;
+// 17: the prompt no longer names another workspace's task key as its example.
+export const CATALOG_VERSION = 17;
 
 /**
  * A role's tier is Berry's (ADR-0017), not a vendor's model family: which

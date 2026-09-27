@@ -50,7 +50,7 @@ export const artifactPathSchema = z
  *
  * The workspace always comes from the token's claims, never from the model, so
  * no tool can reach another workspace. The task a tool acts on defaults to the
- * run's own; a tool that takes `task` may name another task by key (L42-341) or
+ * run's own; a tool that takes `task` may name another task by key (ABC-123) or
  * id, which is resolved inside the token's workspace only — a key from another
  * workspace is the same "not found" as one that does not exist. What an agent
  * may do to a task it names is unchanged: the same statuses (never done or
@@ -63,7 +63,7 @@ const AGENT_STATUSES = ['todo', 'in_progress', 'in_review', 'blocked'] as const;
 
 function issueOf(context: AgentToolContext): string {
    if (!context.task.issueId) {
-      throw ApiError.badRequest('this run is not on a task: name one with `task`, a key like L42-341');
+      throw ApiError.badRequest('this run is not on a task: name one with `task`, a key like ABC-123');
    }
    return context.task.issueId;
 }
@@ -75,7 +75,7 @@ const TASK_REF = z
    .min(1)
    .max(80)
    .optional()
-   .describe('The task to act on: a key like L42-341, or a task id. Defaults to the task this run is working on.');
+   .describe('The task to act on: a key like ABC-123, or a task id. Defaults to the task this run is working on.');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TASK_KEY = /^[A-Za-z0-9]+-(\d{1,9})$/;
@@ -96,7 +96,7 @@ export async function taskOf(context: AgentToolContext, ref: string | undefined)
       return row.id as string;
    }
    const key = TASK_KEY.exec(ref);
-   if (!key?.[1]) throw ApiError.badRequest('`task` is a task key like L42-341, or a task id');
+   if (!key?.[1]) throw ApiError.badRequest('`task` is a task key like ABC-123, or a task id');
    const [row] = await context.sql`
       SELECT i.id FROM issues AS i JOIN boards AS b ON b.id = i.board_id
        WHERE b.workspace_id = ${workspaceId} AND i.number = ${Number(key[1])}
@@ -277,7 +277,7 @@ const DEPENDS_ON = z
    .array(z.string().trim().min(1).max(80))
    .min(1)
    .max(20)
-   .describe('Tasks this one waits for, by key (L42-341) or id. It starts only once all of them are done or cancelled.');
+   .describe('Tasks this one waits for, by key (ABC-123) or id. It starts only once all of them are done or cancelled.');
 
 /** How much page text one fetch hands the model: enough to read, not enough to drown in. */
 const MAX_PAGE_TEXT = 60_000;

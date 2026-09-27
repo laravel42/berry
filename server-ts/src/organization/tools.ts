@@ -212,7 +212,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
          'itself when they finish. Use delegate_to_agent to carve out a new sub-task instead.',
       scope: 'task:write',
       inputSchema: z.object({
-         task: z.string().trim().min(1).max(80).describe('The task: a key like L42-341, or a task id.'),
+         task: z.string().trim().min(1).max(80).describe('The task: a key like ABC-123, or a task id.'),
          role: z.string().regex(/^[a-z][a-z0-9-]{1,48}$/),
          message: z
             .string()

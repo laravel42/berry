@@ -284,7 +284,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
          .sort(
             (left, right) =>
                left.provider.localeCompare(right.provider) ||
-               left.inputCostPerM - right.inputCostPerM ||
+               (left.inputCostPerM ?? Infinity) - (right.inputCostPerM ?? Infinity) ||
                left.displayName.localeCompare(right.displayName)
          );
       return json({ nodes });

@@ -29,7 +29,7 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    if (contract.can_delegate_to.length > 0) {
       approach.push(
          '',
-         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by key, e.g. L42-341) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role. Hand on new work only: never ask another role to review or test what you did, because the reviews your work needs run by themselves when you deliver it.`
+         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by its key, as shown on the task) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role. Hand on new work only: never ask another role to review or test what you did, because the reviews your work needs run by themselves when you deliver it.`
       );
    }
    if (contract.autonomy_level === 5) {
