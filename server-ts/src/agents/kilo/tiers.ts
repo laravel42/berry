@@ -68,10 +68,21 @@ export interface TierPolicy {
    place?: Partial<Record<'berry_max' | 'berry_mid' | 'berry_low', readonly string[]>>;
 }
 
-/** Whether an id is one of `patterns`: equal to one, or starting with one that ends in `/` or `-`. */
-export function matchesAny(id: string, patterns: readonly string[] | undefined): boolean {
+/** Which of `patterns` an id is, by position, or -1: equal to one, or starting with one that ends in `/` or `-`. */
+export function patternIndex(id: string, patterns: readonly string[] | undefined): number {
    const lower = id.toLowerCase();
-   return (patterns ?? []).some((pattern) => lower === pattern || lower.startsWith(pattern));
+   return (patterns ?? []).findIndex(
+      (pattern) => lower === pattern || ((pattern.endsWith('/') || pattern.endsWith('-')) && lower.startsWith(pattern))
+   );
+}
+
+/**
+ * Whether an id is one of `patterns`. A full id names that model only, so
+ * `anthropic/claude-sonnet-5` never takes in a later `claude-sonnet-5.5`; a
+ * prefix ending in `/` or `-` (`z-ai/`) names every model under it.
+ */
+export function matchesAny(id: string, patterns: readonly string[] | undefined): boolean {
+   return patternIndex(id, patterns) !== -1;
 }
 
 /** The model BerryAuto sends every call to. */
@@ -241,10 +252,17 @@ export function rankTiers(
       rated.filter((model) => rankingRating(model) >= best * LOW_FLOOR && !isOutclassed(model, rated)).map((model) => model.id)
    );
    // Placed by a person: set aside first, so no other tier takes them.
+   // In the order the person listed them: the first is the tier's first
+   // choice, and takes the largest share of its tasks.
+   const placedIn = (patterns: readonly string[] | undefined) =>
+      paid
+         .filter((model) => matchesAny(model.id, patterns))
+         .sort((a, b) => patternIndex(a.id, patterns) - patternIndex(b.id, patterns))
+         .slice(0, TIER_SIZE);
    const placed = {
-      berry_max: paid.filter((model) => matchesAny(model.id, policy.place?.berry_max)).slice(0, TIER_SIZE),
-      berry_mid: paid.filter((model) => matchesAny(model.id, policy.place?.berry_mid)).slice(0, TIER_SIZE),
-      berry_low: paid.filter((model) => matchesAny(model.id, policy.place?.berry_low)).slice(0, TIER_SIZE),
+      berry_max: placedIn(policy.place?.berry_max),
+      berry_mid: placedIn(policy.place?.berry_mid),
+      berry_low: placedIn(policy.place?.berry_low),
    };
    const taken = new Set<string>(Object.values(placed).flat().map((model) => model.id));
    // Preferred first, then placed, then the rule's own picks; the rule fills

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AUTO_MODEL, isPaidEligible, rankTiers, tierOf, type GatewayModel, type UsageRow } from './tiers.ts';
+import { AUTO_MODEL, isPaidEligible, matchesAny, rankTiers, tierOf, type GatewayModel, type UsageRow } from './tiers.ts';
 
 /**
  * The ranking rule (ADR-0017): every paid tier from the ratings — Max the
@@ -141,6 +141,18 @@ test('a deployment excludes, prefers and places models, and the rule fills the r
    assert.deepEqual(pools.berry_mid.map((m) => m.id), ['o/terra', 'z/glm', 'a/sonnet']);
    assert.equal(pools.berry_low.some((m) => m.id === 'z/glm'), false);
    assert.equal(pools.berry_low.length, 3, 'Low is still filled to three');
+});
+
+test('placed models keep the order they were listed in, and a full id names that model only', () => {
+   const pools = rankTiers(
+      [...catalog, model('a/sonnet-5.5', 2, 10, bench(0.7, 30))],
+      usage,
+      'code',
+      { place: { berry_mid: ['o/terra', 'a/sonnet', 'm/kimi'] } }
+   );
+   assert.deepEqual(pools.berry_mid.map((m) => m.id), ['o/terra', 'a/sonnet', 'm/kimi'], 'first listed, first choice');
+   assert.equal(matchesAny('a/sonnet-5.5', ['a/sonnet']), false, 'a later version is not taken in');
+   assert.equal(matchesAny('z/glm-5', ['z/']), true, 'a prefix ending in / names the vendor');
 });
 
 test('Mid costs less than Max, and Low is drawn from the cheapest third', () => {
