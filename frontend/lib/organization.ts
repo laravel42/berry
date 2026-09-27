@@ -77,6 +77,18 @@ const organizationSchema = z.object({
    workflows: z.array(
       z.object({ key: z.string(), name: z.string(), chain: z.array(z.string()), when: z.string() })
    ),
+   /** Catalogue roles the workspace does not have, to add (ADR-0018); absent from an older server. */
+   specialists: z
+      .array(
+         z.object({
+            roleKey: z.string(),
+            name: z.string(),
+            role: z.string(),
+            department: z.string(),
+            mission: z.string(),
+         })
+      )
+      .default([]),
    discoveryEnabled: z.boolean(),
 });
 export type Organization = z.infer<typeof organizationSchema>;
@@ -127,6 +139,14 @@ export async function setDiscovery(enabled: boolean): Promise<boolean> {
    });
    return parse(z.object({ discoveryEnabled: z.boolean() }), json, 'Discovery setting')
       .discoveryEnabled;
+}
+
+/** Adds a catalogue role to the workspace; its archived agent comes back if it had one. */
+export async function addRole(roleKey: string): Promise<void> {
+   await apiFetch(`/api/v1/organization/roles/${encodeURIComponent(roleKey)}`, {
+      method: 'POST',
+      body: '{}',
+   });
 }
 
 export async function resetRole(roleKey: string): Promise<void> {

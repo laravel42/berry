@@ -41,7 +41,7 @@ function isDiscoveryTask(issue: Issue): boolean {
 }
 
 /**
- * One line over a fresh workspace's backlog, explaining where its eighteen
+ * One line over a fresh workspace's backlog, explaining where its
  * "Discovery:" tasks came from. Shown only while the viewer has filed nothing
  * of their own -- after that they know what a task is -- and gone for good
  * once dismissed.

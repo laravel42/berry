@@ -49,7 +49,11 @@
       "active": "Active",
       "contractInvalid": "Contract invalid",
       "reset": "Reset",
-      "adminOnly": "Only workspace owners and admins can change this."
+      "adminOnly": "Only workspace owners and admins can change this.",
+      "specialists": "Specialists",
+      "specialistsHint": "Every workspace starts with five core roles. Add a specialist when you have deep work in its field; until then the core roles cover it.",
+      "add": "Add",
+      "added": "{name} added"
    },
    "proposals": {
       "title": "Proposals",

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
+   addRole,
    getOrganization,
    resetRole,
    setDiscovery,
@@ -20,8 +21,9 @@ import {
 import { useSessionStore } from '@/store/session-store';
 
 /**
- * The default organization: every role your agents fill, grouped by
- * department, plus whether roles look for their own work each week.
+ * The organization: every role your agents fill, grouped by department, the
+ * specialists the workspace can add (ADR-0018), and whether roles look for
+ * their own work each week.
  *
  * A role whose stored contract no longer validates (`contractValid: false`)
  * is still listed — its catalog data (name, autonomy level) still renders —
@@ -39,6 +41,7 @@ export default function OrganizationSettings() {
    // Which role's reset is in flight, so only that row's button disables and
    // a double-click cannot fire a second POST before the first settles.
    const [resettingKey, setResettingKey] = useState<string | null>(null);
+   const [addingKey, setAddingKey] = useState<string | null>(null);
 
    const toggleDiscovery = (enabled: boolean) => {
       if (!value || !canEdit) return;
@@ -58,6 +61,20 @@ export default function OrganizationSettings() {
          toast.error(error instanceof Error ? error.message : String(error));
       } finally {
          setResettingKey(null);
+      }
+   };
+
+   const add = async (roleKey: string, name: string) => {
+      if (!canEdit || addingKey) return;
+      setAddingKey(roleKey);
+      try {
+         await addRole(roleKey);
+         toast.success(t('settings.added', { name }));
+         org.reload();
+      } catch (error) {
+         toast.error(error instanceof Error ? error.message : String(error));
+      } finally {
+         setAddingKey(null);
       }
    };
 
@@ -146,6 +163,34 @@ export default function OrganizationSettings() {
                      </SettingsCard>
                   </SettingsSection>
                ))}
+
+               {value.specialists.length > 0 ? (
+                  <SettingsSection
+                     title={t('settings.specialists')}
+                     description={t('settings.specialistsHint')}
+                  >
+                     <SettingsCard>
+                        {value.specialists.map((specialist) => (
+                           <SettingsRow
+                              key={specialist.roleKey}
+                              title={specialist.name}
+                              description={specialist.mission}
+                              trailing={
+                                 <Button
+                                    size="xs"
+                                    variant="outline"
+                                    disabled={!canEdit || addingKey !== null}
+                                    title={canEdit ? undefined : t('settings.adminOnly')}
+                                    onClick={() => void add(specialist.roleKey, specialist.name)}
+                                 >
+                                    {t('settings.add')}
+                                 </Button>
+                              }
+                           />
+                        ))}
+                     </SettingsCard>
+                  </SettingsSection>
+               ) : null}
 
                <SettingsSection title={t('settings.workflows')}>
                   <SettingsCard>

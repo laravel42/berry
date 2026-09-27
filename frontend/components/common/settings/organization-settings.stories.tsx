@@ -46,6 +46,37 @@ export const Roles: Story = {
    },
 };
 
+/** Specialists the workspace can add; adding one lists it with the roles. */
+export const AddSpecialist: Story = {
+   beforeEach: ({ msw }) => {
+      let added = false;
+      const specialist = {
+         roleKey: 'security-engineer',
+         name: 'Security Engineer',
+         role: 'Application Security Engineer',
+         department: 'quality-security',
+         mission: 'Continuously reduce security risk.',
+      };
+      msw.use(
+         http.get('*/api/v1/organization', () =>
+            HttpResponse.json({ ...organization, specialists: added ? [] : [specialist] })
+         ),
+         http.post('*/api/v1/organization/roles/:key', () => {
+            added = true;
+            return HttpResponse.json({}, { status: 201 });
+         })
+      );
+   },
+   play: async ({ canvas, userEvent }) => {
+      await expect(await canvas.findByText('Specialists')).toBeVisible();
+      await expect(canvas.getByText('Continuously reduce security risk.')).toBeVisible();
+      await userEvent.click(canvas.getByRole('button', { name: 'Add' }));
+      await waitFor(() =>
+         expect(canvas.queryByText('Continuously reduce security risk.')).not.toBeInTheDocument()
+      );
+   },
+};
+
 export const MemberCannotEdit: Story = {
    beforeEach: () => {
       seedSession(memberWorkspace);
