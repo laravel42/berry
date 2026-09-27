@@ -250,7 +250,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
                                        ? `agent · ${agent.name}`
                                        : issue.suggestedAgentId
                                          ? 'agent · unknown'
-                                         : 'agent · by capability'}
+                                         : ownerKind(issue.changesRepository)}
                                  </span>
                                  {issue.requiredCapabilities.map((capability) => (
                                     <Pill key={capability}>{capability}</Pill>
@@ -274,6 +274,17 @@ export function PlanIssues({ plan }: { plan: Plan }) {
          ))}
       </section>
    );
+}
+
+/**
+ * Who a task will go to before routing names an agent: routing gives a task
+ * that changes the repository only to an engineer who can push, and anything
+ * else to the role that writes or decides it.
+ */
+function ownerKind(changesRepository: boolean | null | undefined): string {
+   if (changesRepository === true) return 'goes to · an engineer who can push';
+   if (changesRepository === false) return 'goes to · a spec, research or design role';
+   return 'agent · by capability';
 }
 
 /** The human decisions the plan asks for before something runs. */

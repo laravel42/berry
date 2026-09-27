@@ -31,7 +31,8 @@ export const WorkByMilestone: Story = {
       await expect(canvas.getByText('Health is stored on the server')).toBeVisible();
       // The suggested agent is resolved from the agents store by id.
       await expect(canvas.getAllByText('agent · Backend Engineer')).toHaveLength(2);
-      await expect(canvas.getByText('agent · by capability')).toBeVisible();
+      // A task with no agent named says who routing will give it to.
+      await expect(canvas.getByText('goes to · an engineer who can push')).toBeVisible();
    },
 };
 

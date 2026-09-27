@@ -146,6 +146,8 @@ export const planIssueSchema = z.object({
    type: z.string().default('issue'),
    suggestedAgentId: z.string().nullish(),
    requiredCapabilities: z.array(z.string()).default([]),
+   /** Changes the repository: routed only to an agent that can branch it. */
+   changesRepository: z.boolean().nullish(),
    priority: z.string().nullish(),
    dependsOn: z.array(z.string()).default([]),
    requiresReview: z.boolean().default(false),
