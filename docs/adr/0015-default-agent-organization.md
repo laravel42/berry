@@ -3,7 +3,9 @@
 - **Status:** Accepted; **partially superseded by
   [ADR-0016](0016-autogate-delegated-release.md)** — the roles, contracts,
   autonomy ceilings and review selection all stand; what a passing set of
-  blocking reviews *does* no longer always end at a person.
+  blocking reviews *does* no longer always end at a person — and by
+  [ADR-0018](0018-core-roles-and-specialists.md), which provisions five core
+  roles by default and keeps the rest as specialists a workspace adds.
 - **Date:** 2026-09-14
 - **Deciders:** Berry platform
 - **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md) (agent

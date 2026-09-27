@@ -22,8 +22,35 @@
   exemption, the session header, and usage recorded per model Kilo picked.
 - Ratings are Terminal-Bench resolution rates on the 4.0 scale, older
   versions and Kilo's scores converted onto it (`agents/kilo/ratings.ts`).
-  The paid tiers hold only rated models: Max the best rated, Mid the best
-  below Max's cheapest, Low the best below Mid's cheapest (Decision 6).
+  The paid tiers hold only rated models, three each, from every provider
+  Kilo serves (2026-09-26, superseding the own-key rule and the price
+  cascade of Decision 6): Max the three best rated; Low the best of the
+  cheapest third of rated models, preferring those not outclassed (another
+  rates as well for less) and reaching a quarter of the best rating; Mid the
+  best rated of the rest below Max's cheapest.
+- A rating converted from another source (an older Terminal-Bench, or
+  Kilo's benchmark) is an estimate: the tier table marks it ≈ and names its
+  source, and ranking counts it at 85% (`ESTIMATE_WEIGHT`), so a measured
+  score of similar value goes first (2026-09-26).
+- A new version no leaderboard rates yet borrows the rating of the newest
+  rated earlier version of its family (same vendor and name but for the
+  version number), when it costs no more; marked as estimated from that
+  model (`borrowPredecessorRatings`, 2026-09-26). That day it put Claude
+  Opus 5.5, unrated, at the top of BerryMid on Opus 5's 0.539.
+- Paid tiers are the models the deployment's own keys serve again
+  (2026-09-27, reversing 2026-09-26): with a Bedrock key that is the 44 models
+  Kilo flags `hasUserByokAvailable`. `BERRY_KILO_ANY_PROVIDER=true` opens them
+  to models billed to Kilo credits. The runtime still accepts a credit-billed
+  call, for a model a person pins.
+- A deployment has its own say (`TierPolicy`, 2026-09-26): `BERRY_KILO_EXCLUDE`
+  takes models out of every tier, `BERRY_KILO_PREFER` puts models first in
+  the tier they reach, and `BERRY_KILO_MAX|MID|LOW` place a model in a tier
+  whatever its rating, the rule filling the rest. Ids or id prefixes
+  (`z-ai/`). That day: GLM excluded after GLM-5.3 ran a reply to the 32,000
+  output-token ceiling; Grok preferred; Gemini 3.8 Flash placed in Mid.
+- Paid calls may be billed to Kilo credits: the runtime's `is_byok` refusal
+  is gone (2026-09-26), and a 402 reads as the balance running out
+  (`GATEWAY_CREDITS`).
 - Tiers, routing and fallback are built:
   - model choice per session and fallback model (`agents/kilo/tiers.ts`,
     `runtime/envelope-builder.ts`, `agents/runtime/fallback-model.ts`);
@@ -148,6 +175,12 @@ show cost before work and record actual cost after. The Kilo gateway
      - **BerryLow:** the best rated of the rest priced below Mid's cheapest.
    - **One tier per model:** each model sits only in the highest tier it
      qualifies for.
+   - **No outclassed models, and a floor** (2026-09-26). A price ceiling
+     alone put Claude Sonnet 5 (0.124, $4.00/M blended) in BerryLow beside
+     GPT-5.6 Luna (0.173, $0.45/M). Now a model is in no paid tier when
+     another eligible model rates at least as well for less, and Mid and Low
+     hold only models reaching a quarter of the best rating, so a tier may
+     hold fewer than three. That day Low held Luna alone.
 
    Real usage in the role's mode breaks ties. Berry picks among the top 3 of a
    tier, weighted by rank, and uses the fallback model once on failure. No
@@ -212,8 +245,10 @@ show cost before work and record actual cost after. The Kilo gateway
 
 ### Risks and mitigations
 
-- **Risk:** Kilo bills a paid call to credits. **Mitigation:** the `is_byok`
-  refusal, plus a zero balance with auto top-up off.
+- **Risk:** Kilo bills a paid call to credits. **Accepted** since 2026-09-26:
+  tiers draw on every provider, so credits are spent by design. Every call's
+  cost is still what Kilo reports, and an empty balance stops runs with
+  `GATEWAY_CREDITS` rather than silently.
 - **Risk:** a leaderboard endpoint fails or changes shape. **Mitigation:** keep
   the last good ranking, mark it stale, and use the fallback model if a tier
   is empty.

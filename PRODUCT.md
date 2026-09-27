@@ -305,7 +305,7 @@ You can copy an agent's instructions and skills into a new agent. The copy doesn
 
 ### The Orchestrator and the built-in organization
 
-Every workspace starts with a protected Orchestrator agent and 18 role agents, each with a defined job and limits. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
+Every workspace starts with a protected Orchestrator agent and five core role agents, each with a defined job and limits; specialists can be added. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
 
 ### Chat with an agent
 
@@ -398,17 +398,17 @@ A deployment can reach models through the Kilo AI gateway instead of calling Ama
 | BerryAuto | Kilo's own routing, which picks a model per call. Kept to compare against Berry's tiers. |
 | BerryMax | Best results: the three best-rated models. |
 | BerryMid | Balanced: the best-rated models that cost less than any BerryMax model. |
-| BerryLow | Lowest cost: the best-rated models that cost less than any BerryMid model. |
+| BerryLow | Lowest cost: the best-rated models among the cheapest third, preferring those no cheaper model rates better. |
 | BerryFree | No cost: free models, ranked by how much people actually use them. The providers of free models may train on what's sent to them. |
 
 Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier list shows, for each tier, the models it runs today as a table: each model's share of the tier's tasks, its rating, and its price per million input and output tokens.
 
-- **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. Berry reads the leaderboards every hour.
-- **Only rated models** go in the paid tiers. A model that costs as much as a BerryMax model but rates lower is in no tier: that BerryMax model is the better choice.
+- **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. A converted rating is an estimate: the table marks it ≈ and says where it came from, and it's ranked a little behind a measured rating of the same value. A new version that no leaderboard rates yet, such as Claude Opus 5.5, borrows the rating of the version before it, if it costs no more, until it's measured; it's marked ≈ the same way. Berry reads the leaderboards every hour.
+- **Only rated models** go in the paid tiers, three in each, from the models the organization's own provider keys serve, such as its Amazon Bedrock key. A setting opens them to every provider Kilo serves, billed to the Kilo credit balance. A model that costs as much as a BerryMax model but rates lower is in no tier: that BerryMax model is the better choice.
 - **Each task keeps one model.** A tier holds three models, and each task an agent works on keeps one of them for as long as the leaderboards hold: the best-rated gets about half of the tier's tasks, the second a third, and the third the rest. Keeping one model per task lets the model reuse what it has already read, which is faster and cheaper.
 - **When a call fails**, the run retries once on a fallback model, which Berry takes from the leaderboards too: the best model of the next tier down. A tier that's empty today uses the nearest tier in price.
 
-Paid models run only on the organization's own provider keys added to the Kilo account, such as its Amazon Bedrock key. A paid call Kilo would bill to its own credit is refused, so the Kilo balance stays near zero; only BerryAuto spends a little of it, on Kilo's routing. The cost of every run is exactly what Kilo reports for it. The Usage page's Spend tab compares the tiers: runs, cost, cost per run, and how often each fell back.
+A paid model runs on the organization's own provider key when one added to the Kilo account serves it, such as its Amazon Bedrock key, and is billed to the Kilo credit balance otherwise. Keep the balance topped up: when it runs out, runs on those models stop with a message saying so. The cost of every run is exactly what Kilo reports for it. The Usage page's Spend tab compares the tiers: runs, cost, cost per run, and how often each fell back.
 
 > **Needs setup:** needs the Kilo gateway turned on for the deployment, in both the server and the agent runtime, with a Kilo account that has the organization's own provider key (such as its Bedrock key) added. Without it, agents use a Bedrock model chosen directly.
 
@@ -426,29 +426,18 @@ Most AI tools give you a pile of bots. Berry gives every workspace an **organiza
 
 ### Who's in it
 
-Each new workspace gets 19 agents in 7 departments: a protected Orchestrator and 18 professional roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
+Each new workspace gets six agents: a protected Orchestrator and five core roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
 
-| Department | Role | Autonomy level | Tier |
+| Role | Does | Autonomy level | Tier |
 |---|---|---|---|
-| Operations | Orchestrator | 2 | BerryMid |
-| Product | Product Lead | 5 | BerryMid |
-| Product | Business Analyst | 2 | BerryLow |
-| Product | UX Researcher | 3 | BerryLow |
-| Product | Product Designer | 3 | BerryMid |
-| Engineering | Software Architect | 5 | BerryMax |
-| Engineering | Engineering Manager | 2 | BerryMid |
-| Engineering | Backend Engineer | 4 | BerryMid |
-| Engineering | Frontend Engineer | 4 | BerryMid |
-| Engineering | Database Engineer | 3 | BerryMid |
-| Engineering | Integration Engineer | 3 | BerryMid |
-| Quality & Security | QA Engineer | 5 | BerryMid |
-| Quality & Security | Security Engineer | 5 | BerryMid |
-| Platform | DevOps Engineer | 3 | BerryMid |
-| Platform | Site Reliability Engineer | 4 | BerryMid |
-| Growth & Insight | Data & Analytics Engineer | 3 | BerryLow |
-| Growth & Insight | Technical Writer | 3 | BerryLow |
-| Growth & Insight | Growth Engineer | 3 | BerryLow |
-| Leadership | CTO | 5 | BerryMax |
+| Orchestrator | Sorts incoming work and sends it on | 2 | BerryMid |
+| Product Lead | Specs, research, acceptance criteria; reads the repository | 5 | BerryMid |
+| Product Designer | UI and UX; commits design assets and styles | 3 | BerryMid |
+| Software Engineer | Full stack: code, database, integrations, docs | 4 | BerryMid |
+| QA Engineer | Tests and reviews delivered work, security included | 5 | BerryMid |
+| DevOps Engineer | Deploys, infrastructure, incidents | 3 | BerryMid |
+
+Thirteen **specialists** stay in the catalogue for when a workspace has deep work in their field: Business Analyst, UX Researcher, Software Architect, Engineering Manager, Backend, Frontend, Database and Integration Engineers, Security Engineer, Site Reliability Engineer, Data & Analytics Engineer, Technical Writer, Growth Engineer and CTO. An owner or admin adds one from the Organization settings page. Until then the core roles cover the work: a review that would call in a specialist the workspace doesn't have goes ahead without it, and a question for a missing CTO goes to a person. Workspaces made before this keep every agent they had (ADR-0018).
 
 BerryMax is for the hardest work, BerryMid for most of it and BerryLow for lighter analytical and writing work (see [Models and tiers](#models-and-tiers)). Because a role comes with a tier, picking the right agent for a job also picks a sensible model, and you can still move any agent to another tier. On a deployment that calls Bedrock directly, tiers don't apply: agents use their own model or the workspace default. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
 
@@ -513,7 +502,7 @@ If the same role files the same problem with the same evidence while its earlier
 
 ### Weekly discovery
 
-All 18 professional roles have a *discovery brief*: what to look for from their professional angle and where to find evidence. Discovery is off until an owner or admin switches on *Work discovery* on the Organization settings page. Switching it on gives each role a standing task and a weekly scheduled autopilot that looks over the workspace and files findings as proposals, at most five per run. Nothing is created before that: no discovery autopilots are set up when a workspace is created or when Berry starts. Every finding must come with concrete evidence, and the role is told explicitly not to build anything during discovery. Roles fire on different days and hours so they don't pile up. Some examples:
+Every role but the Orchestrator has a *discovery brief*: what to look for from their professional angle and where to find evidence. Discovery is off until an owner or admin switches on *Work discovery* on the Organization settings page. Switching it on gives each role a standing task and a weekly scheduled autopilot that looks over the workspace and files findings as proposals, at most five per run. Nothing is created before that: no discovery autopilots are set up when a workspace is created or when Berry starts. Every finding must come with concrete evidence, and the role is told explicitly not to build anything during discovery. Roles fire on different days and hours so they don't pile up. Some examples:
 
 - The **QA Engineer** looks for critical user flows without automated tests and for flaky or skipped tests.
 - The **Security Engineer** looks for vulnerable or unpinned dependencies, secrets in code or logs, and missing authorization checks.
