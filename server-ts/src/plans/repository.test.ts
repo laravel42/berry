@@ -138,6 +138,7 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
          type: 'issue',
          suggestedAgentId: null,
          requiredCapabilities: [],
+         changesRepository: true,
          priority: null,
          dependsOn,
          requiresReview: false,
@@ -158,7 +159,7 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
          issues: [
             task('t1', 'Create the users table', 'm1'),
             task('t2', 'Add the sign-in form', 'm1', ['t1']),
-            task('t3', 'Create the tickets table', 'm2', ['t1']),
+            { ...task('t3', 'Decide the ticket fields', 'm2', ['t1']), changesRepository: false },
          ],
          approvals: [],
          dependencies: [],
@@ -202,5 +203,19 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
          ]
       );
       assert.equal(rows.length, 2, 'no empty goal is left beside the milestones');
+
+      // Kept on each task for routing, which gives a task that changes the
+      // repository only to an agent that can branch it.
+      const flags = await sql`
+         SELECT title, metadata->'berry.changesRepository' AS flag FROM issues
+          WHERE id = ANY(${compiled.compile!.issueIds}::uuid[]) ORDER BY number`;
+      assert.deepEqual(
+         flags.map((row) => [row.title, row.flag]),
+         [
+            ['Create the users table', true],
+            ['Add the sign-in form', true],
+            ['Decide the ticket fields', false],
+         ]
+      );
    });
 });

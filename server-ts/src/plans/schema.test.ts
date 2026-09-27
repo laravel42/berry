@@ -32,6 +32,7 @@ function issue(tempId: string, dependsOn: string[] = []) {
       type: 'issue',
       suggestedAgentId: null,
       requiredCapabilities: [],
+      changesRepository: true,
       priority: null,
       dependsOn,
       requiresReview: false,
@@ -362,8 +363,8 @@ test('milestones are read, and each task names the one it belongs to', () => {
          { tempId: 'm2', title: 'Tickets' },
       ],
       issues: [
-         { tempId: 't1', title: 'Create the schema', milestone: 'm1' },
-         { tempId: 't2', title: 'Create a ticket', milestone: 'm2' },
+         { tempId: 't1', title: 'Create the schema', changesRepository: true, milestone: 'm1' },
+         { tempId: 't2', title: 'Create a ticket', changesRepository: true, milestone: 'm2' },
       ],
    });
    assert.equal(problems.length, 0);
@@ -383,7 +384,7 @@ test('milestones are read, and each task names the one it belongs to', () => {
 test('a plan with tasks and no milestones gets one from its goal, so an older answer still reads', () => {
    const { plan, problems } = readPlan({
       goal: { title: 'Ship it', description: 'All of it' },
-      issues: [{ tempId: 't1', title: 'Do the work' }],
+      issues: [{ tempId: 't1', title: 'Do the work', changesRepository: true }],
    });
    assert.equal(problems.length, 0);
    assert.equal(plan.milestones.length, 1);
@@ -395,7 +396,7 @@ test('a milestone without a title is named as the problem', () => {
    const { problems } = readPlan({
       goal: { title: 'Ship it' },
       milestones: [{ tempId: 'm1' }],
-      issues: [{ tempId: 't1', title: 'x', milestone: 'm1' }],
+      issues: [{ tempId: 't1', title: 'x', changesRepository: true, milestone: 'm1' }],
    });
    assert.ok(problems.some((problem) => problem.path === '/milestones/0/title'));
 });
@@ -442,7 +443,7 @@ test('a plan wrapped in a key the model chose is still the plan', () => {
       request: {
          goal: { title: 'Ship it' },
          milestones: [{ tempId: 'm1', title: 'First' }],
-         issues: [{ tempId: 't1', title: 'Do the work', milestone: 'm1' }],
+         issues: [{ tempId: 't1', title: 'Do the work', changesRepository: true, milestone: 'm1' }],
       },
    });
    assert.equal(problems.length, 0);
@@ -454,19 +455,37 @@ test('a dependency named bare, not in a list, still links the tasks', () => {
    const { plan } = readPlan({
       goal: { tempId: 'g1', title: 'Ship it' },
       issues: [
-         { tempId: 't1', title: 'Design it' },
-         { tempId: 't2', title: 'Build it', dependsOn: 't1' },
-         { tempId: 't3', title: 'Launch it', dependsOn: 't1, t2' },
+         { tempId: 't1', title: 'Design it', changesRepository: true },
+         { tempId: 't2', title: 'Build it', changesRepository: true, dependsOn: 't1' },
+         { tempId: 't3', title: 'Launch it', changesRepository: true, dependsOn: 't1, t2' },
       ],
    });
    assert.deepEqual(plan.issues[1]!.dependsOn, ['t1']);
    assert.deepEqual(plan.issues[2]!.dependsOn, ['t1', 't2']);
 });
 
+test('a task that does not say whether it changes the repository is refused, so routing never guesses', () => {
+   const { plan } = readPlan({
+      goal: { tempId: 'g1', title: 'Ship it' },
+      issues: [
+         { tempId: 't1', title: 'Write the spec', changesRepository: false },
+         { tempId: 't2', title: 'Build it', dependsOn: ['t1'] },
+      ],
+   });
+   assert.equal(plan.issues[0]!.changesRepository, false);
+   assert.equal(plan.issues[1]!.changesRepository, null);
+   const report = validatePlan(plan);
+   assert.equal(report.status, 'invalid');
+   assert.deepEqual(
+      report.errors.map((error) => [error.path, error.code]),
+      [['/issues/1/changesRepository', 'required']]
+   );
+});
+
 test('an approval that names its task as "issue" gates that task', () => {
    const { plan } = readPlan({
       goal: { tempId: 'g1', title: 'Ship it' },
-      issues: [{ tempId: 't1', title: 'Launch it' }],
+      issues: [{ tempId: 't1', title: 'Launch it', changesRepository: true }],
       approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', issue: 't1' }],
    });
    assert.equal(plan.approvals[0]!.target.tempId, 't1');
@@ -476,7 +495,7 @@ test('an approval that names its task as "issue" gates that task', () => {
 test('an approval naming a task that does not exist is still an error', () => {
    const { plan } = readPlan({
       goal: { tempId: 'g1', title: 'Ship it' },
-      issues: [{ tempId: 'issue-0', title: 'Launch it' }],
+      issues: [{ tempId: 'issue-0', title: 'Launch it', changesRepository: true }],
       approvals: [{ tempId: 'ap1', title: 'Launch?', reason: 'Public.', issue: 'issue-12' }],
    });
    assert.equal(validatePlan(plan).status, 'invalid');

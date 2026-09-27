@@ -45,7 +45,7 @@ const PLAN_FORMAT = `The shape of the answer is:
   ],
   "issues": [
     { "tempId": "t1", "title": "...", "description": "...", "milestone": "m1",
-      "requiredCapabilities": ["typescript"], "dependsOn": ["t2"],
+      "requiredCapabilities": ["typescript"], "changesRepository": true, "dependsOn": ["t2"],
       "requiresReview": false, "requiresApproval": false, "priority": "medium" }
   ],
   "approvals": [
@@ -79,6 +79,12 @@ Rules:
   an earlier milestone names the specific task it waits on.
 - \`dependsOn\` names tasks in this plan by \`tempId\`, and never forms a
   circle.
+- Every task sets \`changesRepository\`: true when finishing it means changing
+  files in the repository — code, styles, markup, tests, configuration, a
+  README; false when it produces a spec, research, a design decision or other
+  writing that is not committed. Only engineers who can push are given a task
+  marked true, so a build step marked false is given to someone who cannot
+  build it. Specify and build in separate tasks when both are needed.
 - Set \`requiresApproval\` only where starting the task is a commitment a
   person should make deliberately: deleting data, spending money, or touching
   something outside the repository.

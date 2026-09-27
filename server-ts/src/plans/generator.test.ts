@@ -48,12 +48,12 @@ function generator(answers: unknown[], options: Record<string, unknown> = {}) {
 
 const GOOD = {
    goal: { tempId: 'g1', title: 'Ship it' },
-   issues: [{ tempId: 't1', title: 'Do the work' }],
+   issues: [{ tempId: 't1', title: 'Do the work', changesRepository: true }],
 };
 /** `t1` waits on a task that is not in the plan: the validator refuses it. */
 const BROKEN = {
    goal: { tempId: 'g1', title: 'Ship it' },
-   issues: [{ tempId: 't1', title: 'Do the work', dependsOn: ['ghost'] }],
+   issues: [{ tempId: 't1', title: 'Do the work', changesRepository: true, dependsOn: ['ghost'] }],
 };
 const ACCEPT = { verdict: 'accept', problems: [] };
 
@@ -165,8 +165,8 @@ test('a critic asking for a revision gets one round', async () => {
    const better = {
       goal: { tempId: 'g1', title: 'Ship it' },
       issues: [
-         { tempId: 't1', title: 'First half' },
-         { tempId: 't2', title: 'Second half', dependsOn: ['t1'] },
+         { tempId: 't1', title: 'First half', changesRepository: true },
+         { tempId: 't2', title: 'Second half', changesRepository: true, dependsOn: ['t1'] },
       ],
    };
    const { planner, script } = generator([GOOD, revise, better], { maxCriticRounds: 1 });
@@ -300,8 +300,8 @@ test('a revision that breaks on something small is repaired, and its dependencie
    const ordered = {
       goal: { tempId: 'g1', title: 'Ship it' },
       issues: [
-         { tempId: 't1', title: 'Design it' },
-         { tempId: 't2', title: 'Build it', dependsOn: ['t1'] },
+         { tempId: 't1', title: 'Design it', changesRepository: true },
+         { tempId: 't2', title: 'Build it', changesRepository: true, dependsOn: ['t1'] },
       ],
    };
    const offByOne = {

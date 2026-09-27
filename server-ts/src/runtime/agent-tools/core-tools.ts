@@ -185,7 +185,7 @@ async function boardOf(context: AgentToolContext): Promise<string> {
    });
 }
 
-async function artifactsOf(context: AgentToolContext): Promise<BerryArtifactService> {
+async function artifactsOf(context: AgentToolContext, issueId: string = issueOf(context)): Promise<BerryArtifactService> {
    if (!context.storage) throw new ApiError(503, 'STORAGE_UNAVAILABLE', 'this deployment has no file storage');
    const [agent] = await context.sql`SELECT name FROM agents WHERE id = ${context.task.agentId}`;
    return new BerryArtifactService({
@@ -193,7 +193,7 @@ async function artifactsOf(context: AgentToolContext): Promise<BerryArtifactServ
       storage: context.storage,
       workspaceId: context.task.workspaceId,
       runId: context.task.runId,
-      issueId: issueOf(context),
+      issueId,
       agentId: context.task.agentId,
       agentName: (agent?.name as string | undefined) ?? 'agent',
       clock: () => new Date(),
@@ -398,19 +398,26 @@ export function registerCoreAgentTools(): void {
       },
    });
 
+   // Another task's files are readable, never writable: a spec written on the
+   // parent or on the task this one waits for is the input to this one, and
+   // an agent that could see only its own task reported the spec missing and
+   // filed a task to recover it.
    registerAgentTool('list_files', {
-      description: 'List the files saved on this task, including work other agents saved.',
+      description:
+         'List the files saved on a task, including work other agents saved. Defaults to this task; name the parent or a task this one depends on to read its spec.',
       scope: 'task:read',
-      inputSchema: z.object({}),
-      handler: async (context) => ({ files: await (await artifactsOf(context)).listArtifactKeys() }),
+      inputSchema: z.object({ task: TASK_REF }),
+      handler: async (context, input) => ({
+         files: await (await artifactsOf(context, await taskOf(context, input.task))).listArtifactKeys(),
+      }),
    });
 
    registerAgentTool('read_file', {
-      description: 'Read a file saved on this task, by path.',
+      description: 'Read a file saved on a task, by path. Defaults to this task.',
       scope: 'task:read',
-      inputSchema: z.object({ path: artifactPathSchema, version: z.number().int().min(0).optional() }),
+      inputSchema: z.object({ path: artifactPathSchema, version: z.number().int().min(0).optional(), task: TASK_REF }),
       handler: async (context, input) => {
-         const part = await (await artifactsOf(context)).loadArtifact({
+         const part = await (await artifactsOf(context, await taskOf(context, input.task))).loadArtifact({
             filename: input.path,
             ...(input.version === undefined ? {} : { version: input.version }),
          });

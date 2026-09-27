@@ -255,7 +255,7 @@ export class EnvelopeBuilder {
          this.#projectResources(dispatch.issueId, task.workspaceId),
       ]);
       const priorWork = recallPrompt(recalled);
-      const { repo, delivery } = await this.#repository(task, dispatch, agent);
+      const { repo, delivery, empty } = await this.#repository(task, dispatch, agent);
       return {
          model,
          tier,
@@ -270,6 +270,7 @@ export class EnvelopeBuilder {
                   ...(related ? { related } : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
+                  ...(empty ? { repositoryEmpty: true } : {}),
                   skills: (extensions?.skills ?? []).map((skill) => ({ name: skill.name, description: skillDescription(skill) })),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
@@ -545,7 +546,7 @@ export class EnvelopeBuilder {
       }));
    }
 
-   async #repository(task: TaskRow, dispatch: Dispatch, agent: AgentConfig): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null }> {
+   async #repository(task: TaskRow, dispatch: Dispatch, agent: AgentConfig): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true }> {
       if (!this.#deps.gitCredential) return { repo: null, delivery: null };
       const repository = await repositoryForIssue(this.#deps.sql, dispatch.issueId);
       if (!repository) return { repo: null, delivery: null };
@@ -566,9 +567,14 @@ export class EnvelopeBuilder {
       const issue = await loadIssue(this.#deps.sql, dispatch.issueId);
       const branch = branchName(agent.name, issue.reference, issue.title);
       const client = this.#deps.github(credential.password);
+      const existingHead = await client.branchHead(owner, name, remote.defaultBranch);
+      // A repository with no commits has nothing to check out, and a run that
+      // only reads has nothing to read: it works without a checkout and is
+      // told why, rather than failing. Research and specs are what such a run
+      // produces, and a project's first tasks are exactly those.
+      if (!existingHead && readOnly) return { repo: null, delivery: null, empty: true };
       const defaultCommit =
-         (await client.branchHead(owner, name, remote.defaultBranch)) ??
-         (await initialiseRepository(client, { owner, name, fullName: repository.fullName, branch: remote.defaultBranch, readOnly }));
+         existingHead ?? (await initialiseRepository(client, { owner, name, fullName: repository.fullName, branch: remote.defaultBranch }));
       const expectedHead = readOnly ? null : await client.branchHead(owner, name, branch);
       // A branch that conflicts with the default branch gets a run that can
       // resolve it. Decided here, from the repository itself, rather than from
@@ -636,26 +642,33 @@ export class EnvelopeBuilder {
  * links a repository they just created more often than one they have already
  * pushed to, so Berry gives it its first commit: an empty README on the
  * default branch, the way GitHub's own "create README" button does. Only a run
- * that may push does it; a read-only run has nothing to read and says so.
+ * that may push does it; a read-only run goes ahead without a checkout.
  */
 async function initialiseRepository(
    client: Pick<GitHubClient, 'putFile' | 'branchHead'>,
-   input: { owner: string; name: string; fullName: string; branch: string; readOnly: boolean }
+   input: { owner: string; name: string; fullName: string; branch: string }
 ): Promise<string> {
-   if (input.readOnly) {
-      throw new Error(`${input.fullName} has no commits yet, so there is nothing to read; push a first commit to ${input.branch}`);
+   try {
+      await client.putFile({
+         owner: input.owner,
+         name: input.name,
+         branch: input.branch,
+         path: 'README.md',
+         // Empty on purpose: the first agent to write a README replaces it whole,
+         // and an empty file is the one version of it no later branch can conflict with.
+         content: '',
+         message: `Initial commit on ${input.branch}`,
+         sha: null,
+      });
+   } catch (error) {
+      // A plan starts several tasks at once, and each finds the repository
+      // empty: the first run's commit wins, and GitHub answers the others
+      // "reference already exists". That is the outcome they were after, so
+      // they carry on from it; only a branch that is still missing is a failure.
+      const head = await client.branchHead(input.owner, input.name, input.branch);
+      if (head) return head;
+      throw error;
    }
-   await client.putFile({
-      owner: input.owner,
-      name: input.name,
-      branch: input.branch,
-      path: 'README.md',
-      // Empty on purpose: the first agent to write a README replaces it whole,
-      // and an empty file is the one version of it no later branch can conflict with.
-      content: '',
-      message: `Initial commit on ${input.branch}`,
-      sha: null,
-   });
    const head = await client.branchHead(input.owner, input.name, input.branch);
    if (!head) throw new Error(`${input.fullName} still has no ${input.branch} after Berry's first commit`);
    return head;

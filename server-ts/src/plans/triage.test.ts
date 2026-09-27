@@ -22,10 +22,11 @@ interface FakeAgent {
    id: string;
    role?: string;
    mission?: string;
+   changesRepository?: boolean;
 }
 
 function fake(options: {
-   tasks: Array<{ id: string; status: string; title?: string; description?: string | null }>;
+   tasks: Array<{ id: string; status: string; title?: string; description?: string | null; changesRepository?: boolean }>;
    agents: Array<string | FakeAgent>;
    answer: unknown;
    admitFails?: string;
@@ -80,6 +81,7 @@ function fake(options: {
          description: task.description ?? null,
          status: task.status,
          capabilities: [],
+         changesRepository: task.changesRepository ?? null,
       }));
    (triage as unknown as { roster: unknown }).roster = async () =>
       options.agents.map((agent) => {
@@ -92,6 +94,7 @@ function fake(options: {
             role: normalized.role ?? null,
             mission: normalized.mission ?? null,
             autonomy: null,
+            changesRepository: normalized.changesRepository ?? false,
          };
       });
 
@@ -310,6 +313,68 @@ describe('routing a compiled plan', () => {
       assert.equal(user.agents[0]!.mission, 'Own the architecture.');
       assert.deepEqual(user.tasks[0]!.id, 't1');
       assert.deepEqual(user.tasks[0]!.title, 'Ship it');
+   });
+
+   test('a plan step goes to the role that does it: the router is told who can change the repository', async () => {
+      const f = fake({
+         tasks: [{ id: 't1', status: 'todo', title: 'Implement the sticky navigation' }],
+         agents: [{ id: 'lead', role: 'Product Lead' }, { id: 'fe', role: 'Frontend Engineer', changesRepository: true }],
+         answer: { assignments: [] },
+      });
+
+      await run(f);
+      const body = f.sent();
+      const user = JSON.parse(body.user as string) as { agents: Array<{ id: string; changesRepository: boolean }> };
+      assert.deepEqual(
+         user.agents.map((agent) => [agent.id, agent.changesRepository]),
+         [['lead', false], ['fe', true]]
+      );
+      // The rule that sent every planned build task to the Product Lead.
+      assert.doesNotMatch(body.system as string, /FIRST role/);
+      assert.match(body.system as string, /not the first role of the\s+chain/);
+   });
+
+   test('a task that changes the repository is never given to an agent that cannot branch it', async () => {
+      const f = fake({
+         tasks: [
+            { id: 'build', status: 'todo', changesRepository: true },
+            { id: 'spec', status: 'todo', changesRepository: false },
+         ],
+         agents: [{ id: 'lead' }, { id: 'fe', changesRepository: true }],
+         // The first answer breaks the rule for the build step; asked again
+         // about that task alone, the second keeps to it.
+         answerFor: (call) =>
+            call === 1
+               ? { assignments: [{ taskId: 'build', agentId: 'lead' }, { taskId: 'spec', agentId: 'lead' }] }
+               : { assignments: [{ taskId: 'build', agentId: 'fe' }] },
+         answer: null,
+      });
+
+      const result = await run(f);
+
+      assert.deepEqual(f.calls(), [['build', 'spec'], ['build']]);
+      assert.equal(result.assigned, 2);
+      assert.deepEqual(
+         f.admitted.map((task) => [task.issueId, task.agentId]).sort(),
+         [['build', 'fe'], ['spec', 'lead']]
+      );
+      const asked = JSON.parse(f.sent().user as string) as { tasks: Array<{ changesRepository?: boolean }> };
+      assert.equal(asked.tasks[0]!.changesRepository, true);
+   });
+
+   test('a task that changes the repository is left for a person rather than given to a reader', async () => {
+      const f = fake({
+         tasks: [{ id: 'build', status: 'todo', title: 'Build it', changesRepository: true }],
+         agents: [{ id: 'lead' }, { id: 'fe', changesRepository: true }],
+         answer: { assignments: [{ taskId: 'build', agentId: 'lead' }] },
+      });
+
+      const result = await run(f);
+
+      assert.equal(f.calls().length, 2, 'asked once more before giving up');
+      assert.equal(result.assigned, 0);
+      assert.deepEqual(result.unassigned, ['Build it']);
+      assert.deepEqual(f.admitted, []);
    });
 
    test('an assignment naming a workflow writes it as issue metadata', async () => {

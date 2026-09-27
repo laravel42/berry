@@ -57,6 +57,8 @@ interface RosterAgent {
    role: string | null;
    mission: string | null;
    autonomy: number | null;
+   /** May branch the repository and open pull requests: the one kind of agent code work can go to. */
+   changesRepository: boolean;
 }
 
 interface TriageTask {
@@ -66,6 +68,8 @@ interface TriageTask {
    description: string | null;
    status: string;
    capabilities: string[];
+   /** The plan marked it as changing the repository; null when it did not say. */
+   changesRepository?: boolean | null;
 }
 
 /** What a run is told when nobody typed instructions for it. */
@@ -94,10 +98,19 @@ Use ids exactly as given. Do not invent an id, and do not name an agent or a
 task that is not on the lists.
 
 Each agent may carry a role (e.g. "Principal Software Architect"), a mission and an autonomy level.
-Choose one of these workflows for each task and assign the task to the FIRST role of that workflow
-that exists on the roster:
+Each task is one step of a plan that is already broken down. Assign it to the
+agent that does that step itself, not to the one who would specify it: a task
+that builds, implements, styles, fixes or tests something in the code goes to
+an agent with "changesRepository": true, and "needs" names the skills it takes.
+A task marked "changesRepository": true MUST go to such an agent: any other
+answer for it is discarded. An agent without it can only read the repository,
+so code given to it is never written. Specs, research, design and decisions go
+to the role that makes them.
+
+These workflows say which role does which kind of work, in order:
 ${WORKFLOWS.map((w) => `- ${w.key}: ${w.chain.join(' → ')} (${w.when})`).join('\n')}
-A task answer may name the workflow: { "taskId": "...", "agentId": "...", "workflow": "frontend-visual-bug" }.`;
+Pick the role in the chain that does this task's step, not the first role of the
+chain. A task answer may name the workflow: { "taskId": "...", "agentId": "...", "workflow": "frontend-visual-bug" }.`;
 
 export interface PlanTriageOptions {
    sql: Sql;
@@ -141,19 +154,25 @@ export class PlanTriage {
             description: string | null;
             status: string;
             capabilities: string[] | null;
+            changes_repository: boolean | null;
          }>
       >`
          SELECT i.id, i.number, i.title, i.description, i.status::text AS status,
-                array_remove(array_agg(l.name), NULL) AS capabilities
+                array_remove(array_agg(l.name), NULL) AS capabilities,
+                (i.metadata->>'berry.changesRepository')::boolean AS changes_repository
            FROM plan_issues pi
            JOIN issues i ON i.id = pi.issue_id AND i.deleted_at IS NULL
            LEFT JOIN issue_label_memberships m ON m.issue_id = i.id
            LEFT JOIN issue_labels l ON l.id = m.label_id
           WHERE pi.plan_id = ${planId}
             AND i.assignee_id IS NULL
-          GROUP BY i.id, i.number, i.title, i.description, i.status
+          GROUP BY i.id, i.number, i.title, i.description, i.status, i.metadata
           ORDER BY i.number`;
-      return rows.map((row) => ({ ...row, capabilities: row.capabilities ?? [] }));
+      return rows.map(({ changes_repository, ...row }) => ({
+         ...row,
+         capabilities: row.capabilities ?? [],
+         changesRepository: changes_repository,
+      }));
    }
 
    /**
@@ -171,9 +190,10 @@ export class PlanTriage {
             capabilities: string[] | null;
             role_key: string | null;
             role_contract: unknown;
+            permissions: string[] | null;
          }>
       >`
-         SELECT id, name, description, capabilities, role_key, role_contract
+         SELECT id, name, description, capabilities, role_key, role_contract, permissions
            FROM agents
           WHERE workspace_id = ${workspaceId}
             AND archived_at IS NULL
@@ -190,6 +210,7 @@ export class PlanTriage {
             role: contract?.role ?? null,
             mission: contract?.mission ?? null,
             autonomy: contract?.autonomy_level ?? null,
+            changesRepository: (row.permissions ?? []).includes('create_branches'),
          };
       });
    }
@@ -219,12 +240,14 @@ export class PlanTriage {
             mission: agent.mission,
             capabilities: agent.capabilities,
             autonomy: agent.autonomy,
+            changesRepository: agent.changesRepository,
          })),
          tasks: tasks.map((task) => ({
             id: task.id,
             title: task.title,
             description: (task.description ?? '').slice(0, 600),
             needs: task.capabilities,
+            ...(typeof task.changesRepository === 'boolean' ? { changesRepository: task.changesRepository } : {}),
          })),
       });
 
@@ -254,11 +277,17 @@ export class PlanTriage {
       // exist would otherwise write a dangling assignee, and one naming a task
       // outside this plan would reach across into work it was not shown.
       const agentIds = new Set(roster.map((agent) => agent.id));
-      const taskIds = new Set(tasks.map((task) => task.id));
+      const branching = new Set(roster.filter((agent) => agent.changesRepository).map((agent) => agent.id));
+      const taskById = new Map(tasks.map((task) => [task.id, task]));
+      const taskIds = new Set(taskById.keys());
       const workflowKeys = new Set(WORKFLOWS.map((workflow) => workflow.key));
       const decided = new Map<string, { agentId: string; workflow: string | null }>();
       for (const { taskId, agentId, workflow } of result.value.assignments) {
          if (!taskIds.has(taskId) || !agentIds.has(agentId)) continue;
+         // The rule the prompt states, held here: a task that changes the
+         // repository given to an agent that cannot branch it is no decision.
+         // The task is asked about again, and left for a person after that.
+         if (taskById.get(taskId)?.changesRepository === true && !branching.has(agentId)) continue;
          decided.set(taskId, { agentId, workflow: workflow && workflowKeys.has(workflow) ? workflow : null });
       }
       return decided;
@@ -340,9 +369,16 @@ export class PlanTriage {
                   retry.push(result.batch);
                   continue;
                }
+               // A task that changes the repository and came back without an
+               // agent that can branch it is asked about again: the rule is
+               // why it has no owner, and the second answer may keep to it.
+               const unrouted: TriageTask[] = [];
                for (const task of result.batch) {
                   const decision = result.decisions.get(task.id);
-                  if (!decision) continue;
+                  if (!decision) {
+                     if (task.changesRepository === true) unrouted.push(task);
+                     continue;
+                  }
                   const updated = await this.#sql`
                      UPDATE issues
                         SET assignee_type = 'agent', assignee_id = ${decision.agentId}, updated_at = now()
@@ -362,6 +398,7 @@ export class PlanTriage {
                      );
                   }
                }
+               if (unrouted.length > 0) retry.push(unrouted);
             }
             if (input.signal?.aborted) break;
          }

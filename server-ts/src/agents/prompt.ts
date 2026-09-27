@@ -49,6 +49,12 @@ export interface PromptContext extends Dispatch {
     */
    repositoryReadOnly?: boolean;
    /**
+    * The repository has no commits yet and this run may not make the first:
+    * there is no checkout. Without saying so, the agent is handed the
+    * repository's contract and reports a codebase it never saw.
+    */
+   repositoryEmpty?: boolean;
+   /**
     * The skills this agent carries, by name and what each is for. They are
     * written into the workspace at `.claude/skills/<name>/SKILL.md` and served
     * by `read_skill`; without being named here the agent never knew it had them.
@@ -102,7 +108,13 @@ export function buildMessage(dispatch: PromptContext): string {
    // them first. They get their room reserved; the description gives way.
    const contracts =
       reportingContract() +
-      (dispatch.repository ? (dispatch.repositoryReadOnly ? readOnlyContract() : deliveryContract()) : '');
+      (dispatch.repository
+         ? dispatch.repositoryEmpty
+            ? emptyRepositoryContract()
+            : dispatch.repositoryReadOnly
+              ? readOnlyContract()
+              : deliveryContract()
+         : '');
    return truncateUtf8(message, MAX_PROMPT_BYTES - Buffer.byteLength(contracts, 'utf8')) + contracts;
 }
 
@@ -131,7 +143,9 @@ function reportingContract(): string {
       'reply has produced nothing to collect.\n' +
       'Work saved on this task by other agents is readable: list_files shows ' +
       'what is there and read_file opens it. Read before rewriting — a file ' +
-      'another agent wrote is theirs to build on, not to guess at.\n' +
+      'another agent wrote is theirs to build on, not to guess at. A spec or ' +
+      'design saved on the parent task, or on a task this one depends on, is ' +
+      'read the same way: give list_files and read_file that task\'s key.\n' +
       'When you have run_command, a file you save with write_file is also ' +
       'written into the workspace at the same path, at once, so the next ' +
       'command can use it. A file a command produces (a merged clip, a built ' +
@@ -187,6 +201,18 @@ function fenced(tag: string, text: string): string {
  * and it lands on the task: saying that here is what stops the agent from
  * describing an attachment as a commit.
  */
+function emptyRepositoryContract(): string {
+   return (
+      '\n\nThe repository\n' +
+      'The repository has no commits yet, so there is no code to read and ' +
+      'nothing is checked out. Work from the task, its comments and the ' +
+      'project, and do not describe code or files that do not exist yet.\n' +
+      'What you produce is saved on the task with write_file and stays there ' +
+      'as an attachment: it is not committed to the repository. Say where a ' +
+      'file is when you report it — "attached to this task as docs/spec.md".\n'
+   );
+}
+
 function readOnlyContract(): string {
    return (
       '\n\nThe repository\n' +

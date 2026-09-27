@@ -67,6 +67,13 @@ export interface PlanIssue {
    type: string;
    suggestedAgentId?: string | null;
    requiredCapabilities: string[];
+   /**
+    * The task writes to the repository (code, styles, tests, a README) rather
+    * than producing a spec, research or a decision. Routing gives such a task
+    * only to an agent that can branch the repository. Null when the planner
+    * did not say, which validation refuses.
+    */
+   changesRepository: boolean | null;
    priority?: string | null;
    dependsOn: string[];
    requiresReview: boolean;
@@ -205,6 +212,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
          type: text(item.type) || 'issue',
          suggestedAgentId: text(item.suggestedAgentId) || null,
          requiredCapabilities: strings(item.requiredCapabilities),
+         changesRepository: typeof item.changesRepository === 'boolean' ? item.changesRepository : null,
          priority: text(item.priority) || null,
          dependsOn: strings(item.dependsOn),
          requiresReview: item.requiresReview === true,
@@ -366,6 +374,16 @@ export function validatePlan(
                message: `"${dependency}" is not a task in this plan.`,
             });
          }
+      }
+      // Refused, not guessed: who may be given the task depends on it, and a
+      // build step routed as if it were a spec reached an agent that could
+      // not write a line of it.
+      if (issue.changesRepository === null) {
+         errors.push({
+            path: `/issues/${index}/changesRepository`,
+            code: 'required',
+            message: `Say whether "${issue.title}" changes the repository (true) or produces a spec, research or a decision (false).`,
+         });
       }
       if (issue.dependsOn.includes(issue.tempId)) {
          errors.push({

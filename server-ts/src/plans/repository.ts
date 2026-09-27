@@ -479,8 +479,24 @@ export class PlanRepository {
          const issueIds = new Map<string, string>();
          const approvalIds: string[] = [];
 
+         // The agents this plan's tasks may be given outright. A task that
+         // changes the repository and names an agent that cannot branch it is
+         // left for routing instead, which only offers it to one that can.
+         const suggested = [...new Set(plan.issues.flatMap((issue) => (issue.suggestedAgentId ? [issue.suggestedAgentId] : [])))];
+         const canBranch = new Set<string>();
+         if (suggested.length > 0) {
+            const rows = await tx`
+               SELECT id FROM agents
+                WHERE id::text = ANY(${suggested}::text[]) AND 'create_branches' = ANY(permissions)`;
+            for (const row of rows) canBranch.add(row.id as string);
+         }
+
          for (const issue of inDependencyOrder(plan.issues)) {
             const issueId = this.#newId();
+            const assignee =
+               issue.suggestedAgentId && (issue.changesRepository !== true || canBranch.has(issue.suggestedAgentId))
+                  ? issue.suggestedAgentId
+                  : null;
             const blocked = issue.dependsOn.length > 0;
             const status = issue.requiresApproval ? 'backlog' : blocked ? 'blocked' : 'todo';
 
@@ -489,19 +505,22 @@ export class PlanRepository {
                 WHERE id = ${boardId} RETURNING issue_counter`;
             await tx`
                INSERT INTO issues (id, board_id, number, title, description, status, priority,
-                                   created_by, assignee_type, assignee_id, auto_gate)
+                                   created_by, assignee_type, assignee_id, auto_gate, metadata)
                VALUES (${issueId}, ${boardId}, ${Number(counter!.issue_counter)}, ${issue.title},
                        ${issue.description ?? null}, ${status}::issue_status,
                        ${issue.priority ?? 'medium'}, ${input.userId},
                        -- Null, not a third enum value: unassigned is the
                        -- absence of an assignee, which is what the column
                        -- being nullable already says.
-                       ${issue.suggestedAgentId ? 'agent' : null},
-                       ${issue.suggestedAgentId ?? null},
+                       ${assignee ? 'agent' : null},
+                       ${assignee},
                        -- Carried from the plan at compile, as migration 026
                        -- says: the issue is the thing being gated, and a plan
                        -- edited later must not change how work in flight ends.
-                       ${record.autoGate})`;
+                       ${record.autoGate},
+                       -- Read by routing: a task that changes the repository
+                       -- goes only to an agent that can branch it.
+                       ${tx.json(issue.changesRepository === null ? {} : { 'berry.changesRepository': issue.changesRepository })})`;
             issueIds.set(issue.tempId, issueId);
 
             await tx`

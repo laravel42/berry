@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { nullRunMemory } from '../agentcore/memory.ts';
-import { GitHubClient } from '../integrations/github.ts';
+import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import { EnvelopeBuilder, loadTask } from './envelope-builder.ts';
@@ -203,7 +203,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
        * GitHub as three trees. `main` is what the default branch changed since
        * the fork; the task branch always rewrote the README and added a file.
        */
-      function repositoryBuilder(main: Record<string, string>, options: { branchExists?: boolean; empty?: boolean } = {}) {
+      function repositoryBuilder(main: Record<string, string>, options: { branchExists?: boolean; empty?: boolean; raced?: boolean } = {}) {
          const entry = (sha: string) => ({ sha, mode: '100644', type: 'blob', size: 10 });
          const fork = { 'server/README.md': 'readme-0', 'src/app.ts': 'app-0' };
          const trees: Record<string, Record<string, string>> = {
@@ -223,6 +223,8 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             putFile: async (input: { path: string; branch: string; sha: string | null }) => {
                written.push({ path: input.path, branch: input.branch, sha: input.sha });
                mainExists = true;
+               // Another run's first commit landed first.
+               if (options.raced) throw new GitHubError('GitHub PUT README.md failed: 409 reference already exists', 409);
                return { commit: MAIN_HEAD, blob: 'readme-blob' };
             },
             mergeBase: async () => {
@@ -327,13 +329,24 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
       });
 
-      test('a read-only run on an empty repository says there is nothing to read, and writes nothing', async () => {
+      test('two runs making the first commit at once both go ahead, from the one that landed', async () => {
+         const { builder: withRepository } = repositoryBuilder({}, { empty: true, branchExists: false, raced: true });
+         const task = await queued('Second run on an empty repository');
+         const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+         assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
+      });
+
+      test('a read-only run on an empty repository goes ahead without a checkout, and writes nothing', async () => {
          const f = fixture!;
          const { builder: withRepository, written } = repositoryBuilder({}, { empty: true });
          const task = await queued('Read-only on empty');
          await sql`UPDATE agents SET permissions = ${sql.array(['read_repository'])} WHERE id = ${f.agentId}`;
          try {
-            await assert.rejects(withRepository.build({ task, dispatch: null, token: 'berry_task_x' }), /no commits yet/);
+            const { envelope, delivery } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
+            assert.equal(envelope.repo, null);
+            assert.equal(delivery, null);
+            assert.match(envelope.task.prompt, /no commits yet/);
+            assert.doesNotMatch(envelope.task.prompt, /checked out in your workspace/);
             assert.deepEqual(written, []);
          } finally {
             await sql`UPDATE agents SET permissions = ${sql.array(['read_repository', 'create_branches', 'open_pull_requests'])} WHERE id = ${f.agentId}`;
