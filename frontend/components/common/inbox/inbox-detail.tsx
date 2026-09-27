@@ -230,7 +230,7 @@ function DetailBar({ item, archived, href, onArchive, onUnarchive, onBack }: Det
          <Button
             variant="ghost"
             size="xs"
-            className="md:hidden"
+            className="lg:hidden"
             onClick={onBack}
             aria-label={t('actions.back')}
          >

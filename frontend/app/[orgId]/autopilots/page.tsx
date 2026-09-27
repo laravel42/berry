@@ -108,13 +108,16 @@ export default function AutopilotsPage() {
             line={t('statement.line', { count: enabled })}
             sub={t('statement.sub')}
          >
-            <div className="flex items-center gap-2">
+            {/* On a phone the search gives way and the button keeps only its
+                icon, so the row fits instead of pushing the button off the
+                right edge. */}
+            <div className="flex min-w-0 items-center gap-2">
                <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t('search')}
                   aria-label={t('search')}
-                  className="h-[34px] w-48"
+                  className="h-[34px] w-48 min-w-0"
                />
                {canEdit ? (
                   <Button
@@ -126,7 +129,7 @@ export default function AutopilotsPage() {
                      }}
                   >
                      <Plus className="size-4" aria-hidden />
-                     {t('new')}
+                     <span className="max-sm:sr-only">{t('new')}</span>
                   </Button>
                ) : null}
             </div>

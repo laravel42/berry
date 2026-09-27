@@ -142,7 +142,7 @@ export default function MyIssues() {
          <IssueFilterBar showActions={false} />
          <BatchToolbar visibleIds={displayedIssues.map((issue) => issue.id)} />
          <DiscoveryNotice issues={issues} />
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {view.mode === 'table' ? (
                   <IssueTable
@@ -161,12 +161,12 @@ export default function MyIssues() {
             </div>
 
             {openPanel === 'insights' && (
-               <aside className="hidden lg:flex w-[420px] shrink-0 border-l h-full overflow-hidden bg-container">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
                   <InsightsPanel issues={displayedIssues} />
                </aside>
             )}
             {openPanel === 'breakdown' && (
-               <aside className="hidden lg:flex w-80 shrink-0 border-l h-full overflow-hidden bg-container">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-80 lg:border-l">
                   <BreakdownPanel issues={displayedIssues} />
                </aside>
             )}

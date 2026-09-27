@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import type { ChatThread } from '@/lib/chat';
+import { cn } from '@/lib/utils';
 import { ChatSessions } from './chat-sessions';
 
 interface ChatSidebarProps {
@@ -19,6 +20,7 @@ interface ChatSidebarProps {
    onStop: (thread: ChatThread) => void;
    /** The page sets its name and the new-chat action above the split instead. */
    headless?: boolean;
+   className?: string;
 }
 
 /**
@@ -39,11 +41,17 @@ export function ChatSidebar({
    onChanged,
    onStop,
    headless = false,
+   className,
 }: ChatSidebarProps) {
    const t = useTranslations('agentsChat.chat');
 
    return (
-      <aside className="flex w-[260px] flex-none flex-col overflow-y-auto border-r border-[var(--shell-line)] bg-[var(--shell-rail)]">
+      <aside
+         className={cn(
+            'flex w-[260px] flex-none flex-col overflow-y-auto border-r border-[var(--shell-line)] bg-[var(--shell-rail)]',
+            className
+         )}
+      >
          {headless ? null : (
             <div className="shrink-0 px-3 pt-3 pb-2">
                <h1 className="sr-only">{t('title')}</h1>

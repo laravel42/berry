@@ -334,9 +334,11 @@ export default function Reviews({
    ).filter((group) => group.items.length > 0);
 
    const outcomeText = outcome
-      ? outcome.decision === 'approve'
-         ? t('outcome.approved', { identifier: outcome.identifier })
-         : t('outcome.sentBack', { identifier: outcome.identifier })
+      ? outcome.conflict
+         ? t('outcome.conflict', { identifier: outcome.identifier })
+         : outcome.decision === 'approve'
+           ? t('outcome.approved', { identifier: outcome.identifier })
+           : t('outcome.sentBack', { identifier: outcome.identifier })
       : null;
 
    const caughtUp = items !== null && items.length === 0 && state === 'open';
@@ -352,8 +354,8 @@ export default function Reviews({
          <div
             className={cn(
                'relative flex h-full min-w-0 shrink-0 flex-col border-r bg-container',
-               'w-full md:w-[var(--reviews-list-w)]',
-               selectedId ? 'hidden md:flex' : 'flex'
+               'w-full lg:w-[var(--reviews-list-w)]',
+               selectedId ? 'hidden lg:flex' : 'flex'
             )}
          >
             <div className="shrink-0">
@@ -412,7 +414,7 @@ export default function Reviews({
                )}
             </div>
             <span
-               className="absolute inset-y-0 right-0 z-10 hidden w-1.5 cursor-col-resize md:block"
+               className="absolute inset-y-0 right-0 z-10 hidden w-1.5 cursor-col-resize lg:block"
                style={{ touchAction: 'none' }}
                onPointerDown={resizeList}
                role="separator"
@@ -427,7 +429,7 @@ export default function Reviews({
          <div
             className={cn(
                'flex h-full min-w-0 flex-1 flex-col overflow-hidden',
-               selectedId ? 'flex w-full' : 'hidden md:flex'
+               selectedId ? 'flex w-full' : 'hidden lg:flex'
             )}
          >
             {outcomeText && (

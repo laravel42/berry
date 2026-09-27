@@ -145,14 +145,18 @@ export interface Kpi {
 /**
  * A row of KPI cards: the figures a professional reads a page by. Each card is
  * a name, one number and one line of the numbers behind it.
+ *
+ * On a phone the cards are one row that scrolls sideways: stacked two by two,
+ * six of them filled the first screen and pushed the list they sum up below
+ * the fold. The bleed (`-mx-6 px-6`) matches the header's own padding.
  */
 export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
    return (
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <dl className="no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6">
          {kpis.map((kpi) => (
             <div
                key={kpi.label}
-               className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card px-4 pt-3.5 pb-4"
+               className="flex w-40 min-w-0 shrink-0 snap-start flex-col gap-2 rounded-xl border bg-card px-4 pt-3.5 pb-4 sm:w-auto"
             >
                <dt className="truncate font-medium tracking-wider text-muted-foreground uppercase">
                   {kpi.label}

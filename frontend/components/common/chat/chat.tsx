@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
@@ -47,6 +47,7 @@ import {
 } from '@/lib/chat';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
+import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { ChatComposer } from './chat-composer';
 import { ChatSidebar } from './chat-sidebar';
@@ -127,8 +128,14 @@ export function Chat() {
       setTasks(queue);
    }, []);
 
+   // The conversation just closed with the back button (below `md`). Until
+   // the URL catches up it still names it, and the effect that follows the
+   // URL must not open it again in that gap.
+   const closed = useRef<string | null>(null);
+
    const select = useCallback(
       async (thread: ChatThread) => {
+         closed.current = null;
          setActive(thread);
          setTitle(thread.topic);
          setError(null);
@@ -228,7 +235,11 @@ export function Chat() {
    const requestedSession = searchParams?.get('session') ?? null;
    const requestedAgent = searchParams?.get('agent') ?? null;
    useEffect(() => {
-      if (requestedSession && requestedSession !== activeId) {
+      if (
+         requestedSession &&
+         requestedSession !== activeId &&
+         requestedSession !== closed.current
+      ) {
          let cancelled = false;
          void refreshThreads()
             .then(async (found) => {
@@ -503,8 +514,11 @@ export function Chat() {
 
    return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]">
+         {/* Below `md` there is room for one column: the conversations, or
+             the open one with a way back to them — the Inbox's pattern. */}
          <div className="flex min-h-0 flex-1">
             <ChatSidebar
+               className={cn('max-md:w-full', active && 'max-md:hidden')}
                threads={threads}
                archived={archived}
                showArchived={showArchived}
@@ -526,12 +540,25 @@ export function Chat() {
                onStop={stop}
             />
 
-            <section className="flex min-w-0 flex-1 flex-col">
+            <section className={cn('min-w-0 flex-1 flex-col', active ? 'flex' : 'hidden md:flex')}>
                {/* The pane is named by who you are talking to. The page is
                 already called Chat three times over — rail, tab, sidebar —
                 so with nothing open the pane says nothing at all. */}
                {active ? (
-                  <header className="flex flex-none items-center gap-3 px-6 py-3">
+                  <header className="flex flex-none items-center gap-3 px-6 py-3 max-md:pl-3">
+                     <button
+                        type="button"
+                        onClick={() => {
+                           closed.current = active.id;
+                           setActive(null);
+                           show(null);
+                        }}
+                        aria-label={t('backToChats')}
+                        title={t('backToChats')}
+                        className="flex size-11 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] md:hidden"
+                     >
+                        <ArrowLeft className="size-4" aria-hidden />
+                     </button>
                      <h2 className="min-w-0 flex-none truncate text-[var(--shell-text)]">
                         {agentName ?? active.topic}
                      </h2>

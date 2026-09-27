@@ -127,18 +127,20 @@ function SkillsScreen() {
             line={t('statement.line', { count: total ?? 0 })}
             sub={t('statement.sub')}
          >
-            <div className="flex items-center gap-2">
+            {/* On a phone the search gives way and the button keeps only
+                its icon, so the row fits the screen. */}
+            <div className="flex min-w-0 items-center gap-2">
                <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder={t('search')}
                   aria-label={t('search')}
-                  className="h-[34px] w-48"
+                  className="h-[34px] w-48 min-w-0"
                />
                {canEdit ? (
                   <Button size="xs" className="h-[34px] shrink-0" onClick={() => setCreating(true)}>
                      <Plus className="size-4" aria-hidden />
-                     {t('create.title')}
+                     <span className="max-sm:sr-only">{t('create.title')}</span>
                   </Button>
                ) : null}
             </div>

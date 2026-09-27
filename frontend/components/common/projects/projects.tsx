@@ -464,7 +464,7 @@ export default function Projects() {
             </div>
          )}
 
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {viewType === 'board' ? (
                   <ProjectsBoard
@@ -496,7 +496,7 @@ export default function Projects() {
             </div>
 
             {openPanel === 'insights' && (
-               <aside className="hidden lg:flex w-[360px] shrink-0 border-l h-full overflow-hidden bg-container">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[360px] lg:border-l">
                   <ProjectsInsightsPanel projects={displayed} />
                </aside>
             )}

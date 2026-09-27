@@ -111,7 +111,8 @@
       "autoGate": "AutoGate",
       "autoGateOn": "On: an agent reviews this task when it finishes. If the review passes, Berry merges its pull request, closes the task and starts whatever it was blocking, without waiting for you.",
       "autoGateOff": "Off: when this task finishes it waits in review until you close it.",
-      "autoGateReviewing": "AutoGate is on. The waiting review starts now."
+      "autoGateReviewing": "AutoGate is on. The waiting review starts now.",
+      "open": "Status, assignee and more"
    },
    "quickActions": {
       "title": "Quick actions",
@@ -167,6 +168,7 @@
       "outcomeCancelled": "{name} was stopped {when}.",
       "awaitingReview": "Waiting for a person to decide.",
       "outcomeStopped": "{name} stopped without delivering {when}.",
+      "outcomeReported": "{name} finished {when} with a report and changed nothing.",
       "openInReviews": "Open in Reviews",
       "pullRequest": "Pull request #{number}"
    },
@@ -225,6 +227,7 @@
       "commandsRun": "{count} commands run",
       "noFiles": "No files changed.",
       "cost": "Cost",
+      "unpriced": "not priced",
       "tokens": "Tokens",
       "close": "Close",
       "newestFirst": "Newest first",
@@ -485,6 +488,8 @@
       "fixNotStarted": "The fix could not be started.",
       "fixLogHeading": "Fix with AI: the agent's run",
       "fixRunFailed": "The agent's run ended without fixing it. Its report is on the task.",
+      "reconnect": "Reconnect GitHub",
+      "retry": "Try again",
       "panel": {
          "label": "Preview panel",
          "toggle": "Toggle the panel (Ctrl+`)",

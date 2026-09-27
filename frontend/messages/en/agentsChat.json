@@ -335,6 +335,7 @@
       "deleteBody": "Every message in this conversation is deleted with it. This cannot be undone; archiving keeps it.",
       "deleting": "Deleting…",
       "rename": "Rename",
+      "backToChats": "All conversations",
       "headerOpenAgent": "Open the agent",
       "headerMenu": "Conversation actions",
       "composerPlaceholder": "Message {name}…",

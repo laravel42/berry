@@ -2,9 +2,11 @@
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getIssueDetail } from '@/data/issue-details';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { getBoardIssue } from '@/lib/issues';
 import { forgetIssue, rememberIssue } from '@/lib/recent-issues';
@@ -13,6 +15,7 @@ import { useIssueViewStore } from '@/store/issue-view-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { useTranslations } from 'next-intl';
+import { SlidersHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -43,6 +46,7 @@ import { SubIssues } from './sub-issues';
  */
 export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const t = useTranslations('issueDetail.state');
+   const tProperties = useTranslations('issueDetail.properties');
    const params = useParams<{ orgId: string; issueId: string }>();
    const orgId = params?.orgId;
    const org = orgId ?? WORKSPACE_SLUG;
@@ -59,6 +63,10 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const [fetching, setFetching] = useState(true);
    const [missing, setMissing] = useState(false);
    const [highlighted, setHighlighted] = useState<string | null>(null);
+   // The properties sheet, below `lg`. Widening past it closes the sheet: the
+   // side panel is back, and a hidden modal would hold the page inert.
+   const [propertiesOpen, setPropertiesOpen] = useState(false);
+   const isMobile = useIsMobile();
    const scroller = useRef<HTMLDivElement>(null);
    const pane = useRef<HTMLDivElement>(null);
    const hadIssue = useRef(false);
@@ -231,6 +239,35 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
                   <div className="flex flex-col gap-3">
                      <IssueTitle issue={issue} />
+                     {/* Below `lg` the side panel has no room, so the same
+                         panel opens in a sheet from here instead. Mounted only
+                         while open, so it fetches nothing on a phone until
+                         someone asks for it. */}
+                     <Sheet open={propertiesOpen && isMobile} onOpenChange={setPropertiesOpen}>
+                        <SheetTrigger asChild>
+                           <Button variant="outline" size="sm" className="self-start lg:hidden">
+                              <SlidersHorizontal aria-hidden />
+                              {tProperties('open')}
+                           </Button>
+                        </SheetTrigger>
+                        <SheetContent
+                           side="right"
+                           className="w-[min(320px,90vw)] gap-3 bg-container px-5 pt-4 pb-3.5 lg:hidden"
+                           overlayClassName="lg:hidden"
+                           aria-describedby={undefined}
+                        >
+                           <div className="flex items-center justify-between gap-2 pr-8">
+                              <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
+                              <IssueQuickActions issueRef={issue.identifier} />
+                           </div>
+                           <div className="min-h-0 flex-1">
+                              <IssuePropertiesPanel
+                                 issue={issue}
+                                 detail={detail ?? getIssueDetail(issue)}
+                              />
+                           </div>
+                        </SheetContent>
+                     </Sheet>
                      <IssueDescription
                         issueId={issue.id}
                         issueRef={issue.identifier}

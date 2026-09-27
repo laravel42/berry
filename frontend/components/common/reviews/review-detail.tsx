@@ -171,7 +171,7 @@ export function ReviewDetail({
                <button
                   type="button"
                   onClick={onBack}
-                  className="-ml-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none md:hidden"
+                  className="-ml-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:hidden"
                   aria-label={t('detail.backToList')}
                >
                   <ArrowLeft className="size-4" aria-hidden />
