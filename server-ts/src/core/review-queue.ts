@@ -93,6 +93,19 @@ const DEFAULT_LIMIT = 50;
 /** The agent's commands a review lists; a run that ran more is summarised by its latest. */
 const MAX_COMMANDS = 60;
 
+/** A task behind one of the repository's open pull requests (`openPullRequestTasks`). */
+export interface OpenPullRequestTask {
+   number: number;
+   runId: string;
+   agentId: string;
+   requestedBy: string | null;
+   issueId: string;
+   boardId: string;
+   workspaceId: string;
+   status: string;
+   identifier: string;
+}
+
 export class ReviewQueue {
    readonly #sql: Sql;
 
@@ -303,6 +316,45 @@ export class ReviewQueue {
     * running is left out — its run recorded the branch head it started from,
     * and moving the branch under it would make its delivery fail.
     */
+   /**
+    * The tasks behind the repository's other open pull requests: each task's
+    * newest run that opened one, its author and who asked for it, with the
+    * task's status. Tasks with a run going are left out, as for
+    * `openPullRequests`: their branch is about to move anyway.
+    */
+   async openPullRequestTasks(workspaceId: string, repository: string, except: number | null): Promise<OpenPullRequestTask[]> {
+      const rows = await this.#sql`
+         SELECT DISTINCT ON (issue.id)
+                run.pull_request_number AS number, run.id AS run_id, run.agent_id, run.requested_by,
+                issue.id AS issue_id, issue.board_id, issue.status::text AS status,
+                berry_issue_identifier(board.workspace_id, issue.number) AS identifier
+           FROM runs AS run
+           JOIN issues AS issue ON issue.id = run.issue_id AND issue.deleted_at IS NULL
+           JOIN boards AS board ON board.id = issue.board_id
+           JOIN issue_project_links AS link ON link.issue_id = issue.id
+           JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
+          WHERE board.workspace_id = ${workspaceId}
+            AND lower(project.github_repo_full_name) = lower(${repository})
+            AND run.pull_request_number IS NOT NULL
+            AND (${except}::bigint IS NULL OR run.pull_request_number <> ${except})
+            AND issue.status::text NOT IN ('done', 'cancelled')
+            AND NOT EXISTS (
+               SELECT 1 FROM runs AS active
+                WHERE active.issue_id = issue.id AND active.status IN ('queued', 'running'))
+          ORDER BY issue.id, run.created_at DESC`;
+      return rows.map((row) => ({
+         number: Number(row.number),
+         runId: row.run_id as string,
+         agentId: row.agent_id as string,
+         requestedBy: (row.requested_by as string | null) ?? null,
+         issueId: row.issue_id as string,
+         boardId: row.board_id as string,
+         workspaceId,
+         status: row.status as string,
+         identifier: row.identifier as string,
+      }));
+   }
+
    async openPullRequests(workspaceId: string, repository: string, except: number): Promise<number[]> {
       const rows = await this.#sql`
          SELECT DISTINCT run.pull_request_number AS number

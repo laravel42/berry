@@ -136,6 +136,7 @@ import { FirstRunSetup, databaseWorld } from './auth/first-run-setup.ts';
 import { betterAuthMounts } from './mounts/better-auth.ts';
 import { Storage } from './storage/storage.ts';
 import { ReviewGate } from './agents/review-gate.ts';
+import { afterDelivery, type ConflictDeps } from './agents/conflicts.ts';
 import { ReviewQueue } from './core/review-queue.ts';
 import { reviewMounts } from './mounts/reviews.ts';
 import { GitHubClient } from './integrations/github.ts';
@@ -1040,6 +1041,13 @@ registry.registerAll(
       ensureDiscovery: (workspaceId) => ensureDiscovery(sql, workspaceId, { autopilots, issues }),
    })
 );
+/** What resolves conflicts before review (`agents/conflicts.ts`): the repository read with the workspace's installation token. */
+const conflictDeps: ConflictDeps = {
+   sql,
+   github: async (workspaceId, owner) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }),
+   onError: (message, error) => logger.warn(message, { error: error instanceof Error ? error.message : String(error) }),
+};
+
 registry.registerAll(
    reviewMounts({
       sessions,
@@ -1051,6 +1059,9 @@ registry.registerAll(
       // An Approve that meets a conflict returns the task to its agent, the
       // way the AutoGate does.
       sendBack: { issues, runs: new RunRepository(sql) },
+      // And after a merge, a task whose pull request now conflicts goes back
+      // before anyone reviews it.
+      conflicts: scm.provisioning ? conflictDeps : null,
       onError: (message, error) =>
          logger.warn(message, { error: error instanceof Error ? error.message : String(error) }),
    })
@@ -1305,6 +1316,10 @@ const followupWorker = reviewGate
               },
               runId
            );
+           // A pull request that conflicts with work merged while its run was
+           // going goes back to its author now, not at Approve; the gate then
+           // finds the task out of review and leaves it.
+           await afterDelivery(conflictDeps, { runId });
            return reviewGate.review(runId);
         },
         logger,

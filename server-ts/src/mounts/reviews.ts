@@ -1,3 +1,4 @@
+import { afterMerge, type ConflictDeps } from '../agents/conflicts.ts';
 import { Hono } from 'hono';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
@@ -38,6 +39,8 @@ export interface ReviewMountOptions {
       Partial<Pick<GitHubClient, 'pullRequestHead' | 'putFile' | 'branchHead'>>;
    /** What returns a conflicting pull request's task to its author. Absent: the conflict is only reported. */
    sendBack?: Pick<SendBackDeps, 'issues' | 'runs'> | null;
+   /** After a merge, what brings the other open pull requests up to date and sends a conflicting one back (`agents/conflicts.ts`). */
+   conflicts?: ConflictDeps | null;
    onError?: (message: string, error: unknown) => void;
 }
 
@@ -320,10 +323,19 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          if (outcome.merged) {
             // Not awaited and never failing: the merge has happened, and the
             // other pull requests being brought up to date is housekeeping.
-            void options.queue
-               .openPullRequests(target.workspaceId, target.repository, target.number)
-               .then((numbers) => refreshPullRequests({ client, repository: target.repository, numbers, onError: options.onError }))
-               .catch((error: unknown) => options.onError?.('listing open pull requests failed', error));
+            // One that now conflicts goes back to its author before review.
+            if (options.conflicts) {
+               void afterMerge(options.conflicts, {
+                  workspaceId: target.workspaceId,
+                  repository: target.repository,
+                  merged: { number: target.number, name: `pull request #${target.number}` },
+               });
+            } else {
+               void options.queue
+                  .openPullRequests(target.workspaceId, target.repository, target.number)
+                  .then((numbers) => refreshPullRequests({ client, repository: target.repository, numbers, onError: options.onError }))
+                  .catch((error: unknown) => options.onError?.('listing open pull requests failed', error));
+            }
             return json({ merged: true, number: target.number, sha: outcome.sha, already: false });
          }
          if (outcome.conflict) throw await conflict(options, target, user.id, state.base ?? 'the default branch');

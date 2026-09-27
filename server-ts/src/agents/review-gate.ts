@@ -4,8 +4,8 @@ import { withinTx, type Sql } from '../db/pool.ts';
 import type { CompletionResult, RuntimeCompletion } from '../runtime/completion.ts';
 import type { GitHubClient } from '../integrations/github.ts';
 import { IssueRepository } from '../core/issues.ts';
-import { ReviewQueue } from '../core/review-queue.ts';
-import { conflictInstructions, refreshPullRequests, refusedInstructions, sendBack } from './send-back.ts';
+import { conflictInstructions, refusedInstructions, sendBack } from './send-back.ts';
+import { afterMerge } from './conflicts.ts';
 import { parseContract, type RoleContract } from '../organization/contract.ts';
 import { isCoreRole } from '../organization/catalog.ts';
 import { roleAgent } from '../organization/delegation.ts';
@@ -811,15 +811,14 @@ export class ReviewGate {
 
       if (outcome.merged) {
          await this.#comment(material.issue.id, reviewerId, mergedComment(number, outcome.sha));
-         // The default branch just moved under every other task in flight.
-         // Best effort, and never this merge's failure.
-         const numbers = await new ReviewQueue(this.#sql)
-            .openPullRequests(material.workspaceId, material.repository!, number)
-            .catch((error: unknown) => {
-               this.#onError('listing open pull requests failed', error);
-               return [];
-            });
-         await refreshPullRequests({ client, repository: material.repository!, numbers, onError: this.#onError });
+         // The default branch just moved under every other task in flight:
+         // each is brought up to date, and one that now conflicts goes back to
+         // its author before anyone reviews it. Best effort, and never this
+         // merge's failure.
+         await afterMerge(
+            { sql: this.#sql, github: (workspaceId, owner) => this.#github(workspaceId, owner), onError: this.#onError },
+            { workspaceId: material.workspaceId, repository: material.repository!, merged: { number, name: material.issue.identifier } }
+         );
          return true;
       }
 
