@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http } from 'msw';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, waitFor, within } from 'storybook/test';
 import {
    runs,
    sseResponse,
@@ -79,14 +79,24 @@ export const Search: Story = {
    },
 };
 
-/** A run that failed on a test command; the failure code heads the dialog. */
+/** A run that failed on a test command; the failure is in the last error block, not under the title. */
 export const Failed: Story = {
    args: { runId: 'run-4e6f0a18', agentName: 'Orchestrator' },
    play: async ({ canvasElement }) => {
-      const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
+      const body = canvasElement.ownerDocument.body;
+      const dialog = await within(body).findByRole('dialog');
+      const text = `RUNTIME_TIMEOUT: ${runs[2]!.failure!.message}`;
+      // In a transcript step (the error block), drawn as code, and not in the header.
+      await waitFor(() =>
+         expect(
+            [...dialog.querySelectorAll('[data-step-id]')].some((step) =>
+               step.textContent?.includes(text)
+            )
+         ).toBe(true)
+      );
       await expect(
-         await dialog.findByText(`RUNTIME_TIMEOUT: ${runs[2]!.failure!.message}`)
-      ).toBeVisible();
+         dialog.querySelector('[data-slot="dialog-header"]')?.textContent ?? ''
+      ).not.toContain('RUNTIME_TIMEOUT');
    },
 };
 

@@ -72,6 +72,38 @@ function elapsed(from: string, to: string): number | null {
    return Number.isFinite(ms) && ms >= 0 ? ms : null;
 }
 
+/**
+ * The steps with the run's failure in the last error block, as `CODE: message`;
+ * a transcript whose stream carried no error gets one at the end.
+ */
+export function attachFailure(
+   steps: TranscriptStep[],
+   failure: { code: string; message: string } | null
+): TranscriptStep[] {
+   if (!failure) return steps;
+   const text = `${failure.code}: ${failure.message}`;
+   const index = steps.findLastIndex((step) => step.kind === 'error');
+   if (index === -1) {
+      return [
+         ...steps,
+         {
+            id: 'error:run',
+            kind: 'error',
+            title: 'error',
+            input: null,
+            result: text,
+            at: steps.at(-1)?.at ?? '',
+            ok: false,
+            durationMs: null,
+            detail: null,
+         },
+      ];
+   }
+   const next = [...steps];
+   next[index] = { ...next[index]!, result: text };
+   return next;
+}
+
 function detailOf(value: unknown): StepDetail | null {
    if (!value || typeof value !== 'object') return null;
    const raw = value as Record<string, unknown>;
@@ -508,8 +540,15 @@ export function RunTranscriptDialog({
       };
    }, [open, runId]);
 
+   // The run's failure belongs to the transcript's last error block, not under
+   // the title: it is what that error was, and the stored message is the full
+   // one (a continued limit stop is rewritten to say so after the event).
+   const failure = run?.failure ?? null;
+   const withFailure = useMemo(() => attachFailure(steps, failure), [steps, failure]);
+
    const visible = useMemo(() => {
-      const byKind = kinds.length === 0 ? steps : steps.filter((step) => kinds.includes(step.kind));
+      const byKind =
+         kinds.length === 0 ? withFailure : withFailure.filter((step) => kinds.includes(step.kind));
       const needle = query.trim().toLowerCase();
       const matched = !needle
          ? byKind
@@ -518,7 +557,7 @@ export function RunTranscriptDialog({
            );
       // Newest first: the last thing an agent did is the thing being waited on.
       return [...matched].reverse();
-   }, [steps, kinds, query]);
+   }, [withFailure, kinds, query]);
 
    const matches = query.trim() ? visible.length : 0;
 
@@ -571,11 +610,6 @@ export function RunTranscriptDialog({
                <DialogDescription>
                   {t('subtitle', { agent: agentName ?? '—', status: status || run?.status || '—' })}
                </DialogDescription>
-               {run?.failure ? (
-                  <p className="mt-2 whitespace-pre-wrap break-words font-mono text-muted-foreground">
-                     {run.failure.code}: {run.failure.message}
-                  </p>
-               ) : null}
             </DialogHeader>
 
             <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
