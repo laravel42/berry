@@ -21,7 +21,11 @@ import {
 import { cn } from '@/lib/utils';
 
 /** The list's order: Kilo's own routing first, then the three paid tiers, then free models. */
-const TIER_ORDER = ['berry_auto', ...MAIN_TIERS, 'berry_free'] as const satisfies readonly Tier[];
+export const TIER_ORDER = [
+   'berry_auto',
+   ...MAIN_TIERS,
+   'berry_free',
+] as const satisfies readonly Tier[];
 
 /**
  * The models table's columns — share, model, rating, input and output price —
@@ -74,6 +78,11 @@ function modelName(name: string): string {
  * twin and converted far outside the range the conversion was fitted on, so
  * one that rounds to 0% says nothing and is shown as no rating.
  */
+/** A rating source as a reader knows it: Kilo's is its benchmark, the rest are leaderboard names. */
+function sourceName(source: string): string {
+   return source === 'Kilo' ? "Kilo's benchmark" : source;
+}
+
 function ratingOf(tier: Tier, completion: number | null): string {
    if (completion === null) return '—';
    if (tier === 'berry_free' && Math.round(completion * 100) === 0) return '—';
@@ -185,7 +194,19 @@ export function AgentTierSection({
                            </span>
                            <span className="text-right">
                               <span className="sr-only">{t('columns.rating')} </span>
-                              {ratingOf(name, entry.completion)}
+                              {entry.estimatedFrom?.length && entry.completion !== null ? (
+                                 // Converted from another benchmark: a prediction of
+                                 // the scale's score, ranked behind a measured one.
+                                 <span
+                                    title={t('columns.estimated', {
+                                       sources: entry.estimatedFrom.map(sourceName).join(', '),
+                                    })}
+                                 >
+                                    ≈{ratingOf(name, entry.completion)}
+                                 </span>
+                              ) : (
+                                 ratingOf(name, entry.completion)
+                              )}
                            </span>
                            <span className="text-right">
                               <span className="sr-only">{t('columns.priceIn')} </span>

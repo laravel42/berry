@@ -31,6 +31,7 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
+import { useModelGateway } from '@/hooks/use-model-gateway';
 import { BerryApiError } from '@/lib/api';
 import {
    archiveAgent,
@@ -40,8 +41,11 @@ import {
    loadArchivedAgents,
    loadWorkspaceAgents,
    restoreAgent,
+   gatewayPin,
    setAgentAccess,
+   updateAgentConfig,
    type Agent,
+   type Tier,
 } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 import {
@@ -57,6 +61,8 @@ import {
 } from '@/components/common/filters/list-filters';
 import { useAgentFilterColumns } from './agent-filter-columns';
 import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
+import { roleDefaultTier, TIER_ORDER } from './agent-tier-section';
+import { TierChip } from './tier-chip';
 
 /** Which column heading sorts by what; the rest are labels only. */
 const SORT_FOR_COLUMN: Partial<Record<AgentColumn, AgentsSortKey>> = {
@@ -90,6 +96,8 @@ const reason = (error: unknown, fallback: string) =>
 export default function Agents() {
    const t = useTranslations('agentsChat.list');
    const common = useTranslations('agentsChat.common');
+   const tiers = useTranslations('agentsChat.detail.tiers');
+   const modelGateway = useModelGateway();
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
 
@@ -125,6 +133,7 @@ export default function Agents() {
    const [loading, setLoading] = useState(true);
    const [confirm, setConfirm] = useState<Confirm | null>(null);
    const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+   const [bulkTierOpen, setBulkTierOpen] = useState(false);
    const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
    const [busy, setBusy] = useState(false);
 
@@ -251,6 +260,25 @@ export default function Agents() {
       clearSelection();
       hydrateArchived(null);
       await load();
+   };
+
+   /**
+    * Puts the selection on one tier, or null for each role's own. A tier that
+    * is the agent's role default is stored as none, as on the agent's page,
+    * and a pinned model is cleared: it would otherwise override the tier.
+    */
+   const bulkTier = (next: Tier | null) => {
+      setBulkTierOpen(false);
+      void bulk(t('errorTitle'), async (agent) => {
+         const config: Parameters<typeof updateAgentConfig>[1] = {
+            tier: next === null || next === roleDefaultTier(agent) ? null : next,
+         };
+         if (gatewayPin(agent)) {
+            config.provider = null;
+            config.model = null;
+         }
+         upsertAgent(await updateAgentConfig(agent.id, config));
+      });
    };
 
    const header = (column: AgentColumn, label: string, align?: string, hint?: string) => {
@@ -430,6 +458,16 @@ export default function Agents() {
                   </Button>
                ) : (
                   <>
+                     {modelGateway === true ? (
+                        <Button
+                           size="xs"
+                           variant="secondary"
+                           disabled={busy}
+                           onClick={() => setBulkTierOpen(true)}
+                        >
+                           {t('bulkTier')}
+                        </Button>
+                     ) : null}
                      <Button
                         size="xs"
                         variant="secondary"
@@ -526,6 +564,45 @@ export default function Agents() {
                      >
                         {next === 'everyone' ? t('accessEveryone') : t('accessAdmins')}
                      </Button>
+                  ))}
+               </div>
+            </DialogContent>
+         </Dialog>
+
+         <Dialog open={bulkTierOpen} onOpenChange={setBulkTierOpen}>
+            <DialogContent className="sm:max-w-md">
+               <DialogHeader>
+                  <DialogTitle>{t('bulkTier')}</DialogTitle>
+                  <DialogDescription>
+                     {t('bulkSelected', { count: selectedRows.length })}
+                     {selectedRows.some((agent) => gatewayPin(agent))
+                        ? ` · ${t('bulkTierPinned')}`
+                        : null}
+                  </DialogDescription>
+               </DialogHeader>
+               <div className="flex flex-col overflow-hidden rounded-md border">
+                  <button
+                     type="button"
+                     disabled={busy}
+                     onClick={() => bulkTier(null)}
+                     className="flex items-center gap-3 px-3 py-2 text-left outline-none enabled:hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                     <span className="w-24 shrink-0 font-medium">{t('bulkTierRole')}</span>
+                     <span className="text-muted-foreground">{t('bulkTierRoleHint')}</span>
+                  </button>
+                  {TIER_ORDER.map((name) => (
+                     <button
+                        key={name}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => bulkTier(name)}
+                        className="flex items-center gap-3 border-t px-3 py-2 text-left outline-none enabled:hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                     >
+                        <span className="w-24 shrink-0">
+                           <TierChip tier={name} className="px-2 py-1" />
+                        </span>
+                        <span className="text-muted-foreground">{tiers(`outcome.${name}`)}</span>
+                     </button>
                   ))}
                </div>
             </DialogContent>

@@ -1278,6 +1278,8 @@ export const modelTiers: ModelTiers = {
                id: 'moonshotai/kimi-k2.5',
                name: 'Kimi K2.5',
                completion: 0.7,
+               // Not on the newest leaderboard: converted from Kilo's benchmark.
+               estimatedFrom: ['Kilo'],
                costPerAttemptUsd: 0.36,
                usageTokens: 2_200_000_000,
                blendedPricePerM: 1.2,

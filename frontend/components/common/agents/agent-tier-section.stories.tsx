@@ -34,6 +34,8 @@ type Story = StoryObj<typeof meta>;
 export const RoleDefault: Story = {
    play: async ({ args, canvas, userEvent }) => {
       await expect(await canvas.findByText('GLM-5')).toBeVisible();
+      // A rating converted from another benchmark is marked, and says where from.
+      await expect(canvas.getByTitle(/Estimated from Kilo's benchmark/)).toHaveTextContent('≈70%');
       await expect(canvas.getByRole('radio', { name: /BerryMid/ })).toHaveAttribute(
          'aria-checked',
          'true'

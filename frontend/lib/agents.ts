@@ -388,6 +388,8 @@ const rankedModelSchema = z.object({
    name: z.string(),
    /** Rating, 0–1: a Terminal-Bench resolution rate on `ratingScale`'s scale. */
    completion: z.number().nullable(),
+   /** The sources a rating was converted from; null or absent when `ratingScale` measured it. */
+   estimatedFrom: z.array(z.string()).nullish(),
    costPerAttemptUsd: z.number().nullable(),
    usageTokens: z.number(),
    /** USD per million tokens, three input to one output. */
