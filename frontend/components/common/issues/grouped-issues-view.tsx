@@ -290,12 +290,14 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    /* ------------------------------- Board ------------------------------- */
    if (isViewTypeGrid) {
       const manuallyHidden = groups.filter((entry) => hiddenBoardColumns.includes(entry.group.id));
+      // Status columns stay on the board when empty: each is where a task is
+      // dragged to, and a new workspace would otherwise show one column.
+      // Other groupings (people, projects) keep the "empty groups" switch.
+      const keepEmpty = showEmptyGroups || view.grouping === 'status';
       const onBoard = groups.filter(
          (entry) =>
             !hiddenBoardColumns.includes(entry.group.id) &&
-            (hasActiveFilters
-               ? entry.issues.length > 0
-               : showEmptyGroups || entry.issues.length > 0)
+            (hasActiveFilters ? entry.issues.length > 0 : keepEmpty || entry.issues.length > 0)
       );
       const emptied = hasActiveFilters
          ? groups.filter(

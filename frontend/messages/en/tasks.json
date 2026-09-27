@@ -1,6 +1,7 @@
 {
    "header": {
       "title": "Tasks",
+      "titleMine": "My tasks",
       "search": "Search tasks",
       "insights": "Insights",
       "breakdown": "Breakdown",

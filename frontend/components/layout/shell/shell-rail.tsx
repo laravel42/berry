@@ -77,6 +77,7 @@ export function ShellRail({
    const t = useTranslations('shell');
    const { visibility, order, manageOpen, setManageOpen } = useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
+   const workspaceName = useSessionStore((state) => state.workspace?.name);
    const isMobile = useIsMobile();
    // A run that has not reached a terminal status is still going, which is what
    // the dot beside runtimes reports.
@@ -188,12 +189,24 @@ export function ShellRail({
                            className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
                            <BerryMark size={24} />
-                           <span
-                              data-wordmark="md"
-                              className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
-                           >
-                              Berry<span className="text-[var(--shell-accent)]">.</span>
-                           </span>
+                           {/* The workspace you are in, once the session knows it: with
+                               more than one, the product's name says nothing about
+                               which. */}
+                           {workspaceName ? (
+                              <span
+                                 title={workspaceName}
+                                 className="min-w-0 truncate font-medium text-[var(--shell-text)]"
+                              >
+                                 {workspaceName}
+                              </span>
+                           ) : (
+                              <span
+                                 data-wordmark="md"
+                                 className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
+                              >
+                                 Berry<span className="text-[var(--shell-accent)]">.</span>
+                              </span>
+                           )}
                            <svg
                               width="18"
                               height="18"

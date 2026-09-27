@@ -185,7 +185,8 @@
       "scopes": "Access",
       "scopesFullHint": "Full access, like signing in as you",
       "scopesLimitedHint": "Only the public API scopes ticked here",
-      "scopeFull": "full",
+      "scopesNoneHint": "Tick at least one scope, or Full access",
+      "scopeFull": "Full access",
       "scopesFull": "full access",
       "create": "Create key",
       "createFailed": "The key could not be created.",
@@ -258,7 +259,9 @@
       "cancel": "Cancel",
       "create": "Create workspace",
       "creating": "Creating…",
-      "createFailed": "The workspace could not be created."
+      "createFailed": "The workspace could not be created.",
+      "createUnavailable": "Berry could not create the workspace just now. Try again in a moment. If it keeps failing, check that the Berry server is running and read its log.",
+      "nameHint": "Give it a name to continue. The address and task prefix are made from it."
    },
    "preferences": {
       "timezoneBrowser": "This browser ({zone})",

@@ -184,11 +184,15 @@ export default function Agents() {
                ((roster.get(left.id)?.totalRuns ?? 0) - (roster.get(right.id)?.totalRuns ?? 0))
             );
          }
-         // Recent activity, falling back to when the row last changed so an
-         // agent that has never run still lands somewhere deterministic.
-         const leftAt = roster.get(left.id)?.lastActiveAt ?? left.updatedAt;
-         const rightAt = roster.get(right.id)?.lastActiveAt ?? right.updatedAt;
-         return direction * leftAt.localeCompare(rightAt);
+         // Recent activity. Agents that have never run read "Never" and go
+         // after those that have, by name: in a new workspace that is every
+         // agent, and an order by when each row last changed looked random.
+         const leftAt = roster.get(left.id)?.lastActiveAt ?? null;
+         const rightAt = roster.get(right.id)?.lastActiveAt ?? null;
+         if (leftAt && rightAt) return direction * leftAt.localeCompare(rightAt);
+         if (leftAt) return -1;
+         if (rightAt) return 1;
+         return left.name.localeCompare(right.name);
       });
    }, [source, filterColumns, roster, filters, query, sortKey, sortDescending]);
 

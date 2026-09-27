@@ -10,6 +10,7 @@ import { WorkspaceStep } from '@/components/onboarding/workspace-step';
 import { BerryMark } from '@/components/brand/berry-mark';
 import { fetchBootstrap } from '@/lib/auth';
 import { nextGitHubInstallStep } from '@/lib/integrations';
+import { saveUserSettings } from '@/lib/settings';
 import { selectWorkspace } from '@/lib/workspaces';
 import { useSessionStore } from '@/store/session-store';
 
@@ -31,6 +32,15 @@ import { useSessionStore } from '@/store/session-store';
  */
 
 type Phase = 'resolving' | 'choose';
+
+/** The zone this browser reports, or null where it cannot say. */
+function browserTimezone(): string | null {
+   try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+   } catch {
+      return null;
+   }
+}
 
 // Route into a workspace by slug. One place builds the destination so the
 // with-membership and after-create/join paths stay identical.
@@ -116,6 +126,13 @@ export default function OnboardingPage() {
             if (cancelled) return;
 
             if (bootstrap.workspaces.length === 0) {
+               // A first run: the account still holds the server's default
+               // zone, which is nobody's choice yet. The browser's own zone is
+               // the likelier answer, and Preferences can change it.
+               const zone = browserTimezone();
+               if (bootstrap.user.settings.timezone === 'UTC' && zone && zone !== 'UTC') {
+                  void saveUserSettings({ timezone: zone }).catch(() => undefined);
+               }
                setPhase('choose');
                return;
             }

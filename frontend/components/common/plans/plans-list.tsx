@@ -3,6 +3,7 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import {
    EmptyState,
+   EmptyStateActions,
    EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
@@ -23,6 +24,7 @@ import Header from '@/components/layout/headers/plans/header';
 import { cn } from '@/lib/utils';
 import PlanPreview from './plan-preview';
 import { planSummaryLook } from './plan-status-badge';
+import { PlanWorkButton } from './plan-work-button';
 
 function applySearch(list: PlanSummary[], query: string): PlanSummary[] {
    const term = query.trim().toLowerCase();
@@ -185,6 +187,9 @@ export default function PlansList() {
                      {scope === 'open' ? t('empty.title') : t('empty.titleAll')}
                   </EmptyStateTitle>
                   <EmptyStateText>{t('empty.body')}</EmptyStateText>
+                  <EmptyStateActions>
+                     <PlanWorkButton />
+                  </EmptyStateActions>
                </EmptyState>
             ) : displayed.length === 0 ? (
                <div className="flex h-40 items-center justify-center px-4 text-center text-muted-foreground">
@@ -214,7 +219,7 @@ export default function PlansList() {
                   <button
                      type="button"
                      onClick={() => select(null)}
-                     className="flex min-h-11 shrink-0 items-center gap-2 border-b px-4 text-muted-foreground md:hidden"
+                     className="flex min-h-11 shrink-0 items-center gap-2 border-b px-4 text-muted-foreground lg:hidden"
                   >
                      <ChevronLeft className="size-4" aria-hidden="true" />
                      {t('list.back')}

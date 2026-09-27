@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 import { agentHasRuntime } from '@/lib/runtimes';
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
@@ -58,7 +58,6 @@ const isTab = (value: string | null): value is DetailTab =>
  */
 export default function AgentDetails({ agentId }: { agentId: string }) {
    const { orgId } = useParams<{ orgId: string }>();
-   const router = useRouter();
    const pathname = usePathname();
    const searchParams = useSearchParams();
    const t = useTranslations('agentsChat.detail');
@@ -145,9 +144,13 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
       (next: DetailTab) => {
          const params = new URLSearchParams(searchParams?.toString() ?? '');
          params.set('view', next);
-         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+         // The address follows the tab without navigating. A router navigation
+         // re-resolves the route, and in the drawer that can mount the full
+         // agent page beside it; Next keeps `useSearchParams` in step with
+         // the history API, so the tab still reads from the URL.
+         window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
       },
-      [pathname, router, searchParams]
+      [pathname, searchParams]
    );
 
    const requestTab = (next: DetailTab) => {

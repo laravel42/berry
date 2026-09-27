@@ -75,7 +75,9 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
          .then((session) => {
             if (cancelled) return;
             if (session.status === 'applied' && session.appliedAgentId) {
-               router.replace(`/${orgId}/agents/${session.appliedAgentId}`);
+               // A full load for the same reason as after applying: a router
+               // navigation from here opens the agent drawer over this page.
+               window.location.replace(`/${orgId}/agents/${session.appliedAgentId}`);
                return;
             }
             const restored = session.drafts.map((entry) => ({
@@ -158,7 +160,10 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
             );
          }
          toast.success(edited.name.trim() || shown.draft.name);
-         router.push(`/${orgId}/agents/${agentId}`);
+         // A full load, not a router push: from here Next would intercept the
+         // address into the agent drawer over this form, and Esc would come
+         // back to it.
+         window.location.replace(`/${orgId}/agents/${agentId}`);
       } catch (error) {
          if (error instanceof BerryApiError && error.code === 'MCP_SETTINGS_REQUIRED') {
             // The session stays open, so another turn can drop the servers.

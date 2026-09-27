@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
@@ -78,7 +78,6 @@ interface NewAgentManualProps {
  */
 export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
    const { orgId } = useParams<{ orgId: string }>();
-   const router = useRouter();
    const t = useTranslations('agentsChat.create');
    const detail = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
@@ -217,7 +216,10 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
          clearDraft();
          toast.success(agent.name);
          if (problems.length > 0) toast.error(problems.join(', '));
-         router.push(`/${orgId}/agents/${agent.id}`);
+         // A full load, not a router push: from here Next would intercept the
+         // address into the agent drawer over this form, and Esc would come
+         // back to it.
+         window.location.replace(`/${orgId}/agents/${agent.id}`);
       } catch (cause) {
          setError(cause instanceof BerryApiError ? cause.message : detail('failureUnknown'));
       } finally {

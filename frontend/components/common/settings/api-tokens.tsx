@@ -196,7 +196,13 @@ export default function ApiTokens() {
                />
                <SettingsRow
                   title={t('scopes')}
-                  description={scopes === null ? t('scopesFullHint') : t('scopesLimitedHint')}
+                  description={
+                     scopes === null
+                        ? t('scopesFullHint')
+                        : scopes.length === 0
+                          ? t('scopesNoneHint')
+                          : t('scopesLimitedHint')
+                  }
                >
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                      <label className="flex items-center gap-2">
@@ -208,9 +214,11 @@ export default function ApiTokens() {
                      </label>
                      {API_SCOPES.map((scope) => (
                         <label key={scope} className="flex items-center gap-2">
+                           {/* Full access includes every scope, so they read as ticked
+                               (and fixed) until Full is cleared. */}
                            <Checkbox
                               disabled={scopes === null}
-                              checked={scopes?.includes(scope) ?? false}
+                              checked={scopes === null || scopes.includes(scope)}
                               onCheckedChange={(checked) =>
                                  setScopes((current) => {
                                     const list = (current ?? []).filter((entry) => entry !== scope);
@@ -228,7 +236,7 @@ export default function ApiTokens() {
                   trailing={
                      <Button
                         size="xs"
-                        disabled={creating || name.trim() === ''}
+                        disabled={creating || name.trim() === '' || scopes?.length === 0}
                         onClick={() => void create()}
                      >
                         {creating ? (

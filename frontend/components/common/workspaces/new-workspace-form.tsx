@@ -7,9 +7,9 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { BerryApiError } from '@/lib/api';
 import {
    createWorkspace,
+   createWorkspaceFailure,
    selectWorkspace,
    slugFromWorkspaceName,
    updateWorkspaceSettings,
@@ -123,13 +123,8 @@ export function NewWorkspaceForm({
          onCreated?.();
          router.replace(`/${entered?.slug ?? workspace.slug}/tasks`);
       } catch (cause) {
-         setFailure(
-            cause instanceof BerryApiError && cause.status === 409
-               ? t('slugTaken')
-               : cause instanceof Error
-                 ? cause.message
-                 : t('createFailed')
-         );
+         const failed = createWorkspaceFailure(cause);
+         setFailure('key' in failed ? t(failed.key) : failed.message);
          setCreating(false);
       }
    };
@@ -145,6 +140,9 @@ export function NewWorkspaceForm({
                disabled={creating}
                onChange={(event) => setName(event.target.value)}
             />
+            {name.trim() === '' ? (
+               <span className="text-muted-foreground">{t('nameHint')}</span>
+            ) : null}
          </label>
 
          <label className="flex flex-col gap-1.5">

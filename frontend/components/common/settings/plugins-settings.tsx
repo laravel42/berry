@@ -14,7 +14,7 @@ import {
 import { useSessionStore } from '@/store/session-store';
 import { Loader2, Puzzle } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { PluginConfigForm } from './plugin-config-form';
 import { EnabledDot, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
@@ -46,6 +46,8 @@ export default function PluginsSettings() {
    const [config, setConfig] = useState<Record<string, PluginConfigValue>>({});
    const [busy, setBusy] = useState(false);
    const [signingSecret, setSigningSecret] = useState<string | null>(null);
+   const [fileName, setFileName] = useState<string | null>(null);
+   const picker = useRef<HTMLInputElement>(null);
 
    const runPreview = async (next: PluginSource) => {
       setBusy(true);
@@ -63,6 +65,7 @@ export default function PluginsSettings() {
 
    const onFile = async (file: File | undefined) => {
       if (!file) return;
+      setFileName(file.name);
       try {
          const parsed: unknown = JSON.parse(await file.text());
          await runPreview({ package: parsed });
@@ -164,14 +167,31 @@ export default function PluginsSettings() {
                />
                <SettingsRow
                   title="Upload a package"
+                  description={fileName ?? undefined}
                   trailing={
-                     <Input
-                        type="file"
-                        accept=".json,application/json"
-                        className="h-8 w-64"
-                        disabled={busy}
-                        onChange={(event) => void onFile(event.target.files?.[0])}
-                     />
+                     // The browser's own file control is unstyled and speaks the
+                     // browser's language, so it stays hidden behind a button.
+                     <>
+                        <input
+                           ref={picker}
+                           type="file"
+                           accept=".json,application/json"
+                           className="hidden"
+                           onChange={(event) => {
+                              void onFile(event.target.files?.[0]);
+                              // Cleared so choosing the same file again reads it again.
+                              event.target.value = '';
+                           }}
+                        />
+                        <Button
+                           size="xs"
+                           variant="ghost"
+                           disabled={busy}
+                           onClick={() => picker.current?.click()}
+                        >
+                           Choose file…
+                        </Button>
+                     </>
                   }
                />
             </SettingsCard>

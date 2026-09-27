@@ -20,7 +20,7 @@ import {
    DropdownMenuSubContent,
    DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
+import { WORKSPACE_SLUG } from '@/lib/config';
 import { useCreateWorkspaceStore } from '@/store/create-workspace-store';
 import { loadInboxUnreadCount } from '@/lib/inbox';
 import {
@@ -40,8 +40,8 @@ import { useSessionStore } from '@/store/session-store';
  *
  * Everything here reads the live session (the persisted active workspace and
  * the user's full membership list), so the menu reflects what the account can
- * actually see rather than the build-time `WORKSPACE_NAME`. `WORKSPACE_NAME`
- * remains only as the label before the session is ready.
+ * actually see rather than the build-time `WORKSPACE_NAME`. The switcher lists
+ * each workspace once and ticks the one you are in; its name is on the rail.
  *
  * Two things are loaded when the menu is rendered rather than kept in a store:
  * the unread count of the workspaces you are *not* in right now, and the
@@ -66,7 +66,6 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
    // The slug that scopes settings/route links: the active workspace, the route
    // param, then the build-time default, in that order of trust.
    const slug = active?.slug || orgId || WORKSPACE_SLUG;
-   const activeName = active?.name ?? WORKSPACE_NAME;
 
    // A dot only ever marks a workspace you are not looking at: the one you are
    // in already has the inbox badge in the rail, and two counts for one place
@@ -147,8 +146,6 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
             <DropdownMenuSubTrigger>{t('switch')}</DropdownMenuSubTrigger>
             <DropdownMenuPortal>
                <DropdownMenuSubContent>
-                  <DropdownMenuLabel>{activeName}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
                   {workspaces.length > 0 ? (
                      workspaces.map((workspace) => {
                         const isActive = workspace.id === active?.id;

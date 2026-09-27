@@ -6,8 +6,12 @@ import { useTranslations } from 'next-intl';
 import { AuthCard } from '@/components/auth/auth-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { BerryApiError } from '@/lib/api';
-import { createWorkspace, slugFromWorkspaceName, updateWorkspaceSettings } from '@/lib/workspaces';
+import {
+   createWorkspace,
+   createWorkspaceFailure,
+   slugFromWorkspaceName,
+   updateWorkspaceSettings,
+} from '@/lib/workspaces';
 
 /**
  * Naming a new workspace: its name, and the address and task prefix shown as
@@ -70,6 +74,10 @@ export function WorkspaceStep({
    const [prefix, setPrefix] = useState('');
    const [prefixEdited, setPrefixEdited] = useState(false);
    const [creating, setCreating] = useState(false);
+   // Set once the workspace exists. If entering it fails afterwards, the
+   // button retries entering rather than creating it again, which the server
+   // would refuse as an address already taken.
+   const [createdId, setCreatedId] = useState<string | null>(null);
 
    const effectiveSlug = slugEdited ? slug : slugFromWorkspaceName(name);
    const effectivePrefix = prefixEdited ? prefix : prefixFromName(name);
@@ -87,6 +95,10 @@ export function WorkspaceStep({
       setCreating(true);
       setFailure(null);
       try {
+         if (createdId) {
+            await onEntered(createdId);
+            return;
+         }
          const workspace = await createWorkspace({
             name: name.trim(),
             slug: effectiveSlug,
@@ -99,15 +111,11 @@ export function WorkspaceStep({
                () => undefined
             );
          }
+         setCreatedId(workspace.id);
          await onEntered(workspace.id);
       } catch (cause) {
-         setFailure(
-            cause instanceof BerryApiError && cause.status === 409
-               ? nw('slugTaken')
-               : cause instanceof Error
-                 ? cause.message
-                 : nw('createFailed')
-         );
+         const failed = createWorkspaceFailure(cause);
+         setFailure('key' in failed ? nw(failed.key) : failed.message);
       } finally {
          setCreating(false);
       }
@@ -125,6 +133,9 @@ export function WorkspaceStep({
                   disabled={creating}
                   onChange={(event) => setName(event.target.value)}
                />
+               {name.trim() === '' ? (
+                  <span className="text-muted-foreground">{nw('nameHint')}</span>
+               ) : null}
             </label>
 
             <label className="flex flex-col gap-1.5">

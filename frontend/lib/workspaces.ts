@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { apiFetch } from './api';
+import { apiFetch, BerryApiError } from './api';
 import { newIdempotencyKey } from './api-schemas';
 
 /**
@@ -83,6 +83,29 @@ export async function createWorkspace(input: {
       throw new Error('Create workspace response was not recognized');
    }
    return parsed.data;
+}
+
+/**
+ * What to say when a workspace could not be created, as a key under
+ * `workspaceAdmin.newWorkspace` or the server's own sentence.
+ *
+ * A server failure, or a proxy with no server behind it, carries no sentence
+ * a person can act on ("request failed with status 500"), so it gets one
+ * that says what to do; a refusal the server explains is shown as it is.
+ */
+export function createWorkspaceFailure(
+   cause: unknown
+): { key: 'slugTaken' | 'createUnavailable' | 'createFailed' } | { message: string } {
+   if (cause instanceof BerryApiError) {
+      if (cause.status === 409) return { key: 'slugTaken' };
+      if (cause.status >= 500 || cause.code === 'REQUEST_FAILED') {
+         return { key: 'createUnavailable' };
+      }
+      return { message: cause.message };
+   }
+   // `fetch` rejects with a TypeError when nothing answered at all.
+   if (cause instanceof TypeError) return { key: 'createUnavailable' };
+   return { key: 'createFailed' };
 }
 
 /** Set the caller's selected workspace; returns the selected workspace. */
