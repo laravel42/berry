@@ -34,6 +34,8 @@ export interface Comment {
    revision: number;
    resolvedAt: string | null;
    resolvedBy: ActorRef | null;
+   /** The run whose result this comment is (migration 213); null for any other comment. */
+   runId: string | null;
    createdAt: string;
    updatedAt: string;
 }
@@ -77,7 +79,7 @@ const COMMENT_COLUMNS = `
    c.id, c.issue_id, c.body, c.author_type::text AS author_type, c.author_id,
    COALESCE(author.name, author_agent.name) AS author_name,
    COALESCE(author.avatar_url, author_agent.avatar_url) AS author_avatar,
-   c.parent_id, c.revision,
+   c.parent_id, c.revision, c.run_id,
    c.resolved_at, c.resolved_by, resolver.name AS resolver_name,
    resolver.avatar_url AS resolver_avatar,
    c.created_at, c.updated_at`;
@@ -389,6 +391,7 @@ function toComment(row: Record<string, unknown>): Comment {
               row.resolver_avatar as string | null
            )
          : null,
+      runId: (row.run_id as string | null | undefined) ?? null,
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
    };
@@ -425,6 +428,7 @@ export function serializeComment(comment: Comment): Record<string, unknown> {
       revision: comment.revision,
       resolvedAt: comment.resolvedAt,
       resolvedBy: comment.resolvedBy,
+      runId: comment.runId,
       createdAt: comment.createdAt,
       updatedAt: comment.updatedAt,
    };

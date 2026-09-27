@@ -8,7 +8,7 @@ import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledg
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
-import { LIMIT_CODE, continuationNote, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
+import { LIMIT_CODE, continuationNote, continuedMessage, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
 import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
@@ -263,6 +263,7 @@ export class RuntimeTaskExecutor implements Executor {
             await postRunResult(this.#o.sql, {
                issueId: task.issueId, agentId: task.agentId, text: result.text, cut: result.truncated,
                occurredAt: (this.#o.clock ?? (() => new Date()))().toISOString(), newId: this.#o.newId ?? randomUUID,
+               runId: task.runId,
             }).catch(() => null);
          }
       }
@@ -325,13 +326,20 @@ export class RuntimeTaskExecutor implements Executor {
       // time; before the comment, so the comment can say what happens next.
       const next = await this.#continue(task, failure);
       const retry = await this.#retry(task, failure);
+      if (next?.continued) {
+         // Paused, not failed: the reason every view shows says so.
+         await this.#o.sql`UPDATE runs SET failure_message = ${continuedMessage(next)} WHERE id = ${task.runId}`.catch(() => null);
+      }
       if (task.issueId) {
          // A retryable failure used to post nothing, which left a task back in
          // To do with no word of why. It is reported like any other now, with
          // what Berry did about it.
          await postRunResult(this.#o.sql, {
-            issueId: task.issueId, agentId: task.agentId,
-            text: `This run failed (${failure.code}). ${failure.message}${next ? continuationNote(next) : ''}${retry ? retryNote(retry) : ''}`, cut: false,
+            issueId: task.issueId, agentId: task.agentId, runId: task.runId,
+            text: next?.continued
+               ? continuedMessage(next)
+               : `This run failed (${failure.code}). ${failure.message}${next ? continuationNote(next) : ''}${retry ? retryNote(retry) : ''}`,
+            cut: false,
             occurredAt: new Date().toISOString(),
          }).catch(() => null);
          await this.#memory.record({

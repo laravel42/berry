@@ -244,13 +244,21 @@ export class RunLedger {
          });
          // The board shows the task as worked from the moment its run starts,
          // not only once the agent says so. Guarded on active_run_id and on
-         // `todo`, so a task a person already moved is left where they put it.
+         // `todo`, so a task a person already moved is left where they put it —
+         // and on `in_review` for a run that works the task again (Run again,
+         // a retry, a continuation): it read "In review" for the whole run,
+         // which is how a working task looked stuck. A run a mention set off,
+         // a question on a task under review, leaves it in review.
          if (run.issueId) {
             const moved = await tx`
-               UPDATE issues
+               UPDATE issues AS issue
                   SET status = 'in_progress', updated_at = ${now}
-                WHERE id = ${run.issueId} AND active_run_id = ${run.id} AND status = 'todo'
-                RETURNING id`;
+                WHERE issue.id = ${run.issueId} AND issue.active_run_id = ${run.id}
+                  AND (issue.status = 'todo'
+                       OR (issue.status = 'in_review'
+                           AND EXISTS (SELECT 1 FROM runs AS r
+                                        WHERE r.id = ${run.id} AND r.kind = 'agent' AND r.source = 'assignment')))
+                RETURNING issue.id`;
             if (moved.length > 0) await this.appendIssueUpdated(tx, started, now);
          }
          return started;

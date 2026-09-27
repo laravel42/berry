@@ -41,6 +41,8 @@ export async function postRunResult(
       cut: boolean;
       occurredAt: string;
       newId?: () => string;
+      /** The run this is the result of, so the task page shows it as that run's output. */
+      runId?: string | null;
    }
 ): Promise<ResultComment | null> {
    const newId = params.newId ?? randomUUID;
@@ -64,17 +66,17 @@ export async function postRunResult(
 
       await tx`
          INSERT INTO comments (
-            id, issue_id, author_type, author_id, body, parent_id, created_at, updated_at
+            id, issue_id, author_type, author_id, body, parent_id, run_id, created_at, updated_at
          ) VALUES (
             ${id}, ${params.issueId}, 'agent'::assignee_type, ${params.agentId},
-            ${body}, NULL, ${params.occurredAt}, ${params.occurredAt}
+            ${body}, NULL, ${params.runId ?? null}, ${params.occurredAt}, ${params.occurredAt}
          )`;
 
       const [row] = await tx`
          SELECT c.id, c.issue_id, c.body, c.author_type::text AS author_type, c.author_id,
                 COALESCE(author.name, author_agent.name) AS author_name,
                 COALESCE(author.avatar_url, author_agent.avatar_url) AS author_avatar,
-                c.parent_id, c.revision, c.resolved_at, c.resolved_by,
+                c.parent_id, c.revision, c.run_id, c.resolved_at, c.resolved_by,
                 c.created_at, c.updated_at
            FROM comments AS c
            LEFT JOIN users AS author
@@ -101,6 +103,7 @@ export async function postRunResult(
             revision: Number(row.revision),
             resolvedAt: toRFC3339(row.resolved_at as string | null),
             resolvedBy: null,
+            runId: (row.run_id as string | null) ?? null,
             createdAt: toRFC3339(row.created_at as string),
             updatedAt: toRFC3339(row.updated_at as string),
          },

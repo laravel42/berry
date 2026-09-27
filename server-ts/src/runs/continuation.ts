@@ -21,7 +21,7 @@ export const LIMIT_CODE = 'RUN_LIMIT_REACHED';
 export const DEFAULT_MAX_CONTINUATIONS = 3;
 
 export type ContinuationOutcome =
-   | { continued: true; runId: string; attempt: number; of: number }
+   | { continued: true; runId: string; attempt: number; of: number; branch: string | null; commit: string }
    | { continued: false; reason: 'disabled' | 'not_a_limit_stop' | 'superseded' | 'no_progress' | 'cap_reached' | 'task_moved_on' | 'busy' };
 
 export async function continueAfterLimit(
@@ -85,7 +85,14 @@ export async function continueAfterLimit(
          origin: { runId: run.id as string },
          ...(run.requested_by ? { requestedBy: run.requested_by as string } : {}),
       });
-      return { continued: true, runId: queued.runId, attempt: limitStops, of: max };
+      return {
+         continued: true,
+         runId: queued.runId,
+         attempt: limitStops,
+         of: max,
+         branch: (run.branch as string | null) ?? null,
+         commit: run.head_commit as string,
+      };
    } catch (error) {
       // Someone started the task again first, or it went away under us. Either
       // way the work is in hand or not wanted, and the failed run stands.
@@ -105,6 +112,21 @@ export function continuationInstructions(input: { branch: string | null; commit:
       'Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
       'commands; then do only what is still missing, check that it builds, and write your report. ' +
       'The report covers the whole task, including what the earlier run did.'
+   );
+}
+
+/**
+ * What a run stopped at its limit says once Berry has continued it: paused,
+ * not failed, and nothing for a person to do. The runtime's own message tells
+ * the reader to raise the limit or split the task, which is right only when
+ * nobody carries the work on; read beside "Berry queued a continuation" it
+ * was a failure notice asking for an action that was already taken.
+ */
+export function continuedMessage(outcome: Extract<ContinuationOutcome, { continued: true }>): string {
+   const where = outcome.branch ? `branch ${outcome.branch}` : 'the task branch';
+   return (
+      `Paused at this agent's step limit. Its work is saved on ${where} (commit ${outcome.commit.slice(0, 7)}), ` +
+      `and Berry is continuing from there (continuation ${outcome.attempt} of ${outcome.of}). Nothing needs to be done.`
    );
 }
 

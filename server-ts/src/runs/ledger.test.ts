@@ -211,6 +211,20 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       await sql`UPDATE issues SET active_run_id = ${second} WHERE id = ${issueId}`;
    });
 
+   test('running the task again takes it out of review; a question on it does not', async () => {
+      const start = async (source: string) => {
+         const { runId, issueId } = await createRun(sql, fixture, null);
+         await sql`UPDATE runs SET source = ${source} WHERE id = ${runId}`;
+         await sql`UPDATE issues SET status = 'in_review' WHERE id = ${issueId}`;
+         await ledger.claimDispatch(runId);
+         await ledger.markRunning(runId);
+         const [issue] = await sql`SELECT status::text AS status FROM issues WHERE id = ${issueId}`;
+         return issue!.status as string;
+      };
+      assert.equal(await start('assignment'), 'in_progress', 'Run again works the task: it is not in review while it runs');
+      assert.equal(await start('mention'), 'in_review', 'a question asked of the agent leaves the review alone');
+   });
+
    test('a terminal run refuses everything that follows', async () => {
       const { runId } = await createRun(sql, fixture, null);
       await ledger.claimDispatch(runId);

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
-import { LIMIT_CODE, continuationInstructions, continuationNote, continueAfterLimit, retryAfterFault, retryNote } from './continuation.ts';
+import { LIMIT_CODE, continuationInstructions, continuationNote, continuedMessage, continueAfterLimit, retryAfterFault, retryNote } from './continuation.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -15,10 +15,21 @@ test('the next segment is told where the work is and not to start over', () => {
 });
 
 test('the failed run’s comment says what happens next, or why nothing does', () => {
-   assert.match(continuationNote({ continued: true, runId: 'r', attempt: 1, of: 3 }), /queued a continuation .*\(1 of 3\)/);
+   assert.match(continuationNote({ continued: true, runId: 'r', attempt: 1, of: 3, branch: 'b', commit: 'c' }), /queued a continuation .*\(1 of 3\)/);
    assert.match(continuationNote({ continued: false, reason: 'cap_reached' }), /limit of automatic continuations/);
    assert.match(continuationNote({ continued: false, reason: 'no_progress' }), /no new commit/);
    assert.equal(continuationNote({ continued: false, reason: 'busy' }), '');
+});
+
+test('a continued limit stop reads as paused, with nothing to do, not as a failure', () => {
+   const text = continuedMessage({
+      continued: true, runId: 'r', attempt: 1, of: 3,
+      branch: 'product-designer/ber-3-imagery', commit: '2fe6276aaaaaaa',
+   });
+   assert.match(text, /^Paused at this agent's step limit\./);
+   assert.match(text, /branch product-designer\/ber-3-imagery \(commit 2fe6276\)/);
+   assert.match(text, /continuation 1 of 3\)\. Nothing needs to be done\.$/);
+   assert.doesNotMatch(text, /Raise the step limit|failed/);
 });
 
 describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
