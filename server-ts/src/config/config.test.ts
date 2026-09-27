@@ -138,6 +138,27 @@ test('extra trusted origins are added, and rubbish among them is dropped', () =>
    ]);
 });
 
+test('trusted proxies always include loopback, and a bad entry is a problem', () => {
+   assert.deepEqual(loadConfig({ ...BASE_ENV }).auth.trustedProxies, ['127.0.0.1', '::1']);
+   const config = loadConfig({
+      ...BASE_ENV,
+      BERRY_TRUSTED_PROXIES: ' 172.17.0.1, 10.0.0.0/8 ,fd00::/8, 127.0.0.1',
+   });
+   assert.deepEqual(config.auth.trustedProxies, [
+      '127.0.0.1',
+      '::1',
+      '172.17.0.1',
+      '10.0.0.0/8',
+      'fd00::/8',
+   ]);
+   for (const bad of ['proxy.local', '10.0.0.0/33', '10.0.0.0/x', 'fd00::/129']) {
+      assert.throws(
+         () => loadConfig({ ...BASE_ENV, BERRY_TRUSTED_PROXIES: bad }),
+         /BERRY_TRUSTED_PROXIES/
+      );
+   }
+});
+
 test('the runtime reaches Berry at its own address, not the browser one', () => {
    const config = loadConfig({
       ...BASE_ENV,

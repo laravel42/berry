@@ -37,6 +37,11 @@ export interface GitHubProviderOptions {
     * answers 404 for a repository that is plainly there.
     */
    token: (owner?: string | null) => Promise<string>;
+   /**
+    * Told when GitHub answered 401 to a token `token` returned, so whoever
+    * issued it can stop handing it out. The call still fails as it would have.
+    */
+   unauthorized?: (token: string) => Promise<void> | void;
    fetch?: typeof globalThis.fetch;
    apiBase?: string;
    timeoutMs?: number;
@@ -48,12 +53,14 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 export class GitHubProvider implements ScmProvider {
    readonly id = 'github' as const;
    readonly #token: (owner?: string | null) => Promise<string>;
+   readonly #unauthorized: ((token: string) => Promise<void> | void) | null;
    readonly #fetch: typeof globalThis.fetch;
    readonly #api: string;
    readonly #timeoutMs: number;
 
    constructor(options: GitHubProviderOptions) {
       this.#token = options.token;
+      this.#unauthorized = options.unauthorized ?? null;
       this.#fetch = options.fetch ?? globalThis.fetch;
       this.#api = (options.apiBase ?? DEFAULT_API).replace(/\/+$/, '');
       this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -280,8 +287,9 @@ export class GitHubProvider implements ScmProvider {
       const token = await this.#token(accountInPath(path));
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.#timeoutMs);
+      let response: Response;
       try {
-         return await this.#fetch(`${this.#api}${path}`, {
+         response = await this.#fetch(`${this.#api}${path}`, {
             method,
             headers: {
                authorization: `Bearer ${token}`,
@@ -297,6 +305,13 @@ export class GitHubProvider implements ScmProvider {
       } finally {
          clearTimeout(timer);
       }
+      if (response.status === 401 && this.#unauthorized) {
+         // Best effort: failing to record the refusal must not hide it.
+         await Promise.resolve()
+            .then(() => this.#unauthorized?.(token))
+            .catch(() => undefined);
+      }
+      return response;
    }
 
    async #error(response: Response, method: string, path: string): Promise<ScmError> {

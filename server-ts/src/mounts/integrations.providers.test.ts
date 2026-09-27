@@ -339,5 +339,39 @@ describe(
          assert.equal(github!.source, null);
          assert.ok(github!.tools.every((tool) => tool.allowed === false));
       });
+
+      test('a sign-in GitHub refused reads as "reconnect", not as never connected', async () => {
+         // The state a 401 leaves behind: the account is linked, its token cleared.
+         const accountId = randomUUID();
+         await sql`
+            INSERT INTO auth_accounts (id, user_id, account_id, provider_id, access_token, scope)
+            VALUES (${accountId}, ${neitherUserId}, ${`gh-${neitherUserId}`}, 'github', NULL, 'repo')`;
+         try {
+            for (const app of [neitherApp, noAppApp]) {
+               const body = await providersOf(app, neitherToken);
+               const github = body.providers.find((provider) => provider.id === 'github');
+               assert.equal(github!.connected, false);
+               assert.equal(github!.status, 'reconnect');
+               assert.ok(github!.tools.every((tool) => tool.allowed !== true));
+            }
+         } finally {
+            await sql`DELETE FROM auth_accounts WHERE id = ${accountId}`;
+         }
+      });
+
+      test('a token GitHub refused is cleared only when it is the one still stored', async () => {
+         const userAccess = new GitHubUserAccess({ sql, authSecret: AUTH_SECRET, fetch: countingFetch() });
+         const [before] = await sql`SELECT access_token FROM auth_accounts WHERE user_id = ${signedInUserId}`;
+         try {
+            await userAccess.refuseWorkspaceToken(signedInWorkspaceId, 'ghu_replaced_since');
+            assert.equal(await userAccess.workspaceToken(signedInWorkspaceId), 'ghu_live');
+
+            await userAccess.refuseWorkspaceToken(signedInWorkspaceId, 'ghu_live');
+            assert.equal(await userAccess.workspaceSignIn(signedInWorkspaceId), null);
+            assert.equal(await userAccess.workspaceSignInRefused(signedInWorkspaceId), true);
+         } finally {
+            await sql`UPDATE auth_accounts SET access_token = ${before!.access_token as string} WHERE user_id = ${signedInUserId}`;
+         }
+      });
    }
 );

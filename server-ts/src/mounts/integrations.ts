@@ -357,6 +357,13 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
          installation === null && userAccess
             ? await userAccess.workspaceSignIn(workspaceId).catch(() => null)
             : null;
+      // No member's token opens, and one was cleared because GitHub refused
+      // it: that is a connection to renew, not one that was never made — and
+      // the runs that relied on it are failing, so the card must say so.
+      const signInRefused =
+         installation === null && signIn === null && userAccess
+            ? await userAccess.workspaceSignInRefused(workspaceId).catch(() => false)
+            : false;
       const signInScopes =
          signIn && userAccess
             ? await userAccess.scopes(signIn.userId).catch((): string[] => [])
@@ -378,7 +385,8 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
             // GitHub through the App or a sign-in, rather than an OAuth
             // connection of its own.
             const viaAgentCredential =
-               provider.id === 'github' && (options.githubApp !== null || source !== null);
+               provider.id === 'github' &&
+               (options.githubApp !== null || source !== null || signInRefused);
             const connected = viaAgentCredential
                ? source !== null
                : !needsConnection(provider.id) || connection?.status === 'connected';
@@ -400,9 +408,11 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
                status: viaAgentCredential
                   ? connected
                      ? 'connected'
-                     : app === null
-                       ? null
-                       : 'not_installed'
+                     : signInRefused
+                       ? 'reconnect'
+                       : app === null
+                         ? null
+                         : 'not_installed'
                   : (connection?.status ?? null),
                source,
                accountName: connection?.externalAccountName ?? null,

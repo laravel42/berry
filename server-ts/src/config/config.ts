@@ -5,6 +5,8 @@
  * them, so a rename here is a setting that silently stops applying.
  */
 
+import { isIP } from 'node:net';
+
 export interface Config {
    appEnv: string;
    serviceName: string;
@@ -231,6 +233,12 @@ export interface AuthConfig {
    baseUrl: string | null;
    /** Origins allowed to send cookie-authenticated unsafe requests. */
    trustedOrigins: string[];
+   /**
+    * Proxies (IPs or CIDR ranges) whose X-Forwarded-For hop is skipped when a
+    * session records the client address. Always includes loopback: the web
+    * app's own proxy to the API is one hop on the same host.
+    */
+   trustedProxies: string[];
    /** The sign-in OAuth App. Separate from integrations.github. */
    github: { clientId: string; clientSecret: string } | null;
    /**
@@ -781,14 +789,44 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       ),
    ];
 
+   // Which X-Forwarded-For hops are proxies rather than the person. Without
+   // any, Better Auth trusts only a single-value header, so a chain such as
+   // "client, reverse-proxy" records no address at all. Loopback is always a
+   // proxy (the web app forwards /api from the same host); a container bridge
+   // or a load balancer is the operator's to name — never a blanket private
+   // range, which would also cover the people signing in from a LAN.
+   const trustedProxies = ['127.0.0.1', '::1'];
+   for (const raw of (env.BERRY_TRUSTED_PROXIES ?? '').split(',')) {
+      const entry = raw.trim();
+      if (!entry) continue;
+      if (!isAddressOrRange(entry)) {
+         problems.push(`BERRY_TRUSTED_PROXIES: ${entry} is not an IP address or CIDR range`);
+         continue;
+      }
+      if (!trustedProxies.includes(entry)) trustedProxies.push(entry);
+   }
+
    return {
       secret,
       baseUrl,
       trustedOrigins,
+      trustedProxies,
       github,
       githubAppSlug: slug === '' ? null : slug,
       devLogin: development && boolean(env.AUTH_ALLOW_PASSWORDLESS_LOGIN, true),
    };
+}
+
+/** An IPv4/IPv6 address, optionally with a /prefix that fits its family. */
+function isAddressOrRange(value: string): boolean {
+   const slash = value.indexOf('/');
+   const address = slash === -1 ? value : value.slice(0, slash);
+   const family = isIP(address);
+   if (family === 0) return false;
+   if (slash === -1) return true;
+   const prefix = value.slice(slash + 1);
+   if (!/^\d{1,3}$/.test(prefix)) return false;
+   return Number(prefix) <= (family === 4 ? 32 : 128);
 }
 
 /** A URL with no trailing slash, or null when it is not one. */

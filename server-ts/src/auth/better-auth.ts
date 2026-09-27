@@ -26,6 +26,8 @@ export interface BerryAuthOptions {
    secret: string;
    baseUrl: string;
    trustedOrigins: string[];
+   /** IPs or CIDR ranges skipped when reading the client from X-Forwarded-For. */
+   trustedProxies?: string[];
    github: { clientId: string; clientSecret: string } | null;
    sessionTtlMs: number;
    /** Enables Better Auth's testUtils plugin: dev-login and tests only. */
@@ -176,6 +178,12 @@ export function createBerryAuth(options: BerryAuthOptions) {
          // supplies it", and only users.id has a default; the auth_* tables
          // take the id they are given.
          database: { generateId: () => randomUUID() },
+         // The address a session records (Settings › Security › Sessions).
+         // The browser reaches the API through the web app's proxy, and often
+         // a reverse proxy before it, so X-Forwarded-For carries a chain; the
+         // named proxies are stripped from the right and the first hop left
+         // is the person. Without them only a single-value header counts.
+         ipAddress: { trustedProxies: options.trustedProxies ?? [] },
       },
       // Cast: the plugin's own declared type does not satisfy BetterAuthPlugin
       // under exactOptionalPropertyTypes (its init() may return undefined

@@ -179,6 +179,16 @@ export async function createScm(options: {
          provider: (workspaceId: string) =>
             new GitHubProvider({
                token: (owner) => access(workspaceId, owner).then((granted) => granted.token),
+               // A member's sign-in token GitHub has refused (revoked, or the
+               // OAuth App's grant removed) is cleared, so settings stop saying
+               // "Connected" and ask for a reconnect. An App token is minted
+               // fresh each time and is left to the App.
+               ...(userAccess
+                  ? {
+                       unauthorized: (token: string) =>
+                          userAccess.refuseWorkspaceToken(workspaceId, token),
+                    }
+                  : {}),
             }),
          providerId: 'github',
          links,

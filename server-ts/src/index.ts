@@ -251,6 +251,7 @@ const auth =
            secret: config.auth.secret,
            baseUrl: config.auth.baseUrl,
            trustedOrigins: config.auth.trustedOrigins,
+           trustedProxies: config.auth.trustedProxies,
            github: config.auth.github,
            sessionTtlMs: config.sessionTtlMs,
            testUtils: config.auth.devLogin,

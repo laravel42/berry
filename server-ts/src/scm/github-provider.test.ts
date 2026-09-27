@@ -147,3 +147,33 @@ test('the run credential is GitHub’s token-as-user convention', async () => {
       password: 'ghs_installation',
    });
 });
+
+test('a 401 is reported to whoever issued the token, and the call still fails', async () => {
+   const { fake } = fetcher([{ status: 401, body: { message: 'Bad credentials' } }]);
+   const refused: string[] = [];
+   const github = new GitHubProvider({
+      token: async () => 'gho_member',
+      unauthorized: (token) => {
+         refused.push(token);
+      },
+      fetch: fake,
+   });
+   await assert.rejects(github.getRepository({ owner: 'acme', name: 'atlas' }), (error: ScmError) => {
+      assert.equal(error.status, 401);
+      assert.equal(error.remedy, 'reconnect');
+      return true;
+   });
+   assert.deepEqual(refused, ['gho_member']);
+});
+
+test('a failing refusal hook does not hide GitHub\'s answer', async () => {
+   const { fake } = fetcher([{ status: 401 }]);
+   const github = new GitHubProvider({
+      token: async () => 'gho_member',
+      unauthorized: async () => {
+         throw new Error('database down');
+      },
+      fetch: fake,
+   });
+   await assert.rejects(github.getRepository({ owner: 'acme', name: 'atlas' }), (error: ScmError) => error.status === 401);
+});

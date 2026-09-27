@@ -387,6 +387,37 @@ export class GitHubUserAccess {
       return member ? { userId: member.userId } : null;
    }
 
+   /**
+    * GitHub answered 401 to `token`, which `workspaceToken` handed out for this
+    * workspace: that member's stored token is cleared, as a refused one is
+    * everywhere else here, so the next run tries the next member and settings
+    * say to reconnect instead of "Connected".
+    *
+    * Matched by value rather than trusted blindly, so a token that was already
+    * replaced by a fresh sign-in is never the one cleared.
+    */
+   async refuseWorkspaceToken(workspaceId: string, token: string): Promise<void> {
+      const member = await this.#workspaceMember(workspaceId);
+      if (member && member.token === token) await this.#forgetToken(member.userId);
+   }
+
+   /**
+    * Whether the workspace's GitHub sign-in was refused rather than never made:
+    * a member has a linked GitHub account whose token was cleared after GitHub
+    * answered 401. Asked only when no member's token opens — then the answer
+    * is "reconnect", not "connect".
+    */
+   async workspaceSignInRefused(workspaceId: string): Promise<boolean> {
+      const rows = await this.#sql<Array<{ refused: number }>>`
+         SELECT 1 AS refused
+           FROM workspace_memberships AS m
+           JOIN auth_accounts AS a ON a.user_id = m.user_id AND a.provider_id = 'github'
+          WHERE m.workspace_id = ${workspaceId}
+            AND (a.access_token IS NULL OR a.access_token = '')
+          LIMIT 1`;
+      return rows.length > 0;
+   }
+
    /** Owners first, then admins, then members; the first token that opens wins. */
    async #workspaceMember(
       workspaceId: string
