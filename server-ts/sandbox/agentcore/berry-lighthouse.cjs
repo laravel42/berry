@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// berry-lighthouse <url> [--budget <file>] [--desktop] [--out <dir>]
+// berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>]
 //
 // A Lighthouse audit in one command, read for an agent: the four category
 // scores, the core timings, and the budget in lighthouse-budget.json (or
@@ -11,7 +11,8 @@
 // Lighthouse 12 dropped --budget-path, so the budget file (the classic
 // budget.json shape: timings, resourceSizes, resourceCounts) is checked here.
 'use strict';
-const { spawnSync } = require('node:child_process');
+const { spawn } = require('node:child_process');
+const { target } = require('/usr/local/lib/berry/berry-serve.cjs');
 const { existsSync, mkdirSync, readFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
@@ -76,17 +77,31 @@ function checkBudget(file, report) {
    return { lines, failed };
 }
 
-function main() {
+/** Lighthouse as a child that does not block this process: a folder is served from here while it runs. */
+function lighthouse(args) {
+   return new Promise((done) => {
+      const child = spawn('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('close', (status) => done({ status, stderr }));
+      child.on('error', (error) => done({ status: 1, stderr: String(error) }));
+   });
+}
+
+async function main() {
    const options = parse(process.argv.slice(2));
    if (!options.url) {
-      console.error('usage: berry-lighthouse <url> [--budget <file>] [--desktop] [--out <dir>]');
+      console.error('usage: berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>]');
       process.exit(2);
    }
+   // A folder or file is served here for the length of the audit.
+   const site = await target(options.url);
+   if (site.served) console.log(`Serving ${site.served} at ${site.url}`);
    const out = resolve(options.out);
    mkdirSync(out, { recursive: true });
    const reportPath = join(out, 'report.json');
    const args = [
-      options.url,
+      site.url,
       '--output=json',
       `--output-path=${reportPath}`,
       '--quiet',
@@ -95,16 +110,17 @@ function main() {
    ];
    // Once more when Chrome did not come up: under the load of a busy session
    // (a server, a Playwright script) its first launch can miss the window.
-   let run = spawnSync('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+   let run = await lighthouse(args);
    if ((run.status !== 0 || !existsSync(reportPath)) && /connect to Chrome|ECONNREFUSED/i.test(run.stderr || '')) {
-      run = spawnSync('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+      run = await lighthouse(args);
    }
+   await site.close();
    if (run.status !== 0 || !existsSync(reportPath)) {
       console.error(`Lighthouse did not finish: ${(run.stderr || '').trim().split('\n').slice(-5).join('\n')}`);
       process.exit(1);
    }
    const report = JSON.parse(readFileSync(reportPath, 'utf8'));
-   console.log(`${report.finalDisplayedUrl ?? options.url} (${options.desktop ? 'desktop' : 'mobile'})`);
+   console.log(`${report.finalDisplayedUrl ?? site.url} (${options.desktop ? 'desktop' : 'mobile'})`);
    for (const [id, category] of Object.entries(report.categories)) {
       console.log(`${category.title}: ${Math.round((category.score ?? 0) * 100)}`);
       void id;
@@ -125,4 +141,7 @@ function main() {
    process.exit(failed > 0 ? 3 : 0);
 }
 
-main();
+main().catch((error) => {
+   console.error(error instanceof Error ? error.message : String(error));
+   process.exit(1);
+});

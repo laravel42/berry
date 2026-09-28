@@ -52,7 +52,7 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    if (contract.allowed_tools.includes('run_command')) {
       approach.push(
          '',
-         'Check your work with what the workspace already has: its toolchain, and `berry-screenshots <url> <dir>` for a page (phone, tablet and desktop in one command), and `berry-lighthouse <url>` for its performance and budget. Do not install browsers or other large tools just to check it; your work is reviewed after you deliver it.'
+         'Check your work with what the workspace already has: its toolchain, and `berry-screenshots <url or folder>` for a page (phone, tablet and desktop in one command; a folder is served for you), and `berry-lighthouse <url or folder>` for its performance and budget. Do not install browsers or other large tools just to check it; your work is reviewed after you deliver it.'
       );
    }
 

@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-// berry-screenshots <url> [out-dir]: the page at phone, tablet and desktop
+// berry-screenshots <url|folder> [out-dir]: the page at phone, tablet and desktop
 // widths, full height, in one command, with the console errors and failed
 // requests it met. Agents were spending a dozen model calls per task finding
 // Playwright and Chromium and scripting this by hand; now it is one call.
 'use strict';
 const { chromium } = require('/usr/local/lib/node_modules/playwright');
+const { target } = require('/usr/local/lib/berry/berry-serve.cjs');
 const { mkdirSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
@@ -20,11 +21,14 @@ async function main() {
    // file left in the repository is delivered with the task's change.
    const [url, dir = join(tmpdir(), 'berry-screenshots')] = process.argv.slice(2);
    if (!url) {
-      console.error('usage: berry-screenshots <url> [out-dir, default $TMPDIR/berry-screenshots]');
+      console.error('usage: berry-screenshots <url|folder|file> [out-dir, default $TMPDIR/berry-screenshots]');
       process.exit(2);
    }
    const out = resolve(dir);
    mkdirSync(out, { recursive: true });
+   // A folder or file is served here for the length of the check.
+   const site = await target(url);
+   if (site.served) console.log(`Serving ${site.served} at ${site.url}`);
    const browser = await chromium.launch();
    const problems = new Set();
    try {
@@ -38,7 +42,7 @@ async function main() {
          page.on('response', (response) => {
             if (response.status() >= 400) problems.add(`HTTP ${response.status()}: ${response.url()}`);
          });
-         await page.goto(url, { waitUntil: 'networkidle', timeout: 30_000 }).catch((error) => problems.add(`load: ${error.message.split('\n')[0]}`));
+         await page.goto(site.url, { waitUntil: 'networkidle', timeout: 30_000 }).catch((error) => problems.add(`load: ${error.message.split('\n')[0]}`));
          const file = join(out, `${name}.png`);
          await page.screenshot({ path: file, fullPage: true });
          console.log(`${name} ${width}x${height}: ${file}`);
@@ -46,6 +50,7 @@ async function main() {
       }
    } finally {
       await browser.close();
+      await site.close();
    }
    console.log(`\nTo put them on the task: collect_file with path ${join(out, 'phone.png')} and as screenshots/phone.png (and tablet, desktop). Never base64 them.`);
    if (problems.size > 0) {

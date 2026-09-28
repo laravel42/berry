@@ -86,9 +86,10 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'The workspace is yours alone and is destroyed when the run ends; a file a command produces ' +
          'is kept only if you collect_file it. ' +
          'A non-zero exit code is a result you should read and act on, not an error. ' +
-         'To check a page, serve it and run `berry-screenshots <url> <dir>`: phone, tablet and desktop ' +
+         'To check a page, run `berry-screenshots <url or folder>` (a folder such as . or dist is served for you: ' +
+         'no server to start, and one started in the background ends with its command): phone, tablet and desktop ' +
          'screenshots in one command, with any console errors and failed requests. For performance, run ' +
-         '`berry-lighthouse <url>`: scores, core timings and lighthouse-budget.json checked, Lighthouse already installed. ' +
+         '`berry-lighthouse <url or folder>`: scores, core timings and lighthouse-budget.json checked, Lighthouse already installed. ' +
          'Playwright with Chromium is ' +
          "installed for anything else (`require('playwright')` in a CommonJS script); do not install a browser " +
          'or search for it. ' +
