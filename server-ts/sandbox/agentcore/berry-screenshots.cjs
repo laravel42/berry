@@ -6,6 +6,7 @@
 'use strict';
 const { chromium } = require('/usr/local/lib/node_modules/playwright');
 const { mkdirSync } = require('node:fs');
+const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 
 const SIZES = [
@@ -15,9 +16,11 @@ const SIZES = [
 ];
 
 async function main() {
-   const [url, dir = 'screenshots'] = process.argv.slice(2);
+   // Outside the checkout by default: screenshots are for looking at, and a
+   // file left in the repository is delivered with the task's change.
+   const [url, dir = join(tmpdir(), 'berry-screenshots')] = process.argv.slice(2);
    if (!url) {
-      console.error('usage: berry-screenshots <url> [out-dir]');
+      console.error('usage: berry-screenshots <url> [out-dir, default $TMPDIR/berry-screenshots]');
       process.exit(2);
    }
    const out = resolve(dir);
@@ -44,7 +47,7 @@ async function main() {
    } finally {
       await browser.close();
    }
-   console.log(`\nTo put them on the task: collect_file with path ${join(dir, 'phone.png')} (and tablet.png, desktop.png). Never base64 them.`);
+   console.log(`\nTo put them on the task: collect_file with path ${join(out, 'phone.png')} and as screenshots/phone.png (and tablet, desktop). Never base64 them.`);
    if (problems.size > 0) {
       console.log('\nProblems:');
       for (const problem of problems) console.log(`- ${problem}`);

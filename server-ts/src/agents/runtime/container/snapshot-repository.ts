@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readlink, realpath, lstat, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, open, readFile, readlink, realpath, lstat, writeFile, rm } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { shellQuote } from '../../checkout.ts';
 import { parseNumstat } from '../../delivery.ts';
@@ -68,6 +68,10 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
                results: report.results.map((r) => ({ command: r.command, exitCode: r.exitCode, passed: r.passed, durationMs: r.durationMs, error: r.error })),
             });
          }
+         // A crash dump is never the work: a browser or tool that crashed in the
+         // checkout left a 28 MB `core` there, and it failed the delivery on size.
+         const untracked = await session.exec(`${git} ls-files --others --exclude-standard -z`, { cwd: directory });
+         if (untracked.exitCode === 0) await removeCoreDumps(directory, untracked.stdout.split('\0').filter(Boolean));
          const diff = await session.exec(`${git} add -A && ${git} diff --cached --numstat -z --no-renames ${shellQuote(baseline)}`, { cwd: directory });
          if (diff.exitCode !== 0) throw new Error('Could not read the complete candidate');
          const stat = parseNumstat(diff.stdout);
@@ -102,4 +106,42 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files, ...(merged ? { merged: true } : {}) };
       },
    };
+}
+
+/** Whether a file's first bytes are an ELF core dump: the magic, then e_type 4 (ET_CORE). */
+export function isCoreDump(head: Uint8Array): boolean {
+   if (head.length < 18) return false;
+   if (head[0] !== 0x7f || head[1] !== 0x45 || head[2] !== 0x4c || head[3] !== 0x46) return false;
+   // e_type sits at offset 16, in the file's own byte order (EI_DATA: 1 little, 2 big).
+   const type = head[5] === 2 ? (head[16]! << 8) | head[17]! : head[16]! | (head[17]! << 8);
+   return type === 4;
+}
+
+/**
+ * Deletes the untracked files named like a core dump (`core`, `core.1234`)
+ * that really are one. A `core/` folder or a source file called core is left
+ * alone: only the name and the ELF header together say crash dump.
+ */
+async function removeCoreDumps(directory: string, paths: string[]): Promise<void> {
+   for (const path of paths) {
+      if (!/(^|\/)core(\.\d+)?$/.test(path)) continue;
+      const full = resolve(directory, path);
+      const rel = relative(directory, full);
+      if (rel === '..' || rel.startsWith('../') || isAbsolute(rel)) continue;
+      try {
+         const info = await lstat(full);
+         if (!info.isFile()) continue;
+         const handle = await open(full, 'r');
+         try {
+            const head = new Uint8Array(18);
+            await handle.read(head, 0, 18, 0);
+            if (!isCoreDump(head)) continue;
+         } finally {
+            await handle.close();
+         }
+         await rm(full, { force: true });
+      } catch {
+         // Unreadable or gone: the size check below still guards the delivery.
+      }
+   }
 }

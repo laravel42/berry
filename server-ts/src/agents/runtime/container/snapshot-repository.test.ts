@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LocalSession } from './local-session.ts';
-import { snapshotRepository } from './snapshot-repository.ts';
+import { isCoreDump, snapshotRepository } from './snapshot-repository.ts';
 import { sampleEnvelope } from '../../../runtime/envelope.test.ts';
 import { shellQuote } from '../../checkout.ts';
 
@@ -40,4 +40,18 @@ test('snapshot work returns complete candidate bytes, including commits, without
    assert.equal(delivery.committed, false);
    assert.equal((await session.exec('git remote', { cwd: directory })).stdout, '');
    assert.equal((await session.exec('printf "%s" "${BERRY_GIT_TOKEN:-absent}"', { cwd: directory })).stdout, 'absent');
+});
+
+test('a crash dump is known by its ELF header, not by being named core', () => {
+   const header = (type: number, bigEndian = false) => {
+      const bytes = new Uint8Array(18);
+      bytes.set([0x7f, 0x45, 0x4c, 0x46, 2, bigEndian ? 2 : 1], 0);
+      if (bigEndian) bytes.set([0, type], 16);
+      else bytes.set([type, 0], 16);
+      return bytes;
+   };
+   assert.equal(isCoreDump(header(4)), true, 'ET_CORE');
+   assert.equal(isCoreDump(header(4, true)), true, 'ET_CORE, big-endian');
+   assert.equal(isCoreDump(header(2)), false, 'an executable');
+   assert.equal(isCoreDump(new TextEncoder().encode('export const core = 1;\n')), false, 'source');
 });

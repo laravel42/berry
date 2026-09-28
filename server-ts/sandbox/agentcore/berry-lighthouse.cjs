@@ -5,17 +5,21 @@
 // scores, the core timings, and the budget in lighthouse-budget.json (or
 // --budget) checked line by line. The full JSON report is written to --out
 // (./lighthouse by default) and never printed: it runs to megabytes, and
-// every byte an agent reads is paid for again on each later step.
+// every byte an agent reads is paid for again on each later step. The report
+// is written to $TMPDIR/berry-lighthouse (--out), never into the checkout.
 //
 // Lighthouse 12 dropped --budget-path, so the budget file (the classic
 // budget.json shape: timings, resourceSizes, resourceCounts) is checked here.
 'use strict';
 const { spawnSync } = require('node:child_process');
 const { existsSync, mkdirSync, readFileSync } = require('node:fs');
+const { tmpdir } = require('node:os');
 const { join, resolve } = require('node:path');
 
 function parse(argv) {
-   const options = { url: null, budget: null, desktop: false, out: 'lighthouse' };
+   // Reports go outside the checkout: one left in the repository is delivered
+   // with the task's change, and a report runs to megabytes.
+   const options = { url: null, budget: null, desktop: false, out: join(tmpdir(), 'berry-lighthouse') };
    for (let index = 0; index < argv.length; index += 1) {
       const arg = argv[index];
       if (arg === '--budget') options.budget = argv[++index];
@@ -89,7 +93,12 @@ function main() {
       '--chrome-flags=--headless=new --no-sandbox --disable-dev-shm-usage',
       ...(options.desktop ? ['--preset=desktop'] : []),
    ];
-   const run = spawnSync('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+   // Once more when Chrome did not come up: under the load of a busy session
+   // (a server, a Playwright script) its first launch can miss the window.
+   let run = spawnSync('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+   if ((run.status !== 0 || !existsSync(reportPath)) && /connect to Chrome|ECONNREFUSED/i.test(run.stderr || '')) {
+      run = spawnSync('lighthouse', args, { stdio: ['ignore', 'ignore', 'pipe'], encoding: 'utf8' });
+   }
    if (run.status !== 0 || !existsSync(reportPath)) {
       console.error(`Lighthouse did not finish: ${(run.stderr || '').trim().split('\n').slice(-5).join('\n')}`);
       process.exit(1);

@@ -10,6 +10,11 @@
 # itself is read from the image.
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 
+# No core dumps. A crashing browser or tool wrote a 28 MB `core` into the
+# checkout it ran in, which then became part of the task's change and failed
+# delivery on its size.
+ulimit -c 0 2>/dev/null
+
 # Where `pip install` puts a package's commands for an unprivileged user.
 case ":$PATH:" in
    *":$HOME/.local/bin:"*) ;;
