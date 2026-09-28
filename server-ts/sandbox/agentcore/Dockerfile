@@ -42,12 +42,17 @@ RUN corepack enable \
 # screenshot a page, run a browser test — without fetching a browser and its
 # system libraries mid-run: well over 100 MB, and the libraries need root,
 # which a session does not have. Installed globally, so `npx playwright …` and
-# `require('playwright')` work anywhere; the browsers folder stays writable,
-# so a repository pinned to another Playwright version can still fetch its own.
+# `require('playwright')` work anywhere. The browsers folder is writable by
+# every user, not just `node`: a session runs as its own uid, and
+# `playwright install` waits forever on a lock it cannot take in a folder it
+# cannot write — even when the browser is already there. Writable, a redundant
+# install returns at once, and a repository pinned to another Playwright
+# version can still fetch its own. Each session has its own container, so no
+# other session sees what one writes there.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright NODE_PATH=/usr/local/lib/node_modules
 RUN npm install -g playwright@1.63.0 \
    && playwright install --with-deps chromium \
-   && chown -R node:node /ms-playwright \
+   && chmod -R a+rwX /ms-playwright \
    && rm -rf /var/lib/apt/lists/* /root/.npm
 # One command for the check nearly every page task makes: the page at phone,
 # tablet and desktop widths, and what went wrong while it loaded.
