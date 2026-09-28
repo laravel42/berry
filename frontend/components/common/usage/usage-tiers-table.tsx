@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { isTier, TIERS } from '@/lib/agents';
+import { isTier, RETIRED_TIER_NAMES, TIERS } from '@/lib/agents';
 import { formatCost, type TierUsageRow } from '@/lib/usage';
 import { TierChip } from '@/components/common/agents/tier-chip';
 import { cn } from '@/lib/utils';
@@ -52,7 +52,11 @@ export function UsageTiersTable({ rows }: { rows: TierUsageRow[] }) {
                {sorted.map((row) => (
                   <tr key={row.tier} className="border-t">
                      <td className="py-1.5 pr-4 font-medium">
-                        {isTier(row.tier) ? <TierChip tier={row.tier} /> : row.tier}
+                        {isTier(row.tier) ? (
+                           <TierChip tier={row.tier} />
+                        ) : (
+                           (RETIRED_TIER_NAMES[row.tier] ?? row.tier)
+                        )}
                      </td>
                      <td className="py-1.5 pr-4 text-right tabular-nums">{row.runs}</td>
                      <td className="py-1.5 pr-4 text-right tabular-nums">

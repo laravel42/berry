@@ -1278,8 +1278,6 @@ export const modelTiers: ModelTiers = {
                id: 'moonshotai/kimi-k2.5',
                name: 'Kimi K2.5',
                completion: 0.7,
-               // Not on the newest leaderboard: converted from Kilo's benchmark.
-               estimatedFrom: ['Kilo'],
                costPerAttemptUsd: 0.36,
                usageTokens: 2_200_000_000,
                blendedPricePerM: 1.2,
@@ -1305,34 +1303,6 @@ export const modelTiers: ModelTiers = {
                costPerAttemptUsd: null,
                usageTokens: 5_100_000_000,
                blendedPricePerM: 0.3,
-            },
-         ],
-      },
-      {
-         tier: 'berry_free',
-         name: 'BerryFree',
-         models: [
-            {
-               id: 'qwen/qwen3-coder:free',
-               name: 'Qwen3 Coder (free)',
-               completion: null,
-               costPerAttemptUsd: null,
-               usageTokens: 1_900_000_000,
-               blendedPricePerM: 0,
-            },
-         ],
-      },
-      {
-         tier: 'berry_auto',
-         name: 'BerryAuto',
-         models: [
-            {
-               id: 'kilo-auto/efficient',
-               name: 'Kilo Auto Efficient',
-               completion: null,
-               costPerAttemptUsd: null,
-               usageTokens: 0,
-               blendedPricePerM: null,
             },
          ],
       },

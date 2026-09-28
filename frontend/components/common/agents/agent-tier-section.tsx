@@ -11,8 +11,6 @@ import {
    isTier,
    getModelTiers,
    MAIN_TIERS,
-   modelPrice,
-   tierShares,
    type Agent,
    type ModelTiers,
    type RankedModel,
@@ -20,22 +18,31 @@ import {
 } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 
-/** The list's order: Kilo's own routing first, then the three paid tiers, then free models. */
-export const TIER_ORDER = [
-   'berry_auto',
-   ...MAIN_TIERS,
-   'berry_free',
-] as const satisfies readonly Tier[];
+/** The list's order: the three tiers, best first. */
+export const TIER_ORDER = MAIN_TIERS;
 
 /**
- * The models table's columns — share, model, rating, input and output price —
- * shared by the
- * header and every tier, so the columns line up down the whole list.
+ * Each tier's card in its own colour, the one its chip uses (`TIER_STYLE`): a
+ * light tint while it waits, a solid border and a deeper tint when chosen.
+ * Written out whole so the class names are in the source.
  */
-const MODEL_COLUMNS = 'grid grid-cols-[2.5rem_minmax(0,1fr)_3.5rem_4rem_4rem] gap-x-3';
-
-const priceOf = (perMillion: number | null | undefined) =>
-   perMillion != null ? modelPrice(perMillion) : '—';
+const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> = {
+   berry_max: {
+      idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
+      chosen: 'border-primary bg-primary/15',
+      check: 'text-primary',
+   },
+   berry_mid: {
+      idle: 'border-status-info/30 bg-status-info/5 enabled:hover:bg-status-info/10',
+      chosen: 'border-status-info bg-status-info/15',
+      check: 'text-status-info',
+   },
+   berry_low: {
+      idle: 'border-status-success/30 bg-status-success/5 enabled:hover:bg-status-success/10',
+      chosen: 'border-status-success bg-status-success/15',
+      check: 'text-status-success',
+   },
+};
 
 /**
  * The tier an agent runs on when it names none, as the server resolves it
@@ -64,37 +71,17 @@ interface AgentTierSectionProps {
 type Leaderboard =
    { status: 'loading' } | { status: 'ready'; data: ModelTiers } | { status: 'unavailable' };
 
-function percent(completion: number): string {
-   return `${Math.round(completion * 100)}%`;
-}
-
-/** A model's name without Kilo's price marker ("($$$$)"): the table has price columns. */
+/** A model's name without Kilo's vendor prefix and price marker: "Anthropic: Claude Opus 5 ($$$$)" → "Claude Opus 5". */
 function modelName(name: string): string {
-   return name.replace(/\s*\(\$+\)\s*$/, '');
-}
-
-/**
- * A model's rating cell. A free model's rating is borrowed from its paid
- * twin and converted far outside the range the conversion was fitted on, so
- * one that rounds to 0% says nothing and is shown as no rating.
- */
-/** A rating source as a reader knows it: Kilo's is its benchmark, the rest are leaderboard names. */
-function sourceName(source: string): string {
-   return source === 'Kilo' ? "Kilo's benchmark" : source;
-}
-
-function ratingOf(tier: Tier, completion: number | null): string {
-   if (completion === null) return '—';
-   if (tier === 'berry_free' && Math.round(completion * 100) === 0) return '—';
-   return percent(completion);
+   return name.replace(/\s*\(\$+\)\s*$/, '').replace(/^[^:]+:\s*/, '');
 }
 
 /**
  * Which Berry tier an agent runs on (ADR-0017), for a deployment whose models
- * go through the gateway. Three outcomes to choose from, the role's own marked
- * Recommended; Auto leads the list and Free follows the three paid tiers. Each
- * tier lists the models it runs today and their share of its tasks. Every
- * change is a draft the settings tab saves.
+ * go through the gateway: three large choices, each only the tier's name and
+ * the models it runs today, best first. Choosing the role's own tier stores
+ * none, so the agent follows its role. Every change is a draft the settings
+ * tab saves.
  */
 export function AgentTierSection({
    agent,
@@ -144,7 +131,6 @@ export function AgentTierSection({
 
    const option = (name: Tier) => {
       const models = modelsOf(name);
-      const shares = tierShares(models.length);
       const selected = name === effective;
       return (
          <button
@@ -155,76 +141,28 @@ export function AgentTierSection({
             disabled={disabled}
             onClick={() => choose(name)}
             className={cn(
-               'flex min-w-0 items-start gap-3 border-t px-3 py-2 text-left outline-none first:border-t-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
-               selected ? 'bg-accent/60' : 'enabled:hover:bg-accent/30'
+               'relative flex min-w-0 flex-col items-start gap-2 rounded-md border px-4 py-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
+               selected ? TIER_CARD[name].chosen : TIER_CARD[name].idle
             )}
          >
-            <span className="w-24 shrink-0">
+            <span className="flex w-full items-center justify-between gap-2">
                <TierChip tier={name} className="px-2 py-1" />
+               {selected ? (
+                  <Check aria-hidden className={cn('size-4 shrink-0', TIER_CARD[name].check)} />
+               ) : null}
             </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-               <span className="flex flex-wrap items-center gap-2">
-                  <span className={cn(!selected && 'text-muted-foreground')}>
-                     {t(`outcome.${name}`)}
-                  </span>
-                  {name === recommended ? (
-                     <span className="rounded-full border border-border px-2 text-muted-foreground">
-                        {t('recommended')}
+            {data && models.length === 0 ? (
+               <span className="text-muted-foreground">{t('noModel')}</span>
+            ) : null}
+            {models.length > 0 ? (
+               <span className="flex w-full min-w-0 flex-col text-muted-foreground">
+                  {models.map((entry) => (
+                     <span key={entry.id} className="truncate" title={entry.id}>
+                        {modelName(entry.name)}
                      </span>
-                  ) : null}
-                  {name === 'berry_free' ? (
-                     <span className="text-status-warning">{t('freeTraining')}</span>
-                  ) : null}
+                  ))}
                </span>
-               {data && models.length === 0 ? (
-                  <span className="text-muted-foreground">{t('noModel')}</span>
-               ) : null}
-               {/* Every model the tier runs today, best first, with its share of
-                   the tier's tasks. */}
-               {models.length > 0 ? (
-                  <span className="mt-1 flex flex-col tabular-nums text-muted-foreground">
-                     {models.map((entry, index) => (
-                        <span key={entry.id} className={MODEL_COLUMNS}>
-                           <span className="text-right" title={t('shareHint')}>
-                              <span className="sr-only">{t('columns.share')} </span>
-                              {`${shares[index] ?? 0}%`}
-                           </span>
-                           <span className="min-w-0 truncate" title={entry.id}>
-                              {modelName(entry.name)}
-                           </span>
-                           <span className="text-right">
-                              <span className="sr-only">{t('columns.rating')} </span>
-                              {entry.estimatedFrom?.length && entry.completion !== null ? (
-                                 // Converted from another benchmark: a prediction of
-                                 // the scale's score, ranked behind a measured one.
-                                 <span
-                                    title={t('columns.estimated', {
-                                       sources: entry.estimatedFrom.map(sourceName).join(', '),
-                                    })}
-                                 >
-                                    ≈{ratingOf(name, entry.completion)}
-                                 </span>
-                              ) : (
-                                 ratingOf(name, entry.completion)
-                              )}
-                           </span>
-                           <span className="text-right">
-                              <span className="sr-only">{t('columns.priceIn')} </span>
-                              {priceOf(entry.inputPricePerM)}
-                           </span>
-                           <span className="text-right">
-                              <span className="sr-only">{t('columns.priceOut')} </span>
-                              {priceOf(entry.outputPricePerM)}
-                           </span>
-                        </span>
-                     ))}
-                  </span>
-               ) : null}
-            </span>
-            {/* Always takes its place, so the columns do not shift on the chosen row. */}
-            <span className="size-4 shrink-0">
-               {selected ? <Check aria-hidden className="size-4" /> : null}
-            </span>
+            ) : null}
          </button>
       );
    };
@@ -243,42 +181,7 @@ export function AgentTierSection({
             </div>
          )}
 
-         <div
-            role="radiogroup"
-            aria-label={t('title')}
-            className="flex flex-col overflow-hidden rounded-md border"
-         >
-            {/* Column labels for the models under each tier; the cells carry
-                their own for assistive technology. */}
-            {data ? (
-               <div
-                  aria-hidden
-                  className="flex items-center gap-3 bg-muted/30 px-3 py-1.5 text-muted-foreground"
-               >
-                  <span className="w-24 shrink-0">{t('columns.tier')}</span>
-                  <span className={cn(MODEL_COLUMNS, 'min-w-0 flex-1')}>
-                     <span className="text-right">{t('columns.share')}</span>
-                     <span>{t('columns.model')}</span>
-                     <span
-                        className="text-right"
-                        title={
-                           data.ratingScale
-                              ? t('columns.ratingHint', { scale: data.ratingScale })
-                              : undefined
-                        }
-                     >
-                        {t('columns.rating')}
-                     </span>
-                     <span className="text-right" title={t('columns.priceHint')}>
-                        {t('columns.priceIn')}
-                     </span>
-                     <span className="text-right" title={t('columns.priceHint')}>
-                        {t('columns.priceOut')}
-                     </span>
-                  </span>
-                  <span className="size-4 shrink-0" />
-               </div>
-            ) : null}
+         <div role="radiogroup" aria-label={t('title')} className="grid gap-2 sm:grid-cols-3">
             {TIER_ORDER.map(option)}
          </div>
 

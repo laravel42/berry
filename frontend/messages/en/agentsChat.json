@@ -242,28 +242,12 @@
       "envAuditBy": "{name} · {when}",
       "tiers": {
          "title": "Tier",
-         "recommended": "Recommended",
          "outcome": {
             "berry_max": "Best results",
             "berry_mid": "Balanced",
-            "berry_low": "Lowest cost",
-            "berry_free": "No cost",
-            "berry_auto": "Routed per call"
-         },
-         "columns": {
-            "tier": "Tier",
-            "share": "Share",
-            "model": "Model",
-            "rating": "Rating",
-            "ratingHint": "Share of {scale} tasks solved (tbench.ai). A model it does not list is placed on its scale from an older Terminal-Bench, or Kilo's benchmark, through the models they share, and marked ≈.",
-            "estimated": "Estimated from {sources}: no measured score on this scale yet. Ranked a little behind a measured rating of the same value.",
-            "priceIn": "In",
-            "priceOut": "Out",
-            "priceHint": "USD per million tokens: In is what the agent sends, Out is what the model writes."
+            "berry_low": "Lowest cost"
          },
          "noModel": "No model today",
-         "shareHint": "Share of this tier's tasks. Each task keeps one model, so its prompt cache stays warm.",
-         "freeTraining": "Prompts may be used for training",
          "leaderboardUnavailable": "Leaderboard unavailable",
          "pinned": "Pinned: {model}",
          "useTier": "Use tier"

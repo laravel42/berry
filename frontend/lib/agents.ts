@@ -315,8 +315,8 @@ export function modelVendor(model: Pick<AgentModel, 'id' | 'provider'>): string 
    return model.provider;
 }
 
-/** Berry's model tiers (ADR-0017), in the order a person reads them. */
-export const TIERS = ['berry_max', 'berry_mid', 'berry_low', 'berry_free', 'berry_auto'] as const;
+/** Berry's model tiers (ADR-0017), in the order a person reads them. BerryFree and BerryAuto were removed on 2026-09-27. */
+export const TIERS = ['berry_max', 'berry_mid', 'berry_low'] as const;
 export type Tier = (typeof TIERS)[number];
 
 /** Product names, not translated: they are Berry's, like its own name. */
@@ -324,20 +324,22 @@ export const TIER_NAMES: Record<Tier, string> = {
    berry_max: 'BerryMax',
    berry_mid: 'BerryMid',
    berry_low: 'BerryLow',
+};
+
+/** What past usage may still carry: tiers since removed, named for the Usage page. */
+export const RETIRED_TIER_NAMES: Record<string, string> = {
    berry_free: 'BerryFree',
    berry_auto: 'BerryAuto',
 };
 
 /** A tier's chip colours, from the same status tokens as the autonomy level chips. */
 export const TIER_STYLE: Record<Tier, string> = {
-   berry_auto: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
    berry_max: 'border-primary/40 bg-primary/10 text-primary',
    berry_mid: 'border-status-info/40 bg-status-info/10 text-status-info',
    berry_low: 'border-status-success/40 bg-status-success/10 text-status-success',
-   berry_free: 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral',
 };
 
-/** The three paid tiers; Auto and Free are listed around them. */
+/** The three tiers, all paid. */
 export const MAIN_TIERS = [
    'berry_max',
    'berry_mid',

@@ -34,8 +34,8 @@ type Story = StoryObj<typeof meta>;
 export const RoleDefault: Story = {
    play: async ({ args, canvas, userEvent }) => {
       await expect(await canvas.findByText('GLM-5')).toBeVisible();
-      // A rating converted from another benchmark is marked, and says where from.
-      await expect(canvas.getByTitle(/Estimated from Kilo's benchmark/)).toHaveTextContent('≈70%');
+      // Models are listed without a rating: share, name and prices only.
+      await expect(canvas.queryByText('Rating')).not.toBeInTheDocument();
       await expect(canvas.getByRole('radio', { name: /BerryMid/ })).toHaveAttribute(
          'aria-checked',
          'true'
@@ -54,11 +54,16 @@ export const OwnTier: Story = {
    },
 };
 
-/** An experiment tier opens the disclosure so the selection is visible. */
-export const Experiment: Story = {
-   args: { tier: 'berry_free' },
+/** Only the three paid tiers are offered: no Free or Auto. */
+export const ThreeTiers: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Prompts may be used for training')).toBeVisible();
+      await expect(await canvas.findByRole('radio', { name: /BerryMax/ })).toBeVisible();
+      await expect(canvas.getAllByRole('radio')).toHaveLength(3);
+      await expect(canvas.queryByText(/BerryFree|BerryAuto/)).not.toBeInTheDocument();
+      // Only the tier's name and its models: no share of tasks, no price.
+      await expect(canvas.queryByText(/%$/)).not.toBeInTheDocument();
+      await expect(canvas.queryByText(/^\$/)).not.toBeInTheDocument();
+      await expect(canvas.queryByText('In')).not.toBeInTheDocument();
    },
 };
 

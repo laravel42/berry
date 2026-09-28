@@ -18,7 +18,7 @@ export const roleContractSchema = z.object({
    capabilities: z.array(z.string()),
    allowed_tools: z.array(z.string()),
    /** The Berry tier the role runs on (BerryMax/Mid/Low); the model is chosen from it per run. */
-   tier: z.enum(['berry_max', 'berry_mid', 'berry_low', 'berry_free', 'berry_auto']).optional(),
+   tier: z.enum(['berry_max', 'berry_mid', 'berry_low']).optional(),
    /** Superseded by `tier`; only contracts customised before tiers still carry it. */
    preferred_model: z.string().optional(),
    inputs: z.array(z.string()),
