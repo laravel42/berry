@@ -54,6 +54,19 @@ RUN npm install -g playwright@1.63.0 \
 COPY sandbox/agentcore/berry-screenshots.cjs /usr/local/bin/berry-screenshots
 RUN chmod 755 /usr/local/bin/berry-screenshots
 
+# Lighthouse, on the Chromium Playwright brought, so a task with a performance
+# budget audits it in seconds instead of installing Lighthouse (and a browser)
+# into its checkout: that install ran several minutes of a run. `chromium` is
+# a stable name for the versioned binary, and CHROME_PATH is what Lighthouse's
+# launcher reads. berry-lighthouse runs it headless and prints the scores and
+# the budget, not the megabytes of JSON.
+RUN npm install -g lighthouse@13.5.0 \
+   && ln -s "$(ls -d /ms-playwright/chromium-*/chrome-linux*/chrome | head -n 1)" /usr/local/bin/chromium \
+   && rm -rf /root/.npm
+ENV CHROME_PATH=/usr/local/bin/chromium
+COPY sandbox/agentcore/berry-lighthouse.cjs /usr/local/bin/berry-lighthouse
+RUN chmod 755 /usr/local/bin/berry-lighthouse
+
 ENV BUN_INSTALL=/usr/local/bun
 RUN curl -fsSL https://bun.sh/install | bash \
    && ln -s /usr/local/bun/bin/bun /usr/local/bin/bun \

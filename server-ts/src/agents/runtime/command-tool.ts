@@ -87,7 +87,9 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'is kept only if you collect_file it. ' +
          'A non-zero exit code is a result you should read and act on, not an error. ' +
          'To check a page, serve it and run `berry-screenshots <url> <dir>`: phone, tablet and desktop ' +
-         'screenshots in one command, with any console errors and failed requests. Playwright with Chromium is ' +
+         'screenshots in one command, with any console errors and failed requests. For performance, run ' +
+         '`berry-lighthouse <url>`: scores, core timings and lighthouse-budget.json checked, Lighthouse already installed. ' +
+         'Playwright with Chromium is ' +
          "installed for anything else (`require('playwright')` in a CommonJS script); do not install a browser " +
          'or search for it. ' +
          `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,

@@ -14,7 +14,8 @@ import type { SessionIdentity } from './session-identity.ts';
  *
  * A command's environment is built from nothing so that no credential of the
  * runtime's reaches it by accident. These are not credentials: they are where
- * the image put bun, nvm, Playwright and its browsers, and how pip and
+ * the image put bun, nvm, Playwright and its browsers (and the Chromium
+ * Lighthouse runs on), and how pip and
  * corepack should behave in a container. Anything else in the runtime's
  * environment stays out. Without the Playwright pair a command found neither
  * Chromium nor `require('playwright')`, and agents spent a dozen calls a task
@@ -23,6 +24,7 @@ import type { SessionIdentity } from './session-identity.ts';
 const TOOL_ENV = [
    'BASH_ENV',
    'BUN_INSTALL',
+   'CHROME_PATH',
    'COREPACK_ENABLE_DOWNLOAD_PROMPT',
    'NODE_PATH',
    'PIP_BREAK_SYSTEM_PACKAGES',
