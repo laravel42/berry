@@ -54,6 +54,9 @@ export async function sendBack(
          agentId: input.agentId,
          requestedBy: input.requestedBy,
          instructions: input.instructions,
+         // Not a rejection and told what to fix: a conflict or a refused merge.
+         // The work was accepted; bringing it level with main is mechanical.
+         ...(!input.rejected && input.instructions !== null ? { source: 'merge_fix' as const } : {}),
       })
       .catch((error: unknown) => deps.onError?.('re-admitting the author failed', error));
 }

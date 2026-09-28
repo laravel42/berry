@@ -140,6 +140,12 @@ export class RunRepository {
       agentId: string | null;
       requestedBy: string;
       instructions: string | null;
+      /**
+       * `merge_fix`: the run only brings a finished task's branch level with
+       * main (a conflict or a refused merge). It runs a tier below its agent's
+       * (envelope-builder.ts). Otherwise an assignment.
+       */
+      source?: 'assignment' | 'merge_fix';
    }): Promise<Run> {
       const runId = this.#newId();
 
@@ -174,9 +180,9 @@ export class RunRepository {
          if (active) throw new ActiveRunExists(active.id as string);
 
          await tx`
-            INSERT INTO runs (id, issue_id, board_id, agent_id, instructions, requested_by)
+            INSERT INTO runs (id, issue_id, board_id, agent_id, instructions, requested_by, source)
             VALUES (${runId}, ${input.issueId}, ${input.boardId}, ${agentId},
-                    ${input.instructions}, ${input.requestedBy})`;
+                    ${input.instructions}, ${input.requestedBy}, ${input.source ?? 'assignment'})`;
          await tx`UPDATE issues SET active_run_id = ${runId} WHERE id = ${input.issueId}`;
 
          // Sequence 0, without the allocator: this is the event that starts the

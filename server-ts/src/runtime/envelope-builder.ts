@@ -149,6 +149,13 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
 /** The completions that make a plan (`plans/generator.ts`), which run on their agent's tier. */
 const PLAN_PURPOSES: ReadonlySet<string> = new Set(['planner', 'repair', 'critic']);
 
+/**
+ * Where a merge fix runs: a tier below its agent's. It only reconciles a
+ * finished task with main, and on BerryMax those runs cost about $0.75 each
+ * to resolve README prose. BerryLow has nothing below it.
+ */
+const TIER_BELOW: Record<Tier, Tier> = { berry_max: 'berry_mid', berry_mid: 'berry_low', berry_low: 'berry_low' };
+
 export class EnvelopeBuilder {
    readonly #deps: EnvelopeDeps;
 
@@ -393,7 +400,11 @@ export class EnvelopeBuilder {
       // task, its order and who takes it, so it is written, repaired and
       // criticised on the tier of the agent it runs as, the Orchestrator.
       const tier: Tier =
-         task.kind !== 'completion' || PLAN_PURPOSES.has(task.completionSpec?.purpose ?? '') ? agent.tier : 'berry_low';
+         task.kind !== 'completion' || PLAN_PURPOSES.has(task.completionSpec?.purpose ?? '')
+            ? task.source === 'merge_fix'
+               ? TIER_BELOW[agent.tier]
+               : agent.tier
+            : 'berry_low';
       // A task starts on its tier's first model and moves down the list only
       // when its work is rejected at review (`chooseForTier`).
       const choice = await gateway.choose(tier, task.kind === 'agent' && task.issueId ? await this.#rejections(task.issueId) : 0);

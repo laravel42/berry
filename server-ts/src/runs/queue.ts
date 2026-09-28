@@ -21,7 +21,8 @@ export type TaskSource =
    | 'autopilot'
    | 'quick_action'
    | 'builder'
-   | 'completion';
+   | 'completion'
+   | 'merge_fix';
 
 export interface EnqueueTaskInput {
    workspaceId: string;

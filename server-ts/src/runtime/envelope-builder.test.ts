@@ -196,6 +196,20 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          assert.deepEqual(rejectionsAsked, [2]);
       });
 
+      test('a merge fix runs a tier below its agent\'s', async () => {
+         const f = fixture!;
+         await sql`UPDATE agents SET model_tier = 'berry_max' WHERE id = ${f.agentId}`;
+         try {
+            const issueId = await createIssue(sql, f);
+            const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'merge_fix', prompt: 'x' });
+            asked.length = 0;
+            await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+            assert.deepEqual(asked, ['berry_mid']);
+         } finally {
+            await sql`UPDATE agents SET model_tier = NULL WHERE id = ${f.agentId}`;
+         }
+      });
+
       test('a plan is made on its agent\'s tier; every other single call on BerryLow', async () => {
          const f = fixture!;
          await sql`UPDATE agents SET model_tier = 'berry_max' WHERE id = ${f.agentId}`;
