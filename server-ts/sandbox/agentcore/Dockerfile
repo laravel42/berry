@@ -57,6 +57,7 @@ RUN npm install -g playwright@1.63.0 \
 # One command for the check nearly every page task makes: the page at phone,
 # tablet and desktop widths, and what went wrong while it loaded.
 COPY sandbox/agentcore/berry-serve.cjs /usr/local/lib/berry/berry-serve.cjs
+COPY sandbox/agentcore/berry-output.cjs /usr/local/lib/berry/berry-output.cjs
 COPY sandbox/agentcore/berry-screenshots.cjs /usr/local/bin/berry-screenshots
 RUN chmod 755 /usr/local/bin/berry-screenshots
 

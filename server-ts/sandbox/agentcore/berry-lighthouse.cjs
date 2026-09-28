@@ -1,31 +1,33 @@
 #!/usr/bin/env node
-// berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>]
+// berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>] [--into-repo]
 //
 // A Lighthouse audit in one command, read for an agent: the four category
 // scores, the core timings, and the budget in lighthouse-budget.json (or
-// --budget) checked line by line. The full JSON report is written to --out
-// (./lighthouse by default) and never printed: it runs to megabytes, and
-// every byte an agent reads is paid for again on each later step. The report
-// is written to $TMPDIR/berry-lighthouse (--out), never into the checkout.
+// --budget) checked line by line. The full JSON report is written to
+// $TMPDIR/berry-lighthouse (or --out, outside the checkout unless --into-repo)
+// and never printed: it runs to megabytes, and every byte an agent reads is
+// paid for again on each later step.
 //
 // Lighthouse 12 dropped --budget-path, so the budget file (the classic
 // budget.json shape: timings, resourceSizes, resourceCounts) is checked here.
 'use strict';
 const { spawn } = require('node:child_process');
 const { target } = require('/usr/local/lib/berry/berry-serve.cjs');
+const { outputDir, refusedNote } = require('/usr/local/lib/berry/berry-output.cjs');
 const { existsSync, mkdirSync, readFileSync } = require('node:fs');
 const { tmpdir } = require('node:os');
-const { join, resolve } = require('node:path');
+const { join } = require('node:path');
 
 function parse(argv) {
    // Reports go outside the checkout: one left in the repository is delivered
    // with the task's change, and a report runs to megabytes.
-   const options = { url: null, budget: null, desktop: false, out: join(tmpdir(), 'berry-lighthouse') };
+   const options = { url: null, budget: null, desktop: false, out: undefined, intoRepo: false };
    for (let index = 0; index < argv.length; index += 1) {
       const arg = argv[index];
       if (arg === '--budget') options.budget = argv[++index];
       else if (arg === '--out') options.out = argv[++index];
       else if (arg === '--desktop') options.desktop = true;
+      else if (arg === '--into-repo') options.intoRepo = true;
       else if (!options.url) options.url = arg;
    }
    return options;
@@ -91,13 +93,14 @@ function lighthouse(args) {
 async function main() {
    const options = parse(process.argv.slice(2));
    if (!options.url) {
-      console.error('usage: berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>]');
+      console.error('usage: berry-lighthouse <url|folder|file> [--budget <file>] [--desktop] [--out <dir>] [--into-repo]');
       process.exit(2);
    }
    // A folder or file is served here for the length of the audit.
    const site = await target(options.url);
    if (site.served) console.log(`Serving ${site.served} at ${site.url}`);
-   const out = resolve(options.out);
+   const { dir: out, refused } = outputDir(options.out, join(tmpdir(), 'berry-lighthouse'), options.intoRepo);
+   if (refused) console.log(refusedNote(refused, out, 'the report'));
    mkdirSync(out, { recursive: true });
    const reportPath = join(out, 'report.json');
    const args = [

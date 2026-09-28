@@ -1,14 +1,15 @@
 #!/usr/bin/env node
-// berry-screenshots <url|folder> [out-dir]: the page at phone, tablet and desktop
+// berry-screenshots <url|folder> [out-dir] [--into-repo]: the page at phone, tablet and desktop
 // widths, full height, in one command, with the console errors and failed
 // requests it met. Agents were spending a dozen model calls per task finding
 // Playwright and Chromium and scripting this by hand; now it is one call.
 'use strict';
 const { chromium } = require('/usr/local/lib/node_modules/playwright');
 const { target } = require('/usr/local/lib/berry/berry-serve.cjs');
+const { outputDir, refusedNote } = require('/usr/local/lib/berry/berry-output.cjs');
 const { mkdirSync } = require('node:fs');
 const { tmpdir } = require('node:os');
-const { join, resolve } = require('node:path');
+const { join } = require('node:path');
 
 const SIZES = [
    ['phone', 390, 844],
@@ -17,14 +18,17 @@ const SIZES = [
 ];
 
 async function main() {
-   // Outside the checkout by default: screenshots are for looking at, and a
-   // file left in the repository is delivered with the task's change.
-   const [url, dir = join(tmpdir(), 'berry-screenshots')] = process.argv.slice(2);
+   // Outside the checkout unless --into-repo: screenshots are for looking at,
+   // and a file left in the repository is delivered with the task's change.
+   const args = process.argv.slice(2);
+   const intoRepo = args.includes('--into-repo');
+   const [url, dir] = args.filter((arg) => arg !== '--into-repo');
    if (!url) {
-      console.error('usage: berry-screenshots <url|folder|file> [out-dir, default $TMPDIR/berry-screenshots]');
+      console.error('usage: berry-screenshots <url|folder|file> [out-dir, default $TMPDIR/berry-screenshots] [--into-repo]');
       process.exit(2);
    }
-   const out = resolve(dir);
+   const { dir: out, refused } = outputDir(dir, join(tmpdir(), 'berry-screenshots'), intoRepo);
+   if (refused) console.log(refusedNote(refused, out, 'the screenshots'));
    mkdirSync(out, { recursive: true });
    // A folder or file is served here for the length of the check.
    const site = await target(url);
