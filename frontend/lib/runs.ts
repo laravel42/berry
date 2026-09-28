@@ -96,6 +96,8 @@ export function runTriggerKey(source: string): string {
          return 'builder';
       case 'completion':
          return 'completion';
+      case 'merge_fix':
+         return 'mergeFix';
       default:
          return 'assignment';
    }

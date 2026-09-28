@@ -125,7 +125,8 @@
          "autopilot": "autopilot",
          "quickAction": "quick action",
          "builder": "agent builder",
-         "completion": "follow-up"
+         "completion": "follow-up",
+         "mergeFix": "merge fix"
       },
       "tab": "Run {n}",
       "agent": "Agent"
