@@ -171,6 +171,7 @@
       "all": "Everything",
       "kindsChosen": "{count} kinds",
       "tool": "Tools",
+      "reasoning": "Reasoning",
       "thinking": "Thinking",
       "error": "Errors",
       "command": "Commands",
@@ -195,6 +196,7 @@
       "failed": "Failed",
       "row": {
          "tool": "Tool",
+         "reasoning": "Reasoning",
          "thinking": "Thinking",
          "error": "Error",
          "command": "Command",

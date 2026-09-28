@@ -45,7 +45,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
  * which is what someone reviewing an agent's work actually does.
  */
 
-export type StepKind = 'command' | 'edit' | 'read' | 'tool' | 'thinking' | 'error';
+export type StepKind = 'command' | 'edit' | 'read' | 'tool' | 'reasoning' | 'thinking' | 'error';
 
 export interface TranscriptStep {
    id: string;
@@ -146,7 +146,15 @@ function closeThinking(step: TranscriptStep, at: string): TranscriptStep {
    return { ...step, ok: true, durationMs: elapsed(step.at, at) };
 }
 
-const FILTERS: StepKind[] = ['tool', 'thinking', 'error', 'command', 'edit', 'read'];
+/**
+ * A passage of text still being written: the model's reasoning, or what it
+ * says as it goes. Either one ends when any other step begins.
+ */
+function isOpenPassage(step: TranscriptStep | undefined): step is TranscriptStep {
+   return (step?.kind === 'thinking' || step?.kind === 'reasoning') && step.ok === null;
+}
+
+const FILTERS: StepKind[] = ['tool', 'reasoning', 'thinking', 'error', 'command', 'edit', 'read'];
 
 /** Which kind of step a tool name is. Names vary by runtime; the verbs do not. */
 function toolKind(name: string): StepKind {
@@ -180,18 +188,21 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
       next.findLast((step) => step.kind === 'command' && step.id === `command:${commandId}`);
 
    switch (event.type) {
+      case 'run.thinking':
       case 'run.output.delta': {
          const text = typeof payload.text === 'string' ? payload.text : '';
          if (!text) return steps;
+         const kind: StepKind = event.type === 'run.thinking' ? 'reasoning' : 'thinking';
          // Consecutive deltas are one passage of thought, not one step each.
-         if (last && last.kind === 'thinking' && last.ok === null) {
+         if (isOpenPassage(last) && last.kind === kind) {
             next[next.length - 1] = { ...last, result: last.result + text };
             return next;
          }
+         if (isOpenPassage(last)) next[next.length - 1] = closeThinking(last, event.occurredAt);
          next.push({
-            id: `thinking:${event.id}`,
-            kind: 'thinking',
-            title: 'thinking',
+            id: `${kind}:${event.id}`,
+            kind,
+            title: kind,
             input: null,
             result: text,
             at: event.occurredAt,
@@ -205,9 +216,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const command = typeof payload.command === 'string' ? payload.command : '';
          const cwd = typeof payload.cwd === 'string' ? payload.cwd : '';
          const commandId = typeof payload.commandId === 'string' ? payload.commandId : event.id;
-         if (last && last.kind === 'thinking' && last.ok === null) {
-            next[next.length - 1] = closeThinking(last, event.occurredAt);
-         }
+         if (isOpenPassage(last)) next[next.length - 1] = closeThinking(last, event.occurredAt);
          next.push({
             id: `command:${commandId}`,
             kind: 'command',
@@ -253,9 +262,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
       case 'run.tool.started': {
          const name = typeof payload.name === 'string' ? payload.name : 'tool';
          const callId = typeof payload.toolCallId === 'string' ? payload.toolCallId : event.id;
-         if (last && last.kind === 'thinking' && last.ok === null) {
-            next[next.length - 1] = closeThinking(last, event.occurredAt);
-         }
+         if (isOpenPassage(last)) next[next.length - 1] = closeThinking(last, event.occurredAt);
          next.push({
             id: `tool:${callId}`,
             kind: toolKind(name),
@@ -290,15 +297,13 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          return next;
       }
       case 'run.completed': {
-         if (!last || last.kind !== 'thinking' || last.ok !== null) return steps;
+         if (!isOpenPassage(last)) return steps;
          next[next.length - 1] = closeThinking(last, event.occurredAt);
          return next;
       }
       case 'run.failed': {
          const message = typeof payload.message === 'string' ? payload.message : '';
-         if (last && last.kind === 'thinking' && last.ok === null) {
-            next[next.length - 1] = closeThinking(last, event.occurredAt);
-         }
+         if (isOpenPassage(last)) next[next.length - 1] = closeThinking(last, event.occurredAt);
          next.push({
             id: `error:${event.id}`,
             kind: 'error',
@@ -704,7 +709,9 @@ export function RunTranscript({
    // Between one output and the next the agent is waiting on its model: no
    // tool or command is open and nothing has arrived yet. The log says so at
    // its newest end, and counts from the last thing that did arrive.
-   const openStep = steps.some((entry) => entry.ok === null && entry.kind !== 'thinking');
+   const openStep = steps.some(
+      (entry) => entry.ok === null && entry.kind !== 'thinking' && entry.kind !== 'reasoning'
+   );
    const waiting = status === 'running' && !openStep && !query.trim() && kinds.length === 0;
 
    // Following means staying on the newest step, which — newest first — is the
