@@ -79,6 +79,11 @@ Rules:
   an earlier milestone names the specific task it waits on.
 - \`dependsOn\` names tasks in this plan by \`tempId\`, and never forms a
   circle.
+- Tasks with no dependency between them run at the same time, each on its own
+  branch. Two that change the same file (a single-page site's index.html, one
+  shared stylesheet or config) collide when the second is merged and cost a
+  run to reconcile: chain them with \`dependsOn\`, or make them one task.
+  Tasks that each add their own files can run side by side.
 - Every task sets \`changesRepository\`: true when finishing it means changing
   files in the repository — code, styles, markup, tests, configuration, a
   README; false when it produces a spec, research, a design decision or other
