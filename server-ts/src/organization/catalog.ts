@@ -22,7 +22,7 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 17: the prompt no longer names another workspace's task key as its example.
 // 18: five core roles (ADR-0018): a Software Engineer; Product, QA and DevOps
 // take on the specialists' briefs; delegation reaches the engineer.
-export const CATALOG_VERSION = 18;
+export const CATALOG_VERSION = 19;
 
 /**
  * The roles a workspace is given (ADR-0018). Every other catalogue role is a
@@ -292,7 +292,7 @@ const SPECS: RoleSpec[] = [
          'Build integrations with external services.',
          'Write tests for what you change.',
          'Keep the architecture coherent, and record significant decisions.',
-         'Update the README and docs your change affects.',
+         'Update the README or docs only where setup, commands, structure or user-facing behaviour changes; never add per-task notes, changelogs or a section about the task itself: that account belongs in the pull request and your report.',
          'Fix bugs from a failing test first.',
       ],
       capabilities: ['frontend', 'backend', 'database', 'integrations', 'testing', 'documentation'],
