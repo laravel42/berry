@@ -72,7 +72,23 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          // checkout left a 28 MB `core` there, and it failed the delivery on size.
          const untracked = await session.exec(`${git} ls-files --others --exclude-standard -z`, { cwd: directory });
          if (untracked.exitCode === 0) await removeCoreDumps(directory, untracked.stdout.split('\0').filter(Boolean));
-         const diff = await session.exec(`${git} add -A && ${git} diff --cached --numstat -z --no-renames ${shellQuote(baseline)}`, { cwd: directory });
+         // Installed dependencies are never the work either. An agent ran
+         // `npm install` in a repository with no .gitignore, and its 1,100 files
+         // of node_modules, one GitHub write each, tripped the secondary rate
+         // limit and failed the delivery. Only what the snapshot did not
+         // already track is left out: a repository that vendors its
+         // dependencies keeps delivering changes to them.
+         await session.exec(`mkdir -p .git/info && printf '%s/\\n' ${INSTALLED_DIRECTORIES.map(shellQuote).join(' ')} >> .git/info/exclude`, { cwd: directory });
+         const added = await session.exec(`${git} add -A && ${git} diff --cached --name-only --diff-filter=A -z ${shellQuote(baseline)}`, { cwd: directory });
+         if (added.exitCode !== 0) throw new Error('Could not read the complete candidate');
+         // Staged or committed by the agent itself, where the exclude does not reach.
+         const installed = added.stdout.split('\0').filter((path) => path !== '' && isInstalledPath(path));
+         for (let from = 0; from < installed.length; from += 200) {
+            const paths = installed.slice(from, from + 200).map(shellQuote).join(' ');
+            const unstaged = await session.exec(`${git} rm --cached -q -- ${paths}`, { cwd: directory });
+            if (unstaged.exitCode !== 0) throw new Error('Could not leave installed dependencies out of the candidate');
+         }
+         const diff = await session.exec(`${git} diff --cached --numstat -z --no-renames ${shellQuote(baseline)}`, { cwd: directory });
          if (diff.exitCode !== 0) throw new Error('Could not read the complete candidate');
          const stat = parseNumstat(diff.stdout);
          const files: NonNullable<TaskDelivery['candidate']> = [];
@@ -106,6 +122,21 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files, ...(merged ? { merged: true } : {}) };
       },
    };
+}
+
+/**
+ * Folders a package manager, interpreter or build tool fills, at any depth.
+ * None of them is ever source, whatever the repository's .gitignore says.
+ */
+export const INSTALLED_DIRECTORIES: readonly string[] = [
+   'node_modules', 'bower_components', '.pnpm-store',
+   '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.venv', '.tox',
+   '.next', '.nuxt', '.svelte-kit', '.turbo', '.parcel-cache',
+];
+
+/** Whether a repository path lies inside one of `INSTALLED_DIRECTORIES`. */
+export function isInstalledPath(path: string): boolean {
+   return path.split('/').slice(0, -1).some((segment) => INSTALLED_DIRECTORIES.includes(segment));
 }
 
 /** Whether a file's first bytes are an ELF core dump: the magic, then e_type 4 (ET_CORE). */
