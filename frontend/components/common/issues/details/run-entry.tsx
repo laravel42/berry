@@ -1,31 +1,14 @@
 'use client';
 
 import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
-import { AgentMarkdown } from '@/components/common/agent-markdown';
-import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
-import { Button } from '@/components/ui/button';
-import { BerryApiError } from '@/lib/api';
-import type { ApiComment } from '@/lib/comments';
-import {
-   cancelRun,
-   createIssueRun,
-   formatRunDuration,
-   isTerminalRunStatus,
-   retryOrdinal,
-   runDurationMs,
-   runTriggerKey,
-   type RunRecord,
-} from '@/lib/runs';
+import { formatRunDuration, isTerminalRunStatus, runTriggerKey, type RunRecord } from '@/lib/runs';
 import { timeAgo } from '@/lib/time-ago';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
-import { useMembersStore } from '@/store/members-store';
-import { ChevronDown, ChevronRight, RotateCcw, ScrollText, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId, useState } from 'react';
-import { toast } from 'sonner';
+import { useEffect, useState } from 'react';
 
-function statusTone(status: RunRecord['status']): string {
+export function statusTone(status: RunRecord['status']): string {
    switch (status) {
       case 'succeeded':
          return 'text-status-success';
@@ -40,7 +23,7 @@ function statusTone(status: RunRecord['status']): string {
    }
 }
 
-function markTone(status: RunRecord['status']): BerryMarkTone {
+export function markTone(status: RunRecord['status']): BerryMarkTone {
    switch (status) {
       case 'succeeded':
          return 'complete';
@@ -54,213 +37,111 @@ function markTone(status: RunRecord['status']): BerryMarkTone {
 }
 
 /**
- * A run, as one entry of the task's activity.
- *
- * Runs used to sit apart in an execution log, so what the agents did and what
- * people said about it were read in two lists. A running one pulses and can be
- * cancelled; a finished one can be run again. Here a run
- * is a line in the same timeline: status, agent, why it ran, who asked, how
- * long, when. Its output (the report it ended with, or why it stopped) folds
- * under a toggle, so a task with many runs stays a readable list. A run a
- * newer one has replaced is marked Outdated: its report describes a state of
- * the work that no longer holds.
+ * A run in one line, in the console's bottom bar: its mark, status, agent,
+ * and why it ran; the tab above it says how long.
  */
-export function RunEntry({
-   run,
-   all,
-   issueId,
-   outdated,
-   result = null,
-   onRunChanged,
-}: {
-   run: RunRecord;
-   /** Every run on the task, for the retry count. */
-   all: RunRecord[];
-   issueId: string;
-   outdated: boolean;
-   /** The comment the run posted when it ended: its output, when there is one. */
-   result?: ApiComment | null;
-   onRunChanged: (run: RunRecord) => void;
-}) {
+export function RunSummary({ run }: { run: RunRecord }) {
    const t = useTranslations('issueDetail.log');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
-   const getMemberById = useMembersStore((state) => state.getMemberById);
-   const outputId = useId();
-   const [open, setOpen] = useState(false);
-   const [transcript, setTranscript] = useState(false);
-   const [busy, setBusy] = useState(false);
-
-   const name = getAgentById(run.agentId)?.name ?? t('trigger.assignment');
-   const retries = retryOrdinal(all, run);
+   const name = getAgentById(run.agentId)?.name ?? t('agent');
+   // Why it ran, when it says something: being assigned is how every run
+   // starts unless something else started it, so that one goes unsaid.
+   const triggerKey = runTriggerKey(run.source);
    const trigger =
-      retries > 0
-         ? t('trigger.retry', { count: retries })
-         : t(`trigger.${runTriggerKey(run.source)}` as 'trigger.assignment');
-   const asker = run.requestedBy ? getMemberById(run.requestedBy.id)?.name : undefined;
-   const duration = runDurationMs(run);
-   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
-   // What the run posted when it ended, in full; the stored reason only when
-   // it posted nothing (a run the process lost never got to).
-   const posted = result?.body.trim() ?? '';
-   const output =
-      posted ||
-      (run.status === 'failed'
-         ? run.failure?.message || t('reasonUnknown')
-         : run.status === 'cancelled'
-           ? t('reasonCancelled')
-           : (run.summary ?? '').trim());
-
+      triggerKey === 'assignment' ? null : t(`trigger.${triggerKey}` as 'trigger.mention');
    const live = !isTerminalRunStatus(run.status);
-
-   const cancel = async () => {
-      setBusy(true);
-      try {
-         onRunChanged(await cancelRun(run.id));
-         toast.success(t('cancelled'));
-      } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('cancelFailed'));
-      } finally {
-         setBusy(false);
-      }
-   };
-
-   const retry = async () => {
-      setBusy(true);
-      try {
-         onRunChanged(await createIssueRun(issueId, { agentId: run.agentId }));
-         toast.success(t('retried'));
-      } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('retryFailed'));
-      } finally {
-         setBusy(false);
-      }
-   };
-
    return (
-      <div className={cn('flex flex-col', outdated && 'opacity-70')}>
-         <div className="flex min-w-0 items-center gap-2 py-0.5 text-muted-foreground">
-            <Button
-               variant="ghost"
-               size="xxs"
-               className="size-5 shrink-0 px-0"
-               aria-expanded={open}
-               aria-controls={outputId}
-               title={open ? t('hideOutput') : t('showOutput')}
-               onClick={() => setOpen((value) => !value)}
-            >
-               {open ? (
-                  <ChevronDown className="size-3.5" aria-hidden />
-               ) : (
-                  <ChevronRight className="size-3.5" aria-hidden />
-               )}
-               <span className="sr-only">{open ? t('hideOutput') : t('showOutput')}</span>
-            </Button>
-            <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
-               <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={name} />
-            </span>
-            <span className="min-w-0 flex-1 truncate">
-               <span className={cn('capitalize', statusTone(run.status))}>{run.status}</span>
-               <span aria-hidden> · </span>
-               <span className="text-actor-agent">{name}</span>
-               <span aria-hidden> · </span>
-               <span>{trigger}</span>
-               <span aria-hidden> · </span>
-               <span>{asker ? t('by', { name: asker }) : t('bySystem')}</span>
-               {duration !== null ? (
-                  <>
-                     <span aria-hidden> · </span>
-                     <span>{formatRunDuration(duration)}</span>
-                  </>
-               ) : null}
-               <span aria-hidden> · </span>
-               <span>{when}</span>
-            </span>
-            {outdated ? (
-               <span
-                  className="shrink-0 rounded-sm border border-status-warning/40 bg-status-warning/10 px-1.5 leading-5 tracking-wider text-status-warning uppercase"
-                  title={t('outdatedHint')}
-               >
-                  {t('outdated')}
-               </span>
+      <>
+         <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
+            <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={name} />
+         </span>
+         <span className="min-w-0 flex-1 truncate">
+            <span className={cn('capitalize', statusTone(run.status))}>{run.status}</span>
+            <span aria-hidden> · </span>
+            <span className="text-actor-agent">{name}</span>
+            {trigger ? (
+               <>
+                  <span aria-hidden> · </span>
+                  <span>{trigger}</span>
+               </>
             ) : null}
-            <span className="flex shrink-0 items-center">
-               <Button
-                  variant="ghost"
-                  size="xxs"
-                  className="size-6 px-0"
-                  title={t('transcript')}
-                  onClick={() => setTranscript(true)}
-               >
-                  <ScrollText className="size-3.5" aria-hidden />
-                  <span className="sr-only">{t('transcript')}</span>
-               </Button>
-               {live ? (
-                  <Button
-                     variant="ghost"
-                     size="xxs"
-                     className="size-6 px-0"
-                     disabled={busy}
-                     title={t('cancel')}
-                     onClick={() => void cancel()}
-                  >
-                     <X className="size-3.5" aria-hidden />
-                     <span className="sr-only">{t('cancel')}</span>
-                  </Button>
-               ) : (
-                  <Button
-                     variant="ghost"
-                     size="xxs"
-                     className="size-6 px-0"
-                     disabled={busy}
-                     title={t('retry')}
-                     onClick={() => void retry()}
-                  >
-                     <RotateCcw className="size-3.5" aria-hidden />
-                     <span className="sr-only">{t('retry')}</span>
-                  </Button>
-               )}
-            </span>
-         </div>
-         {open ? (
-            <div
-               id={outputId}
-               className="mt-1 mb-1.5 ml-7 rounded-sm border border-border/60 px-3 py-2"
-            >
-               {output ? (
-                  posted || run.status === 'succeeded' ? (
-                     <AgentMarkdown body={output} />
-                  ) : (
-                     <p className="break-words">{output}</p>
-                  )
-               ) : (
-                  <p className="text-muted-foreground">{t('noOutput')}</p>
-               )}
-            </div>
-         ) : null}
-         <RunTranscriptDialog
-            runId={transcript ? run.id : null}
-            open={transcript}
-            agentName={name}
-            onOpenChange={setTranscript}
-         />
-      </div>
+         </span>
+      </>
    );
 }
 
 /**
- * The runs a newer one has replaced: every run older than the task's latest
- * succeeded run. The latest success is never outdated — a run that is still
- * going, failed or was cancelled after it replaces nothing — and before any
- * run has succeeded, nothing is.
+ * How long a run took, or has taken so far: it counts up each second while
+ * the run works, and a run that never started is measured from when it was
+ * queued, so every run says how long it took.
  */
-export function outdatedRunIds(runs: RunRecord[]): Set<string> {
-   const latest = runs
-      .filter((run) => run.status === 'succeeded')
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-   if (!latest) return new Set();
-   return new Set(
-      runs
-         .filter((run) => run.id !== latest.id && run.createdAt < latest.createdAt)
-         .map((run) => run.id)
+export function useRunDuration(run: RunRecord): number {
+   const live = !isTerminalRunStatus(run.status);
+   const [now, setNow] = useState(() => Date.now());
+   useEffect(() => {
+      if (!live) return;
+      const timer = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(timer);
+   }, [live]);
+   const end = run.completedAt ? new Date(run.completedAt).getTime() : now;
+   return Math.max(0, end - new Date(run.startedAt ?? run.createdAt).getTime());
+}
+
+/**
+ * A run as a tab of the task's console: "Run 3" and how long it took, after
+ * its mark in the status' colour. The whole line is its tooltip, and the
+ * console's bottom bar shows it.
+ */
+export function RunTab({
+   run,
+   ordinal,
+   selected,
+   panelId,
+   onSelect,
+}: {
+   run: RunRecord;
+   /** Its place among the task's runs, oldest first: Run 1, Run 2… */
+   ordinal: number;
+   selected: boolean;
+   panelId: string;
+   onSelect: () => void;
+}) {
+   const t = useTranslations('issueDetail.log');
+   const getAgentById = useAgentsStore((state) => state.getAgentById);
+   const name = getAgentById(run.agentId)?.name ?? t('agent');
+   // Why it ran, when it says something: being assigned is how every run
+   // starts unless something else started it, so that one goes unsaid.
+   const triggerKey = runTriggerKey(run.source);
+   const trigger =
+      triggerKey === 'assignment' ? null : t(`trigger.${triggerKey}` as 'trigger.mention');
+   const duration = useRunDuration(run);
+   const live = !isTerminalRunStatus(run.status);
+   const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
+   return (
+      <button
+         type="button"
+         role="tab"
+         id={`run-tab-${run.id}`}
+         aria-selected={selected}
+         aria-controls={panelId}
+         tabIndex={selected ? 0 : -1}
+         title={[run.status, name, trigger, formatRunDuration(duration), when]
+            .filter(Boolean)
+            .join(' · ')}
+         onClick={onSelect}
+         // Editor tabs: flat, edge to edge, split by thin lines; the shown one
+         // takes the panel's background.
+         className={cn(
+            'flex h-full shrink-0 items-center gap-1.5 border-r border-r-status-neutral/20 px-3 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
+            selected ? 'bg-container text-foreground' : 'hover:bg-status-neutral/15'
+         )}
+      >
+         <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={run.status} />
+         <span>{t('tab', { n: ordinal })}</span>
+         <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
+         <span className={cn('tabular-nums', statusTone(run.status))}>
+            {formatRunDuration(duration)}
+         </span>
+      </button>
    );
 }

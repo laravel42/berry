@@ -1,11 +1,9 @@
 'use client';
 
 import { IssueHeaderMenu } from '@/components/common/issues/details/issue-header-menu';
-import { LiveAgentChip } from '@/components/common/issues/details/live-agent-chip';
 import { Button } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { getBoardIssue } from '@/lib/issues';
-import { useIssueRuns } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { ChevronDown, ChevronUp, CornerUpLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -33,7 +31,6 @@ export default function HeaderNav() {
       (candidate) => candidate.identifier === issueId || candidate.id === issueId
    );
    const issue = index >= 0 ? issues[index] : undefined;
-   const { activeRun, upsert } = useIssueRuns(issue?.id);
 
    const previousIssue = index > 0 ? issues[index - 1] : undefined;
    const nextIssue = index >= 0 && index < issues.length - 1 ? issues[index + 1] : undefined;
@@ -96,13 +93,8 @@ export default function HeaderNav() {
          </div>
 
          <div className="flex shrink-0 items-center gap-1">
-            <LiveAgentChip run={activeRun} onRunChanged={upsert} />
-
             {issue ? (
-               <IssueHeaderMenu
-                  issue={issue}
-                  onDeleted={() => router.push(`/${orgId}/tasks`)}
-               />
+               <IssueHeaderMenu issue={issue} onDeleted={() => router.push(`/${orgId}/tasks`)} />
             ) : null}
 
             {index >= 0 && (

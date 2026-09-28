@@ -5,7 +5,6 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
-import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -31,13 +30,7 @@ import {
    type TriggerPlan,
 } from '@/lib/comments';
 import { WORKSPACE_SLUG } from '@/lib/config';
-import {
-   cancelRun,
-   isTerminalRunEvent,
-   streamRunEvents,
-   textFromRunEvent,
-   type RunRecord,
-} from '@/lib/runs';
+import { type RunRecord } from '@/lib/runs';
 import { subscribeShellEvent } from '@/lib/shell-events';
 import { listSkills, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
@@ -68,7 +61,6 @@ import { toast } from 'sonner';
 import { CommentActions } from './comment-actions';
 import { ReactionBar } from './issue-reactions';
 import { useMentionPicker } from './mention-picker';
-import { outdatedRunIds, RunEntry } from './run-entry';
 
 /**
  * What has happened to this task, and the place to add to it.
@@ -216,114 +208,10 @@ function EventGroup({ items }: { items: EventItem[] }) {
    );
 }
 
-/**
- * An agent's run, shown under the comment that set it off.
- *
- * A run started by a mention belongs to that message, not to the bottom of the
- * page: the reply and the work it caused are one exchange. A live one streams
- * its output here so the reader can see it is going without opening anything.
- */
-function InlineRun({
-   run,
-   onRunChanged,
-}: {
-   run: RunRecord;
-   onRunChanged: (run: RunRecord) => void;
-}) {
-   const t = useTranslations('issueDetail.activity');
-   const getAgentById = useAgentsStore((state) => state.getAgentById);
-   const [output, setOutput] = useState('');
-   const [transcript, setTranscript] = useState(false);
-   const [busy, setBusy] = useState(false);
-   const live = run.status === 'running' || run.status === 'queued';
-
-   useEffect(() => {
-      if (!live) return;
-      const controller = new AbortController();
-      let text = '';
-      void (async () => {
-         try {
-            for await (const event of streamRunEvents(run.id, controller.signal)) {
-               const chunk = textFromRunEvent(event);
-               if (chunk) {
-                  text = `${text}${chunk}`.slice(-4000);
-                  setOutput(text);
-               }
-               if (isTerminalRunEvent(event.type)) return;
-            }
-         } catch {
-            // A dropped stream leaves what arrived; the transcript has the rest.
-         }
-      })();
-      return () => controller.abort();
-   }, [run.id, live]);
-
-   const stop = () => {
-      setBusy(true);
-      void cancelRun(run.id)
-         .then(onRunChanged)
-         .catch(() => undefined)
-         .finally(() => setBusy(false));
-   };
-
-   const name = getAgentById(run.agentId)?.name ?? 'Agent';
-
-   return (
-      <div className="mt-1.5 rounded-sm border border-azure/25 bg-deep p-2 text-chalk">
-         <div className="flex min-w-0 items-center gap-2">
-            <BerryMark
-               size="sm"
-               tone="working"
-               pulse={live}
-               dotColor={colorForAgent(run.agentId)}
-               bracketClassName="text-chalk"
-               label={name}
-            />
-            <span className="min-w-0 truncate">
-               {name} · {t('runStarted')}
-            </span>
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-               <Button
-                  variant="ghost"
-                  size="xs"
-                  className="text-chalk hover:bg-chalk/10 hover:text-chalk"
-                  onClick={() => setTranscript(true)}
-               >
-                  {run.status}
-               </Button>
-               {live ? (
-                  <Button
-                     variant="ghost"
-                     size="xs"
-                     disabled={busy}
-                     className="text-chalk hover:bg-chalk/10 hover:text-chalk"
-                     onClick={stop}
-                  >
-                     {t('runStop')}
-                  </Button>
-               ) : null}
-            </span>
-         </div>
-         {live ? (
-            <pre className="mt-1.5 max-h-32 overflow-auto whitespace-pre-wrap break-words leading-6 text-ash">
-               {output || t('runWaiting')}
-            </pre>
-         ) : null}
-         <RunTranscriptDialog
-            runId={transcript ? run.id : null}
-            open={transcript}
-            agentName={name}
-            onOpenChange={setTranscript}
-         />
-      </div>
-   );
-}
-
 function CommentCard({
    comment,
    issueRef,
    replies,
-   runs,
    highlighted,
    onChanged,
    onDeleted,
@@ -333,7 +221,6 @@ function CommentCard({
    comment: ApiComment;
    issueRef: string;
    replies: ApiComment[];
-   runs: RunRecord[];
    highlighted: boolean;
    onChanged: (comment: ApiComment) => void;
    onDeleted: (commentId: string) => void;
@@ -446,10 +333,6 @@ function CommentCard({
             </div>
          </div>
 
-         {runs.map((run) => (
-            <InlineRun key={run.id} run={run} onRunChanged={onRunChanged} />
-         ))}
-
          {replies.length > 0 && !collapsed ? (
             <div className="mt-2 flex flex-col gap-2 border-l border-border/60 pl-3">
                {replies.map((reply) => (
@@ -458,7 +341,6 @@ function CommentCard({
                      comment={reply}
                      issueRef={issueRef}
                      replies={[]}
-                     runs={[]}
                      highlighted={false}
                      onChanged={onChanged}
                      onDeleted={onDeleted}
@@ -611,9 +493,7 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
 export function ActivityFeedList({
    comments,
    events,
-   runs,
    error,
-   issueId,
    issueRef,
    highlightedCommentId,
    onCommentChanged,
@@ -623,10 +503,7 @@ export function ActivityFeedList({
 }: {
    comments: ApiComment[];
    events: Array<EventItem & { at?: string }>;
-   runs: RunRecord[];
    error?: string | null;
-   /** The task's id, for Run again on a past run. */
-   issueId?: string;
    issueRef: string;
    highlightedCommentId?: string | null;
    onCommentChanged: (comment: ApiComment) => void;
@@ -655,54 +532,20 @@ export function ActivityFeedList({
       [comments]
    );
 
-   // A run started by a mention belongs to the last comment written before it.
-   const runsByComment = useMemo(() => {
-      const ordered = [...comments].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-      const map = new Map<string, RunRecord[]>();
-      for (const run of runs) {
-         if (run.source !== 'mention') continue;
-         const trigger = [...ordered]
-            .reverse()
-            .find((comment) => comment.createdAt <= run.createdAt);
-         if (!trigger) continue;
-         map.set(trigger.id, [...(map.get(trigger.id) ?? []), run]);
-      }
-      return map;
-   }, [comments, runs]);
-
-   const outdated = useMemo(() => outdatedRunIds(runs), [runs]);
-
-   // Each finished run's result comment — its report, or why it failed — is
-   // that run's output, shown under the run rather than as a comment of its
-   // own. Named by `runId` since migration 213; an older one is the comment
-   // the run's agent posted as the run ended.
-   // Every run but one a mention set off, which is under its comment: the
-   // running ones with Cancel, the finished ones with their output under a
-   // toggle. This is the task's only list of runs.
-   const shownRuns = useMemo(() => runs.filter((run) => run.source !== 'mention'), [runs]);
-   const resultOf = useMemo(() => resultComments(shownRuns, roots), [shownRuns, roots]);
-   const resultIds = useMemo(
-      () => new Set([...resultOf.values()].map((comment) => comment.id)),
-      [resultOf]
-   );
-
    const timeline = useMemo(() => {
       type Row =
          | { kind: 'comment'; at: string; comment: ApiComment }
-         | { kind: 'events'; at: string; items: EventItem[] }
-         | { kind: 'run'; at: string; run: RunRecord };
+         | { kind: 'events'; at: string; items: EventItem[] };
       const rows: Row[] = [
-         ...roots
-            .filter((comment) => !resultIds.has(comment.id))
-            .map((comment) => ({ kind: 'comment' as const, at: comment.createdAt, comment })),
+         // Runs are not listed here: the task's console shows them, and each
+         // run's result comment (its report, or why it stopped) reads as the
+         // comment it is.
+         ...roots.map((comment) => ({ kind: 'comment' as const, at: comment.createdAt, comment })),
          ...events.map((event) => ({
             kind: 'events' as const,
             at: event.at ?? '',
             items: [event],
          })),
-         // Runs are entries of their own, where they started. A run set off
-         // by a mention is already under its comment.
-         ...shownRuns.map((run) => ({ kind: 'run' as const, at: run.createdAt, run })),
       ].sort((left, right) => left.at.localeCompare(right.at));
 
       // Consecutive bookkeeping folds together; a comment between two runs of
@@ -717,7 +560,7 @@ export function ActivityFeedList({
          folded.push(row.kind === 'events' ? { ...row, items: [...row.items] } : row);
       }
       return folded;
-   }, [roots, events, shownRuns, resultIds]);
+   }, [roots, events]);
 
    const resolvedRoots = roots.filter((comment) => comment.resolvedAt);
 
@@ -753,23 +596,12 @@ export function ActivityFeedList({
             {timeline.map((row, index) =>
                row.kind === 'events' ? (
                   <EventGroup key={`events-${row.items[0]?.id ?? index}`} items={row.items} />
-               ) : row.kind === 'run' ? (
-                  <RunEntry
-                     key={`run-${row.run.id}`}
-                     run={row.run}
-                     all={runs}
-                     issueId={issueId ?? row.run.issueId}
-                     outdated={outdated.has(row.run.id)}
-                     result={resultOf.get(row.run.id) ?? null}
-                     onRunChanged={onRunChanged}
-                  />
                ) : row.comment.resolvedAt && !showResolved ? null : (
                   <CommentCard
                      key={row.comment.id}
                      comment={row.comment}
                      issueRef={issueRef}
                      replies={repliesByParent.get(row.comment.id) ?? []}
-                     runs={runsByComment.get(row.comment.id) ?? []}
                      highlighted={highlightedCommentId === row.comment.id}
                      onChanged={onCommentChanged}
                      onDeleted={onCommentDeleted}
@@ -781,42 +613,6 @@ export function ActivityFeedList({
          </div>
       </div>
    );
-}
-
-/**
- * Each run's result comment, by run id. A comment that names its run is that
- * run's; for one written before comments named runs, the top-level comment
- * the run's agent posted closest after the run ended, within two minutes.
- */
-function resultComments(runs: RunRecord[], roots: ApiComment[]): Map<string, ApiComment> {
-   const results = new Map<string, ApiComment>();
-   const taken = new Set<string>();
-   for (const comment of roots) {
-      if (comment.runId && runs.some((run) => run.id === comment.runId)) {
-         results.set(comment.runId, comment);
-         taken.add(comment.id);
-      }
-   }
-   for (const run of runs) {
-      if (results.has(run.id) || !run.completedAt) continue;
-      const ended = new Date(run.completedAt).getTime();
-      const match = roots
-         .filter(
-            (comment) =>
-               !taken.has(comment.id) &&
-               !comment.runId &&
-               comment.author?.type === 'agent' &&
-               comment.author.id === run.agentId
-         )
-         .map((comment) => ({ comment, gap: new Date(comment.createdAt).getTime() - ended }))
-         .filter(({ gap }) => gap >= -5_000 && gap <= 120_000)
-         .sort((a, b) => Math.abs(a.gap) - Math.abs(b.gap))[0];
-      if (match) {
-         results.set(run.id, match.comment);
-         taken.add(match.comment.id);
-      }
-   }
-   return results;
 }
 
 // ----------------------------------------------------------------- composer

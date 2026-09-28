@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { isAgentUser } from '@/components/common/issues/actor-avatar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -26,6 +27,7 @@ import { IssuePropertiesPanel } from './issue-properties-panel';
 import { IssueQuickActions } from './issue-quick-actions';
 import { IssueReviews } from './issue-reviews';
 import { IssueTitle } from './issue-title';
+import { RunConsole } from './run-console';
 import { SubIssues } from './sub-issues';
 
 /**
@@ -218,6 +220,10 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
       );
    }
 
+   // A task an agent holds is steered through its runs, the console and the
+   // review, not by commenting on it: no comment box while an agent has it.
+   const agentManaged = issue.assignee ? isAgentUser(issue.assignee) : false;
+
    return (
       <div
          ref={pane}
@@ -228,7 +234,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
       >
          <FindInIssue scope={pane} />
 
-         <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+         <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div
                ref={scroller}
                onScroll={(event) => rememberScroll(scrollKey, event.currentTarget.scrollTop)}
@@ -279,9 +285,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   <ActivityFeedList
                      comments={activity.comments}
                      events={activity.events}
-                     runs={activity.runs}
                      error={activity.error}
-                     issueId={issue.id}
                      issueRef={issue.identifier}
                      highlightedCommentId={highlighted}
                      onCommentChanged={activity.replaceComment}
@@ -290,7 +294,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                      onRunChanged={activity.upsertRun}
                   />
 
-                  {stickyCommentBar ? null : (
+                  {stickyCommentBar || agentManaged ? null : (
                      <ActivityCommentComposer
                         issueRef={issue.identifier}
                         onPosted={activity.addComment}
@@ -299,7 +303,11 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                </div>
             </div>
 
-            {stickyCommentBar ? (
+            {/* Between the task and its comment bar: docked there when open,
+                and a button floating just above that edge when folded. */}
+            <RunConsole issueId={issue.id} />
+
+            {stickyCommentBar && !agentManaged ? (
                <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
                   <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
                      <ActivityCommentComposer

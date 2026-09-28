@@ -8,21 +8,26 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+   DropdownMenu,
+   DropdownMenuCheckboxItem,
+   DropdownMenuContent,
+   DropdownMenuSeparator,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import {
-   deliveryFromRunEvent,
    getRun,
    isTerminalRunEvent,
    streamRunEvents,
-   type RunDelivery,
    type RunEvent,
    type RunRecord,
 } from '@/lib/runs';
 import { formatCost, formatTokens } from '@/lib/usage';
 import { cn } from '@/lib/utils';
-import { Check, Copy, Search } from 'lucide-react';
+import { Check, ChevronDown, Copy, ListFilter, Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
@@ -67,6 +72,28 @@ export interface StepDetail {
 }
 
 /** Milliseconds from one ISO instant to another; null when either is unreadable. */
+/**
+ * The run as its stream reports it, moved only forward: queued, then running,
+ * then an ending. Opening a run replays its stream from the start, and an old
+ * `run.started` must not make a finished run read as running again.
+ */
+function advanced(
+   run: RunRecord | null,
+   status: RunRecord['status'],
+   at: string
+): RunRecord | null {
+   if (!run) return run;
+   const rank = (value: RunRecord['status']) =>
+      value === 'queued' ? 0 : value === 'running' ? 1 : 2;
+   if (rank(status) <= rank(run.status)) return run;
+   return {
+      ...run,
+      status,
+      startedAt: run.startedAt ?? at,
+      ...(rank(status) === 2 ? { completedAt: run.completedAt ?? at } : {}),
+   };
+}
+
 function elapsed(from: string, to: string): number | null {
    const ms = Date.parse(to) - Date.parse(from);
    return Number.isFinite(ms) && ms >= 0 ? ms : null;
@@ -343,18 +370,24 @@ function StepCard({
 }) {
    const t = useTranslations('issueDetail.transcript');
    return (
+      // A row of a log, not a card: rows are ruled apart by the list, the kind
+      // sits in a fixed column so titles line up, and the search's current
+      // match is washed in the agent's tint.
       <li
          data-step-id={step.id}
-         className={cn(
-            'rounded-sm border border-border/60 bg-container p-2.5',
-            current && 'border-status-info'
-         )}
+         className={cn('px-4 py-2.5 transition-colors', current && 'bg-status-info/10')}
       >
-         <div className="flex items-center gap-2">
-            <span className="shrink-0 rounded bg-accent px-1.5 uppercase tracking-[0.12em] text-muted-foreground">
-               {t(step.kind)}
+         <div className="flex items-baseline gap-3">
+            <span
+               data-heading="label"
+               className={cn(
+                  'w-[5.5rem] shrink-0 uppercase',
+                  step.kind === 'error' ? 'text-status-danger' : 'text-muted-foreground'
+               )}
+            >
+               {t(`row.${step.kind}`)}
             </span>
-            <span className="min-w-0 flex-1 truncate font-mono">
+            <span className="min-w-0 flex-1 truncate">
                <Highlighted text={step.title} query={highlight} />
                {step.detail ? (
                   <span className="text-muted-foreground">
@@ -377,14 +410,20 @@ function StepCard({
                </span>
             ) : null}
             {step.ok === false ? (
-               <span className="shrink-0 text-muted-foreground">✕</span>
+               <X
+                  className="size-3.5 shrink-0 self-center text-status-danger"
+                  aria-label={t('failed')}
+               />
             ) : step.ok === true ? (
-               <span className="shrink-0 text-status-success">✓</span>
+               <Check
+                  className="size-3.5 shrink-0 self-center text-status-success"
+                  aria-label={t('succeeded')}
+               />
             ) : null}
          </div>
 
          {step.input ? (
-            <div className="mt-2">
+            <div className="mt-2 sm:pl-[6.25rem]">
                <div className="flex items-center gap-1.5 text-muted-foreground">
                   <span>{t('input')}</span>
                   <CopyButton text={step.input} label={t('input')} />
@@ -394,7 +433,7 @@ function StepCard({
          ) : null}
 
          {step.result.trim() ? (
-            <div className="mt-2">
+            <div className="mt-2 sm:pl-[6.25rem]">
                <div className="flex items-center gap-1.5 text-muted-foreground">
                   <span>{t('result')}</span>
                   <CopyButton text={step.result} label={t('result')} />
@@ -467,6 +506,11 @@ export interface TranscriptDialogProps {
    agentName?: string;
 }
 
+/**
+ * One run's transcript in a dialog: the runs surface and an agent's activity
+ * open it from a list. The task drawer shows the same transcript in place, as
+ * its console (`RunConsole`).
+ */
 export function RunTranscriptDialog({
    runId,
    open,
@@ -474,21 +518,108 @@ export function RunTranscriptDialog({
    agentName,
 }: TranscriptDialogProps) {
    const t = useTranslations('issueDetail.transcript');
+   return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+         <DialogContent className="flex h-[80vh] w-full flex-col gap-0 p-0 sm:max-w-[900px]">
+            {open && runId ? (
+               <RunTranscript
+                  runId={runId}
+                  className="min-h-0 flex-1"
+                  header={(status) => (
+                     <DialogHeader className="border-b px-4 py-3">
+                        <DialogTitle>{t('title')}</DialogTitle>
+                        <DialogDescription>
+                           {t('subtitle', { agent: agentName ?? '—', status: status || '—' })}
+                        </DialogDescription>
+                     </DialogHeader>
+                  )}
+               />
+            ) : (
+               <DialogTitle className="sr-only">{t('title')}</DialogTitle>
+            )}
+         </DialogContent>
+      </Dialog>
+   );
+}
+
+export interface RunTranscriptProps {
+   runId: string;
+   className?: string;
+   /** Above the toolbar, given the run's status as the stream reports it. */
+   header?: (status: string) => ReactNode;
+   /** Where the steps scroll: the dialog fills its height; a console is given one. */
+   listClassName?: string;
+   /**
+    * `newest-first` (the dialog): the latest step on top. `oldest-first` (the
+    * console): read top to bottom like a terminal, the latest step at the
+    * foot, and the list stays pinned there while it runs.
+    */
+   order?: 'newest-first' | 'oldest-first';
+   /**
+    * Whether search and filters show. Left out, always (the dialog). The
+    * console passes it, from its own filter button, so the log has the room
+    * until they are asked for; Esc in the search asks to close them.
+    */
+   filtersOpen?: boolean;
+   onFiltersOpenChange?: (open: boolean) => void;
+   /** Told whether a search or a kind filter is applied, so a closed bar can say so. */
+   onFiltersActiveChange?: (active: boolean) => void;
+   /**
+    * Told each fresh read of the run: on open, every ten seconds while it
+    * works, and once when its stream ends. The console keeps the task's run
+    * list current with it, so a finished run stops reading as running.
+    */
+   onRunLoaded?: (run: RunRecord) => void;
+   /** In the bottom bar after its controls, before what the run spent: what the console knows of the run. */
+   footerInfo?: ReactNode;
+}
+
+/**
+ * The transcript itself: the run's steps from its event stream, newest first,
+ * with search, kind filters, and what it spent. Followed live while it runs.
+ */
+export function RunTranscript({
+   runId,
+   className,
+   header,
+   listClassName,
+   order = 'newest-first',
+   filtersOpen,
+   onFiltersOpenChange,
+   onFiltersActiveChange,
+   onRunLoaded,
+   footerInfo,
+}: RunTranscriptProps) {
+   const oldestFirst = order === 'oldest-first';
+   const t = useTranslations('issueDetail.transcript');
    const [steps, setSteps] = useState<TranscriptStep[]>([]);
+   const [lastEventAt, setLastEventAt] = useState<string | null>(null);
    const [run, setRun] = useState<RunRecord | null>(null);
-   const [delivery, setDelivery] = useState<RunDelivery | null>(null);
    const [status, setStatus] = useState('');
    const [query, setQuery] = useState('');
+   const searchInput = useRef<HTMLInputElement>(null);
+   const reportRun = useRef(onRunLoaded);
+   reportRun.current = onRunLoaded;
+   useEffect(() => {
+      if (run) reportRun.current?.(run);
+   }, [run]);
+   const showBar = filtersOpen ?? true;
    const [kinds, setKinds] = useState<StepKind[]>([]);
+   const filtersActive = query.trim() !== '' || kinds.length > 0;
+   useEffect(() => {
+      onFiltersActiveChange?.(filtersActive);
+   }, [filtersActive, onFiltersActiveChange]);
+   // Opened from outside: the search is what the person came for.
+   useEffect(() => {
+      if (filtersOpen) searchInput.current?.focus();
+   }, [filtersOpen]);
    const [following, setFollowing] = useState(true);
    const [matchIndex, setMatchIndex] = useState(0);
    const scroller = useRef<HTMLDivElement>(null);
 
    useEffect(() => {
-      if (!open || !runId) return;
       let cancelled = false;
       setSteps([]);
-      setDelivery(null);
       setRun(null);
       setStatus('');
       setFollowing(true);
@@ -508,15 +639,23 @@ export function RunTranscriptDialog({
             for await (const event of streamRunEvents(runId, controller.signal)) {
                if (cancelled) return;
                setSteps((current) => foldRunEvent(current, event));
-               const delivered = deliveryFromRunEvent(event);
-               if (delivered) setDelivery(delivered);
-               if (event.type === 'run.started') setStatus('running');
+               setLastEventAt(event.occurredAt);
+               if (event.type === 'run.started') {
+                  setStatus('running');
+                  setRun((current) => advanced(current, 'running', event.occurredAt));
+               }
                if (isTerminalRunEvent(event.type)) {
                   // In the run's own words: the stream ends on `run.completed`
                   // but the run reads `succeeded`, and showing whichever
                   // arrived last made the header flip between the two.
                   const ended = event.type.replace('run.', '');
-                  setStatus(ended === 'completed' ? 'succeeded' : ended);
+                  const final = ended === 'completed' ? 'succeeded' : ended;
+                  setStatus(final);
+                  // At once, not at the re-read below: the console's tabs,
+                  // Stop and pulse move with the stream, as the task does.
+                  if (final === 'succeeded' || final === 'failed' || final === 'cancelled') {
+                     setRun((current) => advanced(current, final, event.occurredAt));
+                  }
                   // The totals only settle at the end, so the run is re-read
                   // rather than left showing the usage it had when opened.
                   void getRun(runId).then(
@@ -538,7 +677,7 @@ export function RunTranscriptDialog({
          cancelled = true;
          controller.abort();
       };
-   }, [open, runId]);
+   }, [runId]);
 
    // The run's failure belongs to the transcript's last error block, not under
    // the title: it is what that error was, and the stored message is the full
@@ -556,24 +695,73 @@ export function RunTranscriptDialog({
               `${step.title}\n${step.input ?? ''}\n${step.result}`.toLowerCase().includes(needle)
            );
       // Newest first: the last thing an agent did is the thing being waited on.
-      return [...matched].reverse();
-   }, [withFailure, kinds, query]);
+      // Oldest first reads as it happened, the latest at the foot.
+      return oldestFirst ? matched : [...matched].reverse();
+   }, [withFailure, kinds, query, oldestFirst]);
 
    const matches = query.trim() ? visible.length : 0;
+
+   // Between one output and the next the agent is waiting on its model: no
+   // tool or command is open and nothing has arrived yet. The log says so at
+   // its newest end, and counts from the last thing that did arrive.
+   const openStep = steps.some((entry) => entry.ok === null && entry.kind !== 'thinking');
+   const waiting = status === 'running' && !openStep && !query.trim() && kinds.length === 0;
 
    // Following means staying on the newest step, which — newest first — is the
    // top of the list. Scrolling anywhere else means the reader is reading
    // something, so following stops rather than yanking them away from it.
+   // Oldest first, the newest step is the foot instead; reaching it again
+   // resumes following, as a terminal does.
+   const toNewest = useCallback(() => {
+      const element = scroller.current;
+      if (!element) return;
+      element.scrollTo({ top: oldestFirst ? element.scrollHeight : 0 });
+   }, [oldestFirst]);
+
    useEffect(() => {
       if (!following) return;
-      scroller.current?.scrollTo({ top: 0 });
-   }, [visible, following]);
+      toNewest();
+   }, [visible, waiting, following, toNewest]);
 
+   // Steps grow after they land: a code block lays itself out a moment later,
+   // and output keeps streaming into the open step. While following, every
+   // growth re-pins the view to the newest end, so the last message stays in
+   // sight rather than just below the fold.
+   const content = useRef<HTMLDivElement>(null);
+   const followingRef = useRef(following);
+   followingRef.current = following;
+   useEffect(() => {
+      const element = content.current;
+      if (!element || typeof ResizeObserver === 'undefined') return;
+      const observer = new ResizeObserver(() => {
+         if (followingRef.current) toNewest();
+      });
+      observer.observe(element);
+      return () => observer.disconnect();
+   }, [toNewest]);
+
+   // Only a scroll the reader makes stops following: moving up, away from
+   // the foot. Reading the distance from the foot alone raced the log's own
+   // growth — a burst of steps (every open replays the run) grew the content
+   // before the pin's scroll event arrived, which then read as "not at the
+   // foot" and left the view stuck partway. Growth never moves scrollTop, so
+   // it can no longer switch following off; reaching the foot turns it on.
+   const lastTop = useRef(0);
    const onScroll = useCallback(() => {
       const element = scroller.current;
       if (!element) return;
-      if (element.scrollTop > 8 && following) setFollowing(false);
-   }, [following]);
+      const top = element.scrollTop;
+      const movedUp = top < lastTop.current - 2;
+      lastTop.current = top;
+      if (oldestFirst) {
+         const atFoot = element.scrollHeight - top - element.clientHeight < 24;
+         if (movedUp && !atFoot && following) setFollowing(false);
+         else if (atFoot && !following) setFollowing(true);
+         return;
+      }
+      if (top > 8 && !movedUp && following) setFollowing(false);
+      else if (top <= 8 && !following) setFollowing(true);
+   }, [following, oldestFirst]);
 
    const step = (delta: number) => {
       if (matches === 0) return;
@@ -588,8 +776,35 @@ export function RunTranscriptDialog({
    // stream carries no usage, so the run is re-read while it works rather than
    // showing what it had spent when the dialog opened (often nothing).
    const live = status === 'running' || status === 'queued';
+
+   const [now, setNow] = useState(() => Date.now());
    useEffect(() => {
-      if (!open || !runId || !live) return;
+      if (!waiting) return;
+      const timer = window.setInterval(() => setNow(Date.now()), 1000);
+      return () => window.clearInterval(timer);
+   }, [waiting]);
+   const waitedMs = lastEventAt ? Math.max(0, now - new Date(lastEventAt).getTime()) : 0;
+   const thinkingRow = waiting ? (
+      <li className="flex items-center gap-3 px-4 py-2.5" aria-live="polite">
+         <span data-heading="label" className="w-[5.5rem] shrink-0 text-status-info uppercase">
+            {t('row.thinking')}
+         </span>
+         <span className="flex items-center gap-1" aria-hidden>
+            {[0, 1, 2].map((dot) => (
+               <span
+                  key={dot}
+                  className="size-1.5 rounded-full bg-status-info [animation:berry-working_1.2s_ease-in-out_infinite]"
+                  style={{ animationDelay: `${dot * 0.18}s` }}
+               />
+            ))}
+         </span>
+         <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+            {formatSeconds(waitedMs)}
+         </span>
+      </li>
+   ) : null;
+   useEffect(() => {
+      if (!live) return;
       const timer = window.setInterval(() => {
          void getRun(runId).then(
             (loaded) => setRun(loaded),
@@ -597,25 +812,21 @@ export function RunTranscriptDialog({
          );
       }, 10_000);
       return () => window.clearInterval(timer);
-   }, [open, runId, live]);
+   }, [runId, live]);
 
    const totalTokens = run ? run.usage.totalTokens : 0;
    const cost = run?.usage.costMicros ?? null;
 
    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-         <DialogContent className="flex h-[80vh] w-full flex-col gap-0 p-0 sm:max-w-[900px]">
-            <DialogHeader className="border-b px-4 py-3">
-               <DialogTitle>{t('title')}</DialogTitle>
-               <DialogDescription>
-                  {t('subtitle', { agent: agentName ?? '—', status: status || run?.status || '—' })}
-               </DialogDescription>
-            </DialogHeader>
+      <div className={cn('flex flex-col', className)}>
+         {header?.(status || run?.status || '')}
 
+         {showBar ? (
             <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2">
                <div className="flex min-w-[200px] flex-1 items-center gap-1.5">
                   <Search className="size-3.5 shrink-0 text-muted-foreground" />
                   <Input
+                     ref={searchInput}
                      value={query}
                      aria-label={t('search')}
                      placeholder={t('searchPlaceholder')}
@@ -625,6 +836,11 @@ export function RunTranscriptDialog({
                         setMatchIndex(0);
                      }}
                      onKeyDown={(event) => {
+                        if (event.key === 'Escape' && onFiltersOpenChange) {
+                           event.preventDefault();
+                           onFiltersOpenChange(false);
+                           return;
+                        }
                         if (event.key !== 'Enter') return;
                         event.preventDefault();
                         step(event.shiftKey ? -1 : 1);
@@ -639,56 +855,77 @@ export function RunTranscriptDialog({
                   ) : null}
                </div>
 
-               <div className="flex flex-wrap items-center gap-1">
-                  <Button
-                     variant={kinds.length === 0 ? 'secondary' : 'ghost'}
-                     size="xs"
-                     onClick={() => setKinds([])}
-                  >
-                     {t('all')}
-                  </Button>
-                  {FILTERS.map((kind) => (
-                     <Button
-                        key={kind}
-                        variant={kinds.includes(kind) ? 'secondary' : 'ghost'}
-                        size="xs"
-                        aria-pressed={kinds.includes(kind)}
-                        onClick={() =>
-                           setKinds((current) =>
-                              current.includes(kind)
-                                 ? current.filter((entry) => entry !== kind)
-                                 : [...current, kind]
-                           )
-                        }
-                     >
-                        {t(kind)}
+               {/* Several kinds at once, or none for everything: a menu that stays
+                open while ticking, so the list filters as each one is chosen. */}
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button variant="outline" size="xs" className="shrink-0">
+                        <ListFilter className="size-3.5" aria-hidden />
+                        {kinds.length === 0
+                           ? t('all')
+                           : kinds.length === 1
+                             ? t(kinds[0]!)
+                             : t('kindsChosen', { count: kinds.length })}
+                        <ChevronDown className="size-3.5 opacity-60" aria-hidden />
                      </Button>
-                  ))}
-               </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                     <DropdownMenuCheckboxItem
+                        checked={kinds.length === 0}
+                        onSelect={(event) => event.preventDefault()}
+                        onCheckedChange={() => setKinds([])}
+                     >
+                        {t('all')}
+                     </DropdownMenuCheckboxItem>
+                     <DropdownMenuSeparator />
+                     {FILTERS.map((kind) => (
+                        <DropdownMenuCheckboxItem
+                           key={kind}
+                           checked={kinds.includes(kind)}
+                           onSelect={(event) => event.preventDefault()}
+                           onCheckedChange={(checked) =>
+                              setKinds((current) =>
+                                 checked
+                                    ? [...current, kind]
+                                    : current.filter((entry) => entry !== kind)
+                              )
+                           }
+                        >
+                           {t(kind)}
+                        </DropdownMenuCheckboxItem>
+                     ))}
+                  </DropdownMenuContent>
+               </DropdownMenu>
             </div>
+         ) : null}
 
-            {/* tabIndex so the arrows, PageUp/PageDown and Home/End reach the
+         {/* tabIndex so the arrows, PageUp/PageDown and Home/End reach the
                 list itself rather than the dialog; End re-engages following,
                 which is where the newest step is. */}
-            <div
-               ref={scroller}
-               tabIndex={0}
-               onScroll={onScroll}
-               onKeyDown={(event) => {
-                  if (event.key === 'End') {
-                     event.preventDefault();
-                     setFollowing(true);
-                     scroller.current?.scrollTo({ top: 0 });
-                  }
-                  if (event.key === 'Home') setFollowing(false);
-               }}
-               className="min-h-0 flex-1 overflow-y-auto px-4 py-3 outline-none focus-visible:ring-1 focus-visible:ring-ring/50"
-               aria-label={t('newestFirst')}
-            >
-               {visible.length === 0 ? (
+         <div
+            ref={scroller}
+            tabIndex={0}
+            onScroll={onScroll}
+            onKeyDown={(event) => {
+               if (event.key === 'End') {
+                  event.preventDefault();
+                  setFollowing(true);
+                  toNewest();
+               }
+               if (event.key === 'Home') setFollowing(false);
+            }}
+            className={cn(
+               'min-h-0 flex-1 overflow-y-auto py-1 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
+               listClassName
+            )}
+            aria-label={oldestFirst ? t('oldestFirst') : t('newestFirst')}
+         >
+            <div ref={content}>
+               {visible.length === 0 && !thinkingRow ? (
                   <p className="py-8 text-center text-muted-foreground">{t('empty')}</p>
                ) : (
-                  <ul className="flex flex-col gap-2">
+                  <ul className="flex flex-col divide-y divide-border/60">
+                     {oldestFirst ? null : thinkingRow}
                      {visible.map((entry, index) => (
                         <StepCard
                            key={entry.id}
@@ -697,40 +934,28 @@ export function RunTranscriptDialog({
                            current={Boolean(query.trim()) && index === matchIndex}
                         />
                      ))}
+                     {oldestFirst ? thinkingRow : null}
                   </ul>
                )}
             </div>
+         </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2.5 text-muted-foreground">
-               <span>
-                  {t('tokens')}{' '}
-                  <span className="tabular-nums text-foreground">{formatTokens(totalTokens)}</span>
-               </span>
-               <span>
-                  {t('cost')}{' '}
-                  <span className="tabular-nums text-foreground">
-                     {/* No price is unknown, not free: tokens spent on a model with no
+         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2.5 text-muted-foreground">
+            {footerInfo}
+            <span>
+               {t('tokens')}{' '}
+               <span className="tabular-nums text-foreground">{formatTokens(totalTokens)}</span>
+            </span>
+            <span>
+               {t('cost')}{' '}
+               <span className="tabular-nums text-foreground">
+                  {/* No price is unknown, not free: tokens spent on a model with no
                          published price must not read as $0. */}
-                     {cost === null && totalTokens > 0 ? t('unpriced') : formatCost(cost ?? 0)}
-                  </span>
+                  {cost === null && totalTokens > 0 ? t('unpriced') : formatCost(cost ?? 0)}
                </span>
-               <span className="ml-auto flex flex-wrap items-center gap-x-3">
-                  <span>
-                     {delivery
-                        ? delivery.committed
-                           ? t('filesChanged', { count: delivery.filesChanged })
-                           : t('noFiles')
-                        : t('noFiles')}
-                  </span>
-                  <span>
-                     {t('commandsRun', {
-                        count: steps.filter((entry) => entry.kind === 'command').length,
-                     })}
-                  </span>
-               </span>
-            </div>
-         </DialogContent>
-      </Dialog>
+            </span>
+         </div>
+      </div>
    );
 }
 

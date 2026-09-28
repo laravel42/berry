@@ -3,7 +3,6 @@ import { http, HttpResponse } from 'msw';
 import type { ComponentProps } from 'react';
 import { expect, fn, waitFor } from 'storybook/test';
 import { ShortcutProvider } from '@/components/layout/shortcut-provider';
-import type { RunRecord } from '@/lib/runs';
 import { useCommentDraftStore } from '@/store/comment-draft-store';
 import { ActivityCommentComposer, ActivityFeedList } from './activity-feed';
 import {
@@ -13,7 +12,6 @@ import {
    comment,
    maya,
    runEventsHandler,
-   runningRun,
    seedIssuesWorkspace,
 } from '../stories-fixtures';
 
@@ -79,20 +77,12 @@ const resolved = comment(
    }
 );
 
-/** The run a mention in the question started. */
-const mentionRun: RunRecord = {
-   ...runningRun,
-   source: 'mention',
-   createdAt: '2026-09-18T11:52:00Z',
-};
-
 const meta = {
    component: ActivityFeedList,
    tags: ['ai-generated', 'needs-work'],
    args: {
       comments: [resolved, agentSummary, question, reply],
       events,
-      runs: [mentionRun],
       error: null,
       issueRef: 'BERR-42',
       highlightedCommentId: null,
@@ -159,11 +149,11 @@ export const ShowResolvedThreads: Story = {
 };
 
 export const OnlyBookkeeping: Story = {
-   args: { comments: [], runs: [] },
+   args: { comments: [] },
 };
 
 export const LoadFailed: Story = {
-   args: { comments: [], events: [], runs: [], error: 'Activity could not be loaded.' },
+   args: { comments: [], events: [], error: 'Activity could not be loaded.' },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('alert')).toHaveTextContent('Activity could not be loaded.');
    },
