@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { kiloFetch, reasoningLength, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
+import { kiloFetch, reasoningText, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
 
 /**
  * The gateway rules, against a scripted upstream: a paid reply passes whether
@@ -175,18 +175,23 @@ test("Kilo's auto-routing is exempt from the own-key refusal, and the picked mod
    assert.deepEqual(seen, ['z-ai/glm-5.3-flash']);
 });
 
-test('reasoning the model streams is measured, in each shape gateways send it, and passed on unchanged', async () => {
-   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning":"abc"}}]}'), 3);
-   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning_content":"abcd"}}]}'), 4);
-   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","text":"ab"}]}}]}'), 2);
-   assert.equal(reasoningLength('{"choices":[{"delta":{"content":"no reasoning here"}}]}'), 0);
+test('reasoning the model streams is read, in each shape gateways send it, and passed on unchanged', async () => {
+   assert.equal(reasoningText('{"choices":[{"delta":{"reasoning":"abc"}}]}'), 'abc');
+   assert.equal(reasoningText('{"choices":[{"delta":{"reasoning_content":"abcd"}}]}'), 'abcd');
+   assert.equal(reasoningText('{"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","text":"ab"}]}}]}'), 'ab');
+   assert.equal(
+      reasoningText('{"choices":[{"delta":{"reasoning":"once","reasoning_details":[{"type":"reasoning.text","text":"once"}]}}]}'),
+      'once',
+      'the same passage sent twice is read once'
+   );
+   assert.equal(reasoningText('{"choices":[{"delta":{"content":"no reasoning here"}}]}'), '');
    const sse =
       'data: {"id":"g","choices":[{"delta":{"reasoning":"let me think"}}]}\n\n' +
       'data: {"id":"g","choices":[{"delta":{"reasoning":" more"}}]}\n\n' +
       'data: {"id":"g","choices":[{"delta":{"content":"ok"}}]}\n\n' +
       'data: [DONE]\n\n';
-   const seen: number[] = [];
-   const response = await kiloFetch({ onReasoning: (chars) => seen.push(chars) }, upstream(sse, 'text/event-stream'))('https://gw', request('moonshotai/kimi-k3'));
+   const seen: string[] = [];
+   const response = await kiloFetch({ onReasoning: (text) => seen.push(text) }, upstream(sse, 'text/event-stream'))('https://gw', request('moonshotai/kimi-k3'));
    assert.equal(await drain(response), sse);
-   assert.deepEqual(seen, [12, 5]);
+   assert.deepEqual(seen, ['let me think', ' more']);
 });

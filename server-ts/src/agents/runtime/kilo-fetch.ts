@@ -65,38 +65,44 @@ export interface KiloFetchOptions {
    /** False leaves the messages unmarked: see `withAnthropicCachePoints`. */
    cacheConversation?: boolean;
    /**
-    * Called with the length of each piece of reasoning the model streams. The
-    * SDK's chat adapter reads only text and tool calls, so a model thinking for
-    * minutes before a short reply otherwise looks like a run that stopped.
+    * Called with each piece of reasoning the model streams. The SDK's chat
+    * adapter reads only text and tool calls, so a model thinking for minutes
+    * before a short reply otherwise looks like a run that stopped — and what
+    * it thought would be lost.
     */
-   onReasoning?: (chars: number) => void;
+   onReasoning?: (text: string) => void;
 }
 
-/** How much reasoning one streamed chunk carries, in characters: `reasoning`, `reasoning_content` or `reasoning_details[].text`. */
-export function reasoningLength(payload: string): number {
-   if (!payload.includes('"reasoning')) return 0;
+/**
+ * The reasoning one streamed chunk carries: `reasoning`, `reasoning_content`
+ * or `reasoning_details[].text`. A gateway that sends the same passage both as
+ * a string and as details is read once, from the string.
+ */
+export function reasoningText(payload: string): string {
+   if (!payload.includes('"reasoning')) return '';
    let chunk: { choices?: Array<{ delta?: Record<string, unknown> }> };
    try {
       chunk = JSON.parse(payload) as typeof chunk;
    } catch {
-      return 0;
+      return '';
    }
-   let chars = 0;
+   let text = '';
    for (const choice of chunk.choices ?? []) {
       const delta = choice.delta ?? {};
-      for (const key of ['reasoning', 'reasoning_content'] as const) {
-         const value = delta[key];
-         if (typeof value === 'string') chars += value.length;
+      const plain = [delta.reasoning, delta.reasoning_content].filter((value): value is string => typeof value === 'string');
+      if (plain.length > 0) {
+         text += plain.join('');
+         continue;
       }
       const details = delta.reasoning_details;
       if (Array.isArray(details)) {
          for (const detail of details) {
-            const text = (detail as { text?: unknown; summary?: unknown }).text ?? (detail as { summary?: unknown }).summary;
-            if (typeof text === 'string') chars += text.length;
+            const piece = (detail as { text?: unknown; summary?: unknown }).text ?? (detail as { summary?: unknown }).summary;
+            if (typeof piece === 'string') text += piece;
          }
       }
    }
-   return chars;
+   return text;
 }
 
 /** `prompt_tokens` without the cached part, which Berry prices apart. */
@@ -141,8 +147,8 @@ function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptio
    const emit = (event: string, controller: TransformStreamDefaultController<Uint8Array>) => {
       const data = event.startsWith('data:') ? event.slice(5).trim() : null;
       if (data !== null && options.onReasoning) {
-         const chars = reasoningLength(data);
-         if (chars > 0) options.onReasoning(chars);
+         const text = reasoningText(data);
+         if (text !== '') options.onReasoning(text);
       }
       if (data === null || data === '[DONE]' || !data.includes('"usage"')) {
          controller.enqueue(encoder.encode(`${event}\n\n`));

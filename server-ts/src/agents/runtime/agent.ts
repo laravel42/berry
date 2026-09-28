@@ -43,7 +43,7 @@ export interface RunAgentSpec {
     */
    messages?: Message[] | MessageData[] | undefined;
    /** See `ModelSpec.onReasoning`. */
-   onReasoning?: ((chars: number) => void) | undefined;
+   onReasoning?: ((text: string) => void) | undefined;
 }
 
 /** Messages kept in the model's view of the conversation. */

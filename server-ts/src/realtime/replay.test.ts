@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { UNRELAYED_EVENTS } from '../runs/ledger.ts';
 import { BOARD_TOPICS, WORKSPACE_TOPICS } from './replay.ts';
 
 /**
@@ -34,8 +35,18 @@ test('every run event the ledger writes is replayed to the board stream', () => 
    const written = new Set(source.match(/'run\.[a-z_.]+'/g)?.map((literal) => literal.slice(1, -1)));
    assert.ok(written.size >= 10, 'the ledger names its events as literals');
    const replayed = new Set<string>([...BOARD_TOPICS, ...WORKSPACE_TOPICS]);
-   const missing = [...written].filter((topic) => !replayed.has(topic));
+   const missing = [...written].filter((topic) => !replayed.has(topic) && !UNRELAYED_EVENTS.includes(topic));
    assert.deepEqual(missing, []);
+});
+
+test('an event the ledger never relays is not offered as a topic either', () => {
+   // Otherwise a board stream would advertise something the outbox never
+   // carries, and reasoning would leak past the task's own members.
+   assert.ok(UNRELAYED_EVENTS.length > 0);
+   for (const topic of UNRELAYED_EVENTS) {
+      assert.ok(!(BOARD_TOPICS as readonly string[]).includes(topic), topic);
+      assert.ok(!(WORKSPACE_TOPICS as readonly string[]).includes(topic), topic);
+   }
 });
 
 test('recorded usage reaches the workspace stream, not the board stream', () => {

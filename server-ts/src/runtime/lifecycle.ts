@@ -56,10 +56,11 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
    z.object({ kind: z.literal('tool.started'), toolCallId: z.string(), name: z.string() }),
    /**
     * The model is reasoning before it answers: sent when it starts and then at
-    * most every few seconds while it goes on, with how much it has reasoned in
-    * this run so far. Nothing of what it reasoned leaves the runtime.
+    * most every second while it goes on, with how much it has reasoned in this
+    * run so far and, in `text`, what it reasoned since the last one. Shown to
+    * the task's members; never part of the transcript the model is given back.
     */
-   z.object({ kind: z.literal('thinking'), chars: z.number().int().nonnegative() }),
+   z.object({ kind: z.literal('thinking'), chars: z.number().int().nonnegative(), text: z.string().optional() }),
    z.object({
       kind: z.literal('tool.completed'),
       toolCallId: z.string(),

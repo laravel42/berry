@@ -56,8 +56,8 @@ export interface ModelSpec {
     * more than plain input, and no later request would read it. Defaults on.
     */
    cacheConversation?: boolean | undefined;
-   /** Told the length of each piece of reasoning the model streams (Kilo only); see `KiloFetchOptions.onReasoning`. */
-   onReasoning?: ((chars: number) => void) | undefined;
+   /** Told each piece of reasoning the model streams (Kilo only); see `KiloFetchOptions.onReasoning`. */
+   onReasoning?: ((text: string) => void) | undefined;
 }
 
 /** What builds a model. Production passes `bedrockModel`; tests pass a script. */

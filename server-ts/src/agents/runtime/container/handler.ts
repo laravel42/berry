@@ -240,6 +240,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          ? await deps.repository.prepare({ envelope, session: workspace, warm, emit, signal })
          : null;
 
+      const thinking = thinkingReporter(emit);
       const agent = buildRunAgent(
          {
             agentName: envelope.agent.name,
@@ -269,7 +270,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             sessionId: envelope.runtimeSessionId,
             fallbackModel: envelope.agent.fallbackModel ?? null,
             messages: warm && held ? held.messages : toConversation(envelope.transcript),
-            onReasoning: thinkingReporter(emit),
+            onReasoning: thinking,
          },
          deps.modelFactory
       );
@@ -290,6 +291,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             ...(envelope.agent.maxOutputTokens ? { outputTokens: envelope.agent.maxOutputTokens } : {}),
          },
       });
+      thinking.flush();
       await ledger.flush();
       if (LIMIT_STOPS.includes(result.stopReason)) {
          deps.registry.drop(key);
@@ -394,23 +396,45 @@ export function agentFingerprint(envelope: TaskEnvelope): string {
 
 export { toConversation } from './conversation.ts';
 
-/** How often a run that is still reasoning says so. */
-export const THINKING_EVERY_MS = 5_000;
+/** How often a run that is still reasoning sends what it reasoned. */
+export const THINKING_EVERY_MS = 1_000;
+
+export interface ThinkingReporter {
+   (text: string): void;
+   /** Sends what is held now: the run is ending, and a timer after it would be refused. */
+   flush(): void;
+}
 
 /**
  * Reasoning, as `thinking` messages: the first piece at once, then at most one
- * every `THINKING_EVERY_MS`, each with the run's reasoning so far. Enough for
- * the task page to show that the model is working and for how long; the
- * reasoning itself is never sent.
+ * every `THINKING_EVERY_MS`, each with the run's reasoning total and the text
+ * since the one before. What is held is sent when the interval is up even if
+ * no more reasoning arrives, so the passage just before a tool call is not
+ * left behind until the next one.
  */
-export function thinkingReporter(emit: Emit, now: () => number = Date.now): (chars: number) => void {
+export function thinkingReporter(emit: Emit, now: () => number = Date.now): ThinkingReporter {
    let total = 0;
+   let held = '';
    let last = -Infinity;
-   return (chars) => {
-      total += chars;
-      const at = now();
-      if (at - last < THINKING_EVERY_MS) return;
-      last = at;
-      emit({ type: 'task.message', message: { kind: 'thinking', chars: total } });
+   let timer: ReturnType<typeof setTimeout> | null = null;
+   const send = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (held === '') return;
+      last = now();
+      const text = held;
+      held = '';
+      emit({ type: 'task.message', message: { kind: 'thinking', chars: total, text } });
    };
+   const report = (text: string) => {
+      total += text.length;
+      held += text;
+      const wait = THINKING_EVERY_MS - (now() - last);
+      if (wait <= 0) return send();
+      if (!timer) {
+         timer = setTimeout(send, wait);
+         timer.unref();
+      }
+   };
+   return Object.assign(report, { flush: send });
 }

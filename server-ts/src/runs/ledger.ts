@@ -28,8 +28,19 @@ import { notifyRunTerminal } from './terminal-hooks.ts';
  *   - Each event is written twice in one transaction: to `run_events`, which
  *     is the durable history, and to `outbox_events`, which the worker relays
  *     to connected browsers. Publishing outside the transaction would announce
- *     facts that could still roll back.
+ *     facts that could still roll back. The exceptions are `UNRELAYED_EVENTS`.
  */
+
+/**
+ * Written to the run's own history, never to the outbox.
+ *
+ * The run's stream is readable only by someone who can read the task; the
+ * outbox reaches every open board in the workspace and every plugin hook.
+ * Reasoning quotes whatever the agent just read, so it stays on the narrower
+ * stream. A topic here must not also be a board or workspace topic, which
+ * `realtime/replay.test.ts` checks.
+ */
+export const UNRELAYED_EVENTS: readonly string[] = ['run.thinking'];
 
 export class RunNotFound extends Error {
    constructor() {
@@ -286,11 +297,16 @@ export class RunLedger {
    /** Only the tool's name and call id. Arguments are never recorded. */
    /**
     * The model is reasoning before it answers (`thinking` from the runtime):
-    * how much, never what. The task page shows it as Thinking, so a long
-    * silence between steps reads as work rather than a stalled run.
+    * how much, and what since the last event. The task page shows it as
+    * Thinking, so a long silence between steps reads as work rather than a
+    * stalled run.
+    *
+    * Kept to the run's own stream, which only the task's members can read (see
+    * `UNRELAYED_EVENTS`), and not added to `runs.output`, the transcript the
+    * model is given back.
     */
-   async appendThinking(runId: string, chars: number): Promise<void> {
-      await this.appendActiveEvent(runId, 'run.thinking', { chars });
+   async appendThinking(runId: string, chars: number, text?: string): Promise<void> {
+      await this.appendActiveEvent(runId, 'run.thinking', text ? { chars, text } : { chars });
    }
 
    async appendToolStarted(runId: string, toolCallId: string, name: string): Promise<void> {
@@ -713,6 +729,7 @@ export class RunLedger {
             ${event.id}, ${run.id}, ${run.boardId}, ${run.issueId}, ${event.sequence},
             ${event.type}, ${tx.json(event.payload as never)}, true, ${event.occurredAt}
          )`;
+      if (UNRELAYED_EVENTS.includes(event.type)) return;
 
       await tx`
          INSERT INTO outbox_events (

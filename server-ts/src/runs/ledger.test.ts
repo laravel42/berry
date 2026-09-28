@@ -134,6 +134,27 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       assert.notEqual(run!.completed_at, null);
    });
 
+   test('reasoning is kept to the run\'s own stream: not relayed, and not in the transcript', async () => {
+      const { runId } = await createRun(sql, fixture, null);
+      await ledger.claimDispatch(runId);
+      await ledger.markRunning(runId);
+      await ledger.appendThinking(runId, 12, 'Let me check');
+      await ledger.appendOutput(runId, 'progress', 'Checking.');
+      await ledger.appendThinking(runId, 12);
+
+      const events = await sql`
+         SELECT event_type, payload, public FROM run_events
+          WHERE run_id = ${runId} AND event_type = 'run.thinking' ORDER BY sequence`;
+      assert.deepEqual(events.map((row) => row.payload), [{ chars: 12, text: 'Let me check' }, { chars: 12 }]);
+      assert.ok(events.every((row) => row.public === true), 'the run stream serves public events only');
+
+      const relayed = await sql`
+         SELECT topic FROM outbox_events WHERE payload->>'runId' = ${runId} AND topic = 'run.thinking'`;
+      assert.equal(relayed.length, 0);
+      const [run] = await sql`SELECT output FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.output, 'Checking.');
+   });
+
    test('every event is relayed as a jsonb object, never a quoted string', async () => {
       const { runId, issueId } = await createRun(sql, fixture, null);
       await ledger.claimDispatch(runId);

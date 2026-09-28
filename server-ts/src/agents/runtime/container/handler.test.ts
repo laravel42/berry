@@ -396,17 +396,30 @@ test('a limit stop with no repository says its Berry work stands', async () => {
    assert.equal(last.delivery, undefined);
 });
 
-test('reasoning is reported at once, then at most every few seconds, with the run\'s total so far', () => {
+const thoughts = (events: LifecycleEvent[]) =>
+   events.map((event) => (event.type === 'task.message' && event.message.kind === 'thinking' ? [event.message.chars, event.message.text] : null));
+
+test('reasoning is sent at once, then at most every interval, with the total so far and the text since the last', () => {
    const events: LifecycleEvent[] = [];
    let now = 1_000;
    const report = thinkingReporter((event) => events.push(event), () => now);
-   report(10);
-   now += 1_000;
-   report(20);
+   report('first');
+   now += 100;
+   report('held ');
    now += THINKING_EVERY_MS;
-   report(5);
-   assert.deepEqual(
-      events.map((event) => (event.type === 'task.message' && event.message.kind === 'thinking' ? event.message.chars : null)),
-      [10, 35]
-   );
+   report('and this');
+   report.flush();
+   assert.deepEqual(thoughts(events), [[5, 'first'], [18, 'held and this']]);
+});
+
+test('reasoning held at the end of an interval is sent without waiting for more', async () => {
+   const events: LifecycleEvent[] = [];
+   const report = thinkingReporter((event) => events.push(event));
+   report('first');
+   report(' then a tool call');
+   assert.equal(events.length, 1);
+   await new Promise((resolve) => setTimeout(resolve, THINKING_EVERY_MS + 50));
+   assert.deepEqual(thoughts(events), [[5, 'first'], [22, ' then a tool call']]);
+   report.flush();
+   assert.equal(events.length, 2, 'nothing held, nothing sent');
 });
