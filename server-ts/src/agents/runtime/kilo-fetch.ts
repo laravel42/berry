@@ -29,6 +29,66 @@ export function isFreeModel(model: string): boolean {
    return model.endsWith(':free');
 }
 
+/**
+ * How long the gateway may say nothing before the call is abandoned: before
+ * the response headers, and again between any two chunks of a stream.
+ *
+ * Not a cap on the call. A plan is minutes of work and a model may think for
+ * a while before its first token, so only silence is bounded. The gateway
+ * accepted a plan repair and then never answered it: Berry gave up on the run
+ * after five minutes, but this request stayed open, and with it the session's
+ * container, which the local router will not reap while a request is in
+ * flight. Aborting here is what lets the socket go, and the container with it.
+ */
+export const STALL_MS = 120_000;
+
+/** The gateway took the request and then said nothing. Not an answer, so worth trying again. */
+export class GatewaySilent extends Error {
+   override readonly name = 'GatewaySilent';
+   readonly retryable = true;
+   constructor(ms: number) {
+      super(`the model gateway sent nothing for ${Math.round(ms / 1000)}s`);
+   }
+}
+
+/**
+ * A deadline only silence can reach.
+ *
+ * `touch` restarts the clock, so a reply that is still arriving never trips
+ * it however long it runs. The signal aborts this request rather than merely
+ * stopping the wait: a caller that gave up somewhere else does not close this
+ * socket, and an unclosed socket is what kept a container alive.
+ */
+function stallWatch(ms: number, outer: AbortSignal | null | undefined) {
+   const controller = new AbortController();
+   let expired = false;
+   let timer: ReturnType<typeof setTimeout> | null = null;
+   const done = () => {
+      if (timer) clearTimeout(timer);
+      timer = null;
+   };
+   const touch = () => {
+      done();
+      timer = setTimeout(() => {
+         expired = true;
+         controller.abort();
+      }, ms);
+      timer.unref?.();
+   };
+   touch();
+   return {
+      signal: outer ? AbortSignal.any([outer, controller.signal]) : controller.signal,
+      touch,
+      done,
+      /** Whether this watch is what aborted, rather than the caller. */
+      get expired(): boolean {
+         return expired;
+      },
+   };
+}
+
+type StallWatch = ReturnType<typeof stallWatch>;
+
 /** The usage fields the gateway reports that Berry reads. */
 export interface GatewayUsage {
    prompt_tokens?: number;
@@ -71,6 +131,8 @@ export interface KiloFetchOptions {
     * it thought would be lost.
     */
    onReasoning?: (text: string) => void;
+   /** Silence after which the call is abandoned. See `STALL_MS`. */
+   stallMs?: number;
 }
 
 /**
@@ -140,7 +202,11 @@ function rewriteChunk(payload: string, options: KiloFetchOptions): string[] {
  * is held until one completes; anything that is not a `data:` event with a
  * usage passes through as it came.
  */
-function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptions): ReadableStream<Uint8Array> {
+function rewriteStream(
+   body: ReadableStream<Uint8Array>,
+   options: KiloFetchOptions,
+   watch: StallWatch
+): ReadableStream<Uint8Array> {
    const decoder = new TextDecoder();
    const encoder = new TextEncoder();
    let pending = '';
@@ -161,6 +227,9 @@ function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptio
    return body.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
          transform(chunk, controller) {
+            // Anything at all counts as the gateway still answering, including
+            // the keep-alive comments it sends between two slow chunks.
+            watch.touch();
             pending += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, '\n');
             let end = pending.indexOf('\n\n');
             while (end !== -1) {
@@ -178,6 +247,7 @@ function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptio
             }
          },
          flush(controller) {
+            watch.done();
             const rest = pending + decoder.decode();
             if (rest.trim().length === 0) return;
             try {
@@ -185,6 +255,9 @@ function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptio
             } catch (error) {
                controller.error(error);
             }
+         },
+         cancel() {
+            watch.done();
          },
       })
    );
@@ -263,25 +336,43 @@ export function kiloFetch(options: KiloFetchOptions = {}, inner: typeof fetch = 
       const parsed = parseBody(init);
       const model = parsed && typeof parsed.model === 'string' ? parsed.model : null;
       const request = parsed ? { ...init, body: JSON.stringify(withAnthropicCachePoints(parsed, { conversation: options.cacheConversation !== false })) } : init;
-      const response = await inner(input, request);
-      if (model === null || !response.ok) return response;
+      const watch = stallWatch(options.stallMs ?? STALL_MS, init?.signal);
+      let response: Response;
+      try {
+         response = await inner(input, { ...request, signal: watch.signal });
+      } catch (error) {
+         watch.done();
+         // A gateway that never replied reads as a broken connection here, and
+         // "fetch failed" would send a reader looking for a network fault.
+         throw watch.expired ? new GatewaySilent(options.stallMs ?? STALL_MS) : error;
+      }
+      if (model === null || !response.ok) {
+         watch.done();
+         return response;
+      }
 
       const type = response.headers.get('content-type') ?? '';
+      // Handed on still armed: a stream that stops halfway is the same silence
+      // as one that never started, and the headers arriving prove nothing.
       if (type.includes('text/event-stream') && response.body) {
-         return new Response(rewriteStream(response.body, options), {
+         return new Response(rewriteStream(response.body, options, watch), {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,
          });
       }
-      if (type.includes('application/json')) {
-         const body = (await response.json()) as Chunk;
-         if (body.usage) {
-            options.onUsage?.(body.usage, typeof body.model === 'string' ? body.model : null);
-            body.usage = toUncachedUsage(body.usage);
+      try {
+         if (type.includes('application/json')) {
+            const body = (await response.json()) as Chunk;
+            if (body.usage) {
+               options.onUsage?.(body.usage, typeof body.model === 'string' ? body.model : null);
+               body.usage = toUncachedUsage(body.usage);
+            }
+            return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers: response.headers });
          }
-         return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers: response.headers });
+         return response;
+      } finally {
+         watch.done();
       }
-      return response;
    };
 }

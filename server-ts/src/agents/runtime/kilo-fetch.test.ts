@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { kiloFetch, reasoningText, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
+import { GatewaySilent, kiloFetch, reasoningText, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
 
 /**
  * The gateway rules, against a scripted upstream: a paid reply passes whether
@@ -194,4 +194,104 @@ test('reasoning the model streams is read, in each shape gateways send it, and p
    const response = await kiloFetch({ onReasoning: (text) => seen.push(text) }, upstream(sse, 'text/event-stream'))('https://gw', request('moonshotai/kimi-k3'));
    assert.equal(await drain(response), sse);
    assert.deepEqual(seen, ['let me think', ' more']);
+});
+
+/**
+ * Silence, and the difference between it and a slow answer.
+ *
+ * The gateway took a plan repair and never answered. Berry gave up on the run
+ * after five minutes, but the request stayed open, and the session's
+ * container with it: the local router does not reap a session while a request
+ * is in flight, so one stall held a container slot until somebody killed it
+ * by hand.
+ */
+
+/**
+ * An open socket, which is what holds the event loop while a real request is
+ * in flight. The stall timer is unref'd — it must not keep the runtime alive
+ * on its own — so a fake with no I/O would let the loop drain before it fires.
+ */
+function held(): { clear: () => void } {
+   const timer = setTimeout(() => undefined, 10_000);
+   return { clear: () => clearTimeout(timer) };
+}
+
+/** A gateway that accepts the request and then says nothing at all. */
+function mute(seen: { signal?: AbortSignal | undefined }): typeof fetch {
+   return (_input, init) =>
+      new Promise((_resolve, reject) => {
+         const socket = held();
+         seen.signal = init?.signal ?? undefined;
+         init?.signal?.addEventListener('abort', () => {
+            socket.clear();
+            reject(new Error('aborted'));
+         });
+      });
+}
+
+/**
+ * An event stream that sends `count` chunks `everyMs` apart and then goes
+ * quiet without ending — a reply that stopped halfway. Aborting the request
+ * errors the body, as `fetch` does.
+ */
+function trickle(count: number, everyMs: number): typeof fetch {
+   return async (_input, init) => {
+      const socket = held();
+      return new Response(
+         new ReadableStream<Uint8Array>({
+            async start(controller) {
+               init?.signal?.addEventListener('abort', () => {
+                  socket.clear();
+                  controller.error(new Error('aborted'));
+               });
+               for (let sent = 0; sent < count; sent += 1) {
+                  await new Promise((resolve) => setTimeout(resolve, everyMs));
+                  if (init?.signal?.aborted) return;
+                  controller.enqueue(new TextEncoder().encode(`data: {"choices":[{"delta":{"content":"${sent}"}}]}\n\n`));
+               }
+            },
+            cancel() {
+               socket.clear();
+            },
+         }),
+         { status: 200, headers: { 'content-type': 'text/event-stream' } }
+      );
+   };
+}
+
+test('a gateway that never answers is abandoned, and its socket closed with it', async () => {
+   const seen: { signal?: AbortSignal | undefined } = {};
+   const call = kiloFetch({ stallMs: 25 }, mute(seen));
+
+   await assert.rejects(
+      () => call('https://gw', request('qwen/qwen3-coder-next')),
+      (error: unknown) => error instanceof GatewaySilent && /sent nothing for/.test(error.message)
+   );
+   // The point is not that the wait ended: it is that the request did. An
+   // abandoned call whose socket stays open is what kept the container alive.
+   assert.equal(seen.signal?.aborted, true);
+});
+
+test('a reply that keeps arriving is never cut off, however long it takes in total', async () => {
+   // The deadline is on silence, not on the call. A plan is minutes of work
+   // and a capped call would fail the slowest plans rather than the stuck ones.
+   const response = await kiloFetch({ stallMs: 60 }, trickle(6, 10))('https://gw', request('qwen/qwen3-coder-next'));
+   const reader = response.body!.getReader();
+   const decoder = new TextDecoder();
+   let text = '';
+   while (!text.includes('"5"')) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+   }
+   await reader.cancel();
+   // Six chunks over 60ms, none more than 10ms apart: all through.
+   assert.equal(text.match(/delta/g)?.length, 6);
+});
+
+test('a stream that stops halfway is abandoned like one that never started', async () => {
+   const response = await kiloFetch({ stallMs: 25 }, trickle(1, 1))('https://gw', request('qwen/qwen3-coder-next'));
+   const reader = response.body!.getReader();
+   assert.match(new TextDecoder().decode((await reader.read()).value), /delta/);
+   await assert.rejects(() => reader.read());
 });
