@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { tool } from '@strands-agents/sdk';
+import { Message, TextBlock, tool, type Agent } from '@strands-agents/sdk';
 import { z } from 'zod';
-import { buildRunAgent, WINDOW_SIZE } from './agent.ts';
+import { buildRunAgent, DeepCutConversationManager, WINDOW_SIZE } from './agent.ts';
 import { ScriptedModel, call, say } from './scripted-model.ts';
 
 /**
@@ -93,4 +93,18 @@ test('the run is named after the agent, safely', async () => {
    const agent = spec(model);
    assert.equal(agent.name, 'bot');
    assert.equal((await agent.invoke('go')).stopReason, 'endTurn');
+});
+
+test('a proactive cut keeps the newest half, so the cached prefix changes once, not every step', () => {
+   const conversation = () =>
+      Array.from({ length: 40 }, (_, n) => new Message({ role: n % 2 === 0 ? 'user' : 'assistant', content: [new TextBlock(`m${n}`)] }));
+   const manager = new DeepCutConversationManager({ windowSize: WINDOW_SIZE });
+   const agent = { messages: conversation() } as unknown as Agent;
+   assert.equal(manager.reduce({ agent, model: {} as never }), true);
+   assert.ok(agent.messages.length <= 20, `kept ${agent.messages.length}`);
+   assert.equal((agent.messages.at(-1)!.content[0] as TextBlock).text, 'm39');
+   // The SDK's own step, for comparison: two messages at a time.
+   const sdk = { messages: conversation() } as unknown as Agent;
+   new DeepCutConversationManager({ windowSize: WINDOW_SIZE }).reduce({ agent: sdk, model: {} as never, error: new Error('overflow') as never });
+   assert.ok(sdk.messages.length >= 36);
 });

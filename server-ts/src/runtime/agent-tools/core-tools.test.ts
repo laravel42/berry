@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { artifactPathSchema } from './core-tools.ts';
+import { artifactPathSchema, textSlice } from './core-tools.ts';
 
 test('a relative file path is accepted, nested or not', () => {
    for (const path of ['report.md', 'epg/start.js', 'src/main/index.ts', '.env.example', 'user:preferences.json']) {
@@ -27,4 +27,12 @@ test('a path the run_artifacts column would refuse is refused first, with what t
    }
    const refused = artifactPathSchema.safeParse('/tmp/epg/start.js');
    assert.match(refused.error?.issues[0]?.message ?? '', /relative to the task/);
+});
+
+test('a long fetched text comes a slice at a time, with where the next one starts', () => {
+   const text = 'a'.repeat(25);
+   assert.deepEqual(textSlice(text, 0, 10), { text: `${'a'.repeat(10)}\n[truncated]`, nextFrom: 10 });
+   assert.deepEqual(textSlice(text, 20, 10), { text: 'a'.repeat(5) });
+   assert.deepEqual(textSlice('short', 0, 10), { text: 'short' });
+   assert.deepEqual(textSlice(text, 0, 10, false), { text: 'a'.repeat(10), nextFrom: 10 });
 });

@@ -62,6 +62,41 @@ export interface KiloFetchOptions {
     * the model the router picked.
     */
    onUsage?: (usage: GatewayUsage, model: string | null) => void;
+   /** False leaves the messages unmarked: see `withAnthropicCachePoints`. */
+   cacheConversation?: boolean;
+   /**
+    * Called with the length of each piece of reasoning the model streams. The
+    * SDK's chat adapter reads only text and tool calls, so a model thinking for
+    * minutes before a short reply otherwise looks like a run that stopped.
+    */
+   onReasoning?: (chars: number) => void;
+}
+
+/** How much reasoning one streamed chunk carries, in characters: `reasoning`, `reasoning_content` or `reasoning_details[].text`. */
+export function reasoningLength(payload: string): number {
+   if (!payload.includes('"reasoning')) return 0;
+   let chunk: { choices?: Array<{ delta?: Record<string, unknown> }> };
+   try {
+      chunk = JSON.parse(payload) as typeof chunk;
+   } catch {
+      return 0;
+   }
+   let chars = 0;
+   for (const choice of chunk.choices ?? []) {
+      const delta = choice.delta ?? {};
+      for (const key of ['reasoning', 'reasoning_content'] as const) {
+         const value = delta[key];
+         if (typeof value === 'string') chars += value.length;
+      }
+      const details = delta.reasoning_details;
+      if (Array.isArray(details)) {
+         for (const detail of details) {
+            const text = (detail as { text?: unknown; summary?: unknown }).text ?? (detail as { summary?: unknown }).summary;
+            if (typeof text === 'string') chars += text.length;
+         }
+      }
+   }
+   return chars;
 }
 
 /** `prompt_tokens` without the cached part, which Berry prices apart. */
@@ -105,6 +140,10 @@ function rewriteStream(body: ReadableStream<Uint8Array>, options: KiloFetchOptio
    let pending = '';
    const emit = (event: string, controller: TransformStreamDefaultController<Uint8Array>) => {
       const data = event.startsWith('data:') ? event.slice(5).trim() : null;
+      if (data !== null && options.onReasoning) {
+         const chars = reasoningLength(data);
+         if (chars > 0) options.onReasoning(chars);
+      }
       if (data === null || data === '[DONE]' || !data.includes('"usage"')) {
          controller.enqueue(encoder.encode(`${event}\n\n`));
          return;
@@ -165,12 +204,19 @@ const EPHEMERAL = { type: 'ephemeral' } as const;
  * the previous request (the one before the last assistant turn), where that
  * request's cache was written: found there even when a burst of tool results
  * put the newest marker far past it.
+ *
+ * A single call nothing follows (a completion: triage, the review gate, the
+ * planner) marks no message. Writing a cache costs a quarter more than plain
+ * input and is only repaid by a later request that reads it; its system
+ * prompt and tools still are, since the next call of the same kind repeats them.
  */
-export function withAnthropicCachePoints(body: ChatBody): ChatBody {
+export function withAnthropicCachePoints(body: ChatBody, options: { conversation?: boolean } = {}): ChatBody {
    if (typeof body.model !== 'string' || !body.model.startsWith('anthropic/')) return body;
    const all = body.messages ?? [];
    const lastAssistant = all.map((message) => message.role).lastIndexOf('assistant');
-   const marked = new Set([all.length - 1, lastAssistant - 1].filter((index) => index > 0 && all[index]?.role !== 'system'));
+   const marked = new Set(
+      options.conversation === false ? [] : [all.length - 1, lastAssistant - 1].filter((index) => index > 0 && all[index]?.role !== 'system')
+   );
    const messages = body.messages?.map((message, index) => {
       if (message.role === 'system' && typeof message.content === 'string') {
          return { ...message, content: [{ type: 'text', text: message.content, cache_control: EPHEMERAL }] };
@@ -210,7 +256,7 @@ export function kiloFetch(options: KiloFetchOptions = {}, inner: typeof fetch = 
    return async (input, init) => {
       const parsed = parseBody(init);
       const model = parsed && typeof parsed.model === 'string' ? parsed.model : null;
-      const request = parsed ? { ...init, body: JSON.stringify(withAnthropicCachePoints(parsed)) } : init;
+      const request = parsed ? { ...init, body: JSON.stringify(withAnthropicCachePoints(parsed, { conversation: options.cacheConversation !== false })) } : init;
       const response = await inner(input, request);
       if (model === null || !response.ok) return response;
 

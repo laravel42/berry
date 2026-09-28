@@ -104,10 +104,13 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
 
    test('task.failed from the runtime is recorded as sent', async () => {
       const { runId } = await issueTask();
+      const stopped: string[] = [];
       const outcome = await executor(
-         scripted([{ type: 'task.started' }, { type: 'task.failed', failure: { code: 'MODEL_REFUSED', message: 'no', retryable: false } }])
+         scripted([{ type: 'task.started' }, { type: 'task.failed', failure: { code: 'MODEL_REFUSED', message: 'no', retryable: false } }], stopped)
       ).execute(runId);
       assert.equal(outcome.failure?.code, 'MODEL_REFUSED');
+      // An issue's session stays warm for the next run on it.
+      assert.deepEqual(stopped, []);
    });
 
    test('a cancelled run stops the runtime session', async () => {
@@ -136,15 +139,18 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
          workspaceId: fixture!.workspaceId, agentId: fixture!.orchestratorId, kind: 'completion', source: 'completion', prompt: 'x',
       });
       await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose: 't', system: 's', jsonSchema: null, model: null } as never)} WHERE id = ${runId}`;
+      const stopped: string[] = [];
       const outcome = await executor(
          scripted([
             { type: 'task.started' },
             { type: 'task.usage', usage: { model: 'm', inputTokens: 3, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } },
             { type: 'task.completed', result: { text: 'hi', truncated: false, structured: { a: 1 }, delivery: null } },
-         ])
+         ], stopped)
       ).execute(runId);
       assert.equal(outcome.status, 'succeeded');
-      const [run] = await sql`SELECT status, result, total_tokens FROM runs WHERE id = ${runId}`;
+      // Nothing reuses a completion's session, so it is not left idle.
+      const [run] = await sql`SELECT status, result, total_tokens, runtime_session_id FROM runs WHERE id = ${runId}`;
+      assert.deepEqual(stopped, [run!.runtime_session_id]);
       assert.equal(run!.status, 'succeeded');
       assert.deepEqual((run!.result as { structured: unknown }).structured, { a: 1 });
       assert.equal(Number(run!.total_tokens), 5);

@@ -1,6 +1,7 @@
 import {
    Agent,
    SlidingWindowConversationManager,
+   type ConversationManagerReduceOptions,
    type Message,
    type MessageData,
    type Plugin,
@@ -41,10 +42,43 @@ export interface RunAgentSpec {
     * transcript a cold one was restored from. Absent is a fresh conversation.
     */
    messages?: Message[] | MessageData[] | undefined;
+   /** See `ModelSpec.onReasoning`. */
+   onReasoning?: ((chars: number) => void) | undefined;
 }
 
 /** Messages kept in the model's view of the conversation. */
 export const WINDOW_SIZE = 60;
+
+/**
+ * The sliding window, cutting deep when the context nears its limit.
+ *
+ * The SDK compresses proactively once a call's input passes 70% of the
+ * model's context, and then drops only the two oldest messages. The next call
+ * is over the threshold again, so it drops two more, and so on: every step
+ * changes the start of the conversation, which is the prefix the prompt cache
+ * is keyed on. Measured on a Sonnet 5 run: from 140k tokens on, each step read
+ * only the system prompt from cache and wrote the other ~150k again at a
+ * quarter above the input price, about $0.40 a step.
+ *
+ * So a proactive cut keeps only the newest half of the conversation. The cache
+ * is written once for what is left, and the steps after it read it until the
+ * conversation grows back to the threshold. A reduction the model forced (an
+ * overflow error) is the SDK's own, unchanged.
+ */
+export class DeepCutConversationManager extends SlidingWindowConversationManager {
+   override reduce(options: ConversationManagerReduceOptions): boolean {
+      if (options.error) return super.reduce(options);
+      const messages = options.agent.messages;
+      const keep = Math.ceil(messages.length / 2);
+      let reduced = false;
+      while (messages.length > keep) {
+         const before = messages.length;
+         if (!super.reduce(options) || messages.length >= before) break;
+         reduced = true;
+      }
+      return reduced;
+   }
+}
 
 export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = bedrockModel): Agent {
    const modelSpec: ModelSpec = {
@@ -54,6 +88,7 @@ export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = b
       maxTokens: spec.maxTokens,
       temperature: spec.temperature,
       sessionId: spec.sessionId,
+      onReasoning: spec.onReasoning,
    };
    return new Agent({
       model: withFallback(modelFactory, modelSpec, spec.fallbackModel),
@@ -77,7 +112,7 @@ export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = b
       // cut exists it falls back to a complete tool pair. Large tool results
       // are truncated in place (shouldTruncateResults, default on) before any
       // trim. So the window size is safe as-is — no wrapper needed.
-      conversationManager: new SlidingWindowConversationManager({
+      conversationManager: new DeepCutConversationManager({
          windowSize: WINDOW_SIZE,
          proactiveCompression: true,
       }),

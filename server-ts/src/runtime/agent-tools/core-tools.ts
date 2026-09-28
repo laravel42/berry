@@ -57,7 +57,8 @@ export const artifactPathSchema = z
  * cancelled), the same delegation graph, the same autonomy ceiling.
  */
 
-const MAX_READ_BYTES = 64 * 1024;
+/** Characters of a saved file one read returns; the rest by `from`, as with `fetch_url`. */
+const MAX_READ_CHARS = 32_000;
 const MAX_ATTACH_BYTES = 10 * 1024 * 1024;
 const AGENT_STATUSES = ['todo', 'in_progress', 'in_review', 'blocked'] as const;
 
@@ -279,9 +280,26 @@ const DEPENDS_ON = z
    .max(20)
    .describe('Tasks this one waits for, by key (ABC-123) or id. It starts only once all of them are done or cancelled.');
 
-/** How much page text one fetch hands the model: enough to read, not enough to drown in. */
-const MAX_PAGE_TEXT = 60_000;
-const MAX_RAW_TEXT = 200_000;
+/**
+ * How much text one fetch hands the model: enough to read, not enough to drown
+ * in. Everything a tool returns stays in the conversation and is paid for again
+ * on every later step, so a long document is read a slice at a time (`from`)
+ * rather than whole: two raw fetches at the old 200,000-character ceiling
+ * added about 120k tokens to one Sonnet run's every call.
+ */
+const MAX_PAGE_TEXT = 30_000;
+const MAX_RAW_TEXT = 40_000;
+
+/**
+ * `text` from `from`, at most `max` characters, and where the next slice starts
+ * when there is more. A page's text says so inline; a file's does not, so a
+ * slice written back never carries the marker into the file.
+ */
+export function textSlice(text: string, from: number, max: number, marker = true): { text: string; nextFrom?: number } {
+   const slice = text.slice(from, from + max);
+   const end = from + slice.length;
+   return end < text.length ? { text: marker ? `${slice}\n[truncated]` : slice, nextFrom: end } : { text: slice };
+}
 
 export function registerCoreAgentTools(): void {
    if (getAgentTool('read_task')) return;
@@ -413,9 +431,16 @@ export function registerCoreAgentTools(): void {
    });
 
    registerAgentTool('read_file', {
-      description: 'Read a file saved on a task, by path. Defaults to this task.',
+      description:
+         'Read a file saved on a task, by path. Defaults to this task. A long file comes a slice at a time: when ' +
+         'the result has `nextFrom`, read again with `from` set to it, only if you need the rest.',
       scope: 'task:read',
-      inputSchema: z.object({ path: artifactPathSchema, version: z.number().int().min(0).optional(), task: TASK_REF }),
+      inputSchema: z.object({
+         path: artifactPathSchema,
+         version: z.number().int().min(0).optional(),
+         task: TASK_REF,
+         from: z.number().int().min(0).default(0).describe('Where to start reading, from a previous `nextFrom`.'),
+      }),
       handler: async (context, input) => {
          const part = await (await artifactsOf(context, await taskOf(context, input.task))).loadArtifact({
             filename: input.path,
@@ -423,13 +448,15 @@ export function registerCoreAgentTools(): void {
          });
          if (!part?.inlineData?.data) return { path: input.path, found: false };
          const bytes = Buffer.from(part.inlineData.data, 'base64');
+         const { text, nextFrom } = textSlice(bytes.toString('utf8'), input.from, MAX_READ_CHARS, false);
          return {
             path: input.path,
             found: true,
             contentType: part.inlineData.mimeType,
             sizeBytes: bytes.byteLength,
-            truncated: bytes.byteLength > MAX_READ_BYTES,
-            content: bytes.subarray(0, MAX_READ_BYTES).toString('utf8'),
+            truncated: nextFrom !== undefined,
+            content: text,
+            ...(nextFrom === undefined ? {} : { nextFrom }),
          };
       },
    });
@@ -450,7 +477,8 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('attach_file', {
       description:
-         "Attach a binary file (base64) to this task, at a relative path such as 'renders/clip.mp4'.",
+         "Attach a binary file (base64) to this task, at a relative path such as 'renders/clip.mp4'. " +
+         'Only where you have no workspace: a file in your workspace goes on the task with collect_file, by path.',
       scope: 'task:write',
       inputSchema: z.object({
          path: artifactPathSchema,
@@ -650,11 +678,13 @@ export function registerCoreAgentTools(): void {
       description:
          'Read a public web page (one GET, http or https). Returns its title, description, headings, links, ' +
          "stylesheet URLs and readable text; `mode: 'raw'` returns the body as text instead (for a stylesheet or " +
-         'JSON). Private and internal addresses are refused.',
+         'JSON). Long text comes a slice at a time: when the result has `nextFrom`, fetch again with `from` set to ' +
+         'it, only if you need the rest. Private and internal addresses are refused.',
       scope: 'task:read',
       inputSchema: z.object({
          url: z.string().trim().min(1).max(2048),
          mode: z.enum(['readable', 'raw']).default('readable'),
+         from: z.number().int().min(0).default(0).describe('Where to start reading the text, from a previous `nextFrom`.'),
       }),
       handler: async (context, input) => {
          let page;
@@ -674,12 +704,12 @@ export function registerCoreAgentTools(): void {
          const text = page.body.toString('utf8');
          const html = /html/i.test(page.contentType) || /^\s*<(!doctype html|html)/i.test(text);
          if (input.mode === 'readable' && html) {
-            return { ...base, ...readableHtml(text, page.url, MAX_PAGE_TEXT) };
+            const readable = readableHtml(text, page.url, Number.POSITIVE_INFINITY);
+            // The page's outline once, with its first slice; a later slice is only more text.
+            if (input.from > 0) return { ...base, ...textSlice(readable.text, input.from, MAX_PAGE_TEXT) };
+            return { ...base, ...readable, ...textSlice(readable.text, 0, MAX_PAGE_TEXT) };
          }
-         return {
-            ...base,
-            text: text.length > MAX_RAW_TEXT ? `${text.slice(0, MAX_RAW_TEXT)}\n[truncated]` : text,
-         };
+         return { ...base, ...textSlice(text, input.from, MAX_RAW_TEXT) };
       },
    });
 

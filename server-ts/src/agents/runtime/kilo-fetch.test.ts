@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { kiloFetch, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
+import { kiloFetch, reasoningLength, reportedCostMicros, toUncachedUsage, withAnthropicCachePoints, type GatewayUsage } from './kilo-fetch.ts';
 
 /**
  * The gateway rules, against a scripted upstream: a paid reply passes whether
@@ -131,6 +131,23 @@ test('an agent step marks its newest message and the one that ended the previous
    assert.equal(total, 4, "Anthropic's limit");
 });
 
+test('a single call caches its system prompt and tools, not a conversation nothing reads again', () => {
+   const body = withAnthropicCachePoints(
+      {
+         model: 'anthropic/claude-haiku-4.5',
+         messages: [
+            { role: 'system', content: 'rules' },
+            { role: 'user', content: 'triage this' },
+         ],
+         tools: [{ type: 'function' }],
+      },
+      { conversation: false }
+   );
+   assert.deepEqual(body.messages?.[1], { role: 'user', content: 'triage this' });
+   assert.ok(JSON.stringify(body.messages?.[0]).includes('cache_control'));
+   assert.ok('cache_control' in body.tools![0]!);
+});
+
 test('any other vendor is sent exactly as the SDK built it', () => {
    const body = { model: 'openai/gpt-5.6-sol', messages: [{ role: 'system', content: 'rules' }] };
    assert.deepEqual(withAnthropicCachePoints(body), body);
@@ -156,4 +173,20 @@ test("Kilo's auto-routing is exempt from the own-key refusal, and the picked mod
    const response = await guarded('https://gw', request('kilo-auto/efficient'));
    assert.equal(response.status, 200);
    assert.deepEqual(seen, ['z-ai/glm-5.3-flash']);
+});
+
+test('reasoning the model streams is measured, in each shape gateways send it, and passed on unchanged', async () => {
+   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning":"abc"}}]}'), 3);
+   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning_content":"abcd"}}]}'), 4);
+   assert.equal(reasoningLength('{"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","text":"ab"}]}}]}'), 2);
+   assert.equal(reasoningLength('{"choices":[{"delta":{"content":"no reasoning here"}}]}'), 0);
+   const sse =
+      'data: {"id":"g","choices":[{"delta":{"reasoning":"let me think"}}]}\n\n' +
+      'data: {"id":"g","choices":[{"delta":{"reasoning":" more"}}]}\n\n' +
+      'data: {"id":"g","choices":[{"delta":{"content":"ok"}}]}\n\n' +
+      'data: [DONE]\n\n';
+   const seen: number[] = [];
+   const response = await kiloFetch({ onReasoning: (chars) => seen.push(chars) }, upstream(sse, 'text/event-stream'))('https://gw', request('moonshotai/kimi-k3'));
+   assert.equal(await drain(response), sse);
+   assert.deepEqual(seen, [12, 5]);
 });

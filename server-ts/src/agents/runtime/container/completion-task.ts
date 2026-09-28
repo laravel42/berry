@@ -45,6 +45,8 @@ export async function runCompletionTask(
             stream: false,
             maxTokens: envelope.agent.maxTokens ?? undefined,
             sessionId: envelope.runtimeSessionId,
+            // One call, then nothing reads its conversation again.
+            cacheConversation: false,
          },
          envelope.agent.fallbackModel
       ),

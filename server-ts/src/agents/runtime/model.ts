@@ -50,6 +50,14 @@ export interface ModelSpec {
     * calls, and it keys prompt caching. Ignored by Bedrock.
     */
    sessionId?: string | undefined;
+   /**
+    * Whether the conversation is cached, not only the system prompt and tools.
+    * Off for a single call nothing follows: writing a cache costs a quarter
+    * more than plain input, and no later request would read it. Defaults on.
+    */
+   cacheConversation?: boolean | undefined;
+   /** Told the length of each piece of reasoning the model streams (Kilo only); see `KiloFetchOptions.onReasoning`. */
+   onReasoning?: ((chars: number) => void) | undefined;
 }
 
 /** What builds a model. Production passes `bedrockModel`; tests pass a script. */
@@ -273,7 +281,11 @@ export function kiloModel(spec: ModelSpec, kilo: KiloSettings): KiloModel {
       clientConfig: {
          baseURL: kilo.baseUrl,
          maxRetries: 0,
-         fetch: kiloFetch({ onUsage: (usage, model) => reports.push({ usage, model }) }),
+         fetch: kiloFetch({
+            onUsage: (usage, model) => reports.push({ usage, model }),
+            ...(spec.cacheConversation === false ? { cacheConversation: false } : {}),
+            ...(spec.onReasoning ? { onReasoning: spec.onReasoning } : {}),
+         }),
          ...(Object.keys(headers).length > 0 ? { defaultHeaders: headers } : {}),
       },
       maxTokens: maxTokensFor(spec.model, spec.maxTokens ?? DEFAULT_MAX_TOKENS),

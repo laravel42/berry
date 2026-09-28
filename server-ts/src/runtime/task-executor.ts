@@ -210,6 +210,15 @@ export class RuntimeTaskExecutor implements Executor {
          }
          throw error;
       } finally {
+         // A completion's session is its own and nothing reuses it, so it is
+         // ended here rather than left idle on AgentCore until the idle
+         // timeout reaps it: an idle session still bills its memory. A
+         // cancelled one was stopped by #cancel already.
+         if (task.kind === 'completion' && envelopeSession && !abort.aborted) {
+            await this.#o.transport
+               .stop({ target, runtimeSessionId: envelopeSession })
+               .catch((error: unknown) => this.#o.onCancelError?.(error));
+         }
          await revokeTaskTokens(sql, runId).catch(() => undefined);
          await log?.flush();
       }
