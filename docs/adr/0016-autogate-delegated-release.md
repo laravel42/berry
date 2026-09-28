@@ -135,3 +135,22 @@ told every reviewer its approval never releases work. Leaving that in place whil
 the gate did otherwise would have been a lie to the reviewer and an instruction
 to the next agent working on Berry to put the old behaviour back. Same for
 AGENTS.md, the coding playbook, the product brief and the steering rules.
+
+## Current state
+
+Updated 2026-09-28. The loop is no longer unbounded. Three blocking
+rejections in a row (`autoGateRounds`, counted since the task's last run that
+every blocking reviewer passed) hand the task to a person: it goes to `todo`,
+is assigned to the run's requester, and gets a comment saying why, with no
+further run. A person who restarts it gives it three more. The field case was
+one task rejected thirteen times in 26 minutes whose work was already on main:
+each rerun answered the last rejection the same way, and the rule above spent
+a run on every round of it. A refused merge is not a rejection and never hands
+off.
+
+Reviewers can read the repository, read-only, at the commit under review (the
+pull request's head, or the default branch for work with no pull request):
+they are given its file list and may ask for up to eight files per round, for
+three rounds, before they decide (`src/agents/review-files.ts`). The gate
+reads the files from GitHub; the reviewer is still one model call per round,
+with no tools, so nothing here reaches the runtime.

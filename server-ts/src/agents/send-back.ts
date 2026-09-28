@@ -36,11 +36,20 @@ export async function sendBack(
       instructions: string | null;
       /** A reviewer rejected the work, rather than a merge failing: the next run moves to the tier's next model. */
       rejected: boolean;
+      /** Who holds the task afterwards, when not its author: the person it is handed to. */
+      assignTo?: { type: 'user'; id: string } | null;
    }
 ): Promise<void> {
    await deps.issues.update({
       issueId: input.issueId,
-      patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
+      patch: {
+         status: 'todo',
+         descriptionSet: false,
+         dueDateSet: false,
+         assigneeSet: Boolean(input.assignTo),
+         ...(input.assignTo ? { assignee: input.assignTo } : {}),
+         projectSet: false,
+      },
       actorId: input.actor.id,
       actorType: input.actor.type,
       rejected: input.rejected,

@@ -14,6 +14,8 @@ import { RunRepository } from '../runs/repository.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { parseRepository } from './checkout.ts';
 import { repositoryForIssue } from './repository-context.ts';
+import { filesText, listingText, MAX_READ_ROUNDS, openReviewFiles, type ReviewFiles } from './review-files.ts';
+import type { TranscriptMessage } from '../runtime/envelope.ts';
 
 /**
  * AutoGate: a peer agent reviews what a run delivered.
@@ -21,10 +23,11 @@ import { repositoryForIssue } from './repository-context.ts';
  * A task whose plan opted into AutoGate does not wait for a person at the
  * review gate. When its run has opened a pull request, an agent that is not
  * the author reads the task, the run's own account of the work, the checks
- * that ran and the diff, and says whether the work is done. Approved leaves
- * the task in review for a person; rejected sends it back to todo with the reason, and the
- * author is given another run — a bounded number of times, because a reviewer
- * that keeps rejecting is telling a person something.
+ * that ran and the diff, and may read the repository before it says whether
+ * the work is done (`review-files.ts`). Rejected sends it back to todo with
+ * the reason, and the author is given another run — a bounded number of
+ * times, because a reviewer that keeps rejecting is telling a person
+ * something: under AutoGate, three in a row hand the task to one.
  *
  * The verdict is a row in `issue_auto_reviews`, which the task page already
  * reads, and a comment on the task in the reviewer's name. The rejection
@@ -68,6 +71,8 @@ const VERDICT = z.object({
          })
       )
       .default([]),
+   /** Paths to read before deciding (`review-files.ts`); non-empty means the verdict is not given yet. */
+   read: z.array(z.string()).default([]),
 });
 
 /** The Security Engineer's verdict: every finding says how exploitable it is, what it costs and how to fix it. */
@@ -82,6 +87,7 @@ export const SECURITY_VERDICT = z.object({
       path: z.string().nullable().optional(),
       message: z.string(),
    })).default([]),
+   read: z.array(z.string()).default([]),
 });
 
 /** A verdict as a reviewer submits it through `submit_review`: the path may be absent. */
@@ -183,11 +189,14 @@ export interface ReviewGateOptions {
    /** A client authenticated for the workspace's repository. */
    github: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    defaultModel: string;
-   /**
-    * Rejection budget for a manually forced review. AutoGate deliberately has
-    * none: its contract is to keep running until a different agent approves.
-    */
+   /** Rejection budget for a manually forced review. */
    maxAttempts?: number;
+   /**
+    * Under AutoGate, rejections in a row after which the task goes to a
+    * person instead of back to its author. Every multiple of it hands off
+    * again, so a person who restarts the task gives it this many more.
+    */
+   autoGateRounds?: number;
    /** Bytes of diff the reviewer is shown. The tail is kept, with a note. */
    maxDiffBytes?: number;
    /**
@@ -207,6 +216,7 @@ export interface ReviewGateOptions {
 }
 
 const DEFAULT_MAX_ATTEMPTS = 2;
+const DEFAULT_AUTO_GATE_ROUNDS = 3;
 const DEFAULT_MAX_DIFF_BYTES = 120 * 1024;
 /** Text of the run's own files the reviewer is shown, in total and per file. */
 const MAX_ARTIFACT_TEXT_BYTES = 120 * 1024;
@@ -223,6 +233,11 @@ not, and the checks that ran support it. Approve work that does the task even
 if you would have written it differently; reject work that does something
 else, does part of it, or would leave the repository worse.
 
+Judge the work, not how much of it you were shown. When the diff alone does
+not settle a question and you can read the repository, read the files that
+settle it. "I could not verify" is not a reason to send work back: say what
+the work lacks, or read until you can.
+
 Be specific in \`reason\`: it is what the author is told when the task is sent
 back, and what a person reads to understand the verdict. Put each concrete
 problem in \`findings\` with the path it concerns when there is one.`;
@@ -235,6 +250,7 @@ export class ReviewGate {
    readonly #github: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
    readonly #defaultModel: string;
    readonly #maxAttempts: number;
+   readonly #autoGateRounds: number;
    readonly #maxDiffBytes: number;
    readonly #openArtifact: ((storageKey: string) => Promise<Uint8Array>) | null;
    readonly #clock: () => Date;
@@ -250,6 +266,7 @@ export class ReviewGate {
       this.#github = options.github;
       this.#defaultModel = options.defaultModel;
       this.#maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+      this.#autoGateRounds = Math.max(1, options.autoGateRounds ?? DEFAULT_AUTO_GATE_ROUNDS);
       this.#maxDiffBytes = options.maxDiffBytes ?? DEFAULT_MAX_DIFF_BYTES;
       this.#openArtifact = options.openArtifact ?? null;
       this.#clock = options.clock ?? (() => new Date());
@@ -311,14 +328,12 @@ export class ReviewGate {
             material.delivered?.pullRequest && material.repository
                ? await this.#diff(material)
                : null;
-         const result = await this.#completion.structured({
-            workspaceId: material.workspaceId,
-            purpose: 'review_gate',
-            model: reviewer.model ?? this.#defaultModel,
-            system: SYSTEM,
-            user: reviewPrompt(material, diff),
-            schema: VERDICT,
-         });
+         const result = await this.#consult(
+            material,
+            { model: reviewer.model ?? this.#defaultModel, system: SYSTEM, schema: VERDICT },
+            reviewPrompt(material, diff),
+            await this.#reviewFiles(material)
+         );
          verdict = normalise(result);
       } catch (error) {
          // A reviewer that could not read is not a rejection. The row is
@@ -451,6 +466,7 @@ export class ReviewGate {
                for (const reviewer of pending) failed.add(reviewer.role);
             }
          }
+         const files = unreadable ? null : await this.#reviewFiles(material);
          // Reviewers are independent: each has its own row, role/model and the
          // same immutable task evidence. Waiting for QA before even asking
          // Security made a multi-review gate take the sum of every model call;
@@ -461,7 +477,7 @@ export class ReviewGate {
                const reviewId = await this.#openRequired(material, reviewer, attempt);
                if (!reviewId) return { reviewer, decided: false, failed: false };
                try {
-                  const verdict = await this.#ask(material, reviewer, diff);
+                  const verdict = await this.#ask(material, reviewer, diff, files);
                   return {
                      reviewer,
                      decided: await this.#decideRequired(reviewId, verdict),
@@ -639,20 +655,63 @@ export class ReviewGate {
       return { impactClasses: row?.impact_classes ?? [], severity: row?.severity ?? null };
    }
 
-   async #ask(material: ReviewMaterial, reviewer: RequiredReviewer, diff: string | null): Promise<Verdict> {
+   async #ask(material: ReviewMaterial, reviewer: RequiredReviewer, diff: string | null, files: ReviewFiles | null): Promise<Verdict> {
       const model = reviewer.model ?? this.#defaultModel;
       const system = reviewerSystem(reviewer.contract);
       const user = reviewPrompt(material, diff);
       if (reviewer.role === 'security-engineer') {
-         const result = await this.#completion.structured({
-            workspaceId: material.workspaceId, purpose: 'review_gate', model, system, user, schema: SECURITY_VERDICT,
-         });
+         const result = await this.#consult(material, { model, system, schema: SECURITY_VERDICT }, user, files);
          return normaliseSecurityVerdict(result.value);
       }
-      const result = await this.#completion.structured({
-         workspaceId: material.workspaceId, purpose: 'review_gate', model, system, user, schema: VERDICT,
-      });
-      return normalise(result);
+      return normalise(await this.#consult(material, { model, system, schema: VERDICT }, user, files));
+   }
+
+   /**
+    * A reviewer's answer, once it has read what it asked for.
+    *
+    * Each round that lists paths in `read` is answered with those files and
+    * asked again, the exchange so far as its transcript; its verdict fields
+    * are not a verdict yet. After `MAX_READ_ROUNDS` the answer stands as
+    * given. Without `files` it is the one call it always was.
+    */
+   async #consult<T extends { read: string[] }>(
+      material: ReviewMaterial,
+      call: { model: string; system: string; schema: z.ZodType<T> },
+      user: string,
+      files: ReviewFiles | null
+   ): Promise<CompletionResult<T>> {
+      const transcript: TranscriptMessage[] = [];
+      let prompt = files ? `${user}\n\n${listingText(files)}` : user;
+      for (let round = 0; ; round += 1) {
+         const result = await this.#completion.structured({
+            workspaceId: material.workspaceId,
+            purpose: 'review_gate',
+            model: call.model,
+            system: call.system,
+            user: prompt,
+            schema: call.schema,
+            ...(transcript.length > 0 ? { transcript: [...transcript] } : {}),
+         });
+         const wanted = result.value.read;
+         if (!files || wanted.length === 0 || round >= MAX_READ_ROUNDS) return result;
+         const read = await files.read(wanted);
+         transcript.push({ role: 'user', text: prompt }, { role: 'assistant', text: JSON.stringify(result.value) });
+         prompt = filesText(read, MAX_READ_ROUNDS - round - 1);
+      }
+   }
+
+   /** The repository as the reviewers may read it, or null when there is none or GitHub cannot be read. */
+   async #reviewFiles(material: ReviewMaterial): Promise<ReviewFiles | null> {
+      if (!material.repository) return null;
+      try {
+         const { owner } = parseRepository(material.repository);
+         const client = await this.#github(material.workspaceId, owner);
+         return await openReviewFiles(client, material.repository, material.delivered?.pullRequest ?? null);
+      } catch (error) {
+         // Reviewed on the diff alone, as before, rather than not at all.
+         this.#onError('opening the repository for the reviewers failed', error);
+         return null;
+      }
    }
 
    /** Opens one required reviewer's row, or refreshes an undecided one. Null when the row is already decided. */
@@ -904,31 +963,35 @@ export class ReviewGate {
    }
 
    /**
-    * Whether this task has run out of tries.
+    * Whether a review may run at all.
     *
-    * It never has under AutoGate. The point of AutoGate is that the loop runs to
-    * a conclusion on its own — approved, or rejected and tried again — so a
-    * budget that stops it is a budget that hands the task back to the person who
-    * asked not to be asked. A task left in `todo` with nobody re-admitted is a
-    * request for attention wearing a different status.
-    *
-    * Without AutoGate the budget stands: those reviews are advice on the way to
-    * a person, and after a few rounds the useful thing is to stop and let them
-    * look.
+    * Always under AutoGate: its loop stops where a rejection is recorded, by
+    * handing the task to a person (`#sendBack`), and a task that is back in
+    * review got there because somebody restarted it. Without AutoGate the
+    * budget stands: those reviews are advice on the way to a person, and after
+    * a few rounds the useful thing is to stop and let them look.
     */
    #budgetSpent(material: ReviewMaterial, attempt: number, options: { force?: boolean }): boolean {
       if (material.autoGate) return false;
       return attempt > this.#maxAttempts && !options.force;
    }
 
-   /** Back to todo, and another go for the author. */
+   /**
+    * Back to todo, and another go for the author — or, after
+    * `autoGateRounds` rejections in a row under AutoGate, to a person.
+    *
+    * Unbounded, the loop spent thirteen runs on one task whose work was
+    * already on main: the reviewer kept finding the same gap and the author
+    * kept answering it the same way. Past a few rounds another run only
+    * repeats the last one, and the useful thing is to stop paying for it and
+    * show somebody the verdicts. A refused merge is not a rejection and never
+    * hands off. A rejection's reason reaches the author through the prompt's
+    * own review-feedback path; a refused merge passes `instructions` instead.
+    */
    async #sendBack(material: ReviewMaterial, actorId: string, attempt: number, instructions: string | null = null): Promise<void> {
-      // Another go. Under AutoGate always: the loop runs until a reviewer
-      // approves, which is what makes the task's outcome the loop's business
-      // rather than the person's. Otherwise while the budget allows. A
-      // rejection's reason reaches the author through the prompt's own
-      // review-feedback path; a refused merge has no rejection behind it and
-      // passes `instructions` instead.
+      const inRow = instructions === null && material.autoGate ? await this.#rejectionsInRow(material.issue.id) : 0;
+      const handOff = inRow > 0 && inRow % this.#autoGateRounds === 0;
+      const person = handOff && material.run.requestedBy ? { type: 'user' as const, id: material.run.requestedBy } : null;
       await sendBack(
          { issues: this.#issues, runs: this.#runs, onError: this.#onError },
          {
@@ -938,12 +1001,36 @@ export class ReviewGate {
             agentId: material.run.agentId,
             actor: { id: actorId, type: 'agent' },
             requestedBy: material.run.requestedBy,
-            again: material.autoGate || attempt < this.#maxAttempts,
+            again: !handOff && (material.autoGate || attempt < this.#maxAttempts),
             instructions,
             // A refused merge carries its instructions; a reviewer's rejection does not.
             rejected: instructions === null,
+            assignTo: person,
          }
       );
+      if (handOff) await this.#comment(material.issue.id, actorId, handOffComment(inRow, person !== null, this.#autoGateRounds));
+   }
+
+   /**
+    * Rejected runs since the task's last run every blocking reviewer passed.
+    *
+    * Rounds, not rows, as `#attemptOf` counts them. A run QA passed and
+    * Security rejected is a rejection, so a passing row alone does not reset
+    * the count; only a run with no blocking rejection does.
+    */
+   async #rejectionsInRow(issueId: string): Promise<number> {
+      const [row] = await this.#sql`
+         SELECT count(DISTINCT review.run_id)::int AS n
+           FROM issue_auto_reviews AS review
+          WHERE review.issue_id = ${issueId} AND review.approved = false AND review.authority = 'blocking'
+            AND review.decided_at > COALESCE((
+               SELECT max(passed.decided_at) FROM issue_auto_reviews AS passed
+                WHERE passed.issue_id = ${issueId} AND passed.approved AND passed.authority = 'blocking'
+                  AND NOT EXISTS (
+                     SELECT 1 FROM issue_auto_reviews AS other
+                      WHERE other.run_id = passed.run_id AND other.approved = false AND other.authority = 'blocking')
+            ), '-infinity'::timestamptz)`;
+      return Number(row?.n ?? 0);
    }
 
    async #material(runId: string): Promise<ReviewMaterial> {
@@ -1271,6 +1358,14 @@ function mergeUnreachableComment(number: number, error: unknown): string {
 function pendingComment(missing: Array<{ role: string; why: string }>, material: ReviewMaterial): string {
    const lines = missing.map((entry) => `- **${entry.role}**: ${entry.why}`);
    return [`**Required reviews not complete** — the task stays in review.${pullRequestNote(material)}`, lines.join('\n')].join('\n\n');
+}
+
+function handOffComment(rejections: number, assigned: boolean, rounds: number): string {
+   return [
+      `**Handed to a person** after ${rejections} rejections in a row.`,
+      `The author is not given another run: the reviews above keep sending it back, and another round would repeat the last one.${assigned ? ' The task is assigned to the person who asked for it.' : ''}`,
+      `Change the task, answer the reviews, or assign it back to its agent and start a run, which gives it another ${rounds} ${rounds === 1 ? 'try' : 'tries'}.`,
+   ].join('\n\n');
 }
 
 function noReviewersComment(material: ReviewMaterial): string {

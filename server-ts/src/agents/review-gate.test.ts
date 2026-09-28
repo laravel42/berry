@@ -199,11 +199,17 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
     * answer is parsed against the schema the gate asked for, as the real
     * completion does.
     */
-   function gate(verdicts: Array<Record<string, unknown>>, maxAttempts = 2, validate = false, refuse: string | null = null) {
-      let index = 0;
+   function gate(
+      verdicts: Array<Record<string, unknown>>,
+      maxAttempts = 2,
+      validate = false,
+      refuse: string | null = null,
+      repository: Record<string, string> | null = null
+   ) {
+      const used = new Set<number>();
       const asked: string[] = [];
       const updated: number[] = [];
-      const calls: Array<{ model: string; system: string }> = [];
+      const calls: Array<{ model: string; system: string; transcript: Array<{ role: string; text: string }> }> = [];
       const errors: string[] = [];
       const gateUnderTest = new ReviewGate({
          sql,
@@ -212,10 +218,21 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          defaultModel: 'm',
          maxAttempts,
          completion: {
-            async structured(input: { user: string; model: string; system: string; schema: { parse: (value: unknown) => unknown } }) {
+            async structured(input: {
+               user: string;
+               model: string;
+               system: string;
+               schema: { parse: (value: unknown) => unknown };
+               transcript?: Array<{ role: string; text: string }>;
+            }) {
                asked.push(input.user);
-               calls.push({ model: input.model, system: input.system });
-               const raw = { findings: [], ...(verdicts[index++] ?? { approved: true, reason: 'fine' }) };
+               calls.push({ model: input.model, system: input.system, transcript: input.transcript ?? [] });
+               // In order, except that a verdict naming `forModel` answers only
+               // that reviewer: parallel reviewers reach the model in any order.
+               const index = verdicts.findIndex((verdict, at) => !used.has(at) && (verdict.forModel === undefined || verdict.forModel === input.model));
+               if (index >= 0) used.add(index);
+               const { forModel: _, ...verdict } = verdicts[index] ?? { approved: true, reason: 'fine' };
+               const raw = { findings: [], read: [], ...verdict };
                const value = validate ? input.schema.parse(raw) : raw;
                return { value, text: '', inputTokens: 1, outputTokens: 1, durationMs: 1 };
             },
@@ -233,6 +250,15 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
                updated.push(number);
                return { updated: true, reason: null };
             },
+            // The repository the reviewers may read; without one they review on the diff alone.
+            ...(repository
+               ? {
+                    pullRequestHead: async () => ({ commit: 'c0ffee1234567890', branch: 'coder/gt-1' }),
+                    treeEntries: async () =>
+                       new Map(Object.keys(repository).map((path) => [path, { sha: path, mode: '100644', type: 'blob', size: 0 }])),
+                    blob: async (_owner: string, _name: string, sha: string) => Buffer.from(repository[sha]!),
+                 }
+               : {}),
          }) as unknown as GitHubClient,
          onError: (message) => errors.push(message),
       });
@@ -375,10 +401,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       assert.deepEqual(state.runs, ['succeeded', 'queued'], 'the author was re-admitted');
    });
 
-   test('under AutoGate a rejection always buys another run: the loop ends in approval, not in a person', async () => {
-      // The budget is one, and the task is rejected on its first attempt — the
-      // case that used to leave it parked in `todo` with nobody working it,
-      // which is a request for the reader's attention wearing another status.
+   test('under AutoGate an early rejection buys another run, whatever the forced-review budget', async () => {
       const { issueId, runId } = await delivered('Keep going');
       const { gate: g } = gate([{ approved: false, reason: 'Still wrong.' }], 1);
 
@@ -387,6 +410,91 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       const state = await issueState(issueId);
       assert.equal(state.status, 'todo');
       assert.deepEqual(state.runs, ['succeeded', 'queued'], 'the author is given another go regardless of the budget');
+   });
+
+   /** Rejects `rounds` runs of one task in a row, delivering each rerun the gate admits. */
+   async function rejectInRow(title: string, rounds: number) {
+      const { issueId, runId } = await delivered(title);
+      const { gate: g } = gate(Array.from({ length: rounds }, (_, n) => ({ approved: false, reason: `Still wrong (${n + 1}).` })));
+      let current: string | null = runId;
+      for (let round = 0; round < rounds; round += 1) {
+         assert.ok(current, `round ${round + 1} has a run to review`);
+         await g.review(current);
+         const [next] = await sql`SELECT id FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
+         current = (next?.id as string | undefined) ?? null;
+         if (current && round < rounds - 1) await deliverRun(current, ['src/a.ts']);
+      }
+      return { issueId, queued: current };
+   }
+
+   test('three rejections in a row under AutoGate hand the task to the person who asked for it', async () => {
+      const { issueId, queued } = await rejectInRow('Rejected three times', 3);
+
+      assert.equal(queued, null, 'no fourth run: another round would repeat the last one');
+      const [issue] = await sql`SELECT status::text AS status, assignee_type::text AS type, assignee_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(issue!.status, 'todo');
+      assert.equal(issue!.type, 'user');
+      assert.equal(issue!.assignee_id, userId, 'the requester holds it now');
+      const bodies = (await sql`SELECT body FROM comments WHERE issue_id = ${issueId} ORDER BY created_at`).map((row) => row.body as string);
+      assert.match(bodies.at(-1)!, /Handed to a person\*\* after 3 rejections in a row/);
+      assert.match(bodies.at(-1)!, /another 3 tries/);
+   });
+
+   test('two rejections in a row still give the author another run', async () => {
+      const { queued } = await rejectInRow('Rejected twice', 2);
+      assert.ok(queued, 'the third try is the author\'s');
+   });
+
+   test('a person who restarts a handed-off task gives it three more tries', async () => {
+      const { issueId } = await rejectInRow('Restarted', 3);
+      const runs = new RunRepository(sql);
+      const restarted = await runs.admit({ issueId, boardId, workspaceId, agentId: author, requestedBy: userId, instructions: null });
+      await deliverRun(restarted.id, ['src/a.ts']);
+      const { gate: g } = gate([{ approved: false, reason: 'Fourth.' }]);
+
+      await g.review(restarted.id);
+
+      const [next] = await sql`SELECT id FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
+      assert.ok(next, 'the fourth rejection is the first of a new three');
+   });
+
+   test('a reviewer reads the files it asks for before it decides', async () => {
+      const { issueId, runId } = await delivered('Read before deciding', true, { files: ['test/css.test.js'] });
+      const { gate: g, asked, calls } = gate(
+         [
+            { approved: false, reason: 'Need to see the stylesheet.', read: ['src/styles.css', 'nowhere.css'] },
+            { approved: true, reason: 'The custom properties are defined in src/styles.css.' },
+         ],
+         2,
+         false,
+         null,
+         { 'src/styles.css': ':root { --ink: #111; }', 'test/css.test.js': 'check()' }
+      );
+
+      await g.review(runId);
+
+      assert.equal(asked.length, 2, 'asked again once it had the files');
+      assert.match(asked[0]!, /read-only, at pull request #7/);
+      assert.match(asked[0]!, /- src\/styles\.css/);
+      assert.match(asked[1]!, /<file path="src\/styles\.css">\n:root \{ --ink: #111; \}\n<\/file>/);
+      assert.match(asked[1]!, /<file path="nowhere\.css" \/>/);
+      assert.equal(calls[1]!.transcript.length, 2, 'the second call carries the first exchange');
+      const state = await issueState(issueId);
+      assert.equal(state.verdicts.length, 1, 'a request to read is not a verdict');
+      assert.equal(state.verdicts[0]!.approved, true);
+      assert.equal(state.status, 'done');
+   });
+
+   test('a reviewer that keeps asking to read decides after the last round', async () => {
+      const { issueId, runId } = await delivered('Reads forever');
+      const reading = { approved: false, reason: 'Still reading.', read: ['src/a.ts'] };
+      const { gate: g, asked } = gate([reading, reading, reading, reading], 2, false, null, { 'src/a.ts': 'a' });
+
+      await g.review(runId);
+
+      assert.equal(asked.length, 4, 'the first call and three rounds of reading');
+      assert.match(asked[3]!, /cannot read more files/);
+      assert.equal((await issueState(issueId)).verdicts[0]!.approved, false);
    });
 
    test('without AutoGate the budget still stops the loop, because a person is the next step', async () => {
@@ -527,8 +635,9 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const { issueId, runId } = await delivered('Org auth', true, { authorId: backend, files: ['server-ts/src/auth/x.ts'] });
          const { gate: g } = gate(
             [
-               { approved: true, reason: 'Tested.' },
+               { forModel: 'qa-model', approved: true, reason: 'Tested.' },
                {
+                  forModel: 'security-model',
                   approved: false,
                   reason: 'The session is not rotated.',
                   findings: [{
@@ -558,8 +667,8 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const { issueId, runId } = await delivered('Org invalid', true, { authorId: backend, files: ['server-ts/src/auth/x.ts'] });
          const { gate: g, errors } = gate(
             [
-               { approved: true, reason: 'Tested.' },
-               { approved: false, reason: 'Bad.', findings: [{ severity: 'high', impact: 'x', remediation: 'y', message: 'z' }] },
+               { forModel: 'qa-model', approved: true, reason: 'Tested.' },
+               { forModel: 'security-model', approved: false, reason: 'Bad.', findings: [{ severity: 'high', impact: 'x', remediation: 'y', message: 'z' }] },
             ],
             2,
             true
