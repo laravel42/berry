@@ -230,6 +230,13 @@ export class Dispatcher {
       // LIMIT … FOR UPDATE)`: the planner may re-run that subquery per row,
       // and a re-run `SKIP LOCKED` finds the next rows, so LIMIT stops
       // bounding the claim.
+      //
+      // An agent's own limit (`agents.max_concurrency`, "max concurrent
+      // tasks" on its page) is held the same way, per agent: it was stored
+      // and shown but never read here, so an agent set to one task ran as
+      // many as its runtime allowed. Only task runs count and wait: a single
+      // model call under the agent (planning, routing, a verdict, a chat
+      // reply) is not one of its tasks.
       const rows = await this.#sql`
          WITH candidate AS (
             SELECT ranked.id, ranked.priority, ranked.created_at FROM (
@@ -240,9 +247,19 @@ export class Dispatcher {
                         WHERE busy.runtime_id = r.runtime_id
                           AND busy.status IN ('queued', 'running')
                           AND (busy.dispatch_state <> 'pending'
-                               OR busy.dispatch_lease_until > now())) AS busy_count
+                               OR busy.dispatch_lease_until > now())) AS busy_count,
+                      agent.max_concurrency AS agent_limit,
+                      row_number() OVER (PARTITION BY r.agent_id, r.kind
+                                         ORDER BY r.priority DESC, r.created_at ASC) AS agent_slot,
+                      r.kind,
+                      (SELECT count(*) FROM runs AS busy
+                        WHERE busy.agent_id = r.agent_id AND busy.kind = 'agent'
+                          AND busy.status IN ('queued', 'running')
+                          AND (busy.dispatch_state <> 'pending'
+                               OR busy.dispatch_lease_until > now())) AS agent_busy
                  FROM runs AS r
                  LEFT JOIN agent_runtimes AS rt ON rt.id = r.runtime_id
+                 LEFT JOIN agents AS agent ON agent.id = r.agent_id
                 WHERE r.status = 'queued'
                   AND r.dispatch_state = 'pending'
                   AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
@@ -260,8 +277,10 @@ export class Dispatcher {
                                           OR (o.priority = r.priority
                                               AND (o.created_at, o.id) < (r.created_at, r.id)))))))
             ) AS ranked
-            WHERE ranked.concurrency_limit IS NULL
-               OR ranked.busy_count + ranked.slot <= ranked.concurrency_limit
+            WHERE (ranked.concurrency_limit IS NULL
+                   OR ranked.busy_count + ranked.slot <= ranked.concurrency_limit)
+              AND (ranked.agent_limit IS NULL OR ranked.kind <> 'agent'
+                   OR ranked.agent_busy + ranked.agent_slot <= ranked.agent_limit)
          ),
          picked AS MATERIALIZED (
             SELECT r.id FROM runs AS r JOIN candidate AS c ON c.id = r.id

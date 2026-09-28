@@ -143,6 +143,32 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       await dispatcher.stop();
    });
 
+   test('an agent never runs more tasks at once than its own limit', async () => {
+      const held: Array<() => void> = [];
+      await sql`UPDATE agents SET max_concurrency = 1 WHERE id = ${fixture.agentId!}`;
+      try {
+         for (let index = 0; index < 3; index += 1) {
+            await admit(runs, fixture, await createIssue(sql, fixture));
+         }
+         const dispatcher = build(
+            sql,
+            { execute: () => new Promise<unknown>((resolve) => held.push(() => resolve({}))) },
+            { concurrency: 4 }
+         );
+
+         // The process has room for four; the agent is set to one.
+         await tick(dispatcher);
+         assert.equal(dispatcher.inflight, 1);
+         await tick(dispatcher);
+         assert.equal(dispatcher.inflight, 1, 'the others wait while the first is running');
+
+         for (const release of held.splice(0)) release();
+         await dispatcher.stop();
+      } finally {
+         await sql`UPDATE agents SET max_concurrency = NULL WHERE id = ${fixture.agentId!}`;
+      }
+   });
+
    test('a claim is oldest first, because a queue that is not is not one', async () => {
       const older = await admit(runs, fixture, issueId);
       const newer = await admit(runs, fixture, await createIssue(sql, fixture));
