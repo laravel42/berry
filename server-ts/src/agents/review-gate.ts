@@ -940,6 +940,8 @@ export class ReviewGate {
             requestedBy: material.run.requestedBy,
             again: material.autoGate || attempt < this.#maxAttempts,
             instructions,
+            // A refused merge carries its instructions; a reviewer's rejection does not.
+            rejected: instructions === null,
          }
       );
    }

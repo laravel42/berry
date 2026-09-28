@@ -31,8 +31,6 @@
  *   a Max model is rated higher for no more money. Only when no model is
  *   rated at all: unrated models by real usage per dollar, so paid runs
  *   still have a model.
- * - BerryFree: free models by real usage, rating only breaking ties.
- * - BerryAuto: Kilo's own routing, `kilo-auto/efficient`, as a comparison.
  *
  * A model sits in one tier only, the highest it reaches.
  */
@@ -84,9 +82,6 @@ export function patternIndex(id: string, patterns: readonly string[] | undefined
 export function matchesAny(id: string, patterns: readonly string[] | undefined): boolean {
    return patternIndex(id, patterns) !== -1;
 }
-
-/** The model BerryAuto sends every call to. */
-export const AUTO_MODEL = 'kilo-auto/efficient';
 
 /** How many models a tier offers to choose between. */
 export const TIER_SIZE = 3;
@@ -200,11 +195,6 @@ export function isPaidEligible(model: GatewayModel): boolean {
    );
 }
 
-/** Whether a free model may serve BerryFree. Free models may train on prompts; that is the tier's known cost. */
-export function isFreeEligible(model: GatewayModel): boolean {
-   return model.isFree && model.id.endsWith(':free') && model.supportsTools && model.expiresAt === null;
-}
-
 /** Tokens per model over the usage window, in one mode (`null` counts every mode). */
 export function usageByModel(rows: UsageRow[], mode: string | null): Map<string, number> {
    const totals = new Map<string, number>();
@@ -308,38 +298,10 @@ export function rankTiers(
          : paid.filter((model) => used(model) > 0).sort((a, b) => perDollar(b) - perDollar(a) || a.id.localeCompare(b.id))
    ).slice(0, TIER_SIZE);
 
-   // Real usage first: few free models are rated, and a weak rating would
-   // otherwise outrank the free models people actually run.
-   const free = models
-      .filter(isFreeEligible)
-      .sort(
-         (a, b) =>
-            used(b) - used(a) || (b.bench?.completion ?? -1) - (a.bench?.completion ?? -1) || a.id.localeCompare(b.id)
-      )
-      .slice(0, TIER_SIZE);
-
-   const auto = models.find((model) => model.id === AUTO_MODEL);
-
    return {
       berry_max: compose('berry_max', max).map((model) => ranked(model, usage)),
       berry_mid: compose('berry_mid', mid).map((model) => ranked(model, usage)),
       berry_low: compose('berry_low', low).slice(0, TIER_SIZE).map((model) => ranked(model, usage)),
-      berry_free: free.map((model) => ranked(model, usage)),
-      berry_auto: [
-         auto
-            ? ranked(auto, usage)
-            : {
-                 id: AUTO_MODEL,
-                 name: 'Auto Efficient',
-                 completion: null,
-                 estimatedFrom: null,
-                 costPerAttemptUsd: null,
-                 usageTokens: 0,
-                 blendedPricePerM: null,
-                 inputPricePerM: null,
-                 outputPricePerM: null,
-              },
-      ],
    };
 }
 
@@ -359,8 +321,6 @@ export const TIER_FALLBACK: Record<Tier, Tier[]> = {
    berry_max: ['berry_max', 'berry_mid', 'berry_low'],
    berry_mid: ['berry_mid', 'berry_low', 'berry_max'],
    berry_low: ['berry_low', 'berry_mid', 'berry_max'],
-   berry_free: ['berry_free', 'berry_low'],
-   berry_auto: ['berry_auto'],
 };
 
 /** Today's first choice for a tier, falling back as `TIER_FALLBACK` says; null only when every fallback is empty. */
@@ -380,32 +340,16 @@ export function isGatewayModelId(id: string): boolean {
    return id.includes('/');
 }
 
-/** How much more often each rank of a tier is chosen than the next: first, second, third. */
-export const RANK_WEIGHTS = [3, 2, 1] as const;
-
 /**
  * Where a tier's default fallback comes from (decided 2026-09-25): the top of
  * the next tier down, so a failure costs less, not more. BerryLow has nothing
- * below it, so it falls back within itself, then up; BerryFree and BerryAuto
- * fall back to a paid model on BerryLow.
+ * below it, so it falls back within itself, then up.
  */
 export const FALLBACK_SOURCE: Record<Tier, Tier[]> = {
    berry_max: ['berry_mid', 'berry_low'],
    berry_mid: ['berry_low', 'berry_mid'],
    berry_low: ['berry_low', 'berry_mid'],
-   berry_free: ['berry_low', 'berry_mid'],
-   berry_auto: ['berry_low', 'berry_mid'],
 };
-
-/** A stable number in [0, 1) for a key: the same session lands on the same rank. */
-export function unitHash(key: string): number {
-   let hash = 2166136261;
-   for (let index = 0; index < key.length; index += 1) {
-      hash ^= key.charCodeAt(index);
-      hash = Math.imul(hash, 16777619);
-   }
-   return (hash >>> 0) / 4294967296;
-}
 
 export interface TierChoice {
    /** The tier the model came from: the requested one, or a fallback tier when it was empty. */
@@ -418,27 +362,18 @@ export interface TierChoice {
 /**
  * Today's model for a tier, and its default fallback.
  *
- * The model is one of the tier's top three, weighted by rank, and picked by
- * `seed` rather than at random: a session (an agent on an issue) keeps its
- * model — and its prompt cache — for as long as the leaderboard does, while
- * different sessions spread across the tier. An empty tier falls to the
- * nearest one in price (`TIER_FALLBACK`).
+ * A tier's models are an order, best first, and a task goes down it only when
+ * its work is rejected: `rejections` is how many times a reviewer or a person
+ * sent it back (`issues.review_rejections`). None runs on the first model, one
+ * on the second, two or more on the third. The same task therefore keeps its
+ * model — and its prompt cache — from run to run until its work is refused.
+ * An empty tier falls to the nearest one in price (`TIER_FALLBACK`).
  */
-export function chooseForTier(pools: TierPools, tier: Tier, seed: string): TierChoice | null {
+export function chooseForTier(pools: TierPools, tier: Tier, rejections = 0): TierChoice | null {
    const source = TIER_FALLBACK[tier].find((candidate) => pools[candidate].length > 0);
    if (!source) return null;
-   const ranked = pools[source].slice(0, RANK_WEIGHTS.length);
-   const weights = ranked.map((_, index) => RANK_WEIGHTS[index]!);
-   const total = weights.reduce((sum, weight) => sum + weight, 0);
-   let point = unitHash(seed) * total;
-   let pick = ranked[0]!;
-   for (let index = 0; index < ranked.length; index += 1) {
-      point -= weights[index]!;
-      if (point < 0) {
-         pick = ranked[index]!;
-         break;
-      }
-   }
+   const ranked = pools[source].slice(0, TIER_SIZE);
+   const pick = ranked[Math.min(Math.max(0, Math.floor(rejections)), ranked.length - 1)]!;
    const fallback =
       FALLBACK_SOURCE[tier]
          .flatMap((candidate) => pools[candidate])

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CatalogUnavailable, type CatalogModel } from '../catalog.ts';
 import { combineRatings, modelKey, readLeaderboard, TBENCH_LEADERBOARD_URL, TBENCH_LEADERBOARDS, type RatingSource, type Scores } from './ratings.ts';
-import { AUTO_MODEL, blendedPrice, chooseForTier, type TierPolicy, isFreeEligible, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
+import { blendedPrice, chooseForTier, type TierPolicy, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
 
 /**
  * The Kilo gateway's models and leaderboard, read live (ADR-0017).
@@ -88,6 +88,15 @@ const usageSchema = z.object({
 
 const PER_MILLION = 1_000_000;
 
+/**
+ * A model's name as Berry shows it: Kilo's name without the marker it adds to a
+ * recently listed model ("Claude Opus 5.5 (new)"). The marker goes stale while
+ * the name stays, and every surface showed it.
+ */
+export function modelDisplayName(name: string): string {
+   return name.replace(/\s*\(new\)\s*$/i, '').trim();
+}
+
 /** One catalogue entry, or null when it is malformed: one bad model must not empty the list. */
 export function parseGatewayModel(raw: unknown): GatewayModel | null {
    const parsed = modelSchema.safeParse(raw);
@@ -99,7 +108,7 @@ export function parseGatewayModel(raw: unknown): GatewayModel | null {
       value === null || value === undefined || !Number.isFinite(value) ? null : Math.round(value * PER_MILLION * 1e6) / 1e6;
    return {
       id: model.id,
-      name: model.name ?? model.id,
+      name: modelDisplayName(model.name ?? model.id),
       contextLength: model.context_length ?? 0,
       supportsTools: (model.supported_parameters ?? []).includes('tools'),
       supportsVision: (model.architecture?.input_modalities ?? []).includes('image'),
@@ -263,17 +272,17 @@ export class KiloCatalog {
       return await this.#inFlight;
    }
 
-   /** The models an agent can be set to: the paid tiers' eligible models, the free ones, and BerryAuto. */
+   /** The models an agent can be set to: the paid tiers' eligible models. */
    async list(): Promise<CatalogModel[]> {
       const { models, pools } = await this.snapshot();
       return models
-         .filter((model) => isPaidEligible(model) || isFreeEligible(model) || model.id === AUTO_MODEL)
+         .filter((model) => isPaidEligible(model))
          .map((model) => toCatalogModel(model, pools));
    }
 
-   /** The model a session on `tier` runs on today, and its default fallback (`chooseForTier`). */
-   async choose(tier: Tier, seed: string): Promise<TierChoice | null> {
-      return chooseForTier((await this.snapshot()).pools, tier, seed);
+   /** The model a task on `tier` runs on today after `rejections` rejected reviews, and its default fallback (`chooseForTier`). */
+   async choose(tier: Tier, rejections = 0): Promise<TierChoice | null> {
+      return chooseForTier((await this.snapshot()).pools, tier, rejections);
    }
 
    async #refresh(): Promise<KiloSnapshot> {

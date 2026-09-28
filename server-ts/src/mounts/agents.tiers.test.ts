@@ -58,11 +58,14 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
    });
 
    test('a tier is set and cleared; anything else is refused', async () => {
-      assert.equal((await config({ tier: 'berry_free' })).body.tier, 'berry_free');
+      assert.equal((await config({ tier: 'berry_max' })).body.tier, 'berry_max');
       assert.equal((await config({ tier: null })).body.tier, null);
-      const refused = await config({ tier: 'sonnet' });
-      assert.equal(refused.status, 400);
-      assert.equal((refused.body.error as { code: string }).code, 'TIER_INVALID');
+      // BerryFree and BerryAuto were removed (2026-09-27): no longer tiers.
+      for (const tier of ['sonnet', 'berry_free', 'berry_auto']) {
+         const refused = await config({ tier });
+         assert.equal(refused.status, 400, tier);
+         assert.equal((refused.body.error as { code: string }).code, 'TIER_INVALID');
+      }
    });
 
    test('a fallback must be a gateway model the catalogue lists', async () => {

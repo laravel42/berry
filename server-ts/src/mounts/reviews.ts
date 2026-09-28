@@ -378,6 +378,7 @@ async function conflict(options: ReviewMountOptions, target: PullRequestTarget, 
          requestedBy: userId,
          again: true,
          instructions: conflictInstructions(target.number, baseBranch),
+         rejected: false,
       }
    );
    return new ApiError(

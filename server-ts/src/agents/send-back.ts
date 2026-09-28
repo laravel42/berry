@@ -34,6 +34,8 @@ export async function sendBack(
       again: boolean;
       /** What the next run is told, beyond the task itself. */
       instructions: string | null;
+      /** A reviewer rejected the work, rather than a merge failing: the next run moves to the tier's next model. */
+      rejected: boolean;
    }
 ): Promise<void> {
    await deps.issues.update({
@@ -41,6 +43,7 @@ export async function sendBack(
       patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
       actorId: input.actor.id,
       actorType: input.actor.type,
+      rejected: input.rejected,
    });
    if (!input.again || !input.requestedBy) return;
    await deps.runs

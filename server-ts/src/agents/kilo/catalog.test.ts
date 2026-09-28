@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CatalogUnavailable } from '../catalog.ts';
-import { borrowPredecessorRatings, KiloCatalog, modelVersion, parseGatewayModel } from './catalog.ts';
+import { borrowPredecessorRatings, KiloCatalog, modelDisplayName, modelVersion, parseGatewayModel } from './catalog.ts';
 import type { GatewayModel } from './tiers.ts';
 
 /** The gateway catalogue: parsed defensively, refreshed hourly, the last good one kept. */
@@ -155,4 +155,10 @@ test('an unrated new version borrows its newest rated predecessor, only when it 
    assert.equal(bench('anthropic/claude-opus-6'), null, 'dearer than its predecessor: not assumed to be worth it');
    assert.equal(bench('anthropic/claude-sonnet-6'), null, 'another family lends nothing');
    assert.equal(bench('anthropic/claude-opus-5')!.completion, 0.539, 'a rated model keeps its own rating');
+});
+
+test("a model's name drops Kilo's (new) marker", () => {
+   assert.equal(modelDisplayName('Anthropic: Claude Opus 5.5 (new)'), 'Anthropic: Claude Opus 5.5');
+   assert.equal(modelDisplayName('OpenAI: GPT-6 Astra'), 'OpenAI: GPT-6 Astra');
+   assert.equal(parseGatewayModel(raw('anthropic/claude-opus-5.5', { name: 'Anthropic: Claude Opus 5.5 (new)' }))?.name, 'Anthropic: Claude Opus 5.5');
 });

@@ -127,13 +127,13 @@ By default the runtime calls Bedrock itself, on the agent's model or
 gateway instead ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)), set
 `BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` on both the server and the runtime
 (`deploy.sh` passes them to AgentCore). Agents then run on a Berry tier rather than a
-fixed model: BerryMax, BerryMid and BerryLow (paid), BerryFree, and BerryAuto (Kilo's
-own routing, kept as a comparison). Each role has a default tier, and an agent can be
-moved to another tier on its page. Berry refills the paid tiers hourly from
-Terminal-Bench ratings and Kilo's prices, and the free tier from Kilo's usage
-leaderboard, so which models a tier holds changes over time. Paid models must be served
-by your own provider key added to the Kilo account, such as your Bedrock key — a paid call Kilo would bill to its
-own credits is refused — and a run's cost is exactly what Kilo reports for it. The
+fixed model: BerryMax, BerryMid or BerryLow, three models each. Each role has a
+default tier, and an agent can be moved to another tier on its page. Berry refills the
+tiers hourly from Terminal-Bench ratings and Kilo's prices, so which models a tier holds
+changes over time; `BERRY_KILO_MAX`, `_MID` and `_LOW` fix a tier's models instead. The
+tiers use the models your own provider key added to the Kilo account serves, such as
+your Bedrock key, unless `BERRY_KILO_ANY_PROVIDER=true` — and a run's cost is exactly
+what Kilo reports for it. The
 `BERRY_BEDROCK_*` settings stay in use for speech and video either way.
 
 Without a runtime target, `agentExecution` reports `false` in `GET /api/v1/config` and

@@ -102,7 +102,7 @@ export interface EnvelopeDeps {
     * provisioned with — is not sent to it: the agent runs on its tier's
     * choice for today instead.
     */
-   gateway?: { choose(tier: Tier, seed: string): Promise<TierChoice | null> } | undefined;
+   gateway?: { choose(tier: Tier, rejections?: number): Promise<TierChoice | null> } | undefined;
    memory: RunMemory;
    sealer: Sealer | null;
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
@@ -146,6 +146,9 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
    };
 }
 
+/** The completions that make a plan (`plans/generator.ts`), which run on their agent's tier. */
+const PLAN_PURPOSES: ReadonlySet<string> = new Set(['planner', 'repair', 'critic']);
+
 export class EnvelopeBuilder {
    readonly #deps: EnvelopeDeps;
 
@@ -166,7 +169,7 @@ export class EnvelopeBuilder {
       const sessionKey = sessionKeyFor({
          kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
       });
-      const { model, tier, fallback } = await this.#model(task, agent, profile.model, sessionKey);
+      const { model, tier, fallback } = await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -363,11 +366,16 @@ export class EnvelopeBuilder {
     * named the agent runs on its tier's choice for today. A completion that
     * names none runs on BerryLow's, as it ran on Haiku before.
     */
+   /** How many times this task's work was rejected at review (migration 214). */
+   async #rejections(issueId: string): Promise<number> {
+      const [row] = await this.#deps.sql`SELECT review_rejections FROM issues WHERE id = ${issueId}`;
+      return row ? Number(row.review_rejections) : 0;
+   }
+
    async #model(
       task: TaskRow,
       agent: AgentConfig,
-      profileModel: string | null,
-      seed: string
+      profileModel: string | null
    ): Promise<{ model: string; tier: Tier | null; fallback: string | null }> {
       const completionModel = task.kind === 'completion' ? (task.completionSpec?.model ?? null) : null;
       const gateway = this.#deps.gateway;
@@ -381,10 +389,14 @@ export class EnvelopeBuilder {
          task.kind === 'completion' ? null : profileModel,
          isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
       ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
-      const tier: Tier = task.kind === 'completion' ? 'berry_low' : agent.tier;
-      // A session keeps its model while the leaderboard does: the seed is the
-      // (agent, issue) session, not the run.
-      const choice = await gateway.choose(tier, seed);
+      // A single call runs on BerryLow, except a plan's: the plan decides every
+      // task, its order and who takes it, so it is written, repaired and
+      // criticised on the tier of the agent it runs as, the Orchestrator.
+      const tier: Tier =
+         task.kind !== 'completion' || PLAN_PURPOSES.has(task.completionSpec?.purpose ?? '') ? agent.tier : 'berry_low';
+      // A task starts on its tier's first model and moves down the list only
+      // when its work is rejected at review (`chooseForTier`).
+      const choice = await gateway.choose(tier, task.kind === 'agent' && task.issueId ? await this.#rejections(task.issueId) : 0);
       // The agent's own fallback wins; otherwise Berry's default from the
       // leaderboard (decided 2026-09-25). Never the model itself.
       const own = agent.fallbackModel && isGatewayModelId(agent.fallbackModel) ? agent.fallbackModel : null;

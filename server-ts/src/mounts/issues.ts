@@ -275,7 +275,14 @@ export function issueMounts(options: IssueOptions): Mount[] {
       // alone and no mutation event is published for it.
       if (touchesIssueRow(patch)) {
          const result = await issues
-            .update({ issueId: found.id, patch, actorId: user.id })
+            .update({
+               issueId: found.id,
+               patch,
+               actorId: user.id,
+               // Send back: a person moving a task from review to todo. Counted
+               // only when it leaves in_review (issues.ts).
+               rejected: patch.status === 'todo',
+            })
             .catch(rethrowWrite('updated'));
          updated = result.issue;
          await publish(options, result.events);

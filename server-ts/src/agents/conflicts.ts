@@ -113,6 +113,7 @@ async function bringUpToDate(deps: ConflictDeps, repository: string, task: OpenP
          requestedBy: task.requestedBy,
          again: true,
          instructions: conflictInstructions(task.number, baseBranch),
+         rejected: false,
       }
    );
 }

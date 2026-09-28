@@ -1,6 +1,5 @@
 import type { Sql } from '../db/pool.ts';
 import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
-import { AUTO_MODEL } from '../agents/kilo/tiers.ts';
 import type { Logger } from '../observability/log.ts';
 
 /**
@@ -23,6 +22,12 @@ import type { Logger } from '../observability/log.ts';
  * Neither ever blocks a run: a read that fails is logged and retried on the
  * next tick.
  */
+
+/**
+ * The model BerryAuto sent every call to. The tier was removed on 2026-09-27;
+ * usage recorded on it before then still carries its classifier fees.
+ */
+const AUTO_MODEL = 'kilo-auto/efficient';
 
 /** The daily fee total for BerryAuto's model, by UTC date. */
 export function berryAutoFees(rows: Parameters<typeof classifierFeesByDay>[0]): Map<string, number> {

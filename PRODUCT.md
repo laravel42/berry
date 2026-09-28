@@ -20,7 +20,7 @@ Your team runs Berry on its own infrastructure. The agents run in a separate, is
 - **Review gate.** The point where delivered work stops and waits for a person to approve it or send it back.
 - **Approval.** A yes-or-no decision a person must make before something goes ahead, such as starting a risky task.
 - **Pull request.** A proposed code change on GitHub, which a person can read and merge.
-- **Tier.** On a deployment that reaches models through the Kilo gateway, a named class of models an agent runs on: BerryMax, BerryMid, BerryLow, BerryFree or BerryAuto. Berry fills each tier from public benchmark leaderboards, so the models behind a tier change as the leaderboards do.
+- **Tier.** On a deployment that reaches models through the Kilo gateway, a named class of models an agent runs on: BerryMax, BerryMid or BerryLow. Berry fills each tier from public benchmark leaderboards, so the models behind a tier change as the leaderboards do.
 
 ## How to read the status notes
 
@@ -395,15 +395,13 @@ A deployment can reach models through the Kilo AI gateway instead of calling Ama
 
 | Tier | What it's for |
 |---|---|
-| BerryAuto | Kilo's own routing, which picks a model per call. Kept to compare against Berry's tiers. |
 | BerryMax | Best results: the three best-rated models. |
 | BerryMid | Balanced: the best-rated models that cost less than any BerryMax model. |
 | BerryLow | Lowest cost: the best-rated models among the cheapest third, preferring those no cheaper model rates better. |
-| BerryFree | No cost: free models, ranked by how much people actually use them. The providers of free models may train on what's sent to them. |
 
-Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier list shows, for each tier, the models it runs today as a table: each model's share of the tier's tasks, its rating, and its price per million input and output tokens.
+Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier choice shows three large buttons, each with the tier's name and the models it runs today, best first. Ratings, shares and prices choose and spread the work but aren't shown.
 
-- **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. A converted rating is an estimate: the table marks it ≈ and says where it came from, and it's ranked a little behind a measured rating of the same value. A new version that no leaderboard rates yet, such as Claude Opus 5.5, borrows the rating of the version before it, if it costs no more, until it's measured; it's marked ≈ the same way. Berry reads the leaderboards every hour.
+- **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. A converted rating is an estimate, ranked a little behind a measured rating of the same value. A new version that no leaderboard rates yet, such as Claude Opus 5.5, borrows the rating of the version before it, if it costs no more, until it's measured. Berry reads the leaderboards every hour.
 - **Only rated models** go in the paid tiers, three in each, from the models the organization's own provider keys serve, such as its Amazon Bedrock key. A setting opens them to every provider Kilo serves, billed to the Kilo credit balance. A model that costs as much as a BerryMax model but rates lower is in no tier: that BerryMax model is the better choice.
 - **Each task keeps one model.** A tier holds three models, and each task an agent works on keeps one of them for as long as the leaderboards hold: the best-rated gets about half of the tier's tasks, the second a third, and the third the rest. Keeping one model per task lets the model reuse what it has already read, which is faster and cheaper.
 - **When a call fails**, the run retries once on a fallback model, which Berry takes from the leaderboards too: the best model of the next tier down. A tier that's empty today uses the nearest tier in price.

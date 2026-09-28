@@ -479,6 +479,12 @@ export class IssueRepository {
        * agent did it rather than attributing it to a user id that is not one.
        */
       actorType?: 'user' | 'agent';
+      /**
+       * The change rejects the work under review: counted on the task when it
+       * leaves `in_review`, so its next run moves to the tier's next model
+       * (migration 214). A send-back for a merge conflict is not one.
+       */
+      rejected?: boolean;
    }): Promise<{ issue: Issue; events: IssueMutationEvent[] }> {
       const { patch } = params;
       const now = this.clock().toISOString();
@@ -495,6 +501,8 @@ export class IssueRepository {
             throw new InvalidTransition(dbStatusToApi(currentStatus), dbStatusToApi(patch.status));
          }
          if (patch.assigneeSet) await assertAssigneeExists(tx, patch.assignee ?? null);
+         const rejectsReview =
+            params.rejected === true && currentStatus === 'in_review' && patch.status !== undefined && patch.status !== 'in_review' && patch.status !== 'done';
 
          const updated = await tx`
             UPDATE issues SET
@@ -508,6 +516,7 @@ export class IssueRepository {
                due_date = CASE WHEN ${patch.dueDateSet} THEN ${patch.dueDate ?? null}::timestamptz ELSE due_date END,
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
+               review_rejections = review_rejections + ${rejectsReview ? 1 : 0},
                updated_at = ${now}
              WHERE id = ${params.issueId}`.catch(classifyWrite);
          if (updated.count !== 1) throw new NotFound();

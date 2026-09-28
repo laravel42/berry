@@ -18,6 +18,11 @@
   cache points, and reshapes usage. Costs recorded for a Kilo deployment are
   Kilo's per-request reports, carried as `reportedCostMicros` through
   `task.usage` to `src/usage/record.ts`.
+- **BerryFree and BerryAuto were removed on 2026-09-27**: the tiers are
+  BerryMax, BerryMid and BerryLow, all paid. Past usage recorded on the two
+  keeps its tier, and BerryAuto's classifier fees are still reconciled for
+  it; nothing new runs on them. Decisions 6 and 9 below describe them as they
+  were.
 - Runtime support for BerryAuto (`kilo-auto/*`) is in place: the own-key
   exemption, the session header, and usage recorded per model Kilo picked.
 - Ratings are Terminal-Bench resolution rates on the 4.0 scale, older
@@ -182,9 +187,9 @@ show cost before work and record actual cost after. The Kilo gateway
      hold only models reaching a quarter of the best rating, so a tier may
      hold fewer than three. That day Low held Luna alone.
 
-   Real usage in the role's mode breaks ties. Berry picks among the top 3 of a
-   tier, weighted by rank, and uses the fallback model once on failure. No
-   model list is hard-coded.
+   Real usage in the role's mode breaks ties. A task runs on its tier's first
+   model and moves down the list only when its work is rejected (item 8), and
+   uses the fallback model once on failure. No model list is hard-coded.
 7. **Roles are on Berry tiers, not vendor model families.** From catalogue
    13, the default organization assigns each role `berry_max`, `berry_mid` or
    `berry_low`, stored as the contract's `tier`, and provisioning writes no
@@ -196,9 +201,13 @@ show cost before work and record actual cost after. The Kilo gateway
    - There is no tier-to-Bedrock mapping. Without the gateway, an agent that
      names no model runs on the server default.
 8. **Choosing a model, and falling back.**
-   - A session (an agent on an issue) gets one of its tier's top three, weighted
-     3:2:1 by rank and seeded by the session. It keeps that model, and its
-     prompt cache, while the leaderboard keeps it there.
+   - A task starts on its tier's first model. Each time its work is rejected
+     at review (a reviewer agent's rejection, or a person's Send back; not a
+     merge conflict), its next run moves to the next model: the second after
+     one rejection, the third after two or more. The count is
+     `issues.review_rejections` (migration 214, 2026-09-27). Until then it keeps
+     its model, and its prompt cache, from run to run. Until 2026-09-27 a
+     session was given one of the top three, weighted 3:2:1 by rank.
    - The fallback is the agent's own `fallback_model`, or Berry's default from
      the leaderboard: the top of the next tier down (Max → Mid, Mid → Low,
      Low → Low's next, Free and Auto → Low), never the model itself.

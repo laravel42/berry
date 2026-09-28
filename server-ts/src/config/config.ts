@@ -558,7 +558,7 @@ export interface ModelGatewayConfig {
    baseUrl: string;
    /** Where the account routes live (`/api/profile/*`). */
    appUrl: string;
-   /** A credit balance below this is logged: BerryAuto is what spends credits (ADR-0017). */
+   /** A credit balance below this is logged: models billed to Kilo credits spend it (ADR-0017). */
    minBalanceUsd: number;
    /** Model ids or id prefixes (`z-ai/`) no tier offers (`BERRY_KILO_EXCLUDE`). */
    exclude: string[];

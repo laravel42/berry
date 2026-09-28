@@ -27,12 +27,12 @@ describe('usage by tier', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       other = await seedUsageWorld(sql, 'tiers-other');
       const low1 = await addRun(sql, world);
       const low2 = await addRun(sql, world);
-      const auto = await addRun(sql, world);
+      const mid = await addRun(sql, world);
       await record(world, low1.runId, { tier: 'berry_low', reportedCostMicros: 40 });
       await record(world, low1.runId, { tier: 'berry_low', reportedCostMicros: 60, fellBack: true, model: 'openai/gpt-5.6-luna' });
       await record(world, low2.runId, { tier: 'berry_low', reportedCostMicros: null });
-      await record(world, auto.runId, { tier: 'berry_auto', reportedCostMicros: 100, model: 'z-ai/glm-5.3-flash' });
-      await sql`UPDATE task_usage SET gateway_fee_micros = 7 WHERE run_id = ${auto.runId}`;
+      await record(world, mid.runId, { tier: 'berry_mid', reportedCostMicros: 100, model: 'moonshotai/kimi-k3' });
+      await sql`UPDATE task_usage SET gateway_fee_micros = 7 WHERE run_id = ${mid.runId}`;
       // A model the agent named: no tier, not compared.
       await record(world, (await addRun(sql, world)).runId, { reportedCostMicros: 999 });
       // Another workspace's tier usage is not this one's.
@@ -50,8 +50,8 @@ describe('usage by tier', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       assert.deepEqual(
          rows.map((row) => [row.tier, row.runs, row.costMicros, row.unpricedRecords, row.fellBackRuns]),
          [
-            ['berry_auto', 1, 107, 0, 0],
             ['berry_low', 2, 100, 1, 1],
+            ['berry_mid', 1, 107, 0, 0],
          ]
       );
       assert.equal(rows.find((row) => row.tier === 'berry_low')!.inputTokens, 300);

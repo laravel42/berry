@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { nullRunMemory } from '../agentcore/memory.ts';
+import { IssueRepository } from '../core/issues.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { catalogRole } from '../organization/catalog.ts';
@@ -80,14 +81,16 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
 
    describe('through the model gateway (ADR-0017)', () => {
       const asked: string[] = [];
+      const rejectionsAsked: number[] = [];
       let gatewayBuilder: EnvelopeBuilder;
       before(() => {
          gatewayBuilder = new EnvelopeBuilder({
             sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
             gateway: {
-               choose: async (tier) => {
+               choose: async (tier, rejections = 0) => {
                   asked.push(tier);
+                  rejectionsAsked.push(rejections);
                   return tier === 'berry_low'
                      ? { tier, model: 'openai/gpt-6-luna', fallback: 'openai/gpt-5.6-luna' }
                      : { tier, model: `vendor/${tier}-choice`, fallback: 'openai/gpt-6-luna' };
@@ -159,6 +162,55 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             assert.equal(built.tier, 'berry_free');
          } finally {
             await sql`UPDATE agents SET model_tier = NULL WHERE id = ${f.agentId}`;
+         }
+      });
+
+      test('a rejection is counted when work leaves review, and only then', async () => {
+         const f = fixture!;
+         const issues = new IssueRepository(sql);
+         const issueId = await createIssue(sql, f);
+         const count = async () => Number((await sql`SELECT review_rejections FROM issues WHERE id = ${issueId}`)[0]!.review_rejections);
+         const to = (status: 'todo' | 'in_progress' | 'in_review', rejected: boolean) =>
+            issues.update({
+               issueId, actorId: f.userId, rejected,
+               patch: { status, descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
+            });
+         await to('in_progress', true);
+         assert.equal(await count(), 0, 'not from todo');
+         await to('in_review', false);
+         await to('todo', false);
+         assert.equal(await count(), 0, 'a merge conflict is not a rejection');
+         await to('in_progress', false);
+         await to('in_review', false);
+         await to('todo', true);
+         assert.equal(await count(), 1, 'sent back from review');
+      });
+
+      test('a task\'s rejected reviews choose how far down its tier\'s list it runs', async () => {
+         const f = fixture!;
+         const issueId = await createIssue(sql, f);
+         await sql`UPDATE issues SET review_rejections = 2 WHERE id = ${issueId}`;
+         const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
+         rejectionsAsked.length = 0;
+         await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+         assert.deepEqual(rejectionsAsked, [2]);
+      });
+
+      test('a plan is made on its agent\'s tier; every other single call on BerryLow', async () => {
+         const f = fixture!;
+         await sql`UPDATE agents SET model_tier = 'berry_max' WHERE id = ${f.agentId}`;
+         try {
+            for (const [purpose, tier] of [['planner', 'berry_max'], ['critic', 'berry_max'], ['triage', 'berry_low']] as const) {
+               asked.length = 0;
+               const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, kind: 'completion', source: 'completion', prompt: 'x' });
+               // The model the generator names is a Bedrock id, which the gateway does not take.
+               await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose, system: 's', jsonSchema: null, model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' } as never)} WHERE id = ${runId}`;
+               await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+               assert.deepEqual(asked, [tier], purpose);
+            }
+         } finally {
+            await sql`UPDATE agents SET model_tier = NULL WHERE id = ${f.agentId}`;
+            await sql`DELETE FROM runs WHERE workspace_id = ${f.workspaceId} AND kind = 'completion'`;
          }
       });
 

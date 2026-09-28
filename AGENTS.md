@@ -130,7 +130,7 @@ task-scoped token. There is no other external worker.
 agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
 and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
 the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryMid,
-BerryLow, BerryFree, BerryAuto) unless it pins a gateway model.
+BerryLow) unless it pins a gateway model.
 `server-ts/src/agents/kilo/` refills the tiers hourly from Terminal-Bench
 ratings and Kilo's prices and usage, so do not name a tier's current models in
 code or docs. The server only reads Kilo's model list, leaderboard and account;
