@@ -362,7 +362,10 @@ export class PlanGenerator {
          while (validation.status === 'invalid' && repairs < this.#maxRepairs) {
             repairs += 1;
             input.onStage?.('repair');
-            const repaired = await this.#repair(scope, plan, validation.errors, input.signal);
+            const repaired = await this.#tryRepair(scope, plan, validation.errors, input.signal, stages);
+            // A repair nobody could reach is the same dead end as one that
+            // fixed nothing, and ends the same way: with the document it had.
+            if (!repaired) break;
             account(usage, repaired.result);
             plan = repaired.plan;
             validation = repaired.validation;
@@ -395,7 +398,7 @@ export class PlanGenerator {
                }
 
                input.onStage?.('repair');
-               const repaired = await this.#repair(
+               const repaired = await this.#tryRepair(
                   scope,
                   plan,
                   reviewed.critique.problems.map((problem) => ({
@@ -403,8 +406,12 @@ export class PlanGenerator {
                      code: problem.code,
                      message: problem.message,
                   })),
-                  input.signal
+                  input.signal,
+                  stages
                );
+               // This document is valid. A revision that cannot be asked for
+               // is a reason to stop improving it, never to lose it.
+               if (!repaired) break;
                account(usage, repaired.result);
                stages.push(repaired.record);
                // A revision usually breaks on something small — an approval
@@ -416,7 +423,9 @@ export class PlanGenerator {
                while (revised.validation.status === 'invalid' && fixes < this.#maxRepairs) {
                   fixes += 1;
                   input.onStage?.('repair');
-                  revised = await this.#repair(scope, revised.plan, revised.validation.errors, input.signal);
+                  const next = await this.#tryRepair(scope, revised.plan, revised.validation.errors, input.signal, stages);
+                  if (!next) break;
+                  revised = next;
                   account(usage, revised.result);
                   stages.push(revised.record);
                }
@@ -453,6 +462,33 @@ export class PlanGenerator {
          // with the prompt and nothing else.
          exhausted: validation.status === 'invalid',
       };
+   }
+
+   /**
+    * A repair round, or null when the repair role could not be reached.
+    *
+    * The gateway took a repair request and never answered it; five minutes
+    * later the whole generation failed, and a document whose errors were
+    * named and fixable was thrown away, leaving a person with the prompt and
+    * nothing else. An unreachable repair now ends the loop instead: the last
+    * document stands, `exhausted`, with the stage recorded so a reader sees
+    * where the pipeline stopped. Only `generate` still fails the run, because
+    * without a first document there is nothing to keep.
+    */
+   async #tryRepair(
+      scope: CallScope,
+      plan: Plan,
+      problems: Array<{ path: string; code: string; message: string }>,
+      signal: AbortSignal | undefined,
+      stages: StageRecord[]
+   ) {
+      try {
+         return await this.#repair(scope, plan, problems, signal);
+      } catch (error) {
+         if (!(error instanceof PlannerUnavailable)) throw error;
+         stages.push(unreachableStage('repair', error));
+         return null;
+      }
    }
 
    async #repair(
@@ -610,6 +646,21 @@ function servedBy(
 ): { provider: string; model: string } {
    if (!served) return asked;
    return { provider: served.includes('/') ? 'kilo' : 'bedrock', model: served };
+}
+
+/** A stage that never ran, so a reader sees where the pipeline stopped and why. */
+function unreachableStage(stage: Stage, error: PlannerUnavailable): StageRecord {
+   return {
+      stage,
+      role: stage === 'critic' ? 'critic' : 'repair',
+      provider: null,
+      model: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      durationMs: 0,
+      outcome: 'error',
+      detail: { message: error.message },
+   };
 }
 
 function stageOf(

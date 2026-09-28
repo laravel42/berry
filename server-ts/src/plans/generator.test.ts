@@ -346,3 +346,63 @@ test('the repair role is shown the whole plan format, dependencies included', as
    assert.match(script.prompts[1]!.system, /"dependsOn"/);
    assert.match(script.prompts[1]!.system, /target\.tempId/);
 });
+
+test('a repair the gateway never answers keeps the draft rather than losing it', async () => {
+   // What happened for real: the gateway took the repair and said nothing.
+   // Five minutes later the whole generation failed, and a document whose
+   // errors were named and fixable was thrown away, leaving a person with the
+   // prompt and nothing else. It now ends the way an exhausted repair does.
+   let calls = 0;
+   const completion = {
+      async structured() {
+         calls += 1;
+         if (calls === 1) return { value: BROKEN, text: '', inputTokens: 10, outputTokens: 20, durationMs: 1 };
+         throw new CompletionFailed({
+            code: 'COMPLETION_TIMEOUT',
+            message: 'the completion did not finish in time',
+            retryable: true,
+         });
+      },
+   } as unknown as Pick<RuntimeCompletion, 'structured'>;
+   const planner = new PlanGenerator({ sql: NO_ROLES, defaultModel: 'test/model', completion, maxRepairs: 2 });
+
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+
+   assert.equal(result.validation.status, 'invalid');
+   assert.equal(result.exhausted, true);
+   assert.equal(result.plan.issues.length, 1, "the planner's document survives");
+   // The stage is recorded, so a reader sees where the pipeline stopped.
+   const stopped = result.stages.at(-1)!;
+   assert.equal(stopped.stage, 'repair');
+   assert.equal(stopped.outcome, 'error');
+   assert.match(String(stopped.detail.message), /did not finish in time/);
+   // Not asked twice: the second repair is the same call into the same silence.
+   assert.equal(calls, 2);
+});
+
+test('a critic revision the gateway never answers keeps the valid plan', async () => {
+   // Worse than losing a broken draft: this one passed every check, and only
+   // the critic's polish was out of reach.
+   const revise = {
+      verdict: 'revise',
+      problems: [{ code: 'ordering', path: '/issues', message: 'Nothing waits on the design.', severity: 'error' }],
+   };
+   let calls = 0;
+   const completion = {
+      async structured() {
+         calls += 1;
+         if (calls === 1) return { value: GOOD, text: '', inputTokens: 10, outputTokens: 20, durationMs: 1 };
+         if (calls === 2) return { value: revise, text: '', inputTokens: 10, outputTokens: 20, durationMs: 1 };
+         throw new CompletionFailed({ code: 'COMPLETION_TIMEOUT', message: 'the completion did not finish in time', retryable: true });
+      },
+   } as unknown as Pick<RuntimeCompletion, 'structured'>;
+   const planner = new PlanGenerator({ sql: NO_ROLES, defaultModel: 'test/model', completion });
+
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
+
+   assert.equal(result.validation.status, 'valid');
+   assert.equal(result.exhausted, false);
+   assert.equal(result.plan.issues.length, 1);
+   // The verdict stands as given: reporting `accept` would hide the problems.
+   assert.equal(result.critique?.verdict, 'revise');
+});
