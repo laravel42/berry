@@ -124,6 +124,11 @@ export function packageManagerFor(paths: readonly string[], dir: string): Packag
    return 'npm';
 }
 
+/** Where the repository sits in an app's container (`environments.ts` REPOSITORY_ROOT). */
+const REPOSITORY_ROOT_DIR = '/work';
+
+const PNPM_BUILDS = '--config.dangerously-allow-all-builds=true';
+
 /**
  * With dev dependencies, whatever NODE_ENV says: the build tool (vite, tsc,
  * next's own compiler plugins) is one, and a production install leaves it out.
@@ -132,7 +137,11 @@ export function packageManagerFor(paths: readonly string[], dir: string): Packag
 export function installCommand(manager: PackageManager): string {
    switch (manager) {
       case 'pnpm':
-         return 'pnpm install --frozen-lockfile --prod=false || pnpm install --prod=false';
+         // pnpm 11 and later refuse an install whose dependencies have build
+         // scripts the repository never approved (ERR_PNPM_IGNORED_BUILDS):
+         // esbuild and sharp, in most sites. A preview already runs the
+         // repository's own build, so its dependencies' builds add no trust.
+         return `pnpm install --frozen-lockfile --prod=false ${PNPM_BUILDS} || pnpm install --prod=false ${PNPM_BUILDS}`;
       case 'yarn':
          // Berry's flag first, then classic's: the repository decides which yarn this is.
          return 'NODE_ENV=development yarn install --immutable 2>/dev/null || NODE_ENV=development yarn install --frozen-lockfile || NODE_ENV=development yarn install';
@@ -149,12 +158,22 @@ export function runScript(manager: PackageManager, script: string): string {
 }
 
 /**
- * What a manifest app installs with when it names nothing: npm, but only where
- * there is a package.json. A static site's manifest names a start command and
- * no install, and an unconditional `npm install` failed its preview at
- * "Installing…" for want of a package.json it never needed.
+ * What a manifest app installs with when it names nothing: the manager its
+ * lockfile names (the app's folder's, else the repository root's, as
+ * `packageManagerFor` reads them), and only where there is a package.json.
+ * A static site's manifest names a start command and no install, and an
+ * unconditional `npm install` failed its preview at "Installing…" for want of
+ * a package.json it never needed. And npm on a pnpm project ignored its
+ * lockfile and resolved the whole tree again, minutes spent at "Installing…".
  */
-const DEFAULT_INSTALL = `if [ -f package.json ]; then ${installCommand('npm')}; else echo "No package.json: nothing to install."; fi`;
+const DEFAULT_INSTALL = [
+   'if [ ! -f package.json ]; then echo "No package.json: nothing to install."',
+   `elif [ -f pnpm-lock.yaml ] || [ -f ${REPOSITORY_ROOT_DIR}/pnpm-lock.yaml ]; then ${installCommand('pnpm')}`,
+   `elif [ -f yarn.lock ] || [ -f ${REPOSITORY_ROOT_DIR}/yarn.lock ]; then ${installCommand('yarn')}`,
+   `elif [ -f bun.lock ] || [ -f bun.lockb ] || [ -f ${REPOSITORY_ROOT_DIR}/bun.lock ] || [ -f ${REPOSITORY_ROOT_DIR}/bun.lockb ]; then ${installCommand('bun')}`,
+   `else ${installCommand('npm')}`,
+   'fi',
+].join('; ');
 
 /** A manifest, checked and completed. Throws `PlanRefused` with a sentence a person can act on. */
 export function planFromManifest(text: string): PreviewPlan {

@@ -62,6 +62,8 @@ test('a repository is installed, built and started with the package manager it c
    const plan = planFor(repo({ 'pnpm-lock.yaml': '', 'package.json': { scripts: { build: 'tsc', start: 'node .', 'migrate:up': 'x' }, dependencies: { pg: '8' } }, '.env.example': 'DATABASE_URL=\n' }))!;
    const app = plan.apps[0]!;
    assert.match(app.install, /^pnpm install --frozen-lockfile --prod=false/);
+   // Its dependencies' build scripts run: pnpm 11+ fails the install otherwise.
+   assert.match(app.install, /--config\.dangerously-allow-all-builds=true/);
    assert.deepEqual([app.build, app.start, app.migrate], ['pnpm run build', 'pnpm run start', 'pnpm run migrate:up']);
    // Dev dependencies are installed under every manager: the build tool is one.
    for (const manager of ['npm', 'pnpm', 'yarn', 'bun'] as const) assert.doesNotMatch(installCommand(manager), /--production(?!=false)|--prod(?!=false)/);
@@ -96,8 +98,8 @@ test('the repository’s own manifest wins, completed with defaults', () => {
    assert.equal(plan.source, 'manifest');
    assert.deepEqual(plan.apps.map((app) => [app.name, app.dir, app.primary]), [['api', 'server', false], ['site', 'web', true]]);
    assert.match(plan.apps[1]!.install, /npm ci/);
-   // A manifest names no install: npm, but only where there is a package.json.
-   assert.match(plan.apps[1]!.install, /^if \[ -f package\.json \]; then .*npm ci.*; else echo "No package\.json: nothing to install\."; fi$/);
+   // A manifest names no install: its lockfile's manager, only where there is a package.json (below).
+   assert.match(plan.apps[1]!.install, /^if \[ ! -f package\.json \]; then echo "No package\.json: nothing to install\."/);
    assert.equal(resolveEnv(plan, plan.apps[0]!, { url: () => '' }).DATABASE_URL, 'postgres://postgres:pw@db:5432/gifs');
 });
 
@@ -154,4 +156,24 @@ test('a static site’s manifest installs nothing, so its preview is not stopped
    } finally {
       rmSync(folder, { recursive: true, force: true });
    }
+});
+
+test('a manifest app that names no install uses the manager its lockfile names', async () => {
+   const { execFileSync } = await import('node:child_process');
+   const { mkdtempSync, writeFileSync } = await import('node:fs');
+   const { tmpdir } = await import('node:os');
+   const { join } = await import('node:path');
+   const install = planFromManifest(JSON.stringify({ apps: [{ name: 'web', start: 'pnpm run preview', port: 3000 }] })).apps[0]!.install;
+   // Each manager a shell function that says its name, so the script only chooses.
+   const stubs = 'npm() { echo npm; }; pnpm() { echo pnpm; }; yarn() { echo yarn; }; bun() { echo bun; }; ';
+   const chosen = (files: string[]) => {
+      const dir = mkdtempSync(join(tmpdir(), 'berry-install-'));
+      for (const file of files) writeFileSync(join(dir, file), '{}');
+      return execFileSync('sh', ['-c', stubs + install], { cwd: dir }).toString().trim().split('\n')[0];
+   };
+   assert.equal(chosen([]), 'No package.json: nothing to install.');
+   assert.equal(chosen(['package.json']), 'npm');
+   assert.equal(chosen(['package.json', 'pnpm-lock.yaml']), 'pnpm');
+   assert.equal(chosen(['package.json', 'yarn.lock']), 'yarn');
+   assert.equal(chosen(['package.json', 'bun.lock']), 'bun');
 });
