@@ -19,6 +19,10 @@ import { PermissionDenied, type Permission, type PermissionSet } from '../../per
 
 export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    run_command: 'run_commands',
+   // A command in the same workspace, so the same permission: these are
+   // `berry-screenshots` and `berry-lighthouse`, named rather than recalled.
+   check_page: 'run_commands',
+   check_performance: 'run_commands',
    // Reading the checkout needs the same permission that got it unpacked.
    browse_repository: 'read_repository',
    read_repository_file: 'read_repository',

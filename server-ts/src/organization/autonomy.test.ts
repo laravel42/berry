@@ -57,8 +57,24 @@ describe('autonomy ceilings', () => {
    });
 
    test('effective tools are the allowed tools inside the ceiling', () => {
-      // Level 4 cannot review even when the contract lists the tool.
-      assert.deepEqual(effectiveTools(base), ['create_task', 'read_task', 'run_command']);
+      // Level 4 cannot review even when the contract lists the tool. The page
+      // checks come with the shell: they are a command in the same workspace.
+      assert.deepEqual(effectiveTools(base), [
+         'check_page',
+         'check_performance',
+         'create_task',
+         'read_task',
+         'run_command',
+      ]);
+   });
+
+   test('the page checks come with the shell and never without it', () => {
+      const noShell = { ...base, allowed_tools: ['read_task', 'create_task'] };
+      assert.deepEqual(effectiveTools(noShell), ['create_task', 'read_task']);
+      // Below Level 3 the shell is out of reach, so the checks are too, even
+      // when a contract names them.
+      const low = { ...base, autonomy_level: 2 as const, allowed_tools: ['read_task', 'run_command'] };
+      assert.deepEqual(effectiveTools(low), ['read_task']);
    });
 
    test('code permissions follow run_command, never merge', () => {

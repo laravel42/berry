@@ -50,6 +50,17 @@ const LEVEL_2 = [
 
 const LEVEL_3 = [...LEVEL_2, 'run_command', 'collect_file'] as const;
 
+/**
+ * What a shell already implies, granted with it rather than named separately.
+ *
+ * `check_page` and `check_performance` are a command in the same workspace —
+ * the image's own page helpers — so a role that may run commands can already
+ * reach them by typing their names. Deriving them means no stored contract
+ * has to be rewritten (and no `contract_hash` drifts) to hand an agent a tool
+ * it always had, and a contract can never hold one without the shell it needs.
+ */
+const WITH_SHELL = ['check_page', 'check_performance'] as const;
+
 const LEVEL_5 = [...LEVEL_3, 'submit_review'] as const;
 
 const CEILINGS: Record<AutonomyLevel, readonly string[]> = {
@@ -81,7 +92,9 @@ export function toolCeiling(level: AutonomyLevel): readonly string[] {
 
 export function effectiveTools(contract: Pick<RoleContract, 'allowed_tools' | 'autonomy_level'>): string[] {
    const ceiling = new Set(toolCeiling(contract.autonomy_level));
-   return [...new Set(contract.allowed_tools)].filter((tool) => ceiling.has(tool)).sort();
+   const reached = [...new Set(contract.allowed_tools)].filter((tool) => ceiling.has(tool));
+   if (reached.includes('run_command')) reached.push(...WITH_SHELL);
+   return [...new Set(reached)].sort();
 }
 
 export function effectivePermissions(

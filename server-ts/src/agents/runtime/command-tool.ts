@@ -76,8 +76,6 @@ const FLUSH_BYTES = 2 * 1024;
 const FLUSH_MS = 300;
 
 export function runCommandTool(scope: CommandToolScope): Tool {
-   const clock = scope.clock ?? (() => new Date());
-
    return tool({
       name: 'run_command',
       description:
@@ -86,13 +84,10 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'The workspace is yours alone and is destroyed when the run ends; a file a command produces ' +
          'is kept only if you collect_file it. ' +
          'A non-zero exit code is a result you should read and act on, not an error. ' +
-         'To check a page, run `berry-screenshots <url or folder>` (a folder such as . or dist is served for you: ' +
-         'no server to start, and one started in the background ends with its command): phone, tablet and desktop ' +
-         'screenshots in one command, with any console errors and failed requests. For performance, run ' +
-         '`berry-lighthouse <url or folder>`: scores, core timings and lighthouse-budget.json checked, Lighthouse already installed. ' +
-         'Playwright with Chromium is ' +
-         "installed for anything else (`require('playwright')` in a CommonJS script); do not install a browser " +
-         'or search for it. ' +
+         'Do not run a web server here to look at a page: use check_page, or check_performance, which serve a ' +
+         'folder themselves — a server you start in the background ends with the command that started it. ' +
+         'Playwright with Chromium is already installed for anything else ' +
+         "(`require('playwright')` in a CommonJS script); never install a browser or search for one. " +
          `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,
       inputSchema: z.object({
          command: z.string().describe('A shell command, e.g. "pnpm install" or "pnpm test"'),
@@ -113,123 +108,175 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          if (trimmed === '') {
             return { error: 'command was empty', exitCode: null };
          }
-
-         let session: ExecutionSession;
-         try {
-            session = await scope.session();
-         } catch (error) {
-            // The substrate being unreachable is not the agent's failure and
-            // must not read like one: it is told plainly so it can say so
-            // rather than retrying a command that cannot run.
-            if (error instanceof ExecutionUnavailable) {
-               return { error: `no workspace is available: ${error.message}`, exitCode: null };
-            }
-            throw error;
+         const run = await runInWorkspace(
+            scope,
+            {
+               command: trimmed,
+               cwd,
+               limitMs: timeoutMinutes ? timeoutMinutes * 60_000 : (scope.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS),
+               timeoutAdvice:
+                  'If it is a long build or test, run it again with a larger timeoutMinutes; if it was waiting on ' +
+                  'input or downloading something large, find a lighter way.',
+            },
+            context
+         );
+         if ('unavailable' in run) return { error: run.unavailable, exitCode: null };
+         if (run.timedOut) {
+            return { error: run.failure, exitCode: null, stdout: run.stdout, stderr: run.stderr };
          }
-
-         const commandId = scope.newId();
-         const startedAt = clock().getTime();
-         // The checkout, when the run has one, read at call time: the tools are
-         // built before the repository is cloned.
-         const workdir = context?.agent.appState.get(WORKDIR_KEY);
-         const directory = cwd ?? (typeof workdir === 'string' ? workdir : null);
-         // The run's cancellation, so a `pnpm test` three minutes in stops
-         // with the run rather than finishing in a container nobody will reap.
-         const signal = context?.cancelSignal;
-         // The command's own limit, on top of the run's cancellation: a command
-         // that hangs (an install waiting on a prompt, a server that never
-         // exits) is stopped, and the agent told so, instead of holding the run.
-         const limitMs = timeoutMinutes ? timeoutMinutes * 60_000 : (scope.timeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS);
-         const timer = AbortSignal.timeout(limitMs);
-         const stop = signal ? AbortSignal.any([signal, timer]) : timer;
-
-         await scope.ledger.appendCommandStarted(scope.runId, {
-            commandId,
-            command: trimmed,
-            cwd: directory,
-         });
-
-         const recorder = new OutputRecorder(scope.ledger, scope.runId, commandId, clock);
-         const tail = new Tail(MAX_MODEL_BYTES);
-         let exitCode: number | null = null;
-         let failure: string | null = null;
-
-         try {
-            const options = {
-               ...(directory === null ? {} : { cwd: directory }),
-               signal: stop,
-               timeoutMs: limitMs + SUBSTRATE_GRACE_MS,
-            };
-            for await (const event of session.stream(trimmed, options)) {
-               switch (event.type) {
-                  case 'stdout':
-                  case 'stderr':
-                     await recorder.write(event.type, event.data);
-                     tail.write(event.type, event.data);
-                     break;
-                  case 'exit':
-                     exitCode = event.exitCode;
-                     break;
-                  case 'error':
-                     failure = event.message;
-                     break;
-                  default:
-                     break;
-               }
-            }
-         } catch (error) {
-            // Cancellation is not a broken stream, and must not be recorded as
-            // one: the person asked for this, and the agent should say so
-            // rather than report an infrastructure fault it can retry.
-            failure = signal?.aborted
-               ? 'the run was cancelled'
-               : error instanceof Error
-                 ? error.message
-                 : String(error);
-         }
-         // A command stopped at its limit ends however the workspace ends a
-         // killed process; what the agent needs to know is that it ran out of time.
-         const timedOut = timer.aborted && !signal?.aborted;
-         if (timedOut) {
-            exitCode = null;
-            failure =
-               `the command ran for ${Math.round(limitMs / 60_000)} minutes and was stopped. ` +
-               'If it is a long build or test, run it again with a larger timeoutMinutes; if it was waiting on input ' +
-               'or downloading something large, find a lighter way.';
-         }
-
-         // The ledger refuses an append to a run that has ended, which is
-         // exactly the case a cancellation creates: the run went terminal
-         // while this command was still draining. That is not the command's
-         // failure and must not be raised as one — the tool still owes the
-         // model a result, and the run's own ending is already recorded.
-         await recorder.flush().catch(() => undefined);
-         await scope.ledger
-            .appendCommandCompleted(scope.runId, {
-               commandId,
-               exitCode,
-               // Never negative: the wall clock in a container can step back
-               // under a command, and one such frame fails the whole run as a
-               // protocol error on the far side.
-               durationMs: Math.max(0, clock().getTime() - startedAt),
-               truncated: recorder.truncated,
-            })
-            .catch(() => undefined);
-
-         if (timedOut) {
-            return { error: failure, exitCode: null, stdout: tail.text('stdout'), stderr: tail.text('stderr') };
-         }
-         if (failure !== null && exitCode === null) {
-            return { error: failure, exitCode: null };
+         if (run.failure !== null && run.exitCode === null) {
+            return { error: run.failure, exitCode: null };
          }
          return {
-            exitCode,
-            stdout: tail.text('stdout'),
-            stderr: tail.text('stderr'),
-            ...(recorder.truncated ? { note: 'output was truncated in the run log' } : {}),
+            exitCode: run.exitCode,
+            stdout: run.stdout,
+            stderr: run.stderr,
+            ...(run.truncated ? { note: 'output was truncated in the run log' } : {}),
          };
       },
    });
+}
+
+/** What a command left behind, however it ended. Each tool shapes its own answer from this. */
+export interface Executed {
+   exitCode: number | null;
+   stdout: string;
+   stderr: string;
+   /** Why it did not finish, phrased for the model; null when it ran to an exit code. */
+   failure: string | null;
+   truncated: boolean;
+   /** Stopped at its own limit, rather than by the run's cancellation. */
+   timedOut: boolean;
+}
+
+/** The workspace never opened. Not the agent's failure, and it must not read like one. */
+export interface Unavailable {
+   unavailable: string;
+}
+
+/**
+ * One command in the run's workspace, recorded in the ledger as it goes.
+ *
+ * Shared by every tool that is a command underneath — `run_command` and the
+ * page checks — so each of them appears in the live log the same way, and
+ * cancellation, the time limit and a workspace that never opened are handled
+ * in one place rather than once per tool.
+ */
+export async function runInWorkspace(
+   scope: CommandToolScope,
+   input: { command: string; cwd?: string | undefined; limitMs: number; timeoutAdvice?: string },
+   context?: ToolContext
+): Promise<Executed | Unavailable> {
+   const clock = scope.clock ?? (() => new Date());
+
+   let session: ExecutionSession;
+   try {
+      session = await scope.session();
+   } catch (error) {
+      // The substrate being unreachable is not the agent's failure and
+      // must not read like one: it is told plainly so it can say so
+      // rather than retrying a command that cannot run.
+      if (error instanceof ExecutionUnavailable) {
+         return { unavailable: `no workspace is available: ${error.message}` };
+      }
+      throw error;
+   }
+
+   const commandId = scope.newId();
+   const startedAt = clock().getTime();
+   // The checkout, when the run has one, read at call time: the tools are
+   // built before the repository is cloned.
+   const workdir = context?.agent.appState.get(WORKDIR_KEY);
+   const directory = input.cwd ?? (typeof workdir === 'string' ? workdir : null);
+   // The run's cancellation, so a `pnpm test` three minutes in stops
+   // with the run rather than finishing in a container nobody will reap.
+   const signal = context?.cancelSignal;
+   // The command's own limit, on top of the run's cancellation: a command
+   // that hangs (an install waiting on a prompt, a server that never
+   // exits) is stopped, and the agent told so, instead of holding the run.
+   const timer = AbortSignal.timeout(input.limitMs);
+   const stop = signal ? AbortSignal.any([signal, timer]) : timer;
+
+   await scope.ledger.appendCommandStarted(scope.runId, {
+      commandId,
+      command: input.command,
+      cwd: directory,
+   });
+
+   const recorder = new OutputRecorder(scope.ledger, scope.runId, commandId, clock);
+   const tail = new Tail(MAX_MODEL_BYTES);
+   let exitCode: number | null = null;
+   let failure: string | null = null;
+
+   try {
+      const options = {
+         ...(directory === null ? {} : { cwd: directory }),
+         signal: stop,
+         timeoutMs: input.limitMs + SUBSTRATE_GRACE_MS,
+      };
+      for await (const event of session.stream(input.command, options)) {
+         switch (event.type) {
+            case 'stdout':
+            case 'stderr':
+               await recorder.write(event.type, event.data);
+               tail.write(event.type, event.data);
+               break;
+            case 'exit':
+               exitCode = event.exitCode;
+               break;
+            case 'error':
+               failure = event.message;
+               break;
+            default:
+               break;
+         }
+      }
+   } catch (error) {
+      // Cancellation is not a broken stream, and must not be recorded as
+      // one: the person asked for this, and the agent should say so
+      // rather than report an infrastructure fault it can retry.
+      failure = signal?.aborted
+         ? 'the run was cancelled'
+         : error instanceof Error
+           ? error.message
+           : String(error);
+   }
+   // A command stopped at its limit ends however the workspace ends a
+   // killed process; what the agent needs to know is that it ran out of time.
+   const timedOut = timer.aborted && !signal?.aborted;
+   if (timedOut) {
+      exitCode = null;
+      failure =
+         `the command ran for ${Math.round(input.limitMs / 60_000)} minutes and was stopped.` +
+         (input.timeoutAdvice ? ` ${input.timeoutAdvice}` : '');
+   }
+
+   // The ledger refuses an append to a run that has ended, which is
+   // exactly the case a cancellation creates: the run went terminal
+   // while this command was still draining. That is not the command's
+   // failure and must not be raised as one — the tool still owes the
+   // model a result, and the run's own ending is already recorded.
+   await recorder.flush().catch(() => undefined);
+   await scope.ledger
+      .appendCommandCompleted(scope.runId, {
+         commandId,
+         exitCode,
+         // Never negative: the wall clock in a container can step back
+         // under a command, and one such frame fails the whole run as a
+         // protocol error on the far side.
+         durationMs: Math.max(0, clock().getTime() - startedAt),
+         truncated: recorder.truncated,
+      })
+      .catch(() => undefined);
+
+   return {
+      exitCode,
+      stdout: tail.text('stdout'),
+      stderr: tail.text('stderr'),
+      failure,
+      truncated: recorder.truncated,
+      timedOut,
+   };
 }
 
 /**

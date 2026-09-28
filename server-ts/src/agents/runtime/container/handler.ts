@@ -6,6 +6,7 @@ import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { runCommandTool, WORKDIR_KEY } from '../command-tool.ts';
+import { pageTools } from '../page-tools.ts';
 import { repositoryTools } from '../repository-tools.ts';
 import { readSkillTool } from '../skill-tool.ts';
 import { permissionsOf, type Permission } from '../../permissions.ts';
@@ -206,6 +207,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       });
       const tools: Tool[] = [
          runCommandTool({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
+         ...pageTools({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          collectFileTool(api, session),
          ...repositoryTools(session),
          readSkillTool(envelope.agent.skills),

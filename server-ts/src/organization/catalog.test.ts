@@ -180,7 +180,9 @@ test('a role that hands work on is told not to hand on a review of its own work'
 
 test('a role that runs commands is told not to install large tools to check its work; others are not', () => {
    for (const role of CATALOG) {
-      const told = /Do not install browsers or other large tools just to check it/.test(role.system_prompt);
+      const told = /Do not install browsers or other large tools just to check your work/.test(role.system_prompt);
       assert.equal(told, role.allowed_tools.includes('run_command'), role.id);
+      // Told the tools that do it for them, or the advice is only a refusal.
+      if (told) assert.match(role.system_prompt, /check_page .*check_performance/, role.id);
    }
 });
