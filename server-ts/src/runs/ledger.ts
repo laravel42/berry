@@ -284,6 +284,15 @@ export class RunLedger {
    }
 
    /** Only the tool's name and call id. Arguments are never recorded. */
+   /**
+    * The model is reasoning before it answers (`thinking` from the runtime):
+    * how much, never what. The task page shows it as Thinking, so a long
+    * silence between steps reads as work rather than a stalled run.
+    */
+   async appendThinking(runId: string, chars: number): Promise<void> {
+      await this.appendActiveEvent(runId, 'run.thinking', { chars });
+   }
+
    async appendToolStarted(runId: string, toolCallId: string, name: string): Promise<void> {
       await this.appendActiveEvent(runId, 'run.tool.started', {
          toolCallId,

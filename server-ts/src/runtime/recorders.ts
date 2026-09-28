@@ -43,6 +43,8 @@ export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
             switch (message.kind) {
                case 'output':
                   return ledger.appendOutput(runId, message.channel, message.text);
+               case 'thinking':
+                  return ledger.appendThinking(runId, message.chars);
                case 'tool.started':
                   return ledger.appendToolStarted(runId, message.toolCallId, message.name);
                case 'tool.completed':

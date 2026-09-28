@@ -209,7 +209,12 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          collectFileTool(api, session),
          ...repositoryTools(session),
          readSkillTool(envelope.agent.skills),
-         ...remote,
+         // Not `attach_file`: here every file is in the workspace, and
+         // `collect_file` puts it on the task without passing it through the
+         // model. Offered both, agents base64-encoded screenshots and typed
+         // hundreds of kilobytes into a tool call, minutes of silent output
+         // that ended at the reply ceiling.
+         ...remote.filter((entry) => entry.name !== 'attach_file'),
          // Speech and video render here, with the runtime's own role, and
          // land on the task through Berry like any other file.
          ...mediaTools({
@@ -264,6 +269,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             sessionId: envelope.runtimeSessionId,
             fallbackModel: envelope.agent.fallbackModel ?? null,
             messages: warm && held ? held.messages : toConversation(envelope.transcript),
+            onReasoning: thinkingReporter(emit),
          },
          deps.modelFactory
       );
@@ -387,3 +393,24 @@ export function agentFingerprint(envelope: TaskEnvelope): string {
 }
 
 export { toConversation } from './conversation.ts';
+
+/** How often a run that is still reasoning says so. */
+export const THINKING_EVERY_MS = 5_000;
+
+/**
+ * Reasoning, as `thinking` messages: the first piece at once, then at most one
+ * every `THINKING_EVERY_MS`, each with the run's reasoning so far. Enough for
+ * the task page to show that the model is working and for how long; the
+ * reasoning itself is never sent.
+ */
+export function thinkingReporter(emit: Emit, now: () => number = Date.now): (chars: number) => void {
+   let total = 0;
+   let last = -Infinity;
+   return (chars) => {
+      total += chars;
+      const at = now();
+      if (at - last < THINKING_EVERY_MS) return;
+      last = at;
+      emit({ type: 'task.message', message: { kind: 'thinking', chars: total } });
+   };
+}

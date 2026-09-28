@@ -10,7 +10,7 @@ import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { fakeMcpServer } from '../mcp-clients.test.ts';
 import { textOf } from '../plugins/accounting.ts';
 import { ScriptedModel, call, say, throwing, type ScriptedTurn } from '../scripted-model.ts';
-import { handleInvocation, toConversation, toolTable, type HandlerDeps } from './handler.ts';
+import { handleInvocation, THINKING_EVERY_MS, thinkingReporter, toConversation, toolTable, type HandlerDeps } from './handler.ts';
 import { SessionRegistry } from './sessions.ts';
 
 const SESSION = `berry-${'a'.repeat(64)}`;
@@ -394,4 +394,19 @@ test('a limit stop with no repository says its Berry work stands', async () => {
    assert.ok(last?.type === 'task.failed');
    assert.match(last.failure.message, /through Berry stands/);
    assert.equal(last.delivery, undefined);
+});
+
+test('reasoning is reported at once, then at most every few seconds, with the run\'s total so far', () => {
+   const events: LifecycleEvent[] = [];
+   let now = 1_000;
+   const report = thinkingReporter((event) => events.push(event), () => now);
+   report(10);
+   now += 1_000;
+   report(20);
+   now += THINKING_EVERY_MS;
+   report(5);
+   assert.deepEqual(
+      events.map((event) => (event.type === 'task.message' && event.message.kind === 'thinking' ? event.message.chars : null)),
+      [10, 35]
+   );
 });

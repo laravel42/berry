@@ -86,8 +86,10 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'The workspace is yours alone and is destroyed when the run ends; a file a command produces ' +
          'is kept only if you collect_file it. ' +
          'A non-zero exit code is a result you should read and act on, not an error. ' +
-         'Playwright with Chromium is installed: `npx playwright screenshot <url> <file>`, or ' +
-         "`require('playwright')` in a Node script. Use it; do not install a browser. " +
+         'To check a page, serve it and run `berry-screenshots <url> <dir>`: phone, tablet and desktop ' +
+         'screenshots in one command, with any console errors and failed requests. Playwright with Chromium is ' +
+         "installed for anything else (`require('playwright')` in a CommonJS script); do not install a browser " +
+         'or search for it. ' +
          `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,
       inputSchema: z.object({
          command: z.string().describe('A shell command, e.g. "pnpm install" or "pnpm test"'),

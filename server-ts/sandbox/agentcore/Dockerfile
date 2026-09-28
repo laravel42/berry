@@ -49,6 +49,10 @@ RUN npm install -g playwright@1.63.0 \
    && playwright install --with-deps chromium \
    && chown -R node:node /ms-playwright \
    && rm -rf /var/lib/apt/lists/* /root/.npm
+# One command for the check nearly every page task makes: the page at phone,
+# tablet and desktop widths, and what went wrong while it loaded.
+COPY sandbox/agentcore/berry-screenshots.cjs /usr/local/bin/berry-screenshots
+RUN chmod 755 /usr/local/bin/berry-screenshots
 
 ENV BUN_INSTALL=/usr/local/bun
 RUN curl -fsSL https://bun.sh/install | bash \

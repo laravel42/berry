@@ -38,7 +38,7 @@ export function redactHeaders(headers: Record<string, string>): Record<string, s
 export function agentLogEvent(event: LifecycleEvent): LifecycleEvent | null {
    if (event.type === 'task.message') {
       const kind = event.message.kind;
-      if (kind === 'output' || kind === 'command.output') return null;
+      if (kind === 'output' || kind === 'command.output' || kind === 'thinking') return null;
       return event;
    }
    if (event.type === 'task.completed' && event.result.delivery?.candidate) {
