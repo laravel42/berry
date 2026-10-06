@@ -35,6 +35,7 @@ import { artifactPreviewMounts, issueArtifactPreviewRoutes, PreviewTokens } from
 import { SiteBuilds } from './previews/site-builds.ts';
 import { PreviewEnvironments } from './previews/environments.ts';
 import { previewOrigin, previewProxy } from './previews/proxy.ts';
+import { sitePreviewProxy } from './previews/site-host.ts';
 import { pullRequestSource } from './previews/source.ts';
 import { releaseTaskResources } from './runs/session-teardown.ts';
 import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
@@ -348,6 +349,9 @@ const siteBuilds = storage
         // this container and on the host; a cache under $HOME is not, and the
         // build would run against an empty directory.
         ...(config.previews.root ? { root: join(config.previews.root, 'site-builds') } : {}),
+        address: config.previews,
+        publishAddr: config.docker.publishAddr,
+        hostAddr: config.docker.hostAddr,
      })
    : null;
 
@@ -777,6 +781,7 @@ const commentOptions = {
    // queues a task for it.
    triggers: commentTriggers({
       sql,
+      issues,
       enqueue: agentEnqueue,
       report: (error: unknown) =>
          logger.error('comment trigger failed', { error: error instanceof Error ? error.message : String(error) }),
@@ -1351,8 +1356,9 @@ const app = createApp(registry);
 // A request addressed to a preview's host name is that preview's; every other
 // request is Berry's and never sees the proxy.
 const toPreview = previewEnvironments ? previewProxy(previewEnvironments, config.previews.domain, fetch, config.docker.hostAddr) : null;
+const toSite = siteBuilds ? sitePreviewProxy(siteBuilds, config.previews.domain, fetch, config.docker.hostAddr) : null;
 const server = serve({
-   fetch: toPreview ? async (request, env) => (await toPreview(request)) ?? app.fetch(request, env) : app.fetch,
+   fetch: async (request, env) => (await toPreview?.(request)) ?? (await toSite?.(request)) ?? app.fetch(request, env),
    hostname: config.apiAddr.host,
    port: config.apiAddr.port,
 });

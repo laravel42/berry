@@ -11,7 +11,7 @@ import type { IdempotencyStore } from '../http/idempotency.ts';
 import type { Broadcaster } from '../realtime/hub.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { Mount } from '../http/registry.ts';
-import type { IssueRepository } from '../core/issues.ts';
+import type { IssueMutationEvent, IssueRepository } from '../core/issues.ts';
 import type { WorkTrackingHooks } from '../work/hooks.ts';
 import type { CommentTriggers } from '../agents/triggers.ts';
 import {
@@ -212,13 +212,14 @@ export function issueCommentRoutes(options: CommentOptions) {
       // Only a person's comment reaches here (authorType is 'user'), so an
       // agent's result comment can never start another run.
       if (options.triggers) {
-         await options.triggers.fire({
+         const reopened = await options.triggers.fire({
             workspaceId: scope.workspaceId,
             issueId: issue.id,
             authorId: context.get('user').id,
             commentId: result.comment.id,
             body: text,
          });
+         await publishIssue(options, reopened);
       }
 
       const response = json(serializeComment(result.comment), 201);
@@ -387,6 +388,30 @@ function rethrowMutation(verb: string): (error: unknown) => never {
       if (error instanceof NotFound) throw ApiError.notFound('Comment');
       throw error;
    };
+}
+
+/**
+ * The task left review because of this comment.
+ *
+ * Best effort, as an issue write is: the event is already in the outbox, so a
+ * relay outage costs open boards their live update rather than the write.
+ */
+async function publishIssue(options: CommentOptions, events: IssueMutationEvent[]): Promise<void> {
+   if (!options.broadcaster) return;
+   for (const event of events) {
+      try {
+         await options.broadcaster.publish({
+            id: event.id,
+            workspaceId: event.workspaceId,
+            boardId: event.boardId,
+            type: event.type,
+            payload: event.payload,
+            occurredAt: event.occurredAt,
+         });
+      } catch {
+         // The outbox already has the event; a relay miss costs the live update.
+      }
+   }
 }
 
 /**

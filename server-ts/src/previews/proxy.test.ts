@@ -8,7 +8,7 @@ const DOMAIN = 'preview.localhost';
 test('a preview host names its environment and app; nothing else is a preview host', () => {
    assert.deepEqual(parsePreviewHost(`p-${ID}-web.${DOMAIN}:4000`, DOMAIN), { id: ID, app: 'web' });
    assert.deepEqual(parsePreviewHost(`P-${ID}.PREVIEW.localhost`, DOMAIN), { id: ID, app: null });
-   for (const host of ['localhost:4000', `p-${ID}-web.evil.test`, `p-short-web.${DOMAIN}`, `x.p-${ID}-web.${DOMAIN}`, `p-${ID}-Web_App.${DOMAIN}`, '', null]) {
+   for (const host of ['localhost:4000', `p-${ID}-web.evil.test`, `p-short-web.${DOMAIN}`, `x.p-${ID}-web.${DOMAIN}`, `p-${ID}-Web_App.${DOMAIN}`, `s-${ID}.${DOMAIN}`, '', null]) {
       assert.equal(parsePreviewHost(host, DOMAIN), null, String(host));
    }
    assert.equal(previewOrigin({ domain: DOMAIN, scheme: 'http', port: 4000 }, ID, 'web'), `http://p-${ID}-web.${DOMAIN}:4000`);

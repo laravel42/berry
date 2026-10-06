@@ -4,7 +4,8 @@ import type { RunArtifact, RunArtifactRepository } from '../core/run-artifacts.t
 import { createApp } from '../http/app.ts';
 import { Registry } from '../http/registry.ts';
 import type { Storage } from '../storage/storage.ts';
-import { artifactPreviewMounts, NAV_BRIDGE, PreviewTokens, previewContentType, rootRelative, SANDBOX_SHIM as STORAGE_SHIM, withSandboxShim, asAppRoot } from './artifact-preview.ts';
+import { artifactPreviewMounts, NAV_BRIDGE, PreviewTokens, previewAssetUrl, previewContentType, rootRelative, SANDBOX_SHIM as STORAGE_SHIM, withSandboxShim, asAppRoot } from './artifact-preview.ts';
+import type { SiteBuilds } from '../previews/site-builds.ts';
 
 /** Everything injected ahead of a preview page's own markup. */
 const SANDBOX_SHIM = STORAGE_SHIM + NAV_BRIDGE;
@@ -136,4 +137,58 @@ test('a built app reopened by the preview starts on the route it was on, and onl
    assert.match(page, /get\("berry-route"\)/);
    // …and only a same-host path: not "//evil.test", not "https://…".
    assert.match(page, /r\.charAt\(0\)==="\/"&&r\.charAt\(1\)!=="\/"/);
+   // A path-absolute fetch or navigation stays inside the build. The page's
+   // origin is null, so calling Berry's own /api or /admin is refused.
+   assert.match(page, /window\.fetch=function/);
+   assert.match(page, /navigation\.addEventListener\("navigate"/);
+});
+
+test('a root-absolute request is served from the build, and anything else is left alone', () => {
+   const base = 'http://localhost:3000/api/v1/previews/t/__build__/';
+   const page = `${base}index.html`;
+   assert.equal(
+      previewAssetUrl(base, page, '/api/admin/sessions'),
+      `${base}api/admin/sessions`
+   );
+   assert.equal(previewAssetUrl(base, page, '/admin'), `${base}admin`);
+   assert.equal(previewAssetUrl(base, page, `${base}assets/app.js`), null);
+   assert.equal(previewAssetUrl(base, page, 'https://cdn.test/app.js'), null);
+   assert.equal(previewAssetUrl(base, page, '//cdn.test/app.js'), null);
+});
+
+test('a sandboxed app can preflight its own API, and a client route reopens the app', async () => {
+   const tokens = new PreviewTokens({ secret: 's'.repeat(32) });
+   const index = '<html><head><title>App</title></head><body>app</body></html>';
+   const builds = {
+      async file(_issueId: string, path: string) {
+         return path === 'index.html' ? { bytes: new TextEncoder().encode(index), path } : null;
+      },
+   } as unknown as SiteBuilds;
+   const registry = new Registry();
+   registry.registerAll(artifactPreviewMounts({
+      artifacts: { async getByPath() { return null; }, async listForIssue() { return []; } } as unknown as RunArtifactRepository,
+      tokens,
+      storage: null,
+      builds,
+   }));
+   const server = createApp(registry);
+   const base = `/api/v1/previews/${tokens.issue(ISSUE).token}/`;
+
+   const preflight = await server.request(`${base}__build__/api/admin/sessions`, {
+      method: 'OPTIONS',
+      headers: { Origin: 'null', 'Access-Control-Request-Method': 'GET' },
+   });
+   assert.equal(preflight.status, 204);
+   assert.equal(preflight.headers.get('access-control-allow-origin'), '*');
+   assert.match(preflight.headers.get('access-control-allow-methods') ?? '', /\bGET\b/);
+   assert.equal(preflight.headers.get('access-control-allow-headers'), '*');
+
+   const api = await server.request(`${base}__build__/api/admin/sessions`, { headers: { 'Sec-Fetch-Dest': 'empty' } });
+   assert.equal(api.status, 404);
+   assert.equal(api.headers.get('access-control-allow-origin'), '*');
+
+   const route = await server.request(`${base}__build__/admin`, { headers: { 'Sec-Fetch-Dest': 'iframe' } });
+   assert.equal(route.status, 200);
+   assert.match(await route.text(), /<title>App<\/title>/);
+   assert.match(route.headers.get('content-type') ?? '', /^text\/html/);
 });

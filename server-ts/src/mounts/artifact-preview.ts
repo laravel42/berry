@@ -207,6 +207,21 @@ export function artifactPreviewMounts(options: {
    builds?: SiteBuilds | null;
 }): Mount[] {
    const route = new Hono();
+   // A sandboxed page's fetch of its own `/api/…` is a CORS preflight. The
+   // boot script sends it here; answering it is what lets the app read the
+   // response instead of failing the preflight against Berry.
+   route.options('/:token/*', (context) => {
+      if (!options.tokens.verify(context.req.param('token'))) return notFound();
+      return new Response(null, {
+         status: 204,
+         headers: {
+            ...SANDBOX_HEADERS,
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS',
+            'Access-Control-Allow-Headers': '*',
+            'Access-Control-Max-Age': '600',
+         },
+      });
+   });
    route.get('/:token/*', async (context) => {
       const issueId = options.tokens.verify(context.req.param('token'));
       if (!issueId) return notFound();
@@ -222,7 +237,16 @@ export function artifactPreviewMounts(options: {
       // `__build__` without its slash too: Next's proxy strips trailing slashes.
       if (path === BUILD_PREFIX.slice(0, -1)) path = BUILD_PREFIX;
       if (path.startsWith(BUILD_PREFIX)) {
-         const built = options.builds ? await options.builds.file(issueId, path.slice(BUILD_PREFIX.length)) : null;
+         const relative = path.slice(BUILD_PREFIX.length);
+         let built = options.builds ? await options.builds.file(issueId, relative) : null;
+         // A client route (`/admin`) has no file. A document load of it is the
+         // app; a fetch (the app's own API) is a miss, with the CORS headers
+         // every preview response already carries.
+         const leaf = relative.split('/').pop() ?? '';
+         const dest = context.req.header('sec-fetch-dest');
+         if (!built && options.builds && (dest === 'document' || dest === 'iframe') && leaf !== '' && !leaf.includes('.')) {
+            built = await options.builds.file(issueId, 'index.html');
+         }
          if (!built) return notFound();
          return serve(built.bytes, previewContentType(built.path, 'application/octet-stream'), `${prefix}${BUILD_PREFIX}`, {
             app: true,
@@ -293,6 +317,43 @@ export function withSandboxShim(html: string): string {
 }
 
 /**
+ * A same-host path the app asked for (`/admin`, `/api/admin/sessions`), pointed
+ * at the preview build. Null when the request is already under that build, or
+ * is another host: a `<base>` does not affect a path that starts with `/`, so
+ * without this the sandboxed page calls Berry itself and the browser refuses
+ * it (the page's origin is `null`).
+ */
+export function previewAssetUrl(baseHref: string, pageUrl: string, request: string): string | null {
+   let url: URL;
+   let base: URL;
+   let page: URL;
+   try {
+      page = new URL(pageUrl);
+      url = new URL(request, page);
+      base = new URL(baseHref, page);
+   } catch {
+      return null;
+   }
+   if (url.origin !== page.origin) return null;
+   if (url.pathname.startsWith(base.pathname)) return null;
+   return new URL(`${url.pathname.replace(/^\//, '')}${url.search}${url.hash}`, base).href;
+}
+
+/**
+ * Runs in the built app, before its own scripts.
+ *
+ * The router is shown its own route (`/admin`) via `history.replaceState`. A
+ * real load of that URL is a different origin from the sandboxed page, so the
+ * browser blocks it ("domains, protocols and ports must match") and a `fetch`
+ * of `/api/…` fails its CORS check against Berry. Root-absolute requests are
+ * sent to the build instead, and a document navigation becomes a history
+ * update the router already understands.
+ *
+ * Kept in step with `previewAssetUrl`.
+ */
+const APP_BOOT = `<script>try{var r=new URLSearchParams(location.search).get("berry-route");history.replaceState(history.state,"",r&&r.charAt(0)==="/"&&r.charAt(1)!=="/"?r:"/"+location.search+location.hash)}catch(e){}</script><script>(function(){var baseEl=document.querySelector("base");if(!baseEl)return;var root;try{root=new URL(baseEl.href)}catch(e){return}function asset(raw){var url;try{url=new URL(raw,location.href)}catch(e){return null}if(url.origin!==location.origin)return null;if(url.pathname.indexOf(root.pathname)===0)return null;return new URL(url.pathname.replace(/^\\//,"")+url.search+url.hash,root).href}function routeOf(raw){var url;try{url=new URL(raw,location.href)}catch(e){return null}if(url.origin!==location.origin)return null;if(url.pathname.indexOf(root.pathname)===0)return null;return url.pathname+url.search+url.hash}function show(path){if(location.pathname+location.search+location.hash===path)return;history.pushState(null,"",path);dispatchEvent(new PopStateEvent("popstate",{state:history.state}))}var fetch0=window.fetch;if(fetch0)window.fetch=function(input,init){var raw=typeof input==="string"?input:input&&input.url;var next=raw?asset(raw):null;if(!next)return fetch0.call(this,input,init);if(typeof input==="string")return fetch0.call(this,next,init);return fetch0.call(this,new Request(next,input),init)};var open=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(method,url){var next=asset(String(url));var args=[method,next||url];for(var i=2;i<arguments.length;i++)args.push(arguments[i]);return open.apply(this,args)};document.addEventListener("click",function(e){if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;var node=e.target;var a=node&&node.closest?node.closest("a[href]"):null;if(!a||(a.target&&a.target!=="_self")||a.hasAttribute("download"))return;var path=routeOf(a.href);if(!path)return;e.preventDefault();show(path)},true);if(window.navigation&&navigation.addEventListener)navigation.addEventListener("navigate",function(e){if(e.destination.sameDocument)return;var path=routeOf(e.destination.url);if(!path||!e.cancelable)return;e.preventDefault();show(path)})})();</script>`;
+
+/**
  * A built single-page app, shown as its host would serve it: its router reads
  * `/`, not the preview's long path, or it renders its own "page not found".
  * The address is rewritten before any of its scripts run, and a `<base>`
@@ -301,7 +362,7 @@ export function withSandboxShim(html: string): string {
 export function asAppRoot(html: string, root: string): string {
    // `berry-route` is the route the app was on before the preview had to
    // reopen it (see frontend/proxy.ts); only a path on this host is taken.
-   const base = `<base href="${root.replace(/"/g, '&quot;')}"><script>try{var r=new URLSearchParams(location.search).get("berry-route");history.replaceState(history.state,"",r&&r.charAt(0)==="/"&&r.charAt(1)!=="/"?r:"/"+location.search+location.hash)}catch(e){}</script>`;
+   const base = `<base href="${root.replace(/"/g, '&quot;')}">${APP_BOOT}`;
    const head = /<head\b[^>]*>/i.exec(html);
    if (head) return html.slice(0, head.index + head[0].length) + base + html.slice(head.index + head[0].length);
    return base + html;

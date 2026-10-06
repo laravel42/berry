@@ -1,4 +1,5 @@
 import type { Sql } from '../db/pool.ts';
+import type { IssueMutationEvent, IssueRepository } from '../core/issues.ts';
 import { canUseAgent } from './access.ts';
 import { parseMentions } from './mentions.ts';
 import type { EnqueueTask } from './seams.ts';
@@ -119,23 +120,57 @@ export async function fireCommentTriggers(
 
 export interface CommentTriggers {
    preview(input: TriggerInput): Promise<TriggerPlan>;
-   fire(input: TriggerInput & { commentId: string }): Promise<void>;
+   /** Events from moving a task out of review, for the caller to publish. */
+   fire(input: TriggerInput & { commentId: string }): Promise<IssueMutationEvent[]>;
+}
+
+/**
+ * A comment that sends the assignee back to a task under review is rework.
+ * The task leaves review at once, for todo; the run then moves it to in
+ * progress when it starts. A mention of someone else is a question and leaves
+ * the review where it is.
+ */
+export async function reopenForRework(
+   sql: Sql,
+   issues: Pick<IssueRepository, 'update'>,
+   input: { issueId: string; authorId: string; plan: TriggerPlan }
+): Promise<IssueMutationEvent[]> {
+   const [row] = await sql<Array<{ status: string; assignee_type: string | null; assignee_id: string | null }>>`
+      SELECT status::text AS status, assignee_type::text AS assignee_type, assignee_id
+        FROM issues WHERE id = ${input.issueId} AND deleted_at IS NULL`;
+   if (!row || row.status !== 'in_review' || row.assignee_type !== 'agent' || !row.assignee_id) return [];
+   if (!input.plan.targets.some((target) => target.agentId === row.assignee_id)) return [];
+   const updated = await issues.update({
+      issueId: input.issueId,
+      patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
+      actorId: input.authorId,
+   });
+   return updated.events;
 }
 
 export function commentTriggers(deps: {
    sql: Sql;
    enqueue: EnqueueTask;
    report: (error: unknown) => void;
+   issues?: Pick<IssueRepository, 'update'>;
 }): CommentTriggers {
    return {
       preview: (input) => planCommentTriggers(deps.sql, input),
       async fire(input) {
          try {
             const plan = await planCommentTriggers(deps.sql, input);
+            const events = deps.issues
+               ? await reopenForRework(deps.sql, deps.issues, { ...input, plan }).catch((error: unknown) => {
+                    deps.report(error);
+                    return [];
+                 })
+               : [];
             await fireCommentTriggers(deps.sql, deps.enqueue, { ...input, plan });
+            return events;
          } catch (error) {
             // The comment is already saved; a failed trigger is reported, not a failed comment.
             deps.report(error);
+            return [];
          }
       },
    };

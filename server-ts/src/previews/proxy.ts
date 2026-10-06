@@ -69,45 +69,66 @@ export function previewProxy(targets: PreviewTargets, domain: string, doFetch: t
             headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
          });
       }
-      const url = new URL(request.url);
-      const headers = new Headers(request.headers);
-      // Berry's own session never reaches an agent's code, whatever the browser
-      // decided to send (a deployment may scope its cookies to a parent domain
-      // the preview host sits under). The app's own cookies are its business.
-      const cookies = (request.headers.get('cookie') ?? '').split(';').map((part) => part.trim()).filter((part) => part !== '' && !BERRY_COOKIE.test(part));
-      if (cookies.length > 0) headers.set('cookie', cookies.join('; '));
-      else headers.delete('cookie');
-      headers.set('x-forwarded-host', request.headers.get('host') ?? '');
-      headers.set('x-forwarded-proto', url.protocol.replace(':', ''));
-      const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
-      let upstream: Response;
-      try {
-         upstream = await doFetch(`http://${hostAddr}:${port}${url.pathname}${url.search}`, {
-            method: request.method,
-            headers,
-            redirect: 'manual',
-            ...(hasBody ? { body: request.body, duplex: 'half' } : {}),
-         } as RequestInit);
-      } catch {
-         return new Response('The preview did not answer. It may still be starting, or it stopped.', {
-            status: 502,
-            headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
-         });
-      }
-      const answer = new Headers();
-      upstream.headers.forEach((value, key) => {
-         if (!HOP.has(key.toLowerCase())) answer.append(key, value);
-      });
-      // Shown inside Berry's review page: an app that forbids framing forbids its
-      // own preview. Both ways of saying so go — helmet's defaults send the CSP one.
-      answer.delete('x-frame-options');
-      for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
-         const policy = answer.get(name);
-         if (!policy) continue;
-         const kept = policy.split(';').map((part) => part.trim()).filter((part) => part !== '' && !/^frame-ancestors(\s|$)/i.test(part));
-         if (kept.length > 0) answer.set(name, kept.join('; '));
-         else answer.delete(name);
-      }
-      return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: answer });
+      return proxyToPort(request, port, doFetch, hostAddr);
    };
+}
+
+/**
+ * Forwards one request to a preview's published port.
+ *
+ * Berry's session cookie never goes with it. Framing bans are removed so the
+ * review page can show the app. `rewriteHtml` runs on HTML responses — a site
+ * built with relative asset URLs needs `<base href="/">` once it is served at
+ * the host root, on every route.
+ */
+export async function proxyToPort(
+   request: Request,
+   port: number,
+   doFetch: typeof fetch = fetch,
+   hostAddr = '127.0.0.1',
+   rewriteHtml?: (html: string) => string,
+): Promise<Response> {
+   const url = new URL(request.url);
+   const headers = new Headers(request.headers);
+   // Berry's own session never reaches an agent's code, whatever the browser
+   // decided to send (a deployment may scope its cookies to a parent domain
+   // the preview host sits under). The app's own cookies are its business.
+   const cookies = (request.headers.get('cookie') ?? '').split(';').map((part) => part.trim()).filter((part) => part !== '' && !BERRY_COOKIE.test(part));
+   if (cookies.length > 0) headers.set('cookie', cookies.join('; '));
+   else headers.delete('cookie');
+   headers.set('x-forwarded-host', request.headers.get('host') ?? '');
+   headers.set('x-forwarded-proto', url.protocol.replace(':', ''));
+   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
+   let upstream: Response;
+   try {
+      upstream = await doFetch(`http://${hostAddr}:${port}${url.pathname}${url.search}`, {
+         method: request.method,
+         headers,
+         redirect: 'manual',
+         ...(hasBody ? { body: request.body, duplex: 'half' } : {}),
+      } as RequestInit);
+   } catch {
+      return new Response('The preview did not answer. It may still be starting, or it stopped.', {
+         status: 502,
+         headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+      });
+   }
+   const answer = new Headers();
+   upstream.headers.forEach((value, key) => {
+      if (!HOP.has(key.toLowerCase())) answer.append(key, value);
+   });
+   // Shown inside Berry's review page: an app that forbids framing forbids its
+   // own preview. Both ways of saying so go — helmet's defaults send the CSP one.
+   answer.delete('x-frame-options');
+   for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
+      const policy = answer.get(name);
+      if (!policy) continue;
+      const kept = policy.split(';').map((part) => part.trim()).filter((part) => part !== '' && !/^frame-ancestors(\s|$)/i.test(part));
+      if (kept.length > 0) answer.set(name, kept.join('; '));
+      else answer.delete(name);
+   }
+   if (rewriteHtml && (answer.get('content-type') ?? '').toLowerCase().includes('text/html')) {
+      return new Response(rewriteHtml(await upstream.text()), { status: upstream.status, statusText: upstream.statusText, headers: answer });
+   }
+   return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: answer });
 }

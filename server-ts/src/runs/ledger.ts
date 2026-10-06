@@ -257,9 +257,10 @@ export class RunLedger {
          // not only once the agent says so. Guarded on active_run_id and on
          // `todo`, so a task a person already moved is left where they put it —
          // and on `in_review` for a run that works the task again (Run again,
-         // a retry, a continuation): it read "In review" for the whole run,
-         // which is how a working task looked stuck. A run a mention set off,
-         // a question on a task under review, leaves it in review.
+         // a retry, a continuation, or a comment that sends the assignee back
+         // to it): it read "In review" for the whole run, which is how a
+         // working task looked stuck. A mention of someone else, a question
+         // while the task is under review, leaves it there.
          if (run.issueId) {
             const moved = await tx`
                UPDATE issues AS issue
@@ -268,7 +269,11 @@ export class RunLedger {
                   AND (issue.status = 'todo'
                        OR (issue.status = 'in_review'
                            AND EXISTS (SELECT 1 FROM runs AS r
-                                        WHERE r.id = ${run.id} AND r.kind = 'agent' AND r.source = 'assignment')))
+                                        WHERE r.id = ${run.id} AND r.kind = 'agent'
+                                          AND (r.source = 'assignment'
+                                               OR (r.source = 'mention'
+                                                   AND issue.assignee_type = 'agent'
+                                                   AND issue.assignee_id = r.agent_id)))))
                 RETURNING issue.id`;
             if (moved.length > 0) await this.appendIssueUpdated(tx, started, now);
          }

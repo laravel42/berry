@@ -3,7 +3,7 @@ import { after, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from '../mounts/agent-layer.fixture.ts';
 import type { EnqueueInput } from './seams.ts';
-import { commentTriggers, fireCommentTriggers, planCommentTriggers } from './triggers.ts';
+import { commentTriggers, fireCommentTriggers, planCommentTriggers, reopenForRework } from './triggers.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -61,6 +61,37 @@ describe('comment triggers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          result.targets.map((t) => t.reason),
          ['reply_to_assignee']
       );
+   });
+
+   test('a reply on a task under review sends it back to todo', async () => {
+      const [before] = await sql`SELECT status::text AS status FROM issues WHERE id = ${world.issueId}`;
+      await sql`
+         UPDATE issues SET status = 'in_review', assignee_type = 'agent', assignee_id = ${world.agentId}
+          WHERE id = ${world.issueId}`;
+      const seen: string[] = [];
+      const issues = {
+         update: async (params: { patch: { status?: string } }) => {
+            seen.push(params.patch.status ?? '');
+            return { issue: {} as never, events: [] };
+         },
+      };
+      try {
+         await reopenForRework(sql, issues, {
+            issueId: world.issueId,
+            authorId: world.memberId,
+            plan: { targets: [{ agentId: world.agentId, agentName: 'Coder', reason: 'reply_to_assignee' }], refused: [] },
+         });
+         assert.deepEqual(seen, ['todo']);
+         seen.length = 0;
+         await reopenForRework(sql, issues, {
+            issueId: world.issueId,
+            authorId: world.memberId,
+            plan: { targets: [{ agentId: world.otherAgentId, agentName: 'Other', reason: 'mention' }], refused: [] },
+         });
+         assert.deepEqual(seen, []);
+      } finally {
+         await sql`UPDATE issues SET status = ${before!.status}::issue_status WHERE id = ${world.issueId}`;
+      }
    });
 
    test('firing twice for one comment enqueues once', async () => {
