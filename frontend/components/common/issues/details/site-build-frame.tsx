@@ -11,6 +11,94 @@ import { knownSiteBuild, rebuildSite, rememberSiteBuild } from '@/lib/site-previ
 /** How often a running build is re-read: often enough that its log reads as a stream. */
 const POLL_MS = 1000;
 
+/**
+ * The task's site build: started once when `enabled`, followed while it runs,
+ * and remembered so the next opening starts from the latest.
+ */
+export function useSiteBuild(issueRef: string, enabled: boolean) {
+   const t = useTranslations('issueDetail.siteBuild');
+   const [build, setBuildState] = useState<SiteBuild | null>(() => knownSiteBuild(issueRef));
+   const setBuild = useCallback(
+      (next: SiteBuild) => {
+         rememberSiteBuild(issueRef, next);
+         setBuildState(next);
+      },
+      [issueRef]
+   );
+   const [error, setError] = useState<string | null>(null);
+   const started = useRef<string | null>(null);
+
+   const fail = useCallback(
+      (cause: unknown) => {
+         setError(
+            cause instanceof BerryApiError && cause.status === 503
+               ? t('unavailable')
+               : cause instanceof Error
+                 ? cause.message
+                 : String(cause)
+         );
+      },
+      [t]
+   );
+
+   const start = useCallback(() => {
+      setError(null);
+      startSiteBuild(issueRef).then(setBuild).catch(fail);
+   }, [issueRef, setBuild, fail]);
+
+   const rebuild = useCallback(() => {
+      setError(null);
+      setBuild({
+         available: true,
+         state: 'building',
+         log: '',
+         startedAt: new Date().toISOString(),
+         finishedAt: null,
+      });
+      rebuildSite(issueRef).then(setBuild).catch(fail);
+   }, [issueRef, setBuild, fail]);
+
+   // A different task is a different build. The ref is cleared first so the
+   // effect below starts this task rather than keeping the previous one.
+   useEffect(() => {
+      started.current = null;
+      setError(null);
+      setBuildState(knownSiteBuild(issueRef));
+   }, [issueRef]);
+
+   // A finished build already has a host. Read it at once, so the preview is
+   // not blank while this tab works out whether the page needs building.
+   useEffect(() => {
+      let cancelled = false;
+      siteBuildStatus(issueRef)
+         .then((next) => {
+            if (!cancelled && (next.state === 'ready' || next.state === 'building')) setBuild(next);
+         })
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [issueRef, setBuild]);
+
+   useEffect(() => {
+      if (!enabled || started.current === issueRef) return;
+      started.current = issueRef;
+      start();
+   }, [enabled, issueRef, start]);
+
+   useEffect(() => {
+      if (build?.state !== 'building') return;
+      const timer = setInterval(() => {
+         siteBuildStatus(issueRef)
+            .then(setBuild)
+            .catch(() => undefined);
+      }, POLL_MS);
+      return () => clearInterval(timer);
+   }, [build?.state, issueRef, setBuild]);
+
+   return { build, error, start, rebuild };
+}
+
 interface SiteBuildFrameProps {
    issueRef: string;
    /** The page under its preview base; null while the base is being fetched. */
@@ -47,78 +135,7 @@ export function SiteBuildFrame({
    route = null,
 }: SiteBuildFrameProps) {
    const t = useTranslations('issueDetail.siteBuild');
-   // Starts from what the review's preload saw, so a site built in the
-   // background shows at once.
-   const [build, setBuildState] = useState<SiteBuild | null>(() => knownSiteBuild(issueRef));
-   // Every state seen is remembered, so the next opening starts from the latest.
-   const setBuild = useCallback(
-      (next: SiteBuild) => {
-         rememberSiteBuild(issueRef, next);
-         setBuildState(next);
-      },
-      [issueRef]
-   );
-   const [error, setError] = useState<string | null>(null);
-   const started = useRef<string | null>(null);
-
-   const start = useCallback(() => {
-      setError(null);
-      startSiteBuild(issueRef)
-         .then(setBuild)
-         .catch((cause: unknown) => {
-            setError(
-               cause instanceof BerryApiError && cause.status === 503
-                  ? t('unavailable')
-                  : cause instanceof Error
-                    ? cause.message
-                    : String(cause)
-            );
-         });
-   }, [issueRef, t, setBuild]);
-
-   /**
-    * Rebuild: the frame goes at once and the build's log takes its place,
-    * following it line by line until the new build is up, which then loads.
-    */
-   const rebuild = useCallback(() => {
-      setError(null);
-      setBuild({
-         available: true,
-         state: 'building',
-         log: '',
-         startedAt: new Date().toISOString(),
-         finishedAt: null,
-      });
-      rebuildSite(issueRef)
-         .then(setBuild)
-         .catch((cause: unknown) => {
-            setError(
-               cause instanceof BerryApiError && cause.status === 503
-                  ? t('unavailable')
-                  : cause instanceof Error
-                    ? cause.message
-                    : String(cause)
-            );
-         });
-   }, [issueRef, t, setBuild]);
-
-   // Once per task: a page that needs a build asks for one as it opens.
-   useEffect(() => {
-      if (!unbuilt || started.current === issueRef) return;
-      started.current = issueRef;
-      start();
-   }, [unbuilt, issueRef, start]);
-
-   // Followed while it runs.
-   useEffect(() => {
-      if (build?.state !== 'building') return;
-      const timer = setInterval(() => {
-         siteBuildStatus(issueRef)
-            .then(setBuild)
-            .catch(() => undefined);
-      }, POLL_MS);
-      return () => clearInterval(timer);
-   }, [build?.state, issueRef, setBuild]);
+   const { build, error, start, rebuild } = useSiteBuild(issueRef, unbuilt);
 
    const frame = (src: string, note?: React.ReactNode) => (
       <div className="flex size-full flex-col">

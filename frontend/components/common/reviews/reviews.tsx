@@ -165,6 +165,15 @@ function ReviewGroup({ label, children }: { label: string; children: ReactNode }
    );
 }
 
+/** The section a review address names. A bare `/review/:id` is the overview. */
+function sectionFromPath(pathname: string): ReviewSection {
+   if (pathname.endsWith('/preview')) return 'preview';
+   if (pathname.endsWith('/files')) return 'files';
+   if (pathname.endsWith('/changes')) return 'diff';
+   if (/\/review\/[^/]+\/review$/.test(pathname)) return 'guide';
+   return 'overview';
+}
+
 /** The two lists: what waits for a decision, and what was decided. */
 export type ReviewList = 'for-you' | 'created';
 
@@ -198,6 +207,9 @@ export default function Reviews({
    // remounting this list (a Next navigation between /reviews and /review/:id
    // would reload both sides).
    const [selectedId, setSelectedId] = useState(selectedReviewId);
+   // A row click opens the overview. The Build tab stays only for a link that
+   // names it; choosing another review must not carry that tab across.
+   const [detailSection, setDetailSection] = useState<ReviewSection>(section);
    const caughtUpRef = useRef<HTMLHeadingElement>(null);
    const [listWidth, setListWidth] = useState(LIST_WIDTH);
 
@@ -229,6 +241,7 @@ export default function Reviews({
       const onPopState = () => {
          const match = window.location.pathname.match(/\/review\/([^/]+)/);
          setSelectedId(match?.[1]);
+         setDetailSection(sectionFromPath(window.location.pathname));
       };
       window.addEventListener('popstate', onPopState);
       return () => window.removeEventListener('popstate', onPopState);
@@ -239,6 +252,7 @@ export default function Reviews({
    const selectReview = useCallback(
       (id: string) => {
          setSelectedId(id);
+         setDetailSection('overview');
          const path = `/${orgId}/review/${id}${listTab === 'created' ? '?list=created' : ''}`;
          window.history.pushState(null, '', path);
       },
@@ -460,7 +474,7 @@ export default function Reviews({
                      // different review should open on the section its link names.
                      key={selectedId}
                      reviewId={selectedId}
-                     section={section}
+                     section={detailSection}
                      listTab={listTab}
                      onDecided={handleDecided}
                      onBack={clearSelection}

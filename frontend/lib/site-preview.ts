@@ -55,12 +55,13 @@ export interface KnownSiteBuild {
    log: string;
    startedAt: string | null;
    finishedAt: string | null;
+   url?: string | null;
 }
 const builds = new Map<string, KnownSiteBuild>();
 
 /**
- * The build state the preload last saw. The Preview starts from it, so a site
- * built in the background shows at once instead of flashing "Building".
+ * The build state last seen for this task. The Preview starts from it, so a
+ * site already built shows at once instead of flashing "Building".
  */
 export function knownSiteBuild(issueRef: string): KnownSiteBuild | null {
    return builds.get(issueRef) ?? null;
@@ -71,54 +72,8 @@ export function rememberSiteBuild(issueRef: string, build: KnownSiteBuild): void
    builds.set(issueRef, build);
 }
 
-/**
- * Gets a task's site ready before anyone opens its Preview: the target is
- * fetched and, when the page is a build tool's source, the container build is
- * started. The server builds a task's files once, so the Preview tab picks up
- * the same build — running or done — instead of waiting for its own.
- */
-export function preloadSitePreview(issueRef: string, artifacts?: RunArtifact[]): void {
-   void loadSitePreview(issueRef, artifacts ? { artifacts } : {})
-      .then((target) => {
-         if (!target?.unbuilt) return;
-         return apiFetch<KnownSiteBuild>(buildPath(issueRef), { method: 'POST', body: '{}' }).then(
-            (build) => {
-               rememberSiteBuild(issueRef, build);
-               if (build.state === 'building') follow(issueRef);
-            }
-         );
-      })
-      // A preload that fails costs nothing: the tab asks again when opened.
-      .catch(() => undefined);
-}
-
 function buildPath(issueRef: string): string {
    return `/api/v1/issues/${encodeURIComponent(issueRef)}/artifacts/preview/build`;
-}
-
-const FOLLOW_MS = 3000;
-/** A background build is followed for at most this long (the server stops one at five minutes). */
-const FOLLOW_FOR_MS = 7 * 60_000;
-const following = new Set<string>();
-
-/**
- * Keeps the known state of a background build current until it ends, so the
- * Preview opened later starts on the finished site. One follower per task.
- */
-function follow(issueRef: string): void {
-   if (following.has(issueRef)) return;
-   following.add(issueRef);
-   const until = Date.now() + FOLLOW_FOR_MS;
-   const tick = () => {
-      apiFetch<KnownSiteBuild>(buildPath(issueRef))
-         .then((build) => {
-            rememberSiteBuild(issueRef, build);
-            if (build.state === 'building' && Date.now() < until) setTimeout(tick, FOLLOW_MS);
-            else following.delete(issueRef);
-         })
-         .catch(() => following.delete(issueRef));
-   };
-   setTimeout(tick, FOLLOW_MS);
 }
 
 /**

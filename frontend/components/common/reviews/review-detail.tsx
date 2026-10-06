@@ -8,7 +8,6 @@ import { SitePreview } from '@/components/common/issues/details/site-preview';
 import { loadIssueArtifacts, siteEntry } from '@/lib/attachments';
 import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
 import { loadPreviewEnvironment } from '@/lib/preview-environment';
-import { preloadSitePreview } from '@/lib/site-preview';
 import { useSessionStore } from '@/store/session-store';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -93,11 +92,7 @@ export function ReviewDetail({
       loadIssueArtifacts(issueRef)
          .then((artifacts) => {
             if (cancelled) return;
-            const site = siteEntry(artifacts) !== null;
-            setHasSite(site);
-            // Ready before it is asked for: the preview's target, and the
-            // container build when the site is a build tool's source.
-            if (site) preloadSitePreview(issueRef, artifacts);
+            setHasSite(siteEntry(artifacts) !== null);
          })
          .catch(() => !cancelled && setHasSite(false));
       loadPreviewEnvironment(issueRef)
@@ -237,7 +232,8 @@ export function ReviewDetail({
             )}
             {(hasSite || hasEnvironment) && (
                // The pull request running as it would deployed, when there is one;
-               // otherwise the task's saved site, built first when it needs building.
+               // otherwise the task's saved site, in the same preview. It is built
+               // first when the page is source a browser cannot run.
                <TabsContent value="preview" className="min-h-0 flex-1 overflow-hidden">
                   {hasEnvironment ? (
                      <EnvironmentPreview
@@ -245,7 +241,7 @@ export function ReviewDetail({
                         toolbarSlot={toolbarSlot}
                      />
                   ) : (
-                     <SitePreview issueRef={item.issue.identifier} />
+                     <SitePreview issueRef={item.issue.identifier} toolbarSlot={toolbarSlot} />
                   )}
                </TabsContent>
             )}

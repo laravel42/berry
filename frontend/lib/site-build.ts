@@ -8,6 +8,8 @@ export const siteBuildSchema = z.object({
    log: z.string(),
    startedAt: z.string().nullable(),
    finishedAt: z.string().nullable(),
+   /** The built site's own host, once it is up. Absent on a server that still serves the sandboxed file preview. */
+   url: z.string().nullable().optional(),
 });
 export type SiteBuild = z.infer<typeof siteBuildSchema>;
 

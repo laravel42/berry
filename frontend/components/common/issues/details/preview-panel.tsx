@@ -262,7 +262,9 @@ export function PreviewPanel({
 
    const visible: IndexedLine[] = useMemo(() => {
       const lines = tab === 'console' ? consoleLines(all) : forApp(all, active);
-      return lines.filter((line) => line.index >= hiddenBefore);
+      // A blank line is a gap in the log, not a row. Leaving it in makes the
+      // console a stack of empty lines.
+      return lines.filter((line) => line.index >= hiddenBefore && line.text.trim() !== '');
    }, [all, tab, active, hiddenBefore]);
 
    // A shell grows by lines and, while a line is still being written, by characters.
