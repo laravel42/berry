@@ -393,7 +393,7 @@ function StepCard({
                {t(`row.${step.kind}`)}
             </span>
             <span className="min-w-0 flex-1 truncate">
-               <Highlighted text={step.title} query={highlight} />
+               {isProse(step.kind) ? null : <Highlighted text={step.title} query={highlight} />}
                {step.detail ? (
                   <span className="text-muted-foreground">
                      {[
@@ -425,6 +425,11 @@ function StepCard({
                   aria-label={t('succeeded')}
                />
             ) : null}
+            {isProse(step.kind) && step.result.trim() ? (
+               <span className="self-center">
+                  <CopyButton text={step.result} label={t(`row.${step.kind}`)} />
+               </span>
+            ) : null}
          </div>
 
          {step.input ? (
@@ -439,51 +444,79 @@ function StepCard({
 
          {step.result.trim() ? (
             <div className="mt-2 sm:pl-[6.25rem]">
-               <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <span>{t('result')}</span>
-                  <CopyButton text={step.result} label={t('result')} />
-               </div>
-               <StepBody text={step.result} query={highlight} maxHeight="18rem" className="mt-1" />
+               {isProse(step.kind) ? null : (
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                     <span>{t('result')}</span>
+                     <CopyButton text={step.result} label={t('result')} />
+                  </div>
+               )}
+               <StepBody
+                  text={step.result}
+                  query={highlight}
+                  maxHeight="18rem"
+                  prose={isProse(step.kind)}
+                  className={isProse(step.kind) ? undefined : 'mt-1'}
+               />
             </div>
          ) : null}
       </li>
    );
 }
 
+/** Reasoning and the model's own notes are prose. Commands and tool output are code. */
+function isProse(kind: StepKind): boolean {
+   return kind === 'thinking' || kind === 'reasoning';
+}
+
 /**
- * Shell-coloured code when the search is idle; a marked `<pre>` while searching
+ * Shell-coloured code when the search is idle; a marked block while searching
  * so the match still lights up inside long output (CodeMirror does not carry
- * the transcript's own highlight marks).
+ * the transcript's own highlight marks). A thinking or reasoning passage is
+ * plain text either way: it is not a command.
  */
 function StepBody({
    text,
    query,
    maxHeight,
    className,
+   prose = false,
 }: {
    text: string;
    query: string;
    maxHeight: string;
    className?: string;
+   prose?: boolean;
 }) {
-   if (query.trim()) {
+   if (prose || query.trim()) {
       return (
-         <pre
+         <div
+            data-step-body={prose ? 'prose' : 'code'}
             className={cn(
-               'overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
+               'overflow-auto whitespace-pre-wrap break-words rounded',
+               prose
+                  ? 'text-foreground leading-relaxed'
+                  : 'bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
                className
             )}
             style={{ maxHeight }}
          >
-            <Highlighted text={text} query={query} />
-         </pre>
+            <Highlighted text={text} query={query} tone={prose ? 'prose' : 'code'} />
+         </div>
       );
    }
    return <CodeEditor value={text} language="bash" maxHeight={maxHeight} className={className} />;
 }
 
 /** The search term, marked wherever it appears. */
-function Highlighted({ text, query }: { text: string; query: string }) {
+function Highlighted({
+   text,
+   query,
+   tone = 'code',
+}: {
+   text: string;
+   query: string;
+   tone?: 'code' | 'prose';
+}) {
    if (!query.trim()) return <>{text}</>;
    const parts: ReactNode[] = [];
    const needle = query.toLowerCase();
@@ -492,7 +525,13 @@ function Highlighted({ text, query }: { text: string; query: string }) {
    while (found !== -1) {
       if (found > index) parts.push(text.slice(index, found));
       parts.push(
-         <mark key={`${found}`} className="bg-status-warning/50 text-[var(--brand-chalk)]">
+         <mark
+            key={`${found}`}
+            className={cn(
+               'bg-status-warning/50',
+               tone === 'prose' ? 'text-foreground' : 'text-[var(--brand-chalk)]'
+            )}
+         >
             {text.slice(found, found + needle.length)}
          </mark>
       );

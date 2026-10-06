@@ -34,6 +34,14 @@ export const Succeeded: Story = {
       // The ledger is streamed from MSW and folded into steps.
       // The command is the step's title, and its input again in the code view.
       await expect((await dialog.findAllByText('pnpm lint'))[0]).toBeVisible();
+      const prose = await waitFor(() => {
+         const node = body
+            .getByRole('dialog')
+            .querySelector('[data-step-id^="thinking:"] [data-step-body="prose"]');
+         expect(node?.textContent).toContain('The approvals tab');
+         return node;
+      });
+      await expect(prose?.querySelector('.cm-editor')).toBeNull();
       await expect(await dialog.findByText('Frontend Engineer · succeeded')).toBeVisible();
       await expect(dialog.getByText('6 files changed', { exact: false })).toBeVisible();
    },
