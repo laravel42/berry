@@ -115,7 +115,8 @@ test('relative links are left as they are', () => {
    assert.equal(rootRelative('a{b:url(img.png)}', 'text/css', '/b/'), 'a{b:url(img.png)}');
 });
 
-test('the storage stand-ins go first in the head, before the page\'s own scripts', () => {
+test('the sandbox stand-ins go first in the head, before the page\'s own scripts', () => {
+   assert.match(SANDBOX_SHIM, /window\.Worker=P/, 'a null origin cannot start a worker from Berry\'s host');
    assert.equal(
       withSandboxShim('<!doctype html><html><head><script src="a.js"></script></head></html>'),
       `<!doctype html><html><head>${SANDBOX_SHIM}<script src="a.js"></script></head></html>`

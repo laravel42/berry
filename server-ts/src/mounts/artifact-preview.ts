@@ -96,10 +96,11 @@ const SANDBOX_HEADERS = {
    // console, and can rewrite scripts (Rocket Loader) the site depends on.
    'Cache-Control': 'private, max-age=60, no-transform',
    'Cross-Origin-Resource-Policy': 'cross-origin',
-   // A sandboxed page has the origin `null`, and module scripts, fonts and
-   // fetches are CORS requests: without this a built site's
-   // `<script type="module">` is refused and the page stays blank. Nothing
-   // here carries credentials, and the token already grants the read.
+   // A sandboxed page has the origin `null`, and module scripts, fonts,
+   // fetches and a worker's imported script are CORS requests: without this
+   // a built site's `<script type="module">` is refused and the page stays
+   // blank. Nothing here carries credentials, and the token already grants
+   // the read.
    'Access-Control-Allow-Origin': '*',
 };
 
@@ -245,7 +246,7 @@ export function artifactPreviewMounts(options: {
 }
 
 /**
- * Storage for a page with no origin of its own.
+ * Storage, and workers, for a page with no origin of its own.
  *
  * A sandboxed page (no `allow-same-origin`, which would hand the agent's
  * scripts Berry's session) throws a SecurityError on `localStorage`,
@@ -253,8 +254,14 @@ export function artifactPreviewMounts(options: {
  * they start, so a built React site crashed to a blank frame. These stand-ins
  * keep the values in memory for the life of the page, and are only installed
  * where the real ones are refused.
+ *
+ * The same origin refuses `new Worker(url)`: the script is on Berry's host
+ * and a worker may only load a script from its own origin. A blob module that
+ * imports the script shares the page's origin, and the import keeps the
+ * script's URL, so the worker's own imports still resolve. Preview responses
+ * already allow that cross-origin module load.
  */
-export const SANDBOX_SHIM = `<script>(function(){function m(){var d={};return{get length(){return Object.keys(d).length},key:function(i){return Object.keys(d)[i]??null},getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].getItem("x")}catch(e){try{Object.defineProperty(window,n,{value:m(),configurable:true})}catch(_){}}});try{void document.cookie}catch(e){var c="";try{Object.defineProperty(document,"cookie",{get:function(){return c},set:function(v){var p=String(v).split(";")[0];c=c?c+"; "+p:p},configurable:true})}catch(_){}}})();</script>`;
+export const SANDBOX_SHIM = `<script>(function(){var W=window.Worker;if(!W)return;function P(u,o){var abs;try{abs=new URL(u,location.href).href}catch(e){return new W(u,o)}if(abs.slice(0,5)==="blob:")return new W(u,o);return new W(URL.createObjectURL(new Blob(["import "+JSON.stringify(abs)+";"],{type:"text/javascript"})),Object.assign({},o,{type:"module"}))}P.prototype=W.prototype;window.Worker=P})();</script><script>(function(){function m(){var d={};return{get length(){return Object.keys(d).length},key:function(i){return Object.keys(d)[i]??null},getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null},setItem:function(k,v){d[k]=String(v)},removeItem:function(k){delete d[k]},clear:function(){d={}}}}["localStorage","sessionStorage"].forEach(function(n){try{window[n].getItem("x")}catch(e){try{Object.defineProperty(window,n,{value:m(),configurable:true})}catch(_){}}});try{void document.cookie}catch(e){var c="";try{Object.defineProperty(document,"cookie",{get:function(){return c},set:function(v){var p=String(v).split(";")[0];c=c?c+"; "+p:p},configurable:true})}catch(_){}}})();</script>`;
 
 /**
  * Back and forward for a page Berry cannot reach into.
