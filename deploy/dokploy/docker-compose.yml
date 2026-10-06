@@ -79,6 +79,14 @@ services:
          BERRY_KILO_BASE_URL: ${BERRY_KILO_BASE_URL:-}
          BERRY_KILO_APP_URL: ${BERRY_KILO_APP_URL:-}
          BERRY_KILO_MIN_BALANCE_USD: ${BERRY_KILO_MIN_BALANCE_USD:-}
+         # The server fills the tiers. A variable set only in the Environment tab
+         # never reaches this container unless it is named here.
+         BERRY_KILO_ANY_PROVIDER: ${BERRY_KILO_ANY_PROVIDER:-}
+         BERRY_KILO_EXCLUDE: ${BERRY_KILO_EXCLUDE:-}
+         BERRY_KILO_PREFER: ${BERRY_KILO_PREFER:-}
+         BERRY_KILO_MAX: ${BERRY_KILO_MAX:-}
+         BERRY_KILO_MID: ${BERRY_KILO_MID:-}
+         BERRY_KILO_LOW: ${BERRY_KILO_LOW:-}
          # Optional: cross-run recall (AgentCore Memory) and where Nova Reel renders video.
          BERRY_AGENTCORE_REGION: ${BERRY_AGENTCORE_REGION:-}
          BERRY_AGENTCORE_MEMORY_ID: ${BERRY_AGENTCORE_MEMORY_ID:-}
