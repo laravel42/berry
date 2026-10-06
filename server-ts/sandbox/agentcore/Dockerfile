@@ -23,11 +23,28 @@ FROM --platform=${BERRY_RUNTIME_PLATFORM} node:22-slim
 # media, a compiler for native modules, and Python in full — pip, venv, and
 # `python` as well as `python3` — for a repository written in it or scripted
 # with it. procps for `ps` and `pkill`.
-RUN apt-get update \
-   && apt-get install -y --no-install-recommends \
-      git ffmpeg ca-certificates openssh-client curl tar unzip gcc g++ make procps \
-      python3 python3-pip python3-venv python-is-python3 \
-   && rm -rf /var/lib/apt/lists/*
+#
+# deb.debian.org sometimes publishes a package index before the file behind it
+# has finished syncing. apt then refuses the download ("unexpected size") and
+# will not retry that file, so the index is fetched again.
+RUN set -eu; \
+   installed=0; \
+   attempt=1; \
+   while [ "$attempt" -le 3 ]; do \
+      if apt-get update \
+         && apt-get install -y --no-install-recommends \
+            git ffmpeg ca-certificates openssh-client curl tar unzip gcc g++ make procps \
+            python3 python3-pip python3-venv python-is-python3; then \
+         installed=1; \
+         break; \
+      fi; \
+      echo "apt install failed (attempt ${attempt}); refreshing the Debian index" >&2; \
+      rm -rf /var/lib/apt/lists/*; \
+      attempt=$((attempt + 1)); \
+      sleep 5; \
+   done; \
+   test "$installed" = 1; \
+   rm -rf /var/lib/apt/lists/*
 
 # The package managers a repository may have been written for, the same set the
 # preview image carries (sandbox/preview): the agent builds with what the
