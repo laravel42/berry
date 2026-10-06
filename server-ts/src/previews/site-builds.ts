@@ -21,7 +21,9 @@ import type { RunArtifact, RunArtifactRepository } from '../core/run-artifacts.t
  * back as files and served sandboxed like any other agent file.
  *
  * The folder lives under the home directory because Docker Desktop and Colima
- * share only that with their VM; a temp dir would mount empty.
+ * share only that with their VM; a temp dir would mount empty. When this
+ * process is itself a container, pass a root mounted at the same path on the
+ * host (`BERRY_PREVIEW_ROOT`): the daemon reads `-v` as a host path.
  */
 
 export type BuildState = 'idle' | 'building' | 'ready' | 'failed';

@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { serve } from '@hono/node-server';
 
 /**
@@ -339,7 +340,15 @@ void previewEnvironments.removeOrphans().catch((error: unknown) =>
 setInterval(() => void previewEnvironments.reap().catch(() => undefined), 60_000).unref();
 
 const siteBuilds = storage
-   ? new SiteBuilds({ artifacts: runArtifacts, read: (artifact) => storage.open(artifact.storageKey) })
+   ? new SiteBuilds({
+        artifacts: runArtifacts,
+        read: (artifact) => storage.open(artifact.storageKey),
+        // The build container is started through the host's Docker, so its -v
+        // path is a host path. The preview root is mounted at the same path in
+        // this container and on the host; a cache under $HOME is not, and the
+        // build would run against an empty directory.
+        ...(config.previews.root ? { root: join(config.previews.root, 'site-builds') } : {}),
+     })
    : null;
 
 /**
