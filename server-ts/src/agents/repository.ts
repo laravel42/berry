@@ -3,6 +3,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { nextFireAfter } from '../autopilots/cron.ts';
 import { McpServerRepository } from '../mcp/repository.ts';
+import { CORE_ROLES, SPECIALISTS_KEPT_FROM } from '../organization/catalog.ts';
 import { hashContract, parseContract, type RoleContract } from '../organization/contract.ts';
 import { SkillRepository } from '../skills/repository.ts';
 
@@ -521,7 +522,14 @@ export class AgentRepository {
       await this.sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
          const restored = await tx<Array<{ role_key: string | null }>>`
-            UPDATE agents SET archived_at = NULL, updated_at = now()
+            UPDATE agents
+               SET archived_at = NULL,
+                   contract_version = CASE
+                      WHEN role_key IS NOT NULL AND NOT (role_key = ANY(${CORE_ROLES}))
+                      THEN GREATEST(COALESCE(contract_version, 0), ${SPECIALISTS_KEPT_FROM})
+                      ELSE contract_version
+                   END,
+                   updated_at = now()
              WHERE id = ${agentId} AND workspace_id = ${workspaceId} AND archived_at IS NOT NULL
             RETURNING role_key`.catch((error: unknown) => {
             // agents_one_role_per_workspace_key: another live agent already

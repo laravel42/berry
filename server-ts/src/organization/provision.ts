@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { Queryable, Sql } from '../db/pool.ts';
 import { effectivePermissions } from './autonomy.ts';
-import { CATALOG, CATALOG_VERSION, catalogRole, isCoreRole } from './catalog.ts';
-import { hashContract, parseContract, type RoleContract } from './contract.ts';
+import { CATALOG, CATALOG_VERSION, catalogRole, isCoreRole, SPECIALISTS_KEPT_FROM } from './catalog.ts';
+import { hashContract, parseContract, type RoleContract, type RoleKey } from './contract.ts';
 
 /** Thrown by {@link resetRole}: an unknown catalog role, or no live agent fills it here. */
 export class RoleNotFound extends Error {
@@ -17,9 +17,10 @@ export class RoleNotFound extends Error {
  * Makes a workspace's organization match the catalog, keyed on role_key.
  * Idempotent: a second call changes nothing. A contract a person edited is
  * never overwritten — it no longer hashes to what Berry last wrote. Only core
- * roles are inserted (ADR-0018); a specialist the workspace already has is
- * kept and upgraded like any other role, and one it lacks waits for a person
- * to add it ({@link addRole}).
+ * roles are inserted (ADR-0018). A specialist the old full roster left behind
+ * (written before {@link SPECIALISTS_KEPT_FROM}) is archived once; one a
+ * person added or restored at that version or later is kept and upgraded.
+ * A specialist the workspace lacks waits for a person to add it ({@link addRole}).
  */
 
 const LEGACY_MEDIA = ['text-to-speech', 'text-to-video'];
@@ -44,6 +45,20 @@ export async function ensureOrganizationAgents(
    const inserted: string[] = [];
    const upgraded: string[] = [];
    const customised: string[] = [];
+
+   // The full roster used to be given to every workspace. Those specialists
+   // are not the reduced catalog: archive them once. A later add or restore
+   // writes SPECIALISTS_KEPT_FROM or newer and is left in place.
+   let retired = 0;
+   for (const row of existing) {
+      if (!row.role_key || row.protected) continue;
+      if (isCoreRole(row.role_key as RoleKey)) continue;
+      if ((row.contract_version ?? 0) >= SPECIALISTS_KEPT_FROM) continue;
+      await retireSpecialist(q, row.id);
+      byRole.delete(row.role_key);
+      removed.add(row.role_key);
+      retired += 1;
+   }
 
    for (const contract of CATALOG) {
       const current = byRole.get(contract.id);
@@ -80,7 +95,21 @@ export async function ensureOrganizationAgents(
          AND (instructions LIKE '%one of a fleet of agents%' OR name = ANY(${LEGACY_MEDIA}))
       RETURNING id`;
 
-   return { inserted, upgraded, customised, archived: archived.length };
+   return { inserted, upgraded, customised, archived: archived.length + retired };
+}
+
+/** Archives a specialist the reduced roster no longer includes, and stops its weekly discovery. */
+async function retireSpecialist(q: Queryable, agentId: string): Promise<void> {
+   await q`
+      UPDATE agents SET archived_at = now(), updated_at = now()
+       WHERE id = ${agentId} AND archived_at IS NULL AND protected = false`;
+   await q`
+      UPDATE autopilots AS pilot SET status = 'paused', updated_at = now()
+        FROM agents AS agent
+       WHERE agent.id = ${agentId} AND agent.role_key IS NOT NULL
+         AND pilot.workspace_id = agent.workspace_id AND pilot.discovery_role = agent.role_key
+         AND pilot.assignee_type = 'agent' AND pilot.assignee_id = agent.id
+         AND pilot.archived_at IS NULL AND pilot.status = 'active'`;
 }
 
 function columnsOf(contract: RoleContract) {
@@ -186,7 +215,10 @@ export async function addRole(q: Queryable, workspaceId: string, roleKey: string
       SELECT id FROM agents WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NULL`;
    if (live) return { agentId: live.id, added: false };
    const [archived] = await q<Array<{ id: string }>>`
-      UPDATE agents SET archived_at = NULL, updated_at = now()
+      UPDATE agents
+         SET archived_at = NULL,
+             contract_version = GREATEST(COALESCE(contract_version, 0), ${SPECIALISTS_KEPT_FROM}),
+             updated_at = now()
        WHERE id = (SELECT id FROM agents
                     WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NOT NULL
                     ORDER BY archived_at DESC LIMIT 1)

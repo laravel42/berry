@@ -22,7 +22,16 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 17: the prompt no longer names another workspace's task key as its example.
 // 18: five core roles (ADR-0018): a Software Engineer; Product, QA and DevOps
 // take on the specialists' briefs; delegation reaches the engineer.
-export const CATALOG_VERSION = 19;
+// 20: a workspace drops specialists the old full roster left behind. A
+// specialist a person adds from this version on stays.
+export const CATALOG_VERSION = 20;
+
+/**
+ * Specialists written before this version were given to every workspace.
+ * Provisioning archives those once. A specialist added or restored at this
+ * version or later is a person's choice and stays.
+ */
+export const SPECIALISTS_KEPT_FROM = 20;
 
 /**
  * The roles a workspace is given (ADR-0018). Every other catalogue role is a

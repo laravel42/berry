@@ -66,9 +66,10 @@ A role the workspace does not have is never waited on:
 - Workflows name core roles; routing gives a step to a specialist when the
   workspace has one for it.
 
-Existing workspaces keep every agent they have. Provisioning adds the
-Software Engineer to them (it is a new core role) and upgrades untouched
-contracts as before; it never archives a specialist.
+Provisioning adds the Software Engineer where it is missing and upgrades
+untouched contracts as before. Specialists the old full roster left behind
+are archived once, so an existing workspace matches the reduced catalog.
+A specialist a person adds or restores after that stays.
 
 ## Consequences
 
@@ -81,8 +82,8 @@ contracts as before; it never archives a specialist.
 
 - One engineer role holds a wide brief; a workspace with deep database or
   security work should add that specialist.
-- Workspaces made before this keep a large roster until someone archives
-  the roles they do not use.
+- A workspace that had added a specialist before this retirement loses it
+  until someone adds it again. Adding it restores the archived agent.
 
 ### Risks and mitigations
 

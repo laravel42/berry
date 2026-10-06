@@ -6,7 +6,7 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 import { AgentRepository } from '../agents/repository.ts';
-import { CATALOG_VERSION, CORE_ROLES, catalogRole } from './catalog.ts';
+import { CATALOG_VERSION, CORE_ROLES, SPECIALISTS_KEPT_FROM, catalogRole } from './catalog.ts';
 import { hashContract } from './contract.ts';
 import { addRole, ensureOrganizationAgents, KEPT_INSTRUCTIONS_SUFFIX, resetRole, RoleNotFound } from './provision.ts';
 
@@ -148,7 +148,7 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       const restored = await addRole(sql, workspaceId, 'security-engineer');
       assert.deepEqual(restored, { agentId: first.agentId, added: true }, 'its archived agent comes back, history and all');
 
-      // Provisioning upgrades a specialist it finds, and never archives one.
+      // A specialist added at the current catalog stays; provisioning does not archive it.
       const rerun = await ensureOrganizationAgents(sql, workspaceId);
       assert.deepEqual([rerun.inserted, rerun.upgraded, rerun.archived], [[], [], 0]);
       const [live] = await sql`
@@ -158,5 +158,27 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
 
       await assert.rejects(addRole(sql, workspaceId, 'no-such-role'), RoleNotFound);
       await assert.rejects(addRole(sql, workspaceId, 'orchestrator'), RoleNotFound);
+   });
+
+   test('a specialist the old full roster left behind is archived once, and adding it back keeps it', async () => {
+      const added = await addRole(sql, workspaceId, 'database-engineer');
+      assert.equal(added.added, true);
+      await sql`
+         UPDATE agents SET contract_version = ${SPECIALISTS_KEPT_FROM - 1}
+          WHERE id = ${added.agentId}`;
+
+      const retired = await ensureOrganizationAgents(sql, workspaceId);
+      assert.equal(retired.archived, 1);
+      const [gone] = await sql`SELECT archived_at FROM agents WHERE id = ${added.agentId}`;
+      assert.ok(gone?.archived_at);
+
+      const back = await addRole(sql, workspaceId, 'database-engineer');
+      assert.deepEqual(back, { agentId: added.agentId, added: true });
+      const kept = await ensureOrganizationAgents(sql, workspaceId);
+      assert.equal(kept.archived, 0);
+      const [live] = await sql`
+         SELECT archived_at, contract_version FROM agents WHERE id = ${added.agentId}`;
+      assert.equal(live?.archived_at, null);
+      assert.ok((live?.contract_version as number) >= SPECIALISTS_KEPT_FROM);
    });
 });
