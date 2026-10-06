@@ -195,8 +195,6 @@ export function CreateNewIssue() {
             : null,
       [draft.agent]
    );
-   const promptTitle = agentMode ? titleFromPrompt(draft.prompt) : '';
-
    const localIssue = useCallback(
       (created: Issue): Issue => {
          const sortOrder = (getAllIssues().length + 1) * 1000;
@@ -632,11 +630,6 @@ export function CreateNewIssue() {
                               setDraft({ agent: next ? { id: next.id, name: next.name } : null })
                            }
                         />
-                        {promptTitle ? (
-                           <p className="min-w-0 flex-1 truncate text-muted-foreground">
-                              {t('titlePreview', { title: promptTitle })}
-                           </p>
-                        ) : null}
                      </div>
                      {chosenAgent && isOrchestrator(chosenAgent) ? (
                         <p className="text-muted-foreground">{ta('orchestratorHint')}</p>

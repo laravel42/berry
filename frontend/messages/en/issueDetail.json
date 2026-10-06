@@ -356,8 +356,7 @@
       "promptLabel": "What should the agent do?",
       "agentRequired": "Choose an agent to hand this to.",
       "promptRequired": "Say what the agent should do.",
-      "agentAssigned": "Handed to {name}. Nothing runs until someone starts it.",
-      "titlePreview": "Title: {title}"
+      "agentAssigned": "Handed to {name}. Nothing runs until someone starts it."
    },
    "artifacts": {
       "title": "Produced · {count, plural, =1 {1 file} other {# files}}",
