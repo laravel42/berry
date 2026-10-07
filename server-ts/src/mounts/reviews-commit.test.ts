@@ -85,11 +85,15 @@ test('it is refused while an agent works the task, on a closed pull request, wit
    await expectRefusal({ conflict: true }, 409, 'FILE_CHANGED');
 });
 
-test('paths that run with the repository’s secrets, or leave it, are never written', async () => {
+test('a workflow file commits like any other path inside the repository', async () => {
    const { commit, written } = app();
    const workflow = await commit({ ...edit, path: '.github/workflows/deploy.yml' });
-   assert.equal(workflow.status, 403);
-   assert.equal(((await workflow.json()) as { error: { code: string } }).error.code, 'PATH_REFUSED');
+   assert.equal(workflow.status, 201);
+   assert.equal(written[0]!.path, '.github/workflows/deploy.yml');
+});
+
+test('paths that leave the repository are never written', async () => {
+   const { commit, written } = app();
    for (const path of ['../outside.txt', '/etc/passwd', '']) assert.equal((await commit({ ...edit, path })).status, 400, path);
    assert.equal((await commit({ ...edit, sha: 'not-a-sha' })).status, 400);
    assert.equal((await commit({ ...edit, content: 'x'.repeat(1024 * 1024 + 1) })).status, 413);

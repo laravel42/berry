@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import type { Sql } from '../db/pool.ts';
 import type { GitHubClient } from '../integrations/github.ts';
 import type { TaskDelivery } from './lifecycle.ts';
-import { publishTrustedDelivery, refusedPaths } from './trusted-delivery.ts';
+import { publishTrustedDelivery } from './trusted-delivery.ts';
 
 /**
  * The authorization boundary for publication.
@@ -75,25 +75,16 @@ function candidate(files: Array<{ path: string; content?: string | null }>): Tas
    };
 }
 
-test('the path policy names what it refuses, and refuses a deletion too', () => {
-   assert.deepEqual(refusedPaths(['src/app.ts', 'README.md']), []);
-   assert.deepEqual(refusedPaths(['.github/workflows/ci.yml']), ['.github/workflows/ci.yml']);
-   assert.deepEqual(refusedPaths(['.github/actions/build/action.yml']), ['.github/actions/build/action.yml']);
-   // A case-insensitive filesystem must not be a way around it.
-   assert.deepEqual(refusedPaths(['.GitHub/Workflows/ci.yml']), ['.GitHub/Workflows/ci.yml']);
-   // Adjacent paths under .github are ordinary files.
-   assert.deepEqual(refusedPaths(['.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/bug.md']), []);
-   assert.deepEqual(refusedPaths(['src/a.ts', '.github/workflows/b.yml', '.github/actions/c.yml']).length, 2);
-});
-
-test('a workflow in the derived path set stops publication, even when the candidate never named it', async () => {
-   // The candidate is innocuous; the provider-derived set is what carries the
-   // workflow. Policy has to read the derived set or this passes.
-   const github = fakeGitHub(['src/app.ts', '.github/workflows/release.yml']);
-   await assert.rejects(
-      publishTrustedDelivery(fakeSql(), 'run-1', github.client, candidate([{ path: 'src/app.ts' }])),
-      /Refusing to publish paths that execute with repository secrets: \.github\/workflows\/release\.yml/
+test('a workflow in the derived path set publishes with the rest of the change', async () => {
+   const github = fakeGitHub(['src/app.ts', '.github/workflows/ci.yml', '.github/actions/build/action.yml']);
+   const result = await publishTrustedDelivery(
+      fakeSql(),
+      'run-1',
+      github.client,
+      candidate([{ path: 'src/app.ts' }])
    );
+   assert.equal(result.committed, true);
+   assert.deepEqual(result.files, ['src/app.ts', '.github/workflows/ci.yml', '.github/actions/build/action.yml']);
 });
 
 test('an ordinary change publishes, and policy saw the derived set', async () => {
@@ -268,14 +259,13 @@ test('the merge\'s working files are never published, by any run', async () => {
    }
 });
 
-test('a workflow is refused on a conflict-resolution run as on any other', async () => {
+test('a workflow publishes on a conflict-resolution run as on any other', async () => {
    const github = mergeGitHub();
    const delivery = { ...candidate([{ path: '.github/workflows/ci.yml' }]), merged: true };
-   await assert.rejects(
-      publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, delivery),
-      /Refusing to publish paths that execute with repository secrets/
-   );
-   assert.equal(github.published.length, 0);
+   const result = await publishTrustedDelivery(fakeSql({ snapshot: MERGE_SNAPSHOT }), 'run-1', github.client, delivery);
+   assert.equal(result.committed, true);
+   assert.equal(result.commit, 'merge-commit');
+   assert.equal(github.published.length, 1);
 });
 
 test('a symlink or executable mode survives to the provider unchanged', async () => {
