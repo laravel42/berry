@@ -778,6 +778,15 @@ Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 chara
 - `409`: `PLAN_OPEN_EXISTS` (the goal already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
 - `412`: `PLANNER_UNAVAILABLE` (no planner configured, or a model role is not provisioned)
 
+#### `POST /api/v1/plans/{planId}/again`
+
+Plans the same request again on this plan (`product.write`). The plan must still be `draft` or `pendingApproval`, not already generating, and not compiled. Generation runs in the background with the stored prompt; the previous version stays in `plan_versions`.
+
+- `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
+- `403`: `PLAN_FORBIDDEN`
+- `409`: `PLAN_NOT_OPEN` (already started, closed, or no stored request), `PLAN_BUSY` (already generating)
+- `412`: `PLANNER_UNAVAILABLE`
+
 #### `GET /api/v1/plans`
 
 The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`; `all` adds `rejected` and `superseded`). At most 200 rows.
