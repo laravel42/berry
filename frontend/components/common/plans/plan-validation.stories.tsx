@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, fn } from 'storybook/test';
-import { useCreatePlanStore } from '@/store/create-plan-store';
 import { usePlanStore } from '@/store/plan-store';
 import { blockedPlan, failedPlan, generatingPlan, invalidPlan, readyPlan } from './plan-fixtures';
 import {
@@ -15,8 +14,7 @@ const meta = {
    tags: ['ai-generated', 'needs-work'],
    args: { record: invalidPlan },
    beforeEach: () => {
-      usePlanStore.setState({ autoStart: {} });
-      useCreatePlanStore.setState({ isOpen: false, prefill: {} });
+      usePlanStore.setState({ autoStart: {}, busy: {} });
    },
    decorators: [
       (Story) => (
@@ -53,16 +51,20 @@ export const GenerationProgress: Story = {
    },
 };
 
+const planAgain = fn(async () => failedPlan);
+
 export const GenerationFailed: Story = {
    render: () => <PlanGenerationFailure record={failedPlan} />,
+   beforeEach: () => {
+      planAgain.mockClear();
+      usePlanStore.setState({ planAgain });
+   },
    play: async ({ canvas, userEvent }) => {
       await expect(canvas.getByText('Planning timed out while planning.')).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Plan again' }));
-      // "Plan again" reopens the prompt with what was asked the first time.
-      await expect(useCreatePlanStore.getState()).toMatchObject({
-         isOpen: true,
-         prefill: { prompt: failedPlan.sourcePrompt },
-      });
+      // Restarts this plan. Opening the prompt dialog grew past the viewport
+      // when the request was long, and submitting it created a second plan.
+      await expect(planAgain).toHaveBeenCalledWith(failedPlan.id);
    },
 };
 

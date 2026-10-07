@@ -39,7 +39,11 @@ function applySearch(list: PlanSummary[], query: string): PlanSummary[] {
 const POLL_INTERVAL_MS = 4000;
 
 function isLive(plan: PlanSummary): boolean {
-   return plan.generation.status === 'running' || plan.compileStatus === 'running';
+   return (
+      plan.generation.status === 'running' ||
+      plan.compileStatus === 'running' ||
+      plan.routingStatus === 'running'
+   );
 }
 
 /** One plan in the rail. Selecting it opens the plan beside the list. */

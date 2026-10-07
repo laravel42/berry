@@ -3,6 +3,7 @@ import {
    approvePlan,
    describePlanFailure,
    getPlan,
+   planAgain as planAgainRequest,
    rejectPlan as rejectPlanRequest,
    compilePlan as compilePlanRequest,
    type PlanAnswerInput,
@@ -11,7 +12,8 @@ import {
 import { create } from 'zustand';
 
 /** What the store is doing to a plan right now, for buttons to reflect. */
-export type PlanBusyStage = 'loading' | 'starting' | 'rejecting' | 'compiling' | 'answering';
+export type PlanBusyStage =
+   'loading' | 'starting' | 'rejecting' | 'compiling' | 'answering' | 'planning';
 
 interface PlanState {
    /** Records by plan id, so a drawer and a page over the same plan share one. */
@@ -49,6 +51,8 @@ interface PlanState {
     * one. The page follows the rest through the workspace stream.
     */
    answerPlan: (planId: string, answers: PlanAnswerInput[]) => Promise<PlanRecord>;
+   /** Restarts generation on this plan with the request it was asked. */
+   planAgain: (planId: string) => Promise<PlanRecord>;
    rejectPlan: (planId: string) => Promise<PlanRecord>;
    compilePlan: (planId: string) => Promise<PlanRecord>;
 }
@@ -171,6 +175,17 @@ export const usePlanStore = create<PlanState>((set, get) => ({
       set((state) => ({ busy: { ...state.busy, [planId]: 'answering' } }));
       try {
          const record = await answerPlanRequest(planId, answers);
+         get().upsertRecord(record);
+         return record;
+      } finally {
+         set((state) => ({ busy: { ...state.busy, [planId]: null } }));
+      }
+   },
+
+   planAgain: async (planId) => {
+      set((state) => ({ busy: { ...state.busy, [planId]: 'planning' } }));
+      try {
+         const record = await planAgainRequest(planId);
          get().upsertRecord(record);
          return record;
       } finally {

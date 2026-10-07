@@ -45,7 +45,7 @@
       "reading": "{reviewer} is reading what {author} produced.",
       "returned": "Sent back to To do to be worked again, with this feedback.",
       "none": "No peer verdict yet.",
-      "notOptedIn": "This task did not opt into peer review."
+      "notOptedIn": "This task did not opt into peer review, so other agents review it only when AutoGate is on."
    },
    "delivery": {
       "stopped": "<name>{agent}</name> stopped without delivering.",

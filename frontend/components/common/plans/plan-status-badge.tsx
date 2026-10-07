@@ -20,6 +20,7 @@ export function planLook(record: PlanRecord): PlanLook {
       validation: record.validation.status,
       errors: record.validation.errors.length,
       compile: record.compile?.status ?? null,
+      routing: record.routing?.status ?? null,
    });
 }
 
@@ -31,6 +32,7 @@ export function planSummaryLook(summary: PlanSummary): PlanLook {
       validation: summary.validationStatus,
       errors: 0,
       compile: summary.compileStatus,
+      routing: summary.routingStatus ?? null,
    });
 }
 
@@ -40,6 +42,7 @@ function lookOf(record: {
    validation: PlanRecord['validation']['status'];
    errors: number;
    compile: string | null;
+   routing: string | null;
 }): PlanLook {
    if (record.generation === 'running') {
       return { tone: 'working', state: 'solid', pulse: true, label: 'Planning' };
@@ -51,6 +54,12 @@ function lookOf(record: {
          }
          if (record.compile === 'running') {
             return { tone: 'working', state: 'solid', pulse: true, label: 'Starting' };
+         }
+         if (record.routing === 'running') {
+            return { tone: 'working', state: 'solid', pulse: true, label: 'Routing' };
+         }
+         if (record.routing === 'error' || record.routing === 'timeout') {
+            return { tone: 'danger', state: 'solid', label: 'Routing failed' };
          }
          return { tone: 'complete', state: 'solid', label: 'Started' };
       case 'pendingApproval':

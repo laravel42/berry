@@ -50,11 +50,19 @@ function routingText(event: PlanEvent): string {
       typeof event.detail === 'object' && event.detail !== null
          ? (event.detail as Record<string, unknown>)
          : {};
+   const titles = Array.isArray(detail.unassignedTitles)
+      ? detail.unassignedTitles.filter(
+           (title): title is string => typeof title === 'string' && title.length > 0
+        )
+      : [];
+   const stillOpen = titles.length > 0 ? ` Still open: ${titles.join(', ')}.` : '';
+   if (event.outcome === 'running') return 'Routing tasks…';
    if (event.outcome !== 'ok') {
       const message = typeof detail.message === 'string' ? detail.message : null;
-      return message
+      const failed = message
          ? `Routing ${event.outcome}: ${message}`
          : `Routing ${event.outcome === 'timeout' ? 'timed out' : 'failed'}`;
+      return `${failed}${stillOpen}`;
    }
    const parts: string[] = [];
    if (typeof detail.assigned === 'number') parts.push(`${detail.assigned} assigned`);
@@ -62,7 +70,8 @@ function routingText(event: PlanEvent): string {
    if (typeof detail.unassigned === 'number' && detail.unassigned > 0) {
       parts.push(`${detail.unassigned} unassigned`);
    }
-   return parts.length > 0 ? `Routed · ${parts.join(' · ')}` : 'Routed';
+   const routed = parts.length > 0 ? `Routed · ${parts.join(' · ')}` : 'Routed';
+   return `${routed}${stillOpen}`;
 }
 
 const RUN_WORD: Record<RunRecord['status'], string> = {

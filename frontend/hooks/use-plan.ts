@@ -1,7 +1,7 @@
 'use client';
 
 import { payloadEntityId, subscribeWorkspaceEvents } from '@/lib/events';
-import { isPlanCompiling, isPlanGenerating, type PlanRecord } from '@/lib/plans';
+import { isPlanCompiling, isPlanGenerating, isPlanRouting, type PlanRecord } from '@/lib/plans';
 import { usePlanStore, type PlanBusyStage } from '@/store/plan-store';
 import { useSessionStore } from '@/store/session-store';
 import { useEffect } from 'react';
@@ -52,7 +52,9 @@ export function usePlan(planId: string): PlanView {
       };
    }, [status, planId, loadPlan]);
 
-   const live = record ? isPlanGenerating(record) || isPlanCompiling(record) : false;
+   const live = record
+      ? isPlanGenerating(record) || isPlanCompiling(record) || isPlanRouting(record)
+      : false;
 
    // Polled whenever the plan is working, connected or not.
    //

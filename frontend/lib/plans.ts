@@ -233,6 +233,13 @@ export const planRecordSchema = z.object({
    critic: criticSchema.nullish().catch(null),
    compile: compileReportSchema.nullish(),
    plan: planSchema.nullish(),
+   /** Set once Start Plan begins asking who owns the tasks. */
+   routing: z
+      .object({
+         status: z.string(),
+         unassigned: z.array(z.string()).default([]),
+      })
+      .nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
 });
@@ -347,6 +354,19 @@ export async function approvePlan(planId: string, note?: string): Promise<PlanRe
    return parseRecord(json);
 }
 
+/**
+ * Plan the same request again, on this plan.
+ *
+ * Answers 202 with generation already running. The page follows it the same
+ * way it follows a first generation.
+ */
+export async function planAgain(planId: string): Promise<PlanRecord> {
+   const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/again`, {
+      method: 'POST',
+   });
+   return parseRecord(json);
+}
+
 /** Retry a compile that failed after approval. */
 export async function compilePlan(planId: string): Promise<PlanRecord> {
    const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/compile`, {
@@ -433,6 +453,7 @@ export const planSummarySchema = z.object({
    }),
    validationStatus: validationStatusSchema.catch('unknown'),
    compileStatus: z.string(),
+   routingStatus: z.string().nullish(),
    plannedTasks: z.number(),
    createdTasks: z.number(),
    finishedTasks: z.number(),
@@ -464,6 +485,10 @@ export function isPlanGenerating(record: PlanRecord): boolean {
 
 export function isPlanCompiling(record: PlanRecord): boolean {
    return record.compile?.status === 'running';
+}
+
+export function isPlanRouting(record: PlanRecord): boolean {
+   return record.routing?.status === 'running';
 }
 
 export function isPlanOpen(record: PlanRecord): boolean {

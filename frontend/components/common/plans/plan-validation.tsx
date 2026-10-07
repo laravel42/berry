@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import {
    PLAN_STAGES,
    describeGenerationError,
+   describePlanFailure,
    describePlanPath,
    describePlanStage,
    isPlanGenerating,
@@ -12,8 +13,8 @@ import {
    type PlanRecord,
 } from '@/lib/plans';
 import { cn } from '@/lib/utils';
-import { useCreatePlanStore } from '@/store/create-plan-store';
 import { usePlanStore } from '@/store/plan-store';
+import { toast } from 'sonner';
 
 /**
  * Where generation is, as a stage trail. Repair is skipped when the first
@@ -81,7 +82,8 @@ export function PlanGenerationProgress({ record }: { record: PlanRecord }) {
  * nothing at all, and started nothing, with no reason on the page.
  */
 export function PlanGenerationFailure({ record }: { record: PlanRecord }) {
-   const openCreatePlan = useCreatePlanStore((state) => state.openModal);
+   const planAgain = usePlanStore((state) => state.planAgain);
+   const planning = usePlanStore((state) => state.busy[record.id] === 'planning');
    const exhausted =
       record.generation.status !== 'running' && record.generation.error === 'PLAN_INVALID';
    if (record.generation.status !== 'failed' && !exhausted) return null;
@@ -93,12 +95,12 @@ export function PlanGenerationFailure({ record }: { record: PlanRecord }) {
       kept && record.validation.status === 'valid' && record.validation.errors.length === 0;
    const problems = record.validation.errors.length;
    const consequence = usable
-      ? 'The last version Berry produced is shown below and passes validation, so you can still start it, or ask for a new plan.'
+      ? 'The last version Berry produced is shown below and passes validation, so you can still start it, or plan again.'
       : kept && problems > 0
         ? `Nothing was started. What is wrong with the last attempt is listed below (${problems === 1 ? '1 problem' : `${problems} problems`}); open Transcript to see each planning step.`
         : kept
-          ? 'The last attempt is kept below for reference. Ask for a new plan.'
-          : 'Nothing was produced. Ask for a new plan.';
+          ? 'The last attempt is kept below. Plan again to try the same request once more.'
+          : 'Nothing was produced. Plan again to try the same request once more.';
    return (
       <div
          role="alert"
@@ -112,9 +114,14 @@ export function PlanGenerationFailure({ record }: { record: PlanRecord }) {
                <Button
                   size="xs"
                   variant="secondary"
-                  onClick={() => openCreatePlan({ prompt: record.sourcePrompt ?? undefined })}
+                  disabled={planning}
+                  onClick={() => {
+                     void planAgain(record.id).catch((error: unknown) => {
+                        toast.error(describePlanFailure(error));
+                     });
+                  }}
                >
-                  Plan again
+                  {planning ? 'Planning again…' : 'Plan again'}
                </Button>
             </div>
          </div>

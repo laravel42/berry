@@ -224,6 +224,7 @@ const baseRecord: PlanRecord = {
    critic: { verdict: 'accept', problems: [] },
    compile: null,
    plan: healthPlan,
+   routing: null,
    createdAt: '2026-09-18T11:40:00Z',
    updatedAt: '2026-09-18T11:42:00Z',
 };

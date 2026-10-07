@@ -96,7 +96,7 @@
       "agents": "Agents",
       "autoGate": "AutoGate",
       "autoGateOn": "On: an agent reviews this task when it finishes. If the review passes, Berry merges its pull request, closes the task and starts whatever it was blocking, without waiting for you.",
-      "autoGateOff": "Off: when this task finishes it waits in review until you close it.",
+      "autoGateOff": "Off: when this task finishes it waits in review until you close it. Other agents review it only when AutoGate is on.",
       "autoGateReviewing": "AutoGate is on. The waiting review starts now.",
       "open": "Status, assignee and more"
    },
