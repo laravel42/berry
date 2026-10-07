@@ -231,9 +231,11 @@ export function planMounts(options: PlanOptions): Mount[] {
             // nobody owns, with this route answering that all is well. So the
             // second press routes what is still unowned, which is exactly what
             // someone pressing it again is asking for. Tasks already assigned
-            // are not reconsidered: `triage` only ever sees unassigned ones.
-            void routeCompiled(options, record, context.get('user').id);
-            return json(serializePlan(record));
+            // are not asked about again; a todo task that already has an agent
+            // is started.
+            const marked = await markRouting(options, record);
+            void routeCompiled(options, record, context.get('user').id, marked);
+            return json(serializePlan(await plans.get(record.id)));
          }
 
          try {
@@ -246,10 +248,13 @@ export function planMounts(options: PlanOptions): Mount[] {
             // Deliberately not awaited, for the reason generation is not: this
             // is a model call, and holding the request open for it would lose
             // the routing the moment the connection dropped. The tasks are
-            // already durable; what follows only decides who holds them.
-            void routeCompiled(options, compiled, context.get('user').id);
+            // already durable; what follows only decides who holds them. The
+            // running marker is written first, so the response does not say
+            // the plan has started while nobody has been asked to take it.
+            const marked = await markRouting(options, compiled);
+            void routeCompiled(options, compiled, context.get('user').id, marked);
 
-            return json(serializePlan(compiled));
+            return json(serializePlan(await plans.get(compiled.id)));
          } catch (error) {
             if (error instanceof PlanInvalid) {
                throw new ApiError(409, 'PLAN_INVALID', 'This plan cannot be started as it stands.', {
@@ -375,6 +380,42 @@ export function planMounts(options: PlanOptions): Mount[] {
 
       void regenerate(options, record, context.get('user').id);
 
+      const response = json(serializePlan(await plans.get(record.id)), 202);
+      response.headers.set('Location', `/api/v1/plans/${record.id}`);
+      return response;
+   });
+
+   /**
+    * Plans the same request again, on this row.
+    *
+    * The failure panel used to reopen the prompt dialog. A long request grew
+    * that dialog past the viewport, and submitting it created a second plan.
+    * This restarts generation in place with the prompt the plan was asked.
+    */
+   route.post('/:planId/again', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.write');
+      if (!options.generator) {
+         throw new ApiError(
+            412,
+            'PLANNER_UNAVAILABLE',
+            'This deployment has no model credential, so it cannot plan.'
+         );
+      }
+      if (
+         record.compile?.status === 'succeeded' ||
+         (record.status !== 'draft' && record.status !== 'pendingApproval')
+      ) {
+         throw new ApiError(409, 'PLAN_NOT_OPEN', 'This plan has already started.');
+      }
+      const prompt = (record.sourcePrompt ?? '').trim();
+      if (prompt === '') {
+         throw new ApiError(409, 'PLAN_NOT_OPEN', 'This plan has no request to plan again.');
+      }
+      if (!(await plans.reopenForGeneration(record.id))) {
+         throw new ApiError(409, 'PLAN_BUSY', 'This plan is already being planned again.');
+      }
+      void generate(options, record, prompt, context.get('user').id);
       const response = json(serializePlan(await plans.get(record.id)), 202);
       response.headers.set('Location', `/api/v1/plans/${record.id}`);
       return response;
@@ -602,6 +643,7 @@ export function serializePlan(record: PlanRecord): Record<string, unknown> {
       critic: record.critic,
       compile: record.compile,
       plan: record.plan,
+      routing: record.routing,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
    };
@@ -706,15 +748,35 @@ async function authorizeWorkspace(
  * recoverable by hand — so it is logged and swallowed rather than allowed to
  * reject into a background promise nobody is holding.
  */
+/** Writes the in-progress routing event. False when this plan cannot be routed. */
+async function markRouting(
+   options: PlanOptions,
+   plan: { id: string; workspaceId: string; boardId: string | null }
+): Promise<boolean> {
+   if (!options.triage || !options.runs || !plan.boardId) return false;
+   await options.plans
+      .recordRouting({
+         planId: plan.id,
+         workspaceId: plan.workspaceId,
+         outcome: 'running',
+         durationMs: 0,
+         detail: {},
+      })
+      .catch(() => undefined);
+   return true;
+}
+
 async function routeCompiled(
    options: PlanOptions,
    plan: { id: string; workspaceId: string; boardId: string | null },
-   userId: string
+   userId: string,
+   alreadyMarked = false
 ): Promise<void> {
    // A plan with no board has nowhere to put a run, and compile would not have
    // produced tasks without one — but the column is nullable, so this is a
    // narrowing rather than a claim about what can happen.
    if (!options.triage || !options.runs || !plan.boardId) return;
+   if (!alreadyMarked) await markRouting(options, plan);
    const runs = options.runs;
    const boardId = plan.boardId;
    const started = Date.now();
@@ -752,6 +814,7 @@ async function routeCompiled(
                assigned: result.assigned,
                started: result.started,
                unassigned: result.unassigned.length,
+               ...(result.unassigned.length ? { unassignedTitles: result.unassigned } : {}),
                ...(result.failures.length ? { failures: result.failures } : {}),
             },
          })
@@ -767,7 +830,7 @@ async function routeCompiled(
             // one of the two is worth simply trying again.
             outcome: /did not finish in time|COMPLETION_TIMEOUT/.test(message) ? 'timeout' : 'error',
             durationMs: Date.now() - started,
-            detail: { assigned: 0, started: 0, error: message },
+            detail: { assigned: 0, started: 0, error: message, message },
          })
          .catch(() => undefined);
    }

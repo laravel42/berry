@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { refreshGoalsForIssue } from '../core/goal-status.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
 
@@ -275,7 +276,10 @@ export class RunLedger {
                                                    AND issue.assignee_type = 'agent'
                                                    AND issue.assignee_id = r.agent_id)))))
                 RETURNING issue.id`;
-            if (moved.length > 0) await this.appendIssueUpdated(tx, started, now);
+            if (moved.length > 0) {
+               await this.appendIssueUpdated(tx, started, now);
+               if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+            }
          }
          return started;
       }) as Promise<Run>;
@@ -516,10 +520,12 @@ export class RunLedger {
 
          // Guarded on active_run_id so a run that is no longer the issue's
          // active one cannot move a task someone else already moved.
-         await tx`
+         const reviewed = await tx`
             UPDATE issues
                SET status = 'in_review', active_run_id = NULL, updated_at = ${now}
-             WHERE id = ${run.issueId} AND active_run_id = ${run.id}`;
+             WHERE id = ${run.issueId} AND active_run_id = ${run.id}
+             RETURNING id`;
+         if (reviewed.length > 0 && run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
 
          const usageSequence = await allocateSequence(tx, run.id);
          const completedSequence = await allocateSequence(tx, run.id);
@@ -596,7 +602,10 @@ export class RunLedger {
                    updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (released.length > 0) await this.appendIssueUpdated(tx, run, now);
+         if (released.length > 0) {
+            await this.appendIssueUpdated(tx, run, now);
+            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+         }
 
          const sequence = await allocateSequence(tx, run.id);
          const [at] = await eventTimes(tx, run.id, now, 1);
@@ -649,7 +658,10 @@ export class RunLedger {
                    updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (released.length > 0) await this.appendIssueUpdated(tx, run, now);
+         if (released.length > 0) {
+            await this.appendIssueUpdated(tx, run, now);
+            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+         }
 
          const sequence = await allocateSequence(tx, run.id);
          const [at] = await eventTimes(tx, run.id, now, 1);

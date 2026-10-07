@@ -70,6 +70,8 @@ interface TriageTask {
    capabilities: string[];
    /** The plan marked it as changing the repository; null when it did not say. */
    changesRepository?: boolean | null;
+   /** Set when compile or an earlier routing pass already named an agent. */
+   assigneeId: string | null;
 }
 
 /** What a run is told when nobody typed instructions for it. */
@@ -153,11 +155,12 @@ export class PlanTriage {
             title: string;
             description: string | null;
             status: string;
+            assignee_id: string | null;
             capabilities: string[] | null;
             changes_repository: boolean | null;
          }>
       >`
-         SELECT i.id, i.number, i.title, i.description, i.status::text AS status,
+         SELECT i.id, i.number, i.title, i.description, i.status::text AS status, i.assignee_id,
                 array_remove(array_agg(l.name), NULL) AS capabilities,
                 (i.metadata->>'berry.changesRepository')::boolean AS changes_repository
            FROM plan_issues pi
@@ -165,11 +168,11 @@ export class PlanTriage {
            LEFT JOIN issue_label_memberships m ON m.issue_id = i.id
            LEFT JOIN issue_labels l ON l.id = m.label_id
           WHERE pi.plan_id = ${planId}
-            AND i.assignee_id IS NULL
-          GROUP BY i.id, i.number, i.title, i.description, i.status, i.metadata
+          GROUP BY i.id, i.number, i.title, i.description, i.status, i.assignee_id, i.metadata
           ORDER BY i.number`;
-      return rows.map(({ changes_repository, ...row }) => ({
+      return rows.map(({ changes_repository, assignee_id, ...row }) => ({
          ...row,
+         assigneeId: assignee_id,
          capabilities: row.capabilities ?? [],
          changesRepository: changes_repository,
       }));
@@ -315,8 +318,12 @@ export class PlanTriage {
       const tasks = await this.tasks(input.planId);
       if (tasks.length === 0) return { assigned: 0, started: 0, unassigned: [], failures: [] };
 
-      const roster = await this.roster(input.workspaceId);
-      if (roster.length === 0) {
+      // Already-owned tasks are not asked about again. Routing decides who
+      // holds work that has nobody, then starts every todo task that has an
+      // agent, including one named before this pass.
+      const unowned = tasks.filter((task) => !task.assigneeId);
+      const roster = unowned.length > 0 ? await this.roster(input.workspaceId) : [];
+      if (unowned.length > 0 && roster.length === 0) {
          throw new TriageUnavailable('this workspace has no agent that can take work');
       }
 
@@ -328,8 +335,8 @@ export class PlanTriage {
       const failures: string[] = [];
       let assigned = 0;
       let batches = Array.from(
-         { length: Math.ceil(tasks.length / BATCH) },
-         (_, index) => tasks.slice(index * BATCH, (index + 1) * BATCH)
+         { length: Math.ceil(unowned.length / BATCH) },
+         (_, index) => unowned.slice(index * BATCH, (index + 1) * BATCH)
       );
       // A batch the orchestrator did not answer (a timeout, a dropped
       // connection) is asked once more before its tasks are left to a person:
@@ -412,16 +419,34 @@ export class PlanTriage {
          throw new TriageUnavailable(failures[0]!);
       }
 
+      // Status is read again here. The list above is from before the model
+      // call, and a person can approve "start this task" while that call is
+      // in flight. The snapshot would still say backlog, the approval would
+      // have found no agent to dispatch, and the task would sit in todo owned
+      // and unstarted. A read that returns nothing keeps the snapshot, which
+      // is what the routing tests' stand-in database does.
+      const fresh = new Map(
+         (
+            await this.#sql<Array<{ id: string; status: string; assignee_id: string | null }>>`
+               SELECT id, status::text AS status, assignee_id
+                 FROM issues
+                WHERE id = ANY(${tasks.map((task) => task.id)}::uuid[])`
+         ).map((row) => [row.id, row])
+      );
+
       let started = 0;
       for (const task of tasks) {
          const decision = decided.get(task.id);
+         const current = fresh.get(task.id);
+         const agentId = decision?.agentId ?? current?.assignee_id ?? task.assigneeId;
+         const status = current?.status ?? task.status;
          // Only `todo` is ready: `blocked` waits on another task, and `backlog`
          // is where a plan parks a task whose start needs a person's approval.
-         if (!decision || task.status !== 'todo') continue;
+         if (!agentId || status !== 'todo') continue;
          try {
             await input.admit({
                issueId: task.id,
-               agentId: decision.agentId,
+               agentId,
                instructions: instructionsFor(task),
             });
             started += 1;
@@ -434,7 +459,9 @@ export class PlanTriage {
       return {
          assigned,
          started,
-         unassigned: tasks.filter((task) => !decided.has(task.id)).map((task) => task.title),
+         unassigned: tasks
+            .filter((task) => !decided.has(task.id) && !task.assigneeId)
+            .map((task) => task.title),
          failures,
       };
    }

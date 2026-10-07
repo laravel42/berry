@@ -1,6 +1,6 @@
 import { ApiError } from '../http/errors.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
-import { InvalidTransition } from '../core/issues.ts';
+import { InvalidTransition, OpenPullRequest } from '../core/issues.ts';
 import {
    InvalidPropertyValue,
    MAX_ACTIVE_PROPERTIES,
@@ -78,6 +78,9 @@ export function rethrowWork(resource: string): (error: unknown) => never {
             from: error.from,
             to: error.to,
          });
+      }
+      if (error instanceof OpenPullRequest) {
+         throw new ApiError(409, 'OPEN_PULL_REQUEST', error.message);
       }
       if (error instanceof Conflict) throw new ApiError(409, 'CONFLICT', 'The change conflicts with the current state.');
       if (error instanceof NotFound) throw ApiError.notFound(resource);

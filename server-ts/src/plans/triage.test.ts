@@ -26,7 +26,14 @@ interface FakeAgent {
 }
 
 function fake(options: {
-   tasks: Array<{ id: string; status: string; title?: string; description?: string | null; changesRepository?: boolean }>;
+   tasks: Array<{
+      id: string;
+      status: string;
+      title?: string;
+      description?: string | null;
+      changesRepository?: boolean;
+      assigneeId?: string | null;
+   }>;
    agents: Array<string | FakeAgent>;
    answer: unknown;
    admitFails?: string;
@@ -82,6 +89,7 @@ function fake(options: {
          status: task.status,
          capabilities: [],
          changesRepository: task.changesRepository ?? null,
+         assigneeId: task.assigneeId ?? null,
       }));
    (triage as unknown as { roster: unknown }).roster = async () =>
       options.agents.map((agent) => {
@@ -286,6 +294,22 @@ describe('routing a compiled plan', () => {
       const f = fake({ tasks: [{ id: 't1', status: 'todo' }], agents: [], answer: {} });
 
       await assert.rejects(run(f), TriageUnavailable);
+   });
+
+   test('a todo task that already has an agent starts without another routing call', async () => {
+      const f = fake({
+         tasks: [{ id: 't1', status: 'todo', assigneeId: 'a1' }],
+         agents: [],
+         answer: {},
+      });
+
+      const result = await run(f);
+
+      assert.equal(result.assigned, 0);
+      assert.equal(result.started, 1);
+      assert.deepEqual(result.unassigned, []);
+      assert.deepEqual(f.calls(), []);
+      assert.deepEqual(f.admitted, [{ issueId: 't1', agentId: 'a1', instructions: 't1' }]);
    });
 
    test('nothing to route is not a failure', async () => {

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { Role } from '../identity/roles.ts';
+import { refreshGoalsForIssue } from '../core/goal-status.ts';
 import { applyProposalDecision } from '../organization/proposals.ts';
 import { notifyApprovalRequested } from './notify.ts';
 
@@ -307,6 +308,7 @@ export class ApprovalRepository {
                   UPDATE issues SET status = 'todo', updated_at = ${now} WHERE id = ${issueId} AND status = 'blocked'
                   RETURNING id`;
                releasedIssueId = (released[0]?.id as string | undefined) ?? null;
+               if (releasedIssueId) await refreshGoalsForIssue(tx, issueId, now);
             }
          } else if (issueId && input.decision === 'approved') {
             const [blocked] = await tx`
@@ -316,10 +318,18 @@ export class ApprovalRepository {
                 WHERE edge.issue_id = ${issueId}
                   AND blocker.deleted_at IS NULL
                   AND blocker.status NOT IN ('done', 'cancelled')`;
-            await tx`
+            // `todo` is ready to run. `blocked` still waits on another task,
+            // so approving the start must not admit a run for it.
+            const next = Number(blocked!.n) > 0 ? 'blocked' : 'todo';
+            const updated = await tx`
                UPDATE issues
-                  SET status = ${Number(blocked!.n) > 0 ? 'blocked' : 'todo'}, updated_at = ${now}
-                WHERE id = ${issueId} AND status = 'backlog'`;
+                  SET status = ${next}, updated_at = ${now}
+                WHERE id = ${issueId} AND status = 'backlog'
+               RETURNING id`;
+            if (updated.length > 0) {
+               if (next === 'todo') releasedIssueId = issueId;
+               await refreshGoalsForIssue(tx, issueId, now);
+            }
          }
 
          const [row] = await tx`

@@ -1,3 +1,4 @@
+import { refreshGoalsForIssue } from '../core/goal-status.ts';
 import type { Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import type { ScmLinkRepository } from './links.ts';
@@ -138,6 +139,7 @@ export class ScmInbound {
                 status = COALESCE(${status}::issue_status, status),
                 updated_at = now()
           WHERE id = ${link.berryId} AND deleted_at IS NULL`;
+      if (status) await refreshGoalsForIssue(this.#sql, link.berryId, new Date().toISOString());
 
       await this.#links.touch({
          provider: 'github',

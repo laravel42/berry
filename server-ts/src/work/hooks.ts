@@ -2,6 +2,7 @@ import type { Comment } from '../core/comments.ts';
 import type { Issue, IssueRepository } from '../core/issues.ts';
 import type { Sql } from '../db/pool.ts';
 import { autoDispatch } from '../runs/auto-dispatch.ts';
+import { readyDependents } from './ready-dependents.ts';
 import type { RunRepository } from '../runs/repository.ts';
 import { nextStageReady, stageGate } from './hierarchy.ts';
 import { parseMentions } from './mentions.ts';
@@ -36,35 +37,6 @@ export interface WorkTrackingHooks {
 }
 
 const FINISHED = new Set(['done', 'cancelled']);
-
-/**
- * Tasks `issueId` was blocking that nothing else still blocks.
- *
- * Only tasks parked as blocked are released, and never one waiting on a
- * pending escalation: that task is blocked on a person's decision, not on
- * the work it depended on.
- */
-async function dependentsReady(sql: Sql, issueId: string): Promise<string[]> {
-   const rows = await sql`
-      SELECT dependent.id
-        FROM issue_dependencies AS link
-        JOIN issues AS dependent ON dependent.id = link.issue_id
-       WHERE link.depends_on_issue_id = ${issueId}
-         AND dependent.deleted_at IS NULL
-         AND dependent.status = 'blocked'
-         AND NOT EXISTS (
-            SELECT 1 FROM issue_dependencies AS other
-              JOIN issues AS blocker ON blocker.id = other.depends_on_issue_id
-             WHERE other.issue_id = dependent.id
-               AND blocker.deleted_at IS NULL
-               AND blocker.status NOT IN ('done', 'cancelled'))
-         AND NOT EXISTS (
-            SELECT 1 FROM approvals AS approval
-             WHERE approval.issue_id = dependent.id
-               AND approval.kind = 'escalation' AND approval.status = 'pending')
-       ORDER BY dependent.sort_order, dependent.id`;
-   return rows.map((row) => row.id as string);
-}
 
 function preview(text: string): string {
    const flat = text.replace(/\s+/g, ' ').trim();
@@ -136,7 +108,8 @@ export function workTrackingHooks(options: {
             // A task this one blocked starts once every task it waits on is
             // finished: back to todo, and on to its agent when it has one.
             // Without this a plan's later tasks stay blocked for good.
-            for (const dependentId of await dependentsReady(sql, issue.id)) {
+            for (const dependent of await readyDependents(sql, issue.id)) {
+               const dependentId = dependent.id;
                try {
                   const { issue: released } = await issues.update({
                      issueId: dependentId,

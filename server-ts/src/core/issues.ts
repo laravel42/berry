@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { toRFC3339, type Queryable, type Sql } from '../db/pool.ts';
+import { refreshGoalsForIssue } from './goal-status.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import { structJSON } from '../http/canonical-json.ts';
@@ -181,6 +182,20 @@ export class ProjectNotFound extends Error {
    constructor() {
       super('project not found');
       this.name = 'ProjectNotFound';
+   }
+}
+
+/**
+ * Done while a pull request is still open.
+ *
+ * Closing the task by hand does not merge. The pull request has to be merged
+ * or closed first, so the board and the repository don't disagree about
+ * whether the work shipped.
+ */
+export class OpenPullRequest extends Error {
+   constructor() {
+      super('Merge or close the pull request before marking the task done.');
+      this.name = 'OpenPullRequest';
    }
 }
 
@@ -500,6 +515,13 @@ export class IssueRepository {
          if (patch.status !== undefined && !canTransition(currentStatus, patch.status)) {
             throw new InvalidTransition(dbStatusToApi(currentStatus), dbStatusToApi(patch.status));
          }
+         if (
+            patch.status === 'done' &&
+            currentStatus !== 'done' &&
+            (await openPullRequest(tx, params.issueId))
+         ) {
+            throw new OpenPullRequest();
+         }
          if (patch.assigneeSet) await assertAssigneeExists(tx, patch.assignee ?? null);
          const rejectsReview =
             params.rejected === true && currentStatus === 'in_review' && patch.status !== undefined && patch.status !== 'in_review' && patch.status !== 'done';
@@ -545,6 +567,9 @@ export class IssueRepository {
             actor: { type: params.actorType ?? 'user', id: params.actorId },
             occurredAt: now,
          });
+         if (patch.status !== undefined && patch.status !== currentStatus) {
+            await refreshGoalsForIssue(tx, params.issueId, now);
+         }
          return { issue, events };
       });
    }
@@ -1013,4 +1038,45 @@ function classifyWrite(error: unknown): never {
    if (code === '23505' || code === '23P01') throw new Conflict();
    if (code === '23001') throw new ApprovalRequired();
    throw error;
+}
+
+/**
+ * True when the task still has a pull request that has not landed.
+ *
+ * A linked open or draft pull request is enough. So is the latest delivery
+ * that names a pull request Berry has not recorded as merged or closed —
+ * the link can lag the run that opened it.
+ */
+async function openPullRequest(sql: Queryable, issueId: string): Promise<boolean> {
+   const [linked] = await sql`
+      SELECT 1
+        FROM github_pull_request_links AS link
+        JOIN github_pull_requests AS pr ON pr.id = link.pull_request_id
+       WHERE link.issue_id = ${issueId}
+         AND pr.state NOT IN ('merged', 'closed')
+       LIMIT 1`;
+   if (linked) return true;
+
+   const [delivered] = await sql`
+      SELECT (event.payload->'pullRequest'->>'number')::int AS number
+        FROM run_events AS event
+        JOIN runs AS run ON run.id = event.run_id
+       WHERE run.issue_id = ${issueId}
+         AND event.event_type = 'run.delivered'
+         AND jsonb_typeof(event.payload->'pullRequest') = 'object'
+         AND (event.payload->'pullRequest'->>'number') ~ '^[0-9]+$'
+       ORDER BY event.occurred_at DESC
+       LIMIT 1`;
+   const number = delivered?.number;
+   if (number == null) return false;
+
+   const [known] = await sql<Array<{ state: string }>>`
+      SELECT pr.state
+        FROM github_pull_request_links AS link
+        JOIN github_pull_requests AS pr ON pr.id = link.pull_request_id
+       WHERE link.issue_id = ${issueId}
+         AND pr.number = ${number}
+       LIMIT 1`;
+   if (!known) return true;
+   return known.state !== 'merged' && known.state !== 'closed';
 }

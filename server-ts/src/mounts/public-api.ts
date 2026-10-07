@@ -6,6 +6,7 @@ import {
    apiStatusToDb,
    dbStatusToApi,
    InvalidTransition,
+   OpenPullRequest,
    type Issue,
    type IssuePatch,
    type IssueRepository,
@@ -145,6 +146,9 @@ function publicApiRoutes(options: PublicApiOptions): Hono<{ Variables: PublicApi
          .catch((error: unknown) => {
             if (error instanceof InvalidTransition) {
                throw new ApiError(409, 'INVALID_TRANSITION', `Cannot move from ${error.from} to ${error.to}.`);
+            }
+            if (error instanceof OpenPullRequest) {
+               throw new ApiError(409, 'OPEN_PULL_REQUEST', error.message);
             }
             return mapIssueError(error);
          });

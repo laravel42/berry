@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { assertValid, fieldError } from '../http/body.ts';
 import { ApiError } from '../http/errors.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
-import { InvalidTransition } from '../core/issues.ts';
+import { InvalidTransition, OpenPullRequest } from '../core/issues.ts';
 
 /** Body parsing for the work-tracking routes: one JSON value, validated once. */
 const MAX_BODY_BYTES = 1 << 20;
@@ -44,6 +44,7 @@ export function failureCode(error: unknown): string {
    if (error instanceof NotFound) return 'NOT_FOUND';
    if (error instanceof Forbidden) return 'FORBIDDEN';
    if (error instanceof InvalidTransition) return 'INVALID_STATE_TRANSITION';
+   if (error instanceof OpenPullRequest) return 'OPEN_PULL_REQUEST';
    if (error instanceof Conflict) return 'CONFLICT';
    throw error;
 }

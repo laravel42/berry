@@ -14,6 +14,7 @@ import { RunRepository } from '../runs/repository.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { parseRepository } from './checkout.ts';
 import { repositoryForIssue } from './repository-context.ts';
+import { readyDependents } from '../work/ready-dependents.ts';
 import { filesText, listingText, MAX_READ_ROUNDS, openReviewFiles, type ReviewFiles } from './review-files.ts';
 import type { TranscriptMessage } from '../runtime/envelope.ts';
 
@@ -916,23 +917,10 @@ export class ReviewGate {
     * not a reason to leave the others waiting on a task that is already done.
     */
    async #advance(material: ReviewMaterial, actorId: string): Promise<void> {
-      const ready = await this.#sql<Array<{ id: string; assignee_id: string | null; title: string }>>`
-         SELECT dependent.id, dependent.assignee_id, dependent.title
-           FROM issue_dependencies AS edge
-           JOIN issues AS dependent
-             ON dependent.id = edge.issue_id AND dependent.deleted_at IS NULL
-          WHERE edge.depends_on_issue_id = ${material.issue.id}
-            AND dependent.status = 'blocked'
-            -- Every other blocker of this dependent is finished too. A task
-            -- waiting on three things is not ready when one of them lands.
-            AND NOT EXISTS (
-               SELECT 1
-                 FROM issue_dependencies AS other
-                 JOIN issues AS blocker
-                   ON blocker.id = other.depends_on_issue_id AND blocker.deleted_at IS NULL
-                WHERE other.issue_id = dependent.id
-                  AND blocker.status NOT IN ('done', 'cancelled')
-            )`;
+      // The same tasks a person's close would release. A task still waiting
+      // on an escalation stays blocked: a hand close and a review close must
+      // not disagree about what is free to start.
+      const ready = await readyDependents(this.#sql, material.issue.id);
 
       for (const dependent of ready) {
          try {
@@ -948,13 +936,13 @@ export class ReviewGate {
          }
          // Nobody holds it: it is unblocked and waiting, which is a person's to
          // route. Starting a run needs an agent to run it.
-         if (!dependent.assignee_id || !material.run.requestedBy) continue;
+         if (!dependent.assigneeId || !material.run.requestedBy) continue;
          await this.#runs
             .admit({
                issueId: dependent.id,
                boardId: material.boardId,
                workspaceId: material.workspaceId,
-               agentId: dependent.assignee_id,
+               agentId: dependent.assigneeId,
                requestedBy: material.run.requestedBy,
                instructions: null,
             })

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { notifyApprovalRequested } from '../approvals/notify.ts';
+import { refreshGoal } from '../core/goal-status.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { StageRecord } from './generator.ts';
@@ -39,6 +40,8 @@ export interface PlanSummary {
    createdTasks: number;
    finishedTasks: number;
    autoGate: boolean;
+   /** Latest execute-stage outcome, while routing is in progress or after it. */
+   routingStatus: string | null;
    createdAt: string;
    updatedAt: string;
 }
@@ -74,6 +77,8 @@ export interface PlanRecord {
       approvalIds: string[];
    } | null;
    plan: Plan | null;
+   /** Who the compiled tasks were given to, once routing has been asked. */
+   routing: { status: string; unassigned: string[] } | null;
    createdAt: string;
    updatedAt: string;
 }
@@ -148,7 +153,10 @@ export class PlanRepository {
                 COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
                 (SELECT COUNT(*) FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created,
                 (SELECT COUNT(*) FROM plan_issues AS pi JOIN issues AS i ON i.id = pi.issue_id
-                  WHERE pi.plan_id = p.id AND i.deleted_at IS NULL AND i.status IN ('done', 'cancelled')) AS finished
+                  WHERE pi.plan_id = p.id AND i.deleted_at IS NULL AND i.status IN ('done', 'cancelled')) AS finished,
+                (SELECT ev.outcome FROM planner_events AS ev
+                  WHERE ev.plan_id = p.id AND ev.stage = 'execute'
+                  ORDER BY ev.sequence DESC LIMIT 1) AS routing_status
            FROM plans AS p
            LEFT JOIN goals AS g ON g.id = p.goal_id
            LEFT JOIN projects AS pr ON pr.id = COALESCE(p.project_id, g.project_id) AND pr.deleted_at IS NULL
@@ -174,6 +182,7 @@ export class PlanRepository {
          createdTasks: Number(row.created),
          finishedTasks: Number(row.finished),
          autoGate: Boolean(row.auto_gate),
+         routingStatus: (row.routing_status as string | null) ?? null,
          createdAt: new Date(row.created_at as string).toISOString(),
          updatedAt: new Date(row.updated_at as string).toISOString(),
       }));
@@ -479,24 +488,11 @@ export class PlanRepository {
          const issueIds = new Map<string, string>();
          const approvalIds: string[] = [];
 
-         // The agents this plan's tasks may be given outright. A task that
-         // changes the repository and names an agent that cannot branch it is
-         // left for routing instead, which only offers it to one that can.
-         const suggested = [...new Set(plan.issues.flatMap((issue) => (issue.suggestedAgentId ? [issue.suggestedAgentId] : [])))];
-         const canBranch = new Set<string>();
-         if (suggested.length > 0) {
-            const rows = await tx`
-               SELECT id FROM agents
-                WHERE id::text = ANY(${suggested}::text[]) AND 'create_branches' = ANY(permissions)`;
-            for (const row of rows) canBranch.add(row.id as string);
-         }
-
          for (const issue of inDependencyOrder(plan.issues)) {
             const issueId = this.#newId();
-            const assignee =
-               issue.suggestedAgentId && (issue.changesRepository !== true || canBranch.has(issue.suggestedAgentId))
-                  ? issue.suggestedAgentId
-                  : null;
+            // Routing names the agent. Assigning here left tasks owned and
+            // unstarted: triage only used to see unassigned rows, and a run
+            // is what moves a task.
             const blocked = issue.dependsOn.length > 0;
             const status = issue.requiresApproval ? 'backlog' : blocked ? 'blocked' : 'todo';
 
@@ -511,9 +507,9 @@ export class PlanRepository {
                        ${issue.priority ?? 'medium'}, ${input.userId},
                        -- Null, not a third enum value: unassigned is the
                        -- absence of an assignee, which is what the column
-                       -- being nullable already says.
-                       ${assignee ? 'agent' : null},
-                       ${assignee},
+                       -- being nullable already says. Routing fills it in.
+                       ${null},
+                       ${null},
                        -- Carried from the plan at compile, as migration 026
                        -- says: the issue is the thing being gated, and a plan
                        -- edited later must not change how work in flight ends.
@@ -596,6 +592,10 @@ export class PlanRepository {
             }
          }
 
+         // Planned is the status compile writes. A milestone whose tasks are
+         // all blocked is not planned, and the goal should say so immediately.
+         for (const goalId of goalIds) await refreshGoal(tx, goalId, now);
+
          // `approved` with a succeeded compile, not a `compiled` status: the
          // column has no such value, and the contract already distinguishes
          // the two through `compile.status`.
@@ -649,7 +649,7 @@ export class PlanRepository {
    async recordRouting(input: {
       planId: string;
       workspaceId: string;
-      outcome: 'ok' | 'error' | 'timeout';
+      outcome: 'ok' | 'error' | 'timeout' | 'running';
       durationMs: number;
       detail: Record<string, unknown>;
    }): Promise<void> {
@@ -735,6 +735,10 @@ export class PlanRepository {
       let issueIds: string[] = [];
       let approvalIds: string[] = [];
       let goalIds: string[] = [];
+      const [routingEvent] = await sql`
+         SELECT outcome, detail FROM planner_events
+          WHERE plan_id = ${row.id as string} AND stage = 'execute'
+          ORDER BY sequence DESC LIMIT 1`;
       if (compiled) {
          const issues = await sql`
             SELECT issue_id FROM plan_issues WHERE plan_id = ${row.id as string}`;
@@ -819,6 +823,9 @@ export class PlanRepository {
               }
             : null,
          plan,
+         routing: routingEvent
+            ? { status: routingEvent.outcome as string, unassigned: unassignedTitles(routingEvent.detail) }
+            : null,
          createdAt: toRFC3339(row.created_at as string)!,
          updatedAt: toRFC3339(row.updated_at as string)!,
       };
@@ -826,6 +833,13 @@ export class PlanRepository {
 }
 
 // ------------------------------------------------------------------ helpers
+
+function unassignedTitles(detail: unknown): string[] {
+   if (!detail || typeof detail !== 'object') return [];
+   const titles = (detail as { unassignedTitles?: unknown }).unassignedTitles;
+   if (!Array.isArray(titles)) return [];
+   return titles.filter((title): title is string => typeof title === 'string');
+}
 
 /**
  * A label per required capability, created once and reused.

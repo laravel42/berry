@@ -24,6 +24,7 @@ import type { GoalLinker } from '../core/goal-linker.ts';
 import {
    ApprovalRequired,
    InvalidTransition,
+   OpenPullRequest,
    ProjectNotFound,
    dbStatusToApi,
    escapeSearchLiteral,
@@ -944,6 +945,9 @@ function invalidTransition(from: string, to: string): ApiError {
 function rethrowWrite(verb: 'created' | 'updated'): (error: unknown) => never {
    return (error: unknown) => {
       if (error instanceof InvalidTransition) throw invalidTransition(error.from, error.to);
+      if (error instanceof OpenPullRequest) {
+         throw new ApiError(409, 'OPEN_PULL_REQUEST', error.message);
+      }
       if (error instanceof ApprovalRequired) {
          throw new ApiError(
             409,
