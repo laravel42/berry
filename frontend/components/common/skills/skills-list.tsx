@@ -39,12 +39,29 @@ interface Props {
    onCriteriaChange?: (criteria: SkillCriteria) => void;
 }
 
-/** Each sort's natural order: names A→Z, the newest and the most used first. */
+/** Each sort's natural order: names and labels A→Z, the newest and the most used first. */
 function sortSkills(skills: Skill[], sort: SkillCriteria['sort'], descending = false): Skill[] {
    const carried = (skill: Skill) => skill.agents.filter((agent) => agent.enabled).length;
+   // Compare labels in the order the row shows them. A skill with none sorts last.
+   const byLabels = (left: Skill, right: Skill): number => {
+      if (left.labels.length === 0 && right.labels.length === 0) return 0;
+      if (left.labels.length === 0) return 1;
+      if (right.labels.length === 0) return -1;
+      const length = Math.max(left.labels.length, right.labels.length);
+      for (let index = 0; index < length; index++) {
+         const a = left.labels[index];
+         const b = right.labels[index];
+         if (a === undefined) return -1;
+         if (b === undefined) return 1;
+         const diff = a.localeCompare(b);
+         if (diff !== 0) return diff;
+      }
+      return 0;
+   };
    const compare = (left: Skill, right: Skill): number => {
       if (sort === 'updated') return right.updatedAt.localeCompare(left.updatedAt);
       if (sort === 'usage') return carried(right) - carried(left);
+      if (sort === 'labels') return byLabels(left, right);
       return left.name.localeCompare(right.name);
    };
    const sign = descending ? -1 : 1;
@@ -53,9 +70,10 @@ function sortSkills(skills: Skill[], sort: SkillCriteria['sort'], descending = f
    );
 }
 
-/** Which column heading sorts by what; the rest are labels only. */
+/** Which column heading sorts by what; the rest stay as text. */
 const SORT_FOR_COLUMN: Partial<Record<SkillColumn | 'skill', SkillCriteria['sort']>> = {
    skill: 'name',
+   labels: 'labels',
    updated: 'updated',
    agents: 'usage',
 };

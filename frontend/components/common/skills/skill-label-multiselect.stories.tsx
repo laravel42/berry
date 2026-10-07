@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn } from 'storybook/test';
+import { expect, fn, within } from 'storybook/test';
 import { SkillLabelMultiselect } from './skill-label-multiselect';
 
 const meta = {
@@ -25,5 +25,17 @@ export const ReadOnly: Story = {
    args: { disabled: true },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('button', { name: 'frontend' })).toBeDisabled();
+      await expect(canvas.queryByRole('button', { name: 'Add label' })).not.toBeInTheDocument();
+   },
+};
+
+/** Picking a catalogue label, or typing one that does not exist yet. */
+export const AddLabel: Story = {
+   args: { value: ['frontend'], options: ['frontend', 'design', 'UX Researcher'] },
+   play: async ({ args, canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Add label' }));
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(await body.findByRole('button', { name: 'design' }));
+      await expect(args.onChange).toHaveBeenCalledWith(['frontend', 'design']);
    },
 };

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { readFrontmatter, writeFrontmatter } from '@/lib/skill-files';
-import { getSkill, updateSkill, type Skill } from '@/lib/skills';
+import { getSkill, listSkills, updateSkill, type Skill } from '@/lib/skills';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
 interface Draft {
@@ -72,6 +72,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState(false);
    const [conflict, setConflict] = useState<Skill | null>(null);
+   const [labelOptions, setLabelOptions] = useState<string[]>([]);
    const skipLabelSync = useRef(true);
 
    const take = useCallback((skill: Skill) => {
@@ -101,6 +102,25 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
          cancelled = true;
       };
    }, [skillId, take, t]);
+
+   useEffect(() => {
+      let cancelled = false;
+      void listSkills()
+         .then((skills) => {
+            if (cancelled) return;
+            const names = new Set<string>();
+            for (const skill of skills) {
+               for (const label of skill.labels) names.add(label);
+            }
+            setLabelOptions([...names].sort((left, right) => left.localeCompare(right)));
+         })
+         .catch(() => {
+            if (!cancelled) setLabelOptions([]);
+         });
+      return () => {
+         cancelled = true;
+      };
+   }, [revision]);
 
    /** Header label toggles bump the catalogue; pull labels without wiping other edits. */
    useEffect(() => {
@@ -238,7 +258,12 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                   />
                </label>
             </div>
-            <SkillLabelMultiselect value={draft.labels} disabled={!canEdit} onChange={editLabels} />
+            <SkillLabelMultiselect
+               value={draft.labels}
+               disabled={!canEdit}
+               options={labelOptions}
+               onChange={editLabels}
+            />
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                <span className="text-muted-foreground">{t('create.instructions')}</span>
                {canEdit ? (

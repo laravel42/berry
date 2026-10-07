@@ -23,7 +23,7 @@ import { isSkillInUse, type Skill } from '@/lib/skills';
 export const SKILL_COLUMNS = ['labels', 'agents', 'files', 'creator', 'updated'] as const;
 export type SkillColumn = (typeof SKILL_COLUMNS)[number];
 
-export const SKILL_SORTS = ['name', 'updated', 'usage'] as const;
+export const SKILL_SORTS = ['name', 'labels', 'updated', 'usage'] as const;
 export type SkillSort = (typeof SKILL_SORTS)[number];
 
 /** How the reader lays the catalogue out; what it is narrowed by is the filter's. */
@@ -36,7 +36,7 @@ export interface SkillCriteria {
 
 export const DEFAULT_CRITERIA: SkillCriteria = {
    sort: 'name',
-   columns: ['agents', 'files'],
+   columns: ['labels', 'agents', 'files'],
 };
 
 /**

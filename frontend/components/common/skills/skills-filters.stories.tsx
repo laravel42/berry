@@ -51,9 +51,9 @@ export const AddColumn: Story = {
       await expect(canvas.queryByRole('button', { name: 'Name' })).not.toBeInTheDocument();
       await userEvent.click(canvas.getByRole('button', { name: 'Columns' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('option', { name: 'Labels' }));
+      await userEvent.click(await body.findByRole('option', { name: 'Creator' }));
       await expect(canvas.getByTestId('criteria')).toHaveTextContent(
-         'name · agents, files, labels'
+         'name · labels, agents, files, creator'
       );
    },
 };
