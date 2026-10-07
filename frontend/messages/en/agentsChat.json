@@ -354,7 +354,6 @@
       "msgStageRunning": "running a command",
       "msgStageWriting": "writing",
       "followUps": "Suggested next",
-      "regenerate": "Suggest others",
       "emptyTitle": "Say something to {name}",
       "emptyBody": "Every reply runs as a task, using the instructions on the agent’s profile.",
       "bannerNoAgents": "This workspace has no agents to talk to yet.",

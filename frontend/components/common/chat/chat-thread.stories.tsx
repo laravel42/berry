@@ -12,8 +12,6 @@ const meta = {
       starters: [],
       suggestions: [],
       onUseSuggestion: fn(),
-      onRegenerate: fn(),
-      regenerating: false,
       hasEarlier: false,
       loadingEarlier: false,
       onLoadEarlier: fn(),
@@ -76,7 +74,9 @@ export const StreamingReply: Story = {
 export const WithFollowUps: Story = {
    args: { suggestions: chatSuggestions },
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Suggest others' }));
-      await expect(args.onRegenerate).toHaveBeenCalled();
+      await userEvent.click(canvas.getByRole('button', { name: 'Open the pull request' }));
+      await expect(args.onUseSuggestion).toHaveBeenCalledWith(
+         'Open a pull request for the migration.'
+      );
    },
 };

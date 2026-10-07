@@ -393,8 +393,6 @@ export function FloatingChat() {
                   starters={[]}
                   suggestions={[]}
                   onUseSuggestion={setComposer}
-                  onRegenerate={() => undefined}
-                  regenerating={false}
                   hasEarlier={false}
                   loadingEarlier={false}
                   onLoadEarlier={() => undefined}

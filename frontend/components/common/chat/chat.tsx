@@ -87,7 +87,6 @@ export function Chat() {
    // a first message (a cold session) it often never did.
    const [sent, setSent] = useState<{ conversationId: string; runId: string } | null>(null);
    const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
-   const [regenerating, setRegenerating] = useState(false);
 
    const [composer, setComposer] = useState('');
    const [sending, setSending] = useState(false);
@@ -475,18 +474,6 @@ export function Chat() {
       await refreshThreads().catch(() => undefined);
    };
 
-   const regenerate = async () => {
-      if (!active?.agentId) return;
-      setRegenerating(true);
-      try {
-         setSuggestions(await listConversationSuggestions(active.id, { fresh: true }));
-      } catch {
-         /* Suggestions are a nicety; a failure is not worth a banner. */
-      } finally {
-         setRegenerating(false);
-      }
-   };
-
    const agentName = active?.agentName ?? null;
    // A conversation that is still called after its agent has no second name
    // to show; the header would read "Frontend Engineer Frontend Engineer".
@@ -693,8 +680,6 @@ export function Chat() {
                   starters={activeAgent?.conversationStarters ?? []}
                   suggestions={suggestions}
                   onUseSuggestion={changeComposer}
-                  onRegenerate={() => void regenerate()}
-                  regenerating={regenerating}
                   hasEarlier={hasEarlier}
                   loadingEarlier={loadingEarlier}
                   onLoadEarlier={() => void loadEarlier()}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, Copy, RefreshCw } from 'lucide-react';
+import { Check, Copy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import type { ChatMessage, ChatSuggestion } from '@/lib/chat';
@@ -14,8 +14,6 @@ interface ChatThreadProps {
    starters: string[];
    suggestions: ChatSuggestion[];
    onUseSuggestion: (prompt: string) => void;
-   onRegenerate: () => void;
-   regenerating: boolean;
    hasEarlier: boolean;
    loadingEarlier: boolean;
    onLoadEarlier: () => void;
@@ -82,8 +80,6 @@ export function ChatThread({
    starters,
    suggestions,
    onUseSuggestion,
-   onRegenerate,
-   regenerating,
    hasEarlier,
    loadingEarlier,
    onLoadEarlier,
@@ -267,7 +263,7 @@ export function ChatThread({
             ) : null}
 
             {messages.length > 0 && suggestions.length > 0 && !stage && !streamingText ? (
-               <div className="flex flex-wrap items-center gap-2">
+               <div className="-mt-4 flex flex-wrap items-center gap-2">
                   <span className="text-[var(--shell-text-dim)]">{t('followUps')}</span>
                   {suggestions.map((suggestion) => (
                      <button
@@ -279,15 +275,6 @@ export function ChatThread({
                         {suggestion.label}
                      </button>
                   ))}
-                  <button
-                     type="button"
-                     onClick={onRegenerate}
-                     disabled={regenerating}
-                     className="inline-flex items-center gap-1 text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] disabled:opacity-50"
-                  >
-                     <RefreshCw className={regenerating ? 'size-3.5 animate-spin' : 'size-3.5'} />
-                     {t('regenerate')}
-                  </button>
                </div>
             ) : null}
 
