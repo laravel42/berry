@@ -331,6 +331,32 @@ export function approvalHeadline(title: string): string {
    return decodeApprovalText(title).replace(/\s+/g, ' ').trim().replace(TITLE_PREFIX, '');
 }
 
+/**
+ * The heading a compact card shows. A proposal title is the problem cut short,
+ * often mid-word; the description keeps the whole problem, and that is the
+ * heading. That section is not repeated under it.
+ */
+export function approvalCardHeadline(
+   title: string,
+   sections: ApprovalSection[]
+): { headline: string; sections: ApprovalSection[] } {
+   const headline = approvalHeadline(title);
+   const head = headline.replace(/…$/, '');
+   if (head.length < 20) return { headline, sections };
+   const flat = (text: string) => text.replace(/\s+/g, ' ').trim();
+   const matches = sections.flatMap((section, index) => {
+      const body = flat(section.body);
+      return body.length > head.length && body.startsWith(head) ? [{ section, index, body }] : [];
+   });
+   const chosen =
+      matches.find((item) => item.section.title?.toLowerCase() === 'problem') ?? matches[0];
+   if (!chosen) return { headline, sections };
+   return {
+      headline: chosen.body,
+      sections: sections.filter((_, index) => index !== chosen.index),
+   };
+}
+
 /** Sentence-initial agent phrasing, rewritten so the row reads as a fact. */
 const FIRST_PERSON: [RegExp, string][] = [
    [

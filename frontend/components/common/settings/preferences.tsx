@@ -177,18 +177,6 @@ export default function Preferences() {
             </SettingsCard>
          </SettingsSection>
 
-         <SettingsSection title={t5('chat')}>
-            <SettingsCard>
-               <SettingsRow
-                  title={t5('floatingChat')}
-                  description={t5('floatingChatDescription')}
-                  trailing={
-                     <Switch checked={ui.floatingChat} onCheckedChange={ui.setFloatingChat} />
-                  }
-               />
-            </SettingsCard>
-         </SettingsSection>
-
          <SettingsSection title={t('interface')}>
             <SettingsCard>
                <SettingsRow

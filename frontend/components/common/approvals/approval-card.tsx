@@ -29,7 +29,7 @@ import {
    rejectApproval,
    splitEscalationOptions,
    summarizeApprovalTitle,
-   approvalHeadline,
+   approvalCardHeadline,
    decodeApprovalText,
    splitApprovalSections,
    type Approval,
@@ -274,6 +274,10 @@ export function ApprovalCard({
             return !/^Proposed by\s+/i.test(section.title);
          }),
       [sections]
+   );
+   const titled = useMemo(
+      () => approvalCardHeadline(displayTitle, contentSections),
+      [displayTitle, contentSections]
    );
 
    // An escalation's decline note is its own: the answer drafted above must
@@ -592,15 +596,15 @@ export function ApprovalCard({
                      state={look.state}
                      className="mt-0.5 shrink-0"
                   />
-                  <span className="min-w-0 flex-1 break-words">
-                     {approvalHeadline(displayTitle)}
+                  <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
+                     {titled.headline}
                   </span>
                </p>
 
                {essentials}
 
-               {contentSections.length > 0 ? (
-                  contentSections.map((section, index) =>
+               {titled.sections.length > 0 ? (
+                  titled.sections.map((section, index) =>
                      section.body ? (
                         <section
                            key={`${section.title ?? 'lead'}-${index}`}
