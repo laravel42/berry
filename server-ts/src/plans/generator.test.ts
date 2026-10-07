@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PlanGenerator, PlannerUnavailable } from './generator.ts';
+import { PlanGenerator, PlannerUnavailable, repairPrompt } from './generator.ts';
+import type { Plan } from './schema.ts';
 import type { Sql } from '../db/pool.ts';
 import { CompletionFailed, CompletionInvalid, type RuntimeCompletion } from '../runtime/completion.ts';
 
@@ -110,8 +111,11 @@ test('a broken plan is sent back with its errors, and fixed', async () => {
    );
    // The repair prompt carries the problems, not just the document — a model
    // asked to "fix this" with no errors named fixes whatever it feels like.
+   // Named as a sentence about the task, not as a JSON row of path/code/message.
    assert.match(script.prompts[1]!.user, /unknown_reference/);
    assert.match(script.prompts[1]!.user, /ghost/);
+   assert.match(script.prompts[1]!.user, /t1 \("Do the work"\)/);
+   assert.doesNotMatch(script.prompts[1]!.user, /"path":/);
 });
 
 test('repairs are bounded, and the last document is kept', async () => {
@@ -339,6 +343,45 @@ test('a critique that could not be applied is reported as given, not as an accep
    assert.equal(result.critique?.verdict, 'revise');
    assert.equal(result.critique?.problems[0]?.message, 'Split it.');
 });
+
+test('the same fault is said once, with each task named', () => {
+   const plan = {
+      version: '1',
+      goal: { tempId: 'g', title: 'Ship' },
+      milestones: [{ tempId: 'm1', title: 'First' }],
+      assumptions: [],
+      requiredConnections: [],
+      issues: [bare('t1'), bare('t2')],
+      approvals: [],
+      dependencies: [],
+   } satisfies Plan;
+   const text = repairPrompt(plan, [
+      { path: '/issues/0/title', code: 'required', message: 'Task t1 needs a title.' },
+      { path: '/issues/1/title', code: 'required', message: 'Task t2 needs a title.' },
+      { path: '/issues/0/milestone', code: 'unknown_milestone', message: 't1 names milestone nothing; this plan has m1.' },
+      { path: '/issues/1/milestone', code: 'unknown_milestone', message: 't2 names milestone nothing; this plan has m1.' },
+   ]);
+   assert.match(text, /These tasks have no title\. Give each one a title:\n- t1\n- t2/);
+   assert.match(text, /Milestones in the plan: m1 \("First"\)\.\n- t1 names nothing\n- t2 names nothing/);
+   assert.equal((text.match(/needs a title/g) ?? []).length, 0);
+   assert.doesNotMatch(text, /"code":/);
+});
+
+function bare(tempId: string): Plan['issues'][number] {
+   return {
+      tempId,
+      title: '',
+      description: null,
+      type: 'issue',
+      requiredCapabilities: [],
+      changesRepository: null,
+      dependsOn: [],
+      requiresReview: false,
+      requiresApproval: false,
+      expectedArtifacts: [],
+      milestone: null,
+   };
+}
 
 test('the repair role is shown the whole plan format, dependencies included', async () => {
    const { planner, script } = generator([BROKEN, GOOD, ACCEPT]);

@@ -492,6 +492,39 @@ test('an approval that names its task as "issue" gates that task', () => {
    assert.equal(validatePlan(plan).status, 'valid');
 });
 
+test('field names a model glued a value onto are still the field', () => {
+   const { plan, problems } = readPlan({
+      goal: { title: 'Ship it' },
+      milestones: [{ tempId: 'm1', title: 'First' }],
+      issues: [
+         {
+            'title  ': 'Scaffold the app',
+            'tempId  ': 't1',
+            'dependsOn,': [],
+            milestonemilestone: 'm1',
+            changesRepository: true,
+            'descriptionScaffold the Expo app.': 'Scaffold the Expo app.',
+         },
+         {
+            titlem5: 'Direct messages',
+            tempIdm5: 't2',
+            milestonem5: 'm1',
+            'changesRepository  ': false,
+            'dependsOn  ': ['t1'],
+         },
+      ],
+   });
+   assert.equal(problems.length, 0);
+   assert.equal(plan.issues[0]?.title, 'Scaffold the app');
+   assert.equal(plan.issues[0]?.tempId, 't1');
+   assert.equal(plan.issues[0]?.milestone, 'm1');
+   assert.equal(plan.issues[0]?.description, 'Scaffold the Expo app.');
+   assert.equal(plan.issues[1]?.title, 'Direct messages');
+   assert.deepEqual(plan.issues[1]?.dependsOn, ['t1']);
+   assert.equal(plan.issues[1]?.changesRepository, false);
+   assert.equal(validatePlan(plan).status, 'valid');
+});
+
 test('an approval naming a task that does not exist is still an error', () => {
    const { plan } = readPlan({
       goal: { tempId: 'g1', title: 'Ship it' },

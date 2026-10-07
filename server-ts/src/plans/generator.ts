@@ -118,7 +118,8 @@ Fix exactly the problems listed. Do not restructure the plan, rename tasks that
 are fine, or add work nobody asked for: someone is going to read the difference
 between what they asked for and what you produced.
 
-The paths in the problems are JSON pointers into the plan you were given.
+The problems name each task by its tempId and say what to change. Return the
+corrected plan, not the problem list.
 
 ${PLAN_FORMAT}
 Keep every field a task already has — its \`milestone\`, \`dependsOn\`,
@@ -504,7 +505,7 @@ export class PlanGenerator {
          stage: 'repair',
          model: role,
          system: REPAIR_SYSTEM,
-         user: `Plan:\n${JSON.stringify(plan)}\n\nProblems:\n${JSON.stringify(problems)}`,
+         user: repairPrompt(plan, problems),
          shape: PLAN_SHAPE,
          signal,
       });
@@ -603,6 +604,77 @@ function account(
    // and reporting only the last would make the pipeline look free.
    usage.inputTokens += result.inputTokens;
    usage.outputTokens += result.outputTokens;
+}
+
+/**
+ * The repair role's user turn.
+ *
+ * The problems used to be the validator's rows, one JSON object per task, and
+ * thirty tasks with the same fault became thirty copies of one sentence that
+ * named neither the task nor the value to change. A reviewer cannot work from
+ * that. Same fault, one paragraph, and each task named by its id.
+ */
+export function repairPrompt(plan: Plan, problems: Array<{ path: string; code: string; message: string }>): string {
+   return `Plan:\n${JSON.stringify(plan)}\n\nProblems:\n${repairProblemsText(plan, problems)}`;
+}
+
+function repairProblemsText(
+   plan: Plan,
+   problems: Array<{ path: string; code: string; message: string }>
+): string {
+   const groups = new Map<string, typeof problems>();
+   for (const problem of problems) {
+      const key = groupKey(problem);
+      const list = groups.get(key) ?? [];
+      list.push(problem);
+      groups.set(key, list);
+   }
+   return [...groups.values()].map((items) => renderGroup(plan, items)).join('\n\n');
+}
+
+/** Titles, milestones and the repository flag repeat once per task; say them once. */
+function groupKey(problem: { path: string; code: string }): string {
+   if (problem.code === 'required' && problem.path.endsWith('/title') && problem.path.startsWith('/issues/')) {
+      return 'missing-title';
+   }
+   if (problem.code === 'unknown_milestone') return 'unknown-milestone';
+   if (problem.code === 'required' && problem.path.endsWith('/changesRepository')) return 'changes-repository';
+   return `one:${problem.path}:${problem.code}`;
+}
+
+function renderGroup(plan: Plan, items: Array<{ path: string; code: string; message: string }>): string {
+   const first = items[0]!;
+   if (groupKey(first) === 'missing-title') {
+      const lines = items.map((item) => `- ${taskLabel(plan, item.path)}`);
+      return `These tasks have no title. Give each one a title:\n${lines.join('\n')}`;
+   }
+   if (groupKey(first) === 'unknown-milestone') {
+      const milestones =
+         plan.milestones.map((milestone) => `${milestone.tempId} ("${milestone.title}")`).join(', ') || 'none';
+      const lines = items.map((item) => {
+         const issue = issueAt(plan, item.path);
+         const value = issue?.milestone ? `"${issue.milestone}"` : 'nothing';
+         return `- ${taskLabel(plan, item.path)} names ${value}`;
+      });
+      return `These tasks name a milestone the plan does not have. Milestones in the plan: ${milestones}.\n${lines.join('\n')}`;
+   }
+   if (groupKey(first) === 'changes-repository') {
+      const lines = items.map((item) => `- ${taskLabel(plan, item.path)}`);
+      return `Say whether each of these changes the repository (true) or is a spec, research or a decision (false):\n${lines.join('\n')}`;
+   }
+   const who = taskLabel(plan, first.path);
+   return who === first.path ? `- ${first.code}: ${first.message}` : `- ${who}: ${first.code}: ${first.message}`;
+}
+
+function issueAt(plan: Plan, path: string): Plan['issues'][number] | undefined {
+   const index = /^\/issues\/(\d+)/.exec(path);
+   return index ? plan.issues[Number(index[1])] : undefined;
+}
+
+function taskLabel(plan: Plan, path: string): string {
+   const issue = issueAt(plan, path);
+   if (!issue) return path;
+   return issue.title ? `${issue.tempId} ("${issue.title}")` : issue.tempId;
 }
 
 /** A question the planner asked and the answer it was given. */

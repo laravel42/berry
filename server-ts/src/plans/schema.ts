@@ -146,9 +146,9 @@ const MAX_OPTION_DETAIL = 300;
  */
 export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] } {
    const problems: FieldProblem[] = [];
-   const source = unwrapped(isRecord(raw) ? raw : {});
+   const source = named(unwrapped(isRecord(raw) ? raw : {}));
 
-   const goalSource = isRecord(source.goal) ? source.goal : {};
+   const goalSource = isRecord(source.goal) ? named(source.goal) : {};
    const goal: PlanGoal = {
       tempId: text(goalSource.tempId) || 'goal-1',
       title: text(goalSource.title),
@@ -169,7 +169,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       });
    }
    rawMilestones.slice(0, MAX_MILESTONES).forEach((entry, index) => {
-      const item = isRecord(entry) ? entry : {};
+      const item = isRecord(entry) ? named(entry) : {};
       const title = text(item.title);
       if (title === '') {
          problems.push({
@@ -195,14 +195,14 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       });
    }
    rawIssues.slice(0, MAX_ISSUES).forEach((entry, index) => {
-      const item = isRecord(entry) ? entry : {};
+      const item = isRecord(entry) ? named(entry) : {};
       const tempId = text(item.tempId) || `issue-${index + 1}`;
       const title = text(item.title);
       if (title === '') {
          problems.push({
             path: `/issues/${index}/title`,
             code: 'required',
-            message: 'Every task needs a title.',
+            message: `Task ${tempId} needs a title.`,
          });
       }
       issues.push({
@@ -238,12 +238,12 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
 
    const approvals: PlanApproval[] = (Array.isArray(source.approvals) ? source.approvals : []).map(
       (entry, index) => {
-         const item = isRecord(entry) ? entry : {};
-         const target = isRecord(item.target) ? item.target : {};
+         const item = isRecord(entry) ? named(entry) : {};
+         const target = isRecord(item.target) ? named(item.target) : {};
          // Models name the gated task in more than one way — `"issue": "t3"`,
          // `"target": "t3"` — and the task is what matters, not the spelling.
          // A reference to a task that does not exist is still an error.
-         const named =
+         const targetId =
             text(target.tempId) ||
             (typeof item.target === 'string' ? text(item.target) : '') ||
             text(item.issue) ||
@@ -254,7 +254,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
             title: text(item.title) || 'Approval',
             description: text(item.description) || null,
             reason: text(item.reason) || 'This step needs a person to say yes.',
-            target: { kind: text(target.kind) || 'issue', tempId: named },
+            target: { kind: text(target.kind) || 'issue', tempId: targetId },
             approver: { type: 'role', role: 'admin' },
             timeout: null,
          };
@@ -264,7 +264,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
    const dependencies: PlanDependency[] = (
       Array.isArray(source.dependencies) ? source.dependencies : []
    ).map((entry) => {
-      const item = isRecord(entry) ? entry : {};
+      const item = isRecord(entry) ? named(entry) : {};
       return {
          from: text(item.from),
          to: text(item.to),
@@ -275,7 +275,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
    const assumptions: PlanAssumption[] = (
       Array.isArray(source.assumptions) ? source.assumptions : []
    ).map((entry, index) => {
-      const item = isRecord(entry) ? entry : {};
+      const item = isRecord(entry) ? named(entry) : {};
       const confidence = text(item.confidence);
       return {
          id: text(item.id) || `assumption-${index + 1}`,
@@ -382,7 +382,7 @@ export function validatePlan(
          errors.push({
             path: `/issues/${index}/changesRepository`,
             code: 'required',
-            message: `Say whether "${issue.title}" changes the repository (true) or produces a spec, research or a decision (false).`,
+            message: `Say whether ${taskName(issue)} changes the repository (true) or produces a spec, research or a decision (false).`,
          });
       }
       if (issue.dependsOn.includes(issue.tempId)) {
@@ -414,7 +414,7 @@ export function validatePlan(
             errors.push({
                path: `/issues/${index}/milestone`,
                code: 'unknown_milestone',
-               message: `"${issue.title}" belongs to a milestone the plan does not have.`,
+               message: `${taskName(issue)} names milestone ${issue.milestone ? `"${issue.milestone}"` : 'nothing'}; this plan has ${plan.milestones.map((milestone) => milestone.tempId).join(', ') || 'no milestones'}.`,
             });
          }
       });
@@ -566,7 +566,7 @@ function readOptions(value: unknown, assumptionIndex: number): PlanAssumptionOpt
       if (options.length >= MAX_OPTIONS) break;
       // A bare string is a label, which is how a model shortens the shape when
       // it has nothing to add beyond the name.
-      const item = typeof entry === 'string' ? { label: entry } : isRecord(entry) ? entry : {};
+      const item = typeof entry === 'string' ? { label: entry } : isRecord(entry) ? named(entry) : {};
       const label = text(item.label).slice(0, MAX_OPTION_LABEL);
       if (label === '') continue;
       const id = text(item.id) || `a${assumptionIndex + 1}-o${index + 1}`;
@@ -580,6 +580,83 @@ function readOptions(value: unknown, assumptionIndex: number): PlanAssumptionOpt
    // One option is not a choice. Offering it would ask a person to confirm the
    // planner's guess, which is what the blocking question already refuses to do.
    return options.length > 1 ? options : [];
+}
+
+/**
+ * Field names a plan object uses, longest first.
+ *
+ * A structured answer sometimes glues the next value onto the key (`title  `,
+ * `dependsOn,`, `titlem5`, `milestonemilestone`) and `readPlan` used to see
+ * an empty task. Exact names win; a longer known name glued to a stray suffix
+ * is that field when the exact name is absent.
+ */
+const PLAN_FIELDS = [
+   'requiredConnections',
+   'requiredCapabilities',
+   'changesRepository',
+   'suggestedAgentId',
+   'expectedArtifacts',
+   'requiresApproval',
+   'requiresReview',
+   'userEditable',
+   'dependencies',
+   'description',
+   'assumptions',
+   'milestones',
+   'confidence',
+   'milestone',
+   'approvals',
+   'dependsOn',
+   'projectId',
+   'priority',
+   'estimate',
+   'blocking',
+   'approver',
+   'options',
+   'timeout',
+   'tempId',
+   'issues',
+   'reason',
+   'target',
+   'detail',
+   'title',
+   'label',
+   'goal',
+   'from',
+   'kind',
+   'to',
+   'role',
+   'type',
+   'id',
+].sort((left, right) => right.length - left.length);
+
+/** Prefix recovery is for the long names. `id` or `type` would swallow unrelated keys. */
+const PREFIX_FIELDS = PLAN_FIELDS.filter((name) => name.length >= 5);
+
+function named(record: Record<string, unknown>): Record<string, unknown> {
+   const out: Record<string, unknown> = { ...record };
+   const exact = new Map<string, unknown>();
+   const glued: Array<{ field: string; value: unknown }> = [];
+   for (const [raw, value] of Object.entries(record)) {
+      const key = raw.trim().replace(/[,:;]+$/u, '');
+      if ((PLAN_FIELDS as readonly string[]).includes(key)) {
+         if (!exact.has(key)) exact.set(key, value);
+         continue;
+      }
+      const field = PREFIX_FIELDS.find((name) => key.startsWith(name));
+      if (field) glued.push({ field, value });
+   }
+   for (const [field, value] of exact) {
+      if (!(field in out)) out[field] = value;
+   }
+   for (const { field, value } of glued) {
+      if (!(field in out)) out[field] = value;
+   }
+   return out;
+}
+
+function taskName(issue: PlanIssue): string {
+   return issue.title ? `${issue.tempId} ("${issue.title}")` : issue.tempId;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
