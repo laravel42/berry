@@ -1,6 +1,6 @@
 'use client';
 
-import { BerryMark } from '@/components/brand/berry-mark';
+import { BerryLoading, BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import {
    type ArtifactTreeNode,
@@ -188,6 +188,7 @@ export function IssueArtifacts({
       setLoaded(false);
       if (!issueRef) {
          setAll([]);
+         setLoaded(true);
          return;
       }
       let cancelled = false;
@@ -411,6 +412,14 @@ export function IssueArtifacts({
             {creating ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden /> : null}
          </form>
       ) : null;
+
+   if (!loaded) {
+      return (
+         <section className={cn('flex h-full min-h-0 flex-col', className)}>
+            <BerryLoading label={t('loading')} />
+         </section>
+      );
+   }
 
    if (artifacts.length === 0) return null;
 

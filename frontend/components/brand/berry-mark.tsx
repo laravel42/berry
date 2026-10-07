@@ -123,6 +123,21 @@ interface BerryWordmarkProps {
    size?: keyof typeof wordmarkSizes;
 }
 
+/** The pulsing mark and a line, centred, while a pane is still fetching. */
+export function BerryLoading({ label, className }: { label: string; className?: string }) {
+   return (
+      <div
+         role="status"
+         className={cn('flex size-full min-h-64 items-center justify-center', className)}
+      >
+         <div className="flex items-center gap-2 text-muted-foreground">
+            <BerryMark size="md" tone="brand" pulse />
+            <span>{label}</span>
+         </div>
+      </div>
+   );
+}
+
 export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
    const sizing = wordmarkSizes[size];
 

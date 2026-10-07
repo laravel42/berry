@@ -55,6 +55,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+export const Loading: Story = {
+   args: {
+      heading: null,
+      load: () => new Promise<RunArtifact[]>(() => {}),
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('status')).toHaveTextContent('Loading files…');
+      await expect(canvas.queryByText('projects.ts')).toBeNull();
+   },
+};
+
 export const FoldedByDefault: Story = {
    play: async ({ canvas, userEvent }) => {
       await expect(await canvas.findByText('Produced · 4 files')).toBeInTheDocument();

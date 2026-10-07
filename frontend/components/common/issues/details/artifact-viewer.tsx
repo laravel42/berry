@@ -1,6 +1,7 @@
 'use client';
 
 import { redo, undo } from '@codemirror/commands';
+import { BerryLoading } from '@/components/brand/berry-mark';
 import { SegmentedControl } from '@/components/common/segmented-control';
 import { CodeEditor, languageForPath, type EditorView } from '@/components/ui/code-editor';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
@@ -334,7 +335,7 @@ export function ArtifactViewer({
          );
       }
       if (needsText) {
-         if (text === null) return <Message text={t('loading')} />;
+         if (text === null) return <BerryLoading label={t('loading')} />;
          if (kind === 'markdown' && !showsSource) {
             return (
                <div className="size-full overflow-auto">
@@ -357,7 +358,7 @@ export function ArtifactViewer({
             />
          );
       }
-      if (!objectUrl) return <Message text={t('loading')} />;
+      if (!objectUrl) return <BerryLoading label={t('loading')} />;
       if (kind === 'image') {
          return (
             <div className="absolute inset-0 flex items-center justify-center py-5">

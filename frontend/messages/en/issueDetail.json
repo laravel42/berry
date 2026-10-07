@@ -379,6 +379,7 @@
       "createFailed": "{path} could not be created.",
       "preview": "Preview {path}",
       "previewSite": "Preview site",
+      "loading": "Loading files…",
       "tree": "Produced files",
       "resizeTree": "Resize the file tree",
       "change": {
