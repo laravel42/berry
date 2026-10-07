@@ -115,6 +115,20 @@ export function ProjectsDisplayOptions() {
                      }
                   >
                      <div className="flex items-center gap-1">
+                        <Button
+                           size="icon"
+                           variant="ghost"
+                           className="size-8"
+                           aria-label={direction === 'asc' ? 'Ascending' : 'Descending'}
+                           title={direction === 'asc' ? 'Ascending' : 'Descending'}
+                           onClick={() => setDirection(direction === 'asc' ? 'desc' : 'asc')}
+                        >
+                           {direction === 'asc' ? (
+                              <ArrowUpNarrowWide className="size-3.5" />
+                           ) : (
+                              <ArrowDownWideNarrow className="size-3.5" />
+                           )}
+                        </Button>
                         <Select
                            value={ordering}
                            onValueChange={(value) => setOrdering(value as ProjectsOrdering)}
@@ -130,20 +144,6 @@ export function ProjectsDisplayOptions() {
                               ))}
                            </SelectContent>
                         </Select>
-                        <Button
-                           size="icon"
-                           variant="ghost"
-                           className="size-8"
-                           aria-label={direction === 'asc' ? 'Ascending' : 'Descending'}
-                           title={direction === 'asc' ? 'Ascending' : 'Descending'}
-                           onClick={() => setDirection(direction === 'asc' ? 'desc' : 'asc')}
-                        >
-                           {direction === 'asc' ? (
-                              <ArrowUpNarrowWide className="size-3.5" />
-                           ) : (
-                              <ArrowDownWideNarrow className="size-3.5" />
-                           )}
-                        </Button>
                      </div>
                   </OptionRow>
                </div>

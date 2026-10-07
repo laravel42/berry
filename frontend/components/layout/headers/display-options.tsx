@@ -162,6 +162,20 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                      {t('ordering')}
                   </span>
                   <div className="flex items-center gap-1">
+                     <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-7 max-lg:size-11"
+                        aria-label={directionLabel}
+                        title={directionLabel}
+                        onClick={() => view.setDirection(view.direction === 'asc' ? 'desc' : 'asc')}
+                     >
+                        {view.direction === 'asc' ? (
+                           <ArrowUpNarrowWide className="size-3.5" />
+                        ) : (
+                           <ArrowDownWideNarrow className="size-3.5" />
+                        )}
+                     </Button>
                      <Select
                         value={view.ordering}
                         onValueChange={(value) => view.setOrdering(value as OrderingKey)}
@@ -177,20 +191,6 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                            ))}
                         </SelectContent>
                      </Select>
-                     <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-7 max-lg:size-11"
-                        aria-label={directionLabel}
-                        title={directionLabel}
-                        onClick={() => view.setDirection(view.direction === 'asc' ? 'desc' : 'asc')}
-                     >
-                        {view.direction === 'asc' ? (
-                           <ArrowUpNarrowWide className="size-3.5" />
-                        ) : (
-                           <ArrowDownWideNarrow className="size-3.5" />
-                        )}
-                     </Button>
                   </div>
                </div>
 
