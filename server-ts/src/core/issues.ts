@@ -1080,3 +1080,58 @@ async function openPullRequest(sql: Queryable, issueId: string): Promise<boolean
    if (!known) return true;
    return known.state !== 'merged' && known.state !== 'closed';
 }
+
+/**
+ * Records a pull request Berry has just merged or found already settled.
+ *
+ * The done transition reads `github_pull_requests`. A deployment with no
+ * GitHub App never receives the webhook that would write that row, so a
+ * delivery that names a pull request stays "open" forever and Approve cannot
+ * mark the task done after the merge. This is that row, written by the merge
+ * itself.
+ */
+export async function recordPullRequestRelease(
+   sql: Queryable,
+   input: {
+      workspaceId: string;
+      issueId: string;
+      repoFullName: string;
+      number: number;
+      state: 'merged' | 'closed';
+      githubId: number;
+      repoId: number;
+      title: string;
+      url: string;
+      headRef: string;
+   }
+): Promise<void> {
+   const now = new Date().toISOString();
+   const title = (input.title || `Pull request #${input.number}`).slice(0, 1000);
+   const url = input.url || `https://github.com/${input.repoFullName}/pull/${input.number}`;
+   const [row] = await sql`
+      INSERT INTO github_pull_requests
+             (workspace_id, github_id, repo_id, repo_full_name, number, title, url, state, draft,
+              head_ref, merged_at, closed_at, github_updated_at)
+      VALUES (${input.workspaceId}, ${input.githubId}, ${input.repoId}, ${input.repoFullName},
+              ${input.number}, ${title}, ${url}, ${input.state}, false,
+              ${input.headRef || 'unknown'},
+              ${input.state === 'merged' ? now : null},
+              ${input.state === 'closed' ? now : null},
+              ${now})
+      ON CONFLICT (workspace_id, github_id) DO UPDATE SET
+         state = EXCLUDED.state,
+         number = EXCLUDED.number,
+         repo_full_name = EXCLUDED.repo_full_name,
+         merged_at = COALESCE(github_pull_requests.merged_at, EXCLUDED.merged_at),
+         closed_at = COALESCE(github_pull_requests.closed_at, EXCLUDED.closed_at),
+         github_updated_at = EXCLUDED.github_updated_at,
+         updated_at = now()
+      RETURNING id`;
+   const id = (row as { id?: string } | undefined)?.id;
+   if (!id) return;
+   await sql`
+      INSERT INTO github_pull_request_links
+             (workspace_id, pull_request_id, issue_id, close_intent, source)
+      VALUES (${input.workspaceId}, ${id}, ${input.issueId}, false, 'run')
+      ON CONFLICT (pull_request_id, issue_id) DO NOTHING`;
+}

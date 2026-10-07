@@ -1077,6 +1077,7 @@ registry.registerAll(
       // And after a merge, a task whose pull request now conflicts goes back
       // before anyone reviews it.
       conflicts: scm.provisioning ? conflictDeps : null,
+      sql,
       onError: (message, error) =>
          logger.warn(message, { error: error instanceof Error ? error.message : String(error) }),
    })

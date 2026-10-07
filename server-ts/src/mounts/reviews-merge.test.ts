@@ -10,6 +10,7 @@ import { createApp } from '../http/app.ts';
 import { Registry } from '../http/registry.ts';
 import { Forbidden } from '../identity/errors.ts';
 import { reviewMounts } from './reviews.ts';
+import type { Queryable } from '../db/pool.ts';
 
 /**
  * Approve merges the run's pull request before the task is closed. Every
@@ -26,8 +27,8 @@ const BOARD = '9c4f3f85-5f91-4a0f-8d7a-3cac6f4fce43';
 const AGENT = 'ad5a4a96-6aa2-4b1a-9e8b-4dbd7a5adf54';
 
 function app(
-   github: { merged?: boolean; open?: boolean; refuse?: string; conflicts?: boolean; updateFails?: boolean },
-   options: { canWrite?: boolean; sendBack?: boolean; author?: boolean; others?: number[] } = {}
+   github: { merged?: boolean; open?: boolean; refuse?: string; conflicts?: boolean; updateFails?: boolean; githubId?: number; repoId?: number },
+   options: { canWrite?: boolean; sendBack?: boolean; author?: boolean; others?: number[]; sql?: Queryable } = {}
 ) {
    const calls: string[] = [];
    const admitted: Array<{ agentId: string | null; requestedBy: string; instructions: string | null }> = [];
@@ -55,6 +56,7 @@ function app(
             },
          } as unknown as ReviewQueue,
          gitCredential: async () => ({ password: 't' }),
+         ...(options.sql ? { sql: options.sql } : {}),
          ...(options.sendBack === false
             ? {}
             : {
@@ -75,6 +77,8 @@ function app(
             pullRequestDiff: async () => '',
             pullRequestState: async () => ({
                merged: github.merged === true, open: github.open !== false, conflicts: github.conflicts === true, base: 'main',
+               githubId: github.githubId ?? null, repoId: github.repoId ?? null,
+               title: 'Ship it', url: 'https://github.com/laravel42/berry-repo-test/pull/13', headRef: 'agent/ber-1',
             }),
             mergePullRequest: async (input) => {
                calls.push(`merge:${input.number}`);
@@ -199,6 +203,22 @@ test('someone who may only read the task cannot merge', async () => {
    const response = await merge();
    assert.equal(response.status, 403);
    assert.ok(!calls.some((call) => call.startsWith('merge:')));
+});
+
+test('a merge records the pull request as landed, so the task can then be marked done', async () => {
+   const queries: Array<{ text: string; values: unknown[] }> = [];
+   const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      queries.push({ text: strings.join(' '), values });
+      return Promise.resolve([{ id: '11111111-1111-4111-8111-111111111111' }]);
+   }) as unknown as Queryable;
+   const fresh = app({ githubId: 42, repoId: 9 }, { sql });
+   assert.equal((await fresh.merge()).status, 200);
+   const again = app({ merged: true, open: false, githubId: 42, repoId: 9 }, { sql });
+   assert.equal((await again.merge()).status, 200);
+   const releases = queries.filter((query) => query.text.includes('INSERT INTO github_pull_requests'));
+   assert.equal(releases.length, 2);
+   assert.ok(releases.every((query) => query.values.includes('merged')));
+   assert.equal(queries.filter((query) => query.text.includes('github_pull_request_links')).length, 2);
 });
 
 test('a run without a pull request has nothing to merge', async () => {

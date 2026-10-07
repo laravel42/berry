@@ -400,19 +400,41 @@ export class GitHubClient {
       owner: string,
       name: string,
       number: number
-   ): Promise<{ merged: boolean; open: boolean; conflicts: boolean; base: string | null }> {
+   ): Promise<{
+      merged: boolean;
+      open: boolean;
+      conflicts: boolean;
+      base: string | null;
+      /** GitHub's pull request id, when the payload names one. */
+      githubId: number | null;
+      repoId: number | null;
+      title: string;
+      url: string;
+      headRef: string;
+   }> {
       const pull = await this.#json<{
+         id?: unknown;
          merged?: boolean;
          state?: string;
+         title?: unknown;
+         html_url?: unknown;
          mergeable?: boolean | null;
          mergeable_state?: string;
-         base?: { ref?: unknown };
+         head?: { ref?: unknown };
+         base?: { ref?: unknown; repo?: { id?: unknown } };
       }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
+      const numeric = (value: unknown): number | null =>
+         typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
       return {
          merged: pull.merged === true,
          open: pull.state === 'open',
          conflicts: pull.mergeable === false && pull.mergeable_state === 'dirty',
          base: typeof pull.base?.ref === 'string' ? pull.base.ref : null,
+         githubId: numeric(pull.id),
+         repoId: numeric(pull.base?.repo?.id),
+         title: typeof pull.title === 'string' ? pull.title : '',
+         url: typeof pull.html_url === 'string' ? pull.html_url : '',
+         headRef: typeof pull.head?.ref === 'string' ? pull.head.ref : '',
       };
    }
 

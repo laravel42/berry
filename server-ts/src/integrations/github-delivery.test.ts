@@ -90,7 +90,18 @@ test('a refused merge is reported in GitHub\'s words alone, and a conflict is to
 test('a pull request GitHub knows to conflict says so, and an unknown mergeability does not', async () => {
    const answering = (body: unknown) => new GitHubClient({ token: 't', fetch: (async () => new Response(JSON.stringify(body))) as typeof fetch });
    const dirty = await answering({ state: 'open', merged: false, mergeable: false, mergeable_state: 'dirty', base: { ref: 'main' } }).pullRequestState('berry', 'app', 5);
-   assert.deepEqual(dirty, { merged: false, open: true, conflicts: true, base: 'main' });
+   assert.deepEqual(dirty, {
+      merged: false, open: true, conflicts: true, base: 'main',
+      githubId: null, repoId: null, title: '', url: '', headRef: '',
+   });
+   const identified = await answering({
+      id: 42, state: 'open', merged: true, title: 'Ship it', html_url: 'https://github.com/berry/app/pull/5',
+      head: { ref: 'agent/ber-1' }, base: { ref: 'main', repo: { id: 9 } },
+   }).pullRequestState('berry', 'app', 5);
+   assert.equal(identified.githubId, 42);
+   assert.equal(identified.repoId, 9);
+   assert.equal(identified.headRef, 'agent/ber-1');
+   assert.equal(identified.merged, true);
    const unknown = await answering({ state: 'open', merged: false, mergeable: null, mergeable_state: 'unknown' }).pullRequestState('berry', 'app', 5);
    assert.equal(unknown.conflicts, false);
 });

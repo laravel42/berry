@@ -9,6 +9,8 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
+import type { Queryable } from '../db/pool.ts';
+import { recordPullRequestRelease } from '../core/issues.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { insideDirectory } from '../agents/workspace-files.ts';
@@ -40,6 +42,11 @@ export interface ReviewMountOptions {
    sendBack?: Pick<SendBackDeps, 'issues' | 'runs'> | null;
    /** After a merge, what brings the other open pull requests up to date and sends a conflicting one back (`agents/conflicts.ts`). */
    conflicts?: ConflictDeps | null;
+   /**
+    * Where a merge records that the pull request landed, so marking the task
+    * done can see it. Absent in tests that only check the GitHub call.
+    */
+   sql?: Queryable;
    onError?: (message: string, error: unknown) => void;
 }
 
@@ -308,8 +315,12 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
       const client = clientFor(options, (await options.gitCredential(target.workspaceId)).password);
       try {
          const state = await client.pullRequestState(owner, name, target.number);
-         if (state.merged) return json({ merged: true, number: target.number, sha: null, already: true });
+         if (state.merged) {
+            await noteRelease(options, target, state, 'merged');
+            return json({ merged: true, number: target.number, sha: null, already: true });
+         }
          if (!state.open) {
+            await noteRelease(options, target, state, 'closed');
             throw new ApiError(409, 'MERGE_REFUSED', `Pull request #${target.number} was closed without being merged.`);
          }
          // GitHub's definite "this conflicts" is enough; otherwise the merge
@@ -318,6 +329,7 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
             ? { merged: false, sha: null, reason: 'Pull Request has merge conflicts', conflict: true }
             : await client.mergePullRequest({ owner, name, number: target.number });
          if (outcome.merged) {
+            await noteRelease(options, target, state, 'merged');
             // Not awaited and never failing: the merge has happened, and the
             // other pull requests being brought up to date is housekeeping.
             // One that now conflicts goes back to its author before review.
@@ -388,6 +400,31 @@ async function conflict(options: ReviewMountOptions, target: PullRequestTarget, 
 
 function clientFor(options: ReviewMountOptions, token: string) {
    return options.github ? options.github(token) : new GitHubClient({ token });
+}
+
+/**
+ * Writes the pull request as merged or closed, so the done transition can see
+ * a release this process just confirmed with GitHub.
+ */
+async function noteRelease(
+   options: ReviewMountOptions,
+   target: PullRequestTarget,
+   state: { githubId?: number | null; repoId?: number | null; title?: string; url?: string; headRef?: string },
+   release: 'merged' | 'closed'
+): Promise<void> {
+   if (!options.sql || typeof state.githubId !== 'number' || typeof state.repoId !== 'number') return;
+   await recordPullRequestRelease(options.sql, {
+      workspaceId: target.workspaceId,
+      issueId: target.issueId,
+      repoFullName: target.repository,
+      number: target.number,
+      state: release,
+      githubId: state.githubId,
+      repoId: state.repoId,
+      title: state.title ?? '',
+      url: state.url ?? '',
+      headRef: state.headRef ?? '',
+   });
 }
 
 async function authorize(
