@@ -73,7 +73,7 @@ function OutcomeLine({
    label: string;
    status: Approval['status'];
    when: string;
-   note: string | null;
+   note: string | null | undefined;
    className?: string;
 }) {
    return (
