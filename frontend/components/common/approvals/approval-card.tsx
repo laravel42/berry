@@ -42,7 +42,7 @@ import { useApprovalsStore } from '@/store/approvals-store';
 import { useGoalsStore } from '@/store/goals-store';
 import { useMembersStore } from '@/store/members-store';
 import { format, parseISO } from 'date-fns';
-import { CircleHelp } from 'lucide-react';
+import { CircleCheck, CircleHelp, CircleX } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -60,6 +60,42 @@ function whenText(iso: string | null | undefined): string {
    } catch {
       return iso;
    }
+}
+
+/** The decision line: a green check or a red cross, then when and any note. */
+function OutcomeLine({
+   label,
+   status,
+   when,
+   note,
+   className,
+}: {
+   label: string;
+   status: Approval['status'];
+   when: string;
+   note: string | null;
+   className?: string;
+}) {
+   return (
+      <p
+         className={cn(
+            'ml-auto flex w-full items-center justify-end gap-1.5 text-muted-foreground',
+            className
+         )}
+      >
+         {status === 'approved' && (
+            <CircleCheck className="size-3.5 shrink-0 text-status-success" aria-hidden />
+         )}
+         {status === 'rejected' && (
+            <CircleX className="size-3.5 shrink-0 text-status-danger" aria-hidden />
+         )}
+         <span className="min-w-0">
+            {label}
+            {when && ` · ${when}`}
+            {note && ` · “${note}”`}
+         </span>
+      </p>
+   );
 }
 
 /** One row of the essentials: a label in the margin, the fact beside it. */
@@ -594,11 +630,12 @@ export function ApprovalCard({
 
                {answerBlock}
                {!pending && (approval.resolvedAt || approval.decisionNote) && (
-                  <p className="text-muted-foreground">
-                     {outcomeLabel(kind, approval.status)}
-                     {approval.resolvedAt && ` · ${whenText(approval.resolvedAt)}`}
-                     {approval.decisionNote && ` · “${approval.decisionNote}”`}
-                  </p>
+                  <OutcomeLine
+                     label={outcomeLabel(kind, approval.status)}
+                     status={approval.status}
+                     when={approval.resolvedAt ? whenText(approval.resolvedAt) : ''}
+                     note={approval.decisionNote}
+                  />
                )}
                {decisionBlock}
             </div>
@@ -634,11 +671,13 @@ export function ApprovalCard({
                      ) : null}
                      {answerBlock}
                      {!pending && (approval.resolvedAt || approval.decisionNote) && (
-                        <p className="mt-3 max-w-prose text-muted-foreground">
-                           {outcomeLabel(kind, approval.status)}
-                           {approval.resolvedAt && ` · ${whenText(approval.resolvedAt)}`}
-                           {approval.decisionNote && ` · “${approval.decisionNote}”`}
-                        </p>
+                        <OutcomeLine
+                           label={outcomeLabel(kind, approval.status)}
+                           status={approval.status}
+                           when={approval.resolvedAt ? whenText(approval.resolvedAt) : ''}
+                           note={approval.decisionNote}
+                           className="mt-3 max-w-prose"
+                        />
                      )}
                      {!page && decisionBlock}
                   </div>
