@@ -148,7 +148,8 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       const scopes = (new URL(authorize).searchParams.get('scope') ?? '').split(/[\s,]+/).filter(Boolean);
       // `repo` is GitHub's OAuth scope for repositories and their issues, read
       // and write; OAuth Apps have no narrower read-only or issues-only scope.
-      assert.deepEqual([...new Set(scopes)].sort(), ['read:user', 'repo', 'user:email']);
+      // `workflow` is required to publish `.github/workflows/`.
+      assert.deepEqual([...new Set(scopes)].sort(), ['read:user', 'repo', 'user:email', 'workflow']);
       assert.equal(scopes.length, new Set(scopes).size, 'no scope is requested twice');
    });
 

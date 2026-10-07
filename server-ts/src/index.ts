@@ -242,8 +242,9 @@ const githubUserAccess = config.auth.secret
  * `BERRY_AUTH_GITHUB_CLIENT_ID` / `_SECRET`, built once at boot.
  *
  * The OAuth App is separate from the repository GitHub App. It asks for the
- * `repo` scope (repositories and their issues, read and write) on top of the
- * profile scopes, and its callback is Better Auth's own,
+ * `repo` scope (repositories and their issues, read and write) and `workflow`
+ * (so a delivery can write `.github/workflows/`) on top of the profile scopes,
+ * and its callback is Better Auth's own,
  * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes a
  * restart, like any other environment setting.
  */

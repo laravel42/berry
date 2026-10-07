@@ -44,8 +44,13 @@ export interface AgentCoreIdentityOptions {
    marginMs?: number;
 }
 
-/** Default GitHub scopes: enough to read and write repository content and issues. */
-const DEFAULT_SCOPES = ['repo'];
+/**
+ * Default GitHub scopes: `repo` reads and writes repository content and issues.
+ * `workflow` is what GitHub requires to create or change a file under
+ * `.github/workflows/`. Without it that tree write is a 404, which looks like
+ * a missing repository.
+ */
+const DEFAULT_SCOPES = ['repo', 'workflow'];
 const DEFAULT_MARGIN_MS = 60_000;
 /** Held only in memory, and only until it is nearly spent. */
 const ASSUMED_TTL_MS = 30 * 60 * 1000;

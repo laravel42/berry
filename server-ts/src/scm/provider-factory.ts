@@ -150,7 +150,8 @@ export async function createScm(options: {
    } else if (githubApp || userAccess) {
       const app = githubApp;
       // An App installation when one covers the workspace; otherwise a member's
-      // GitHub sign-in, which asks for `repo` and so can clone and push. The App
+      // GitHub sign-in, which asks for `repo` and `workflow` and so can clone,
+      // push, and publish workflow files. The App
       // is optional: a deployment that only signs people in with GitHub still
       // runs agents against their repositories.
       const access = async (

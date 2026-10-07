@@ -88,6 +88,8 @@ describe('the manifest', () => {
          // Read-only: the issue sidebar shows check results, and nothing
          // Berry does needs to create or rerun a check.
          checks: 'read',
+         // Contents write cannot create or change `.github/workflows/`.
+         workflows: 'write',
          // Sign-in's half: GitHub hands over a verified address only with this,
          // and an account that keeps its email private has no other way in.
          emails: 'read',

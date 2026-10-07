@@ -59,7 +59,7 @@ describe('AgentCore Identity GitHub credential', () => {
       assert.deepEqual(client.calls[1]?.input, {
          workloadIdentityToken: 'workload',
          resourceCredentialProviderName: 'berry-github',
-         scopes: ['repo'],
+         scopes: ['repo', 'workflow'],
          oauth2Flow: 'USER_FEDERATION',
          resourceOauth2ReturnUrl: 'http://localhost:3000/',
       });

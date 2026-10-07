@@ -713,6 +713,10 @@ export function buildManifest(input: {
          issues: 'write',
          metadata: 'read',
          checks: 'read',
+         // The App permission that matches the OAuth `workflow` scope. Contents
+         // write alone cannot create or change `.github/workflows/`; GitHub
+         // answers 404 for that tree.
+         workflows: 'write',
          // The account permission "Email addresses", read-only, under GitHub's
          // own parameter name for it. Sign-in needs a verified address, and an
          // account that keeps its email private gives one only through this.

@@ -788,7 +788,7 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
          });
       } catch (error) {
          // No App and no workspace connection: the person's own GitHub sign-in
-         // asks for `repo`, so their token can fill the picker.
+         // asks for `repo` and `workflow`, so their token can fill the picker.
          if (error instanceof ConnectionUnavailable && error.reason === 'missing' && options.userAccess) {
             return json(await signInRepositories(options, options.userAccess, context.get('user').id));
          }

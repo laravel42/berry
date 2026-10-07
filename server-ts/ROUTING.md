@@ -101,10 +101,11 @@ succeeds.
 
 GitHub is the only way in, through Better Auth at `/api/auth/*`, using a
 GitHub **OAuth App** of its own (`BERRY_AUTH_GITHUB_CLIENT_ID`/`_SECRET`,
-scope `repo` plus profile, callback `<BERRY_APP_URL>/api/auth/callback/github`),
+scopes `repo` and `workflow` plus profile, callback `<BERRY_APP_URL>/api/auth/callback/github`),
 separate from the repository GitHub App. `repo` grants read and write on the
 person's repositories and their issues, private ones included; OAuth Apps
-have no narrower read-only or issues-only scope. A GitHub account links to an
+have no narrower read-only or issues-only scope. `workflow` is what lets that
+token create or change a file under `.github/workflows/`. A GitHub account links to an
 existing Berry user only through a GitHub-verified email. Sessions are a
 Better Auth cookie; personal access tokens remain the bearer credential for
 API clients. `POST /api/v1/auth/dev-login` (`{email}`) signs in an existing

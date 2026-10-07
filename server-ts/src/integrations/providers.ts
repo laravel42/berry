@@ -82,10 +82,11 @@ export const PROVIDERS: readonly ProviderDefinition[] = [
       name: 'GitHub',
       description: 'The repositories your agents check out, branch and open pull requests against.',
       // `repo` covers private repositories, which is the case a self-hosted
-      // Berry is usually installed for. `read:org` is what makes the
-      // repository picker able to show an organisation's repositories rather
-      // than only the person's own.
-      scopes: ['repo', 'read:org'],
+      // Berry is usually installed for. `workflow` is required to publish a
+      // file under `.github/workflows/` (GitHub returns 404 without it).
+      // `read:org` is what makes the repository picker able to show an
+      // organisation's repositories rather than only the person's own.
+      scopes: ['repo', 'workflow', 'read:org'],
       tools: [
          {
             name: 'github.read_repository',

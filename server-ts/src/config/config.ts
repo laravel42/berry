@@ -751,7 +751,7 @@ const DEVELOPMENT_AUTH_SECRET = 'berry-development-only-auth-secret-do-not-deplo
  *
  * Its GitHub credential has its own names on purpose: GITHUB_CLIENT_ID belongs
  * to the older repository connection, with its own callback. Sign-in's OAuth
- * App asks for `repo` itself (see GITHUB_SIGN_IN_SCOPES in auth/better-auth.ts).
+ * App asks for `repo` and `workflow` itself (see GITHUB_SIGN_IN_SCOPES in auth/better-auth.ts).
  */
 function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): AuthConfig {
    // Explicit APP_ENV only. `appEnv` defaults to 'development' when unset, and
