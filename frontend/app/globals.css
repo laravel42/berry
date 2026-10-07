@@ -382,6 +382,14 @@
       text-transform: uppercase;
    }
 
+   /* Reasoning in a run transcript. Body size with a loose line height fills
+      the step and cuts a long passage off; the label size keeps more of it
+      in view. */
+   [data-step-body='prose'] {
+      font-size: 0.75rem;
+      line-height: 1rem;
+   }
+
    /* The one size set outside the scale above. The wordmark is a logo lockup,
       not running text: the word is drawn to sit against the mark beside it, so
       it has to scale with the mark and not with the surrounding UI. Kept here

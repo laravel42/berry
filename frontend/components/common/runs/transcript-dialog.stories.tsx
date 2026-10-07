@@ -42,6 +42,10 @@ export const Succeeded: Story = {
          return node;
       });
       await expect(prose?.querySelector('.cm-editor')).toBeNull();
+      // Reasoning sits under the body size so a long passage fits the step.
+      const proseSize = parseFloat(getComputedStyle(prose as Element).fontSize);
+      const bodySize = parseFloat(getComputedStyle(prose!.parentElement as Element).fontSize);
+      await expect(proseSize).toBeLessThan(bodySize);
       await expect(await dialog.findByText('Frontend Engineer · succeeded')).toBeVisible();
       await expect(dialog.getByText('6 files changed', { exact: false })).toBeVisible();
    },

@@ -494,7 +494,7 @@ function StepBody({
             className={cn(
                'overflow-auto whitespace-pre-wrap break-words rounded',
                prose
-                  ? 'text-foreground leading-relaxed'
+                  ? 'text-foreground'
                   : 'bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
                className
             )}
