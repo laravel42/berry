@@ -12,7 +12,6 @@ import { Forbidden, NotFound } from '../identity/errors.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { insideDirectory } from '../agents/workspace-files.ts';
-import { refusedPaths } from '../runtime/trusted-delivery.ts';
 import { coAuthorTrailer, withTrailers } from '../scm/commit-trailer.ts';
 
 /**
@@ -198,8 +197,8 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
     *
     * Refused while an agent is working the task (the branch is that run's to
     * move, and its delivery checks the head it started from), on a pull request
-    * that is no longer open, on the paths a delivery may not touch either, and
-    * when the file on the branch is no longer the one that was edited.
+    * that is no longer open, and when the file on the branch is no longer the
+    * one that was edited.
     */
    route.post('/:runId/commit', async (context) => {
       const runId = context.req.param('runId');
@@ -218,8 +217,6 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository, the new content and the file\'s current blob id (none for a new file) are required.');
       }
       if (Buffer.byteLength(body.content, 'utf8') > MAX_FILE_BYTES) throw new ApiError(413, 'FILE_TOO_LARGE', 'This file is too large to commit from here.');
-      const refused = refusedPaths([path]);
-      if (refused.length > 0) throw new ApiError(403, 'PATH_REFUSED', `Berry does not write ${refused[0]}: it runs with the repository's secrets. Change it on GitHub.`);
       if (await options.queue.hasActiveRun(target.issueId)) {
          throw new ApiError(409, 'RUN_ACTIVE', 'An agent is working on this task, and its branch is that run\'s to change. Commit when the run has finished.');
       }

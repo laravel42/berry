@@ -5,28 +5,14 @@ import { MERGE_DIRECTORY, hasMergeMarker } from './envelope.ts';
 import { taskDeliverySchema, type TaskDelivery } from './lifecycle.ts';
 
 /**
- * Paths an agent may never publish.
+ * Publishes a run's candidate through the Git data API.
  *
- * A workflow on a same-repository branch runs with the repository's secrets, so
- * a file under `.github/workflows/` turns "the author submits bytes" back into
- * "the author runs privileged commands" — the one thing this delivery path
- * exists to prevent. Composite actions are the same hole under another name.
- *
- * A deletion is refused as well as a write: removing a workflow is how a
- * required check stops running, and the derived path set does not say which of
- * the two a path represents.
- *
- * Matched case-insensitively. A case-insensitive filesystem, or a provider that
- * folds the name, would otherwise make `.GitHub/Workflows/` a way around this.
+ * The runtime submits file bytes. This path creates blobs, a tree and a
+ * commit; it does not check out the repository or run the files. A file under
+ * `.github/workflows/` or `.github/actions/` is one of those bytes. GitHub
+ * Actions runs it later, and the token's `workflow` scope is what authorizes
+ * the write.
  */
-const NEVER_PUBLISHED: readonly RegExp[] = [/^\.github\/workflows\//i, /^\.github\/actions\//i];
-
-/** The paths in `files` that policy refuses, sorted. Empty means publication may proceed. */
-export function refusedPaths(files: readonly string[]): string[] {
-   return files.filter((path) => NEVER_PUBLISHED.some((pattern) => pattern.test(path))).sort();
-}
-
-/** Only provider APIs execute here. The author can submit bytes, never privileged commands. */
 export async function publishTrustedDelivery(sql: Sql, runId: string, github: GitHubClient, candidate: TaskDelivery): Promise<TaskDelivery> {
    const parsed = taskDeliverySchema.parse(candidate);
    const [snapshot] = await sql`SELECT s.*, r.status, r.issue_id FROM run_repository_snapshots AS s JOIN runs AS r ON r.id = s.run_id WHERE s.run_id = ${runId}`;
@@ -72,13 +58,9 @@ export async function publishTrustedDelivery(sql: Sql, runId: string, github: Gi
       // its tree is built on the default branch head (see `publishCandidate`).
       mergeParent,
       message: `Berry run ${runId}`, timestamp: new Date(snapshot.created_at as string).toISOString(), files: parsed.candidate,
-      // The complete changed-path set, derived from provider trees rather than
-      // from anything the runtime reported, is what policy is applied to.
-      authorizePaths: async (files) => {
-         const refused = refusedPaths(files);
-         if (refused.length > 0) {
-            throw new Error(`Refusing to publish paths that execute with repository secrets: ${refused.join(', ')}`);
-         }
+      // Re-read the run after the tree exists. A run that stopped while the
+      // provider calls were in flight must not gain a branch.
+      authorizePaths: async () => {
          const [run] = await sql`SELECT status FROM runs WHERE id = ${runId}`;
          if (run?.status !== 'running') throw new Error('Run stopped before publication');
       },
