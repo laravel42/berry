@@ -47,12 +47,14 @@ export default function GoalLine({
                </span>
             </span>
             <span className="line-clamp-2 font-medium">{goal.title}</span>
-            {project || goal.description ? (
-               <span className="line-clamp-1 text-muted-foreground">
-                  {project ? project.name : goal.description}
-               </span>
-            ) : null}
-            <GoalProgress progress={goal.progress} compact />
+            <span className="flex min-w-0 items-center gap-2">
+               {project || goal.description ? (
+                  <span className="line-clamp-1 min-w-0 flex-1 text-muted-foreground">
+                     {project ? project.name : goal.description}
+                  </span>
+               ) : null}
+               <GoalProgress progress={goal.progress} compact className="ml-auto shrink-0" />
+            </span>
          </span>
       </button>
    );

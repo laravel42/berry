@@ -87,26 +87,28 @@ function PlanRow({
                </span>
             </span>
             <span className="line-clamp-2 font-medium">{plan.title}</span>
-            <span className="truncate text-muted-foreground">
-               {plan.projectName ?? t('list.noProject')}
+            <span className="flex min-w-0 items-center gap-2">
+               <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                  {plan.projectName ?? t('list.noProject')}
+               </span>
+               {started ? (
+                  <span className="ml-auto flex shrink-0 items-center gap-2">
+                     <span className="h-1 w-20 overflow-hidden rounded-full bg-muted">
+                        <span
+                           className="block h-full rounded-full bg-primary"
+                           style={{ width: `${percent}%` }}
+                        />
+                     </span>
+                     <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {t('tasks', { finished: plan.finishedTasks, created: plan.createdTasks })}
+                     </span>
+                  </span>
+               ) : plan.plannedTasks > 0 ? (
+                  <span className="ml-auto shrink-0 text-muted-foreground">
+                     {t('planned', { count: plan.plannedTasks })}
+                  </span>
+               ) : null}
             </span>
-            {started ? (
-               <span className="flex items-center gap-2">
-                  <span className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
-                     <span
-                        className="block h-full rounded-full bg-primary"
-                        style={{ width: `${percent}%` }}
-                     />
-                  </span>
-                  <span className="shrink-0 text-muted-foreground tabular-nums">
-                     {t('tasks', { finished: plan.finishedTasks, created: plan.createdTasks })}
-                  </span>
-               </span>
-            ) : plan.plannedTasks > 0 ? (
-               <span className="text-muted-foreground">
-                  {t('planned', { count: plan.plannedTasks })}
-               </span>
-            ) : null}
          </span>
       </button>
    );
