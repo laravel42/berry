@@ -114,6 +114,14 @@ export function dockerContainers(options: DockerContainersOptions): SessionConta
       async stop(session) {
          await docker(['rm', '--force', containerName(session)]);
       },
+      async busy(session) {
+         const url = await origin(session);
+         if (!url) return false;
+         const answer = await doFetch(`${url}/ping`, { signal: AbortSignal.timeout(2_000) })
+            .then((response) => (response.ok ? (response.json() as Promise<{ status?: unknown }>) : null))
+            .catch(() => null);
+         return answer?.status === 'HealthyBusy';
+      },
       async running() {
          const out = await docker(['ps', '--filter', `label=${SESSION_LABEL}`, '--format', `{{.Label "${SESSION_LABEL}"}}`]);
          return out.split('\n').map((line) => line.trim()).filter((line) => line !== '');

@@ -32,6 +32,8 @@ export interface SessionContainers {
    stop(session: string): Promise<void>;
    /** Sessions with a container already running, for a router that restarted. */
    running(): Promise<string[]>;
+   /** Whether the session's container is still working on a run, with or without a caller. */
+   busy?(session: string): Promise<boolean>;
 }
 
 export interface RouterOptions {
@@ -137,16 +139,26 @@ export class SessionRouter {
          .filter(([key, tracked]) => key !== session && tracked.active === 0 && !this.#starting.has(key))
          .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
       while (this.#sessions.size > this.#max && idle.length > 0) {
-         await this.#stop(idle.shift()![0], 'made room for another session');
+         const [key] = idle.shift()!;
+         if (await this.#containers.busy?.(key).catch(() => false)) continue;
+         await this.#stop(key, 'made room for another session');
       }
    }
 
-   /** Stops every container idle past the limit. Called on a timer by `main.ts`. */
+   /**
+    * Stops every container idle past the limit. Called on a timer by `main.ts`.
+    * A container with no request open but a loop still working is not idle:
+    * its API went away mid-run and will come back to collect it.
+    */
    async reap(): Promise<number> {
       const cutoff = this.#clock() - this.#idleMs;
       let stopped = 0;
       for (const [session, tracked] of [...this.#sessions.entries()]) {
          if (tracked.active > 0 || tracked.lastUsed > cutoff || this.#starting.has(session)) continue;
+         if (await this.#containers.busy?.(session).catch(() => false)) {
+            tracked.lastUsed = this.#clock();
+            continue;
+         }
          await this.#stop(session, 'idle');
          stopped += 1;
       }
