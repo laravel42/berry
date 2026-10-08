@@ -193,7 +193,7 @@ export function PageKpiHeader({
    children?: ReactNode;
 }) {
    return (
-      <header className="flex w-full flex-col gap-3.5 border-b px-6 pt-3 pb-5">
+      <header className="flex w-full flex-col gap-3.5 border-b px-6 py-3">
          <div className="flex min-h-9 items-center gap-3">
             <SectionLabel as="h1">{label}</SectionLabel>
             <div className="ml-auto flex items-center gap-2">{children}</div>
