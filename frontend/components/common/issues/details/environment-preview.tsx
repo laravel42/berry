@@ -405,18 +405,22 @@ export function EnvironmentPreview({
                      {(env?.state === 'failed' || env?.state === 'unavailable') &&
                         env.failure !== 'credentials' &&
                         env.failure !== 'infrastructure' && (
-                           <Button
-                              size="xs"
-                              className="shrink-0 cursor-pointer gap-1.5"
-                              disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
-                              onClick={fixWithAi}
-                              title={t('fixHint')}
-                           >
-                              <Sparkles className="size-3.5" aria-hidden />
-                              {fix?.phase === 'working' || fix?.phase === 'asking'
-                                 ? t('fixingShort')
-                                 : t('fix')}
-                           </Button>
+                           <span className="ai-animated-border rounded-md">
+                              <Button
+                                 type="button"
+                                 variant="ghost"
+                                 size="xs"
+                                 className="bg-background hover:bg-accent"
+                                 disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
+                                 onClick={fixWithAi}
+                                 title={t('fixHint')}
+                              >
+                                 <Sparkles className="size-3.5" aria-hidden />
+                                 {fix?.phase === 'working' || fix?.phase === 'asking'
+                                    ? t('fixingShort')
+                                    : t('fix')}
+                              </Button>
+                           </span>
                         )}
                   </div>
                )}
