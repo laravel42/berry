@@ -7,12 +7,14 @@ import { emitterSink } from './emitter.ts';
 import type { RepositoryStep } from './handler.ts';
 import type { LocalSession } from './local-session.ts';
 import { applyMergeOverlay } from './merge-overlay.ts';
+import { checkCommands, LOCKFILES, packageChecks, type PackageChecks } from './package-checks.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 
 /** Fresh, credential-free snapshots. The control plane publishes the returned candidate. */
 export function snapshotRepository(options: { fetch?: typeof fetch } = {}): RepositoryStep {
    const baselines = new WeakMap<LocalSession, string>();
    const merges = new WeakSet<LocalSession>();
+   const packages = new WeakMap<LocalSession, PackageChecks>();
    const git = 'git -c core.hooksPath=/dev/null -c core.fsmonitor=false';
    return {
       async prepare({ envelope, session, emit, signal }) {
@@ -45,6 +47,12 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          const result = await session.exec(`${git} init -q && ${git} add -A && ${git} -c user.name=Berry -c user.email=agent@berry.invalid commit -q --allow-empty -m snapshot && ${git} rev-parse HEAD`, { cwd: directory });
          if (result.exitCode !== 0) throw new Error('Could not initialize repository snapshot');
          baselines.set(session, result.stdout.trim());
+         if (repo.verifyCommands.length === 0) {
+            const manifest = await readRegularFile(join(directory, 'package.json'));
+            const present = await Promise.all(LOCKFILES.map(async ([file]) => ((await readRegularFile(join(directory, file))) !== null ? file : null)));
+            const found = manifest === null ? null : packageChecks(manifest, present.filter((file): file is string => file !== null));
+            if (found) packages.set(session, found);
+         }
          // After the baseline, so the branch's side of a conflict-resolution
          // run is part of the candidate: the baseline is the default branch.
          if (repo.merge && !repo.readOnly) {
@@ -62,7 +70,7 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          // Unfinished work is saved, not judged: its checks would fail for the
          // plain reason that it is not done.
          if (!checkpoint) {
-            const report = await verify({ session, directory, commands: repo.verifyCommands });
+            const report = await verify({ session, directory, commands: await commandsFor(repo.verifyCommands, packages.get(session), directory) });
             // An empty list is not a failed suite. Recording it as `passed:
             // false` made every project with no checks look unverified.
             if (report.results.length > 0) {
@@ -129,6 +137,28 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files, ...(merged ? { merged: true } : {}) };
       },
    };
+}
+
+/**
+ * The project's commands, else the default branch's package checks. Those run
+ * only where dependencies were installed: in a checkout without node_modules
+ * every one fails on a missing binary, which says nothing about the work.
+ */
+async function commandsFor(configured: string[], found: PackageChecks | undefined, directory: string): Promise<string[]> {
+   if (configured.length > 0 || !found) return configured;
+   const installed = await lstat(join(directory, 'node_modules')).then((info) => info.isDirectory(), () => false);
+   return installed ? checkCommands(found, await readRegularFile(join(directory, 'package.json'))) : [];
+}
+
+/** A file's text, only when it is a regular file: a link in the agent's tree is never followed. */
+async function readRegularFile(path: string): Promise<string | null> {
+   try {
+      const info = await lstat(path);
+      if (!info.isFile() || info.size > 1024 * 1024) return null;
+      return await readFile(path, 'utf8');
+   } catch {
+      return null;
+   }
 }
 
 /**
