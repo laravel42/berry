@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { PlanRefused, planFor, resolveEnv, type PreviewApp, type PreviewPlan, type PreviewService, type RepositoryView } from './plan.ts';
+import { PlanRefused, blankPublicExample, planFor, resolveEnv, type PreviewApp, type PreviewPlan, type PreviewService, type RepositoryView } from './plan.ts';
 import { NPM_CACHE_VOLUME } from './site-builds.ts';
 
 /**
@@ -451,8 +451,9 @@ export class PreviewEnvironments {
       if (!live()) return;
 
       let plan: PreviewPlan | null;
+      const view = await viewOf(tree);
       try {
-         plan = planFor(await viewOf(tree));
+         plan = planFor(view);
       } catch (error) {
          if (!(error instanceof PlanRefused)) throw error;
          env.state = 'unavailable';
@@ -463,6 +464,18 @@ export class PreviewEnvironments {
       if (!plan) {
          env.state = 'unavailable';
          env.message = 'Nothing in this repository can be run for a preview yet: no web app, server or page was found, and there is no .berry/preview.json.';
+         return;
+      }
+      // A blank public value is inlined as nothing, and the crash arrives only
+      // after Metro. The name belongs in the project's preview environment.
+      const missing = blankPublicExample(plan, view, variables);
+      if (missing.length > 0) {
+         const listed = missing.join(', ');
+         env.state = 'unavailable';
+         env.message = missing.length === 1
+            ? `${listed} is named in .env.example with no value, and this project has not set one. Add it in the project's preview environment, then start the preview again.`
+            : `${listed} are named in .env.example with no value, and this project has not set them. Add them in the project's preview environment, then start the preview again.`;
+         say(`${env.message}\n`);
          return;
       }
       env.plan = plan;
@@ -697,8 +710,24 @@ export function appScript(app: PreviewApp, services: PreviewService[]): string {
    for (const service of services) {
       lines.push(`echo "Waiting for ${service.name}…"`, waitFor(service.name, service.port));
    }
-   // The Node the repository pins, when the image has nvm to fetch it with.
-   lines.push('if [ -f .nvmrc ] && [ -s "${NVM_DIR:-/nonexistent}/nvm.sh" ]; then echo "Using the Node version in .nvmrc…"; . "$NVM_DIR/nvm.sh"; nvm install; fi');
+   // The Node the repository pins, when the image has nvm and its own Node does
+   // not already match. The image is Node 22; a `.nvmrc` of `22` needs nothing
+   // fetched. Installing anyway unpacks a tarball owned by uid 1001, and this
+   // container has no capability to chown, so tar fails once per file. When a
+   // different version really has to be unpacked, tar is told not to chown.
+   lines.push(
+      'if [ -f .nvmrc ] && [ -s "${NVM_DIR:-/nonexistent}/nvm.sh" ]; then',
+      '  echo "Using the Node version in .nvmrc…"',
+      '  . "$NVM_DIR/nvm.sh"',
+      '  wanted=$(tr -d "[:space:]" < .nvmrc)',
+      '  case "$wanted" in v*) ;; *) wanted="v$wanted" ;; esac',
+      '  current=$(node -v 2>/dev/null || true)',
+      '  case "$current" in',
+      '    "$wanted"*) echo "Node $current already matches .nvmrc." ;;',
+      '    *) export TAR_OPTIONS="--no-same-owner ${TAR_OPTIONS:-}"; nvm install ;;',
+      '  esac',
+      'fi'
+   );
    lines.push('echo "Installing…"', app.install);
    if (app.build) lines.push('echo "Building…"', app.build);
    if (app.migrate) lines.push('echo "Migrating…"', app.migrate);

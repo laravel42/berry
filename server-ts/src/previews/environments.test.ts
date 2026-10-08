@@ -81,6 +81,27 @@ test('an app waits for its services, then installs, builds, migrates and becomes
    const order = ['net.connect(5432,"db")', '.nvmrc', 'npm ci', 'npm run build', 'npm run migrate', 'exec npm start'].map((step) => script.indexOf(step));
    assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]!)), script);
    assert.ok(script.startsWith('set -e'));
+   // A matching Node is kept. A different one is unpacked without chown, which this container cannot do.
+   assert.match(script, /already matches \.nvmrc/);
+   assert.match(script, /TAR_OPTIONS="--no-same-owner/);
+   assert.ok(!script.includes('nvm install; fi'));
+});
+
+test('a blank public example stops the preview before anything is started', async () => {
+   const { docker, calls } = fakeDocker();
+   const envs = environments(docker);
+   envs.start('expo', archiveOf({
+      '.berry/preview.json': JSON.stringify({
+         apps: [{ name: 'web', dir: '.', build: 'npm run preview:web', start: 'serve dist', port: 3000 }],
+      }),
+      'package.json': JSON.stringify({ scripts: { 'preview:web': 'expo export --platform web && serve dist' } }),
+      '.env.example': 'EXPO_PUBLIC_SUPABASE_ANON_KEY=\n',
+   }));
+   const status = await settled(envs, 'expo');
+   assert.equal(status.state, 'unavailable');
+   assert.match(status.message!, /EXPO_PUBLIC_SUPABASE_ANON_KEY/);
+   assert.match(status.message!, /preview environment/);
+   assert.equal(calls.filter((args) => args[0] === 'run' || (args[0] === 'network' && args[1] === 'create')).length, 0);
 });
 
 test('a repository with a site and its API comes up whole, each app at its own address', async () => {

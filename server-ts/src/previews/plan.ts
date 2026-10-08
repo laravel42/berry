@@ -255,8 +255,106 @@ interface PackageJson {
  */
 export function planFor(view: RepositoryView): PreviewPlan | null {
    const manifest = view.read(MANIFEST_PATH);
-   if (manifest !== null) return planFromManifest(manifest);
-   return detect(view);
+   const plan = manifest !== null ? planFromManifest(manifest) : detect(view);
+   if (!plan) return null;
+   // A manifest is the source for how to start, not for every public value the
+   // build inlines. Those live in `.env.example`, and a detected plan already
+   // set the ones it rewrites (an API's address). Fill only what is still absent.
+   fillPublicExample(plan, view);
+   for (const app of plan.apps) detachServerFromBuild(app, view);
+   return plan;
+}
+
+/** Inlined into the bundle. A secret does not use one of these prefixes. */
+const PUBLIC_ENV = /^(?:EXPO_PUBLIC_|NEXT_PUBLIC_|VITE_|PUBLIC_)/;
+
+/** `KEY=value` lines from an env example, quotes removed, comments skipped. */
+function exampleEntries(text: string): Array<[string, string]> {
+   return [...text.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=[ \t]*(.*)$/gm)].map((match) => [
+      match[1]!,
+      match[2]!.trim().replace(/^["']|["']$/g, ''),
+   ]);
+}
+
+function exampleFor(app: PreviewApp, view: RepositoryView): Array<[string, string]> {
+   const path = app.dir === '.' ? '.env.example' : `${app.dir}/.env.example`;
+   const text = view.read(path);
+   return text === null ? [] : exampleEntries(text);
+}
+
+/** Copies a non-empty public example value onto an app that has not set that name. */
+function fillPublicExample(plan: PreviewPlan, view: RepositoryView): void {
+   for (const app of plan.apps) {
+      for (const [key, value] of exampleFor(app, view)) {
+         if (!PUBLIC_ENV.test(key) || value === '' || key in app.env) continue;
+         app.env[key] = value;
+      }
+   }
+}
+
+/**
+ * Public names the example leaves blank and nobody has filled in.
+ *
+ * Expo and the others inline these at build time, so a blank one becomes a
+ * crash after install, inside Metro. The project's preview environment is
+ * where the value belongs; naming it here is the stop before that install.
+ */
+export function blankPublicExample(plan: PreviewPlan, view: RepositoryView, provided: Record<string, string>): string[] {
+   const missing: string[] = [];
+   for (const app of plan.apps) {
+      for (const [key, value] of exampleFor(app, view)) {
+         if (!PUBLIC_ENV.test(key)) continue;
+         const chosen = provided[key] ?? app.env[key] ?? value;
+         if (chosen === '' && !missing.includes(key)) missing.push(key);
+      }
+   }
+   return missing;
+}
+
+/** The program a command runs, past a leading assignment and `npx`. */
+function commandName(command: string): string {
+   const words = command.trim().split(/\s+/);
+   let index = 0;
+   while (index < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index] ?? '')) index += 1;
+   let name = words[index] ?? '';
+   if (name === 'npx' || name === 'bunx') {
+      name = words.slice(index + 1).find((word) => !word.startsWith('-')) ?? name;
+   }
+   const slash = name.lastIndexOf('/');
+   if (slash >= 0) name = name.slice(slash + 1);
+   const version = name.indexOf('@');
+   if (version > 0) name = name.slice(0, version);
+   return name;
+}
+
+/**
+ * A build has to finish. `preview:web` that is `expo export && serve` never
+ * does: serve is the start command, and under `set -e` a failed export exits
+ * before start runs. The serving half is dropped, and the rest stays the build.
+ */
+function detachServerFromBuild(app: PreviewApp, view: RepositoryView): void {
+   if (!app.build) return;
+   const start = commandName(app.start);
+   if (!start) return;
+   let body = app.build;
+   const invoked = /^(?:npm|pnpm|yarn|bun)(?:\s+run)?\s+(\S+)$/.exec(app.build.trim());
+   if (invoked) {
+      const text = view.read(app.dir === '.' ? 'package.json' : `${app.dir}/package.json`);
+      if (text === null) return;
+      let scripts: Record<string, string> = {};
+      try {
+         scripts = (JSON.parse(text) as PackageJson).scripts ?? {};
+      } catch {
+         return;
+      }
+      const script = scripts[invoked[1]!];
+      if (!script) return;
+      body = script;
+   }
+   const segments = body.split(/\s&&\s/).map((part) => part.trim()).filter(Boolean);
+   const server = segments.findIndex((segment) => commandName(segment) === start);
+   if (server <= 0) return;
+   app.build = segments.slice(0, server).join(' && ');
 }
 
 /** Folders worth looking in: the root and one level down, where monorepo apps live (`web/`, `server/`). */

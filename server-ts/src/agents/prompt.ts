@@ -277,8 +277,11 @@ function deliveryContract(): string {
       '"env":{"POSTGRES_PASSWORD":"preview","POSTGRES_DB":"app"}}]}. ' +
       '${apps.NAME.url} is where a browser reaches an app, ${apps.NAME.internal} ' +
       'where another container does, and a service is reached by its name. ' +
-      'Apps must listen on 0.0.0.0 and on the port given. Never put a real ' +
-      'secret in it: a preview has no access to production.\n'
+      'Apps must listen on 0.0.0.0 and on the port given. The build command has ' +
+      'to exit: the process that keeps running belongs in start, not on the end ' +
+      'of build. Never put a real secret in it: a preview has no access to ' +
+      'production. Public values from .env.example are passed in; a blank one ' +
+      'is set on the project, not written into the manifest.\n'
    );
 }
 

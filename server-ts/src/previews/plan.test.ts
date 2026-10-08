@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MANIFEST_PATH, PlanRefused, allowedServiceImage, installCommand, packageManagerFor, planFor, planFromManifest, resolveEnv, safeDir, type RepositoryView } from './plan.ts';
+import { MANIFEST_PATH, PlanRefused, allowedServiceImage, blankPublicExample, installCommand, packageManagerFor, planFor, planFromManifest, resolveEnv, safeDir, type RepositoryView } from './plan.ts';
 
 function repo(files: Record<string, string | object>): RepositoryView {
    const text = (value: string | object) => (typeof value === 'string' ? value : JSON.stringify(value));
@@ -156,6 +156,38 @@ test('a static site’s manifest installs nothing, so its preview is not stopped
    } finally {
       rmSync(folder, { recursive: true, force: true });
    }
+});
+
+test('a manifest preview takes public example values, drops a server from the build, and names a blank one', () => {
+   const view = repo({
+      '.berry/preview.json': {
+         apps: [{
+            name: 'web',
+            dir: '.',
+            build: 'npm run preview:web',
+            start: 'serve dist --single --listen tcp://0.0.0.0:3000',
+            port: 3000,
+            primary: true,
+            env: { EXPO_PUBLIC_API_BASE_URL: 'https://api.example.test' },
+         }],
+      },
+      'package.json': {
+         scripts: {
+            'preview:web': 'expo export --platform web --output-dir dist && serve dist --single --listen tcp://0.0.0.0:${PORT:-3000}',
+         },
+      },
+      '.env.example': 'EXPO_PUBLIC_API_BASE_URL=http://localhost:3000\nEXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321\nEXPO_PUBLIC_SUPABASE_ANON_KEY=\nDATABASE_URL=postgres://localhost/app\n',
+   });
+   const plan = planFor(view)!;
+   const app = plan.apps[0]!;
+   // The manifest's own value wins. A non-empty public example is filled in. A secret is not.
+   assert.equal(app.env.EXPO_PUBLIC_API_BASE_URL, 'https://api.example.test');
+   assert.equal(app.env.EXPO_PUBLIC_SUPABASE_URL, 'http://127.0.0.1:54321');
+   assert.equal('DATABASE_URL' in app.env, false);
+   // serve is the start command, so it is not also the build.
+   assert.equal(app.build, 'expo export --platform web --output-dir dist');
+   assert.deepEqual(blankPublicExample(plan, view, {}), ['EXPO_PUBLIC_SUPABASE_ANON_KEY']);
+   assert.deepEqual(blankPublicExample(plan, view, { EXPO_PUBLIC_SUPABASE_ANON_KEY: 'anon' }), []);
 });
 
 test('a manifest app that names no install uses the manager its lockfile names', async () => {
