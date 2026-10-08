@@ -36,7 +36,7 @@ export function PlanGenerationProgress({ record }: { record: PlanRecord }) {
       >
          <div className="flex items-center gap-2">
             <BerryMark size="sm" tone="working" pulse />
-            <span className="font-medium">Berry is {describePlanStage(current)}</span>
+            <span>Berry is {describePlanStage(current)}</span>
          </div>
          <ol className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground">
             {PLAN_STAGES.map((stage, index) => {
@@ -108,7 +108,7 @@ export function PlanGenerationFailure({ record }: { record: PlanRecord }) {
       >
          <BerryMark size="sm" tone={usable ? 'attention' : 'danger'} className="mt-1" />
          <div className="min-w-0 flex-1">
-            <p className="font-medium">{describeGenerationError(record.generation.error)}</p>
+            <p>{describeGenerationError(record.generation.error)}</p>
             <p className="text-muted-foreground">{consequence}</p>
             <div className="mt-2 flex flex-wrap gap-2">
                <Button
@@ -152,7 +152,7 @@ export function PlanBlockedQuestions({
       <div role="alert" className="mt-5 rounded-md border border-border/60 bg-background px-4 py-3">
          <div className="flex items-center gap-2">
             <BerryMark size="sm" tone="attention" state="hollow" />
-            <span className="font-medium">Berry needs a few answers before it can plan this</span>
+            <span>Berry needs a few answers before it can plan this</span>
          </div>
          <ol className="mt-2 list-decimal space-y-1 pl-6">
             {questions.map((ambiguity) => (
@@ -184,7 +184,7 @@ function FindingRow({
       <li className="flex items-start gap-3 rounded-md border border-border/60 bg-background px-3 py-2">
          <BerryMark size="sm" tone={tone} className="mt-1" />
          <div className="min-w-0 flex-1">
-            <p className="font-medium">{finding.message}</p>
+            <p>{finding.message}</p>
             <p className="text-muted-foreground">
                {describePlanPath(finding.path, record.plan)} · {finding.code}
             </p>
@@ -217,9 +217,9 @@ export function PlanFindings({ record }: { record: PlanRecord }) {
       <div className="mt-5 space-y-3">
          {errors.length > 0 && (
             <div>
-               <h3 className="font-medium text-status-danger">
+               <p className="text-status-danger">
                   {errors.length === 1 ? '1 problem' : `${errors.length} problems`} to fix
-               </h3>
+               </p>
                <ul role="alert" className="mt-1.5 space-y-1.5">
                   {errors.map((finding, index) => (
                      <FindingRow
@@ -234,12 +234,12 @@ export function PlanFindings({ record }: { record: PlanRecord }) {
          )}
          {(warnings.length > 0 || critic.length > 0) && (
             <div>
-               <h3 className="font-medium">
+               <p>
                   {warnings.length + critic.length === 1
                      ? '1 thing'
                      : `${warnings.length + critic.length} things`}{' '}
                   to know
-               </h3>
+               </p>
                <ul role="status" className="mt-1.5 space-y-1.5">
                   {[...warnings, ...critic].map((finding, index) => (
                      <FindingRow

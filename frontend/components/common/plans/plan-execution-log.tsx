@@ -189,18 +189,12 @@ export function PlanExecutionLog({ record }: { record: PlanRecord }) {
       >
          <div className="flex items-center gap-2 border-b border-border/60 px-4 py-2.5">
             <BerryMark size="sm" tone={live ? 'working' : 'complete'} pulse={live} />
-            <span className="font-medium">
-               {isPlanCompiling(record) ? 'Starting the plan…' : 'Plan started'}
-            </span>
+            <span>{isPlanCompiling(record) ? 'Starting the plan…' : 'Plan started'}</span>
             <span className="text-muted-foreground">
                · {live ? 'following the work' : 'all runs finished'}
             </span>
          </div>
-         <div
-            ref={scroller}
-            onScroll={onScroll}
-            className="max-h-72 overflow-y-auto px-4 py-2 font-mono leading-5"
-         >
+         <div ref={scroller} onScroll={onScroll} className="max-h-72 overflow-y-auto px-4 py-2">
             {lines.length === 0 ? (
                <p className="text-muted-foreground">
                   {loaded ? 'Nothing has run yet.' : 'Reading the log…'}

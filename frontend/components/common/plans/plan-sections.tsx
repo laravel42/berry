@@ -50,10 +50,10 @@ export function Pill({
 
 export function SectionHeading({ title, count }: { title: string; count?: number }) {
    return (
-      <h3 className="font-medium">
+      <p>
          {title}
          {count !== undefined && <span className="ml-1.5 text-muted-foreground">· {count}</span>}
-      </h3>
+      </p>
    );
 }
 
@@ -84,7 +84,7 @@ export function PlanAssumptions({ assumptions }: { assumptions: PlanAssumption[]
                         className="mt-1"
                      />
                      <div className="min-w-0 flex-1">
-                        <p className="leading-6">{assumption.description}</p>
+                        <p>{assumption.description}</p>
                         <div className="mt-1">
                            {assumption.blocking ? (
                               <Pill tone="attention">needs an answer</Pill>
@@ -137,7 +137,7 @@ export function PlanConnections({
                      tone={connection.connected ? 'complete' : 'attention'}
                      state={connection.connected ? 'solid' : 'hollow'}
                   />
-                  <span className="font-medium">{connection.provider}</span>
+                  <span>{connection.provider}</span>
                   <span className="text-muted-foreground">
                      {connection.connected ? 'connected' : 'not connected'}
                   </span>
@@ -200,12 +200,12 @@ export function PlanIssues({ plan }: { plan: Plan }) {
             <div key={group.key} className={cn(group.title ? 'mt-5' : 'mt-2')}>
                {group.title && (
                   <div className="mb-2">
-                     <h4 className="font-medium">
+                     <p>
                         {group.title}
                         <span className="ml-1.5 text-muted-foreground">
                            · {group.issues.length}
                         </span>
-                     </h4>
+                     </p>
                      {group.description && (
                         <p className="mt-0.5 whitespace-pre-line text-muted-foreground">
                            {group.description}
@@ -235,7 +235,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
                            )}
                            <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                 <span className="font-medium">{issue.title}</span>
+                                 <span>{issue.title}</span>
                                  {issue.requiresReview && <Pill tone="review">review</Pill>}
                                  {issue.requiresApproval && <Pill tone="attention">approval</Pill>}
                               </div>
@@ -315,7 +315,7 @@ export function PlanApprovals({ plan }: { plan: Plan }) {
                   >
                      <BerryMark size="sm" tone="attention" className="mt-1" />
                      <div className="min-w-0 flex-1">
-                        <span className="font-medium">{approval.title}</span>
+                        <span>{approval.title}</span>
                         {approval.description && (
                            <p className="mt-1 text-muted-foreground">{approval.description}</p>
                         )}

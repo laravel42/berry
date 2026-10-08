@@ -38,7 +38,9 @@ function ProjectDragPreview({ project }: { project: Project }) {
             <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
             <ActorAvatar user={lead} size="sm" className="size-4" />
          </div>
-         <h3 className="mb-2 line-clamp-2">{project.name}</h3>
+         <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
+            {project.name}
+         </div>
       </div>
    );
 }
@@ -171,13 +173,18 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                      </div>
                      <Link
                         href={`/${orgId}/project/${project.id}/overview`}
-                        className="rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        className="block rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         draggable={false}
                         onClick={(event) => {
                            if (isDragging) event.preventDefault();
                         }}
                      >
-                        <h3 className="mb-2 line-clamp-2">{project.name}</h3>
+                        {/* Body size, same as an issue card title. An h3 would
+                            take the heading step (14px / 500) and the name
+                            would read larger than the task titles beside it. */}
+                        <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
+                           {project.name}
+                        </div>
                      </Link>
                      <div className="mb-1 flex min-h-[1.25rem] flex-wrap items-center gap-2">
                         {displayProperties.health && (

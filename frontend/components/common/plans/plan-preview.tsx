@@ -175,7 +175,7 @@ function PlanAnswers({ answers, generating }: { answers: PlanAnswer[]; generatin
    const rounds = [...new Set(answers.map((answer) => answer.forVersion))];
    return (
       <section className="mt-6">
-         <h3 className="font-medium">Your answers</h3>
+         <p>Your answers</p>
          {generating && (
             <p className="mt-1 text-muted-foreground">Berry is planning again with these.</p>
          )}
@@ -192,7 +192,7 @@ function PlanAnswers({ answers, generating }: { answers: PlanAnswer[]; generatin
                         className="border-l-2 border-border pl-3"
                      >
                         <dt className="text-muted-foreground">{answer.question}</dt>
-                        <dd className="whitespace-pre-line leading-6">{answer.answer}</dd>
+                        <dd className="whitespace-pre-line">{answer.answer}</dd>
                      </div>
                   ))}
             </dl>
@@ -267,8 +267,7 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
 
                   {plan?.goal.description && (
                      <section className="mt-6">
-                        <h3 className="font-medium">Goal</h3>
-                        <p className="mt-1.5 whitespace-pre-line">{plan.goal.description}</p>
+                        <p className="whitespace-pre-line">{plan.goal.description}</p>
                      </section>
                   )}
 
@@ -325,7 +324,7 @@ function PlanOutcome({ record }: { record: PlanRecord }) {
          >
             <BerryMark size="sm" tone="attention" className="mt-1" />
             <div>
-               <p className="font-medium">Sent to an admin for approval</p>
+               <p>Sent to an admin for approval</p>
                <p className="text-muted-foreground">
                   This plan is high risk, so an admin decides. Nothing starts until they approve.
                </p>
@@ -345,7 +344,7 @@ function PlanOutcome({ record }: { record: PlanRecord }) {
          >
             <BerryMark size="sm" tone="danger" className="mt-1" />
             <div className="min-w-0 flex-1">
-               <p className="font-medium">The plan was approved but could not be started</p>
+               <p>The plan was approved but could not be started</p>
                {compile.error && <p className="text-muted-foreground">{compile.error}</p>}
                <Button
                   size="xs"
