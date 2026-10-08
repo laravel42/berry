@@ -123,9 +123,17 @@ export async function followRunEvents(options: {
       // Tells the browser how long to wait before reconnecting.
       if (!send('retry: 3000\n\n')) return;
       let lastSent = Date.now();
+      let primed = false;
       while (!options.signal.aborted && !closed) {
          const before = after;
          const outcome = await drain();
+         // The backlog is in hand, including when it was empty. A comment, so
+         // older clients ignore it; the console waits on it before showing an
+         // empty log.
+         if (!primed && outcome !== 'gone') {
+            primed = true;
+            if (!send(': ready\n\n')) return;
+         }
          if (outcome !== 'following') break;
          if (after !== before) lastSent = Date.now();
          else if (Date.now() - lastSent >= HEARTBEAT_MS) {
