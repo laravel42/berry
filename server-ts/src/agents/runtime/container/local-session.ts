@@ -7,6 +7,7 @@ import type {
    ExecResult,
    ExecutionSession,
 } from '../../../execution/driver.ts';
+import { ensureSessionAccount } from './session-account.ts';
 import type { SessionIdentity } from './session-identity.ts';
 
 /**
@@ -87,6 +88,9 @@ export class LocalSession implements ExecutionSession {
          await mkdir(this.root, { recursive: true });
          const identity = this.#identity;
          if (!identity) return;
+         // Before any command: `whoami` and `os.userInfo` need a passwd name
+         // for this uid, and the image does not ship one above 200000.
+         await ensureSessionAccount(identity, this.root);
          if ((await lstat(this.root)).uid !== identity.uid) {
             await runAs(undefined, '/bin/chown', ['-R', '-h', `${identity.uid}:${identity.gid}`, this.root]);
          }
