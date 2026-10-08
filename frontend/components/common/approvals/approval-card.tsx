@@ -613,7 +613,7 @@ export function ApprovalCard({
                            {section.title ? <h3>{section.title}</h3> : null}
                            <AgentMarkdown
                               body={section.body}
-                              className="w-full max-w-none text-muted-foreground"
+                              className="w-full max-w-none text-foreground"
                            />
                         </section>
                      ) : section.title ? (
@@ -627,7 +627,7 @@ export function ApprovalCard({
                      <h3>{t('request')}</h3>
                      <AgentMarkdown
                         body={request.body}
-                        className="w-full max-w-none text-muted-foreground"
+                        className="w-full max-w-none text-foreground"
                      />
                   </section>
                ) : null}
