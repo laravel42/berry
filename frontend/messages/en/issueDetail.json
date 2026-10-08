@@ -333,8 +333,6 @@
    },
    "create": {
       "title": "New task",
-      "manual": "Write it",
-      "agent": "Hand it to an agent",
       "titlePlaceholder": "Task title",
       "descriptionPlaceholder": "Add description…",
       "parent": "Parent",
@@ -355,15 +353,9 @@
       "duplicate": "A task with this title already exists.",
       "viewExisting": "Open it",
       "failed": "The task could not be created.",
-      "promptPlaceholder": "What should the agent do?",
-      "pickAgent": "Choose an agent",
       "attachments": "Attachments",
       "agentCreated": "Handed to {name}. Its result lands as a comment on the task, and the task moves to In review for a person.",
       "titleRequired": "A task needs a title.",
-      "mode": "How to create it",
-      "promptLabel": "What should the agent do?",
-      "agentRequired": "Choose an agent to hand this to.",
-      "promptRequired": "Say what the agent should do.",
       "agentAssigned": "Handed to {name}. Nothing runs until someone starts it."
    },
    "artifacts": {

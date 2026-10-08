@@ -33,7 +33,6 @@ const meta = {
       useUiPrefsStore.setState(useUiPrefsStore.getInitialState());
       useCreateIssueStore.setState({
          isOpen: true,
-         mode: 'manual',
          draft: { ...EMPTY_DRAFT },
          createAnother: false,
       });
@@ -63,24 +62,6 @@ export const WriteIt: Story = {
       await userEvent.click(statusPicker);
       await userEvent.click(await body.findByRole('option', { name: /In Progress/ }));
       await expect(useCreateIssueStore.getState().draft.statusId).toBe('in-progress');
-   },
-};
-
-/** Handing it over starts from the Orchestrator. */
-export const HandItToAnAgent: Story = {
-   beforeEach: () => {
-      useCreateIssueStore.setState({ mode: 'agent' });
-   },
-   play: async ({ canvasElement }) => {
-      const body = within(canvasElement.ownerDocument.body);
-      const dialog = within(await body.findByRole('dialog', { name: 'New task' }));
-      await expect(dialog.getByRole('tab', { name: 'Hand it to an agent' })).toHaveAttribute(
-         'aria-selected',
-         'true'
-      );
-      await expect(
-         await dialog.findByRole('combobox', { name: 'Assigned to Orchestrator' })
-      ).toBeVisible();
    },
 };
 

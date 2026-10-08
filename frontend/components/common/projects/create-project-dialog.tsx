@@ -310,7 +310,6 @@ export function CreateProjectDialog() {
                      </label>
                      <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
                         <TiptapAiEditor
-                           data-heading="h3"
                            value={form.description}
                            onChange={(description) => setForm({ ...form, description })}
                            placeholder="Write a description or collect the work…"

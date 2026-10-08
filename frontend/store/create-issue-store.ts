@@ -10,14 +10,7 @@ import { persist } from 'zustand/middleware';
  * is thrown away when the dialog closes. The *draft* is what a person wrote,
  * and it survives, because closing a dialog by accident is not a decision to
  * discard a description someone spent five minutes on.
- *
- * The dialog has two modes — write the task yourself, or say what you want
- * and hand it to an agent — and the last one used is remembered, since a
- * person who hands work to agents all day should not have to switch every
- * time.
  */
-
-export type CreateIssueMode = 'manual' | 'agent';
 
 export interface CreateIssueContext {
    /** Pre-selected column, when opened from a board. */
@@ -41,10 +34,6 @@ export interface CreateIssueDraft {
    labelIds: string[];
    /** Custom property values, applied once the task exists. */
    properties: Record<string, unknown>;
-   /** Agent mode: what the agent is asked to do. Becomes title and description. */
-   prompt: string;
-   /** Agent mode: who it is handed to. Separate from `assignee` so switching modes loses nothing. */
-   agent: { id: string; name: string } | null;
 }
 
 export const EMPTY_DRAFT: CreateIssueDraft = {
@@ -57,8 +46,6 @@ export const EMPTY_DRAFT: CreateIssueDraft = {
    targetDate: '',
    labelIds: [],
    properties: {},
-   prompt: '',
-   agent: null,
 };
 
 const EMPTY_CONTEXT: CreateIssueContext = {
@@ -75,7 +62,6 @@ interface CreateIssueState {
    context: CreateIssueContext;
    draft: CreateIssueDraft;
    createAnother: boolean;
-   mode: CreateIssueMode;
 
    openModal: (status?: Status) => void;
    openModalWith: (context: Partial<CreateIssueContext>) => void;
@@ -84,11 +70,10 @@ interface CreateIssueState {
    setDraft: (patch: Partial<CreateIssueDraft>) => void;
    resetDraft: () => void;
    setCreateAnother: (value: boolean) => void;
-   setMode: (mode: CreateIssueMode) => void;
 }
 
 type PersistedCreateIssue = Partial<
-   Pick<CreateIssueState, 'createAnother' | 'mode'> & { draft: Partial<CreateIssueDraft> }
+   Pick<CreateIssueState, 'createAnother'> & { draft: Partial<CreateIssueDraft> }
 >;
 
 export const useCreateIssueStore = create<CreateIssueState>()(
@@ -99,7 +84,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          context: EMPTY_CONTEXT,
          draft: EMPTY_DRAFT,
          createAnother: false,
-         mode: 'manual',
 
          openModal: (status) =>
             set({
@@ -120,7 +104,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          setDraft: (patch) => set((state) => ({ draft: { ...state.draft, ...patch } })),
          resetDraft: () => set({ draft: EMPTY_DRAFT }),
          setCreateAnother: (createAnother) => set({ createAnother }),
-         setMode: (mode) => set({ mode }),
       }),
       {
          name: 'create-issue-v3',
@@ -130,7 +113,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          partialize: (state) => ({
             draft: { ...state.draft, properties: {} },
             createAnother: state.createAnother,
-            mode: state.mode,
          }),
          // A draft saved before a field existed must not come back without it.
          merge: (persisted, current) => {
@@ -138,7 +120,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
             return {
                ...current,
                createAnother: saved.createAnother ?? current.createAnother,
-               mode: saved.mode === 'agent' || saved.mode === 'manual' ? saved.mode : current.mode,
                draft: { ...EMPTY_DRAFT, ...(saved.draft ?? {}), properties: {} },
             };
          },
@@ -148,7 +129,5 @@ export const useCreateIssueStore = create<CreateIssueState>()(
 
 /** True when there is unsent text waiting, which is what the rail's dot means. */
 export function hasIssueDraft(draft: CreateIssueDraft | null): boolean {
-   return Boolean(
-      draft && (draft.title.trim() || draft.description.trim() || draft.prompt?.trim())
-   );
+   return Boolean(draft && (draft.title.trim() || draft.description.trim()));
 }
