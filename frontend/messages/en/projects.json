@@ -12,6 +12,11 @@
       "hiddenByFilters": "{count, plural, =1 {1 project} other {# projects}} hidden by filters",
       "clearFilters": "Clear filters"
    },
+   "title": {
+      "edit": "Edit the title",
+      "empty": "A project needs a title.",
+      "failed": "The title could not be saved."
+   },
    "details": {
       "title": "Details",
       "createdBy": "Created by",

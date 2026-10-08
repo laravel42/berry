@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { SendHorizonal } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
+import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
 import { ProjectTasksSection } from './project-tasks-section';
 
@@ -55,6 +56,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 shrink overflow-y-auto">
                <div className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8">
+                  <ProjectTitle project={project} />
                   <TiptapAiEditor
                      value={description}
                      onChange={() => undefined}

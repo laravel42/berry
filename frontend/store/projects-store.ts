@@ -20,6 +20,7 @@ interface ProjectsState {
    updateProjectLead: (id: string, lead: User) => void;
    updateProjectHealth: (id: string, healthId: Project['health']['id']) => void;
    updateProjectDescription: (id: string, description: string) => void;
+   updateProjectName: (id: string, name: string) => Promise<boolean>;
    deleteProject: (id: string) => void;
    getProjectById: (id: string) => Project | undefined;
 }
@@ -108,6 +109,19 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
 
    updateProjectDescription: (id, description) => {
       persistPatch(id, { description: description || null }, { description });
+   },
+
+   updateProjectName: (id, name) => {
+      const previous = get().projects.find((project) => project.id === id)?.name;
+      get().updateProject(id, { name });
+      return patchWorkspaceProject(id, { name }, viewerFromSession()).then((updated) => {
+         if (updated) {
+            get().updateProject(id, updated);
+            return true;
+         }
+         if (previous !== undefined) get().updateProject(id, { name: previous });
+         return false;
+      });
    },
 
    getProjectById: (id) => get().projects.find((project) => project.id === id),
