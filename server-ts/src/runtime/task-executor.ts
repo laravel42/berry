@@ -2,7 +2,7 @@ import type { Tier } from '../agents/model-tiers.ts';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
-import type { GitHubClient } from '../integrations/github.ts';
+import { gitWriteInvisible, type GitHubClient } from '../integrations/github.ts';
 import type { Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
 import { postRunResult } from '../runs/result-comment.ts';
@@ -259,7 +259,10 @@ export class RuntimeTaskExecutor implements Executor {
             return this.#fail(task, recorder, usage, {
                code: 'DELIVERY_FAILED',
                message: `Repository delivery could not finish: ${error instanceof Error ? error.message : String(error)}`,
-               retryable: false,
+               // A missing repository stays failed. A git-data 404 is also how
+               // GitHub reports a token that cannot write workflow files, and
+               // that one is fixed by reconnecting, so it is tried once more.
+               retryable: gitWriteInvisible(error),
             });
          }
       }

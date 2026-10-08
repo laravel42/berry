@@ -66,12 +66,34 @@ export class GitHubError extends Error {
     * page can be shown.
     */
    readonly detail: string;
-   constructor(message: string, status: number, remedy: GitHubError['remedy'] = 'none', detail = '') {
+   /** `METHOD /path`, so a 404 on a tree write is not the same fact as a missing repository. */
+   readonly request: string;
+   constructor(
+      message: string,
+      status: number,
+      remedy: GitHubError['remedy'] = 'none',
+      detail = '',
+      request = ''
+   ) {
       super(message);
       this.status = status;
       this.remedy = remedy;
       this.detail = detail;
+      this.request = request;
    }
+}
+
+/**
+ * A git-data write GitHub answered 404.
+ *
+ * That status is what a missing repository gets, and also what a tree gets
+ * when it contains `.github/workflows` or `.github/actions` and the token
+ * lacks `workflow`. The second one is fixed by reconnecting, so a delivery
+ * that died on it is worth one more attempt.
+ */
+export function gitWriteInvisible(error: unknown): boolean {
+   if (!(error instanceof GitHubError) || error.status !== 404) return false;
+   return /^POST \/repos\/\S+\/git\/trees(?:\?|$)/.test(error.request);
 }
 
 export interface GitHubClientOptions {
@@ -657,14 +679,25 @@ export class GitHubClient {
                403,
                /rate limit/i.test(detail) ? 'none' : 'grant-access'
             );
-         case 404:
-            // A token that cannot see a repository gets 404, not 403, so this
-            // is as likely to be access as a typo.
+         case 404: {
+            // A token that cannot see a repository gets 404, not 403. A tree
+            // write that includes a workflow file gets the same status when
+            // the token lacks `workflow`, and GitHub's own sentence is often
+            // just "Not Found". The path is what tells the two apart.
+            const request = `${method} ${path}`;
+            const gitWrite = method === 'POST' && /\/git\/trees(?:\?|$)/.test(path);
+            const said = detail && detail !== 'Not Found' ? ` GitHub said: ${detail}.` : '';
+            const scope = gitWrite
+               ? ' A tree that includes .github/workflows or .github/actions gets this status when the token lacks the workflow scope.'
+               : '';
             return new GitHubError(
-               'the repository does not exist, or this connection cannot see it',
+               `the repository does not exist, or this connection cannot see it.${said}${scope} (${request})`,
                404,
-               'grant-access'
+               'grant-access',
+               detail,
+               request
             );
+         }
          default:
             return new GitHubError(
                `GitHub ${method} ${path} failed: ${response.status}${detail ? ` ${detail}` : ''}`,

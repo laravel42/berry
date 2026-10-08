@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GitHubClient, GitHubError } from './github.ts';
+import { GitHubClient, GitHubError, gitWriteInvisible } from './github.ts';
 
 /**
  * The GitHub client against a stubbed API.
@@ -172,6 +172,46 @@ test('every refusal says which of two things an operator should do', async () =>
          }
       );
    }
+});
+
+test('a tree write 404 keeps the GitHub message and the path, and is the retryable kind', async () => {
+   const { client } = stub((call) => {
+      if (call.method === 'POST' && call.url.endsWith('/git/trees')) return json({ message: 'Not Found' }, 404);
+      if (call.url.includes('/git/commits/')) return json({ tree: { sha: 'abc' } });
+      if (call.method === 'POST' && call.url.endsWith('/git/blobs')) return json({ sha: 'blob' });
+      return json({ message: 'unexpected' }, 500);
+   });
+   await assert.rejects(
+      client.publishCandidate({
+         owner: 'berry',
+         name: 'app',
+         branch: 'agent/task',
+         baseCommit: 'a'.repeat(40),
+         defaultCommit: 'a'.repeat(40),
+         expectedHead: null,
+         message: 'work',
+         timestamp: '2026-10-07T00:00:00Z',
+         files: [{ path: '.github/workflows/ci.yml', mode: '100644', content: 'bmFtZTogY2kK' }],
+      }),
+      (error: GitHubError) => {
+         assert.equal(error.status, 404);
+         assert.equal(error.remedy, 'grant-access');
+         assert.match(error.message, /workflow scope/);
+         assert.match(error.message, /POST \/repos\/berry\/app\/git\/trees/);
+         assert.equal(error.detail, 'Not Found');
+         assert.equal(gitWriteInvisible(error), true);
+         return true;
+      }
+   );
+});
+
+test('a missing repository 404 names the request and is not a git-data miss', async () => {
+   const { client } = stub(() => json({ message: 'Not Found' }, 404));
+   await assert.rejects(client.repository('berry', 'missing'), (error: GitHubError) => {
+      assert.match(error.message, /GET \/repos\/berry\/missing/);
+      assert.equal(gitWriteInvisible(error), false);
+      return true;
+   });
 });
 
 test('a refusal never echoes the credential', async () => {
