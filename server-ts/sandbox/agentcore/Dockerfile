@@ -22,7 +22,8 @@ FROM --platform=${BERRY_RUNTIME_PLATFORM} node:22-slim
 # The toolchain an agent's commands reach for: git to clone and push, ffmpeg for
 # media, a compiler for native modules, and Python in full — pip, venv, and
 # `python` as well as `python3` — for a repository written in it or scripted
-# with it. procps for `ps` and `pkill`.
+# with it. procps for `ps` and `pkill`. `file` because agents inspect image
+# assets with it, and a missing binary is exit 127 on every one of those tasks.
 #
 # deb.debian.org sometimes publishes a package index before the file behind it
 # has finished syncing. apt then refuses the download ("unexpected size") and
@@ -33,7 +34,7 @@ RUN set -eu; \
    while [ "$attempt" -le 3 ]; do \
       if apt-get update \
          && apt-get install -y --no-install-recommends \
-            git ffmpeg ca-certificates openssh-client curl tar unzip gcc g++ make procps \
+            git ffmpeg ca-certificates openssh-client curl tar unzip gcc g++ make procps file \
             python3 python3-pip python3-venv python-is-python3; then \
          installed=1; \
          break; \
