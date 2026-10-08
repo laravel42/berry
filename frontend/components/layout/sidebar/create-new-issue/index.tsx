@@ -489,7 +489,7 @@ export function CreateNewIssue() {
                         date={parseDraftDate(draft.targetDate)}
                         onChange={(targetDate) => setDraft({ targetDate: toDraftDate(targetDate) })}
                      />
-                     <Popover>
+                     <Popover modal>
                         <PopoverTrigger asChild>
                            <Button variant="secondary" size="xs">
                               <TagIcon className="size-3.5" />

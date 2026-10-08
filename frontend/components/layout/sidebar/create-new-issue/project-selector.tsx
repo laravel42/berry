@@ -48,7 +48,7 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
 
    return (
       <div className="*:not-first:mt-2">
-         <Popover open={open} onOpenChange={setOpen}>
+         <Popover open={open} onOpenChange={setOpen} modal>
             <PopoverTrigger asChild>
                <Button
                   id={id}

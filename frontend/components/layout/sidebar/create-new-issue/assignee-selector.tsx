@@ -148,9 +148,11 @@ export function AssigneeSelector({
       );
    };
 
+   // `modal`: this opens inside the create dialog, whose scroll lock stops
+   // wheel events reaching the list otherwise; a modal popover scrolls on its own.
    return (
       <div className="*:not-first:mt-2">
-         <Popover open={open} onOpenChange={setOpen}>
+         <Popover open={open} onOpenChange={setOpen} modal>
             <PopoverTrigger asChild>
                <Button
                   id={id}
