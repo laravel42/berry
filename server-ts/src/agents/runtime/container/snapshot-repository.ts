@@ -63,10 +63,14 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          // plain reason that it is not done.
          if (!checkpoint) {
             const report = await verify({ session, directory, commands: repo.verifyCommands });
-            await emitterSink(emit).appendVerified(envelope.runId, {
-               passed: report.passed, complete: report.complete, durationMs: report.durationMs,
-               results: report.results.map((r) => ({ command: r.command, exitCode: r.exitCode, passed: r.passed, durationMs: r.durationMs, error: r.error })),
-            });
+            // An empty list is not a failed suite. Recording it as `passed:
+            // false` made every project with no checks look unverified.
+            if (report.results.length > 0) {
+               await emitterSink(emit).appendVerified(envelope.runId, {
+                  passed: report.passed, complete: report.complete, durationMs: report.durationMs,
+                  results: report.results.map((r) => ({ command: r.command, exitCode: r.exitCode, passed: r.passed, durationMs: r.durationMs, error: r.error })),
+               });
+            }
          }
          // A crash dump is never the work: a browser or tool that crashed in the
          // checkout left a 28 MB `core` there, and it failed the delivery on size.

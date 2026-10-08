@@ -26,13 +26,22 @@ test('snapshot work returns complete candidate bytes, including commits, without
       fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
       credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
    } });
-   const directory = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   const events: Array<{ type: string; message?: { kind?: string } }> = [];
+   const emit = (event: { type: string; message?: { kind?: string } }) => {
+      events.push(event);
+   };
+   const directory = await repository.prepare({ envelope, session, warm: false, emit });
    assert.ok(directory);
    await writeFile(join(directory, 'keep.txt'), 'after');
    await rm(join(directory, 'remove.txt'));
    assert.equal((await session.exec('git add -A && git -c user.name=Agent -c user.email=agent@test.invalid commit -qm work', { cwd: directory })).exitCode, 0);
    await writeFile(join(directory, 'binary.dat'), Buffer.from([0, 255, 1]));
-   const delivery = await repository.deliver({ envelope, session, directory, summary: 'done', emit: () => {} });
+   const delivery = await repository.deliver({ envelope, session, directory, summary: 'done', emit });
+   assert.equal(
+      events.some((event) => event.message?.kind === 'verified'),
+      false,
+      'a project with no checks must not record a failed verification'
+   );
    assert.ok(delivery?.candidate);
    assert.deepEqual(delivery.candidate.map((file) => file.path).sort(), ['binary.dat', 'keep.txt', 'remove.txt']);
    assert.equal(delivery.candidate.find((file) => file.path === 'remove.txt')?.content, null);

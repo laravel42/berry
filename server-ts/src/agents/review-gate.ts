@@ -1198,7 +1198,9 @@ export function reviewPrompt(material: ReviewMaterial, diff: string | null): str
       `Task ${material.issue.identifier}: ${material.issue.title}`,
       material.issue.description ? fenced('task_description', material.issue.description) : '',
       material.run.summary ? `The author's account of the work:\n${fenced('author_summary', material.run.summary)}` : '',
-      material.verified ? `Checks that ran on the branch:\n${fenced('checks', checksText(material.verified))}` : 'No project checks ran on the branch.',
+      material.verified && material.verified.results.length > 0
+         ? `Checks that ran on the branch:\n${fenced('checks', checksText(material.verified))}`
+         : 'No project checks ran on the branch.',
       material.delivered?.files.length
          ? `Files changed (${material.delivered.files.length}):\n${material.delivered.files.map((file) => `- ${file}`).join('\n')}`
          : '',
