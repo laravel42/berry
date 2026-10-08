@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { statfs } from 'node:fs/promises';
 import type { AwsCredentials } from '../model.ts';
 import { join } from 'node:path';
 import type { McpClient, Tool } from '@strands-agents/sdk';
@@ -98,6 +99,8 @@ export interface HandlerDeps {
    repository?: RepositoryStep;
    /** Where the video job writes. Absent means agents get no video tool. */
    videoOutput?: VideoOutput | undefined;
+   /** Bytes free under the work root, or null when it cannot be read. Injected by tests. */
+   freeBytes?: (path: string) => Promise<number | null>;
    /** Connects the agent's MCP servers. Injected by tests; production uses Strands clients. */
    loadMcp?: (servers: EnvelopeMcpServerLike[]) => Promise<McpClient[]>;
    /** Where a dropped MCP tool is reported. Defaults to a JSON line on stderr. */
@@ -105,6 +108,25 @@ export interface HandlerDeps {
 }
 
 const consoleWarn: Warn = (message, fields) => console.warn(JSON.stringify({ level: 'WARN', msg: message, ...fields }));
+
+/**
+ * The free space a run needs on the workspace volume before it starts.
+ *
+ * An install fills a nearly full volume partway, and the agent then spends
+ * its steps on `du`, `df` and deleting what it can reach — once
+ * `sudo rm -rf /usr/local/lib/node_modules` — instead of the task. Refused at
+ * the start, the run fails as a fault outside the task and is retried.
+ */
+export const MIN_FREE_WORKSPACE_BYTES = 2 * 1024 ** 3;
+
+async function statfsFree(path: string): Promise<number | null> {
+   try {
+      const stats = await statfs(path);
+      return Number(stats.bavail) * Number(stats.bsize);
+   } catch {
+      return null;
+   }
+}
 
 /** Stop reasons that mean a ceiling was reached rather than the work ending. */
 const LIMIT_STOPS: readonly string[] = ['limitTurns', 'limitOutputTokens', 'limitTotalTokens', 'maxTokens'];
@@ -188,6 +210,18 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    let mcpClients: McpClient[] = [];
 
    try {
+      const free = await (deps.freeBytes ?? statfsFree)(deps.workRoot);
+      if (free !== null && free < MIN_FREE_WORKSPACE_BYTES) {
+         emit({
+            type: 'task.failed',
+            failure: {
+               code: 'WORKSPACE_DISK_FULL',
+               message: `The runtime's workspace volume has ${(free / 1024 ** 3).toFixed(1)} GiB free, under the ${MIN_FREE_WORKSPACE_BYTES / 1024 ** 3} GiB a run needs. Free space on the runtime host and run the task again.`,
+               retryable: true,
+            },
+         });
+         return;
+      }
       // The agent's skills, laid out where skill-aware tools look, and its
       // MCP servers as Strands clients beside Berry's own tools.
       await writeSkills(join(deps.workRoot, key), envelope.agent.skills, (target, content) => workspace.writeFile(target, content));

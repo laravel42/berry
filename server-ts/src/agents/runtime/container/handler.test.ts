@@ -171,6 +171,17 @@ test('an unreadable tool manifest fails the task instead of running toolless', a
    assert.equal(last.failure.retryable, true);
 });
 
+test('a nearly full workspace volume fails the run before the model is called, as a fault to retry', async () => {
+   const { model, run } = harness([say('x')], { freeBytes: async () => 512 * 1024 ** 2 });
+   const events = await run(envelope());
+   const last = events.at(-1);
+   assert.ok(last?.type === 'task.failed');
+   assert.equal(last.failure.code, 'WORKSPACE_DISK_FULL');
+   assert.equal(last.failure.retryable, true);
+   assert.match(last.failure.message, /0\.5 GiB free/);
+   assert.equal(model.received.length, 0);
+});
+
 test('a transcript is normalised to alternating turns that start with the user', () => {
    assert.deepEqual(
       toConversation([
