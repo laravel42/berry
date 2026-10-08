@@ -71,6 +71,8 @@ export interface RepositoryStep {
       /** A checkpoint of unfinished work: collected as-is, without running the verify commands. */
       checkpoint?: boolean;
    }): Promise<TaskDelivery | null>;
+   /** What the checkout's toolchain already is, for the agent's first message; empty when there is nothing to say. */
+   describe?(input: { session: LocalSession; directory: string }): Promise<string>;
 }
 
 export interface HandlerDeps {
@@ -324,8 +326,13 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          directory && envelope.repo && !envelope.repo.readOnly
             ? await restoreTaskFiles(api, workspace, directory).catch(() => ({ placed: [], skipped: [] }))
             : { placed: [], skipped: [] };
+      // Never fatal either: without it the agent finds the same out by itself.
+      const toolchain =
+         directory && envelope.repo && !envelope.repo.readOnly && deps.repository?.describe
+            ? await deps.repository.describe({ session: workspace, directory }).catch(() => '')
+            : '';
 
-      const result = await agent.invoke(envelope.task.prompt + restoredNote(restored) + budgetContract(envelope.agent.maxTurns), {
+      const result = await agent.invoke(envelope.task.prompt + restoredNote(restored) + toolchain + budgetContract(envelope.agent.maxTurns), {
          cancelSignal: signal,
          limits: {
             ...(envelope.agent.maxTurns ? { turns: envelope.agent.maxTurns } : {}),

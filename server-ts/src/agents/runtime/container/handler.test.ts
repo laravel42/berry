@@ -347,6 +347,24 @@ test('warm workspaces replace rotated and removed environment values', async () 
    assert.deepEqual(observed, ['old', 'new', 'absent']);
 });
 
+test('what the checkout says about its toolchain opens the first message', async () => {
+   const { model, run } = harness([say('done')], {
+      repository: {
+         prepare: async () => '.',
+         deliver: async () => null,
+         describe: async () => '\n\nYour toolchain, as Berry found it before you started\n- Packages: pnpm.\n',
+      },
+   });
+   const repo = {
+      fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
+      credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
+   };
+   await run(envelope({ repo, task: { ...envelope().task, prompt: 'build it' } }));
+   assert.match(texts(model.received[0]).at(-1) ?? '', /^build it[\s\S]*Your toolchain[\s\S]*Packages: pnpm/);
+   await run(envelope({ repo: { ...repo, readOnly: true }, task: { ...envelope().task, prompt: 'read it' } }));
+   assert.doesNotMatch(texts(model.received[1]).at(-1) ?? '', /Your toolchain/, 'a role without a shell is not told how to install');
+});
+
 test('turn exhaustion fails visibly and hands back its work as an unverified checkpoint', async () => {
    const seen: Array<{ checkpoint: boolean | undefined }> = [];
    const candidate = {

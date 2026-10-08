@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdtemp, mkdir, readdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LocalSession } from './local-session.ts';
 import { isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository } from './snapshot-repository.ts';
@@ -92,6 +92,51 @@ test('a path is installed output only when a folder above it is one', () => {
    assert.equal(isInstalledPath('node_modules'), false, 'a file named like the folder');
    assert.equal(isInstalledPath('docs/node_modules.md'), false);
    assert.equal(isInstalledPath('src/venv/config.py'), false, 'only the dotted .venv is an environment');
+});
+
+test('the next run on a session takes over its installed dependencies and the old checkout is removed', async (t) => {
+   const root = await mkdtemp(join(tmpdir(), 'berry-snapshot-test-'));
+   t.after(() => rm(root, { recursive: true, force: true }));
+   const workspace = join(root, 'workspace');
+   const session = new LocalSession({ id: 'test', root: workspace });
+   const archiveOf = async (lock: string) => {
+      await rm(join(root, 'source'), { recursive: true, force: true });
+      await mkdir(join(root, 'source'), { recursive: true });
+      await writeFile(join(root, 'source', 'package.json'), '{"scripts":{"test":"node --test"}}');
+      await writeFile(join(root, 'source', 'package-lock.json'), lock);
+      await writeFile(join(root, 'source', '.nvmrc'), '20\n');
+      const path = join(root, 'archive.tar.gz');
+      assert.equal((await session.exec(`tar -czf ${shellQuote(path)} -C ${shellQuote(root)} source`)).exitCode, 0);
+      return readFile(path);
+   };
+   let archive = await archiveOf('{"lockfileVersion":3}');
+   const repository = snapshotRepository({ fetch: (async () => new Response(archive)) as typeof fetch });
+   const envelope = sampleEnvelope({ berry: { apiUrl: 'https://berry.test', token: 'scoped-task-token' }, repo: {
+      fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
+      credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
+   } });
+
+   const first = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   assert.ok(first);
+   assert.match(await repository.describe!({ session, directory: first }), /Dependencies: not installed\. Run npm ci/);
+   assert.match(await repository.describe!({ session, directory: first }), /\.nvmrc asks for 20\. Run nvm install once/);
+   await mkdir(join(first, 'node_modules', 'left-pad'), { recursive: true });
+   await writeFile(join(first, 'node_modules', 'left-pad', 'index.js'), 'pad');
+
+   const second = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   assert.ok(second);
+   assert.equal(await readFile(join(second, 'node_modules', 'left-pad', 'index.js'), 'utf8'), 'pad');
+   assert.deepEqual((await readdir(workspace)).filter((name) => name.startsWith('repo-')), [basename(second)]);
+   assert.match(await repository.describe!({ session, directory: second }), /in place from this task's previous run/);
+   const delivery = await repository.deliver({ envelope, session, directory: second, summary: 'done', emit: () => {} });
+   assert.deepEqual(delivery?.candidate, [], 'carried dependencies are not the work');
+
+   archive = await archiveOf('{"lockfileVersion":3,"packages":{}}');
+   const third = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   assert.ok(third);
+   await assert.rejects(readdir(join(third, 'node_modules')), 'a changed lockfile installs afresh');
+   assert.deepEqual((await readdir(workspace)).filter((name) => name.startsWith('repo-')), [basename(third)]);
+   assert.match(await repository.describe!({ session, directory: third }), /Dependencies: not installed/);
 });
 
 test('a backup or patch leftover is known by its suffix', () => {

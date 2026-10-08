@@ -1,4 +1,5 @@
-import { mkdtemp, open, readFile, readlink, realpath, lstat, writeFile, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, open, readdir, readFile, readlink, realpath, lstat, writeFile, rm } from 'node:fs/promises';
 import { join, resolve, relative, isAbsolute, sep } from 'node:path';
 import { shellQuote } from '../../checkout.ts';
 import { parseNumstat } from '../../delivery.ts';
@@ -7,7 +8,7 @@ import { emitterSink } from './emitter.ts';
 import type { RepositoryStep } from './handler.ts';
 import type { LocalSession } from './local-session.ts';
 import { applyMergeOverlay } from './merge-overlay.ts';
-import { checkCommands, LOCKFILES, packageChecks, type PackageChecks } from './package-checks.ts';
+import { checkCommands, LOCKFILES, packageChecks, type PackageChecks, type PackageManager } from './package-checks.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 
 /** Fresh, credential-free snapshots. The control plane publishes the returned candidate. */
@@ -15,6 +16,7 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
    const baselines = new WeakMap<LocalSession, string>();
    const merges = new WeakSet<LocalSession>();
    const packages = new WeakMap<LocalSession, PackageChecks>();
+   const carried = new WeakSet<LocalSession>();
    const git = 'git -c core.hooksPath=/dev/null -c core.fsmonitor=false';
    return {
       async prepare({ envelope, session, emit, signal }) {
@@ -59,6 +61,9 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
             await applyMergeOverlay({ envelope, session, directory, fetch: options.fetch ?? fetch, signal });
             merges.add(session);
          }
+         // After the baseline commit, so what is carried is never part of it.
+         if (await carryDependencies(session, directory)) carried.add(session);
+         else carried.delete(session);
          await emitterSink(emit).appendRepositoryReady(envelope.runId, { repository: repo.fullName, branch: repo.branch, baseCommit: repo.snapshotCommit });
          return directory;
       },
@@ -136,7 +141,118 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          const merged = merges.delete(session);
          return { ...stat, committed: false, commit: null, branch: repo.branch, candidate: files, ...(merged ? { merged: true } : {}) };
       },
+      async describe({ session, directory }) {
+         return describeToolchain(session, directory, carried.has(session));
+      },
    };
+}
+
+/** Lockfiles are compared whole; an app's package-lock.json is past the 1 MiB other reads stop at. */
+const MAX_LOCKFILE_BYTES = 32 * 1024 * 1024;
+
+/** The checkout's lockfiles as one digest, or null when it commits none. */
+async function lockDigest(directory: string): Promise<string | null> {
+   const hash = createHash('sha256');
+   let found = false;
+   for (const [file] of LOCKFILES) {
+      try {
+         const info = await lstat(join(directory, file));
+         if (!info.isFile() || info.size > MAX_LOCKFILE_BYTES) continue;
+         hash.update(`${file}\0`).update(await readFile(join(directory, file))).update('\0');
+         found = true;
+      } catch {
+         // Not committed.
+      }
+   }
+   return found ? hash.digest('hex') : null;
+}
+
+/**
+ * Moves the last run's installed dependencies into the new checkout, then
+ * removes the checkouts earlier runs on this session left behind.
+ *
+ * Every run unpacks a fresh checkout beside the old ones, and nothing removed
+ * them: a session held four, each with a gigabyte of node_modules, until the
+ * volume filled and agents spent their steps on `df` and reinstalling. The
+ * install itself, a minute a run, was repeated by every continuation and
+ * retry of the same task. Dependencies move only between checkouts of one
+ * session, so nothing crosses from one session to another, and only when the
+ * lockfiles are byte for byte the same. Entries are read without following a
+ * link, and the moves run as the session's user.
+ */
+async function carryDependencies(session: LocalSession, directory: string): Promise<boolean> {
+   const entries = await readdir(session.root, { withFileTypes: true }).catch(() => []);
+   const earlier = entries
+      .filter((entry) => entry.isDirectory() && entry.name.startsWith('repo-') && join(session.root, entry.name) !== directory)
+      .map((entry) => join(session.root, entry.name));
+   if (earlier.length === 0) return false;
+   let moved = false;
+   const digest = await lockDigest(directory);
+   const target = join(directory, 'node_modules');
+   const free = await lstat(target).then(() => false, () => true);
+   if (digest !== null && free) {
+      const candidates: Array<{ path: string; at: number }> = [];
+      for (const checkout of earlier) {
+         const info = await lstat(join(checkout, 'node_modules')).catch(() => null);
+         if (info?.isDirectory() && (await lockDigest(checkout)) === digest) {
+            candidates.push({ path: join(checkout, 'node_modules'), at: info.mtimeMs });
+         }
+      }
+      const newest = candidates.sort((a, b) => b.at - a.at)[0];
+      if (newest) moved = (await session.exec(`mv -- ${shellQuote(newest.path)} ${shellQuote(target)}`, { cwd: session.root })).exitCode === 0;
+   }
+   await session.exec(`rm -rf -- ${earlier.map(shellQuote).join(' ')}`, { cwd: session.root });
+   return moved;
+}
+
+/** The command that installs from a committed lockfile without changing it. */
+const INSTALL: Record<PackageManager, string> = {
+   npm: 'npm ci',
+   pnpm: 'pnpm install --frozen-lockfile',
+   yarn: 'yarn install --frozen-lockfile',
+   bun: 'bun install --frozen-lockfile',
+};
+
+/**
+ * What the agent would otherwise spend its first steps finding out: which
+ * package manager, which Node, and whether dependencies are installed. Runs
+ * opened with `cat .nvmrc`, `node --version`, `ls *lock*` and
+ * `test -d node_modules`, one reply each, in a third of all runs.
+ */
+async function describeToolchain(session: LocalSession, directory: string, carried: boolean): Promise<string> {
+   if ((await readRegularFile(join(directory, 'package.json'))) === null) return '';
+   const lockfiles = (await Promise.all(LOCKFILES.map(async (entry) => (await lstat(join(directory, entry[0])).then((i) => i.isFile(), () => false)) ? entry : null)))
+      .filter((entry) => entry !== null);
+   const lock = lockfiles[0];
+   const manager: PackageManager = lock?.[1] ?? 'npm';
+   const lines: string[] = [];
+   lines.push(
+      lock
+         ? `- Packages: ${manager}, from the committed ${lock[0]}. Install, build and test with it.`
+         : '- Packages: no lockfile is committed; npm is the default.'
+   );
+   const nvmrc = (await readRegularFile(join(directory, '.nvmrc')))?.split('\n')[0]?.trim() ?? '';
+   if (nvmrc === '') {
+      lines.push(`- Node: ${process.versions.node}; the repository pins no version.`);
+   } else {
+      const wanted = nvmrc.replace(/^v/, '');
+      const installed = await readdir(join(session.root, '.nvm', 'versions', 'node')).catch(() => [] as string[]);
+      const has = /^\d+(\.\d+){0,2}$/.test(wanted) && installed.some((version) => version === `v${wanted}` || version.startsWith(`v${wanted}.`));
+      lines.push(
+         has
+            ? `- Node: .nvmrc asks for ${nvmrc}. It is installed in this workspace, and every command already runs on it.`
+            : `- Node: .nvmrc asks for ${nvmrc}. Run nvm install once before anything that needs it; every later command then runs on it.`
+      );
+   }
+   const present = await lstat(join(directory, 'node_modules')).then((info) => info.isDirectory(), () => false);
+   lines.push(
+      carried
+         ? '- Dependencies: node_modules is in place from this task\'s previous run, installed from the same lockfile. Do not reinstall unless a command reports something missing.'
+         : present
+           ? '- Dependencies: node_modules is committed in the repository.'
+           : `- Dependencies: not installed. Run ${lock ? INSTALL[manager] : 'npm install'} when the task needs to build, run or test, and not before.`
+   );
+   return '\n\nYour toolchain, as Berry found it before you started\n' + lines.join('\n') + '\n';
 }
 
 /**
