@@ -220,9 +220,14 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
       );
    }
 
-   // A task an agent holds is steered through its runs, the console and the
-   // review, not by commenting on it: no comment box while an agent has it.
-   const agentManaged = issue.assignee ? isAgentUser(issue.assignee) : false;
+   // Once an agent has commented, the task is steered through its runs, the
+   // console and the review. Until then the comments are how a person directs
+   // it, so the box stays and the console does not cover them.
+   const agentSpoke = activity.comments.some((comment) => comment.author.type === 'agent');
+   const commentsKnown = activity.commentsReady;
+   const agentManaged = Boolean(
+      issue.assignee && isAgentUser(issue.assignee) && (!commentsKnown || agentSpoke)
+   );
 
    return (
       <div
@@ -305,7 +310,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
 
             {/* Between the task and its comment bar: docked there when open,
                 and a button floating just above that edge when folded. */}
-            <RunConsole issueId={issue.id} />
+            <RunConsole issueId={issue.id} cover={!commentsKnown || agentSpoke} />
 
             {stickyCommentBar && !agentManaged ? (
                <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">

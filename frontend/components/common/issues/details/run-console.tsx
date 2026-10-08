@@ -31,10 +31,11 @@ import { useEffect, useId, useRef, useState } from 'react';
  * terminal: a run's transcript beside the work it produced. It follows the
  * live run, or the latest one when nothing is running, until a person picks
  * another from its list or from a run's transcript button; Follow returns it
- * to the live one. Open while a run is live, folded to its bar otherwise,
- * and a person's own toggle wins either way.
+ * to the live one. Open while a run is producing output, folded to its bar
+ * while it is only queued or while the task still has no comment from an
+ * agent, and a person's own toggle wins either way.
  */
-export function RunConsole({ issueId }: { issueId: string }) {
+export function RunConsole({ issueId, cover = true }: { issueId: string; cover?: boolean }) {
    const t = useTranslations('issueDetail.console');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const { runs, activeRun, upsert } = useIssueRuns(issueId);
@@ -71,8 +72,10 @@ export function RunConsole({ issueId }: { issueId: string }) {
 
    const picked = chosen ? (runs.find((run) => run.id === chosen) ?? null) : null;
    const run: RunRecord | null = picked ?? activeRun ?? runs[0] ?? null;
-   // A run starting opens the console, even one a person folded earlier: what
-   // the agent now does is what the task page is for until it stops.
+   // A new live run clears a fold from the previous one. Opening still waits
+   // until that run is going: a queued run has no transcript, and an empty
+   // console would cover the task. A task with no agent comment stays
+   // uncovered too, so those comments remain the thing on the page.
    const liveRunId = activeRun?.id ?? null;
    useEffect(() => {
       if (liveRunId) setToggled(null);
@@ -94,7 +97,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
 
    const nameOf = (entry: RunRecord) => getAgentById(entry.agentId)?.name ?? t('agent');
    const live = !isTerminalRunStatus(run.status);
-   const open = toggled ?? live;
+   const open = toggled ?? (run.status === 'running' && cover);
 
    const tabs = [...runs].reverse();
 

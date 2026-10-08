@@ -393,6 +393,9 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
    const [comments, setComments] = useState<ApiComment[]>([]);
    const [events, setEvents] = useState<EventItem[]>([]);
    const [error, setError] = useState<string | null>(null);
+   // False while a task's comments are still being read, so the page does not
+   // treat "not loaded" as "nobody has commented".
+   const [commentsReady, setCommentsReady] = useState(false);
    const agents = useAgentsStore((state) => state.agents);
    const hydrateAgents = useAgentsStore((state) => state.hydrateAgents);
    const { runs, upsert } = useIssueRuns(issueId);
@@ -419,9 +422,11 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
          setComments([]);
          setEvents([]);
          setError(null);
+         setCommentsReady(true);
          return;
       }
       let cancelled = false;
+      setCommentsReady(false);
       void Promise.all([
          loadIssueComments(issueRef).catch((cause: unknown) => {
             if (cancelled) return [];
@@ -435,6 +440,7 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
       ]).then(([loadedComments, activity]) => {
          if (cancelled) return;
          setComments(loadedComments);
+         setCommentsReady(true);
          setEvents(
             activity.flatMap((entry) => {
                const described = describeActivity(entry);
@@ -478,6 +484,7 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
 
    return {
       comments,
+      commentsReady,
       events,
       runs,
       error,
