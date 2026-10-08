@@ -47,7 +47,7 @@ const ORDERINGS: { value: ProjectsOrdering; label: string }[] = [
 const touchRow = 'max-lg:min-h-11';
 
 /** Display popover for the Projects page, laid out as a task list's. */
-export function ProjectsDisplayOptions() {
+export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
    const {
       viewType,
       grouping,
@@ -78,9 +78,15 @@ export function ProjectsDisplayOptions() {
    return (
       <Popover>
          <PopoverTrigger asChild>
-            <Button size="xs" variant="outline" className="relative border-muted-foreground/15">
-               <SlidersHorizontal className="size-4 mr-1" />
-               Display
+            <Button
+               size="xs"
+               variant="outline"
+               className="relative border-muted-foreground/15"
+               aria-label={iconOnly ? 'Display' : undefined}
+               title={iconOnly ? 'Display' : undefined}
+            >
+               <SlidersHorizontal className={cn('size-4', !iconOnly && 'mr-1')} />
+               {iconOnly ? null : 'Display'}
                {!isDefault && (
                   <span
                      aria-hidden="true"

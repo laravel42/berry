@@ -6,3 +6,5 @@ pnpm-lock.yaml
 .github
 build
 dist
+# Vendored bazza/ui data-table-filter, kept close to upstream.
+components/data-table-filter

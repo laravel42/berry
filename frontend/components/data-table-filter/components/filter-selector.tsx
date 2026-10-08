@@ -96,6 +96,7 @@ function __FilterSelector<TData>({
             iconOnly && 'px-2',
           )}
           aria-label={t('filter', locale)}
+          title={iconOnly ? t('filter', locale) : undefined}
         >
           <FilterIcon className="size-4" />
           {!iconOnly && <span>{t('filter', locale)}</span>}

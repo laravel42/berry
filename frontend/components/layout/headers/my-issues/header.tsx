@@ -174,35 +174,37 @@ export default function Header() {
                })}
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-               <IssueFilterTrigger />
+               <IssueFilterTrigger iconOnly />
                <IssueFilterBarActions />
                <Button
                   size="xs"
                   variant="outline"
+                  aria-label={t('insights')}
+                  title={t('insights')}
                   className={cn(
                      // Below `lg` the panels these open cover the list rather
                      // than sit beside it; the same button closes them.
-                     'border-muted-foreground/15',
+                     'border-muted-foreground/15 px-2',
                      openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
                   )}
                   onClick={() => togglePanel('insights')}
                >
-                  <BarChart3 className="size-4" />
-                  {t('insights')}
+                  <BarChart3 className="size-4" aria-hidden="true" />
                </Button>
+               <DisplayOptions iconOnly />
                <Button
                   size="xs"
                   variant="outline"
+                  aria-label={t('breakdown')}
+                  title={t('breakdown')}
                   className={cn(
-                     'border-muted-foreground/15',
+                     'border-muted-foreground/15 px-2',
                      openPanel === 'breakdown' && 'bg-secondary hover:bg-secondary/80'
                   )}
                   onClick={() => togglePanel('breakdown')}
                >
-                  <PanelRight className="size-4" />
-                  {t('breakdown')}
+                  <PanelRight className="size-4" aria-hidden="true" />
                </Button>
-               <DisplayOptions />
             </div>
          </div>
       </div>

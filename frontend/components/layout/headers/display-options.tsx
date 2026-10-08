@@ -114,6 +114,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                size="xs"
                variant="outline"
                aria-label={iconOnly ? t('label') : undefined}
+               title={iconOnly ? t('label') : undefined}
             >
                <SlidersHorizontal className={cn('size-4', !iconOnly && 'mr-1')} />
                {iconOnly ? null : t('label')}

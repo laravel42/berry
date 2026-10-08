@@ -428,20 +428,21 @@ export default function Projects() {
                })}
             </div>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-               <ListFilterTrigger filter={filter} />
+               <ListFilterTrigger filter={filter} iconOnly />
                <Button
                   size="xs"
                   variant="outline"
+                  aria-label={lists('projects.insights')}
+                  title={lists('projects.insights')}
                   className={cn(
-                     'border-muted-foreground/15',
+                     'border-muted-foreground/15 px-2',
                      openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
                   )}
                   onClick={() => togglePanel('insights')}
                >
-                  <BarChart3 className="size-4" />
-                  {lists('projects.insights')}
+                  <BarChart3 className="size-4" aria-hidden="true" />
                </Button>
-               <ProjectsDisplayOptions />
+               <ProjectsDisplayOptions iconOnly />
             </div>
          </div>
 

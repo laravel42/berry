@@ -97,8 +97,8 @@ export default function Header({
             <div className="flex shrink-0 items-center gap-1">
                {listControls ? (
                   <>
-                     <IssueFilterTrigger />
-                     <DisplayOptions />
+                     <IssueFilterTrigger iconOnly />
+                     <DisplayOptions iconOnly />
                   </>
                ) : null}
                <AiWorkflowButton project={project} />

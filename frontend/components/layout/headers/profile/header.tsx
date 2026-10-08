@@ -157,34 +157,36 @@ export default function Header({ member }: { member: User }) {
                </span>
             </div>
             <div className="flex items-center gap-1">
-               <IssueFilterTrigger />
+               <IssueFilterTrigger iconOnly />
                <Button
                   size="xs"
                   variant="outline"
+                  aria-label={'Insights'}
+                  title={'Insights'}
                   className={cn(
-                     'border-muted-foreground/15',
+                     'border-muted-foreground/15 px-2',
                      openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
                   )}
                   onClick={() => togglePanel('insights')}
                >
-                  <BarChart3 className="size-4" />
-                  Insights
+                  <BarChart3 className="size-4" aria-hidden="true" />
                </Button>
                <Button
                   size="xs"
                   variant="outline"
+                  aria-label={'Profile'}
+                  title={'Profile'}
                   className={cn(
-                     'border-muted-foreground/15',
+                     'border-muted-foreground/15 px-2',
                      openPanel !== 'hidden' &&
                         openPanel !== 'insights' &&
                         'bg-secondary hover:bg-secondary/80'
                   )}
                   onClick={() => togglePanel('hidden')}
                >
-                  <PanelRight className="size-4" />
-                  Profile
+                  <PanelRight className="size-4" aria-hidden="true" />
                </Button>
-               <DisplayOptions />
+               <DisplayOptions iconOnly />
             </div>
          </div>
       </>
