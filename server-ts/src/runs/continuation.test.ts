@@ -13,6 +13,9 @@ test('the next segment is told where the work is and not to start over', () => {
    assert.match(text, /fresh run/);
    assert.match(text, /branch devops\/l42-425 \(commit e687a34\)/);
    assert.match(text, /Do not start over/);
+   const again = continuationInstructions({ branch: 'devops/l42-425', commit: null, attempt: 1, of: 3 });
+   assert.match(again, /branch devops\/l42-425/);
+   assert.doesNotMatch(again, /commit /);
 });
 
 test('a summary is the handover a fresh run starts from', () => {
@@ -95,7 +98,7 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       assert.equal(next!.status, 'queued');
       assert.equal(next!.agent_id, fixture!.agentId);
       assert.equal(next!.requested_by, fixture!.userId);
-      assert.deepEqual(next!.origin, { runId });
+      assert.deepEqual(next!.origin, { runId, fresh: true });
       assert.match(next!.instructions as string, /continuation 1 of at most 3/);
       const [issue] = await sql`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
       assert.equal(issue!.active_run_id, outcome.continued ? outcome.runId : null);
@@ -108,13 +111,20 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       assert.deepEqual(await continueAfterLimit(sql, { runId }), { continued: false, reason: 'superseded' });
    });
 
-   test('a run that left nothing new is not continued: that is what a loop looks like', async () => {
+   test('a limit stop with no new commit still starts a fresh run', async () => {
       const issueId = await task();
       const nothing = await ended(issueId, { code: LIMIT_CODE, commit: null });
-      assert.deepEqual(await continueAfterLimit(sql, { runId: nothing }), { continued: false, reason: 'no_progress' });
+      const outcome = await continueAfterLimit(sql, { runId: nothing, summary: 'The shell is in. The drawer is not.' });
+      assert.equal(outcome.continued, true);
+      const [next] = await sql`
+         SELECT instructions, origin FROM runs WHERE id = ${outcome.continued ? outcome.runId : ''}`;
+      assert.match(next!.instructions as string, /fresh run/);
+      assert.match(next!.instructions as string, /The shell is in\. The drawer is not\./);
+      assert.deepEqual(next!.origin, { runId: nothing, fresh: true });
+      await sql`DELETE FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
       await ended(issueId, { code: LIMIT_CODE, commit: 'aaaaaaa1' });
       const same = await ended(issueId, { code: LIMIT_CODE, commit: 'aaaaaaa1' });
-      assert.deepEqual(await continueAfterLimit(sql, { runId: same }), { continued: false, reason: 'no_progress' });
+      assert.equal((await continueAfterLimit(sql, { runId: same })).continued, true);
    });
 
    test('the chain is capped, and a run that ended any other way starts it again', async () => {

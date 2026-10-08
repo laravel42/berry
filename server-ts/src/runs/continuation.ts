@@ -11,20 +11,21 @@ import { ActiveRunExists } from './repository.ts';
  * long task: a DevOps Engineer eighty productive steps into a storage module
  * was failed exactly like one going in circles, and its work sat on a branch
  * until a person pressed run again. The checkpoint is what tells the two
- * apart. A run that was stopped but left new commits behind was working, so
- * the limit becomes the end of a segment and Berry queues the next one from
- * that branch. The next run is a new session: the conversation that filled
- * the limit is not restored, and a summary the agent wrote is its handover.
- * A run that left nothing new was not getting anywhere, and stays failed.
- * The chain is capped, so the most a task can spend unattended is a fixed
- * number of segments.
+ * apart. The limit becomes the end of a segment and Berry queues the next
+ * one. The next run is a new session: the conversation that filled the limit
+ * is not restored, and a summary the agent wrote is its handover. A run that
+ * left no new commit still continues — the summary is what the next run
+ * starts from, and the branch is whatever was already checked out. The chain
+ * is capped, so the most a task can spend unattended is a fixed number of
+ * segments. None of this is posted on the task: the activity feed is for the
+ * work, and a limit stop is not a result someone has to answer.
  */
 
 export const LIMIT_CODE = 'RUN_LIMIT_REACHED';
 export const DEFAULT_MAX_CONTINUATIONS = 3;
 
 export type ContinuationOutcome =
-   | { continued: true; runId: string; attempt: number; of: number; branch: string | null; commit: string }
+   | { continued: true; runId: string; attempt: number; of: number; branch: string | null; commit: string | null }
    | { continued: false; reason: 'disabled' | 'not_a_limit_stop' | 'superseded' | 'no_progress' | 'cap_reached' | 'task_moved_on' | 'busy' };
 
 export async function continueAfterLimit(
@@ -58,12 +59,6 @@ export async function continueAfterLimit(
        ORDER BY created_at DESC, id DESC LIMIT ${max + 2}`;
    if (history[0]?.id !== run.id) return { continued: false, reason: 'superseded' };
 
-   // Progress is a checkpoint commit the run before did not already have.
-   const previous = history[1];
-   if (!run.head_commit || run.head_commit === previous?.head_commit) {
-      return { continued: false, reason: 'no_progress' };
-   }
-
    let limitStops = 0;
    for (const row of history) {
       if (row.failure_code !== LIMIT_CODE) break;
@@ -72,6 +67,7 @@ export async function continueAfterLimit(
    // `limitStops` counts this run: the first stop queues continuation 1.
    if (limitStops > max) return { continued: false, reason: 'cap_reached' };
 
+   const commit = (run.head_commit as string | null) ?? null;
    try {
       const queued = await enqueueTask(sql, {
          workspaceId: run.workspace_id as string,
@@ -81,7 +77,7 @@ export async function continueAfterLimit(
          source: 'assignment',
          prompt: continuationInstructions({
             branch: (run.branch as string | null) ?? null,
-            commit: run.head_commit as string,
+            commit,
             attempt: limitStops,
             of: max,
             ...(input.summary ? { summary: input.summary } : {}),
@@ -95,7 +91,7 @@ export async function continueAfterLimit(
          attempt: limitStops,
          of: max,
          branch: (run.branch as string | null) ?? null,
-         commit: run.head_commit as string,
+         commit,
       };
    } catch (error) {
       // Someone started the task again first, or it went away under us. Either
@@ -109,7 +105,7 @@ export async function continueAfterLimit(
 /** What the next segment is told. Berry's words, so they go in as run instructions. */
 export function continuationInstructions(input: {
    branch: string | null;
-   commit: string;
+   commit: string | null;
    attempt: number;
    of: number;
    summary?: string;
@@ -118,12 +114,14 @@ export function continuationInstructions(input: {
    const handover = input.summary
       ? `The previous run summarized its work before it stopped. This run starts with an empty conversation; that summary is the handover.\n\n${input.summary}\n\n`
       : '';
+   const saved = input.commit
+      ? `everything it had written is committed on ${where} (commit ${input.commit.slice(0, 7)}), which is what your workspace has checked out. `
+      : `your workspace is ${where}. `;
    return (
       handover +
       `This is continuation ${input.attempt} of at most ${input.of}, and it is a fresh run: none of the previous ` +
-      `conversation is here. The previous run was stopped at its step limit, not by an error, and everything it ` +
-      `had written is committed on ${where} (commit ${input.commit.slice(0, 7)}), which is what your workspace ` +
-      'has checked out. Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
+      `conversation is here. The previous run was stopped at its step limit, not by an error, and ${saved}` +
+      'Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
       'commands; then do only what is still missing, check that it builds, and write your report. ' +
       'The report covers the whole task, including what the earlier run did.'
    );
@@ -138,9 +136,10 @@ export function continuationInstructions(input: {
  */
 export function continuedMessage(outcome: Extract<ContinuationOutcome, { continued: true }>): string {
    const where = outcome.branch ? `branch ${outcome.branch}` : 'the task branch';
+   const saved = outcome.commit ? ` Its work is saved on ${where} (commit ${outcome.commit.slice(0, 7)}).` : '';
    return (
-      `Paused at this agent's step limit. Its work is saved on ${where} (commit ${outcome.commit.slice(0, 7)}), ` +
-      `and Berry is starting a fresh run from there (continuation ${outcome.attempt} of ${outcome.of}). Nothing needs to be done.`
+      `Paused at this agent's step limit.${saved} ` +
+      `Berry is starting a fresh run (continuation ${outcome.attempt} of ${outcome.of}). Nothing needs to be done.`
    );
 }
 
