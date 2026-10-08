@@ -401,6 +401,18 @@ const rankedModelSchema = z.object({
    outputPricePerM: z.number().nullable().optional(),
 });
 
+/** The models placed in each tier, first choice first; an empty list leaves the tier to the leaderboard. */
+const tierPlacementSchema = z.object({
+   berry_max: z.array(z.string()),
+   berry_mid: z.array(z.string()),
+   berry_low: z.array(z.string()),
+});
+
+export type TierPlacement = z.infer<typeof tierPlacementSchema>;
+
+/** A tier's places: the leaderboard fills those a placement leaves. */
+export const TIER_PLACES = 3;
+
 const modelTiersSchema = z.object({
    tiers: z.array(
       z.object({
@@ -415,6 +427,11 @@ const modelTiersSchema = z.object({
    usageStale: z.boolean(),
    /** The leaderboard the ratings are given on; absent from an older server. */
    ratingScale: z.string().nullable().optional(),
+   /** Whose placement the tiers follow: this workspace's, or the deployment's. Absent from an older server. */
+   placement: z
+      .object({ source: z.enum(['workspace', 'deployment']), tiers: tierPlacementSchema })
+      .optional(),
+   deploymentPlacement: tierPlacementSchema.optional(),
 });
 
 export type RankedModel = z.infer<typeof rankedModelSchema>;
@@ -423,6 +440,48 @@ export type ModelTiers = z.infer<typeof modelTiersSchema>;
 /** Each tier as the gateway leaderboard fills it today. 503 without a gateway. */
 export async function getModelTiers(): Promise<ModelTiers> {
    const json: unknown = await apiFetch('/api/v1/agents/tiers');
+   const parsed = modelTiersSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Tier response was not recognized');
+   return parsed.data;
+}
+
+const tierCandidateSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   rating: z.number().nullable(),
+   estimatedFrom: z.array(z.string()).nullish(),
+   inputPricePerM: z.number(),
+   outputPricePerM: z.number(),
+   /** Null when the model has no cache price: every step pays full input on the whole conversation. */
+   cacheReadPricePerM: z.number().nullable(),
+   /** One agent step at this workspace's own token mix; null before its agents have run. */
+   stepCostUsd: z.number().nullable(),
+});
+
+const tierCandidatesSchema = z.object({
+   models: z.array(tierCandidateSchema),
+   mix: z
+      .object({ contextTokens: z.number(), outputTokens: z.number(), cacheHitShare: z.number() })
+      .nullable(),
+});
+
+export type TierCandidate = z.infer<typeof tierCandidateSchema>;
+export type TierCandidates = z.infer<typeof tierCandidatesSchema>;
+
+/** Every model a workspace admin can place in a tier, best rated first. */
+export async function getTierCandidates(): Promise<TierCandidates> {
+   const json: unknown = await apiFetch('/api/v1/agents/tiers/candidates');
+   const parsed = tierCandidatesSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Tier candidates were not recognized');
+   return parsed.data;
+}
+
+/** Saves this workspace's tier models, best first; null goes back to the deployment's placement. */
+export async function updateTierPlacement(placement: TierPlacement | null): Promise<ModelTiers> {
+   const json: unknown = await apiFetch('/api/v1/agents/tiers/placement', {
+      method: 'PUT',
+      body: JSON.stringify({ placement }),
+   });
    const parsed = modelTiersSchema.safeParse(json);
    if (!parsed.success) throw new Error('Tier response was not recognized');
    return parsed.data;

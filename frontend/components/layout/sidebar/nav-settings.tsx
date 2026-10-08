@@ -5,6 +5,7 @@ import {
    Building2,
    Keyboard,
    KeyRound,
+   Layers,
    ListChecks,
    LucideIcon,
    Plug,
@@ -37,6 +38,7 @@ export type SettingsNavKey =
    | 'general'
    | 'members'
    | 'runtimes'
+   | 'modelTiers'
    | 'labels'
    | 'properties'
    | 'quickActions'
@@ -87,6 +89,7 @@ export const settingsNav: SettingsNavGroup[] = [
          { labelKey: 'general', url: '/settings/general', icon: Building2 },
          { labelKey: 'members', url: '/settings/members', icon: UsersRound },
          { labelKey: 'runtimes', url: '/settings/runtimes', icon: Server },
+         { labelKey: 'modelTiers', url: '/settings/model-tiers', icon: Layers },
          { labelKey: 'labels', url: '/settings/issue-labels', icon: Tag },
          { labelKey: 'properties', url: '/settings/issue-properties', icon: ListChecks },
          { labelKey: 'quickActions', url: '/settings/quick-actions', icon: Zap },
