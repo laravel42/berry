@@ -34,7 +34,7 @@ import { useAgentsStore } from '@/store/agents-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
-import { ChevronDown, History, ListFilter, RotateCcw, Square, SquareTerminal } from 'lucide-react';
+import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { markTone, RunSummary, RunTab, statusTone, useRunDuration } from './run-entry';
@@ -292,7 +292,7 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                   disabled={stopping}
                   onClick={() => setConfirmingStop(true)}
                >
-                  <Square className="size-3.5" aria-hidden />
+                  <span className="size-3.5 shrink-0 bg-berry" aria-hidden />
                   {t('stop')}
                </Button>
             ) : null}
