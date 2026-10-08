@@ -138,14 +138,14 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       const { runId } = await createRun(sql, fixture, null);
       await ledger.claimDispatch(runId);
       await ledger.markRunning(runId);
-      await ledger.appendThinking(runId, 12, 'Let me check');
-      await ledger.appendOutput(runId, 'progress', 'Checking.');
       await ledger.appendThinking(runId, 12);
+      await ledger.appendOutput(runId, 'progress', 'Checking.');
+      await ledger.appendThinking(runId, 4);
 
       const events = await sql`
          SELECT event_type, payload, public FROM run_events
           WHERE run_id = ${runId} AND event_type = 'run.thinking' ORDER BY sequence`;
-      assert.deepEqual(events.map((row) => row.payload), [{ chars: 12, text: 'Let me check' }, { chars: 12 }]);
+      assert.deepEqual(events.map((row) => row.payload), [{ chars: 12 }, { chars: 4 }]);
       assert.ok(events.every((row) => row.public === true), 'the run stream serves public events only');
 
       const relayed = await sql`

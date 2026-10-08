@@ -307,17 +307,16 @@ export class RunLedger {
 
    /** Only the tool's name and call id. Arguments are never recorded. */
    /**
-    * The model is reasoning before it answers (`thinking` from the runtime):
-    * how much, and what since the last event. The task page shows it as
-    * Thinking, so a long silence between steps reads as work rather than a
-    * stalled run.
+    * The model is reasoning before it answers: how many characters, not the
+    * words. The count is what makes a long silence read as work rather than a
+    * stalled run. The words stay in the runtime and are not stored.
     *
     * Kept to the run's own stream, which only the task's members can read (see
     * `UNRELAYED_EVENTS`), and not added to `runs.output`, the transcript the
     * model is given back.
     */
-   async appendThinking(runId: string, chars: number, text?: string): Promise<void> {
-      await this.appendActiveEvent(runId, 'run.thinking', text ? { chars, text } : { chars });
+   async appendThinking(runId: string, chars: number): Promise<void> {
+      await this.appendActiveEvent(runId, 'run.thinking', { chars });
    }
 
    async appendToolStarted(runId: string, toolCallId: string, name: string): Promise<void> {

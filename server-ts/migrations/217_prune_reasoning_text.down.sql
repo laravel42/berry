@@ -1,0 +1,1 @@
+-- The reasoning text was deleted. It cannot be restored.
