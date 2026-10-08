@@ -1,4 +1,4 @@
-import { AfterModelCallEvent, AfterToolCallEvent, AfterToolsEvent, TextBlock, ToolResultBlock, tool, type LocalAgent, type Plugin, type Tool } from '@strands-agents/sdk';
+import { AfterModelCallEvent, AfterToolCallEvent, AfterToolsEvent, BeforeToolCallEvent, TextBlock, ToolResultBlock, tool, type LocalAgent, type Plugin, type Tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { truncateUtf8 } from '../utf8.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
@@ -47,6 +47,19 @@ export function wrapUpAt(maxTurns: number): number {
    return Math.max(3, Math.min(10, Math.ceil(maxTurns * 0.15)));
 }
 
+/**
+ * How many steps from the end only summarize is accepted.
+ *
+ * Two, so a reply whose other calls are refused still leaves one to summarize
+ * in. Told once and left to the agent, six of eleven runs at the limit kept
+ * working through the notice and ended with no handover.
+ */
+export const SUMMARIZE_ONLY_AT = 2;
+
+/** What a refused tool call returns once only summarize is accepted. */
+export const SUMMARIZE_ONLY =
+   'Refused: this run is out of steps, and only summarize is accepted now. Call summarize with what is done and what is left.';
+
 /** Appended to the task prompt. Empty when the run has no step limit. */
 export function budgetContract(maxTurns: number | undefined): string {
    if (!maxTurns) return '';
@@ -58,6 +71,7 @@ export function budgetContract(maxTurns: number | undefined): string {
       'reply. Read several files with one command (cat a b c, or grep) rather ' +
       'than one command each, and chain commands that belong together with &&. ' +
       `When about ${wrapUpAt(maxTurns)} steps are left you will be told to call summarize. ` +
+      `In the last ${SUMMARIZE_ONLY_AT} steps every other tool call is refused. ` +
       'That ends this run. The next one starts fresh from the summary, without this ' +
       'conversation, on the same branch. Until then, finish what is open so it can be saved.\n'
    );
@@ -90,15 +104,21 @@ export class StepBudgetPlugin implements Plugin {
          if (!event.error) this.#steps += 1;
       });
 
+      // Near the end, only the handover runs: the replies left are for it.
+      agent.addHook(BeforeToolCallEvent, (event) => {
+         if (this.#toldLast && event.toolUse.name !== 'summarize') event.cancel = SUMMARIZE_ONLY;
+      });
+
       // On a tool result, because that is the next thing the model reads. Once
       // per notice, so a reply with sixteen tool calls is told once, not sixteen times.
       agent.addHook(AfterToolCallEvent, (event) => {
          const left = maxTurns - this.#steps;
          let notice: string | null = null;
-         if (left <= 1 && !this.#toldLast) {
+         if (left <= SUMMARIZE_ONLY_AT && !this.#toldLast) {
             this.#toldLast = this.#toldToWrapUp = this.#handoff.open = true;
             notice =
-               'Berry: your next reply is the last step of this run. Call summarize with what is done and what is left, and make no other tool call.';
+               `Berry: ${left} step${left === 1 ? ' is' : 's are'} left. Only summarize is accepted from now on; ` +
+               'every other tool call is refused. Call summarize with what is done and what is left.';
          } else if (left <= wrapUpAt(maxTurns) && !this.#toldToWrapUp) {
             this.#toldToWrapUp = this.#handoff.open = true;
             notice =

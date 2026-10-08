@@ -46,12 +46,31 @@ test('a run well inside its limit is told nothing', async () => {
    assert.deepEqual(notices(await run(80, 5)), []);
 });
 
-test('near the limit the agent is told once to summarize, then once that its next reply is the last', async () => {
-   const told = notices(await run(12, 11));
+test('near the limit the agent is told once to summarize, then once that only summarize is accepted', async () => {
+   const messages = await run(12, 11);
+   const told = notices(messages);
    assert.equal(told.length, 2);
    assert.match(told[0]!, /^Berry: 3 steps are left/);
    assert.match(told[0]!, /Call summarize/);
-   assert.match(told[1]!, /Call summarize/);
+   assert.match(told[1]!, /^Berry: 2 steps are left\. Only summarize is accepted/);
+   // The call after that notice did not run.
+   assert.match(JSON.stringify(messages), /only summarize is accepted now/);
+});
+
+test('in the last steps a summarize still goes through, and ends the run', async () => {
+   const handoff: Handoff = { open: false, summary: null };
+   const agent = new Agent({
+      model: new ScriptedModel([
+         ...Array.from({ length: 10 }, () => call('echo', {})),
+         call('echo', {}),
+         call('summarize', { summary: 'Done: the shell. Left: the drawer.' }),
+      ]),
+      tools: [echo, summarizeTool(handoff)],
+      plugins: [new StepBudgetPlugin({ maxTurns: 12, handoff })],
+      printer: false,
+   });
+   await agent.invoke('go');
+   assert.equal(handoff.summary, 'Done: the shell. Left: the drawer.');
 });
 
 test('summarize is refused until the wrap-up notice, and then it ends the run', async () => {
