@@ -214,6 +214,15 @@ const INSTALL: Record<PackageManager, string> = {
 };
 
 /**
+ * One install per checkout. A scaffold ran `--package-lock-only` (a full
+ * resolve, no binaries), then a real install, then deleted node_modules and
+ * installed a third time because npm had printed a deprecation.
+ */
+const INSTALL_ONCE =
+   'That is the only install. Do not use --package-lock-only in its place: it leaves no binaries, so the next command installs again. ' +
+   'Do not delete node_modules or install again because of an audit, funding or deprecation notice. That notice is not a missing dependency and not a reason to change a version.';
+
+/**
  * What the agent would otherwise spend its first steps finding out: which
  * package manager, which Node, and whether dependencies are installed. Runs
  * opened with `cat .nvmrc`, `node --version`, `ls *lock*` and
@@ -247,10 +256,10 @@ async function describeToolchain(session: LocalSession, directory: string, carri
    const present = await lstat(join(directory, 'node_modules')).then((info) => info.isDirectory(), () => false);
    lines.push(
       carried
-         ? '- Dependencies: node_modules is in place from this task\'s previous run, installed from the same lockfile. Do not reinstall unless a command reports something missing.'
+         ? '- Dependencies: node_modules is in place from this task\'s previous run, installed from the same lockfile. Do not reinstall unless a command reports something missing. An audit or deprecation notice is not something missing.'
          : present
            ? '- Dependencies: node_modules is committed in the repository.'
-           : `- Dependencies: not installed. Run ${lock ? INSTALL[manager] : 'npm install'} when the task needs to build, run or test, and not before.`
+           : `- Dependencies: not installed. Run ${lock ? INSTALL[manager] : 'npm install'} when the task needs to build, run or test, and not before. ${INSTALL_ONCE}`
    );
    return '\n\nYour toolchain, as Berry found it before you started\n' + lines.join('\n') + '\n';
 }

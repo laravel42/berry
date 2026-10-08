@@ -15,6 +15,13 @@ export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 # delivery on its size.
 ulimit -c 0 2>/dev/null
 
+# npm's audit and funding lookup is a second pass over the registry after the
+# tree is resolved, and the "N vulnerabilities" banner is what makes an agent
+# delete node_modules and install the same tree again. A deprecation warning
+# still prints; the toolchain note says that is not a reason to reinstall.
+export npm_config_audit=false
+export npm_config_fund=false
+
 # Where `pip install` puts a package's commands for an unprivileged user.
 case ":$PATH:" in
    *":$HOME/.local/bin:"*) ;;

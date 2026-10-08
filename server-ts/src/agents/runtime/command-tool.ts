@@ -42,6 +42,58 @@ export type CommandLedger = Pick<
 /** Where the checkout is, on the agent's state. Set by the executor after cloning. */
 export const WORKDIR_KEY = 'workdir';
 
+/**
+ * An install the command actually runs, ignoring one that is only written
+ * into a file. A heredoc that documents `npm install` is not an install.
+ */
+function commandOutsideHeredocs(command: string): string {
+   return command.replace(/<<-?\s*['"]?(\w+)['"]?[\s\S]*?\n\1\b/g, ' ');
+}
+
+/** True when a segment runs a package install, rather than mentioning one. */
+function runsInstall(command: string): boolean {
+   return /(?:^|[\n;&|])\s*(?:npm|pnpm|yarn|bun)\s+(?:install|ci|add)\b/.test(commandOutsideHeredocs(command));
+}
+
+/**
+ * Stops the install loop a scaffold fell into: a lockfile-only install, then
+ * a real one, then two more to chase the deprecation notice the first printed.
+ * Told once in the tool description, and done anyway. Refused here, before
+ * the command runs, with a result the model can read.
+ */
+async function refuseRepeatInstall(
+   scope: CommandToolScope,
+   command: string,
+   cwd: string | undefined,
+   context?: ToolContext
+): Promise<string | null> {
+   const body = commandOutsideHeredocs(command);
+   if (/(?:^|[\n;&|])\s*rm\s+[^\n;&|]*\bnode_modules\b/.test(body)) {
+      return 'Berry did not run this. Do not delete node_modules. Use the install this checkout already has.';
+   }
+   if (!runsInstall(command)) return null;
+   if (/--package-lock-only|--lockfile-only/.test(body)) {
+      return 'Berry did not run this. --package-lock-only does not install binaries, so the next command installs again. Run npm install once, or npm ci when a lockfile is already committed, and put file writes in a command that does not install.';
+   }
+   let session: ExecutionSession;
+   try {
+      session = await scope.session();
+   } catch {
+      return null;
+   }
+   const workdir = context?.agent.appState.get(WORKDIR_KEY);
+   const directory = cwd ?? (typeof workdir === 'string' ? workdir : undefined);
+   let present = false;
+   try {
+      const probe = await session.exec('test -d node_modules && printf yes', directory === undefined ? {} : { cwd: directory });
+      present = probe.exitCode === 0 && probe.stdout.includes('yes');
+   } catch {
+      return null;
+   }
+   if (!present) return null;
+   return 'Berry did not run this. Dependencies are already installed in this checkout. Do not install again, and do not change a package version because npm printed a deprecation or audit notice.';
+}
+
 export interface CommandToolScope {
    ledger: CommandLedger;
    runId: string;
@@ -89,6 +141,8 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'folder themselves — a server you start in the background ends with the command that started it. ' +
          'Playwright with Chromium is already installed for anything else ' +
          "(`require('playwright')` in a CommonJS script); never install a browser or search for one. " +
+         'Install a repository\'s dependencies once (`npm ci` when a lockfile is already committed, otherwise `npm install`, or that repository\'s package manager). ' +
+         'Never `--package-lock-only` as that install, and never delete node_modules or install again because npm printed an audit, funding or deprecation notice. ' +
          `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,
       inputSchema: z.object({
          command: z.string().describe('A shell command, e.g. "pnpm install" or "pnpm test"'),
@@ -109,6 +163,8 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          if (trimmed === '') {
             return { error: 'command was empty', exitCode: null };
          }
+         const refusal = await refuseRepeatInstall(scope, trimmed, cwd, context);
+         if (refusal !== null) return { error: refusal, exitCode: null };
          const run = await runInWorkspace(
             scope,
             {

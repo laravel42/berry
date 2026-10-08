@@ -259,6 +259,44 @@ test('a substrate that cannot give a workspace is reported, not thrown', async (
    assert.deepEqual(events, []);
 });
 
+test('a second install, a lockfile-only install, and deleting node_modules are refused before they run', async () => {
+   const { ledger, events } = fakeLedger();
+   let streamed = 0;
+   const session = fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }], () => {
+      streamed += 1;
+   });
+   session.exec = async () => ({ stdout: 'yes', stderr: '', exitCode: 0 });
+   const installed = tool(session, ledger);
+
+   const again = await call(installed, { command: 'npm install next@14.2.32 --ignore-scripts && npm run build' });
+   assert.equal(again.exitCode, null);
+   assert.match(again.error as string, /already installed/);
+
+   const lockfileOnly = await call(installed, {
+      command: "cat > app/globals.css <<'EOF'\n:root { color: black; }\nEOF\nnpm install --package-lock-only",
+   });
+   assert.match(lockfileOnly.error as string, /package-lock-only/);
+
+   const removed = await call(installed, { command: 'rm -rf node_modules .next && npm install' });
+   assert.match(removed.error as string, /Do not delete node_modules/);
+
+   // A file that only mentions the command is not an install.
+   const documented = await call(installed, {
+      command: "cat > README.md <<'EOF'\nRun npm install once.\nEOF",
+   });
+   assert.equal(documented.exitCode, 0);
+
+   assert.equal(streamed, 1);
+   assert.equal(events.filter((event) => event.type === 'started').length, 1);
+});
+
+test('the first install runs when the checkout has no node_modules', async () => {
+   const { ledger } = fakeLedger();
+   const session = fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }]);
+   const result = await call(tool(session, ledger), { command: 'npm ci' });
+   assert.equal(result.exitCode, 0);
+});
+
 test('an empty command is refused before a workspace is opened', async () => {
    let opened = false;
    const { ledger } = fakeLedger();

@@ -119,6 +119,8 @@ test('the next run on a session takes over its installed dependencies and the ol
    const first = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
    assert.ok(first);
    assert.match(await repository.describe!({ session, directory: first }), /Dependencies: not installed\. Run npm ci/);
+   assert.match(await repository.describe!({ session, directory: first }), /only install/);
+   assert.match(await repository.describe!({ session, directory: first }), /--package-lock-only/);
    assert.match(await repository.describe!({ session, directory: first }), /\.nvmrc asks for 20\. Run nvm install once/);
    await mkdir(join(first, 'node_modules', 'left-pad'), { recursive: true });
    await writeFile(join(first, 'node_modules', 'left-pad', 'index.js'), 'pad');
