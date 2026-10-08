@@ -188,7 +188,7 @@ export function PageKpiHeader({
    children,
 }: {
    label: string;
-   kpis: Kpi[];
+   kpis?: Kpi[];
    /** Search and the page's one create action. */
    children?: ReactNode;
 }) {
@@ -198,7 +198,7 @@ export function PageKpiHeader({
             <SectionLabel as="h1">{label}</SectionLabel>
             <div className="ml-auto flex items-center gap-2">{children}</div>
          </div>
-         <KpiStrip kpis={kpis} />
+         {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} /> : null}
       </header>
    );
 }

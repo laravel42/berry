@@ -24,9 +24,7 @@ import {
    ListFilterTrigger,
    useListFilters,
 } from '@/components/common/filters/list-filters';
-import { PageKpiHeader, type Kpi } from '@/components/common/page/page-parts';
-import { KPI_DAYS, useWorkKpis } from '@/components/common/usage/use-work-kpis';
-import { formatAge, formatCost, formatSpanShort } from '@/lib/usage';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import ProjectsBoard, { type ProjectBoardEntry } from './projects-board';
 import { CreateProjectButton } from './create-project-button';
 import { CreateProjectDialog } from './create-project-dialog';
@@ -129,103 +127,6 @@ const LAYOUTS: { value: 'list' | 'board'; icon: React.ElementType }[] = [
    { value: 'board', icon: LayoutGrid },
 ];
 
-const DAY_MS = 86_400_000;
-
-/**
- * The Projects page's KPI cards. Counts come from the stores the page already
- * holds; spend, agent time and what waits on a person come from the usage read.
- * A figure stays undefined until its source has answered.
- */
-function useProjectKpis(
-   projects: Project[],
-   /** Whether the store has answered: an empty list is then a real zero. */
-   known: boolean,
-   issues: ReturnType<typeof useIssuesStore.getState>['issues'],
-   data: ReturnType<typeof useWorkKpis>
-): Kpi[] {
-   const t = useTranslations('issueLists.projects.kpi');
-   return useMemo(() => {
-      const open = projects.filter((project) => !CLOSED_CATEGORIES.has(project.status.category));
-      const openIds = new Set(open.map((project) => project.id));
-      // Every task of an open project, cancelled ones too: the same basis as a row's percentage.
-      const tasks = issues.filter((issue) => issue.project && openIds.has(issue.project.id));
-      const done = tasks.filter((issue) => issue.status.category === 'completed').length;
-      const next = open
-         .filter((project) => project.targetDate)
-         .sort((a, b) => String(a.targetDate).localeCompare(String(b.targetDate)))[0];
-      const days = next
-         ? Math.ceil((Date.parse(String(next.targetDate)) - Date.now()) / DAY_MS)
-         : null;
-      const work = data?.work;
-      const waiting = work ? work.waiting.reviews + work.waiting.decisions : undefined;
-
-      return [
-         {
-            label: t('running'),
-            value: known ? open.length : undefined,
-            detail: known
-               ? t('runningDetail', { finished: projects.length - open.length })
-               : undefined,
-         },
-         {
-            label: t('completion'),
-            value: known
-               ? tasks.length > 0
-                  ? `${Math.round((done / tasks.length) * 100)}%`
-                  : '–'
-               : undefined,
-            detail: known ? t('completionDetail', { done, total: tasks.length }) : undefined,
-         },
-         {
-            label: t('nextDue'),
-            value: known
-               ? days === null
-                  ? t('noDue')
-                  : days < 0
-                    ? t('overdue', { days: -days })
-                    : `${days} d`
-               : undefined,
-            detail: next?.name,
-            tone: days !== null && days < 0 ? 'text-status-warning' : undefined,
-         },
-         {
-            label: t('waiting'),
-            value: waiting,
-            detail: work
-               ? work.waiting.oldestAt
-                  ? t('waitingDetail', {
-                       decisions: work.waiting.decisions,
-                       reviews: work.waiting.reviews,
-                       age: formatAge(work.waiting.oldestAt),
-                    })
-                  : t('waitingNone', {
-                       decisions: work.waiting.decisions,
-                       reviews: work.waiting.reviews,
-                    })
-               : undefined,
-            tone: waiting ? 'text-status-warning' : undefined,
-         },
-         {
-            label: t('spend', { days: KPI_DAYS }),
-            value: data ? formatCost(data.costMicros) : undefined,
-            detail:
-               data && work && work.tasksDone > 0
-                  ? t('spendDetail', {
-                       cost: formatCost(Math.round(data.costMicros / work.tasksDone)),
-                    })
-                  : undefined,
-         },
-         {
-            label: t('agentTime', { days: KPI_DAYS }),
-            value: work ? formatSpanShort(work.runSeconds) : undefined,
-            detail: work
-               ? t('agentTimeDetail', { agents: work.byAgent.length, runs: work.runs })
-               : undefined,
-         },
-      ];
-   }, [projects, known, issues, data, t]);
-}
-
 /** Projects page: search, filters, display options, views and insights. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
@@ -270,11 +171,6 @@ export default function Projects() {
          ),
       [scoped, filterColumns, filters, query, ordering, direction]
    );
-
-   // Spend, agent time and what waits on a person are read per project when the
-   // list shows exactly one; otherwise for the whole workspace.
-   const soleProject = displayed.length === 1 ? displayed[0]!.id : undefined;
-   const data = useWorkKpis({ projectId: soleProject });
 
    // One description of the groups serves both layouts: the list renders
    // it as sections, the board as columns. Only status columns can take a
@@ -359,10 +255,6 @@ export default function Projects() {
       [grouped, grouping, showEmptyGroups]
    );
 
-   // The cards describe the projects on the board, after search, filters and
-   // the closed toggle, not the whole workspace.
-   const kpis = useProjectKpis(displayed, enriched.length > 0, issues, data);
-
    const toggleSelected = (projectId: string) =>
       setSelected((previous) =>
          previous.includes(projectId)
@@ -389,7 +281,7 @@ export default function Projects() {
       <div className="w-full h-full flex flex-col overflow-hidden">
          <CreateProjectDialog />
          <div className="w-full shrink-0">
-            <PageKpiHeader label={lists('projects.title')} kpis={kpis}>
+            <PageKpiHeader label={lists('projects.title')}>
                <Input
                   className="h-9 w-64 max-sm:w-40"
                   placeholder={lists('projects.search')}

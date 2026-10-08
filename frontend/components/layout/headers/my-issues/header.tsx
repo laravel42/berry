@@ -3,20 +3,13 @@
 import { IssueFilterBarActions } from '@/components/common/issues/issue-filter-bar-actions';
 import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trigger';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
-import {
-   scopeMyIssues,
-   useMyIssuesScope,
-   useMyIssuesTab,
-} from '@/components/common/my-issues/use-my-issues';
-import { PageKpiHeader, type Kpi } from '@/components/common/page/page-parts';
-import { KPI_DAYS, useWorkKpis } from '@/components/common/usage/use-work-kpis';
+import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { formatAge, formatCost, formatSpan, formatSpanShort } from '@/lib/usage';
 import { canEditProduct } from '@/lib/workspace-role';
 import { cn } from '@/lib/utils';
 import { useCreateIssueStore } from '@/store/create-issue-store';
-import { useIssuesStore } from '@/store/issues-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
@@ -38,90 +31,11 @@ export default function Header() {
    const { openPanel, togglePanel } = useRightPanelStore();
    const { searchQuery, setSearchQuery, openSearch, closeSearch } = useSearchStore();
    const view = useIssueListView();
-   const issues = useIssuesStore((state) => state.issues);
-   const loaded = useIssuesStore((state) => state.loadState === 'ready');
-   const data = useWorkKpis();
    const [tab] = useMyIssuesTab();
-   const scope = useMyIssuesScope();
-
-   // Counted over the tab the list below shows, so "My tasks" never reports
-   // the workspace's open work above a list of the person's own.
-   const openIssues = scopeMyIssues(issues, tab, scope).filter(
-      (issue) => issue.status.category !== 'completed' && issue.status.category !== 'canceled'
-   );
-   const running = openIssues.filter((issue) => Boolean(issue.activeRunId)).length;
-   const work = data?.work;
-   const waiting = work ? work.waiting.reviews + work.waiting.decisions : undefined;
-
-   const kpis: Kpi[] = [
-      {
-         label: t('kpi.open'),
-         value: loaded ? openIssues.length : undefined,
-         detail:
-            loaded && waiting !== undefined ? t('kpi.openDetail', { waiting, running }) : undefined,
-      },
-      {
-         label: t('kpi.oldestWait'),
-         value: work
-            ? work.waiting.oldestAt
-               ? formatAge(work.waiting.oldestAt)
-               : t('kpi.noWait')
-            : undefined,
-         detail: work
-            ? t('kpi.oldestWaitDetail', {
-                 reviews: work.waiting.reviews,
-                 decisions: work.waiting.decisions,
-              })
-            : undefined,
-         tone: work?.waiting.oldestAt ? 'text-status-warning' : undefined,
-      },
-      {
-         label: t('kpi.done', { days: KPI_DAYS }),
-         value: work?.tasksDone,
-         detail: work
-            ? t('kpi.doneDetail', { pullRequests: work.pullRequests, commits: work.commits })
-            : undefined,
-      },
-      {
-         label: t('kpi.leadTime'),
-         value: work ? (work.duration ? formatSpanShort(work.duration.median) : '–') : undefined,
-         detail: work?.duration
-            ? t('kpi.leadTimeDetail', { p90: formatSpan(work.duration.p90) })
-            : undefined,
-      },
-      {
-         label: t('kpi.costPerTask'),
-         value:
-            data && work
-               ? work.tasksDone > 0
-                  ? formatCost(Math.round(data.costMicros / work.tasksDone))
-                  : '–'
-               : undefined,
-         detail:
-            work && work.tasksDone > 0
-               ? t('kpi.costPerTaskDetail', { time: formatSpan(work.runSeconds / work.tasksDone) })
-               : undefined,
-      },
-      {
-         label: t('kpi.firstPass'),
-         value: work
-            ? work.firstPass.total > 0
-               ? `${Math.round((work.firstPass.oneRun / work.firstPass.total) * 100)}%`
-               : '–'
-            : undefined,
-         detail: work
-            ? t('kpi.firstPassDetail', {
-                 oneRun: work.firstPass.oneRun,
-                 total: work.firstPass.total,
-                 runs: work.runs,
-              })
-            : undefined,
-      },
-   ];
 
    return (
       <div className="flex w-full flex-col">
-         <PageKpiHeader label={tab === 'assigned' ? t('titleMine') : t('title')} kpis={kpis}>
+         <PageKpiHeader label={tab === 'assigned' ? t('titleMine') : t('title')}>
             <Input
                className="h-9 w-64 max-sm:w-40"
                placeholder={t('search')}
