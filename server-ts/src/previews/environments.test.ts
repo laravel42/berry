@@ -74,6 +74,13 @@ test('a service is a backing store on the private network and is never published
    assert.ok(line.includes('--network net') && line.includes('--network-alias db') && line.includes('--env POSTGRES_PASSWORD=preview'));
    assert.ok(!line.includes('--publish'));
    assert.ok(serviceArgs({ id: 'x', network: 'n', container: 'c', service: { ...db, name: 'search', image: 'elasticsearch:8.15.0' } }).join(' ').includes('discovery.type=single-node'));
+   const supabase = serviceArgs({
+      id: 'x', network: 'n', container: 'c',
+      service: { name: 'supabase', image: 'supabase/postgres:15.19.0.004', port: 54321, env: { POSTGRES_PASSWORD: 'postgres', POSTGRES_PORT: '54321' } },
+   }).join(' ');
+   assert.ok(supabase.includes('--env PGPORT=54321') && supabase.includes('--env POSTGRES_PORT=54321'));
+   assert.equal(supabase.match(/--env PGPORT=/g)?.length, 1);
+   assert.ok(!line.includes('--env PGPORT='));
 });
 
 test('an app waits for its services, then installs, builds, migrates and becomes the server', () => {

@@ -652,11 +652,27 @@ export function serviceArgs(input: { id: string; owner?: string; network: string
       ...['CHOWN', 'SETUID', 'SETGID', 'FOWNER', 'DAC_OVERRIDE'].flatMap((cap) => ['--cap-add', cap]),
       '--security-opt', 'no-new-privileges',
       '--memory', '1g', '--cpus', '1', '--pids-limit', '512',
-      ...Object.entries(service.env).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
+      ...Object.entries(serviceEnvironment(service)).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
       // Elasticsearch and OpenSearch refuse to start as a cluster of one without being told they are one.
       ...(/elasticsearch|opensearch/.test(service.image) ? ['--env', 'discovery.type=single-node', '--env', 'xpack.security.enabled=false', '--env', 'DISABLE_SECURITY_PLUGIN=true', '--env', 'ES_JAVA_OPTS=-Xms512m -Xmx512m'] : []),
       service.image,
    ];
+}
+
+/**
+ * Env for a service container.
+ *
+ * Supabase's Postgres image starts a temporary server on `PGPORT` (5432 when
+ * unset) and then runs its migrations with `psql` against `POSTGRES_PORT` on
+ * the socket directory `POSTGRES_HOST` names. The preview's `port` is the port
+ * other containers use, so both variables follow it: a `POSTGRES_PORT` of
+ * 54321 otherwise looks for `/var/run/postgresql/.s.PGSQL.54321`, which the
+ * temporary server never created.
+ */
+function serviceEnvironment(service: PreviewService): Record<string, string> {
+   if (!/(?:^|\/)supabase\/postgres(?::|$)/.test(service.image)) return service.env;
+   const port = String(service.port);
+   return { ...service.env, PGPORT: port, POSTGRES_PORT: port };
 }
 
 export function appArgs(input: {
