@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Berry's AgentCore Runtime image: the agent loop and its tools (ADR-0014).
 #
 # Built from the server-ts context so it runs the same sources the server's
@@ -56,10 +57,10 @@ RUN corepack enable \
    && corepack prepare pnpm@10.12.1 --activate \
    && corepack prepare yarn@stable --activate
 
-# Playwright and a headless Chromium, so an agent can open what it built —
-# screenshot a page, run a browser test — without fetching a browser and its
-# system libraries mid-run: well over 100 MB, and the libraries need root,
-# which a session does not have. Installed globally, so `npx playwright …` and
+# Playwright's headless shell only. Screenshots and Lighthouse both run
+# headless, and `chromium.launch()` uses this shell for that. The full
+# Chromium build is a second browser, larger than the shell, and it is what
+# crashed under a busy session. Installed globally, so `npx playwright …` and
 # `require('playwright')` work anywhere. The browsers folder is writable by
 # every user, not just `node`: a session runs as its own uid, and
 # `playwright install` waits forever on a lock it cannot take in a folder it
@@ -69,9 +70,9 @@ RUN corepack enable \
 # other session sees what one writes there.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright NODE_PATH=/usr/local/lib/node_modules
 RUN npm install -g playwright@1.63.0 \
-   && playwright install --with-deps chromium \
+   && playwright install --with-deps --only-shell \
    && chmod -R a+rwX /ms-playwright \
-   && rm -rf /var/lib/apt/lists/* /root/.npm
+   && rm -rf /var/lib/apt/lists/* /root/.npm /root/.cache
 # One command for the check nearly every page task makes: the page at phone,
 # tablet and desktop widths, and what went wrong while it loaded.
 COPY sandbox/agentcore/berry-serve.cjs /usr/local/lib/berry/berry-serve.cjs
@@ -79,11 +80,10 @@ COPY sandbox/agentcore/berry-output.cjs /usr/local/lib/berry/berry-output.cjs
 COPY sandbox/agentcore/berry-screenshots.cjs /usr/local/bin/berry-screenshots
 RUN chmod 755 /usr/local/bin/berry-screenshots
 
-# Lighthouse, on the Chromium headless shell Playwright brought (lighter than
-# the full browser, which crashed under a busy session's load), so a task with a performance
-# budget audits it in seconds instead of installing Lighthouse (and a browser)
-# into its checkout: that install ran several minutes of a run. `chromium` is
-# a stable name for the versioned binary, and CHROME_PATH is what Lighthouse's
+# Lighthouse, on the headless shell above, so a task with a performance budget
+# audits it in seconds instead of installing Lighthouse (and a browser) into
+# its checkout: that install ran several minutes of a run. `chromium` is a
+# stable name for the versioned binary, and CHROME_PATH is what Lighthouse's
 # launcher reads. berry-lighthouse runs it headless and prints the scores and
 # the budget, not the megabytes of JSON.
 RUN npm install -g lighthouse@13.5.0 \
@@ -128,7 +128,38 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /opt/berry
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile --ignore-workspace
+# The loop loads the SDK, zod, the OpenAI client and three AWS clients. The
+# rest of this manifest is the API (database, auth, control-plane clients).
+# pnpm would also install the SDK's optional peers, including a local model
+# runtime and its parsers, which this process never imports. Required peers
+# stay; the lockfile still pins every version.
+RUN node <<'EOF'
+const fs = require('node:fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const keep = [
+   '@aws-sdk/client-bedrock-runtime',
+   '@aws-sdk/client-polly',
+   '@aws-sdk/client-s3',
+   '@strands-agents/sdk',
+   'openai',
+   'zod',
+];
+const dependencies = {};
+for (const name of keep) {
+   const version = pkg.dependencies?.[name];
+   if (typeof version !== 'string') {
+      console.error('runtime image is missing dependency ' + name);
+      process.exit(1);
+   }
+   dependencies[name] = version;
+}
+pkg.dependencies = dependencies;
+delete pkg.devDependencies;
+fs.writeFileSync('package.json', JSON.stringify(pkg));
+EOF
+RUN printf '%s\n' 'auto-install-peers=true' 'store-dir=/tmp/pnpm-store' > .npmrc \
+   && pnpm install --prod --ignore-workspace --no-optional \
+   && rm -rf /tmp/pnpm-store /root/.cache
 COPY tsconfig.json ./
 COPY src/agents ./src/agents
 COPY src/execution ./src/execution
