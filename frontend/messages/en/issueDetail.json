@@ -227,10 +227,7 @@
       "stopped": "Asked the run to stop.",
       "stopFailed": "The run could not be stopped.",
       "restart": "Restart",
-      "restartTitle": "Restart this run?",
-      "restartBody": "{name} stops where it is and continues from the work already saved.",
-      "restartConfirm": "Restart",
-      "restarted": "Restarted. The agent continues from where it stopped.",
+      "restarted": "Restarted. The agent is starting again.",
       "restartFailed": "The run could not be restarted."
    },
    "activity": {

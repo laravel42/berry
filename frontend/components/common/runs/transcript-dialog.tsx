@@ -24,7 +24,6 @@ import {
    isTerminalRunEvent,
    loadRunEvents,
    RUN_EVENT_PAGE,
-   RUN_STALL_QUIET_MS,
    streamRunEvents,
    type RunEvent,
    type RunRecord,
@@ -639,11 +638,6 @@ export interface RunTranscriptProps {
     * page before it. The dialog leaves this off and reads the whole run.
     */
    paged?: boolean;
-   /**
-    * True once a running run has been waiting, with no open tool, for the
-    * stall window. The console offers Restart then.
-    */
-   onQuietChange?: (quiet: boolean) => void;
 }
 
 function foldEvents(events: RunEvent[]): TranscriptStep[] {
@@ -666,7 +660,6 @@ export function RunTranscript({
    onRunLoaded,
    footerInfo,
    paged = false,
-   onQuietChange,
 }: RunTranscriptProps) {
    const oldestFirst = order === 'oldest-first';
    const t = useTranslations('issueDetail.transcript');
@@ -969,12 +962,6 @@ export function RunTranscript({
       return () => window.clearInterval(timer);
    }, [waiting]);
    const waitedMs = lastEventAt ? Math.max(0, now - new Date(lastEventAt).getTime()) : 0;
-   const quiet = waiting && waitedMs >= RUN_STALL_QUIET_MS;
-   const reportQuiet = useRef(onQuietChange);
-   reportQuiet.current = onQuietChange;
-   useEffect(() => {
-      reportQuiet.current?.(quiet);
-   }, [quiet]);
    const thinkingRow = waiting ? (
       <li className="flex items-center gap-3 px-4 py-2.5" aria-live="polite">
          <span data-heading="label" className="w-[5.5rem] shrink-0 text-status-info uppercase">

@@ -246,7 +246,7 @@ export async function createIssueRun(
    }
 }
 
-/** Queue a recovery run for a stalled task. The agent continues from the work already saved. */
+/** Queue the task again for its agent. A live run is left as it is. */
 export async function restartIssueRun(issueId: string): Promise<RunRecord> {
    const json: unknown = await apiFetch(`/api/v1/issues/${issueId}/runs/restart`, {
       method: 'POST',
@@ -275,12 +275,6 @@ export async function loadRunsForIssues(issueIds: string[]): Promise<RunRecord[]
 
 /** How many events the console asks for at a time, newest first in the window. */
 export const RUN_EVENT_PAGE = 40;
-
-/**
- * How long a running task may go without an event before Restart appears.
- * Matches `STALL_QUIET_MS` on the server: the button and the refusal agree.
- */
-export const RUN_STALL_QUIET_MS = 120_000;
 
 const runEventPageSchema = z.object({
    events: z.array(runEventSchema),

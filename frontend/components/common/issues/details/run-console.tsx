@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { isAgentUser } from '@/components/common/issues/actor-avatar';
 import { RunTranscript } from '@/components/common/runs/transcript-dialog';
 import {
    AlertDialog,
@@ -39,6 +40,9 @@ import { useTranslations } from 'next-intl';
 import { markTone, RunSummary, RunTab, statusTone, useRunDuration } from './run-entry';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
+/** Board states where an idle agent task can be started again. */
+const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress', 'in-review']);
+
 /**
  * The task's console, docked at the foot of the drawer like the build
  * terminal: a run's transcript beside the work it produced. It follows the
@@ -54,10 +58,10 @@ export function RunConsole({ issueId }: { issueId: string }) {
    // A run starting or ending moves the task, and the board stream brings the
    // task's change here: the run list is read again then, so a run started
    // while the page was open gets its tab without a reload.
-   const taskStamp = useIssuesStore((state) => {
-      const issue = state.issues.find((entry) => entry.id === issueId);
-      return issue ? `${issue.status.id}|${issue.updatedAt ?? ''}` : null;
-   });
+   const issue = useIssuesStore(
+      (state) => state.issues.find((entry) => entry.id === issueId) ?? null
+   );
+   const taskStamp = issue ? `${issue.status.id}|${issue.updatedAt ?? ''}` : null;
    const reloadRuns = useIssueRunsStore((state) => state.load);
    useEffect(() => {
       if (taskStamp) reloadRuns(issueId);
@@ -71,8 +75,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const [filtersActive, setFiltersActive] = useState(false);
    const [confirmingStop, setConfirmingStop] = useState(false);
    const [stopping, setStopping] = useState(false);
-   const [quiet, setQuiet] = useState(false);
-   const [confirmingRestart, setConfirmingRestart] = useState(false);
    const [restarting, setRestarting] = useState(false);
    const bodyId = useId();
    const strip = useRef<HTMLDivElement>(null);
@@ -87,6 +89,28 @@ export function RunConsole({ issueId }: { issueId: string }) {
 
    const picked = chosen ? (runs.find((run) => run.id === chosen) ?? null) : null;
    const run: RunRecord | null = picked ?? activeRun ?? runs[0] ?? null;
+   const canRestart = Boolean(
+      issue?.assignee &&
+      isAgentUser(issue.assignee) &&
+      RESTARTABLE_STATUSES.has(issue.status.id) &&
+      !activeRun
+   );
+
+   // An idle agent task starts again from the work already saved, or from
+   // scratch when it has never run. A queued or running task is left alone.
+   const restart = async () => {
+      setRestarting(true);
+      try {
+         const next = await restartIssueRun(issueId);
+         upsert(next);
+         follow(issueId);
+         toast.success(t('restarted'));
+      } catch (error) {
+         toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+      } finally {
+         setRestarting(false);
+      }
+   };
 
    const shownId = run?.id ?? null;
    useEffect(() => {
@@ -108,7 +132,25 @@ export function RunConsole({ issueId }: { issueId: string }) {
       return () => observer.disconnect();
    }, [shownId]);
 
-   if (!run) return null;
+   if (!run) {
+      if (!canRestart) return null;
+      return (
+         <div className="pointer-events-none relative z-20 h-0 shrink-0">
+            <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
+               <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={restarting}
+                  onClick={() => void restart()}
+                  className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral"
+               >
+                  <RotateCcw className="size-4" aria-hidden />
+                  {t('restart')}
+               </Button>
+            </div>
+         </div>
+      );
+   }
 
    const nameOf = (entry: RunRecord) => getAgentById(entry.agentId)?.name ?? t('agent');
    const live = !isTerminalRunStatus(run.status);
@@ -118,9 +160,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const past = runs.filter((entry) => entry.id !== current?.id);
    const ordered = [...runs].reverse();
    const tabs = [run];
-   const failedStall = current?.status === 'failed' && current.failure?.retryable === true;
-   const liveStall = current?.status === 'running' && run.id === current.id && quiet;
-   const canRestart = failedStall || liveStall;
 
    // Stopping a live run: what it already did stays; asked first, as a stop cannot be taken back.
    const stop = async (target: RunRecord) => {
@@ -136,54 +175,8 @@ export function RunConsole({ issueId }: { issueId: string }) {
       }
    };
 
-   // A stalled task starts again from the work already saved. A run that is
-   // still marked running is asked about first, because restart stops it.
-   const restart = async () => {
-      setRestarting(true);
-      try {
-         const next = await restartIssueRun(issueId);
-         upsert(next);
-         follow(issueId);
-         toast.success(t('restarted'));
-         setConfirmingRestart(false);
-      } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
-      } finally {
-         setRestarting(false);
-      }
-   };
-   const askRestart = () => {
-      if (liveStall) setConfirmingRestart(true);
-      else void restart();
-   };
-
    // Folded, the console is a button floating at the bottom right of the task,
    // over its last lines: it takes no room until it is asked for.
-   const restartDialog = (
-      <AlertDialog open={confirmingRestart} onOpenChange={setConfirmingRestart}>
-         <AlertDialogContent>
-            <AlertDialogHeader>
-               <AlertDialogTitle>{t('restartTitle')}</AlertDialogTitle>
-               <AlertDialogDescription>
-                  {t('restartBody', { name: nameOf(run) })}
-               </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-               <AlertDialogCancel disabled={restarting}>{t('keepRunning')}</AlertDialogCancel>
-               <AlertDialogAction
-                  disabled={restarting}
-                  onClick={(event) => {
-                     event.preventDefault();
-                     void restart();
-                  }}
-               >
-                  {t('restartConfirm')}
-               </AlertDialogAction>
-            </AlertDialogFooter>
-         </AlertDialogContent>
-      </AlertDialog>
-   );
-
    if (!open) {
       return (
          <div className="pointer-events-none relative z-20 h-0 shrink-0">
@@ -193,7 +186,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                      variant="outline"
                      size="sm"
                      disabled={restarting}
-                     onClick={askRestart}
+                     onClick={() => void restart()}
                      className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral"
                   >
                      <RotateCcw className="size-4" aria-hidden />
@@ -217,7 +210,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   {live ? <BerryMark size="sm" tone="working" pulse label={nameOf(run)} /> : null}
                </Button>
             </div>
-            {restartDialog}
          </div>
       );
    }
@@ -280,7 +272,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   size="xs"
                   className="shrink-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
                   disabled={restarting}
-                  onClick={askRestart}
+                  onClick={() => void restart()}
                >
                   <RotateCcw className="size-3.5" aria-hidden />
                   {t('restart')}
@@ -390,7 +382,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   filtersOpen={filtersOpen}
                   onFiltersOpenChange={setFiltersOpen}
                   onFiltersActiveChange={setFiltersActive}
-                  onQuietChange={setQuiet}
                   onRunLoaded={upsert}
                   // The shown run in full, in the one bar: status, agent, why it
                   // ran, how long and when.
@@ -427,7 +418,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
-         {restartDialog}
       </section>
    );
 }
