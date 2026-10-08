@@ -184,7 +184,7 @@
       "perStep": "{cost} per step",
       "prices": "${input} in, ${output} out per million tokens",
       "noCache": "no cache price, so every step pays full price for the whole conversation",
-      "unlisted": "no longer offered by the gateway",
+      "unlisted": "passed over: it has no cache price or the gateway no longer offers it, so the next cached model runs in its place",
       "add": "Add model",
       "search": "Search models…",
       "noMatch": "No models match.",
