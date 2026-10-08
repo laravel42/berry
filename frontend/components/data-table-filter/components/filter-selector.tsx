@@ -112,7 +112,7 @@ function __FilterSelector<TData>({
         onFocusOutside={(event) => event.preventDefault()}
       >
         {/*
-          The value panel is absolutely positioned to the right of the field
+          The value panel is absolutely positioned to the left of the field
           list. Putting it in normal flow used to widen the popover and shift
           every CommandItem under the cursor, so hover never settled on some
           fields and their submenu never opened.
@@ -120,7 +120,7 @@ function __FilterSelector<TData>({
         <div className="relative max-h-[min(24rem,var(--radix-popover-content-available-height))]">
           {property && column && activeFilter ? (
             <div
-              className="absolute top-0 left-full z-10 ml-px flex max-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+              className="absolute top-0 right-full z-10 mr-px flex max-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
             >
