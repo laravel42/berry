@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LocalSession } from './local-session.ts';
-import { isCoreDump, isInstalledPath, snapshotRepository } from './snapshot-repository.ts';
+import { isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository } from './snapshot-repository.ts';
 import { sampleEnvelope } from '../../../runtime/envelope.test.ts';
 import { shellQuote } from '../../checkout.ts';
 
@@ -92,6 +92,15 @@ test('a path is installed output only when a folder above it is one', () => {
    assert.equal(isInstalledPath('node_modules'), false, 'a file named like the folder');
    assert.equal(isInstalledPath('docs/node_modules.md'), false);
    assert.equal(isInstalledPath('src/venv/config.py'), false, 'only the dotted .venv is an environment');
+});
+
+test('a backup or patch leftover is known by its suffix', () => {
+   assert.equal(isLeftoverFile('src/app/(app)/(workspace)/channel/[id].tsx.bak'), true);
+   assert.equal(isLeftoverFile('src/index.ts.orig'), true);
+   assert.equal(isLeftoverFile('README.md~'), true);
+   assert.equal(isLeftoverFile('.App.tsx.swp'), true);
+   assert.equal(isLeftoverFile('src/backup.ts'), false);
+   assert.equal(isLeftoverFile('docs/origin.md'), false);
 });
 
 test('a crash dump is known by its ELF header, not by being named core', () => {

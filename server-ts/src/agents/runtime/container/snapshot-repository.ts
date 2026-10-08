@@ -85,8 +85,11 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          await session.exec(`mkdir -p .git/info && printf '%s/\\n' ${INSTALLED_DIRECTORIES.map(shellQuote).join(' ')} >> .git/info/exclude`, { cwd: directory });
          const added = await session.exec(`${git} add -A && ${git} diff --cached --name-only --diff-filter=A -z ${shellQuote(baseline)}`, { cwd: directory });
          if (added.exitCode !== 0) throw new Error('Could not read the complete candidate');
-         // Staged or committed by the agent itself, where the exclude does not reach.
-         const installed = added.stdout.split('\0').filter((path) => path !== '' && isInstalledPath(path));
+         // Staged or committed by the agent itself, where the exclude does not
+         // reach; and an editor's or a patch's leftovers this run added.
+         const installed = added.stdout
+            .split('\0')
+            .filter((path) => path !== '' && (isInstalledPath(path) || isLeftoverFile(path)));
          for (let from = 0; from < installed.length; from += 200) {
             const paths = installed.slice(from, from + 200).map(shellQuote).join(' ');
             const unstaged = await session.exec(`${git} rm --cached -q -- ${paths}`, { cwd: directory });
@@ -141,6 +144,17 @@ export const INSTALLED_DIRECTORIES: readonly string[] = [
 /** Whether a repository path lies inside one of `INSTALLED_DIRECTORIES`. */
 export function isInstalledPath(path: string): boolean {
    return path.split('/').slice(0, -1).some((segment) => INSTALLED_DIRECTORIES.includes(segment));
+}
+
+/**
+ * Whether a new file is a copy kept beside the real one: `x.tsx.bak`,
+ * `x.orig`, `x.rej`, `x~`, an editor's swap file. An agent saved
+ * `channel/[id].tsx.bak` before editing the screen, and it shipped in the
+ * pull request. Only files the run added are left out, so a repository that
+ * tracks such a file still delivers changes to it.
+ */
+export function isLeftoverFile(path: string): boolean {
+   return /(\.(bak|orig|rej|swp|swo)|~)$/.test(path);
 }
 
 /** Whether a file's first bytes are an ELF core dump: the magic, then e_type 4 (ET_CORE). */
