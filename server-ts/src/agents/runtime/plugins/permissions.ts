@@ -36,6 +36,9 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    read_file: null,
    // A skill is the agent's own text, chosen for it by a person.
    read_skill: null,
+   // The step-budget handover. Every agent may call it; the budget plugin
+   // refuses it until the run is close to its limit.
+   summarize: null,
    list_files: null,
    read_task: null,
    list_dependencies: null,

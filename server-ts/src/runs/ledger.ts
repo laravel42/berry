@@ -83,6 +83,8 @@ export interface Failure {
    code: string;
    message: string;
    retryable: boolean;
+   /** The handover written by `summarize` when a run stopped near its step limit. */
+   summary?: string;
 }
 
 export interface Run {

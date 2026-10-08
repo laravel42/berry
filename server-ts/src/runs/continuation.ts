@@ -12,9 +12,11 @@ import { ActiveRunExists } from './repository.ts';
  * until a person pressed run again. The checkpoint is what tells the two
  * apart. A run that was stopped but left new commits behind was working, so
  * the limit becomes the end of a segment and Berry queues the next one from
- * that branch; a run that left nothing new was not getting anywhere, and
- * stays failed. The chain is capped, so the most a task can spend unattended
- * is a fixed number of segments.
+ * that branch. The next run is a new session: the conversation that filled
+ * the limit is not restored, and a summary the agent wrote is its handover.
+ * A run that left nothing new was not getting anywhere, and stays failed.
+ * The chain is capped, so the most a task can spend unattended is a fixed
+ * number of segments.
  */
 
 export const LIMIT_CODE = 'RUN_LIMIT_REACHED';
@@ -26,7 +28,7 @@ export type ContinuationOutcome =
 
 export async function continueAfterLimit(
    sql: Sql,
-   input: { runId: string; maxContinuations?: number }
+   input: { runId: string; maxContinuations?: number; summary?: string }
 ): Promise<ContinuationOutcome> {
    const max = input.maxContinuations ?? DEFAULT_MAX_CONTINUATIONS;
    if (max <= 0) return { continued: false, reason: 'disabled' };
@@ -81,8 +83,9 @@ export async function continueAfterLimit(
             commit: run.head_commit as string,
             attempt: limitStops,
             of: max,
+            ...(input.summary ? { summary: input.summary } : {}),
          }),
-         origin: { runId: run.id as string },
+         origin: { runId: run.id as string, fresh: true },
          ...(run.requested_by ? { requestedBy: run.requested_by as string } : {}),
       });
       return {
@@ -103,13 +106,23 @@ export async function continueAfterLimit(
 }
 
 /** What the next segment is told. Berry's words, so they go in as run instructions. */
-export function continuationInstructions(input: { branch: string | null; commit: string; attempt: number; of: number }): string {
+export function continuationInstructions(input: {
+   branch: string | null;
+   commit: string;
+   attempt: number;
+   of: number;
+   summary?: string;
+}): string {
    const where = input.branch ? `branch ${input.branch}` : 'the task branch';
+   const handover = input.summary
+      ? `The previous run summarized its work before it stopped. This run starts with an empty conversation; that summary is the handover.\n\n${input.summary}\n\n`
+      : '';
    return (
-      `This is continuation ${input.attempt} of at most ${input.of}. Your previous run on this task was stopped at its ` +
-      `step limit, not by an error, and everything it had written is committed on ${where} ` +
-      `(commit ${input.commit.slice(0, 7)}), which is what your workspace has checked out. ` +
-      'Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
+      handover +
+      `This is continuation ${input.attempt} of at most ${input.of}, and it is a fresh run: none of the previous ` +
+      `conversation is here. The previous run was stopped at its step limit, not by an error, and everything it ` +
+      `had written is committed on ${where} (commit ${input.commit.slice(0, 7)}), which is what your workspace ` +
+      'has checked out. Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
       'commands; then do only what is still missing, check that it builds, and write your report. ' +
       'The report covers the whole task, including what the earlier run did.'
    );
@@ -119,21 +132,21 @@ export function continuationInstructions(input: { branch: string | null; commit:
  * What a run stopped at its limit says once Berry has continued it: paused,
  * not failed, and nothing for a person to do. The runtime's own message tells
  * the reader to raise the limit or split the task, which is right only when
- * nobody carries the work on; read beside "Berry queued a continuation" it
+ * nobody carries the work on; read beside "Berry queued a fresh run" it
  * was a failure notice asking for an action that was already taken.
  */
 export function continuedMessage(outcome: Extract<ContinuationOutcome, { continued: true }>): string {
    const where = outcome.branch ? `branch ${outcome.branch}` : 'the task branch';
    return (
       `Paused at this agent's step limit. Its work is saved on ${where} (commit ${outcome.commit.slice(0, 7)}), ` +
-      `and Berry is continuing from there (continuation ${outcome.attempt} of ${outcome.of}). Nothing needs to be done.`
+      `and Berry is starting a fresh run from there (continuation ${outcome.attempt} of ${outcome.of}). Nothing needs to be done.`
    );
 }
 
 /** The sentence added to the failed run's comment, so a reader knows what happens next. */
 export function continuationNote(outcome: ContinuationOutcome): string {
    if (outcome.continued) {
-      return ` Berry queued a continuation from that branch (${outcome.attempt} of ${outcome.of}); nothing needs to be done.`;
+      return ` Berry queued a fresh run from that branch (${outcome.attempt} of ${outcome.of}); nothing needs to be done.`;
    }
    if (outcome.reason === 'cap_reached') {
       return ' It was not continued again: the task has reached its limit of automatic continuations. Split it into smaller tasks, or run it again yourself.';

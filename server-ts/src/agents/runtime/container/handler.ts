@@ -17,7 +17,7 @@ import { AccountingPlugin } from '../plugins/accounting.ts';
 import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
-import { StepBudgetPlugin, budgetContract } from '../plugins/step-budget.ts';
+import { StepBudgetPlugin, budgetContract, summarizeTool, type Handoff } from '../plugins/step-budget.ts';
 import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
 import { truncateUtf8 } from '../utf8.ts';
@@ -205,8 +205,11 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             `could not load Berry's tools: ${cause instanceof Error ? cause.message : String(cause)}`
          );
       });
+      const handoff: Handoff = { open: false, summary: null };
+      const budget = new StepBudgetPlugin({ maxTurns: envelope.agent.maxTurns, handoff });
       const tools: Tool[] = [
          runCommandTool({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
+         summarizeTool(handoff),
          ...pageTools({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          collectFileTool(api, session),
          ...repositoryTools(session),
@@ -259,12 +262,12 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
                   permissions: permissionsOf(envelope.agent.permissions, envelope.agent.name),
                   table,
                   allowed: envelope.agent.tools ? new Set(envelope.agent.tools) : null,
-                  exempt: new Set([...remote.map((t) => t.name), ...mcp.tools.map((t) => t.name)]),
+                  exempt: new Set(['summarize', ...remote.map((t) => t.name), ...mcp.tools.map((t) => t.name)]),
                }),
                outcome,
                // Last, so the ledger and the outcome read the tool's own result,
                // not the one a budget notice was added to.
-               new StepBudgetPlugin({ maxTurns: envelope.agent.maxTurns }),
+               budget,
             ],
             maxTokens: envelope.agent.maxTokens ?? undefined,
             temperature: envelope.agent.temperature ?? undefined,
@@ -295,7 +298,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       });
       thinking.flush();
       await ledger.flush();
-      if (LIMIT_STOPS.includes(result.stopReason)) {
+      const summary = budget.summary();
+      // A summary near the limit ends the run on purpose, with stopReason endTurn.
+      // It is still a limit stop: the next run starts fresh from the summary.
+      if (summary || LIMIT_STOPS.includes(result.stopReason)) {
          deps.registry.drop(key);
          // The work so far goes back as a checkpoint rather than dying with the
          // workspace: a run stopped mid-scaffold otherwise loses every file it
@@ -305,15 +311,18 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          const checkpoint =
             deps.repository && directory
                ? await deps.repository
-                    .deliver({ envelope, session: workspace, directory, summary: null, emit, signal, checkpoint: true })
+                    .deliver({ envelope, session: workspace, directory, summary, emit, signal, checkpoint: true })
                     .catch(() => null)
                : null;
          emit({
             type: 'task.failed',
             failure: {
                code: 'RUN_LIMIT_REACHED',
-               message: limitMessage(result.stopReason, envelope.agent, checkpoint !== null),
+               message: summary
+                  ? 'The agent summarized near its step limit. The next run starts fresh from that summary.'
+                  : limitMessage(result.stopReason, envelope.agent, checkpoint !== null),
                retryable: false,
+               ...(summary ? { summary } : {}),
             },
             ...(checkpoint ? { delivery: checkpoint } : {}),
          });

@@ -67,6 +67,8 @@ test('a failure may carry a checkpoint of the work already done, and need not', 
    assert.ok(withCheckpoint.type === 'task.failed' && withCheckpoint.delivery?.files[0] === 'a.ts');
    const plain = lifecycleEventSchema.parse({ type: 'task.failed', failure });
    assert.ok(plain.type === 'task.failed' && plain.delivery === undefined);
+   const handed = lifecycleEventSchema.parse({ type: 'task.failed', failure: { ...failure, summary: 'The shell is in.' } });
+   assert.ok(handed.type === 'task.failed' && handed.failure.summary === 'The shell is in.');
 });
 
 test('a duration that is not a non-negative number reads as zero and never ends the run', () => {

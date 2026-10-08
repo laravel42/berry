@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Agent, tool, type Message } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { StepBudgetPlugin, budgetContract, wrapUpAt } from './step-budget.ts';
+import { StepBudgetPlugin, budgetContract, summarizeTool, wrapUpAt, type Handoff } from './step-budget.ts';
 
 const echo = tool({
    name: 'echo',
@@ -34,6 +34,7 @@ async function run(maxTurns: number | undefined, toolSteps: number): Promise<Mes
 test('the contract names the limit, and is absent without one', () => {
    assert.match(budgetContract(80), /ends after 80 steps/);
    assert.match(budgetContract(80), /about 10 steps are left/);
+   assert.match(budgetContract(80), /call summarize/);
    assert.equal(budgetContract(undefined), '');
 });
 
@@ -45,11 +46,39 @@ test('a run well inside its limit is told nothing', async () => {
    assert.deepEqual(notices(await run(80, 5)), []);
 });
 
-test('near the limit the agent is told once to wrap up, then once that its next reply is the last', async () => {
+test('near the limit the agent is told once to summarize, then once that its next reply is the last', async () => {
    const told = notices(await run(12, 11));
    assert.equal(told.length, 2);
    assert.match(told[0]!, /^Berry: 3 steps are left/);
-   assert.match(told[1]!, /next reply is the last step/);
+   assert.match(told[0]!, /Call summarize/);
+   assert.match(told[1]!, /Call summarize/);
+});
+
+test('summarize is refused until the wrap-up notice, and then it ends the run', async () => {
+   const early: Handoff = { open: false, summary: null };
+   const keptGoing = new Agent({
+      model: new ScriptedModel([call('summarize', { summary: 'too soon' }), say('still going')]),
+      tools: [echo, summarizeTool(early)],
+      plugins: [new StepBudgetPlugin({ maxTurns: 80, handoff: early })],
+      printer: false,
+   });
+   assert.equal((await keptGoing.invoke('go')).stopReason, 'endTurn');
+   assert.equal(early.summary, null);
+   assert.match(JSON.stringify(keptGoing.messages), /still going/);
+
+   const handoff: Handoff = { open: false, summary: null };
+   const agent = new Agent({
+      model: new ScriptedModel([
+         ...Array.from({ length: 9 }, () => call('echo', {})),
+         call('summarize', { summary: 'The shell is in. The drawer still needs a close button.' }),
+      ]),
+      tools: [echo, summarizeTool(handoff)],
+      plugins: [new StepBudgetPlugin({ maxTurns: 12, handoff })],
+      printer: false,
+   });
+   const result = await agent.invoke('go');
+   assert.equal(result.stopReason, 'endTurn');
+   assert.equal(handoff.summary, 'The shell is in. The drawer still needs a close button.');
 });
 
 test('a run with no step limit is left alone', async () => {

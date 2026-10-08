@@ -152,6 +152,8 @@ export const taskFailureSchema = z.object({
    code: z.string().min(1),
    message: z.string(),
    retryable: z.boolean(),
+   /** The handover written by `summarize` when a run stopped near its step limit. */
+   summary: z.string().optional(),
 });
 
 /**

@@ -206,10 +206,16 @@ export class RuntimeTaskExecutor implements Executor {
                      throw new RuntimeUnavailable('Usage could not be recorded; execution accounting is incomplete');
                   });
             } else if (event.type === 'task.failed') {
+               const reported = {
+                  code: event.failure.code,
+                  message: event.failure.message,
+                  retryable: event.failure.retryable,
+                  ...(event.failure.summary ? { summary: event.failure.summary } : {}),
+               };
                const failure =
                   event.delivery && delivery
-                     ? await this.#checkpoint(task, delivery, event.delivery, event.failure)
-                     : event.failure;
+                     ? await this.#checkpoint(task, delivery, event.delivery, reported)
+                     : reported;
                return await this.#fail(task, recorder, usage, failure);
             } else if (event.type === 'task.completed') {
                return await this.#succeed(task, recorder, usage, event.result, delivery, verified);
@@ -409,6 +415,7 @@ export class RuntimeTaskExecutor implements Executor {
       try {
          return await continueAfterLimit(this.#o.sql, {
             runId: task.runId,
+            ...(failure.summary ? { summary: failure.summary } : {}),
             ...(this.#o.maxContinuations === undefined ? {} : { maxContinuations: this.#o.maxContinuations }),
          });
       } catch (error) {

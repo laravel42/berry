@@ -7,6 +7,8 @@ import { createHash } from 'node:crypto';
  * same warm microVM while it lives — same process, same checkout, same
  * in-memory conversation (spec 2.2a). A chat is `(agent, chat session)`. A
  * completion shares nothing with anything, so it is keyed by its own run.
+ * A run that continues after a step-limit summary is `fresh`: its own key,
+ * so the conversation that filled the limit is not the one it resumes.
  */
 export function sessionKeyFor(input: {
    kind: 'agent' | 'completion';
@@ -14,9 +16,12 @@ export function sessionKeyFor(input: {
    agentId: string;
    issueId?: string | null;
    chatSessionId?: string | null;
+   fresh?: boolean;
 }): string {
    if (input.kind === 'completion') return `completion:${input.runId}`;
-   if (input.issueId) return `${input.agentId}:${input.issueId}`;
+   if (input.issueId) {
+      return input.fresh ? `${input.agentId}:${input.issueId}:fresh:${input.runId}` : `${input.agentId}:${input.issueId}`;
+   }
    if (input.chatSessionId) return `${input.agentId}:chat:${input.chatSessionId}`;
    throw new Error('an agent task needs an issue or a chat session to name its session');
 }

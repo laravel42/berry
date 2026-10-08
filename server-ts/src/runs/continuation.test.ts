@@ -10,12 +10,22 @@ const url = process.env.BERRY_TEST_DATABASE_URL;
 test('the next segment is told where the work is and not to start over', () => {
    const text = continuationInstructions({ branch: 'devops/l42-425', commit: 'e687a34aaaaaaaa', attempt: 2, of: 3 });
    assert.match(text, /continuation 2 of at most 3/);
+   assert.match(text, /fresh run/);
    assert.match(text, /branch devops\/l42-425 \(commit e687a34\)/);
    assert.match(text, /Do not start over/);
 });
 
+test('a summary is the handover a fresh run starts from', () => {
+   const text = continuationInstructions({
+      branch: 'software-engineer/ber-103', commit: '6062e0caaaaaaa', attempt: 1, of: 3,
+      summary: 'The shell is in. The drawer still needs a close button.',
+   });
+   assert.match(text, /empty conversation/);
+   assert.match(text, /The shell is in\. The drawer still needs a close button\./);
+});
+
 test('the failed run’s comment says what happens next, or why nothing does', () => {
-   assert.match(continuationNote({ continued: true, runId: 'r', attempt: 1, of: 3, branch: 'b', commit: 'c' }), /queued a continuation .*\(1 of 3\)/);
+   assert.match(continuationNote({ continued: true, runId: 'r', attempt: 1, of: 3, branch: 'b', commit: 'c' }), /queued a fresh run .*\(1 of 3\)/);
    assert.match(continuationNote({ continued: false, reason: 'cap_reached' }), /limit of automatic continuations/);
    assert.match(continuationNote({ continued: false, reason: 'no_progress' }), /no new commit/);
    assert.equal(continuationNote({ continued: false, reason: 'busy' }), '');

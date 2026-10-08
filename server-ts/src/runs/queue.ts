@@ -48,7 +48,7 @@ export interface EnqueueTaskInput {
     * mention). Lets a chat follow the work its agent set going, not only its
     * own reply.
     */
-   origin?: { runId: string };
+   origin?: { runId: string; fresh?: boolean };
 }
 
 export class EnqueueRejected extends Error {

@@ -20,6 +20,14 @@ test('the id is berry- plus sha256(agentId:issueId), long enough for AgentCore',
    assert.ok(id.length >= 33);
 });
 
+test('a fresh continuation is its own session, and two of them do not share one', () => {
+   const kept = sessionKeyFor({ kind: 'agent', runId: 'r1', agentId, issueId });
+   const fresh = sessionKeyFor({ kind: 'agent', runId: 'r1', agentId, issueId, fresh: true });
+   const next = sessionKeyFor({ kind: 'agent', runId: 'r2', agentId, issueId, fresh: true });
+   assert.notEqual(fresh, kept);
+   assert.notEqual(fresh, next);
+});
+
 test('another issue, another agent, or a chat is another session', () => {
    const base = sessionKeyFor({ kind: 'agent', runId: 'r', agentId, issueId });
    assert.notEqual(base, sessionKeyFor({ kind: 'agent', runId: 'r', agentId, issueId: 'other' }));

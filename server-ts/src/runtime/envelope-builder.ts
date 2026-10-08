@@ -51,6 +51,8 @@ export interface TaskRow {
    kind: 'agent' | 'completion';
    source: string;
    prompt: string | null;
+   /** A step-limit handover: a new session, and no restored conversation. */
+   fresh: boolean;
    completionSpec: CompletionSpec | null;
    runtimeId: string | null;
 }
@@ -128,9 +130,10 @@ export interface EnvelopeDeps {
 export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
    const [row] = await sql`
       SELECT id, workspace_id, agent_id, issue_id, board_id, chat_session_id, kind, source,
-             prompt, completion_spec, runtime_id
+             prompt, completion_spec, runtime_id, origin
         FROM runs WHERE id = ${runId}`;
    if (!row) throw new Error(`run ${runId} does not exist`);
+   const origin = row.origin;
    return {
       runId: row.id as string,
       workspaceId: row.workspace_id as string,
@@ -141,6 +144,7 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       kind: row.kind as TaskRow['kind'],
       source: row.source as string,
       prompt: (row.prompt as string | null) ?? null,
+      fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
       completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
       runtimeId: (row.runtime_id as string | null) ?? null,
    };
@@ -175,6 +179,7 @@ export class EnvelopeBuilder {
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
       const sessionKey = sessionKeyFor({
          kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
+         ...(task.fresh ? { fresh: true } : {}),
       });
       const { model, tier, fallback } = await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
@@ -231,9 +236,13 @@ export class EnvelopeBuilder {
          };
       }
 
-      const transcript = await buildTranscript(this.#deps.sql, {
-         agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId, excludeRunId: task.runId,
-      });
+      // A fresh continuation keeps the summary in its instructions and none of
+      // the conversation that filled the limit.
+      const transcript = task.fresh
+         ? []
+         : await buildTranscript(this.#deps.sql, {
+              agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId, excludeRunId: task.runId,
+           });
 
       if (!task.issueId) {
          // A chat task: the prompt is the message; workstream D adds the chat context.
