@@ -12,7 +12,7 @@ import { GitHubClient } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { EnvelopeBuilder } from './envelope-builder.ts';
 import type { LifecycleEvent } from './lifecycle.ts';
-import { RuntimeTaskExecutor, type UsageRecorder } from './task-executor.ts';
+import { RuntimeTaskExecutor, emptyRepositoryRun, type UsageRecorder } from './task-executor.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import type { RuntimeTarget, RuntimeTransport } from './transport.ts';
 
@@ -197,5 +197,32 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const { runId } = await issueTask();
       await executor(scripted([{ type: 'task.failed', failure: { code: 'X', message: 'no', retryable: false } }])).execute(runId);
       assert.equal((await sql`SELECT 1 FROM run_exchanges WHERE run_id = ${runId}`).length, 0);
+   });
+});
+
+describe('empty repository run', () => {
+   const delivery = {
+      committed: false,
+      commit: null,
+      branch: 'software-engineer/ber-100',
+      filesChanged: 0,
+      insertions: 0,
+      deletions: 0,
+      files: [],
+      baseCommit: 'abc',
+   };
+
+   test('a repository run with no report and no commit produced nothing', () => {
+      assert.equal(
+         emptyRepositoryRun({ repository: true, summary: null, delivery, pullRequest: null }),
+         true,
+      );
+   });
+
+   test('an answer, a commit, or earlier work on the branch is a result', () => {
+      assert.equal(emptyRepositoryRun({ repository: true, summary: 'The theme tokens are in place.', delivery, pullRequest: null }), false);
+      assert.equal(emptyRepositoryRun({ repository: true, summary: null, delivery: { ...delivery, committed: true, commit: 'def' }, pullRequest: null }), false);
+      assert.equal(emptyRepositoryRun({ repository: true, summary: null, delivery, pullRequest: 12 }), false);
+      assert.equal(emptyRepositoryRun({ repository: false, summary: null, delivery: null, pullRequest: null }), false);
    });
 });

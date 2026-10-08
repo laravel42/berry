@@ -84,6 +84,25 @@ const STREAM_ENDED: Failure = {
 };
 
 /**
+ * A repository task that ends with no report and no change has nothing for a
+ * reviewer to accept. An answer with no commit is still a result, and so is a
+ * commit or a pull request opened for work an earlier run of this task already
+ * pushed. Only the empty case is a fault, and it is retried once.
+ */
+export function emptyRepositoryRun(input: {
+   repository: boolean;
+   summary: string | null;
+   delivery: TaskDelivery | null | undefined;
+   pullRequest: number | null;
+}): boolean {
+   if (!input.repository) return false;
+   if (input.summary !== null && input.summary.trim() !== '') return false;
+   if (input.delivery?.committed) return false;
+   if (input.pullRequest !== null) return false;
+   return true;
+}
+
+/**
  * The dispatcher's executor, now that the loop is in the runtime.
  *
  * It claims, builds the envelope, invokes, and turns each lifecycle event
@@ -265,6 +284,24 @@ export class RuntimeTaskExecutor implements Executor {
                retryable: gitWriteInvisible(error),
             });
          }
+      }
+      const [opened] = plan
+         ? await this.#o.sql<Array<{ pull_request_number: number | null }>>`
+              SELECT pull_request_number FROM runs WHERE id = ${task.runId}`
+         : [];
+      if (
+         emptyRepositoryRun({
+            repository: Boolean(plan),
+            summary,
+            delivery: result.delivery,
+            pullRequest: opened?.pull_request_number ?? null,
+         })
+      ) {
+         return this.#fail(task, recorder, usage, {
+            code: 'EMPTY_RUN',
+            message: 'The run finished without a report and without changing the repository.',
+            retryable: true,
+         });
       }
       // Persist before publishing success. The worker only admits succeeded parents.
       if (task.issueId && this.#o.reviewGate) await scheduleReview(this.#o.sql, task.runId);
