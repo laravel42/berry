@@ -228,6 +228,11 @@ export interface IntegrationsOptions {
     */
    completeAgentCoreAuthorization: ((sessionUri: string) => Promise<void>) | null;
    /**
+    * Set while AgentCore's GitHub token needs a person. The URL is the
+    * consent page, when AgentCore returned one, and is not logged.
+    */
+   agentCoreAttention?: () => { message: string; url: string | null } | null;
+   /**
     * The one-time way in for a deployment nobody can sign into yet.
     *
     * Lets the App be created before anyone has signed in; sign-in itself is a
@@ -370,6 +375,7 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
             : [];
 
       const grants = options.connections ? await listGrants(options, workspaceId) : [];
+      const attention = options.agentCoreAttention?.() ?? null;
 
       return json({
          providers: PROVIDERS.map((provider) => {
@@ -406,14 +412,18 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
                // panel below it says what to press. A usable sign-in reads as
                // connected with no App at all.
                status: viaAgentCredential
-                  ? connected
-                     ? 'connected'
-                     : signInRefused
-                       ? 'reconnect'
-                       : app === null
-                         ? null
-                         : 'not_installed'
+                  ? attention
+                     ? 'expired'
+                     : connected
+                       ? 'connected'
+                       : signInRefused
+                         ? 'reconnect'
+                         : app === null
+                           ? null
+                           : 'not_installed'
                   : (connection?.status ?? null),
+               statusDetail: provider.id === 'github' ? (attention?.message ?? null) : null,
+               renewalUrl: provider.id === 'github' ? (attention?.url ?? null) : null,
                source,
                accountName: connection?.externalAccountName ?? null,
                scopes:

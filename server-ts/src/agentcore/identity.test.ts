@@ -83,7 +83,9 @@ describe('AgentCore Identity GitHub credential', () => {
       });
 
       await assert.rejects(identity.githubToken(), /complete the consent flow/);
+      assert.equal(identity.renewalUrl(), 'https://agentcore.example/authorize');
       assert.equal(await identity.githubToken(), 'github');
+      assert.equal(identity.renewalUrl(), null);
       assert.equal(
          client.calls[2]?.input.sessionUri,
          'urn:ietf:params:oauth:request_uri:one',

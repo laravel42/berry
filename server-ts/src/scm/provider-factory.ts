@@ -42,6 +42,24 @@ export interface Scm {
    gitCredential: GitCredential;
    /** Completes AgentCore's user-federation callback on the same identity instance. */
    completeAgentCoreAuthorization: ((sessionUri: string) => Promise<void>) | null;
+   /**
+    * Set when AgentCore's GitHub token needs a person: it expired, or consent
+    * was never finished. Null once a token is minted again. The URL, when
+    * present, is the consent page and is not logged.
+    */
+   agentCoreAttention: () => { message: string; url: string | null } | null;
+}
+
+/** How long a failed AgentCore token request is remembered before it is tried again. */
+const IDENTITY_BACKOFF_MS = 5 * 60 * 1000;
+
+/**
+ * Failures a person can fix by signing in or finishing consent. A missing
+ * provider during setup is not one of these: that path keeps the fallback
+ * and stays quiet.
+ */
+export function identityNeedsRenewal(message: string): boolean {
+   return /token has expired|complete the consent flow|github consent is/i.test(message);
 }
 
 /**
@@ -113,15 +131,40 @@ export async function createScm(options: {
         }
       : null;
 
+   let attention: { message: string; url: string | null; at: number } | null = null;
+   const agentCoreAttention = (): { message: string; url: string | null } | null =>
+      attention === null ? null : { message: attention.message, url: attention.url };
+
    const preferIdentity = (next: GitCredential): GitCredential => {
       if (!identityCredential) return next;
       return async (workspaceId, owner) => {
+         const now = Date.now();
+         // The same expiry was logged on every file read. Remember it, fall
+         // back quietly, and try AgentCore again once the backoff has passed.
+         if (attention && now - attention.at < IDENTITY_BACKOFF_MS) return next(workspaceId, owner);
          try {
-            return await identityCredential.gitCredential();
+            const credential = await identityCredential.gitCredential();
+            attention = null;
+            return credential;
          } catch (error) {
-            logger.warn('AgentCore Identity did not supply a GitHub token; falling back', {
-               error: error instanceof Error ? error.message : String(error),
-            });
+            const text = error instanceof Error ? error.message : String(error);
+            const renew = identityNeedsRenewal(text);
+            const repeat = attention?.message === text;
+            if (renew) {
+               attention = {
+                  message: /consent/i.test(text)
+                     ? 'GitHub is not authorised for AgentCore yet. Finish the consent flow so agents stop using the fallback sign-in token.'
+                     : 'The GitHub token AgentCore holds has expired. Sign in again so repository writes use a current grant. Until then Berry uses the workspace sign-in token.',
+                  url: identityCredential.renewalUrl(),
+                  at: now,
+               };
+            }
+            if (!repeat) {
+               logger.warn('AgentCore Identity did not supply a GitHub token; falling back', {
+                  error: text,
+                  ...(renew ? { reconnect: true } : {}),
+               });
+            }
             return next(workspaceId, owner);
          }
       };
@@ -145,6 +188,7 @@ export async function createScm(options: {
             sync: new ScmSync(sql, provisioning, logger),
             gitCredential,
             completeAgentCoreAuthorization,
+            agentCoreAttention,
          };
       }
    } else if (githubApp || userAccess) {
@@ -209,6 +253,7 @@ export async function createScm(options: {
          sync: new ScmSync(sql, provisioning, logger),
          gitCredential,
          completeAgentCoreAuthorization,
+         agentCoreAttention,
       };
    }
 
@@ -222,5 +267,6 @@ export async function createScm(options: {
       sync: null,
       gitCredential: preferIdentity(gitCredential),
       completeAgentCoreAuthorization,
+      agentCoreAttention,
    };
 }

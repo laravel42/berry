@@ -66,6 +66,12 @@ export class AgentCoreIdentity {
    readonly #clock: () => number;
    readonly #marginMs: number;
    #cached: { token: string; expiresAt: number } | null = null;
+   /**
+    * The browser URL AgentCore returned instead of a token. Kept for the
+    * settings page that asks someone to consent. Never logged: the URL is
+    * the capability that binds the authorization session.
+    */
+   #renewalUrl: string | null = null;
    /** The in-flight 3LO session; the callback completes this exact session. */
    #sessionUri: string | null = null;
    /** The workload token that opened that session; session binding requires the same one. */
@@ -185,9 +191,9 @@ export class AgentCoreIdentity {
          }
          // An authorization URL instead of a token means somebody has to
          // consent in a browser. A session status means that exact consent is
-         // still pending (or failed). Neither value is logged here: the URL is
-         // sensitive according to the SDK model and belongs in the UI that
-         // initiated the flow, not in a server log.
+         // still pending (or failed). The URL is kept for settings and is
+         // never logged: it is the capability that binds the session.
+         if (response.authorizationUrl) this.#renewalUrl = response.authorizationUrl;
          throw new SourceControlAuthenticationError(
             response.authorizationUrl
                ? 'GitHub is not authorised for this AgentCore identity yet; complete the consent flow'
@@ -199,8 +205,17 @@ export class AgentCoreIdentity {
 
       this.#sessionUri = null;
       this.#sessionWorkloadToken = null;
+      this.#renewalUrl = null;
       this.#cached = { token, expiresAt: now + ASSUMED_TTL_MS };
       return token;
+   }
+
+   /**
+    * The consent URL from the last token request that returned one, if it
+    * has not since been replaced by a token.
+    */
+   renewalUrl(): string | null {
+      return this.#renewalUrl;
    }
 
    /** The credential a run clones and pushes with. */

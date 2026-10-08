@@ -1178,6 +1178,7 @@ registry.registerAll(
       appSlug: config.auth.githubAppSlug,
       userAccess: githubUserAccess,
       completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
+      agentCoreAttention: scm.agentCoreAttention,
       publicUrl: config.integrations.publicUrl,
       appUrl: config.integrations.appUrl,
       // Settings pages live under the workspace, so a callback needs its slug
