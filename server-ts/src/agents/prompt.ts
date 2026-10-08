@@ -255,7 +255,7 @@ function deliveryContract(): string {
       'commits the file as it is, not a patch, so a partial file replaces the ' +
       'whole one.\n' +
       'Your workspace has Node with npm, pnpm, yarn and bun; nvm; Python 3 with ' +
-      'pip and venv; git and ffmpeg. Install, build and test with the package ' +
+      'pip and venv; git, ffmpeg and the Expo CLI (`expo`). Install, build and test with the package ' +
       'manager the repository committed a lockfile for — the preview does the ' +
       'same, and a different one resolves a different tree. When the repository ' +
       'has an .nvmrc, run nvm install once: every later command in it then runs ' +

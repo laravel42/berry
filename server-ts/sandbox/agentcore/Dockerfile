@@ -115,6 +115,12 @@ ENV BASH_ENV=/etc/berry/bash-env.sh
 # includes an agent's command, whose stdin is closed (local-session.ts).
 RUN sed -i '1i . /etc/berry/bash-env.sh' /etc/bash.bashrc
 
+# The Expo CLI. The retired package is `expo-cli`; the command ships in the
+# `expo` package. A repository's own copy still wins for npm scripts and
+# `npx expo`. This is `expo` on PATH before that install, at one SDK.
+RUN npm install -g expo@57.0.27 \
+   && rm -rf /root/.npm
+
 # Debian marks its Python as externally managed and refuses a bare `pip
 # install`. A session's workspace is disposable and its user unprivileged, so
 # pip installs into that user's own site-packages.
