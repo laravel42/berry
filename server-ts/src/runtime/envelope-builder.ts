@@ -22,7 +22,8 @@ import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import type { RoleKey } from '../organization/contract.ts';
-import { isGatewayModelId, type TierChoice } from '../agents/kilo/tiers.ts';
+import { isGatewayModelId, type TierChoice, type TierPlacement } from '../agents/kilo/tiers.ts';
+import type { TierPlacements } from '../agents/kilo/placements.ts';
 import type { Tier } from '../agents/model-tiers.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
@@ -122,7 +123,9 @@ export interface EnvelopeDeps {
     * provisioned with — is not sent to it: the agent runs on its tier's
     * choice for today instead.
     */
-   gateway?: { choose(tier: Tier, rejections?: number): Promise<TierChoice | null> } | undefined;
+   gateway?: { choose(tier: Tier, rejections?: number, place?: TierPlacement | null): Promise<TierChoice | null> } | undefined;
+   /** The models a workspace placed in its tiers (Settings → AI); without one, the deployment's. */
+   placements?: Pick<TierPlacements, 'get'> | undefined;
    memory: RunMemory;
    sealer: Sealer | null;
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
@@ -442,7 +445,11 @@ export class EnvelopeBuilder {
             : 'berry_low';
       // A task starts on its tier's first model and moves down the list only
       // when its work is rejected at review (`chooseForTier`).
-      const choice = await gateway.choose(tier, task.kind === 'agent' && task.issueId ? await this.#rejections(task.issueId) : 0);
+      const choice = await gateway.choose(
+         tier,
+         task.kind === 'agent' && task.issueId ? await this.#rejections(task.issueId) : 0,
+         (await this.#deps.placements?.get(task.workspaceId)) ?? null
+      );
       // The agent's own fallback wins; otherwise Berry's default from the
       // leaderboard (decided 2026-09-25). Never the model itself.
       const own = agent.fallbackModel && isGatewayModelId(agent.fallbackModel) ? agent.fallbackModel : null;

@@ -34,7 +34,8 @@ import {
 } from '../agents/catalog.ts';
 import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
 import type { KiloCatalog } from '../agents/kilo/catalog.ts';
-import { isGatewayModelId, TIER_NAMES, TIERS, type Tier } from '../agents/kilo/tiers.ts';
+import { stepCost, type StepMix, type TierPlacements } from '../agents/kilo/placements.ts';
+import { isGatewayModelId, tierCandidates, TIER_NAMES, TIER_SIZE, TIERS, type GatewayModel, type Tier } from '../agents/kilo/tiers.ts';
 import { catalogRole, toolsForLevel } from '../organization/catalog.ts';
 import { deriveReviewRequirements, effectiveContract } from '../organization/derived.ts';
 import type { RoleKey } from '../organization/contract.ts';
@@ -112,7 +113,7 @@ export interface AgentOptions {
     * The Kilo gateway's tiers and account (ADR-0017), when the deployment
     * calls models through it. Their routes 503 without it.
     */
-   gateway?: { catalog: KiloCatalog; account: KiloAccount };
+   gateway?: { catalog: KiloCatalog; account: KiloAccount; placements?: TierPlacements };
    /**
     * Optional: records why the catalogue was unreachable. The client only ever
     * sees an opaque 502, so without this the underlying Bedrock cause (bad
@@ -238,16 +239,59 @@ export function agentMounts(options: AgentOptions): Mount[] {
       const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
       await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
          .catch(rethrowWorkspace);
+      return json(await tiersView(requireGateway(options.gateway), workspaceId, logger));
+   });
+
+   /**
+    * What a workspace admin can place in a tier: every model the tiers may
+    * hold, with its rating and prices, and what one agent step costs on it at
+    * this workspace's own token mix. The mix is why: a model without a cache
+    * price looks cheap per token and is not, when every step re-sends the
+    * whole conversation.
+    */
+   route.get('/tiers/candidates', async (context) => {
+      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
+      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
+         .catch(rethrowWorkspace);
       const gateway = requireGateway(options.gateway);
-      const snapshot = await gatewaySnapshot(gateway.catalog, logger);
-      return json({
-         tiers: TIERS.map((tier) => ({ tier, name: TIER_NAMES[tier], models: snapshot.pools[tier] })),
-         refreshedAt: new Date(snapshot.fetchedAt).toISOString(),
-         stale: snapshot.stale,
-         usageStale: snapshot.usageStale,
-         ratingScale: snapshot.ratingScale,
-         ratingsStale: snapshot.ratingsStale,
-      });
+      const [snapshot, mix] = await Promise.all([gatewaySnapshot(gateway.catalog, logger), gateway.placements?.stepMix(workspaceId) ?? null]);
+      const models = tierCandidates(snapshot.models, gateway.catalog.policy)
+         .map((model) => serializeCandidate(model, mix))
+         .sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || a.name.localeCompare(b.name));
+      return json({ models, mix });
+   });
+
+   /**
+    * The models this workspace runs each tier on, best first; null goes back
+    * to the deployment's placement. Admin-only: it decides what every agent
+    * in the workspace costs.
+    */
+   route.put('/tiers/placement', async (context) => {
+      const user = context.get('user');
+      const workspaceId = currentWorkspace(user.currentWorkspaceId);
+      await agents.authorizeWorkspace(user.id, workspaceId, 'workspace.admin').catch(rethrowWorkspace);
+      const gateway = requireGateway(options.gateway);
+      if (!gateway.placements) throw new ApiError(503, 'MODEL_GATEWAY_UNAVAILABLE', 'Tier placement is not served here.');
+      const { placement } = await readJson(context, placementSchema);
+      if (placement === null) {
+         await gateway.placements.clear(workspaceId);
+      } else {
+         const snapshot = await gatewaySnapshot(gateway.catalog, logger);
+         const allowed = new Set(tierCandidates(snapshot.models, gateway.catalog.policy).map((model) => model.id));
+         const seen = new Set<string>();
+         assertValid(
+            TIERS.flatMap((tier) =>
+               placement[tier].flatMap((id, index) => {
+                  const pointer = `/placement/${tier}/${index}`;
+                  if (seen.has(id)) return [fieldError(pointer, 'duplicate', `${id} is placed in more than one place.`)];
+                  seen.add(id);
+                  return allowed.has(id) ? [] : [fieldError(pointer, 'unknown_model', `${id} is not a model the tiers can hold.`)];
+               })
+            )
+         );
+         await gateway.placements.set(workspaceId, user.id, placement);
+      }
+      return json(await tiersView(gateway, workspaceId, logger));
    });
 
    /**
@@ -1059,6 +1103,42 @@ async function parseFallbackModel(value: unknown, catalog: ModelSource | null, l
       throw new ApiError(400, 'MODEL_UNAVAILABLE', 'That model is not available on this runtime.');
    }
    return model;
+}
+
+const placedSchema = z.array(z.string().trim().min(1).max(300)).max(TIER_SIZE);
+const placementSchema = z.strictObject({
+   placement: z.strictObject({ berry_max: placedSchema, berry_mid: placedSchema, berry_low: placedSchema }).nullable(),
+});
+
+/** Each tier's models for this workspace, and whose placement put them there. */
+async function tiersView(gateway: NonNullable<AgentOptions['gateway']>, workspaceId: string, logger?: Logger) {
+   const snapshot = await gatewaySnapshot(gateway.catalog, logger);
+   const own = (await gateway.placements?.get(workspaceId)) ?? null;
+   const pools = await gateway.catalog.poolsFor(own);
+   return {
+      tiers: TIERS.map((tier) => ({ tier, name: TIER_NAMES[tier], models: pools[tier] })),
+      placement: { source: own ? 'workspace' : 'deployment', tiers: own ?? gateway.catalog.deploymentPlacement },
+      deploymentPlacement: gateway.catalog.deploymentPlacement,
+      refreshedAt: new Date(snapshot.fetchedAt).toISOString(),
+      stale: snapshot.stale,
+      usageStale: snapshot.usageStale,
+      ratingScale: snapshot.ratingScale,
+      ratingsStale: snapshot.ratingsStale,
+   };
+}
+
+function serializeCandidate(model: GatewayModel, mix: StepMix | null) {
+   const cacheRead = model.price.cacheRead !== null && model.price.cacheRead >= 0 ? model.price.cacheRead : null;
+   return {
+      id: model.id,
+      name: model.name,
+      rating: model.bench?.completion ?? null,
+      estimatedFrom: model.bench?.estimatedFrom ?? null,
+      inputPricePerM: model.price.input,
+      outputPricePerM: model.price.output,
+      cacheReadPricePerM: cacheRead,
+      stepCostUsd: mix ? stepCost(model, mix) : null,
+   };
 }
 
 function requireGateway(gateway: AgentOptions['gateway']): NonNullable<AgentOptions['gateway']> {

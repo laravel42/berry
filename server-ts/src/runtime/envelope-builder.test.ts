@@ -6,6 +6,7 @@ import { IssueRepository } from '../core/issues.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { catalogRole } from '../organization/catalog.ts';
+import type { TierPlacement } from '../agents/kilo/tiers.ts';
 import { dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
@@ -94,15 +95,18 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
    describe('through the model gateway (ADR-0017)', () => {
       const asked: string[] = [];
       const rejectionsAsked: number[] = [];
+      let placed: TierPlacement | null = null;
       let gatewayBuilder: EnvelopeBuilder;
       before(() => {
          gatewayBuilder = new EnvelopeBuilder({
             sql, publicUrl: 'https://berry.test', defaultModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             memory: nullRunMemory(), sealer: null, github: (token) => new GitHubClient({ token }),
+            placements: { get: async (workspaceId) => (workspaceId === fixture!.workspaceId ? placed : null) },
             gateway: {
-               choose: async (tier, rejections = 0) => {
+               choose: async (tier, rejections = 0, place = null) => {
                   asked.push(tier);
                   rejectionsAsked.push(rejections);
+                  if (place?.berry_low[0] && tier === 'berry_low') return { tier, model: place.berry_low[0], fallback: null };
                   return tier === 'berry_low'
                      ? { tier, model: 'openai/gpt-6-luna', fallback: 'openai/gpt-5.6-luna' }
                      : { tier, model: `vendor/${tier}-choice`, fallback: 'openai/gpt-6-luna' };
@@ -133,6 +137,16 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          } finally {
             await sql`UPDATE agents SET fallback_model = NULL WHERE id = ${fixture!.agentId}`;
          }
+      });
+
+      test("a run takes its tier's model from its own workspace's placement", async () => {
+         placed = { berry_max: [], berry_mid: [], berry_low: ['minimax/minimax-m3'] };
+         try {
+            assert.equal(await modelOf(), 'minimax/minimax-m3');
+         } finally {
+            placed = null;
+         }
+         assert.equal(await modelOf(), 'openai/gpt-6-luna');
       });
 
       test('a named model falls back to its tier\'s choice for today', async () => {

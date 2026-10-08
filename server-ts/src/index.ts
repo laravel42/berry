@@ -146,6 +146,7 @@ import { AgentRepository } from './agents/repository.ts';
 import { ModelCatalog, type ModelSource } from './agents/catalog.ts';
 import { KiloAccount } from './agents/kilo/account.ts';
 import { KiloCatalog } from './agents/kilo/catalog.ts';
+import { TierPlacements } from './agents/kilo/placements.ts';
 import { reconcileGateway } from './usage/gateway-fees.ts';
 import { createLogger } from './observability/log.ts';
 import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
@@ -601,6 +602,7 @@ const modelGateway = config.modelGateway
            },
         }),
         account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
+        placements: new TierPlacements(sql),
      }
    : null;
 if (modelGateway && config.modelGateway) {
@@ -628,7 +630,7 @@ const executor = defaultTarget
               config.integrations.publicUrl ??
               `http://${config.apiAddr.host}:${config.apiAddr.port}`,
            defaultModel: config.runtime.defaultModel,
-           ...(modelGateway ? { gateway: modelGateway.catalog } : {}),
+           ...(modelGateway ? { gateway: modelGateway.catalog, placements: modelGateway.placements } : {}),
            maxTokens: config.runtime.maxTokens,
            memory: runMemory ?? nullRunMemory(),
            sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,

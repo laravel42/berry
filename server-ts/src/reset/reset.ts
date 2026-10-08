@@ -60,6 +60,7 @@ export const KEPT_TABLES: ReadonlySet<string> = new Set([
    'workspace_memberships',
    'workspace_invitations',
    'workspace_join_links',
+   'workspace_model_tiers',
    'boards',
    // agents
    'agents',

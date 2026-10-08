@@ -66,6 +66,9 @@ export interface TierPolicy {
    place?: Partial<Record<'berry_max' | 'berry_mid' | 'berry_low', readonly string[]>>;
 }
 
+/** The models placed in each tier, its first choices in order; an empty list leaves the tier to the leaderboard. */
+export type TierPlacement = Record<Tier, string[]>;
+
 /** Which of `patterns` an id is, by position, or -1: equal to one, or starting with one that ends in `/` or `-`. */
 export function patternIndex(id: string, patterns: readonly string[] | undefined): number {
    const lower = id.toLowerCase();
@@ -195,6 +198,13 @@ export function isPaidEligible(model: GatewayModel): boolean {
    );
 }
 
+/** The models a paid tier may hold under `policy`: what a person can place, and what the rule ranks. */
+export function tierCandidates(models: GatewayModel[], policy: TierPolicy = {}): GatewayModel[] {
+   return models.filter(
+      (model) => !matchesAny(model.id, policy.exclude) && isPaidEligible(model) && (policy.anyProvider === true || model.ownKey)
+   );
+}
+
 /** Tokens per model over the usage window, in one mode (`null` counts every mode). */
 export function usageByModel(rows: UsageRow[], mode: string | null): Map<string, number> {
    const totals = new Map<string, number>();
@@ -230,10 +240,9 @@ export function rankTiers(
    mode: string | null = 'code',
    policy: TierPolicy = {}
 ): TierPools {
-   const models = allModels.filter((model) => !matchesAny(model.id, policy.exclude));
    const usage = usageByModel(usageRows, mode);
    const used = (model: GatewayModel) => usage.get(model.id) ?? 0;
-   const paid = models.filter((model) => isPaidEligible(model) && (policy.anyProvider === true || model.ownKey));
+   const paid = tierCandidates(allModels, policy);
    const rated = paid.filter((model) => model.bench !== null);
    const byRating = (a: GatewayModel, b: GatewayModel) =>
       rankingRating(b) - rankingRating(a) || used(b) - used(a) || a.id.localeCompare(b.id);

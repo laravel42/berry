@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { CatalogUnavailable, type CatalogModel } from '../catalog.ts';
 import { combineRatings, modelKey, readLeaderboard, TBENCH_LEADERBOARD_URL, TBENCH_LEADERBOARDS, type RatingSource, type Scores } from './ratings.ts';
-import { blendedPrice, chooseForTier, type TierPolicy, isPaidEligible, rankTiers, tierOf, TIER_NAMES, type GatewayModel, type Tier, type TierChoice, type TierPools, type UsageRow } from './tiers.ts';
+import { blendedPrice, chooseForTier, type TierPolicy, isPaidEligible, rankTiers, tierOf, TIER_NAMES, TIERS, type GatewayModel, type Tier, type TierChoice, type TierPlacement, type TierPools, type UsageRow } from './tiers.ts';
 
 /**
  * The Kilo gateway's models and leaderboard, read live (ADR-0017).
@@ -249,6 +249,7 @@ export class KiloCatalog {
    readonly #policy: TierPolicy;
    #snapshot: KiloSnapshot | null = null;
    #inFlight: Promise<KiloSnapshot> | null = null;
+   readonly #placed = new WeakMap<KiloSnapshot, Map<string, TierPools>>();
 
    constructor(options: KiloCatalogOptions) {
       this.#apiKey = options.apiKey;
@@ -281,8 +282,41 @@ export class KiloCatalog {
    }
 
    /** The model a task on `tier` runs on today after `rejections` rejected reviews, and its default fallback (`chooseForTier`). */
-   async choose(tier: Tier, rejections = 0): Promise<TierChoice | null> {
-      return chooseForTier((await this.snapshot()).pools, tier, rejections);
+   async choose(tier: Tier, rejections = 0, place?: TierPlacement | null): Promise<TierChoice | null> {
+      return chooseForTier(await this.poolsFor(place), tier, rejections);
+   }
+
+   /** What the deployment excludes, prefers and allows (`TierPolicy`). */
+   get policy(): TierPolicy {
+      return this.#policy;
+   }
+
+   /** The models the deployment placed in each tier (`BERRY_KILO_MAX|MID|LOW`): a workspace's own placement replaces them. */
+   get deploymentPlacement(): TierPlacement {
+      const place = this.#policy.place ?? {};
+      return Object.fromEntries(TIERS.map((tier) => [tier, [...(place[tier] ?? [])]])) as TierPlacement;
+   }
+
+   /**
+    * Today's tiers with `place` instead of the deployment's placement; the
+    * deployment's own pools without one. Ranked once per placement and
+    * snapshot, so each run's choice costs a lookup.
+    */
+   async poolsFor(place?: TierPlacement | null): Promise<TierPools> {
+      const snapshot = await this.snapshot();
+      if (!place) return snapshot.pools;
+      let ranked = this.#placed.get(snapshot);
+      if (!ranked) {
+         ranked = new Map();
+         this.#placed.set(snapshot, ranked);
+      }
+      const key = JSON.stringify(TIERS.map((tier) => place[tier]));
+      let pools = ranked.get(key);
+      if (!pools) {
+         pools = rankTiers(snapshot.models, snapshot.usage, 'code', { ...this.#policy, place });
+         ranked.set(key, pools);
+      }
+      return pools;
    }
 
    async #refresh(): Promise<KiloSnapshot> {

@@ -53,6 +53,25 @@ test('the model list is read with the key, the leaderboard without it, and tiers
    assert.deepEqual(list.map((m) => [m.id, m.provider, m.tier]), [['a/x', 'kilo', 'BerryMax']]);
 });
 
+test("a workspace's placement replaces the deployment's for its runs only", async () => {
+   const models = [
+      raw('a/best', { terminalBench: { overallScore: 0.8, avgAttemptCostUsd: 50 } }),
+      raw('a/good', { terminalBench: { overallScore: 0.6, avgAttemptCostUsd: 20 } }),
+      raw('a/cheap', { terminalBench: { overallScore: 0.3, avgAttemptCostUsd: 2 } }),
+   ];
+   const fetch = (async (input: unknown) => (String(input).endsWith('/models') ? ok({ data: models }) : ok([]))) as typeof globalThis.fetch;
+   const catalog = new KiloCatalog({
+      apiKey: 'k', baseUrl: 'https://gw/', usageUrl: 'https://site/usage', ratingsUrl: null, fetch, clock: () => 0, ttlMs: 1000,
+      policy: { place: { berry_mid: ['a/good'] } },
+   });
+   assert.deepEqual(catalog.deploymentPlacement, { berry_max: [], berry_mid: ['a/good'], berry_low: [] });
+   assert.equal((await catalog.choose('berry_mid'))?.model, 'a/good');
+   const own = { berry_max: [], berry_mid: ['a/cheap'], berry_low: [] };
+   assert.equal((await catalog.choose('berry_mid', 0, own))?.model, 'a/cheap');
+   assert.equal(await catalog.poolsFor(own), await catalog.poolsFor({ ...own }), 'ranked once per placement');
+   assert.equal((await catalog.choose('berry_mid'))?.model, 'a/good', 'the deployment placement is untouched');
+});
+
 test('a failed refresh keeps the last snapshot as stale; with none, the catalogue is unavailable', async () => {
    let now = 0;
    let fail = false;
