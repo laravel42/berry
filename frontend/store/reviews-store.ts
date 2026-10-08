@@ -1,4 +1,4 @@
-import type { ReviewItem } from '@/lib/reviews';
+import { reportedWithoutChanges, type ReviewItem } from '@/lib/reviews';
 import { create } from 'zustand';
 
 interface ReviewsState {
@@ -20,7 +20,8 @@ export const useReviewsStore = create<ReviewsState>((set) => ({
 
 /** How many reviews wait for a person; null before the first load. */
 export function selectOpenReviewCount(state: ReviewsState): number | null {
-   return state.open ? state.open.length : null;
+   // A report that changed nothing is not waiting on a release.
+   return state.open ? state.open.filter((item) => !reportedWithoutChanges(item)).length : null;
 }
 
 /** The open review for a task, by the task's id or key (ELI-26). */

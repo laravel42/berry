@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import {
    loadReviews,
    reviewTimeAgo,
+   reportedWithoutChanges,
    stoppedWithoutDelivering,
    type ReviewItem,
    type ReviewQueueState,
@@ -70,7 +71,12 @@ function ReviewRow({
    const latest = item.verdicts[0];
    const status = reviewStatusOf(item);
    const href = `/${orgId}/review/${item.id}${listTab === 'created' ? '?list=created' : ''}`;
-   const branch = item.pullRequest?.branch ?? item.run.branch ?? null;
+   // A branch with no commit and no pull request is not something to review.
+   // The row names the task instead of a ref that holds nothing.
+   const branch =
+      item.delivery.committed || item.pullRequest
+         ? (item.pullRequest?.branch ?? item.run.branch ?? null)
+         : null;
    const label = branch ?? item.issue.title;
    return (
       <Link
@@ -301,7 +307,9 @@ export default function Reviews({
          const fresh = await fetchItems();
          setOutcome(decided);
          if (state !== 'open') return;
-         const remaining = (fresh ?? previous).filter((item) => item.id !== decided.reviewId);
+         const remaining = (fresh ?? previous).filter(
+            (item) => item.id !== decided.reviewId && !reportedWithoutChanges(item)
+         );
          const next =
             previous.slice(index + 1).find((item) => remaining.some((r) => r.id === item.id)) ??
             remaining[0];
@@ -319,9 +327,12 @@ export default function Reviews({
    // The waiting list splits in two. A run that stopped without committing
    // anything or opening a pull request has nothing to approve — it needs
    // help — and sits above the real deliveries so the two are never confused.
+   // A verifying run that changed nothing is not either: its report is already
+   // on the task, and the queue is for a delivery a person can release.
    const all = items ?? [];
-   const sentBack = all.filter((item) => reviewStatusOf(item) === 'closed');
-   const needsHelp = all.filter(
+   const listed = all.filter((item) => state !== 'open' || !reportedWithoutChanges(item));
+   const sentBack = listed.filter((item) => reviewStatusOf(item) === 'closed');
+   const needsHelp = listed.filter(
       (item) => reviewStatusOf(item) === 'open' && stoppedWithoutDelivering(item)
    );
    const groups = (
@@ -331,7 +342,7 @@ export default function Reviews({
               {
                  key: 'waiting',
                  label: t('groups.waiting'),
-                 items: all.filter(
+                 items: listed.filter(
                     (item) => reviewStatusOf(item) === 'open' && !stoppedWithoutDelivering(item)
                  ),
               },
@@ -341,7 +352,7 @@ export default function Reviews({
               {
                  key: 'approved',
                  label: t('groups.approved'),
-                 items: all.filter((item) => reviewStatusOf(item) === 'merged'),
+                 items: listed.filter((item) => reviewStatusOf(item) === 'merged'),
               },
               { key: 'sentBack', label: t('groups.sentBack'), items: sentBack },
            ]
@@ -355,7 +366,7 @@ export default function Reviews({
            : t('outcome.sentBack', { identifier: outcome.identifier })
       : null;
 
-   const caughtUp = items !== null && items.length === 0 && state === 'open';
+   const caughtUp = items !== null && listed.length === 0 && state === 'open';
 
    // The shared queue the rail's badge counts: what waits, whichever tab is open.
    const waitingCount = useReviewsStore(selectOpenReviewCount);
@@ -501,7 +512,7 @@ export default function Reviews({
                         {items && (
                            <p>
                               {t(state === 'open' ? 'count.open' : 'count.decided', {
-                                 count: items.length,
+                                 count: listed.length,
                               })}
                               {state === 'open' && needsHelp.length > 0
                                  ? ` · ${t('count.needsHelp', { count: needsHelp.length })}`
