@@ -211,20 +211,22 @@ test('a run away command is truncated in the ledger, and says so', async () => {
    assert.equal(result.note, 'output was truncated in the run log');
 });
 
-test('the model is handed the tail, because that is where a failure explains itself', async () => {
+test('the model is handed both ends, because a failure explains itself at either one', async () => {
    const { ledger } = fakeLedger();
    const session = fakeSession([
-      { type: 'stdout', seq: 0, data: 'a'.repeat(10_000) },
-      { type: 'stdout', seq: 1, data: 'FAILED: the last line\n' },
-      { type: 'exit', seq: 2, exitCode: 1 },
+      { type: 'stdout', seq: 0, data: 'Warning: the first error\n' },
+      { type: 'stdout', seq: 1, data: 'a'.repeat(10_000) },
+      { type: 'stdout', seq: 2, data: 'FAILED: the last line\n' },
+      { type: 'exit', seq: 3, exitCode: 1 },
    ]);
    const result = await call(tool(session, ledger), { command: 'pnpm test' });
 
    const stdout = result.stdout as string;
-   assert.ok(stdout.length < 5_000, 'the model was handed the whole log');
-   assert.match(stdout, /FAILED: the last line/);
+   assert.ok(stdout.length < 7_000, 'the model was handed the whole log');
+   assert.match(stdout, /^Warning: the first error/);
+   assert.match(stdout, /FAILED: the last line\n$/);
    // Said plainly, so the model does not read a clipped log as the whole story.
-   assert.match(stdout, /earlier output omitted/);
+   assert.match(stdout, /middle output omitted/);
 });
 
 test('a stream that never reports an exit is an error, not a success', async () => {
@@ -486,15 +488,15 @@ test('the byte caps are counted in UTF-8 bytes, and never split a character', as
    assert.equal(events.find((event) => event.type === 'completed')?.truncated, true);
    assert.equal(result.note, 'output was truncated in the run log');
 
-   // The model's tail is bounded in bytes too, and equally char-safe.
+   // What the model gets is bounded in bytes too, and equally char-safe.
    const stdout = result.stdout as string;
-   const body = stdout.replace(/^…earlier output omitted…\n/, '');
+   const body = stdout.replace('\n…middle output omitted…\n', '');
    assert.ok(
-      Buffer.byteLength(body, 'utf8') <= 4 * 1024,
-      `model tail held ${Buffer.byteLength(body, 'utf8')} bytes, over the cap`
+      Buffer.byteLength(body, 'utf8') <= 6 * 1024,
+      `model output held ${Buffer.byteLength(body, 'utf8')} bytes, over the cap`
    );
-   assert.ok(!stdout.includes('\uFFFD'), 'the model tail cut a multibyte character');
-   assert.match(stdout, /earlier output omitted/);
+   assert.ok(!stdout.includes('\uFFFD'), 'the model output cut a multibyte character');
+   assert.match(stdout, /middle output omitted/);
 });
 
 test('accented multibyte output survives to the model tail intact', async () => {

@@ -68,8 +68,9 @@ const SUBSTRATE_GRACE_MS = 30_000;
 /** Ledger bytes per command. Beyond this the run is still recorded as truncated. */
 const MAX_RECORDED_BYTES = 256 * 1024;
 
-/** What the model sees. Enough to diagnose a failure, not enough to fill a context. */
-const MAX_MODEL_BYTES = 4 * 1024;
+/** What the model sees of each stream's start and end. Enough to diagnose a failure, not enough to fill a context. */
+const MODEL_HEAD_BYTES = 2 * 1024;
+const MODEL_TAIL_BYTES = 4 * 1024;
 
 /** One ledger row per this much output, or per the interval below. */
 const FLUSH_BYTES = 2 * 1024;
@@ -204,7 +205,7 @@ export async function runInWorkspace(
    });
 
    const recorder = new OutputRecorder(scope.ledger, scope.runId, commandId, clock);
-   const tail = new Tail(MAX_MODEL_BYTES);
+   const tail = new HeadAndTail(MODEL_HEAD_BYTES, MODEL_TAIL_BYTES);
    let exitCode: number | null = null;
    let failure: string | null = null;
 
@@ -344,40 +345,56 @@ class OutputRecorder {
 }
 
 /**
- * The last N bytes of each stream, for the model.
+ * The first and last bytes of each stream, for the model.
  *
- * The tail rather than the head: a failing command says why at the end, and
- * the first four kilobytes of a build are the part nobody needs.
+ * Both ends, because a failure explains itself at either one: a build says
+ * why at the end, and a test runner prints the first error at the top and a
+ * page of stack frames after it. A model handed only the tail of a Jest run
+ * rewrote the same probe test thirteen times while React's warning sat in
+ * the part it never saw.
  */
-class Tail {
-   readonly #limit: number;
-   readonly #parts: Record<'stdout' | 'stderr', string> = { stdout: '', stderr: '' };
+class HeadAndTail {
+   readonly #headLimit: number;
+   readonly #tailLimit: number;
+   readonly #head: Record<'stdout' | 'stderr', string> = { stdout: '', stderr: '' };
+   readonly #headBytes: Record<'stdout' | 'stderr', number> = { stdout: 0, stderr: 0 };
+   readonly #headFull: Record<'stdout' | 'stderr', boolean> = { stdout: false, stderr: false };
+   readonly #tail: Record<'stdout' | 'stderr', string> = { stdout: '', stderr: '' };
    readonly #dropped: Record<'stdout' | 'stderr', boolean> = { stdout: false, stderr: false };
 
-   constructor(limit: number) {
-      this.#limit = limit;
+   constructor(headLimit: number, tailLimit: number) {
+      this.#headLimit = headLimit;
+      this.#tailLimit = tailLimit;
    }
 
    write(stream: 'stdout' | 'stderr', text: string): void {
-      const combined = this.#parts[stream] + text;
-      // The limit is in bytes, kept char-safe: splitUtf8 cuts from the front
-      // into pieces of at most `#limit` bytes, so the last piece is the tail
-      // that fits without breaking a character. `.length` here would keep the
-      // last N code units and could still be over the byte budget — or split
-      // a multibyte character into a replacement char.
-      if (Buffer.byteLength(combined, 'utf8') > this.#limit) {
+      let rest = text;
+      if (!this.#headFull[stream]) {
+         // Byte limits, cut char-safe: splitUtf8's first piece is the most
+         // that fits without breaking a character.
+         const room = this.#headLimit - this.#headBytes[stream];
+         const piece = Buffer.byteLength(rest, 'utf8') <= room ? rest : (splitUtf8(rest, room)[0] ?? '');
+         this.#head[stream] += piece;
+         this.#headBytes[stream] += Buffer.byteLength(piece, 'utf8');
+         rest = rest.slice(piece.length);
+         if (rest === '') return;
+         this.#headFull[stream] = true;
+      }
+      const combined = this.#tail[stream] + rest;
+      if (Buffer.byteLength(combined, 'utf8') > this.#tailLimit) {
          this.#dropped[stream] = true;
-         const pieces = splitUtf8(combined, this.#limit);
-         this.#parts[stream] = pieces[pieces.length - 1] ?? '';
+         const pieces = splitUtf8(combined, this.#tailLimit);
+         this.#tail[stream] = pieces[pieces.length - 1] ?? '';
       } else {
-         this.#parts[stream] = combined;
+         this.#tail[stream] = combined;
       }
    }
 
    text(stream: 'stdout' | 'stderr'): string {
-      const body = this.#parts[stream];
-      // Said explicitly, so the model does not read a truncated log as the
-      // whole story and conclude the build printed nothing before it failed.
-      return this.#dropped[stream] ? `…earlier output omitted…\n${body}` : body;
+      const head = this.#head[stream];
+      const tail = this.#tail[stream];
+      // Said explicitly, so the model does not read a clipped log as the
+      // whole story.
+      return this.#dropped[stream] ? `${head}\n…middle output omitted…\n${tail}` : head + tail;
    }
 }
