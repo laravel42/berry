@@ -745,6 +745,10 @@ export function appScript(app: PreviewApp, services: PreviewService[]): string {
       'fi'
    );
    lines.push('echo "Installing…"', app.install);
+   // `expo` and `serve` land in node_modules/.bin. This shell runs the
+   // repository's command itself, so that directory is on PATH for the build,
+   // the migration and the server.
+   lines.push('export PATH="$PWD/node_modules/.bin:$PATH"');
    if (app.build) lines.push('echo "Building…"', app.build);
    if (app.migrate) lines.push('echo "Migrating…"', app.migrate);
    lines.push(`echo "Starting: ${app.start.replaceAll('"', '\\"').replaceAll('$', '\\$')}"`, `exec ${app.start}`);

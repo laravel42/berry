@@ -88,6 +88,8 @@ test('an app waits for its services, then installs, builds, migrates and becomes
    const order = ['net.connect(5432,"db")', '.nvmrc', 'npm ci', 'npm run build', 'npm run migrate', 'exec npm start'].map((step) => script.indexOf(step));
    assert.ok(order.every((at, index) => at >= 0 && (index === 0 || at > order[index - 1]!)), script);
    assert.ok(script.startsWith('set -e'));
+   const bin = script.indexOf('export PATH="$PWD/node_modules/.bin:$PATH"');
+   assert.ok(bin > script.indexOf('npm ci') && bin < script.indexOf('npm run build'));
    // A matching Node is kept. A different one is unpacked without chown, which this container cannot do.
    assert.match(script, /already matches \.nvmrc/);
    assert.match(script, /TAR_OPTIONS="--no-same-owner/);
