@@ -268,9 +268,7 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
                   {plan?.goal.description && (
                      <section className="mt-6">
                         <h3 className="font-medium">Goal</h3>
-                        <p className="mt-1.5 whitespace-pre-line leading-6">
-                           {plan.goal.description}
-                        </p>
+                        <p className="mt-1.5 whitespace-pre-line">{plan.goal.description}</p>
                      </section>
                   )}
 
@@ -400,13 +398,18 @@ function PlanActions({ record }: { record: PlanRecord }) {
 
    return (
       <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-         <div className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-3 sm:px-8">
-            <p className="min-w-0 flex-1 text-muted-foreground">
-               {blocker ?? 'Nothing runs until you press Start Plan.'}
-               {!blocker && record.validation.risk === 'high' && (
-                  <> This plan is high risk, so an admin may have to approve it first.</>
-               )}
-            </p>
+         <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 px-6 py-3 sm:px-8">
+            {isPlanGenerating(record) ? (
+               <BerryMark
+                  size="sm"
+                  tone="brand"
+                  pulse
+                  label="Berry is still planning."
+                  className="mr-auto"
+               />
+            ) : blocker ? (
+               <p className="mr-auto min-w-0 flex-1 text-muted-foreground">{blocker}</p>
+            ) : null}
             <div className="flex shrink-0 items-center gap-2">
                <AlertDialog>
                   <AlertDialogTrigger asChild>

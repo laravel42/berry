@@ -43,12 +43,18 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          {/* Plain text, not a heading: the ghost is a transient copy of the
              card that only exists mid-drag, so it has nothing to contribute to
              the document outline. */}
-         <div className="mb-2 line-clamp-2 font-medium">{issue.title}</div>
+         <div className="mb-2 line-clamp-2">{issue.title}</div>
          <div className="mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
             <LabelBadge label={issue.labels} />
          </div>
          <div className="mt-auto flex min-w-0 justify-end pt-1">
-            <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} showName />
+            <AssigneeUser
+               user={issue.assignee}
+               issueId={issue.id}
+               monogram={false}
+               showName
+               plainName
+            />
          </div>
       </div>
    );
@@ -232,11 +238,7 @@ export function IssueGrid({
                             back: a grid of cards is skimmed by its titles,
                             and dropping to a bare div would leave screen
                             readers tabbing every card to find one. */}
-                        <div
-                           className="mb-2 line-clamp-2 font-medium"
-                           role="heading"
-                           aria-level={4}
-                        >
+                        <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
                            {issue.title}
                         </div>
                      </Link>
@@ -250,6 +252,7 @@ export function IssueGrid({
                               issueId={issue.id}
                               monogram={false}
                               showName
+                              plainName
                            />
                         </div>
                      ) : null}

@@ -46,7 +46,7 @@ export default function GoalLine({
                   {timeAgo(goal.updatedAt)}
                </span>
             </span>
-            <span className="line-clamp-2 font-medium">{goal.title}</span>
+            <span className="line-clamp-2">{goal.title}</span>
             <span className="flex min-w-0 items-center gap-2">
                {project || goal.description ? (
                   <span className="line-clamp-1 min-w-0 flex-1 text-muted-foreground">

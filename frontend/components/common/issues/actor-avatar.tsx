@@ -167,12 +167,25 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
 }
 
 /** The actor's name in its actor tone, with the role spoken for screen readers. */
-export function ActorName({ user, className }: { user: User; className?: string }) {
+export function ActorName({
+   user,
+   className,
+   plain = false,
+}: {
+   user: User;
+   className?: string;
+   /** Body weight. The default name is one step heavier so it reads as the actor. */
+   plain?: boolean;
+}) {
    const t = useTranslations('issueLists.actor');
    const agent = isAgentUser(user);
    return (
       <span
-         className={cn('font-medium', agent ? 'text-actor-agent' : 'text-actor-human', className)}
+         className={cn(
+            !plain && 'font-medium',
+            agent ? 'text-actor-agent' : 'text-actor-human',
+            className
+         )}
       >
          {user.name}
          <span className="sr-only"> ({agent ? t('agent') : t('person')})</span>

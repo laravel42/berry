@@ -84,7 +84,7 @@ function PlanRow({
                   {timeAgo(plan.updatedAt)}
                </span>
             </span>
-            <span className="line-clamp-2 font-medium">{plan.title}</span>
+            <span className="line-clamp-2">{plan.title}</span>
             <span className="flex min-w-0 items-center gap-2">
                <span className="min-w-0 flex-1 truncate text-muted-foreground">
                   {plan.projectName ?? t('list.noProject')}

@@ -42,6 +42,8 @@ interface AssigneeUserProps {
    monogram?: boolean;
    /** Print the assignee's name inside the trigger so avatar and name are one control. */
    showName?: boolean;
+   /** Body weight for that name. The default is one step heavier. */
+   plainName?: boolean;
 }
 
 function AssigneePlaceholder() {
@@ -75,6 +77,7 @@ export function AssigneeUser({
    issueId,
    monogram = true,
    showName = false,
+   plainName = false,
 }: AssigneeUserProps) {
    const t = useTranslations('issueLists.assignee');
    const [open, setOpen] = useState(false);
@@ -151,7 +154,11 @@ export function AssigneeUser({
                         ) : null}
                      </span>
                      {showName ? (
-                        <ActorName user={currentAssignee} className="min-w-0 truncate" />
+                        <ActorName
+                           user={currentAssignee}
+                           plain={plainName}
+                           className="min-w-0 truncate"
+                        />
                      ) : null}
                   </>
                ) : (

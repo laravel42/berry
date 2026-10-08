@@ -312,8 +312,8 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
 
                   {goal.description && (
                      <section className="mt-6">
-                        <h3 className="font-medium">Description</h3>
-                        <p className="mt-1.5 whitespace-pre-line leading-6">{goal.description}</p>
+                        <p>Description</p>
+                        <p className="mt-1.5 whitespace-pre-line">{goal.description}</p>
                      </section>
                   )}
 
