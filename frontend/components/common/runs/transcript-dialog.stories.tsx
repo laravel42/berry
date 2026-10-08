@@ -129,3 +129,15 @@ export const Empty: Story = {
       msw.use(http.get('*/api/v1/runs/:id/events', () => sseResponse([])));
    },
 };
+
+/** The ledger shows the berry mark until the event stream has replayed. */
+export const Loading: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(http.get('*/api/v1/runs/:id/events', () => new Promise<Response>(() => {})));
+   },
+   play: async ({ canvasElement }) => {
+      const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
+      await expect(await dialog.findByRole('status')).toHaveTextContent('Loading the transcript…');
+      await expect(dialog.queryByText('Nothing has been recorded yet.')).toBeNull();
+   },
+};

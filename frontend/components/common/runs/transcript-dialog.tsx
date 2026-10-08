@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Input } from '@/components/ui/input';
+import { BerryLoading } from '@/components/brand/berry-mark';
 import { BerryApiError } from '@/lib/api';
 import {
    getRun,
@@ -643,6 +644,9 @@ export function RunTranscript({
    const oldestFirst = order === 'oldest-first';
    const t = useTranslations('issueDetail.transcript');
    const [steps, setSteps] = useState<TranscriptStep[]>([]);
+   // True until the stream has replayed the run. An empty log before that is
+   // the fetch, not a run that recorded nothing.
+   const [booting, setBooting] = useState(true);
    const [lastEventAt, setLastEventAt] = useState<string | null>(null);
    const [run, setRun] = useState<RunRecord | null>(null);
    const [status, setStatus] = useState('');
@@ -670,6 +674,7 @@ export function RunTranscript({
    useEffect(() => {
       let cancelled = false;
       setSteps([]);
+      setBooting(true);
       setRun(null);
       setStatus('');
       setFollowing(true);
@@ -686,8 +691,13 @@ export function RunTranscript({
       const controller = new AbortController();
       void (async () => {
          try {
-            for await (const event of streamRunEvents(runId, controller.signal)) {
+            for await (const event of streamRunEvents(runId, controller.signal, {
+               onReady: () => {
+                  if (!cancelled) setBooting(false);
+               },
+            })) {
                if (cancelled) return;
+               setBooting(false);
                setSteps((current) => foldRunEvent(current, event));
                setLastEventAt(event.occurredAt);
                if (event.type === 'run.started') {
@@ -717,8 +727,10 @@ export function RunTranscript({
                   return;
                }
             }
+            if (!cancelled) setBooting(false);
          } catch (error) {
             if (controller.signal.aborted || cancelled) return;
+            setBooting(false);
             setStatus(error instanceof BerryApiError ? error.message : 'stream interrupted');
          }
       })();
@@ -972,8 +984,10 @@ export function RunTranscript({
             )}
             aria-label={oldestFirst ? t('oldestFirst') : t('newestFirst')}
          >
-            <div ref={content}>
-               {visible.length === 0 && !thinkingRow ? (
+            <div ref={content} className={booting && visible.length === 0 ? 'h-full' : undefined}>
+               {booting && visible.length === 0 ? (
+                  <BerryLoading label={t('loading')} className="min-h-full" />
+               ) : visible.length === 0 && !thinkingRow ? (
                   <p className="py-8 text-center text-muted-foreground">{t('empty')}</p>
                ) : (
                   <ul className="flex flex-col divide-y divide-border/60">

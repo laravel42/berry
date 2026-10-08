@@ -165,6 +165,7 @@
       "title": "Run transcript",
       "subtitle": "{agent} · {status}",
       "search": "Search the transcript",
+      "loading": "Loading the transcript…",
       "searchPlaceholder": "Find in this run",
       "matches": "{index} of {total}",
       "noMatches": "No match",

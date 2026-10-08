@@ -261,7 +261,8 @@ export async function loadRunsForIssues(issueIds: string[]): Promise<RunRecord[]
 
 export async function* streamRunEvents(
    runId: string,
-   signal?: AbortSignal
+   signal?: AbortSignal,
+   hooks?: { onReady?: () => void }
 ): AsyncGenerator<RunEvent> {
    const response = await apiStream(`/api/v1/runs/${runId}/events`, undefined, { signal });
    if (!response.body) {
@@ -270,6 +271,12 @@ export async function* streamRunEvents(
    const reader = response.body.getReader();
    const decoder = new TextDecoder();
    let buffer = '';
+   let ready = false;
+   const note = (block: string) => {
+      if (ready || !hooks?.onReady || !isReadyComment(block)) return;
+      ready = true;
+      hooks.onReady();
+   };
    try {
       while (true) {
          const { done, value } = await reader.read();
@@ -278,15 +285,22 @@ export async function* streamRunEvents(
          const blocks = buffer.split('\n\n');
          buffer = blocks.pop() ?? '';
          for (const block of blocks) {
+            note(block);
             const event = parseSseBlock(block);
             if (event) yield event;
          }
       }
+      note(buffer);
       const tail = parseSseBlock(buffer);
       if (tail) yield tail;
    } finally {
       reader.releaseLock();
    }
+}
+
+/** The comment the run stream sends once its backlog has been written. */
+function isReadyComment(block: string): boolean {
+   return block.split('\n').some((line) => line.replace(/\r$/, '').trim() === ': ready');
 }
 
 /**
