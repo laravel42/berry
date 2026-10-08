@@ -130,16 +130,25 @@ function decorateBody(body: string, origin: string, org: string): string {
 function CommentBody({
    body,
    clamp,
+   thin,
 }: {
    body: string;
    clamp?: { lines: number; moreLabel: string; lessLabel: string };
+   /** Agent replies are set at weight 100, lighter than the rest of the page. */
+   thin?: boolean;
 }) {
    const { orgId } = useParams<{ orgId: string }>();
    const org = orgId ?? WORKSPACE_SLUG;
    const [origin, setOrigin] = useState('');
    useEffect(() => setOrigin(window.location.origin), []);
    const decorated = useMemo(() => decorateBody(body, origin, org), [body, origin, org]);
-   return <AgentMarkdown body={decorated} clamp={clamp} />;
+   return (
+      <AgentMarkdown
+         body={decorated}
+         clamp={clamp}
+         className={thin ? 'font-thin [&_*]:font-thin' : undefined}
+      />
+   );
 }
 
 function EventRow({ item }: { item: EventItem }) {
@@ -287,6 +296,7 @@ function CommentCard({
          <div className="flex flex-col gap-[6px]">
             <CommentBody
                body={comment.body}
+               thin={isAgent}
                clamp={
                   isAgent
                      ? { lines: 12, moreLabel: t('readRest'), lessLabel: t('showLess') }
