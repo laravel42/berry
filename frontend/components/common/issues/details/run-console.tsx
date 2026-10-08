@@ -142,7 +142,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   size="sm"
                   disabled={restarting}
                   onClick={() => void restart()}
-                  className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral"
+                  className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
                >
                   <RotateCcw className="size-4" aria-hidden />
                   {t('restart')}
@@ -187,7 +187,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                      size="sm"
                      disabled={restarting}
                      onClick={() => void restart()}
-                     className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral"
+                     className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
                   >
                      <RotateCcw className="size-4" aria-hidden />
                      {t('restart')}
@@ -270,7 +270,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <Button
                   variant="ghost"
                   size="xs"
-                  className="shrink-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+                  className="shrink-0 text-berry hover:bg-berry/15 hover:text-berry"
                   disabled={restarting}
                   onClick={() => void restart()}
                >
