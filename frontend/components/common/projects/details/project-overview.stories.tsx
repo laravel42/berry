@@ -74,7 +74,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('heading', { name: projectHealth.name })).toBeVisible();
       await expect(await canvas.findByText(/Updates API is merged/)).toBeVisible();
    },
 };
@@ -100,7 +99,9 @@ export const LoadedFromApi: Story = {
       );
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByRole('heading', { name: projectHealth.name })).toBeVisible();
+      await expect(
+         await canvas.findByRole('textbox', { name: 'Project description' })
+      ).toBeVisible();
    },
 };
 

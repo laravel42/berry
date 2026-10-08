@@ -9,6 +9,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { cn } from '@/lib/utils';
+import { SendHorizonal } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -52,26 +53,20 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
          )}
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 shrink overflow-y-auto">
                <div className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8">
-                  <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
-                     {project.name}
-                  </h1>
-
-                  <div className="mt-4">
-                     <TiptapAiEditor
-                        value={description}
-                        onChange={() => undefined}
-                        onBlur={(markdown) => {
-                           if (markdown.trim() === description.trim()) return;
-                           updateProjectDescription(project.id, markdown);
-                        }}
-                        placeholder="Add description…"
-                        aria-label="Project description"
-                        className="min-h-24"
-                        aiAssist={false}
-                     />
-                  </div>
+                  <TiptapAiEditor
+                     value={description}
+                     onChange={() => undefined}
+                     onBlur={(markdown) => {
+                        if (markdown.trim() === description.trim()) return;
+                        updateProjectDescription(project.id, markdown);
+                     }}
+                     placeholder="Add description…"
+                     aria-label="Project description"
+                     className="min-h-24"
+                     aiAssist={false}
+                  />
 
                   <div className="mt-4">
                      <ProjectActivityFeedList projectId={projectId} />
@@ -83,14 +78,14 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                </div>
             </div>
 
-            <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-               <div className="mx-auto w-full max-w-3xl px-6 pt-5 pb-8 sm:px-8">
+            <div className="relative z-10 flex min-h-32 flex-1 flex-col border-t border-border/60 bg-container">
+               <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-5 pb-3 sm:px-8">
                   {/* A project update, not an issue comment. It used to borrow
                       the issue composer, which has since become issue-shaped —
                       mentions that start agents, per-task drafts, uploads onto
                       a task. None of that applies to a project update, so this
                       posts through the project updates store directly. */}
-                  <div className="flex flex-col gap-2">
+                  <div className="relative min-h-0 flex-1">
                      <textarea
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
@@ -102,14 +97,19 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         }}
                         placeholder="Post an update…"
                         aria-label="Project update"
-                        rows={2}
-                        className="w-full resize-none bg-transparent text-foreground outline-none placeholder:text-foreground/40"
+                        className="h-full min-h-0 w-full resize-none bg-transparent pr-10 pb-1 text-foreground outline-none placeholder:text-foreground/40"
                      />
-                     <div className="flex justify-end">
-                        <Button size="xs" onClick={submitComment} disabled={!draft.trim()}>
-                           post update
-                        </Button>
-                     </div>
+                     <Button
+                        type="button"
+                        size="icon"
+                        className="absolute right-0 bottom-0 size-7"
+                        aria-label="post update"
+                        title="post update"
+                        onClick={submitComment}
+                        disabled={!draft.trim()}
+                     >
+                        <SendHorizonal className="size-3.5" aria-hidden />
+                     </Button>
                   </div>
                </div>
             </div>
