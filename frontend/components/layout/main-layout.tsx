@@ -42,11 +42,9 @@ export default function MainLayout({ children, header }: MainLayoutProps) {
              dark chrome in both themes and sets its own text colour, and a
              page that inherited it would keep chalk text on a light theme.
              The theme is forced dark today; this is what makes light safe to
-             turn on without auditing every page. The weight is reset for the
-             same reason: the shell root is `font-light` (300) for its chrome,
-             and pages that inherited it ran thinner than the 400 the body
-             rule sets. */}
-         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground [font-weight:400]">
+             turn on without auditing every page. The page is set at weight
+             100, lighter than the shell root's `font-light` (300). */}
+         <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground [font-weight:100]">
             <div className="flex h-full min-h-0 w-full flex-col items-center justify-start overflow-hidden bg-container">
                {header ? <div className="w-full shrink-0">{header}</div> : null}
                <div
