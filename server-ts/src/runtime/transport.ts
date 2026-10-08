@@ -41,6 +41,17 @@ export interface RuntimeTransport {
       signal: AbortSignal;
       observe?: ExchangeObserver | undefined;
    }): AsyncIterable<LifecycleEvent>;
+   /**
+    * The rest of a run's stream, after the first `after` frames, from a runtime
+    * still holding it. Throws `RunNotResumable` when it is not.
+    */
+   resume?(input: {
+      target: RuntimeTarget;
+      runtimeSessionId: string;
+      runId: string;
+      after: number;
+      signal: AbortSignal;
+   }): AsyncIterable<LifecycleEvent>;
    /** Ends the session. Never throws: a session already gone is the goal. */
    stop(input: { target: RuntimeTarget; runtimeSessionId: string }): Promise<void>;
 }
@@ -51,6 +62,14 @@ export class RuntimeUnavailable extends Error {
    readonly retryable = true;
 }
 
+/**
+ * The runtime does not hold the run any more: it was reaped, restarted, or
+ * kept only newer frames. Nothing was read, so the run is abandoned as before.
+ */
+export class RunNotResumable extends Error {
+   override readonly name = 'RunNotResumable';
+}
+
 export function routingTransport(transports: { agentcore: RuntimeTransport | null; http: RuntimeTransport }): RuntimeTransport {
    const pick = (target: RuntimeTarget): RuntimeTransport => {
       if (target.driver === 'http') return transports.http;
@@ -59,6 +78,11 @@ export function routingTransport(transports: { agentcore: RuntimeTransport | nul
    };
    return {
       invoke: (input) => pick(input.target).invoke(input),
+      resume: (input) => {
+         const transport = pick(input.target);
+         if (!transport.resume) throw new RunNotResumable('this transport cannot resume a run');
+         return transport.resume(input);
+      },
       stop: async (input) => {
          try {
             await pick(input.target).stop(input);

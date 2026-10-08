@@ -25,8 +25,9 @@ export interface TaskRecorder {
    cancelled(usage: Usage): Promise<void>;
 }
 
-export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
-   let running = false;
+/** `alreadyRunning` for a run another process started, whose stream is resumed here. */
+export function ledgerRecorder(ledger: RunLedger, runId: string, alreadyRunning = false): TaskRecorder {
+   let running = alreadyRunning;
    const ignoreTerminal = (cause: unknown) => {
       if (!(cause instanceof RunTerminal)) throw cause;
    };

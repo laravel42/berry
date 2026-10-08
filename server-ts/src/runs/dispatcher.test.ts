@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
-import { Dispatcher, type Executor } from './dispatcher.ts';
+import { Detached, Dispatcher, type Executor } from './dispatcher.ts';
 import { RunRepository } from './repository.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
 
@@ -271,6 +271,43 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.equal(events.at(-1)?.type, 'run.failed');
    });
 
+   test('a run whose owner is gone is collected from its runtime when the runtime still holds it', async () => {
+      const run = await admit(runs, fixture, issueId);
+      await sql`
+         UPDATE runs
+            SET status = 'running', dispatch_state = 'streaming',
+                dispatch_lease_until = now() - interval '1 minute'
+          WHERE id = ${run.id}`;
+      const resumed: string[] = [];
+      await drive(
+         build(sql, {
+            execute: async () => ({}),
+            resume: async (runId) => {
+               resumed.push(runId);
+               await settle(sql, runId, 'succeeded');
+               return { status: 'succeeded' };
+            },
+         })
+      );
+      assert.deepEqual(resumed, [run.id]);
+      assert.equal((await runs.get(run.id)).status, 'succeeded');
+   });
+
+   test('a run its runtime no longer holds is abandoned and started once more', async () => {
+      const run = await admit(runs, fixture, issueId);
+      await sql`
+         UPDATE runs
+            SET status = 'running', dispatch_state = 'streaming',
+                dispatch_lease_until = now() - interval '1 minute'
+          WHERE id = ${run.id}`;
+      await drive(build(sql, { execute: async () => ({}), resume: async () => null }));
+      const failed = await runs.get(run.id);
+      assert.equal(failed.status, 'failed');
+      assert.equal(failed.failure?.code, 'DISPATCH_ABANDONED');
+      const [retry] = await sql`SELECT id FROM runs WHERE issue_id = ${issueId} AND origin->>'runId' = ${run.id}`;
+      assert.ok(retry);
+   });
+
    test('a run waiting in the queue is not mistaken for an abandoned one', async () => {
       // Queued, never claimed, so no lease. The sweep must leave it alone —
       // failing the queue would be the worst possible bug here.
@@ -302,17 +339,18 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       await dispatcher.stop();
    });
 
-   test('stopping aborts the work and records nothing', async () => {
+   test('stopping lets go of the work and records nothing', async () => {
       // A process on its way out must not write a verdict it may not be able
-      // to finish. The lease stops being renewed and the next sweep decides.
+      // to finish. It lets go — the runtime keeps working — and the next sweep
+      // resumes the run or decides.
       const run = await admit(runs, fixture, issueId);
-      let aborted = false;
+      let reason: unknown = null;
       const dispatcher = build(sql, {
          execute: (_runId, signal) =>
             new Promise<unknown>((resolve) => {
                signal?.addEventListener('abort', () => {
-                  aborted = true;
-                  resolve({});
+                  reason = signal.reason;
+                  resolve(null);
                });
             }),
       });
@@ -320,8 +358,25 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       await tick(dispatcher);
       await dispatcher.stop();
 
-      assert.equal(aborted, true);
+      assert.ok(reason instanceof Detached, 'it was let go of, not cancelled');
       assert.equal((await runs.get(run.id)).status, 'queued');
+   });
+
+   test('a run let go of mid-stream gives up its lease at once, for the next process to resume', async () => {
+      const run = await admit(runs, fixture, issueId);
+      const dispatcher = build(sql, {
+         execute: async (runId, signal) => {
+            await sql`UPDATE runs SET status = 'running', dispatch_state = 'streaming' WHERE id = ${runId}`;
+            await new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }));
+            return null;
+         },
+      });
+      await tick(dispatcher);
+      for (let i = 0; i < 100 && (await runs.get(run.id)).status !== 'running'; i += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+      await dispatcher.stop();
+      const [row] = await sql`SELECT status, dispatch_lease_until <= now() AS expired FROM runs WHERE id = ${run.id}`;
+      assert.equal(row!.status, 'running');
+      assert.equal(row!.expired, true);
    });
 
    test('a failing executor does not stop the dispatcher', async () => {

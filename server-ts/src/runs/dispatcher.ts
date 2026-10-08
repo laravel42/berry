@@ -20,8 +20,10 @@ import { retryAfterFault } from './continuation.ts';
  *     in-flight run: the ledger marks it cancelled, and this aborts the work
  *     that is still going on behind it.
  *   - **Sweep the abandoned.** A run whose lease expired belonged to a process
- *     that is gone. It is failed as retryable, which releases the task — a run
- *     nobody is working on must not hold `active_run_id` forever.
+ *     that is gone. The runtime may still be working on it, so it is resumed
+ *     from there first; only a run the runtime no longer holds is failed as
+ *     retryable, which releases the task — a run nobody is working on must
+ *     not hold `active_run_id` forever.
  *
  * Several of these can run at once, on one server or many. The claim is a
  * `SKIP LOCKED` select and the authoritative claim is the ledger's own, so two
@@ -39,7 +41,31 @@ const POLL_MS = 2_000;
 
 export interface Executor {
    execute(runId: string, signal?: AbortSignal): Promise<unknown>;
+   /**
+    * Collects a run another process left mid-stream from the runtime still
+    * working on it. Null when it cannot be resumed; nothing was recorded then.
+    */
+   resume?(runId: string, signal: AbortSignal): Promise<unknown>;
 }
+
+/**
+ * Why a run's signal is aborted when this process stops: it lets go of the
+ * run, records nothing, and leaves the runtime working for whichever process
+ * resumes it. A cancellation aborts with any other reason.
+ */
+export class Detached extends Error {
+   override readonly name = 'Detached';
+   constructor() {
+      super('the process collecting this run is stopping');
+   }
+}
+
+export function isDetached(signal: AbortSignal): boolean {
+   return signal.aborted && signal.reason instanceof Detached;
+}
+
+/** How long `stop` waits for in-flight runs to let go before it returns. */
+const DETACH_GRACE_MS = 3_000;
 
 export interface DispatcherOptions {
    sql: Sql;
@@ -77,6 +103,8 @@ export class Dispatcher {
 
    /** Runs this process is executing, and the handle that stops each one. */
    readonly #inflight = new Map<string, AbortController>();
+   /** Settles when each in-flight run has let go, so `stop` can wait for it. */
+   readonly #settled = new Map<string, Promise<void>>();
 
    #running = false;
    #loop: Promise<void> | null = null;
@@ -145,21 +173,31 @@ export class Dispatcher {
    }
 
    /**
-    * Stops claiming, and aborts what is still in flight.
+    * Stops claiming, and lets go of what is still in flight.
     *
-    * The runs being aborted are not failed here. Their lease simply stops being
-    * renewed, and the next dispatcher to sweep — this process on its next boot,
-    * or another one right now — records them as abandoned. Writing that from a
-    * process that is shutting down would be a promise it might not keep.
+    * The runs are not failed or cancelled here: the runtime goes on working on
+    * them. Each saves how far it was read and gives up its lease at once, and
+    * the next dispatcher to sweep — this process on its next boot, or another
+    * one right now — resumes it from the runtime, or records it as abandoned
+    * when the runtime no longer holds it.
     */
    async stop(): Promise<void> {
       this.#running = false;
       await this.#unlisten?.().catch(() => undefined);
       this.#unlisten = null;
       this.#wake?.();
-      for (const controller of this.#inflight.values()) controller.abort();
+      for (const controller of this.#inflight.values()) controller.abort(new Detached());
       await this.#loop?.catch(() => undefined);
       this.#loop = null;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+         Promise.allSettled([...this.#settled.values()]),
+         new Promise((resolve) => {
+            timer = setTimeout(resolve, DETACH_GRACE_MS);
+            timer.unref?.();
+         }),
+      ]);
+      clearTimeout(timer);
    }
 
    /** What this process is working on. For `/metrics` and for tests. */
@@ -322,25 +360,48 @@ export class Dispatcher {
          const runId = row.id as string;
          // Never a run this process is executing: its lease is being renewed.
          if (this.#inflight.has(runId)) continue;
-         try {
-            await this.#abandon(runId);
-            // The process went away, not the task: it is started once more,
-            // as any other fault outside the task is (continuation.ts).
-            const retry = await retryAfterFault(this.#sql, { runId });
-            this.#logger.info('recorded an abandoned run', {
-               runId,
-               ...(retry.retried ? { retriedAs: retry.runId } : {}),
-            });
-         } catch (error) {
-            this.#logger.error('could not record an abandoned run', {
-               runId,
-               error: message(error),
-            });
+         if (this.#executor.resume && (await this.#takeOver(runId))) {
+            this.#start(runId, 'resume');
+            continue;
          }
+         await this.#giveUp(runId, false);
       }
    }
 
-   #start(runId: string): void {
+   /**
+    * Fails a run nobody is collecting, and starts its task once more: the
+    * process went away, not the task, as any other fault outside the task is
+    * (continuation.ts). `owned` when this process holds its lease.
+    */
+   async #giveUp(runId: string, owned: boolean): Promise<void> {
+      try {
+         if (!(await this.#abandon(runId, owned))) return;
+         const retry = await retryAfterFault(this.#sql, { runId });
+         this.#logger.info('recorded an abandoned run', {
+            runId,
+            ...(retry.retried ? { retriedAs: retry.runId } : {}),
+         });
+      } catch (error) {
+         this.#logger.error('could not record an abandoned run', {
+            runId,
+            error: message(error),
+         });
+      }
+   }
+
+   /** Takes an expired run's lease for this process; false when another got there first. */
+   async #takeOver(runId: string): Promise<boolean> {
+      const rows = await this.#sql`
+         UPDATE runs
+            SET dispatch_lease_until = now() + ${`${this.#leaseMs} milliseconds`}::interval
+          WHERE id = ${runId} AND status IN ('queued', 'running')
+            AND dispatch_state <> 'pending'
+            AND dispatch_lease_until < now()
+          RETURNING id`;
+      return rows.length > 0;
+   }
+
+   #start(runId: string, mode: 'execute' | 'resume' = 'execute'): void {
       const controller = new AbortController();
       this.#inflight.set(runId, controller);
 
@@ -350,22 +411,43 @@ export class Dispatcher {
       // The process must be able to exit while a beat is scheduled.
       heartbeat.unref?.();
 
-      void this.#executor
-         .execute(runId, controller.signal)
-         .then((outcome) => {
-            this.#logger.info('run finished', { runId, ...summarise(outcome) });
+      const work =
+         mode === 'resume' && this.#executor.resume
+            ? this.#executor.resume(runId, controller.signal)
+            : this.#executor.execute(runId, controller.signal);
+      const settled = work
+         .then(async (outcome) => {
+            if (isDetached(controller.signal)) {
+               this.#logger.info('let go of a run for the next process to resume', { runId });
+               return;
+            }
+            if (mode === 'resume' && outcome === null) {
+               clearInterval(heartbeat);
+               await this.#giveUp(runId, true);
+               return;
+            }
+            this.#logger.info(mode === 'resume' ? 'resumed run finished' : 'run finished', { runId, ...summarise(outcome) });
          })
          .catch((error) => {
             // The executor records the run's own failure; this is the line
             // that says which process was carrying it when it happened.
             this.#logger.error('run did not finish', { runId, error: message(error) });
          })
-         .finally(() => {
+         .finally(async () => {
             clearInterval(heartbeat);
+            // Let go at once rather than when the lease runs out, so the next
+            // process resumes the run on its first sweep, not a minute later.
+            if (isDetached(controller.signal)) {
+               await this.#sql`
+                  UPDATE runs SET dispatch_lease_until = now()
+                   WHERE id = ${runId} AND status IN ('queued', 'running') AND dispatch_state <> 'pending'`.catch(() => undefined);
+            }
             this.#inflight.delete(runId);
+            this.#settled.delete(runId);
             // A freed slot is worth a poll now rather than at the next beat.
             this.#wake?.();
          });
+      this.#settled.set(runId, settled);
    }
 
    /**
@@ -404,20 +486,21 @@ export class Dispatcher {
       }
    }
 
-   async #abandon(runId: string): Promise<void> {
+   /** True when this call recorded the run as abandoned. */
+   async #abandon(runId: string, owned = false): Promise<boolean> {
       // Written directly rather than through the ledger's `fail`, because that
       // allocates a sequence and appends an event, and this must also hold for
       // a run whose ledger the dead process left mid-write. The status change
       // and the release of the task are what matter; the event follows.
-      await this.#sql.begin(async (transaction) => {
+      return await this.#sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
          const [run] = await tx`
             SELECT id, issue_id, board_id, status FROM runs
              WHERE id = ${runId} AND status IN ('queued', 'running')
-               AND dispatch_lease_until < now()
+               AND (${owned} OR dispatch_lease_until < now())
              FOR UPDATE`;
          // Someone else swept it, or it finished between the select and here.
-         if (!run) return;
+         if (!run) return false;
 
          await tx`
             UPDATE runs
@@ -447,6 +530,7 @@ export class Dispatcher {
                        },
                     } as never)},
                     true)`;
+         return true;
       });
    }
 

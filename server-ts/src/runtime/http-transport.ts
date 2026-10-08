@@ -1,5 +1,5 @@
 import { parseLifecycleStream, type LifecycleEvent } from './lifecycle.ts';
-import { guardIdle, RuntimeUnavailable, STREAM_IDLE_MS, type RuntimeTransport } from './transport.ts';
+import { guardIdle, RunNotResumable, RuntimeUnavailable, STREAM_IDLE_MS, type RuntimeTransport } from './transport.ts';
 
 const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
 
@@ -42,6 +42,33 @@ export function httpTransport(
          }
          observe?.response({ status: response.status, headers: Object.fromEntries(response.headers) });
          if (!response.ok || !response.body) throw new RuntimeUnavailable(`the runtime answered ${response.status}`);
+         try {
+            yield* parseLifecycleStream(guardIdle(response.body, idleMs, forward));
+         } finally {
+            signal.removeEventListener('abort', forward);
+         }
+      },
+      async *resume({ target, runtimeSessionId, runId, after, signal }): AsyncIterable<LifecycleEvent> {
+         let response: Response;
+         const request = new AbortController();
+         const forward = () => request.abort();
+         signal.addEventListener('abort', forward, { once: true });
+         try {
+            response = await doFetch(`${base(target.endpointUrl)}/invocations`, {
+               method: 'POST',
+               headers: { ...headers(target.endpointUrl), 'content-type': 'application/json', accept: 'text/event-stream', [SESSION_HEADER]: runtimeSessionId },
+               redirect: 'error',
+               body: JSON.stringify({ resume: { runId, runtimeSessionId, after } }),
+               signal: request.signal,
+            });
+         } catch (cause) {
+            signal.removeEventListener('abort', forward);
+            throw new RunNotResumable(`could not reach the runtime: ${cause instanceof Error ? cause.message : String(cause)}`);
+         }
+         if (!response.ok || !response.body) {
+            signal.removeEventListener('abort', forward);
+            throw new RunNotResumable(`the runtime answered ${response.status}`);
+         }
          try {
             yield* parseLifecycleStream(guardIdle(response.body, idleMs, forward));
          } finally {

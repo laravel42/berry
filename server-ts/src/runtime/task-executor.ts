@@ -3,17 +3,17 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
 import { gitWriteInvisible, type GitHubClient } from '../integrations/github.ts';
-import type { Executor } from '../runs/dispatcher.ts';
+import { isDetached, type Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { recordDelivery } from './delivery.ts';
 import { LIMIT_CODE, continuedMessage, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
-import { loadTask, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
+import { loadTask, type DeliveryPlan, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
-import { LifecycleStreamError, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
+import { LifecycleStreamError, type LifecycleEvent, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
-import { RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
+import { RunNotResumable, RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
 import { scheduleReview } from '../runs/followups.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
@@ -76,6 +76,41 @@ export interface RuntimeTaskExecutorOptions {
    newId?: () => string;
 }
 
+/** What finishing a run needs that only its envelope build knew; kept on the row for a resume. */
+interface Resumable {
+   delivery: DeliveryPlan | null;
+   model: string;
+   tier: Tier | null;
+}
+
+/** A run whose stream is being recorded. */
+interface Consuming extends Resumable {
+   task: TaskRow;
+   recorder: TaskRecorder;
+   usage: Usage;
+   target: RuntimeTarget;
+   session: string;
+   abort: AbortSignal;
+   log: ExchangeLog | null;
+   /** How many frames of the stream were recorded before this one began. */
+   cursor: number;
+   resumed: boolean;
+}
+
+/** How often the frame count is saved while a stream flows: a crash replays at most this much. */
+const CURSOR_SAVE_MS = 500;
+
+/** `first`, then the rest of `rest`: a stream whose first read was taken to see whether it opened. */
+async function* prepend<T>(first: IteratorResult<T>, rest: AsyncIterator<T>): AsyncGenerator<T> {
+   if (first.done) return;
+   yield first.value;
+   while (true) {
+      const next = await rest.next();
+      if (next.done) return;
+      yield next.value;
+   }
+}
+
 const ZERO: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null };
 const STREAM_ENDED: Failure = {
    code: 'RUNTIME_STREAM_ENDED',
@@ -120,7 +155,8 @@ export class RuntimeTaskExecutor implements Executor {
       this.#memory = options.memory ?? nullRunMemory();
    }
 
-   async execute(runId: string, signal?: AbortSignal): Promise<TaskOutcome> {
+   /** Null when this process let go of the run while it was being recorded (`Detached`). */
+   async execute(runId: string, signal?: AbortSignal): Promise<TaskOutcome | null> {
       const { sql } = this.#o;
       const task = await loadTask(sql, runId);
       const dispatch = task.issueId ? await this.#ledger.claimDispatch(runId) : await claimDirect(sql, runId);
@@ -140,6 +176,7 @@ export class RuntimeTaskExecutor implements Executor {
 
       let envelopeSession = '';
       let log: ExchangeLog | null = null;
+      let detached = false;
       try {
          const token = await mintTaskToken(sql, {
             runId, workspaceId: task.workspaceId, agentId: task.agentId,
@@ -158,7 +195,12 @@ export class RuntimeTaskExecutor implements Executor {
          }
          const { envelope, delivery, model, tier } = built;
          envelopeSession = envelope.runtimeSessionId;
-         await sql`UPDATE runs SET runtime_session_id = ${envelope.runtimeSessionId} WHERE id = ${runId}`;
+         const resumable: Resumable = { delivery, model, tier: tier ?? null };
+         await sql`
+            UPDATE runs
+               SET runtime_session_id = ${envelope.runtimeSessionId}, runtime_cursor = 0,
+                   runtime_resume = ${task.kind === 'agent' ? sql.json(resumable as never) : null}
+             WHERE id = ${runId}`;
          // Kept for the Logs page: what was sent to the runtime and what came
          // back. A completion keeps its whole exchange. An agent run keeps the
          // envelope — the system prompt, instructions, transcript and tools its
@@ -174,56 +216,17 @@ export class RuntimeTaskExecutor implements Executor {
             }
          );
 
-         let verified: Extract<TaskMessage, { kind: 'verified' }> | null = null;
-         const usageEvents = new Set<string>();
-         for await (const event of this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer })) {
-            log?.event(event);
-            if (abort.aborted) break;
-            if (event.type === 'task.started') await recorder.started();
-            else if (event.type === 'task.message') {
-               if (event.message.kind === 'verified') verified = event.message;
-               await recorder.message(event.message);
-            } else if (event.type === 'task.usage') {
-               if (event.usage.eventId && usageEvents.has(event.usage.eventId)) continue;
-               if (event.usage.eventId) usageEvents.add(event.usage.eventId);
-               usage.inputTokens += event.usage.inputTokens;
-               usage.outputTokens += event.usage.outputTokens;
-               usage.totalTokens = usage.inputTokens + usage.outputTokens;
-               await this.#o
-                  .recordUsage(sql, {
-                     runId, workspaceId: task.workspaceId, agentId: task.agentId,
-                     ...(event.usage.eventId ? { eventId: event.usage.eventId } : {}),
-                     ...(target.id ? { runtimeId: target.id } : {}),
-                     model: event.usage.model || model,
-                     inputTokens: event.usage.inputTokens, outputTokens: event.usage.outputTokens,
-                     cacheReadTokens: event.usage.cacheReadTokens, cacheWriteTokens: event.usage.cacheWriteTokens,
-                     ...(event.usage.reportedCostMicros === undefined ? {} : { reportedCostMicros: event.usage.reportedCostMicros }),
-                     ...(tier ? { tier } : {}),
-                     ...(event.usage.fellBack ? { fellBack: true } : {}),
-                  })
-                  .catch((error: unknown) => {
-                     this.#o.onUsageError?.(error);
-                     throw new RuntimeUnavailable('Usage could not be recorded; execution accounting is incomplete');
-                  });
-            } else if (event.type === 'task.failed') {
-               const reported = {
-                  code: event.failure.code,
-                  message: event.failure.message,
-                  retryable: event.failure.retryable,
-                  ...(event.failure.summary ? { summary: event.failure.summary } : {}),
-               };
-               const failure =
-                  event.delivery && delivery
-                     ? await this.#checkpoint(task, delivery, event.delivery, reported)
-                     : reported;
-               return await this.#fail(task, recorder, usage, failure);
-            } else if (event.type === 'task.completed') {
-               return await this.#succeed(task, recorder, usage, event.result, delivery, verified);
-            }
-         }
-         if (abort.aborted) return await this.#cancel(task, recorder, usage, target, envelopeSession);
-         return await this.#fail(task, recorder, usage, STREAM_ENDED);
+         const outcome = await this.#consume(
+            { task, recorder, usage, target, session: envelopeSession, abort, log, cursor: 0, resumed: false, ...resumable },
+            this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer })
+         );
+         if (outcome === null) detached = true;
+         return outcome;
       } catch (error) {
+         if (isDetached(abort)) {
+            detached = true;
+            return null;
+         }
          if (abort.aborted) return await this.#cancel(task, recorder, usage, target, envelopeSession);
          if (error instanceof RuntimeUnavailable) {
             log?.failed(error.message);
@@ -244,9 +247,156 @@ export class RuntimeTaskExecutor implements Executor {
                .stop({ target, runtimeSessionId: envelopeSession })
                .catch((error: unknown) => this.#o.onCancelError?.(error));
          }
-         await revokeTaskTokens(sql, runId).catch(() => undefined);
+         // A run let go of keeps its token: the runtime is still working on it
+         // and calls Berry's tools with it until a process resumes the run.
+         if (!detached) await revokeTaskTokens(sql, runId).catch(() => undefined);
          await log?.flush();
       }
+   }
+
+   /**
+    * Collects a run another process left mid-stream: the frames after the
+    * ones it recorded, from the runtime still working on it, recorded as that
+    * process would have. Null when the run cannot be resumed — not an agent
+    * run, not running, or no longer held by its runtime — and nothing was
+    * recorded; the dispatcher then abandons it as before.
+    */
+   async resume(runId: string, signal: AbortSignal): Promise<TaskOutcome | null> {
+      const { sql, transport } = this.#o;
+      if (!transport.resume) return null;
+      const [row] = await sql<Array<{ status: string; kind: string; runtime_session_id: string | null; runtime_cursor: number; runtime_resume: Resumable | null }>>`
+         SELECT status, kind, runtime_session_id, runtime_cursor, runtime_resume FROM runs WHERE id = ${runId}`;
+      if (!row || row.status !== 'running' || row.kind !== 'agent' || !row.runtime_session_id || !row.runtime_resume) return null;
+      const task = await loadTask(sql, runId);
+      const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
+      if (!target) return null;
+      const session = row.runtime_session_id;
+      const recorder: TaskRecorder = task.issueId ? ledgerRecorder(this.#ledger, runId, true) : directRecorder(sql, runId, this.#ledger);
+      const usage: Usage = { ...ZERO };
+      const stream = transport.resume({ target, runtimeSessionId: session, runId, after: row.runtime_cursor, signal })[Symbol.asyncIterator]();
+      let first: IteratorResult<LifecycleEvent>;
+      try {
+         first = await stream.next();
+      } catch (error) {
+         if (error instanceof RunNotResumable) return null;
+         throw error;
+      }
+      let detached = false;
+      try {
+         const outcome = await this.#consume(
+            { task, recorder, usage, target, session, abort: signal, log: null, cursor: row.runtime_cursor, resumed: true, ...row.runtime_resume },
+            prepend(first, stream)
+         );
+         if (outcome === null) detached = true;
+         return outcome;
+      } catch (error) {
+         if (isDetached(signal)) {
+            detached = true;
+            return null;
+         }
+         if (signal.aborted) return await this.#cancel(task, recorder, usage, target, session);
+         if (error instanceof RuntimeUnavailable) {
+            return await this.#fail(task, recorder, usage, { code: 'RUNTIME_UNAVAILABLE', message: error.message, retryable: true });
+         }
+         if (error instanceof LifecycleStreamError) {
+            return await this.#fail(task, recorder, usage, { code: 'RUNTIME_PROTOCOL', message: error.message, retryable: true });
+         }
+         throw error;
+      } finally {
+         if (!detached) await revokeTaskTokens(sql, runId).catch(() => undefined);
+      }
+   }
+
+   /**
+    * Records a run's lifecycle stream: each frame as the ledger write it
+    * stands for, until a terminal frame ends the run. Counts the frames and
+    * saves the count, so a process that resumes the run asks for what comes
+    * after. Null when this process let go of the run (`Detached`).
+    */
+   async #consume(run: Consuming, events: AsyncIterable<LifecycleEvent>): Promise<TaskOutcome | null> {
+      const { sql } = this.#o;
+      const { abort } = run;
+      const runId = run.task.runId;
+      let cursor = run.cursor;
+      let savedAt = 0;
+      const save = async (force: boolean) => {
+         const now = Date.now();
+         if (!force && now - savedAt < CURSOR_SAVE_MS) return;
+         savedAt = now;
+         await sql`UPDATE runs SET runtime_cursor = ${cursor} WHERE id = ${runId}`.catch(() => undefined);
+      };
+      try {
+         return await this.#record(run, events, async () => {
+            cursor += 1;
+            // The first frame at once, so a resume never replays the start.
+            await save(cursor === 1);
+         });
+      } catch (error) {
+         if (!isDetached(abort)) throw error;
+      }
+      await save(true);
+      return null;
+   }
+
+   /** The frames, recorded in order; `advance` after each one that does not end the run. */
+   async #record(run: Consuming, events: AsyncIterable<LifecycleEvent>, advance: () => Promise<void>): Promise<TaskOutcome> {
+      const { sql } = this.#o;
+      const { task, recorder, usage, target, abort, log, delivery, model, tier } = run;
+      const runId = task.runId;
+      let verified: Extract<TaskMessage, { kind: 'verified' }> | null = null;
+      const usageEvents = new Set<string>();
+      for await (const event of events) {
+         log?.event(event);
+         if (abort.aborted) break;
+         if (event.type === 'task.started') {
+            // A resumed run started long ago; only a fresh one is moved to running.
+            if (!run.resumed) await recorder.started();
+         } else if (event.type === 'task.message') {
+            if (event.message.kind === 'verified') verified = event.message;
+            await recorder.message(event.message);
+         } else if (event.type === 'task.usage') {
+            if (!(event.usage.eventId && usageEvents.has(event.usage.eventId))) {
+               if (event.usage.eventId) usageEvents.add(event.usage.eventId);
+               usage.inputTokens += event.usage.inputTokens;
+               usage.outputTokens += event.usage.outputTokens;
+               usage.totalTokens = usage.inputTokens + usage.outputTokens;
+               await this.#o
+                  .recordUsage(sql, {
+                     runId, workspaceId: task.workspaceId, agentId: task.agentId,
+                     ...(event.usage.eventId ? { eventId: event.usage.eventId } : {}),
+                     ...(target.id ? { runtimeId: target.id } : {}),
+                     model: event.usage.model || model,
+                     inputTokens: event.usage.inputTokens, outputTokens: event.usage.outputTokens,
+                     cacheReadTokens: event.usage.cacheReadTokens, cacheWriteTokens: event.usage.cacheWriteTokens,
+                     ...(event.usage.reportedCostMicros === undefined ? {} : { reportedCostMicros: event.usage.reportedCostMicros }),
+                     ...(tier ? { tier } : {}),
+                     ...(event.usage.fellBack ? { fellBack: true } : {}),
+                  })
+                  .catch((error: unknown) => {
+                     this.#o.onUsageError?.(error);
+                     throw new RuntimeUnavailable('Usage could not be recorded; execution accounting is incomplete');
+                  });
+            }
+         } else if (event.type === 'task.failed') {
+            const reported = {
+               code: event.failure.code,
+               message: event.failure.message,
+               retryable: event.failure.retryable,
+               ...(event.failure.summary ? { summary: event.failure.summary } : {}),
+            };
+            const failure =
+               event.delivery && delivery
+                  ? await this.#checkpoint(task, delivery, event.delivery, reported)
+                  : reported;
+            return await this.#fail(task, recorder, usage, failure);
+         } else if (event.type === 'task.completed') {
+            return await this.#succeed(task, recorder, usage, event.result, delivery, verified);
+         }
+         await advance();
+      }
+      if (isDetached(abort)) throw abort.reason;
+      if (abort.aborted) return await this.#cancel(task, recorder, usage, target, run.session);
+      return await this.#fail(task, recorder, usage, STREAM_ENDED);
    }
 
    async #succeed(

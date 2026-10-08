@@ -14,7 +14,8 @@ import { EnvelopeBuilder } from './envelope-builder.ts';
 import type { LifecycleEvent } from './lifecycle.ts';
 import { RuntimeTaskExecutor, emptyRepositoryRun, type UsageRecorder } from './task-executor.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
-import type { RuntimeTarget, RuntimeTransport } from './transport.ts';
+import { RunNotResumable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
+import { Detached } from '../runs/dispatcher.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 const TARGET: RuntimeTarget = { id: null, driver: 'http', arn: null, qualifier: 'DEFAULT', region: null, endpointUrl: 'http://test' };
@@ -75,7 +76,7 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
          loadTools: async () => [],
       });
       const outcome = await executor(transport).execute(runId);
-      assert.equal(outcome.status, 'succeeded');
+      assert.equal(outcome?.status, 'succeeded');
       const [run] = await sql`SELECT status, summary, input_tokens, runtime_session_id FROM runs WHERE id = ${runId}`;
       assert.equal(run!.status, 'succeeded');
       assert.equal(run!.summary, 'The fix is in.');
@@ -94,8 +95,8 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
    test('a stream that ends without a verdict is RUNTIME_STREAM_ENDED, retryable', async () => {
       const { runId } = await issueTask();
       const outcome = await executor(scripted([{ type: 'task.started' }])).execute(runId);
-      assert.equal(outcome.status, 'failed');
-      assert.deepEqual(outcome.failure, {
+      assert.equal(outcome?.status, 'failed');
+      assert.deepEqual(outcome?.failure, {
          code: 'RUNTIME_STREAM_ENDED',
          message: 'The runtime stopped reporting before the task finished.',
          retryable: true,
@@ -108,7 +109,7 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const outcome = await executor(
          scripted([{ type: 'task.started' }, { type: 'task.failed', failure: { code: 'MODEL_REFUSED', message: 'no', retryable: false } }], stopped)
       ).execute(runId);
-      assert.equal(outcome.failure?.code, 'MODEL_REFUSED');
+      assert.equal(outcome?.failure?.code, 'MODEL_REFUSED');
       // An issue's session stays warm for the next run on it.
       assert.deepEqual(stopped, []);
    });
@@ -130,8 +131,65 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
          },
       };
       const outcome = await executor(hanging).execute(runId, controller.signal);
-      assert.equal(outcome.status, 'cancelled');
+      assert.equal(outcome?.status, 'cancelled');
       assert.equal(stopped.length, 1);
+   });
+
+   test('a run let go of keeps its token and session, and the next process collects the rest of it', async () => {
+      const { runId } = await issueTask();
+      const stopped: string[] = [];
+      const controller = new AbortController();
+      const asked: Array<{ runtimeSessionId: string; after: number }> = [];
+      const runtime: RuntimeTransport = {
+         async *invoke({ signal }) {
+            yield { type: 'task.started' } as LifecycleEvent;
+            yield { type: 'task.message', message: { kind: 'output', channel: 'assistant', text: 'working' } } as LifecycleEvent;
+            controller.abort(new Detached());
+            if (!signal.aborted) await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+         },
+         async *resume({ runtimeSessionId, after }) {
+            asked.push({ runtimeSessionId, after });
+            yield { type: 'task.message', message: { kind: 'output', channel: 'assistant', text: ' and done' } } as LifecycleEvent;
+            yield { type: 'task.completed', result: { text: 'All done.', truncated: false, delivery: null } } as LifecycleEvent;
+         },
+         async stop({ runtimeSessionId }) {
+            stopped.push(runtimeSessionId);
+         },
+      };
+      assert.equal(await executor(runtime).execute(runId, controller.signal), null);
+      const [left] = await sql`SELECT status, runtime_cursor, runtime_session_id FROM runs WHERE id = ${runId}`;
+      assert.equal(left!.status, 'running');
+      assert.equal(left!.runtime_cursor, 2);
+      assert.deepEqual(stopped, [], 'the runtime goes on working');
+      assert.equal((await sql`SELECT 1 FROM task_tokens WHERE run_id = ${runId} AND revoked_at IS NULL`).length, 1);
+
+      const outcome = await executor(runtime).resume(runId, new AbortController().signal);
+      assert.equal(outcome?.status, 'succeeded');
+      assert.deepEqual(asked, [{ runtimeSessionId: left!.runtime_session_id, after: 2 }]);
+      const [run] = await sql`SELECT status, summary FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.status, 'succeeded');
+      assert.equal(run!.summary, 'All done.');
+      assert.equal((await sql`SELECT 1 FROM task_tokens WHERE run_id = ${runId} AND revoked_at IS NULL`).length, 0);
+   });
+
+   test('a run its runtime no longer holds is not resumed, and nothing is recorded', async () => {
+      const { runId } = await issueTask();
+      const controller = new AbortController();
+      const runtime: RuntimeTransport = {
+         async *invoke({ signal }) {
+            yield { type: 'task.started' } as LifecycleEvent;
+            controller.abort(new Detached());
+            if (!signal.aborted) await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }));
+         },
+         async *resume() {
+            throw new RunNotResumable('the runtime answered 404');
+         },
+         async stop() {},
+      };
+      await executor(runtime).execute(runId, controller.signal);
+      assert.equal(await executor(runtime).resume(runId, new AbortController().signal), null);
+      const [run] = await sql`SELECT status FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.status, 'running');
    });
 
    test('a completion task stores its result and writes no run events', async () => {
@@ -147,7 +205,7 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
             { type: 'task.completed', result: { text: 'hi', truncated: false, structured: { a: 1 }, delivery: null } },
          ], stopped)
       ).execute(runId);
-      assert.equal(outcome.status, 'succeeded');
+      assert.equal(outcome?.status, 'succeeded');
       // Nothing reuses a completion's session, so it is not left idle.
       const [run] = await sql`SELECT status, result, total_tokens, runtime_session_id FROM runs WHERE id = ${runId}`;
       assert.deepEqual(stopped, [run!.runtime_session_id]);
@@ -177,7 +235,7 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
          },
          stop: async () => undefined,
       };
-      assert.equal((await executor(transport).execute(runId)).status, 'succeeded');
+      assert.equal((await executor(transport).execute(runId))?.status, 'succeeded');
       const [row] = await sql`SELECT request, payload, response, events FROM run_exchanges WHERE run_id = ${runId}`;
       const request = row!.request as { url: string; headers: Record<string, string> };
       assert.equal(request.url, 'http://runtime.test/invocations');

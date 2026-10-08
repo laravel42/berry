@@ -6,6 +6,7 @@ import {
 import type { TaskEnvelope } from './envelope.ts';
 import { parseLifecycleStream, type LifecycleEvent } from './lifecycle.ts';
 import {
+   RunNotResumable,
    RuntimeUnavailable,
    type ExchangeObserver,
    type RuntimeTarget,
@@ -73,6 +74,38 @@ export function agentCoreTransport(options: {
             body = toByteStream(response.response);
          } catch (cause) {
             throw new RuntimeUnavailable(`could not invoke the AgentCore Runtime: ${message(cause)}`, { cause });
+         }
+         try {
+            yield* parseLifecycleStream(guardIdle(body, STREAM_IDLE_MS, forward));
+         } finally {
+            signal.removeEventListener('abort', forward);
+         }
+      },
+
+      // The same session id reaches the same microVM while it lives; one that
+      // was reaped starts fresh, holds no journal and answers 404, which the
+      // SDK raises before any frame.
+      async *resume({ target, runtimeSessionId, runId, after, signal }): AsyncIterable<LifecycleEvent> {
+         if (!target.arn) throw new RunNotResumable('this runtime has no ARN');
+         let body: AsyncIterable<Uint8Array>;
+         const request = new AbortController();
+         const forward = () => request.abort();
+         signal.addEventListener('abort', forward, { once: true });
+         try {
+            const command = new InvokeAgentRuntimeCommand({
+               agentRuntimeArn: target.arn,
+               qualifier: target.qualifier,
+               runtimeSessionId,
+               contentType: 'application/json',
+               accept: 'text/event-stream',
+               payload: new TextEncoder().encode(JSON.stringify({ resume: { runId, runtimeSessionId, after } })),
+            });
+            const response = await clientFor(target.region).send(command, { abortSignal: request.signal as never });
+            if (response.response === undefined || response.response === null) throw new Error('the runtime returned no body');
+            body = toByteStream(response.response);
+         } catch (cause) {
+            signal.removeEventListener('abort', forward);
+            throw new RunNotResumable(`the AgentCore Runtime could not resume the run: ${message(cause)}`, { cause });
          }
          try {
             yield* parseLifecycleStream(guardIdle(body, STREAM_IDLE_MS, forward));
