@@ -22,6 +22,9 @@ import { BerryApiError } from '@/lib/api';
 import {
    getRun,
    isTerminalRunEvent,
+   loadRunEvents,
+   RUN_EVENT_PAGE,
+   RUN_STALL_QUIET_MS,
    streamRunEvents,
    type RunEvent,
    type RunRecord,
@@ -30,7 +33,15 @@ import { formatCost, formatTokens } from '@/lib/usage';
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, Copy, ListFilter, Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useEffect,
+   useLayoutEffect,
+   useMemo,
+   useRef,
+   useState,
+   type ReactNode,
+} from 'react';
 
 /**
  * One run, read back.
@@ -158,7 +169,7 @@ function isOpenPassage(step: TranscriptStep | undefined): step is TranscriptStep
    return (step?.kind === 'thinking' || step?.kind === 'reasoning') && step.ok === null;
 }
 
-const FILTERS: StepKind[] = ['tool', 'reasoning', 'thinking', 'error', 'command', 'edit', 'read'];
+const FILTERS: StepKind[] = ['tool', 'thinking', 'error', 'command', 'edit', 'read'];
 
 /** Which kind of step a tool name is. Names vary by runtime; the verbs do not. */
 function toolKind(name: string): StepKind {
@@ -623,6 +634,20 @@ export interface RunTranscriptProps {
    onRunLoaded?: (run: RunRecord) => void;
    /** In the bottom bar after its controls, before what the run spent: what the console knows of the run. */
    footerInfo?: ReactNode;
+   /**
+    * Load the newest page and follow from there. Scrolling up asks for the
+    * page before it. The dialog leaves this off and reads the whole run.
+    */
+   paged?: boolean;
+   /**
+    * True once a running run has been waiting, with no open tool, for the
+    * stall window. The console offers Restart then.
+    */
+   onQuietChange?: (quiet: boolean) => void;
+}
+
+function foldEvents(events: RunEvent[]): TranscriptStep[] {
+   return events.reduce((steps, event) => foldRunEvent(steps, event), [] as TranscriptStep[]);
 }
 
 /**
@@ -640,6 +665,8 @@ export function RunTranscript({
    onFiltersActiveChange,
    onRunLoaded,
    footerInfo,
+   paged = false,
+   onQuietChange,
 }: RunTranscriptProps) {
    const oldestFirst = order === 'oldest-first';
    const t = useTranslations('issueDetail.transcript');
@@ -647,6 +674,14 @@ export function RunTranscript({
    // True until the stream has replayed the run. An empty log before that is
    // the fetch, not a run that recorded nothing.
    const [booting, setBooting] = useState(true);
+   // A paged console keeps the events it has, so an earlier page can be folded
+   // in above them. The steps stay the folded view of that list.
+   const eventsRef = useRef<RunEvent[]>([]);
+   const [hasOlder, setHasOlder] = useState(false);
+   const [loadingEarlier, setLoadingEarlier] = useState(false);
+   const loadingEarlierRef = useRef(false);
+   const anchor = useRef<{ height: number; top: number } | null>(null);
+   const [epoch, setEpoch] = useState(0);
    const [lastEventAt, setLastEventAt] = useState<string | null>(null);
    const [run, setRun] = useState<RunRecord | null>(null);
    const [status, setStatus] = useState('');
@@ -678,54 +713,88 @@ export function RunTranscript({
       setRun(null);
       setStatus('');
       setFollowing(true);
-      void getRun(runId).then(
-         (loaded) => {
-            if (!cancelled) {
-               setRun(loaded);
-               setStatus(loaded.status);
-            }
-         },
-         () => undefined
-      );
-
+      setHasOlder(false);
+      eventsRef.current = [];
       const controller = new AbortController();
+
+      const take = (event: RunEvent) => {
+         if (cancelled) return;
+         if (paged && eventsRef.current.some((entry) => entry.id === event.id)) return;
+         setBooting(false);
+         if (paged) eventsRef.current = [...eventsRef.current, event];
+         setSteps((current) => foldRunEvent(current, event));
+         setLastEventAt(event.occurredAt);
+         if (event.type === 'run.started') {
+            setStatus('running');
+            setRun((current) => advanced(current, 'running', event.occurredAt));
+         }
+         if (!isTerminalRunEvent(event.type)) return;
+         // In the run's own words: the stream ends on `run.completed`
+         // but the run reads `succeeded`, and showing whichever
+         // arrived last made the header flip between the two.
+         const ended = event.type.replace('run.', '');
+         const final = ended === 'completed' ? 'succeeded' : ended;
+         setStatus(final);
+         // At once, not at the re-read below: the console's tabs,
+         // Stop and pulse move with the stream, as the task does.
+         if (final === 'succeeded' || final === 'failed' || final === 'cancelled') {
+            setRun((current) => advanced(current, final, event.occurredAt));
+         }
+         // The totals only settle at the end, so the run is re-read
+         // rather than left showing the usage it had when opened.
+         void getRun(runId).then(
+            (loaded) => {
+               if (!cancelled) setRun(loaded);
+            },
+            () => undefined
+         );
+      };
+
       void (async () => {
          try {
+            let after: number | undefined;
+            // A finished run's tail is the whole window worth reading. Following
+            // it would hold a stream open for events that will not arrive.
+            let follow = true;
+            if (paged) {
+               const record = await getRun(runId);
+               if (cancelled) return;
+               setRun(record);
+               setStatus(record.status);
+               follow = record.status === 'queued' || record.status === 'running';
+               const page = await loadRunEvents(runId, { before: record.sequence + 1 });
+               if (cancelled) return;
+               eventsRef.current = page;
+               setSteps(foldEvents(page));
+               const oldest = page[0]?.sequence;
+               setHasOlder(
+                  page.length >= RUN_EVENT_PAGE && typeof oldest === 'number' && oldest > 0
+               );
+               const last = page.at(-1)?.sequence;
+               if (typeof last === 'number') after = last;
+               setBooting(false);
+            } else {
+               void getRun(runId).then(
+                  (loaded) => {
+                     if (!cancelled) {
+                        setRun(loaded);
+                        setStatus(loaded.status);
+                     }
+                  },
+                  () => undefined
+               );
+            }
+
+            if (!follow) return;
             for await (const event of streamRunEvents(runId, controller.signal, {
                onReady: () => {
                   if (!cancelled) setBooting(false);
                },
+               ...(after === undefined ? {} : { after }),
             })) {
                if (cancelled) return;
-               setBooting(false);
-               setSteps((current) => foldRunEvent(current, event));
-               setLastEventAt(event.occurredAt);
-               if (event.type === 'run.started') {
-                  setStatus('running');
-                  setRun((current) => advanced(current, 'running', event.occurredAt));
-               }
-               if (isTerminalRunEvent(event.type)) {
-                  // In the run's own words: the stream ends on `run.completed`
-                  // but the run reads `succeeded`, and showing whichever
-                  // arrived last made the header flip between the two.
-                  const ended = event.type.replace('run.', '');
-                  const final = ended === 'completed' ? 'succeeded' : ended;
-                  setStatus(final);
-                  // At once, not at the re-read below: the console's tabs,
-                  // Stop and pulse move with the stream, as the task does.
-                  if (final === 'succeeded' || final === 'failed' || final === 'cancelled') {
-                     setRun((current) => advanced(current, final, event.occurredAt));
-                  }
-                  // The totals only settle at the end, so the run is re-read
-                  // rather than left showing the usage it had when opened.
-                  void getRun(runId).then(
-                     (loaded) => {
-                        if (!cancelled) setRun(loaded);
-                     },
-                     () => undefined
-                  );
-                  return;
-               }
+               take(event);
+               if (isTerminalRunEvent(event.type)) return;
             }
             if (!cancelled) setBooting(false);
          } catch (error) {
@@ -739,7 +808,7 @@ export function RunTranscript({
          cancelled = true;
          controller.abort();
       };
-   }, [runId]);
+   }, [runId, paged]);
 
    // The run's failure belongs to the transcript's last error block, not under
    // the title: it is what that error was, and the stored message is the full
@@ -748,8 +817,11 @@ export function RunTranscript({
    const withFailure = useMemo(() => attachFailure(steps, failure), [steps, failure]);
 
    const visible = useMemo(() => {
+      // Reasoning stays off the log. While the agent is reasoning the thinking
+      // row is the whole signal; the passage itself is never shown.
+      const spoken = withFailure.filter((step) => step.kind !== 'reasoning');
       const byKind =
-         kinds.length === 0 ? withFailure : withFailure.filter((step) => kinds.includes(step.kind));
+         kinds.length === 0 ? spoken : spoken.filter((step) => kinds.includes(step.kind));
       const needle = query.trim().toLowerCase();
       const matched = !needle
          ? byKind
@@ -763,9 +835,10 @@ export function RunTranscript({
 
    const matches = query.trim() ? visible.length : 0;
 
-   // Between one output and the next the agent is waiting on its model: no
-   // tool or command is open and nothing has arrived yet. The log says so at
-   // its newest end, and counts from the last thing that did arrive.
+   // Between one output and the next, and while the model is reasoning, the
+   // agent is waiting: no tool or command is open. The log says so at its
+   // newest end, and counts from the last thing that did arrive. Reasoning
+   // text is not a step here.
    const openStep = steps.some(
       (entry) => entry.ok === null && entry.kind !== 'thinking' && entry.kind !== 'reasoning'
    );
@@ -811,6 +884,53 @@ export function RunTranscript({
    // foot" and left the view stuck partway. Growth never moves scrollTop, so
    // it can no longer switch following off; reaching the foot turns it on.
    const lastTop = useRef(0);
+
+   // An earlier page is inserted above the window. Remember the scroll height
+   // first, then put that growth back into scrollTop so the lines in view stay.
+   const loadEarlier = useCallback(async () => {
+      if (!paged || loadingEarlierRef.current || !hasOlder) return;
+      const oldest = eventsRef.current[0]?.sequence;
+      if (typeof oldest !== 'number' || oldest <= 0) {
+         setHasOlder(false);
+         return;
+      }
+      loadingEarlierRef.current = true;
+      setLoadingEarlier(true);
+      setFollowing(false);
+      try {
+         const page = await loadRunEvents(runId, { before: oldest });
+         const current = eventsRef.current;
+         const seen = new Set(current.map((event) => event.id));
+         const fresh = page.filter((event) => !seen.has(event.id));
+         if (fresh.length === 0) {
+            setHasOlder(false);
+            return;
+         }
+         const element = scroller.current;
+         anchor.current = element ? { height: element.scrollHeight, top: element.scrollTop } : null;
+         eventsRef.current = [...fresh, ...current];
+         setSteps(foldEvents(eventsRef.current));
+         const nextOldest = fresh[0]?.sequence ?? page[0]?.sequence;
+         setHasOlder(
+            page.length >= RUN_EVENT_PAGE && typeof nextOldest === 'number' && nextOldest > 0
+         );
+         setEpoch((value) => value + 1);
+      } catch {
+         anchor.current = null;
+      } finally {
+         loadingEarlierRef.current = false;
+         setLoadingEarlier(false);
+      }
+   }, [hasOlder, paged, runId]);
+
+   useLayoutEffect(() => {
+      const element = scroller.current;
+      const saved = anchor.current;
+      if (!element || !saved) return;
+      anchor.current = null;
+      element.scrollTop = saved.top + (element.scrollHeight - saved.height);
+   }, [epoch]);
+
    const onScroll = useCallback(() => {
       const element = scroller.current;
       if (!element) return;
@@ -821,11 +941,12 @@ export function RunTranscript({
          const atFoot = element.scrollHeight - top - element.clientHeight < 24;
          if (movedUp && !atFoot && following) setFollowing(false);
          else if (atFoot && !following) setFollowing(true);
+         if (paged && movedUp && top < 48) void loadEarlier();
          return;
       }
       if (top > 8 && !movedUp && following) setFollowing(false);
       else if (top <= 8 && !following) setFollowing(true);
-   }, [following, oldestFirst]);
+   }, [following, oldestFirst, paged, loadEarlier]);
 
    const step = (delta: number) => {
       if (matches === 0) return;
@@ -848,6 +969,12 @@ export function RunTranscript({
       return () => window.clearInterval(timer);
    }, [waiting]);
    const waitedMs = lastEventAt ? Math.max(0, now - new Date(lastEventAt).getTime()) : 0;
+   const quiet = waiting && waitedMs >= RUN_STALL_QUIET_MS;
+   const reportQuiet = useRef(onQuietChange);
+   reportQuiet.current = onQuietChange;
+   useEffect(() => {
+      reportQuiet.current?.(quiet);
+   }, [quiet]);
    const thinkingRow = waiting ? (
       <li className="flex items-center gap-3 px-4 py-2.5" aria-live="polite">
          <span data-heading="label" className="w-[5.5rem] shrink-0 text-status-info uppercase">
@@ -985,6 +1112,18 @@ export function RunTranscript({
             aria-label={oldestFirst ? t('oldestFirst') : t('newestFirst')}
          >
             <div ref={content} className={booting && visible.length === 0 ? 'h-full' : undefined}>
+               {paged && oldestFirst && hasOlder ? (
+                  <div className="flex justify-center py-2">
+                     <Button
+                        variant="ghost"
+                        size="xs"
+                        disabled={loadingEarlier}
+                        onClick={() => void loadEarlier()}
+                     >
+                        {loadingEarlier ? t('loading') : t('earlier')}
+                     </Button>
+                  </div>
+               ) : null}
                {booting && visible.length === 0 ? (
                   <BerryLoading label={t('loading')} className="min-h-full" />
                ) : visible.length === 0 && !thinkingRow ? (

@@ -13,27 +13,41 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuLabel,
+   DropdownMenuRadioGroup,
+   DropdownMenuRadioItem,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import { cancelRun, isTerminalRunStatus, type RunRecord } from '@/lib/runs';
+import {
+   cancelRun,
+   formatRunDuration,
+   isTerminalRunStatus,
+   restartIssueRun,
+   type RunRecord,
+} from '@/lib/runs';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
-import { ChevronDown, ListFilter, Square, SquareTerminal } from 'lucide-react';
+import { ChevronDown, History, ListFilter, RotateCcw, Square, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
-import { RunSummary, RunTab } from './run-entry';
+import { markTone, RunSummary, RunTab, statusTone, useRunDuration } from './run-entry';
 import { useEffect, useId, useRef, useState } from 'react';
 
 /**
  * The task's console, docked at the foot of the drawer like the build
  * terminal: a run's transcript beside the work it produced. It follows the
- * live run, or the latest one when nothing is running, until a person picks
- * another from its list or from a run's transcript button; Follow returns it
- * to the live one. Open while a run is producing output, folded to its bar
- * while it is only queued or while the task still has no comment from an
- * agent, and a person's own toggle wins either way.
+ * live run, or the latest one when nothing is running. Past runs open from
+ * the history control as a list, and each transcript opens on its newest page. Open
+ * while a run is producing output, folded to its bar while it is only queued
+ * or while the task still has no comment from an agent, and a person's own
+ * toggle wins either way.
  */
 export function RunConsole({ issueId, cover = true }: { issueId: string; cover?: boolean }) {
    const t = useTranslations('issueDetail.console');
@@ -59,6 +73,9 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
    const [filtersActive, setFiltersActive] = useState(false);
    const [confirmingStop, setConfirmingStop] = useState(false);
    const [stopping, setStopping] = useState(false);
+   const [quiet, setQuiet] = useState(false);
+   const [confirmingRestart, setConfirmingRestart] = useState(false);
+   const [restarting, setRestarting] = useState(false);
    const bodyId = useId();
    const strip = useRef<HTMLDivElement>(null);
 
@@ -81,11 +98,7 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
       if (liveRunId) setToggled(null);
    }, [liveRunId]);
 
-   const shownId =
-      (chosen ? runs.find((entry) => entry.id === chosen) : null)?.id ??
-      activeRun?.id ??
-      runs[0]?.id ??
-      null;
+   const shownId = run?.id ?? null;
    useEffect(() => {
       if (!shownId) return;
       document
@@ -99,7 +112,13 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
    const live = !isTerminalRunStatus(run.status);
    const open = toggled ?? (run.status === 'running' && cover);
 
-   const tabs = [...runs].reverse();
+   const current = activeRun ?? runs[0] ?? null;
+   const past = runs.filter((entry) => entry.id !== current?.id);
+   const ordered = [...runs].reverse();
+   const tabs = [run];
+   const failedStall = current?.status === 'failed' && current.failure?.retryable === true;
+   const liveStall = current?.status === 'running' && run.id === current.id && quiet;
+   const canRestart = failedStall || liveStall;
 
    // Stopping a live run: what it already did stays; asked first, as a stop cannot be taken back.
    const stop = async (target: RunRecord) => {
@@ -115,27 +134,88 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
       }
    };
 
+   // A stalled task starts again from the work already saved. A run that is
+   // still marked running is asked about first, because restart stops it.
+   const restart = async () => {
+      setRestarting(true);
+      try {
+         const next = await restartIssueRun(issueId);
+         upsert(next);
+         follow(issueId);
+         toast.success(t('restarted'));
+         setConfirmingRestart(false);
+      } catch (error) {
+         toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+      } finally {
+         setRestarting(false);
+      }
+   };
+   const askRestart = () => {
+      if (liveStall) setConfirmingRestart(true);
+      else void restart();
+   };
+
    // Folded, the console is a button floating at the bottom right of the task,
    // over its last lines: it takes no room until it is asked for.
+   const restartDialog = (
+      <AlertDialog open={confirmingRestart} onOpenChange={setConfirmingRestart}>
+         <AlertDialogContent>
+            <AlertDialogHeader>
+               <AlertDialogTitle>{t('restartTitle')}</AlertDialogTitle>
+               <AlertDialogDescription>
+                  {t('restartBody', { name: nameOf(run) })}
+               </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+               <AlertDialogCancel disabled={restarting}>{t('keepRunning')}</AlertDialogCancel>
+               <AlertDialogAction
+                  disabled={restarting}
+                  onClick={(event) => {
+                     event.preventDefault();
+                     void restart();
+                  }}
+               >
+                  {t('restartConfirm')}
+               </AlertDialogAction>
+            </AlertDialogFooter>
+         </AlertDialogContent>
+      </AlertDialog>
+   );
+
    if (!open) {
       return (
          <div className="pointer-events-none relative z-20 h-0 shrink-0">
-            <Button
-               variant="outline"
-               size="sm"
-               aria-expanded={false}
-               onClick={() => {
-                  // Opened by hand, the console starts on the latest run, not
-                  // on one picked before it was folded.
-                  follow(issueId);
-                  setToggled(true);
-               }}
-               className="pointer-events-auto absolute right-4 bottom-3 gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            >
-               <SquareTerminal className="size-4" aria-hidden />
-               {t('title')}
-               {live ? <BerryMark size="sm" tone="working" pulse label={nameOf(run)} /> : null}
-            </Button>
+            <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
+               {canRestart ? (
+                  <Button
+                     variant="outline"
+                     size="sm"
+                     disabled={restarting}
+                     onClick={askRestart}
+                     className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral"
+                  >
+                     <RotateCcw className="size-4" aria-hidden />
+                     {t('restart')}
+                  </Button>
+               ) : null}
+               <Button
+                  variant="outline"
+                  size="sm"
+                  aria-expanded={false}
+                  onClick={() => {
+                     // Opened by hand, the console starts on the latest run, not
+                     // on one picked before it was folded.
+                     follow(issueId);
+                     setToggled(true);
+                  }}
+                  className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral focus-visible:ring-[3px] focus-visible:ring-ring/50"
+               >
+                  <SquareTerminal className="size-4" aria-hidden />
+                  {t('title')}
+                  {live ? <BerryMark size="sm" tone="working" pulse label={nameOf(run)} /> : null}
+               </Button>
+            </div>
+            {restartDialog}
          </div>
       );
    }
@@ -168,18 +248,18 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                   document.getElementById(`run-tab-${next.id}`)?.focus();
                }}
             >
-               {tabs.map((entry, index) => (
+               {tabs.map((entry) => (
                   <RunTab
                      key={entry.id}
                      run={entry}
-                     ordinal={index + 1}
+                     ordinal={ordered.findIndex((candidate) => candidate.id === entry.id) + 1}
                      selected={entry.id === run.id}
                      panelId={bodyId}
                      onSelect={() => show(issueId, entry.id)}
                   />
                ))}
             </div>
-            {picked && activeRun && picked.id !== activeRun.id ? (
+            {current && run.id !== current.id ? (
                <Button
                   variant="ghost"
                   size="xs"
@@ -189,7 +269,19 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                   )}
                   onClick={() => follow(issueId)}
                >
-                  {t('followLive')}
+                  {activeRun ? t('followLive') : t('currentRun')}
+               </Button>
+            ) : null}
+            {canRestart ? (
+               <Button
+                  variant="ghost"
+                  size="xs"
+                  className="shrink-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+                  disabled={restarting}
+                  onClick={askRestart}
+               >
+                  <RotateCcw className="size-3.5" aria-hidden />
+                  {t('restart')}
                </Button>
             ) : null}
             {live ? (
@@ -203,6 +295,43 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                   <Square className="size-3.5" aria-hidden />
                   {t('stop')}
                </Button>
+            ) : null}
+            {past.length > 0 ? (
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button
+                        variant="ghost"
+                        size="xxs"
+                        className="size-6 shrink-0 px-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+                        aria-pressed={run.id !== current?.id}
+                        title={t('history')}
+                     >
+                        <History className="size-4" aria-hidden />
+                        <span className="sr-only">{t('history')}</span>
+                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 p-0">
+                     <DropdownMenuLabel>{t('history')}</DropdownMenuLabel>
+                     <div className="max-h-64 overflow-y-auto p-1">
+                        <DropdownMenuRadioGroup
+                           value={run.id}
+                           onValueChange={(id) => show(issueId, id)}
+                        >
+                           {past.map((entry) => (
+                              <DropdownMenuRadioItem key={entry.id} value={entry.id}>
+                                 <PastRunChoice
+                                    run={entry}
+                                    ordinal={
+                                       ordered.findIndex((candidate) => candidate.id === entry.id) +
+                                       1
+                                    }
+                                 />
+                              </DropdownMenuRadioItem>
+                           ))}
+                        </DropdownMenuRadioGroup>
+                     </div>
+                  </DropdownMenuContent>
+               </DropdownMenu>
             ) : null}
             {/* The console's own controls, at the end of its tabs: search and
                 filter the log, and fold the console back into its button. */}
@@ -248,9 +377,11 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                   runId={run.id}
                   className="min-h-0 flex-1"
                   order="oldest-first"
+                  paged
                   filtersOpen={filtersOpen}
                   onFiltersOpenChange={setFiltersOpen}
                   onFiltersActiveChange={setFiltersActive}
+                  onQuietChange={setQuiet}
                   onRunLoaded={upsert}
                   // The shown run in full, in the one bar: status, agent, why it
                   // ran, how long and when.
@@ -287,6 +418,22 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
+         {restartDialog}
       </section>
+   );
+}
+
+/** One past run in the history list: its place, and how long it took. */
+function PastRunChoice({ run, ordinal }: { run: RunRecord; ordinal: number }) {
+   const t = useTranslations('issueDetail.log');
+   const duration = useRunDuration(run);
+   return (
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+         <BerryMark size="sm" tone={markTone(run.status)} label={run.status} />
+         <span className="min-w-0 flex-1 truncate">{t('tab', { n: ordinal })}</span>
+         <span className={cn('shrink-0 tabular-nums', statusTone(run.status))}>
+            {formatRunDuration(duration)}
+         </span>
+      </span>
    );
 }

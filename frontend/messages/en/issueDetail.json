@@ -179,6 +179,7 @@
       "edit": "Edits",
       "read": "Reads",
       "empty": "Nothing has been recorded yet.",
+      "earlier": "Earlier",
       "input": "Input",
       "result": "Result",
       "copy": "Copy",
@@ -209,6 +210,8 @@
    "console": {
       "title": "Console",
       "pick": "Run shown in the console",
+      "history": "Past runs",
+      "currentRun": "Current run",
       "followLive": "Follow the live run",
       "collapse": "Hide the console",
       "expand": "Show the console",
@@ -222,7 +225,13 @@
       "stopConfirm": "Stop the run",
       "keepRunning": "Let it finish",
       "stopped": "Asked the run to stop.",
-      "stopFailed": "The run could not be stopped."
+      "stopFailed": "The run could not be stopped.",
+      "restart": "Restart",
+      "restartTitle": "Restart this run?",
+      "restartBody": "{name} stops where it is and continues from the work already saved.",
+      "restartConfirm": "Restart",
+      "restarted": "Restarted. The agent continues from where it stopped.",
+      "restartFailed": "The run could not be restarted."
    },
    "activity": {
       "title": "Activity",

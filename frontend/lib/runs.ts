@@ -246,6 +246,20 @@ export async function createIssueRun(
    }
 }
 
+/** Queue a recovery run for a stalled task. The agent continues from the work already saved. */
+export async function restartIssueRun(issueId: string): Promise<RunRecord> {
+   const json: unknown = await apiFetch(`/api/v1/issues/${issueId}/runs/restart`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+      body: JSON.stringify({}),
+   });
+   const parsed = runSchema.safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Run response was not recognized');
+   }
+   return parsed.data;
+}
+
 export async function loadRunsForIssues(issueIds: string[]): Promise<RunRecord[]> {
    const pages = await Promise.all(
       issueIds.map(async (issueId) => {
@@ -259,12 +273,49 @@ export async function loadRunsForIssues(issueIds: string[]): Promise<RunRecord[]
    return pages.flat().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+/** How many events the console asks for at a time, newest first in the window. */
+export const RUN_EVENT_PAGE = 40;
+
+/**
+ * How long a running task may go without an event before Restart appears.
+ * Matches `STALL_QUIET_MS` on the server: the button and the refusal agree.
+ */
+export const RUN_STALL_QUIET_MS = 120_000;
+
+const runEventPageSchema = z.object({
+   events: z.array(runEventSchema),
+   cursor: z.number().nullable(),
+});
+
+/**
+ * One page of a run's events, oldest first.
+ *
+ * `before` is exclusive. The page is the newest events older than it, so a
+ * console can start at the end of a run and walk upward.
+ */
+export async function loadRunEvents(
+   runId: string,
+   input: { before: number; first?: number }
+): Promise<RunEvent[]> {
+   const params = new URLSearchParams({
+      before: String(input.before),
+      first: String(input.first ?? RUN_EVENT_PAGE),
+   });
+   const json: unknown = await apiFetch(
+      `/api/v1/runs/${encodeURIComponent(runId)}/events?${params.toString()}`
+   );
+   const parsed = runEventPageSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Run events were not recognized');
+   return parsed.data.events;
+}
+
 export async function* streamRunEvents(
    runId: string,
    signal?: AbortSignal,
-   hooks?: { onReady?: () => void }
+   hooks?: { onReady?: () => void; after?: number }
 ): AsyncGenerator<RunEvent> {
-   const response = await apiStream(`/api/v1/runs/${runId}/events`, undefined, { signal });
+   const query = hooks?.after === undefined ? '' : `?after=${hooks.after}`;
+   const response = await apiStream(`/api/v1/runs/${runId}/events${query}`, undefined, { signal });
    if (!response.body) {
       throw new Error('Run event stream had no body');
    }
