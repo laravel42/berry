@@ -310,7 +310,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
 
             {/* Between the task and its comment bar: docked there when open,
                 and a button floating just above that edge when folded. */}
-            <RunConsole issueId={issue.id} cover={!commentsKnown || agentSpoke} />
+            <RunConsole issueId={issue.id} />
 
             {stickyCommentBar && !agentManaged ? (
                <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">

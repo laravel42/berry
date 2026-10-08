@@ -43,12 +43,11 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
  * The task's console, docked at the foot of the drawer like the build
  * terminal: a run's transcript beside the work it produced. It follows the
  * live run, or the latest one when nothing is running. Past runs open from
- * the history control as a list, and each transcript opens on its newest page. Open
- * while a run is producing output, folded to its bar while it is only queued
- * or while the task still has no comment from an agent, and a person's own
- * toggle wins either way.
+ * the history control as a list, and each transcript opens on its newest page.
+ * It stays folded when the task opens. The floating button opens it, and a
+ * person's own toggle wins after that.
  */
-export function RunConsole({ issueId, cover = true }: { issueId: string; cover?: boolean }) {
+export function RunConsole({ issueId }: { issueId: string }) {
    const t = useTranslations('issueDetail.console');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const { runs, activeRun, upsert } = useIssueRuns(issueId);
@@ -88,14 +87,6 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
 
    const picked = chosen ? (runs.find((run) => run.id === chosen) ?? null) : null;
    const run: RunRecord | null = picked ?? activeRun ?? runs[0] ?? null;
-   // A new live run clears a fold from the previous one. Opening still waits
-   // until that run is going: a queued run has no transcript, and an empty
-   // console would cover the task. A task with no agent comment stays
-   // uncovered too, so those comments remain the thing on the page.
-   const liveRunId = activeRun?.id ?? null;
-   useEffect(() => {
-      if (liveRunId) setToggled(null);
-   }, [liveRunId]);
 
    const shownId = run?.id ?? null;
    useEffect(() => {
@@ -121,7 +112,7 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
 
    const nameOf = (entry: RunRecord) => getAgentById(entry.agentId)?.name ?? t('agent');
    const live = !isTerminalRunStatus(run.status);
-   const open = toggled ?? (run.status === 'running' && cover);
+   const open = toggled === true;
 
    const current = activeRun ?? runs[0] ?? null;
    const past = runs.filter((entry) => entry.id !== current?.id);
