@@ -4,7 +4,7 @@ import type { Sql } from '../db/pool.ts';
 import { autoDispatch } from '../runs/auto-dispatch.ts';
 import { readyDependents } from './ready-dependents.ts';
 import type { RunRepository } from '../runs/repository.ts';
-import { nextStageReady, stageGate } from './hierarchy.ts';
+import { nextStageReady, readyParent, stageGate } from './hierarchy.ts';
 import { parseMentions } from './mentions.ts';
 import { notifySubscribers, subscribe, type InboxCategory } from './subscribers.ts';
 
@@ -107,8 +107,11 @@ export function workTrackingHooks(options: {
          if (finishing) {
             // A task this one blocked starts once every task it waits on is
             // finished: back to todo, and on to its agent when it has one.
-            // Without this a plan's later tasks stay blocked for good.
-            for (const dependent of await readyDependents(sql, issue.id)) {
+            // Without this a plan's later tasks stay blocked for good. A
+            // decision filed under a task is the same hold, linked as a parent
+            // rather than a dependency.
+            const held = [...(await readyParent(sql, issue.id)), ...(await readyDependents(sql, issue.id))];
+            for (const dependent of held) {
                const dependentId = dependent.id;
                try {
                   const { issue: released } = await issues.update({

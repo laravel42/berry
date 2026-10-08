@@ -84,6 +84,48 @@ export async function inheritProject(q: Queryable, issueId: string): Promise<voi
       ON CONFLICT (issue_id) DO NOTHING`;
 }
 
+/**
+ * The blocked parent `issueId` was holding, once nothing else still holds it.
+ *
+ * Escalating to a role files a decision task under the one that asked and
+ * parks that one as blocked. The link is a parent, not a dependency, so
+ * finishing the decision used to leave the asker blocked with nobody left to
+ * answer. It is released only when every sibling is done or cancelled, nothing
+ * it depends on is still open, and it is not waiting on a person's escalation.
+ */
+export async function readyParent(
+   q: Queryable,
+   issueId: string
+): Promise<Array<{ id: string; assigneeId: string | null; title: string }>> {
+   const rows = await q<Array<{ id: string; assignee_id: string | null; title: string }>>`
+      SELECT parent.id, parent.assignee_id, parent.title
+        FROM issues AS child
+        JOIN issues AS parent ON parent.id = child.parent_id
+       WHERE child.id = ${issueId}
+         AND parent.deleted_at IS NULL
+         AND parent.status = 'blocked'
+         AND NOT EXISTS (
+            SELECT 1 FROM issues AS sibling
+             WHERE sibling.parent_id = parent.id
+               AND sibling.deleted_at IS NULL
+               AND sibling.status NOT IN ('done', 'cancelled'))
+         AND NOT EXISTS (
+            SELECT 1 FROM issue_dependencies AS other
+              JOIN issues AS blocker ON blocker.id = other.depends_on_issue_id
+             WHERE other.issue_id = parent.id
+               AND blocker.deleted_at IS NULL
+               AND blocker.status NOT IN ('done', 'cancelled'))
+         AND NOT EXISTS (
+            SELECT 1 FROM approvals AS approval
+             WHERE approval.issue_id = parent.id
+               AND approval.kind = 'escalation' AND approval.status = 'pending')`;
+   return rows.map((row) => ({
+      id: row.id,
+      assigneeId: row.assignee_id,
+      title: row.title,
+   }));
+}
+
 export async function childIssueIds(q: Queryable, parentId: string): Promise<string[]> {
    const rows = await q`
       SELECT id FROM issues

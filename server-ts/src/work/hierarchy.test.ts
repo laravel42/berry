@@ -8,6 +8,7 @@ import {
    blockedByEarlierStage,
    childIssueIds,
    nextStageReady,
+   readyParent,
    setParent,
 } from './hierarchy.ts';
 
@@ -66,6 +67,25 @@ describe('hierarchy', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set'
       await link(own, elsewhere!.id as string);
       await setParent(sql, { workspaceId: world.workspaceId, issueId: own, parentId: root, stage: null });
       assert.equal(await projectOf(own), elsewhere!.id, 'a project the task already has is left alone');
+   });
+
+   test('a blocked parent is released when its last child finishes, and not while another child or a dependency is open', async () => {
+      const parent = await createIssue(sql, world, { title: 'Waiting on a decision', status: 'blocked' });
+      const decision = await createIssue(sql, world, { parentId: parent, title: 'Decision: the name', status: 'done' });
+      const still = await createIssue(sql, world, { parentId: parent, title: 'Still open', status: 'todo' });
+      assert.deepEqual(await readyParent(sql, decision), []);
+
+      await sql`UPDATE issues SET status = 'done' WHERE id = ${still}`;
+      const released = await readyParent(sql, decision);
+      assert.deepEqual(released.map((row) => row.id), [parent]);
+
+      const blocker = await createIssue(sql, world, { title: 'Not done', status: 'todo' });
+      await sql`
+         INSERT INTO issue_dependencies (workspace_id, issue_id, depends_on_issue_id)
+         VALUES (${world.workspaceId}, ${parent}, ${blocker})`;
+      assert.deepEqual(await readyParent(sql, decision), []);
+      await sql`UPDATE issues SET status = 'done' WHERE id = ${blocker}`;
+      assert.deepEqual((await readyParent(sql, decision)).map((row) => row.id), [parent]);
    });
 
    test('stage two waits for stage one, then is released as a group', async () => {
