@@ -30,6 +30,10 @@ export const providerSchema = z.object({
    configured: z.boolean().default(false),
    connected: z.boolean().default(false),
    status: z.string().nullish(),
+   /** Why a GitHub connection needs a person, when it does. */
+   statusDetail: z.string().nullish(),
+   /** The AgentCore consent page, when the token request returned one. */
+   renewalUrl: z.string().nullish(),
    /** Which credential the connection is running on. Null for a provider with none. */
    source: z.enum(['app', 'sign-in']).nullish(),
    accountName: z.string().nullish(),
