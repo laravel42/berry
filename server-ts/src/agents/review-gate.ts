@@ -924,12 +924,14 @@ export class ReviewGate {
 
       for (const dependent of ready) {
          try {
-            await this.#issues.update({
-               issueId: dependent.id,
-               patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
-               actorId,
-               actorType: 'agent',
-            });
+            if (dependent.status === 'blocked') {
+               await this.#issues.update({
+                  issueId: dependent.id,
+                  patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
+                  actorId,
+                  actorType: 'agent',
+               });
+            }
          } catch (error) {
             this.#onError(`unblocking ${dependent.title} failed`, error);
             continue;

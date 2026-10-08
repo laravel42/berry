@@ -6,12 +6,24 @@ import { IssueRepository } from '../core/issues.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { catalogRole } from '../organization/catalog.ts';
-import { EnvelopeBuilder, loadTask } from './envelope-builder.ts';
+import { dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import { buildTranscript } from './transcript.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
+
+test('a task that waits on others is told their unmerged work is not in its checkout', () => {
+   const note = dependencyNote([
+      { identifier: 'BER-134', title: 'Login screen', status: 'in_progress', direction: 'depends_on' },
+      { identifier: 'BER-140', title: 'Release notes', status: 'todo', direction: 'blocks' },
+   ]);
+   assert.ok(note);
+   assert.match(note, /- BER-134 \(in_progress\): Login screen/);
+   assert.doesNotMatch(note, /BER-140/);
+   assert.match(note, /do not wait or poll/);
+   assert.equal(dependencyNote([{ identifier: 'BER-140', title: 'x', status: 'todo', direction: 'blocks' }]), null);
+});
 
 describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
    let sql: Sql;

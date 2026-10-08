@@ -30,6 +30,24 @@ const RELATED_PARENT_CHARS = 1500;
 const RELATED_CHILD_CHARS = 600;
 const RELATED_CHILDREN = 12;
 
+/**
+ * The tasks this one waits on, and what that means for the checkout. A QA run
+ * spent fifteen minutes polling `git status` for the task it depended on,
+ * whose commits were on that task's own branch and could never appear.
+ */
+export function dependencyNote(dependencies: TaskEnvelope['task']['dependencies']): string | null {
+   const waitsOn = dependencies.filter((dependency) => dependency.direction === 'depends_on');
+   if (waitsOn.length === 0) return null;
+   return (
+      'This task depends on:\n' +
+      waitsOn.map((dependency) => `- ${dependency.identifier} (${dependency.status}): ${dependency.title}`).join('\n') +
+      '\nYour checkout holds the default branch as it is now. Work on those tasks that is not merged yet ' +
+      'lives on their own branches and never appears in your workspace, so do not wait or poll for it. ' +
+      'Build on what the checkout holds; when the task cannot be done without unmerged work, call ' +
+      'summarize and say which task it needs.'
+   );
+}
+
 export interface CompletionSpec {
    purpose: string;
    system: string;
@@ -275,6 +293,7 @@ export class EnvelopeBuilder {
       ]);
       const comments = loadedComments.comments;
       const priorWork = recallPrompt(recalled);
+      const relatedText = [related, dependencyNote(dependencies)].filter(Boolean).join('\n\n');
       const { repo, delivery, empty } = await this.#repository(task, dispatch, agent);
       return {
          model,
@@ -287,7 +306,7 @@ export class EnvelopeBuilder {
                prompt: buildMessage({
                   ...dispatch,
                   reviewFeedback,
-                  ...(related ? { related } : {}),
+                  ...(relatedText ? { related: relatedText } : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
                   ...(empty ? { repositoryEmpty: true } : {}),

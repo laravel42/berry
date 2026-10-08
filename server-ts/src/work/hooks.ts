@@ -110,15 +110,23 @@ export function workTrackingHooks(options: {
             // Without this a plan's later tasks stay blocked for good. A
             // decision filed under a task is the same hold, linked as a parent
             // rather than a dependency.
-            const held = [...(await readyParent(sql, issue.id)), ...(await readyDependents(sql, issue.id))];
+            const held = [
+               ...(await readyParent(sql, issue.id)).map((parent) => ({ ...parent, status: 'blocked' })),
+               ...(await readyDependents(sql, issue.id)),
+            ];
             for (const dependent of held) {
                const dependentId = dependent.id;
                try {
-                  const { issue: released } = await issues.update({
-                     issueId: dependentId,
-                     patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
-                     actorId: write.actorId,
-                  });
+                  const released =
+                     dependent.status === 'todo'
+                        ? await issues.get(dependentId)
+                        : (
+                             await issues.update({
+                                issueId: dependentId,
+                                patch: { status: 'todo', descriptionSet: false, dueDateSet: false, assigneeSet: false, projectSet: false },
+                                actorId: write.actorId,
+                             })
+                          ).issue;
                   if (options.dispatch) {
                      await autoDispatch(options.dispatch, released, { workspaceId, requestedBy: write.actorId }, gate);
                   }

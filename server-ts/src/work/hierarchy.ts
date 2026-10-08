@@ -178,6 +178,25 @@ export async function nextStageReady(q: Queryable, issueId: string): Promise<str
    return rows.map((row) => row.id as string);
 }
 
+/**
+ * Whether a task depends on one that is not yet done or cancelled. Its work is
+ * on its own branch until a person merges it, so a run started now builds on
+ * a checkout without it.
+ */
+export async function waitsOnOpenDependency(q: Queryable, issueId: string): Promise<boolean> {
+   const [row] = await q`
+      SELECT EXISTS (
+         SELECT 1
+           FROM issue_dependencies AS edge
+           JOIN issues AS blocker ON blocker.id = edge.depends_on_issue_id AND blocker.deleted_at IS NULL
+          WHERE edge.issue_id = ${issueId} AND blocker.status NOT IN ('done', 'cancelled')
+      ) AS waiting`;
+   return row?.waiting === true;
+}
+
 export function stageGate(q: Queryable): StageGate {
-   return { blockedByEarlierStage: (issueId: string) => blockedByEarlierStage(q, issueId) };
+   return {
+      blockedByEarlierStage: async (issueId: string) =>
+         (await blockedByEarlierStage(q, issueId)) || (await waitsOnOpenDependency(q, issueId)),
+   };
 }

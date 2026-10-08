@@ -24,8 +24,9 @@ export interface DispatchCandidate {
 }
 
 /**
- * Whether a task's earlier-stage siblings are still open. A sub-issue in stage
- * N+1 must not start while any stage <= N sibling is unfinished.
+ * Whether a task's earlier-stage siblings are still open, or a task it depends
+ * on is. A sub-issue in stage N+1 must not start while any stage <= N sibling
+ * is unfinished, nor any task before what it waits on is done.
  */
 export interface StageGate {
    blockedByEarlierStage(issueId: string): Promise<boolean>;
