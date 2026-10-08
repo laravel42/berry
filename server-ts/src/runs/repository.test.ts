@@ -251,6 +251,23 @@ describe('run repository', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.deepEqual(await runs.events(run.id, 2, 10), []);
    });
 
+   test('before is the page that ends where the window starts', async () => {
+      const run = await admit(runs, fixture, issueId);
+      await appendEvent(sql, fixture, run, issueId, 1, 'run.started', true);
+      await appendEvent(sql, fixture, run, issueId, 2, 'run.output.delta', true);
+      await appendEvent(sql, fixture, run, issueId, 3, 'run.output.delta', false);
+
+      const tail = await runs.eventsBefore(run.id, 4, 2);
+      assert.deepEqual(
+         tail.map((event) => event.sequence),
+         [1, 2]
+      );
+      assert.deepEqual(
+         (await runs.eventsBefore(run.id, 1, 10)).map((event) => event.sequence),
+         [0]
+      );
+   });
+
    test('a private event is not part of the stream a person watches', async () => {
       const run = await admit(runs, fixture, issueId);
       await appendEvent(sql, fixture, run, issueId, 1, 'run.internal', false);

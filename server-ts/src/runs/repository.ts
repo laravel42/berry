@@ -213,17 +213,39 @@ export class RunRepository {
             AND (${after === null} OR sequence > ${after ?? 0})
           ORDER BY sequence ASC
           LIMIT ${limit}`;
-      return rows.map((row) => ({
-         id: row.id as string,
-         type: row.event_type as string,
-         occurredAt: toRFC3339(row.occurred_at as string)!,
-         boardId: row.board_id as string,
-         issueId: row.issue_id as string,
-         runId: row.run_id as string,
-         sequence: Number(row.sequence),
-         payload: row.payload as unknown,
-      }));
+      return rows.map((row) => toEvent(row));
    }
+
+   /**
+    * The newest public events older than `before`, oldest first.
+    *
+    * `before` is exclusive. A reader of a long run asks for the page that
+    * ends where its window starts, instead of replaying the run from the top.
+    */
+   async eventsBefore(runId: string, before: number, limit: number): Promise<RunEventRow[]> {
+      const rows = await this.#sql`
+         SELECT id, run_id, board_id, issue_id, sequence, event_type, payload, occurred_at
+           FROM run_events
+          WHERE run_id = ${runId}
+            AND public
+            AND sequence < ${before}
+          ORDER BY sequence DESC
+          LIMIT ${limit}`;
+      return rows.map((row) => toEvent(row)).reverse();
+   }
+}
+
+function toEvent(row: Record<string, unknown>): RunEventRow {
+   return {
+      id: row.id as string,
+      type: row.event_type as string,
+      occurredAt: toRFC3339(row.occurred_at as string)!,
+      boardId: row.board_id as string,
+      issueId: row.issue_id as string,
+      runId: row.run_id as string,
+      sequence: Number(row.sequence),
+      payload: row.payload as unknown,
+   };
 }
 
 export interface RunEventRow {

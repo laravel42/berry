@@ -735,6 +735,7 @@ const runOptions = {
    issues,
    boards,
    idempotency,
+   sql,
 };
 
 const registry = new Registry();

@@ -1,3 +1,4 @@
+import { RunTerminal } from '../agents/runtime/terminal.ts';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import { EnqueueRejected, enqueueTask, type TaskSource } from './queue.ts';
@@ -238,4 +239,175 @@ export function retryNote(outcome: RetryOutcome): string {
       return ' Berry had already tried again after the same kind of fault, so it stopped here. Run the task again once the service is back.';
    }
    return '';
+}
+
+/**
+ * How long a running task may go without an event before a person may restart it.
+ *
+ * The same window the model gateway uses before it calls a silent stream a
+ * stall. A tool that is still writing events is working, including a long
+ * think: those events count, so the button appears only once the run has
+ * actually gone quiet.
+ */
+export const STALL_QUIET_MS = 120_000;
+
+const TASK_SOURCES = new Set<TaskSource>([
+   'assignment',
+   'mention',
+   'chat',
+   'autopilot',
+   'quick_action',
+   'builder',
+   'completion',
+   'merge_fix',
+]);
+
+/**
+ * A stalled run is one a person can restart.
+ *
+ * A retryable failure already stopped: the process, the stream, or the model
+ * went away, and the automatic retry either has not run or has given up.
+ * A run that is still marked running but has recorded nothing for the quiet
+ * window has stopped too, whatever its row says. A queued run is waiting for
+ * a slot, and a run that failed for a reason inside the task is not a stall.
+ */
+export function runIsStalled(input: {
+   status: string;
+   retryable: boolean;
+   lastActivityAt: Date | null;
+   now: Date;
+   quietMs?: number;
+}): boolean {
+   if (input.status === 'failed' && input.retryable) return true;
+   if (input.status !== 'running' || input.lastActivityAt === null) return false;
+   const quietMs = input.quietMs ?? STALL_QUIET_MS;
+   return input.now.getTime() - input.lastActivityAt.getTime() >= quietMs;
+}
+
+/**
+ * What the recovering run is told.
+ *
+ * The session is the same one, when the runtime still has it, so this does
+ * not claim the conversation is gone. It does say the work already on the
+ * branch is the starting point. Instructions the stalled run was given are
+ * kept, so a mention or a person's note is not dropped on the way back.
+ */
+export function recoveryInstructions(input: {
+   branch: string | null;
+   commit: string | null;
+   prior?: string | null;
+}): string {
+   const where = input.commit
+      ? input.branch
+         ? `branch ${input.branch} (commit ${input.commit.slice(0, 7)})`
+         : `commit ${input.commit.slice(0, 7)}`
+      : input.branch
+         ? `branch ${input.branch}`
+         : null;
+   const saved = where
+      ? `What it had written is on ${where}, which is what your workspace has checked out. `
+      : '';
+   const lead =
+      'The previous run stalled before it finished. This run recovers that work; do not start over. ' +
+      saved +
+      'First see what is already there (git status, git log, the files), in one or two commands; then do only what is still missing.';
+   const prior = input.prior?.trim() ?? '';
+   if (!prior || prior.startsWith('The previous run stalled before it finished.')) return lead;
+   const room = 20_000 - lead.length - 2;
+   return room > 0 ? `${lead}\n\n${prior.slice(0, room)}` : lead;
+}
+
+export type RestartOutcome =
+   | { restarted: true; runId: string }
+   | { restarted: false; reason: 'not_stalled' | 'task_moved_on' | 'busy' };
+
+/**
+ * A person restarts a stalled task, and the new run recovers the work.
+ *
+ * The automatic retry runs once and then stops, so a second fault leaves the
+ * task sitting. This is that next start, asked for rather than inferred: the
+ * same agent, the same session when the runtime still holds it, and
+ * instructions to continue from what is already saved. A run that is still
+ * marked running is stopped first, so it cannot keep the task while the
+ * recovery is queued.
+ */
+export async function restartStalled(
+   sql: Sql,
+   input: {
+      issueId: string;
+      requestedBy: string;
+      /** Stops a run that is still marked running, releasing the task. */
+      cancel: (runId: string) => Promise<void>;
+      now?: Date;
+   }
+): Promise<RestartOutcome> {
+   const now = input.now ?? new Date();
+   const [run] = await sql`
+      SELECT r.id, r.workspace_id, r.agent_id, r.kind, r.status, r.failure_retryable,
+             r.source, r.prompt, r.instructions, r.branch, r.head_commit,
+             i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at,
+             COALESCE(
+                (SELECT max(e.occurred_at) FROM run_events e WHERE e.run_id = r.id),
+                r.started_at,
+                r.created_at
+             ) AS last_activity_at
+        FROM runs r JOIN issues i ON i.id = r.issue_id
+       WHERE r.issue_id = ${input.issueId} AND r.kind = 'agent'
+       ORDER BY r.created_at DESC, r.id DESC
+       LIMIT 1`;
+   if (!run) return { restarted: false, reason: 'not_stalled' };
+   if (run.deleted_at || !taskStillHeld(String(run.issue_status)) || run.assignee_type !== 'agent' || run.assignee_id !== run.agent_id) {
+      return { restarted: false, reason: 'task_moved_on' };
+   }
+   const stalled = runIsStalled({
+      status: String(run.status),
+      retryable: run.failure_retryable === true,
+      lastActivityAt: asDate(run.last_activity_at),
+      now,
+   });
+   if (!stalled) return { restarted: false, reason: 'not_stalled' };
+
+   if (run.status === 'running') {
+      try {
+         await input.cancel(run.id as string);
+      } catch (error) {
+         // It finished while the button was in flight. A success is not a
+         // stall, and a failure the sweep records is retried on its own.
+         if (error instanceof RunTerminal) return { restarted: false, reason: 'not_stalled' };
+         throw error;
+      }
+   }
+
+   const source = TASK_SOURCES.has(run.source as TaskSource) ? (run.source as TaskSource) : 'assignment';
+   const prior = (run.prompt as string | null) || (run.instructions as string | null);
+   try {
+      const queued = await enqueueTask(sql, {
+         workspaceId: run.workspace_id as string,
+         issueId: input.issueId,
+         agentId: run.agent_id as string,
+         kind: 'agent',
+         source,
+         prompt: recoveryInstructions({
+            branch: (run.branch as string | null) ?? null,
+            commit: (run.head_commit as string | null) ?? null,
+            prior,
+         }),
+         origin: { runId: run.id as string },
+         requestedBy: input.requestedBy,
+      });
+      return { restarted: true, runId: queued.runId };
+   } catch (error) {
+      if (error instanceof ActiveRunExists) return { restarted: false, reason: 'busy' };
+      if (error instanceof NotFound || error instanceof EnqueueRejected) return { restarted: false, reason: 'task_moved_on' };
+      throw error;
+   }
+}
+
+function asDate(value: unknown): Date | null {
+   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+   if (typeof value === 'string' && value) {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+   }
+   return null;
 }

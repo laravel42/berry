@@ -700,6 +700,16 @@ The issue MUST have an agent assignee after applying `agentId` and no active run
 - `422`: `VALIDATION_FAILED`
 - `503`: the gateway cannot durably accept a dispatch; no run or assignment change was created
 
+#### `POST /api/v1/issues/{issueId}/runs/restart`
+
+Restarts the task's newest agent run when that run is stalled, and the new run recovers the work already saved. A run is stalled when it failed and the failure is retryable, or when it is still `running` but has recorded no event for two minutes. A running stall is cancelled first. The body is an empty object. The new run keeps the stalled run as its origin, without starting a fresh session, and its instructions tell the agent to continue from the branch and commit already written.
+
+- `202`: accepted `Run`; `Location: /api/v1/runs/{id}`
+- `409 NOT_STALLED`: the newest run is not a stall
+- `409 ACTIVE_RUN_EXISTS`: a run is already in progress and could not be released
+- `409 CONFLICT`: the task is no longer held by its agent
+- `422`: `VALIDATION_FAILED`
+
 ```json
 {
   "agentId": "f8957903-6534-4ca3-a218-d95e537a5076",
@@ -921,7 +931,9 @@ Available tools are the intersection of the agent's role contract (`allowed_tool
 
 #### `GET /api/v1/runs/{runId}/events`
 
-Replays and follows one run. The client may send `Last-Event-ID` or `after` (opaque event cursor); supplying both returns `400 INVALID_REQUEST`.
+Replays and follows one run. The client may send `Last-Event-ID` or `after` (an exclusive event sequence); supplying both returns `400 INVALID_REQUEST`.
+
+A request that does not accept `text/event-stream` returns one JSON page, `{ events, cursor }`, oldest first. `before` is an exclusive sequence and selects the newest `first` events older than it. `first` defaults to 500; when set it is from 1 to 200. `before` together with `after` returns `400 INVALID_REQUEST`.
 
 
 

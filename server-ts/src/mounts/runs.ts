@@ -11,7 +11,9 @@ import type { IdempotencyStore } from '../http/idempotency.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { IssueRepository } from '../core/issues.ts';
 import type { BoardRepository } from '../core/boards.ts';
+import { restartStalled } from '../runs/continuation.ts';
 import { RunTerminal, type Run, type RunLedger } from '../runs/ledger.ts';
+import type { Sql } from '../db/pool.ts';
 import {
    ActiveRunExists,
    NoAgentAssigned,
@@ -54,6 +56,7 @@ export interface RunOptions {
    issues: IssueRepository;
    boards: BoardRepository;
    idempotency: IdempotencyStore;
+   sql: Sql;
 }
 
 export function runMounts(options: RunOptions): Mount[] {
@@ -114,7 +117,18 @@ export function runMounts(options: RunOptions): Mount[] {
          return runEventStream({ runs, runId: run.id, after, signal: context.req.raw.signal });
       }
 
-      const events = await runs.events(run.id, after, EVENT_PAGE);
+      // A page from the end of the run: `before` is exclusive, and the rows
+      // come back oldest first so a reader can put them above the window it
+      // already has. `first` stays at the poller's page unless it asks.
+      const before = parseSequence(url.searchParams.get('before'), '/before');
+      if (before !== null && after !== null) {
+         throw new ApiError(400, 'INVALID_REQUEST', 'Provide either after or before, not both.');
+      }
+      const first = parseFirst(url.searchParams.get('first'));
+      const events =
+         before === null
+            ? await runs.events(run.id, after, first)
+            : await runs.eventsBefore(run.id, before, first);
 
       return json({
          events: events.map((event) => ({
@@ -186,7 +200,7 @@ export function boardRunRoutes(options: RunOptions) {
 
 export function issueRunRoutes(options: RunOptions) {
    const route = new Hono<{ Variables: AuthVariables }>();
-   const { runs, issues, idempotency } = options;
+   const { runs, issues, idempotency, ledger, sql } = options;
 
    route.get('/:issueRef/runs', async (context) => {
       const issue = await resolveIssue(issues, context.req.param('issueRef'), context.get('user').id, 'product.read');
@@ -199,6 +213,38 @@ export function issueRunRoutes(options: RunOptions) {
 
       const rows = await runs.listByIssue(issue.id, after, page.first + 1, filter);
       return json(connection(rows, page.first, scope));
+   });
+
+   /**
+    * Restart a stalled task so the agent continues from the work already saved.
+    *
+    * A retryable failure, or a run that has gone quiet, is stopped if it is
+    * still marked running and queued again. The new run keeps the session, so
+    * a runtime that still holds the conversation resumes it.
+    */
+   route.post('/:issueRef/runs/restart', idempotent(idempotency), async (context) => {
+      const issue = await resolveIssue(issues, context.req.param('issueRef'), context.get('user').id, 'product.write');
+      await issues.authorize(context.get('user').id, issue.id, 'product.write');
+      await decodeBody<Record<string, never>>(context, {});
+
+      const outcome = await restartStalled(sql, {
+         issueId: issue.id,
+         requestedBy: context.get('user').id,
+         cancel: (runId) => ledger.markCancelled(runId).then(() => undefined),
+      });
+      if (!outcome.restarted) {
+         if (outcome.reason === 'busy') {
+            throw new ApiError(409, 'ACTIVE_RUN_EXISTS', 'This task already has a run in progress.');
+         }
+         if (outcome.reason === 'task_moved_on') {
+            throw new ApiError(409, 'CONFLICT', 'This task is no longer held by its agent.');
+         }
+         throw new ApiError(409, 'NOT_STALLED', 'This run is not stalled.');
+      }
+      const run = await runs.get(outcome.runId);
+      const response = json(serializeRun(run), 202);
+      response.headers.set('Location', `/api/v1/runs/${run.id}`);
+      return response;
    });
 
    route.post('/:issueRef/runs', idempotent(idempotency), async (context) => {
@@ -320,12 +366,29 @@ function filterScope(base: string, filter: RunFilter): string {
 }
 
 function parseAfterSequence(after: string | null, lastEventId: string | undefined): number | null {
-   const raw = after ?? lastEventId ?? null;
+   return parseSequence(after ?? lastEventId ?? null, '/after');
+}
+
+/** An exclusive sequence bound. Absent means the caller did not set one. */
+function parseSequence(raw: string | null, pointer: string): number | null {
    if (raw === null || raw === '') return null;
    if (!/^\d+$/.test(raw)) {
-      assertValid([fieldError('/after', 'invalid_value', 'after is an event sequence number.')]);
+      assertValid([fieldError(pointer, 'invalid_value', 'An event sequence is a number.')]);
    }
    return Number(raw);
+}
+
+/** How many events one JSON page holds. Unset keeps the poller's page of 500. */
+function parseFirst(raw: string | null): number {
+   if (raw === null || raw === '') return EVENT_PAGE;
+   if (!/^\d+$/.test(raw)) {
+      assertValid([fieldError('/first', 'invalid_value', 'first is a page size.')]);
+   }
+   const size = Number(raw);
+   if (size < 1 || size > 200) {
+      assertValid([fieldError('/first', 'invalid_value', 'first is between 1 and 200.')]);
+   }
+   return size;
 }
 
 function optionalId(value: unknown): string | null {
