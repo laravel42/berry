@@ -145,7 +145,7 @@
       "retry": "Try again",
       "failed": "The decision was not saved. {reason}",
       "confirmTitle": "Mark {identifier} done?",
-      "confirmPullRequest": "Approving merges the pull request on GitHub, then marks the task done. If it conflicts with the base branch, it goes back to its agent to bring up to date. If GitHub refuses the merge for another reason, the task stays in review.",
+      "confirmPullRequest": "Approving merges the pull request on GitHub, then marks the task done. If GitHub refuses the merge for some reason, the task stays in review.",
       "confirmConflict": "This pull request conflicts with {base}, so it cannot merge. Approving sends it back to {agent} to bring up to date; it returns here for your decision.",
       "confirmMerged": "This pull request is already merged on GitHub. Approving marks the task done.",
       "conflicts": "Conflicts with {base}: another task changed the same lines after this branch was cut. Approving sends it back to {agent} to bring up to date.",
