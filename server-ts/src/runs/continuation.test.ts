@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
-import { LIMIT_CODE, continuationInstructions, continuationNote, continuedMessage, continueAfterLimit, retryAfterFault, retryNote } from './continuation.ts';
+import { LIMIT_CODE, continuationInstructions, continuationNote, continuedMessage, continueAfterLimit, retryAfterFault, retryNote, taskStillHeld } from './continuation.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -167,6 +167,15 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       const [queued] = await sql`SELECT count(*)::int AS n FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
       assert.equal(queued!.n, 0);
    });
+});
+
+test('a blocked task is still held when the process stopped', () => {
+   assert.equal(taskStillHeld('blocked'), true);
+   assert.equal(taskStillHeld('todo'), true);
+   assert.equal(taskStillHeld('in_progress'), true);
+   assert.equal(taskStillHeld('done'), false);
+   assert.equal(taskStillHeld('in_review'), false);
+   assert.equal(taskStillHeld('cancelled'), false);
 });
 
 test('a failed run’s comment says Berry tried again, or why it stopped', () => {

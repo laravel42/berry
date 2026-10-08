@@ -155,6 +155,18 @@ export function continuationNote(outcome: ContinuationOutcome): string {
  * again once, with the instructions it had; a second fault in a row stands,
  * so a lasting outage costs one extra attempt, not a loop.
  */
+/**
+ * Whether a retryable fault still belongs to this task.
+ *
+ * `blocked` stays: the assignee has not changed and the work is paused, so a
+ * dead process should start it again. Done, cancelled, and in review have
+ * moved on, and a limit-stop continuation does not use this — that path is
+ * the agent choosing to stop.
+ */
+export function taskStillHeld(status: string): boolean {
+   return status === 'todo' || status === 'in_progress' || status === 'blocked';
+}
+
 export type RetryOutcome =
    | { retried: true; runId: string }
    | { retried: false; reason: 'not_retryable' | 'already_retried' | 'superseded' | 'task_moved_on' | 'busy' };
@@ -169,8 +181,10 @@ export async function retryAfterFault(sql: Sql, input: { runId: string }): Promi
    if (!run || run.kind !== 'agent' || run.status !== 'failed' || run.failure_retryable !== true) {
       return { retried: false, reason: 'not_retryable' };
    }
-   const open = run.issue_status === 'todo' || run.issue_status === 'in_progress';
-   if (run.deleted_at || !open || run.assignee_type !== 'agent' || run.assignee_id !== run.agent_id) {
+   // Blocked is a pause, not the task leaving this agent. A process stop
+   // while it is paused is still the process's fault, and leaving it there
+   // is how an abandoned run stayed dead.
+   if (run.deleted_at || !taskStillHeld(String(run.issue_status)) || run.assignee_type !== 'agent' || run.assignee_id !== run.agent_id) {
       return { retried: false, reason: 'task_moved_on' };
    }
 
