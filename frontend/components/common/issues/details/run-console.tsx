@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
-   DropdownMenuLabel,
    DropdownMenuRadioGroup,
    DropdownMenuRadioItem,
    DropdownMenuTrigger,
@@ -38,7 +37,7 @@ import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'luc
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { markTone, RunSummary, RunTab, statusTone, useRunDuration } from './run-entry';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * The task's console, docked at the foot of the drawer like the build
@@ -104,6 +103,18 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
       document
          .getElementById(`run-tab-${shownId}`)
          ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+   }, [shownId]);
+   // The history menu is the same width as the run tab it lists.
+   const [menuWidth, setMenuWidth] = useState<number | null>(null);
+   useLayoutEffect(() => {
+      if (!shownId) return;
+      const tab = document.getElementById(`run-tab-${shownId}`);
+      if (!tab) return;
+      const apply = () => setMenuWidth(Math.round(tab.getBoundingClientRect().width));
+      apply();
+      const observer = new ResizeObserver(apply);
+      observer.observe(tab);
+      return () => observer.disconnect();
    }, [shownId]);
 
    if (!run) return null;
@@ -310,15 +321,22 @@ export function RunConsole({ issueId, cover = true }: { issueId: string; cover?:
                         <span className="sr-only">{t('history')}</span>
                      </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56 p-0">
-                     <DropdownMenuLabel>{t('history')}</DropdownMenuLabel>
+                  <DropdownMenuContent
+                     align="end"
+                     className="min-w-0 p-0"
+                     style={menuWidth === null ? undefined : { width: menuWidth }}
+                  >
                      <div className="max-h-64 overflow-y-auto p-1">
                         <DropdownMenuRadioGroup
                            value={run.id}
                            onValueChange={(id) => show(issueId, id)}
                         >
                            {past.map((entry) => (
-                              <DropdownMenuRadioItem key={entry.id} value={entry.id}>
+                              <DropdownMenuRadioItem
+                                 key={entry.id}
+                                 value={entry.id}
+                                 className="gap-1.5 px-3 data-[state=checked]:bg-accent [&>span:first-child]:hidden"
+                              >
                                  <PastRunChoice
                                     run={entry}
                                     ordinal={
@@ -428,9 +446,10 @@ function PastRunChoice({ run, ordinal }: { run: RunRecord; ordinal: number }) {
    const t = useTranslations('issueDetail.log');
    const duration = useRunDuration(run);
    return (
-      <span className="flex min-w-0 flex-1 items-center gap-2">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
          <BerryMark size="sm" tone={markTone(run.status)} label={run.status} />
-         <span className="min-w-0 flex-1 truncate">{t('tab', { n: ordinal })}</span>
+         <span className="shrink-0">{t('tab', { n: ordinal })}</span>
+         <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
          <span className={cn('shrink-0 tabular-nums', statusTone(run.status))}>
             {formatRunDuration(duration)}
          </span>
