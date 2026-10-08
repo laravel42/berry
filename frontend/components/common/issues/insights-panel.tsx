@@ -178,18 +178,30 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
 
          {/* Detail table */}
          <div className="flex-1 overflow-auto border-t mt-2">
-            <table className="w-full">
+            <table className="w-full table-fixed">
+               <colgroup>
+                  <col className="w-[40%]" />
+                  {priorities.map((priority) => (
+                     <col key={priority.id} />
+                  ))}
+               </colgroup>
                <thead className="sticky top-0 bg-container z-10">
                   <tr className="text-left text-muted-foreground">
-                     <th className="font-medium px-4 py-2">Status</th>
-                     <th className="font-medium px-3 py-2 text-right">Task count</th>
+                     <th className="font-medium pl-4 pr-2 py-2">Status</th>
                      {priorities.map((priority) => {
                         const Icon = priority.icon;
                         return (
-                           <th key={priority.id} className="font-medium px-3 py-2">
-                              <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                 <Icon className="size-3.5 text-muted-foreground" />
-                                 <span className="hidden xl:inline">{priority.name}</span>
+                           <th
+                              key={priority.id}
+                              className="font-medium px-1 py-2"
+                              title={priority.name}
+                           >
+                              <div className="flex justify-center">
+                                 <Icon
+                                    className="size-3.5 text-muted-foreground"
+                                    aria-hidden="true"
+                                 />
+                                 <span className="sr-only">{priority.name}</span>
                               </div>
                            </th>
                         );
@@ -210,20 +222,21 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
                               active && 'bg-accent hover:bg-accent'
                            )}
                         >
-                           <td className="px-4 py-2">
-                              <div className="flex items-center gap-2 whitespace-nowrap">
-                                 <Icon />
-                                 <span className="truncate max-w-28">{row.status.name}</span>
-                                 <span className="px-1.5 py-0.5 rounded bg-background/80 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                           <td className="pl-4 pr-2 py-2">
+                              <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                                 <span className="shrink-0">
+                                    <Icon />
+                                 </span>
+                                 <span className="min-w-0 truncate">{row.status.name}</span>
+                                 <span className="hidden shrink-0 px-1.5 py-0.5 rounded bg-background/80 text-muted-foreground group-hover:inline">
                                     {active ? 'Clear filter' : 'Filter'}
                                  </span>
                               </div>
                            </td>
-                           <td className="px-3 py-2 text-right font-medium">{row.total}</td>
                            {priorities.map((priority) => (
                               <td
                                  key={priority.id}
-                                 className="px-3 py-2 text-right text-muted-foreground"
+                                 className="px-1 py-2 text-center text-muted-foreground"
                               >
                                  {row.byPriority[priority.id]}
                               </td>
