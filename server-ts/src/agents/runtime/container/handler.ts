@@ -17,6 +17,7 @@ import { AccountingPlugin } from '../plugins/accounting.ts';
 import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
+import { RepetitionPlugin } from '../plugins/repetition.ts';
 import { StepBudgetPlugin, budgetContract, summarizeTool, type Handoff } from '../plugins/step-budget.ts';
 import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
@@ -265,8 +266,9 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
                   exempt: new Set(['summarize', ...remote.map((t) => t.name), ...mcp.tools.map((t) => t.name)]),
                }),
                outcome,
-               // Last, so the ledger and the outcome read the tool's own result,
-               // not the one a budget notice was added to.
+               // After the ledger and the outcome, which read the tool's own
+               // result, not the one a notice was added to.
+               new RepetitionPlugin(),
                budget,
             ],
             maxTokens: envelope.agent.maxTokens ?? undefined,
