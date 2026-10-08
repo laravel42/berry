@@ -161,7 +161,7 @@ export default function IssuePropertiesSettings() {
    );
 
    return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-6 py-8">
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
          <div>
             <h1>{t('title')}</h1>
             <p className="text-muted-foreground">{t('lead')}</p>

@@ -26,7 +26,6 @@ export function SettingsShell({
    badge,
    children,
    compact,
-   wide,
 }: {
    title: string;
    description?: string;
@@ -35,18 +34,10 @@ export function SettingsShell({
    children: React.ReactNode;
    /** Tighter title and section stack, for long lists rather than short forms. */
    compact?: boolean;
-   /** Wider column for card grids (labels, agents). */
-   wide?: boolean;
 }) {
    return (
       <div className="w-full overflow-y-auto h-full">
-         <div
-            className={cn(
-               'mx-auto px-6',
-               wide ? 'max-w-5xl' : 'max-w-2xl',
-               compact ? 'py-6 pb-12' : 'py-10 pb-20'
-            )}
-         >
+         <div className={cn('mx-auto max-w-5xl px-6', compact ? 'py-6 pb-12' : 'py-10 pb-20')}>
             <div className="flex flex-wrap items-center gap-3">
                {/* The settings bar above is the page's h1 ("Settings"); the
                    page name sits one level down and keeps the h1 size. It is

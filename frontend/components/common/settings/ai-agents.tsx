@@ -51,7 +51,7 @@ export default function AiAgents() {
    };
 
    return (
-      <SettingsShell wide title={t('title')} description={t('description')}>
+      <SettingsShell title={t('title')} description={t('description')}>
          <SettingsSection description={agents.error ?? undefined}>
             <div className="mb-3">
                <Input

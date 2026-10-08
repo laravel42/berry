@@ -293,7 +293,7 @@ export default function Members() {
             line={t('statement.line', { count: members.value?.length ?? 0 })}
             sub={t('statement.sub')}
          />
-         <div className="mx-auto max-w-3xl px-6 py-8 pb-20">
+         <div className="mx-auto max-w-5xl px-6 py-8 pb-20">
             <SettingsSection
                action={
                   canManage ? (
