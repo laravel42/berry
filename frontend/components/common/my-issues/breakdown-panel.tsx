@@ -1,17 +1,19 @@
 'use client';
 
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { Issue } from '@/data/issues';
 import { useRightPanelStore } from '@/store/right-panel-store';
-import { X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { User, X } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
 
-type BreakdownTab = 'labels' | 'priority' | 'projects';
+type BreakdownTab = 'labels' | 'priority' | 'assignees' | 'projects';
 
 interface BreakdownRow {
    key: string;
    label: string;
    color?: string;
+   icon?: ReactNode;
    count: number;
 }
 
@@ -43,7 +45,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 /**
- * Right panel of My issues: Labels / Priority / Projects counters over the
+ * Right panel of My issues: Labels / Priority / Assignees / Projects counters over the
  * currently displayed issues.
  */
 export function BreakdownPanel({ issues }: { issues: Issue[] }) {
@@ -72,7 +74,21 @@ export function BreakdownPanel({ issues }: { issues: Issue[] }) {
                label: issue.priority.name,
                color: PRIORITY_COLORS[issue.priority.id] ?? 'var(--status-neutral)',
             });
-         } else if (issue.project) {
+         } else if (tab === 'assignees') {
+            const assignee = issue.assignee;
+            bump(assignee?.id ?? 'none', {
+               key: assignee?.id ?? 'none',
+               label: assignee?.name ?? 'No assignee',
+               icon: assignee ? (
+                  <Avatar className="size-4">
+                     <AvatarImage src={assignee.avatarUrl} alt="" />
+                     <AvatarFallback>{assignee.name[0]}</AvatarFallback>
+                  </Avatar>
+               ) : (
+                  <User className="size-4 text-muted-foreground" aria-hidden="true" />
+               ),
+            });
+         } else if (tab === 'projects' && issue.project) {
             bump(issue.project.id, { key: issue.project.id, label: issue.project.name });
          }
       }
@@ -87,6 +103,7 @@ export function BreakdownPanel({ issues }: { issues: Issue[] }) {
                   [
                      ['labels', 'Labels'],
                      ['priority', 'Priority'],
+                     ['assignees', 'Assignees'],
                      ['projects', 'Projects'],
                   ] as const
                ).map(([key, label]) => (
@@ -118,12 +135,14 @@ export function BreakdownPanel({ issues }: { issues: Issue[] }) {
                   key={row.key}
                   className="flex items-center gap-2 px-1.5 py-1.5 rounded-md hover:bg-accent/40"
                >
-                  {row.color && (
+                  {row.icon ? (
+                     <span className="flex shrink-0 items-center">{row.icon}</span>
+                  ) : row.color ? (
                      <span
                         className="size-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: row.color }}
                      />
-                  )}
+                  ) : null}
                   <span className="flex-1 truncate">{row.label}</span>
                   <span className="text-muted-foreground">{row.count}</span>
                </div>

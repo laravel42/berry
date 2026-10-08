@@ -166,7 +166,7 @@ export default function MyIssues() {
                </aside>
             )}
             {openPanel === 'breakdown' && (
-               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-80 lg:border-l">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
                   <BreakdownPanel issues={displayedIssues} />
                </aside>
             )}
