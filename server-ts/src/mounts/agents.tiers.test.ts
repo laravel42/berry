@@ -103,16 +103,16 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
       assert.deepEqual(tiers.body.placement, { source: 'deployment', tiers: { berry_max: [], berry_mid: ['v/mid'], berry_low: [] } });
 
       const candidates = await call(app, world.ownerToken, 'GET', '/api/v1/agents/tiers/candidates');
-      assert.deepEqual((candidates.body.models as Array<{ id: string }>).map((m) => m.id), ['v/top', 'v/mid', 'v/nocache']);
-      const nocache = (candidates.body.models as Array<{ id: string; cacheReadPricePerM: number | null }>).find((m) => m.id === 'v/nocache');
-      assert.equal(nocache?.cacheReadPricePerM, null);
+      assert.deepEqual((candidates.body.models as Array<{ id: string }>).map((m) => m.id), ['v/top', 'v/mid'], 'no cache price, no candidate');
 
       const put = (body: unknown, token = world.ownerToken) => call(app, token, 'PUT', '/api/v1/agents/tiers/placement', body);
-      const placed = await put({ placement: { berry_max: [], berry_mid: ['v/nocache'], berry_low: [] } });
+      const placed = await put({ placement: { berry_max: [], berry_mid: ['v/top'], berry_low: [] } });
       assert.equal(placed.status, 200);
       assert.equal((placed.body.placement as { source: string }).source, 'workspace');
       const mid = (placed.body.tiers as Array<{ tier: string; models: Array<{ id: string }> }>).find((t) => t.tier === 'berry_mid');
-      assert.equal(mid?.models[0]?.id, 'v/nocache');
+      assert.equal(mid?.models[0]?.id, 'v/top');
+
+      assert.equal((await put({ placement: { berry_max: [], berry_mid: ['v/nocache'], berry_low: [] } })).status, 422, 'a model without a cache price');
 
       assert.equal((await put({ placement: { berry_max: ['v/top'], berry_mid: ['v/top'], berry_low: [] } })).status, 422, 'a model in two places');
       assert.equal((await put({ placement: { berry_max: ['x/unknown'], berry_mid: [], berry_low: [] } })).status, 422, 'a model the gateway does not list');

@@ -198,11 +198,27 @@ export function isPaidEligible(model: GatewayModel): boolean {
    );
 }
 
-/** The models a paid tier may hold under `policy`: what a person can place, and what the rule ranks. */
+/** Whether the gateway lists a price for reading a cached prompt, so a step re-sending its context pays the cached rate. */
+export function hasCachePrice(model: GatewayModel): boolean {
+   return model.price.cacheRead !== null && model.price.cacheRead >= 0;
+}
+
+/**
+ * The models a paid tier may hold under `policy`: what a person can place, and
+ * what the rule ranks.
+ *
+ * Only models with a cache price, while any eligible model has one: an agent
+ * step re-sends the whole conversation, and a model without one pays full
+ * input price on all of it — Qwen at the top of a tier cost more per step
+ * than models rated above it (2026-10-07). A placed model without one is
+ * passed over and the rule fills its place with the next cached model.
+ */
 export function tierCandidates(models: GatewayModel[], policy: TierPolicy = {}): GatewayModel[] {
-   return models.filter(
+   const eligible = models.filter(
       (model) => !matchesAny(model.id, policy.exclude) && isPaidEligible(model) && (policy.anyProvider === true || model.ownKey)
    );
+   const cached = eligible.filter(hasCachePrice);
+   return cached.length > 0 ? cached : eligible;
 }
 
 /** Tokens per model over the usage window, in one mode (`null` counts every mode). */

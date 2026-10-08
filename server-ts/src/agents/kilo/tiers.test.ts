@@ -238,3 +238,17 @@ test('a ranked model carries its input and output prices beside the blended one'
       assert.equal(model.outputPricePerM, listed.price.output, model.id);
    }
 });
+
+test('a model without a cache price gives its place to the next cached model, placed or not', () => {
+   const cached = (entry: GatewayModel): GatewayModel => ({ ...entry, price: { ...entry.price, cacheRead: entry.price.input / 10 } });
+   const mixed = catalog.map((entry) => (entry.id === 'a/fable' || entry.id === 'm/kimi' ? entry : cached(entry)));
+   const pools = rankTiers(mixed, usage, 'code', { place: { berry_mid: ['m/kimi', 'a/sonnet'] } });
+   assert.deepEqual(pools.berry_max.map((m) => m.id), ['a/astra', 'a/sol', 'a/gpt-55'], 'fable is passed over');
+   assert.equal(pools.berry_mid[0]?.id, 'a/sonnet', 'placed kimi is passed over; the next placed model leads');
+   assert.equal(pools.berry_mid.length, 3, 'the rule fills the place kimi left');
+   for (const tier of [pools.berry_max, pools.berry_mid, pools.berry_low]) {
+      assert.ok(!tier.some((m) => m.id === 'a/fable' || m.id === 'm/kimi'));
+   }
+   // With no cache price anywhere, every eligible model stays a candidate, so no tier empties.
+   assert.equal(rankTiers(catalog, usage).berry_max.length, 3);
+});
