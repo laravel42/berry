@@ -116,10 +116,10 @@ test('a manifest that cannot be trusted or understood is refused in words a pers
 });
 
 test('only ordinary backing stores may run beside an app', () => {
-   for (const image of ['postgres:16-alpine', 'redis', 'valkey/valkey:8', 'docker.io/library/postgres:16', 'opensearchproject/opensearch:2', 'docker.elastic.co/elasticsearch/elasticsearch:8.15.0']) {
+   for (const image of ['postgres:16-alpine', 'redis', 'valkey/valkey:8', 'docker.io/library/postgres:16', 'opensearchproject/opensearch:2', 'docker.elastic.co/elasticsearch/elasticsearch:8.15.0', 'supabase/postgres:15.19.0.004', 'docker.io/supabase/postgres:15']) {
       assert.equal(allowedServiceImage(image), true, image);
    }
-   for (const image of ['evil/postgres', 'postgres:16 --privileged', 'ghcr.io/x/postgres', 'postgres@sha256:abc', '']) {
+   for (const image of ['evil/postgres', 'postgres:16 --privileged', 'ghcr.io/x/postgres', 'postgres@sha256:abc', '', 'supabase/studio:latest', 'supabase/gotrue:latest']) {
       assert.equal(allowedServiceImage(image), false, image);
    }
 });

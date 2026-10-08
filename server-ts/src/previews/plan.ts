@@ -98,8 +98,9 @@ export class PlanRefused extends Error {
  * The manifest is written by an agent, and an image is code that runs on this
  * machine. Apps run the repository's own code in a fixed Node image; a service
  * is one of the ordinary backing stores, by its official name, and nothing else.
+ * Supabase's Postgres image is that project's database, the same kind of store.
  */
-const SERVICE_IMAGES = /^(?:docker\.io\/(?:library\/)?)?(postgres|redis|valkey\/valkey|mysql|mariadb|mongo|elasticsearch|opensearchproject\/opensearch|minio\/minio|axllent\/mailpit|docker\.elastic\.co\/elasticsearch\/elasticsearch)(?::[A-Za-z0-9._-]{1,60})?$/;
+const SERVICE_IMAGES = /^(?:docker\.io\/(?:library\/)?)?(postgres|redis|valkey\/valkey|mysql|mariadb|mongo|elasticsearch|opensearchproject\/opensearch|minio\/minio|axllent\/mailpit|docker\.elastic\.co\/elasticsearch\/elasticsearch|supabase\/postgres)(?::[A-Za-z0-9._-]{1,60})?$/;
 
 export function allowedServiceImage(image: string): boolean {
    return SERVICE_IMAGES.test(image);
@@ -197,7 +198,7 @@ export function planFromManifest(text: string): PreviewPlan {
    }
    for (const service of services) {
       if (!allowedServiceImage(service.image)) {
-         throw new PlanRefused(`${MANIFEST_PATH}: service "${service.name}" uses image "${service.image}", which previews do not run. Use an official postgres, redis, valkey, mysql, mariadb, mongo, elasticsearch, opensearch, minio or mailpit image.`);
+         throw new PlanRefused(`${MANIFEST_PATH}: service "${service.name}" uses image "${service.image}", which previews do not run. Use an official postgres, redis, valkey, mysql, mariadb, mongo, elasticsearch, opensearch, minio, mailpit or supabase/postgres image.`);
       }
    }
    const primary = apps.findIndex((app) => app.primary === true);
