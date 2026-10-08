@@ -54,7 +54,7 @@ export default function Header({
 
    if (!project) {
       return (
-         <div className="flex h-10 w-full items-center border-b px-6 py-1.5 text-muted-foreground">
+         <div className="flex w-full items-center border-b px-6 text-muted-foreground">
             Loading project…
          </div>
       );
@@ -80,7 +80,7 @@ export default function Header({
 
    return (
       <>
-         <div className="flex h-10 w-full items-center justify-between border-b px-6 py-1.5">
+         <div className="flex w-full items-center justify-between border-b px-6">
             <div className="flex min-w-0 items-center gap-1.5">
                <Link
                   href={`/${orgId}/projects`}
