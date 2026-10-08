@@ -191,6 +191,7 @@
       "newestFirst": "Newest first",
       "oldestFirst": "Oldest first",
       "fileCount": "{count, plural, one {# file} other {# files}}",
+      "exit": "exit {code}",
       "duration": "How long this step took",
       "succeeded": "Succeeded",
       "failed": "Failed",

@@ -69,6 +69,8 @@ export interface StepDetail {
    path?: string;
    bytes?: number;
    count?: number;
+   /** Set on a command tool. The tool row stays succeeded; the code says how the shell ended. */
+   exitCode?: number;
 }
 
 /** Milliseconds from one ISO instant to another; null when either is unreadable. */
@@ -138,6 +140,7 @@ function detailOf(value: unknown): StepDetail | null {
    if (typeof raw.path === 'string' && raw.path) detail.path = raw.path;
    if (typeof raw.bytes === 'number') detail.bytes = raw.bytes;
    if (typeof raw.count === 'number') detail.count = raw.count;
+   if (typeof raw.exitCode === 'number') detail.exitCode = raw.exitCode;
    return Object.keys(detail).length > 0 ? detail : null;
 }
 
@@ -402,6 +405,9 @@ function StepCard({
                         step.detail.count === undefined
                            ? null
                            : t('fileCount', { count: step.detail.count }),
+                        step.detail.exitCode === undefined
+                           ? null
+                           : t('exit', { code: step.detail.exitCode }),
                      ]
                         .filter(Boolean)
                         .map((part) => ` · ${part}`)
