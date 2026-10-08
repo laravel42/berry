@@ -22,7 +22,12 @@ import { toast } from 'sonner';
 import { GroupIssues } from './group-issues';
 import { CustomDragLayer } from './issue-grid';
 import { EmptyQueue, NoMatches } from './issue-list-empty';
-import { IssueGroupEntry, useIssueGroups, usePropertyGrouping } from './issue-grouping';
+import {
+   groupsForDisplay,
+   IssueGroupEntry,
+   useIssueGroups,
+   usePropertyGrouping,
+} from './issue-grouping';
 import { applySubIssueVisibility, sortIssues, useIssueListView } from './use-issue-list-view';
 
 interface GroupedIssuesViewProps {
@@ -285,25 +290,23 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
 
    const hiddenCount = Math.max(0, scoped.total.length - scoped.visible.length);
    const showFooter = hasActiveFilters && hiddenCount > 0;
-   const nothingLeft = scoped.visible.length === 0;
 
    /* ------------------------------- Board ------------------------------- */
    if (isViewTypeGrid) {
       const manuallyHidden = groups.filter((entry) => hiddenBoardColumns.includes(entry.group.id));
-      // Status columns stay on the board when empty: each is where a task is
-      // dragged to, and a new workspace would otherwise show one column.
-      // Other groupings (people, projects) keep the "empty groups" switch.
-      const keepEmpty = showEmptyGroups || view.grouping === 'status';
-      const onBoard = groups.filter(
-         (entry) =>
-            !hiddenBoardColumns.includes(entry.group.id) &&
-            (hasActiveFilters ? entry.issues.length > 0 : keepEmpty || entry.issues.length > 0)
+      // The switch decides every grouping, including status. A filter that
+      // empties a column still names it in the hidden strip when the switch
+      // is off, so the board shows why that column left.
+      const onBoard = groupsForDisplay(groups, showEmptyGroups).filter(
+         (entry) => !hiddenBoardColumns.includes(entry.group.id)
       );
-      const emptied = hasActiveFilters
-         ? groups.filter(
-              (entry) => !hiddenBoardColumns.includes(entry.group.id) && entry.issues.length === 0
-           )
-         : [];
+      const emptied =
+         hasActiveFilters && !showEmptyGroups
+            ? groups.filter(
+                 (entry) =>
+                    !hiddenBoardColumns.includes(entry.group.id) && entry.issues.length === 0
+              )
+            : [];
 
       return (
          <DndProvider backend={HTML5Backend}>
@@ -348,24 +351,25 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    }
 
    /* -------------------------------- List ------------------------------- */
-   const listGroups = groups.filter((entry) => showEmptyGroups || entry.issues.length > 0);
+   const listGroups = groupsForDisplay(groups, showEmptyGroups);
 
    return (
       <DndProvider backend={HTML5Backend}>
          <CustomDragLayer />
          <div className="h-full overflow-y-auto divide-y-[3px] divide-background">
-            {nothingLeft && (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
-            {!nothingLeft &&
-               listGroups.map((entry) => (
-                  <GroupIssues
-                     key={entry.group.id}
-                     group={entry.group}
-                     issues={entry.issues}
-                     count={entry.issues.length}
-                     onDropIssue={applyGroupValue(entry.group.id)}
-                  />
-               ))}
-            {showFooter && !nothingLeft && <HiddenByFiltersFooter hiddenCount={hiddenCount} />}
+            {listGroups.length === 0 && (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
+            {listGroups.map((entry) => (
+               <GroupIssues
+                  key={entry.group.id}
+                  group={entry.group}
+                  issues={entry.issues}
+                  count={entry.issues.length}
+                  onDropIssue={applyGroupValue(entry.group.id)}
+               />
+            ))}
+            {showFooter && listGroups.length > 0 && (
+               <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+            )}
          </div>
       </DndProvider>
    );

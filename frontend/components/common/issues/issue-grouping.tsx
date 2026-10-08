@@ -316,6 +316,21 @@ export function buildIssueGroups({
    }
 }
 
+/**
+ * The groups a layout actually renders.
+ *
+ * Empty ones stay only when "Show empty groups" is on. Status, priority and
+ * a workspace field always produce a group for every value, so without this
+ * a board or table shows columns that hold nothing.
+ */
+export function groupsForDisplay(
+   groups: IssueGroupEntry[],
+   showEmptyGroups: boolean
+): IssueGroupEntry[] {
+   if (showEmptyGroups) return groups;
+   return groups.filter((entry) => entry.issues.length > 0);
+}
+
 /** Memoised `buildIssueGroups`, for the components that re-render on every keystroke. */
 export function useIssueGroups(input: BuildInput): IssueGroupEntry[] {
    const { issues, totalIssues, statuses, grouping, property } = input;

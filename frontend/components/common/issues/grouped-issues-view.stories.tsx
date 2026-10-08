@@ -46,6 +46,44 @@ export const ListByStatus: Story = {
    },
 };
 
+const inProgressOnly = storyIssues.filter((issue) => issue.status.id === 'in-progress');
+
+/** The switch off drops a status that has no task, including on the board. */
+export const EmptyGroupsHidden: Story = {
+   args: { issues: inProgressOnly, totalIssues: inProgressOnly },
+   beforeEach: () => {
+      useDisplaySettingsStore.setState({ showEmptyGroups: false });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('button', { name: /In Progress\s*1/ })).toBeInTheDocument();
+      await expect(canvas.queryByRole('button', { name: /Backlog/ })).toBeNull();
+   },
+};
+
+export const EmptyGroupsShown: Story = {
+   args: { issues: inProgressOnly, totalIssues: inProgressOnly },
+   beforeEach: () => {
+      useDisplaySettingsStore.setState({ showEmptyGroups: true });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('button', { name: /Backlog\s*0/ })).toBeInTheDocument();
+   },
+};
+
+export const BoardEmptyColumnsHidden: Story = {
+   args: { issues: inProgressOnly, totalIssues: inProgressOnly, isViewTypeGrid: true },
+   decorators: [withUrlFilters([], { layout: 'grid' })],
+   beforeEach: () => {
+      useDisplaySettingsStore.setState({ showEmptyGroups: false });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.queryByRole('button', { name: 'Create task in Backlog' })).toBeNull();
+      await expect(
+         canvas.getByRole('button', { name: 'Create task in In Progress' })
+      ).toBeInTheDocument();
+   },
+};
+
 export const ListByAssignee: Story = {
    decorators: [withUrlFilters([], { group: 'assignee' })],
 };

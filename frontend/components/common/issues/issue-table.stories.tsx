@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
 import { status as allStatus } from '@/data/status';
+import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { useIssueSelectionStore } from '@/store/issue-selection-store';
 import { IssueTable } from './issue-table';
 import { issueApiHandlers, seedIssuesWorkspace, storyIssues } from './stories-fixtures';
@@ -35,6 +36,19 @@ type Story = StoryObj<typeof meta>;
 export const GroupedByStatus: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('Persist project health and updates')).toBeInTheDocument();
+   },
+};
+
+const inProgressOnly = storyIssues.filter((issue) => issue.status.id === 'in-progress');
+
+export const EmptyGroupsHidden: Story = {
+   args: { issues: inProgressOnly, totalIssues: inProgressOnly },
+   beforeEach: () => {
+      useDisplaySettingsStore.setState({ showEmptyGroups: false });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.queryByText('Backlog')).toBeNull();
+      await expect(canvas.getAllByText('In Progress').length).toBeGreaterThan(0);
    },
 };
 

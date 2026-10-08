@@ -41,6 +41,7 @@ import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
 import { IssueListEmpty } from './issue-list-empty';
 import {
+   groupsForDisplay,
    useIssueGroups,
    usePropertyGrouping,
    usePropertyValues,
@@ -518,10 +519,14 @@ export function IssueTable({
    };
 
    const flat = useMemo(
-      () => groups.map((entry) => ({ group: entry.group, rows: rowsOf(entry.issues) })),
+      () =>
+         groupsForDisplay(groups, view.showEmptyGroups).map((entry) => ({
+            group: entry.group,
+            rows: rowsOf(entry.issues),
+         })),
       // `rowsOf` closes over the ordering and the collapsed set.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      [groups, view.ordering, view.direction, collapsed]
+      [groups, view.showEmptyGroups, view.ordering, view.direction, collapsed]
    );
 
    /* Group headers ride in the same virtual list as the rows, so a section
