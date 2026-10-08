@@ -266,6 +266,7 @@ export async function runInWorkspace(
          // protocol error on the far side.
          durationMs: Math.max(0, clock().getTime() - startedAt),
          truncated: recorder.truncated,
+         command: input.command,
       })
       .catch(() => undefined);
 

@@ -49,6 +49,8 @@ export const toolDetailSchema = z.object({
    path: z.string().max(1024).optional(),
    bytes: z.number().int().nonnegative().optional(),
    count: z.number().int().nonnegative().optional(),
+   /** The exit code of a `run_command` call. The tool itself still succeeded. */
+   exitCode: z.number().int().optional(),
 });
 
 export const taskMessageSchema = z.discriminatedUnion('kind', [
@@ -88,6 +90,8 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
       exitCode: z.number().int().nullable(),
       durationMs,
       truncated: z.boolean(),
+      /** The command, so this event can be read without the matching start. */
+      command: z.string().optional(),
    }),
    z.object({
       kind: z.literal('repository.ready'),

@@ -127,6 +127,8 @@ test('the command is recorded verbatim, which the other tools never do', async (
    const started = events.find((event) => event.type === 'started');
    assert.equal(started?.command, 'pnpm install --frozen-lockfile');
    assert.equal(started?.commandId, 'cmd-1');
+   const completed = events.find((event) => event.type === 'completed');
+   assert.equal(completed?.command, 'pnpm install --frozen-lockfile');
 });
 
 test('the three events share a command id, so interleaved commands stay apart', async () => {

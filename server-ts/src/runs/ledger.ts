@@ -395,6 +395,8 @@ export class RunLedger {
          exitCode: number | null;
          durationMs: number;
          truncated: boolean;
+         /** Copied from the start event so a completed row names what ended. */
+         command?: string;
       }
    ): Promise<void> {
       await this.appendActiveEvent(runId, 'run.command.completed', {
@@ -403,6 +405,7 @@ export class RunLedger {
          durationMs: params.durationMs,
          // Says so rather than letting a reader assume they have the whole log.
          truncated: params.truncated,
+         ...(params.command === undefined ? {} : { command: params.command }),
       });
    }
 

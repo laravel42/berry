@@ -89,6 +89,13 @@ export function toolDetail(name: string, input: unknown, result: unknown): ToolD
       case 'attach_file':
          detail = { ...(path ? { path } : {}), ...(size(out?.sizeBytes) !== undefined ? { bytes: size(out?.sizeBytes)! } : {}) };
          break;
+      case 'run_command': {
+         // A non-zero exit is a result, not a failed tool. The code is what a
+         // person reading the tool row otherwise cannot see.
+         const exitCode = out?.exitCode;
+         if (typeof exitCode === 'number' && Number.isInteger(exitCode)) detail = { exitCode };
+         break;
+      }
    }
    return detail && Object.keys(detail).length > 0 ? detail : null;
 }

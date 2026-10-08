@@ -167,6 +167,7 @@ test('the file facts of each file tool, and none for other tools', () => {
       path: 'a.txt',
       bytes: 3,
    });
-   assert.equal(toolDetail('run_command', { command: 'ls' }, json({ exitCode: 0 })), null);
+   assert.deepEqual(toolDetail('run_command', { command: 'ls' }, json({ exitCode: 0 })), { exitCode: 0 });
+   assert.deepEqual(toolDetail('run_command', { command: 'grep x' }, json({ exitCode: 1 })), { exitCode: 1 });
    assert.equal(toolDetail('list_files', {}, json({ error: 'no' })), null);
 });

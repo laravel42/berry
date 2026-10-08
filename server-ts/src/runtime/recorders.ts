@@ -55,7 +55,11 @@ export function ledgerRecorder(ledger: RunLedger, runId: string): TaskRecorder {
                   return ledger.appendCommandOutput(runId, { commandId: message.commandId, stream: message.stream, text: message.text });
                case 'command.completed':
                   return ledger.appendCommandCompleted(runId, {
-                     commandId: message.commandId, exitCode: message.exitCode, durationMs: message.durationMs, truncated: message.truncated,
+                     commandId: message.commandId,
+                     exitCode: message.exitCode,
+                     durationMs: message.durationMs,
+                     truncated: message.truncated,
+                     ...(message.command === undefined ? {} : { command: message.command }),
                   });
                case 'repository.ready':
                   return ledger.appendRepositoryReady(runId, { repository: message.repository, branch: message.branch, baseCommit: message.baseCommit });
