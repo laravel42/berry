@@ -1,5 +1,6 @@
 'use client';
 
+import { BerryLoading, BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { artifactPreviewUrl, type RunArtifact } from '@/lib/attachments';
@@ -140,6 +141,7 @@ export function SitePreview({
    const src = live ?? (unbuilt ? builtSrc : pageUrl);
    const showing = !held && Boolean(src);
    const building = unbuilt && build?.state === 'building';
+   const buildFailed = Boolean(error) || build?.state === 'failed';
 
    const restart = (force: boolean) => {
       setHeld(false);
@@ -247,7 +249,9 @@ export function SitePreview({
          )}
          <div className="relative flex min-h-0 flex-1 flex-col">
             <div ref={frameArea} className="relative min-h-0 flex-1 overflow-hidden">
-               {notice ? (
+               {state === 'loading' && !live ? (
+                  <BerryLoading label={t('loading')} className="min-h-full" />
+               ) : notice ? (
                   <div className="flex flex-col items-start gap-3 p-6 text-muted-foreground">
                      <p>{notice}</p>
                      {held && (
@@ -271,7 +275,11 @@ export function SitePreview({
                      allow="clipboard-write"
                   />
                ) : (
-                  <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
+                  <div
+                     role={buildFailed ? undefined : 'status'}
+                     className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground"
+                  >
+                     {!buildFailed && <BerryMark size="md" tone="brand" pulse />}
                      <p className="max-w-prose">
                         {error ??
                            (build?.state === 'failed'

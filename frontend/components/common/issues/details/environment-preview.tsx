@@ -1,5 +1,6 @@
 'use client';
 
+import { BerryLoading, BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
@@ -257,12 +258,23 @@ export function EnvironmentPreview({
       />
    );
 
-   let notice: string | null = null;
-   if (failed) notice = t('loadFailed');
-   else if (!env) notice = t('loading');
-   else if (!env.available) notice = t('unavailableHere');
-   else if (!env.previewable) notice = t('nothingYet');
-   else if (env.state === 'idle') notice = stopped.current ? t('stopped') : t('loading');
+   let notice: { text: string; kind: 'loading' | 'stopped' | 'message' } | null = null;
+   if (failed) notice = { text: t('loadFailed'), kind: 'message' };
+   else if (!env) notice = { text: t('loading'), kind: 'loading' };
+   else if (!env.available) notice = { text: t('unavailableHere'), kind: 'message' };
+   else if (!env.previewable) notice = { text: t('nothingYet'), kind: 'message' };
+   else if (env.state === 'idle') {
+      notice = stopped.current
+         ? { text: t('stopped'), kind: 'stopped' }
+         : { text: t('loading'), kind: 'loading' };
+   }
+
+   // Fetching the branch, or installing and starting it: the pane is waiting.
+   const building =
+      (fix === null || fix.phase === 'failed') &&
+      env?.state !== 'failed' &&
+      env?.state !== 'unavailable' &&
+      !fix?.note;
 
    // There is output to show from the moment a preview has been asked for.
    const panelAvailable = notice === null;
@@ -342,10 +354,12 @@ export function EnvironmentPreview({
              session while the preview goes from building to running. */}
          <div className="relative flex min-h-0 flex-1 flex-col">
             <div className="min-h-0 flex-1 overflow-auto">
-               {notice ? (
+               {notice?.kind === 'loading' ? (
+                  <BerryLoading label={notice.text} className="min-h-full" />
+               ) : notice ? (
                   <div className="flex flex-col items-start gap-3 p-6 text-muted-foreground">
-                     <p>{notice}</p>
-                     {env?.state === 'idle' && env.previewable && stopped.current && (
+                     <p>{notice.text}</p>
+                     {notice.kind === 'stopped' && (
                         <Button size="xs" variant="outline" onClick={() => start(false)}>
                            {t('start')}
                         </Button>
@@ -361,7 +375,11 @@ export function EnvironmentPreview({
                   />
                ) : (
                   // Building, or failed: where it stands, and the way out. The output is in the panel below.
-                  <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
+                  <div
+                     role={building ? 'status' : undefined}
+                     className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground"
+                  >
+                     {building && <BerryMark size="md" tone="brand" pulse />}
                      <p className="max-w-prose">
                         {fix?.phase === 'working' || fix?.phase === 'asking'
                            ? t('fixing')
