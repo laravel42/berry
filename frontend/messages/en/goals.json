@@ -49,8 +49,7 @@
          "mark": "No plans",
          "title": "No open plans.",
          "titleAll": "No plans yet.",
-         "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat.",
-         "action": "Plan work"
+         "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat."
       }
    }
 }

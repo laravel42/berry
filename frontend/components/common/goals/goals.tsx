@@ -2,7 +2,6 @@
 
 import {
    EmptyState,
-   EmptyStateActions,
    EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
@@ -20,7 +19,6 @@ import { SplitIndex, useSelectFirst } from '@/components/common/page/split-index
 import Header from '@/components/layout/headers/goals/header';
 import GoalLine from './goal-line';
 import GoalOverview from './goal-overview';
-import { PlanWorkButton } from '@/components/common/plans/plan-work-button';
 
 function isOpenGoal(status: string): boolean {
    return status !== 'completed';
@@ -32,9 +30,6 @@ function EmptyGoals() {
       <EmptyState icon={<EmptyStateMark label={t('mark')} />}>
          <EmptyStateTitle>{t('title')}</EmptyStateTitle>
          <EmptyStateText>{t('body')}</EmptyStateText>
-         <EmptyStateActions>
-            <PlanWorkButton />
-         </EmptyStateActions>
       </EmptyState>
    );
 }
