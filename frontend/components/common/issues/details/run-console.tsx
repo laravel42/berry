@@ -392,7 +392,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   }
                   // The log on the secondary surface, a step off the page, so the
                   // console's body reads apart from the task around it.
-                  listClassName="bg-muted"
+                  listClassName="bg-muted font-thin [&_*]:font-thin"
                />
             </div>
          ) : null}
