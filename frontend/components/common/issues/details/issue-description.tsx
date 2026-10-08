@@ -138,7 +138,7 @@ export function IssueDescription({
                }}
                placeholder={dragging ? t('dropHere') : 'Add description…'}
                aria-label="Task description"
-               className="min-h-24"
+               className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin"
                aiAssist={false}
             />
          </div>
