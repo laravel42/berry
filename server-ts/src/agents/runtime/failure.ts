@@ -86,7 +86,7 @@ const NETWORK_CODES = new Set([
    'UND_ERR_HEADERS_TIMEOUT',
    'UND_ERR_BODY_TIMEOUT',
 ]);
-const NETWORK_TEXT = /Stream timed out because of no activity|socket hang up/i;
+const NETWORK_TEXT = /Stream timed out because of no activity|socket hang up|timed out while sending the response|sent nothing for \d+s/i;
 
 function isNetworkFault(error: unknown): boolean {
    const code = (error as { code?: unknown })?.code;

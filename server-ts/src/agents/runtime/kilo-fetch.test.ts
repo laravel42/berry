@@ -293,5 +293,100 @@ test('a stream that stops halfway is abandoned like one that never started', asy
    const response = await kiloFetch({ stallMs: 25 }, trickle(1, 1))('https://gw', request('qwen/qwen3-coder-next'));
    const reader = response.body!.getReader();
    assert.match(new TextDecoder().decode((await reader.read()).value), /delta/);
-   await assert.rejects(() => reader.read());
+   await assert.rejects(() => reader.read(), (error: unknown) => error instanceof GatewaySilent);
+});
+
+/** Data events, then only `: ping` comments, which must not keep the call open. */
+function thenComments(dataCount: number, everyMs: number): typeof fetch {
+   const encoder = new TextEncoder();
+   return async (_input, init) => {
+      const socket = held();
+      return new Response(
+         new ReadableStream<Uint8Array>({
+            async start(controller) {
+               init?.signal?.addEventListener('abort', () => {
+                  socket.clear();
+                  controller.error(new Error('aborted'));
+               });
+               for (let sent = 0; sent < dataCount; sent += 1) {
+                  await new Promise((resolve) => setTimeout(resolve, everyMs));
+                  if (init?.signal?.aborted) return;
+                  controller.enqueue(encoder.encode(`data: {"choices":[{"delta":{"content":"${sent}"}}]}\n\n`));
+               }
+               for (;;) {
+                  await new Promise((resolve) => setTimeout(resolve, everyMs));
+                  if (init?.signal?.aborted) return;
+                  controller.enqueue(encoder.encode(': ping\n\n'));
+               }
+            },
+            cancel() {
+               socket.clear();
+            },
+         }),
+         { status: 200, headers: { 'content-type': 'text/event-stream' } }
+      );
+   };
+}
+
+/** Comments for `quietMs`, then one data event. A think before the first token. */
+function commentsThen(quietMs: number, everyMs: number): typeof fetch {
+   const encoder = new TextEncoder();
+   return async (_input, init) => {
+      const socket = held();
+      return new Response(
+         new ReadableStream<Uint8Array>({
+            async start(controller) {
+               init?.signal?.addEventListener('abort', () => {
+                  socket.clear();
+                  controller.error(new Error('aborted'));
+               });
+               const until = Date.now() + quietMs;
+               while (Date.now() < until) {
+                  await new Promise((resolve) => setTimeout(resolve, everyMs));
+                  if (init?.signal?.aborted) return;
+                  controller.enqueue(encoder.encode(': ping\n\n'));
+               }
+               controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"ready"}}]}\n\n'));
+               controller.close();
+            },
+            cancel() {
+               socket.clear();
+            },
+         }),
+         { status: 200, headers: { 'content-type': 'text/event-stream' } }
+      );
+   };
+}
+
+test('keepalives after the model has spoken do not keep a silent stream open', async () => {
+   const response = await kiloFetch({ stallMs: 50 }, thenComments(1, 10))('https://gw', request('qwen/qwen3-coder-next'));
+   const reader = response.body!.getReader();
+   const started = Date.now();
+   let error: unknown = null;
+   for (;;) {
+      if (Date.now() - started > 1_000) break;
+      try {
+         const next = await reader.read();
+         if (next.done) break;
+      } catch (caught) {
+         error = caught;
+         break;
+      }
+   }
+   assert.ok(error instanceof GatewaySilent);
+   assert.ok(Date.now() - started < 500);
+});
+
+test('keepalives before the first token still count as the gateway answering', async () => {
+   const response = await kiloFetch({ stallMs: 40 }, commentsThen(80, 10))('https://gw', request('qwen/qwen3-coder-next'));
+   const reader = response.body!.getReader();
+   const decoder = new TextDecoder();
+   let text = '';
+   while (!text.includes('ready')) {
+      const next = await reader.read();
+      if (next.done) break;
+      text += decoder.decode(next.value, { stream: true });
+   }
+   await reader.cancel();
+   assert.match(text, /ready/);
 });

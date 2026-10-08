@@ -34,11 +34,12 @@ export function isFreeModel(model: string): boolean {
  * the response headers, and again between any two chunks of a stream.
  *
  * Not a cap on the call. A plan is minutes of work and a model may think for
- * a while before its first token, so only silence is bounded. The gateway
- * accepted a plan repair and then never answered it: Berry gave up on the run
- * after five minutes, but this request stayed open, and with it the session's
- * container, which the local router will not reap while a request is in
- * flight. Aborting here is what lets the socket go, and the container with it.
+ * a while before its first token, so only silence is bounded, and a keepalive
+ * comment before that first token still counts as the gateway answering. Once
+ * the model has produced a token, a comment does not: a stream that had been
+ * talking and then sent only keepalives sat open until the provider's own
+ * timeout, and the run ended instead of trying the call again. Aborting here
+ * is what lets the socket go, and the container with it.
  */
 export const STALL_MS = 120_000;
 
@@ -176,6 +177,41 @@ export function toUncachedUsage(usage: GatewayUsage): GatewayUsage {
 
 type Chunk = { choices?: unknown[]; usage?: GatewayUsage | null } & Record<string, unknown>;
 
+/** An SSE event that carries no model output: a blank line, or only `:` comments. */
+function isSseComment(event: string): boolean {
+   const lines = event.split('\n').filter((line) => line.length > 0);
+   return lines.every((line) => line.startsWith(':'));
+}
+
+/**
+ * The body, with a stall abort reported as `GatewaySilent`.
+ *
+ * Aborting the request stops the socket, and `fetch` then rejects the read
+ * with its own abort error. That error is not a reason to retry the call, so
+ * a stream abandoned here would end the run. The watch having expired is what
+ * makes it the gateway going quiet, which is worth another try.
+ */
+function asModelSilence(body: ReadableStream<Uint8Array>, watch: StallWatch, stallMs: number): ReadableStream<Uint8Array> {
+   const reader = body.getReader();
+   return new ReadableStream<Uint8Array>({
+      async pull(controller) {
+         try {
+            const next = await reader.read();
+            if (next.done) {
+               controller.close();
+               return;
+            }
+            controller.enqueue(next.value);
+         } catch (error) {
+            controller.error(watch.expired ? new GatewaySilent(stallMs) : error);
+         }
+      },
+      cancel(reason) {
+         void reader.cancel(reason);
+      },
+   });
+}
+
 /**
  * One SSE event's `data:` payload, rewritten: the usage checked, reported,
  * made uncached, and moved onto a chunk of its own. Returns the payloads to
@@ -210,6 +246,7 @@ function rewriteStream(
    const decoder = new TextDecoder();
    const encoder = new TextEncoder();
    let pending = '';
+   let answered = false;
    const emit = (event: string, controller: TransformStreamDefaultController<Uint8Array>) => {
       const data = event.startsWith('data:') ? event.slice(5).trim() : null;
       if (data !== null && options.onReasoning) {
@@ -227,14 +264,13 @@ function rewriteStream(
    return body.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
          transform(chunk, controller) {
-            // Anything at all counts as the gateway still answering, including
-            // the keep-alive comments it sends between two slow chunks.
-            watch.touch();
             pending += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, '\n');
+            let progressed = false;
             let end = pending.indexOf('\n\n');
             while (end !== -1) {
                const event = pending.slice(0, end);
                pending = pending.slice(end + 2);
+               if (event.length > 0 && !isSseComment(event)) progressed = true;
                if (event.length > 0) {
                   try {
                      emit(event, controller);
@@ -245,6 +281,11 @@ function rewriteStream(
                }
                end = pending.indexOf('\n\n');
             }
+            if (!isSseComment(pending)) progressed = true;
+            // A keepalive before the first token is the gateway still working.
+            // After the model has spoken, only another token resets the clock.
+            if (!answered || progressed) watch.touch();
+            if (progressed) answered = true;
          },
          flush(controller) {
             watch.done();
@@ -355,7 +396,7 @@ export function kiloFetch(options: KiloFetchOptions = {}, inner: typeof fetch = 
       // Handed on still armed: a stream that stops halfway is the same silence
       // as one that never started, and the headers arriving prove nothing.
       if (type.includes('text/event-stream') && response.body) {
-         return new Response(rewriteStream(response.body, options, watch), {
+         return new Response(rewriteStream(asModelSilence(response.body, watch, options.stallMs ?? STALL_MS), options, watch), {
             status: response.status,
             statusText: response.statusText,
             headers: response.headers,

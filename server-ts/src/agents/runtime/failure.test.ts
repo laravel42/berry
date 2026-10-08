@@ -151,6 +151,16 @@ test('a connection that failed is transient; a request that failed is not', () =
    );
    const idle = Object.assign(new Error('Stream timed out because of no activity for 120000 ms'), { name: 'TimeoutError' });
    assert.equal(classify(new Error('model call failed', { cause: idle })).retryable, true);
+   // The gateway's own mid-stream timeout, and a call abandoned for silence.
+   // Both are the provider failing to answer, so the agent loop tries again.
+   const timedOut = new Error('The upstream provider timed out while sending the response. (request id: sfo1::abc)');
+   assert.equal(isTransient(timedOut), true);
+   assert.deepEqual(
+      { code: classify(timedOut).code, retryable: classify(timedOut).retryable },
+      { code: 'UPSTREAM_UNAVAILABLE', retryable: true }
+   );
+   const silent = new Error('the model gateway sent nothing for 120s');
+   assert.equal(classify(new Error('model call failed', { cause: silent })).retryable, true);
    // Not every TypeError is the network: a bug stays final.
    assert.equal(isTransient(new TypeError('x is not a function')), false);
 });
