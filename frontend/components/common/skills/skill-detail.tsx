@@ -267,7 +267,10 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                <span className="text-muted-foreground">{t('create.instructions')}</span>
                {canEdit ? (
-                  <div className="border-input bg-background focus-within:border-ring min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs focus-within:ring-[3px] focus-within:ring-ring/50">
+                  <div
+                     data-font-weight="100"
+                     className="border-input bg-background focus-within:border-ring min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs [font-weight:100] focus-within:ring-[3px] focus-within:ring-ring/50"
+                  >
                      <TiptapAiEditor
                         value={readFrontmatter(draft.content).body}
                         onChange={editBody}
