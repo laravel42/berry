@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { taskEnvelopeSchema } from '../../../runtime/envelope.ts';
+import { resumeRequestSchema, taskEnvelopeSchema } from '../../../runtime/envelope.ts';
 import { encodeLifecycle } from '../../../runtime/lifecycle.ts';
 import { handleInvocation, type HandlerDeps } from './handler.ts';
+import { RunJournals } from './journal.ts';
 
 /**
  * The AgentCore Runtime service contract: `GET /ping` and `POST /invocations`
@@ -11,18 +12,22 @@ import { handleInvocation, type HandlerDeps } from './handler.ts';
  * `/ping` is how AgentCore decides whether the microVM is idle: `HealthyBusy`
  * while any loop works keeps it from being reaped after the invoke stream has
  * closed. `/invocations` answers with the lifecycle stream and keeps working
- * if the caller goes away — the work is committed and the conversation kept
- * warm, and the server records the broken stream as retryable.
+ * if the caller goes away. Every frame is journalled, so a caller that comes
+ * back — the API after a restart — asks for the rest with a resume request on
+ * the same path and records the run as if it had never left.
  */
 
 const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
 const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const KEEPALIVE_MS = 15_000;
 
-export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean; authMode?: 'agentcore' | 'token'; authToken?: string }): Server {
+export function createRuntimeServer(
+   deps: HandlerDeps & { localControl?: boolean; authMode?: 'agentcore' | 'token'; authToken?: string; journals?: RunJournals }
+): Server {
    if (deps.authMode !== 'agentcore' && (!deps.authToken || deps.authToken.length < 32)) {
       throw new Error('Standalone runtime requires BERRY_RUNTIME_AUTH_TOKEN with at least 32 characters');
    }
+   const journals = deps.journals ?? new RunJournals();
    let lastUpdate = Math.floor(Date.now() / 1000);
    const touch = () => {
       lastUpdate = Math.floor(Date.now() / 1000);
@@ -64,6 +69,48 @@ export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean
                } catch {
                   return reply(400, { error: 'the body is not JSON' });
                }
+               if (parsedJson && typeof parsedJson === 'object' && 'resume' in parsedJson) {
+                  const resume = resumeRequestSchema.safeParse(parsedJson);
+                  if (!resume.success) return reply(400, { error: 'the resume request is not valid' });
+                  const { runId, runtimeSessionId, after } = resume.data.resume;
+                  const header = request.headers[SESSION_HEADER];
+                  if (typeof header === 'string' && header !== runtimeSessionId) {
+                     return reply(400, { error: 'the session header does not match the request' });
+                  }
+                  let opened = false;
+                  const open = () => {
+                     if (opened) return;
+                     opened = true;
+                     response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+                  };
+                  const keepalive = setInterval(() => {
+                     if (opened && !response.writableEnded && !response.destroyed) response.write(': keepalive\n\n');
+                  }, KEEPALIVE_MS);
+                  keepalive.unref();
+                  const followed = journals.follow(runId, runtimeSessionId, after, {
+                     frame: (frame) => {
+                        open();
+                        if (!response.writableEnded && !response.destroyed) response.write(frame);
+                     },
+                     end: () => {
+                        clearInterval(keepalive);
+                        open();
+                        if (!response.writableEnded && !response.destroyed) response.end();
+                     },
+                  });
+                  if (followed.kind !== 'following') {
+                     clearInterval(keepalive);
+                     return followed.kind === 'missing'
+                        ? reply(404, { error: 'this runtime holds no such run' })
+                        : reply(409, { error: 'this runtime no longer holds the frames asked for' });
+                  }
+                  open();
+                  response.on('close', () => {
+                     clearInterval(keepalive);
+                     followed.stop();
+                  });
+                  return;
+               }
                const parsed = taskEnvelopeSchema.safeParse(parsedJson);
                if (!parsed.success) {
                   return reply(400, { error: 'the task envelope is not valid', fields: parsed.error.issues.map((i) => i.path.join('.')) });
@@ -86,17 +133,21 @@ export function createRuntimeServer(deps: HandlerDeps & { localControl?: boolean
                response.on('close', () => {
                   if (!response.writableFinished) caller.abort();
                });
+               journals.open(envelope.runId, envelope.runtimeSessionId);
                void handleInvocation(
                   envelope,
                   (event) => {
                      touch();
-                     if (!response.writableEnded && !response.destroyed) response.write(encodeLifecycle(event));
+                     const frame = encodeLifecycle(event);
+                     journals.append(envelope.runId, frame);
+                     if (!response.writableEnded && !response.destroyed) response.write(frame);
                   },
                   deps,
                   caller.signal
                ).finally(() => {
                   clearInterval(keepalive);
                   touch();
+                  journals.end(envelope.runId);
                   if (!response.writableEnded && !response.destroyed) response.end();
                });
             })

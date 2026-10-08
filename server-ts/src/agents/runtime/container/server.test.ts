@@ -16,17 +16,28 @@ let release: () => void = () => {};
 const gate = new Promise<void>((resolve) => {
    release = resolve;
 });
+let letGo: () => void = () => {};
+const held = new Promise<void>((resolve) => {
+   letGo = resolve;
+});
 const registry = new SessionRegistry();
 const waitTool = tool({ name: 'wait', description: 'w', inputSchema: z.object({}), callback: async () => (await gate, 'ok') });
+const holdTool = tool({ name: 'hold', description: 'h', inputSchema: z.object({}), callback: async () => (await held, 'ok') });
 const server = createRuntimeServer({
    registry,
    authMode: 'agentcore',
    // Each task builds its own model; the envelope's model id picks the script.
    modelFactory: (spec) =>
-      new ScriptedModel(spec.model === 'wait' ? [call('wait', {}), say('late')] : [say('hello')]),
+      new ScriptedModel(
+         spec.model === 'wait'
+            ? [call('wait', {}), say('late')]
+            : spec.model === 'hold'
+              ? [call('hold', {}), say('collected')]
+              : [say('hello')]
+      ),
    region: 'us-east-1',
    workRoot: mkdtempSync(join(tmpdir(), 'berry-server-')),
-   loadTools: async () => [waitTool],
+   loadTools: async () => [waitTool, holdTool],
    localControl: true,
 });
 await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -84,6 +95,40 @@ test('the loop outlives a closed stream, and ping says HealthyBusy meanwhile', a
    for (let i = 0; i < 50 && registry.busy; i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
    assert.equal(registry.busy, false);
    assert.ok(registry.get(envelope.runtimeSessionId), 'the session is kept warm');
+});
+
+test('a caller that lost the stream collects the rest of the run, and a finished run is replayed whole', async () => {
+   const sample = sampleEnvelope();
+   const session = `berry-${'3'.repeat(64)}`;
+   const envelope = sampleEnvelope({ runId: 'run-resumed', runtimeSessionId: session, agent: { ...sample.agent, model: 'hold' } });
+   const controller = new AbortController();
+   const response = await fetch(`${base}/invocations`, { method: 'POST', body: JSON.stringify(envelope), signal: controller.signal });
+   const first = await parseLifecycleStream(response.body!)[Symbol.asyncIterator]().next();
+   assert.equal(first.value?.type, 'task.started');
+   controller.abort();
+
+   const resume = (after: number, runId = 'run-resumed') =>
+      fetch(`${base}/invocations`, {
+         method: 'POST',
+         headers: { 'x-amzn-bedrock-agentcore-runtime-session-id': session },
+         body: JSON.stringify({ resume: { runId, runtimeSessionId: session, after } }),
+      });
+   const resumed = await resume(1);
+   assert.equal(resumed.status, 200);
+   letGo();
+   const rest: LifecycleEvent[] = [];
+   for await (const event of parseLifecycleStream(resumed.body!)) rest.push(event);
+   assert.ok(!rest.some((event) => event.type === 'task.started'), 'the frames already read are not sent again');
+   const last = rest.at(-1);
+   assert.ok(last?.type === 'task.completed');
+   assert.equal(last.result.text, 'collected');
+
+   const replay: LifecycleEvent[] = [];
+   for await (const event of parseLifecycleStream((await resume(0)).body!)) replay.push(event);
+   assert.equal(replay.length, rest.length + 1);
+   assert.equal(replay[0]!.type, 'task.started');
+
+   assert.equal((await resume(0, 'run-unknown')).status, 404);
 });
 
 test('local stop forgets a session', async () => {

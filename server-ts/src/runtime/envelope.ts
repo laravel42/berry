@@ -186,6 +186,27 @@ export type SkillRef = z.infer<typeof skillRefSchema>;
 export type McpServerRef = z.infer<typeof mcpServerRefSchema>;
 export type McpTransport = z.infer<typeof mcpTransportSchema>;
 
+/**
+ * Asks a runtime for the rest of a run's lifecycle stream, after the first
+ * `after` frames the caller already recorded. Sent on `/invocations` like a
+ * task, because that is the only path AgentCore forwards to the container.
+ * A runtime that no longer holds the run answers 404, and 409 when it kept
+ * only frames newer than the ones asked for.
+ */
+export const resumeRequestSchema = z
+   .object({
+      resume: z
+         .object({
+            runId: z.string().min(1).max(200),
+            runtimeSessionId: z.string().min(1).max(200),
+            after: z.number().int().nonnegative(),
+         })
+         .strict(),
+   })
+   .strict();
+
+export type ResumeRequest = z.infer<typeof resumeRequestSchema>['resume'];
+
 const REDACTED = '[redacted]';
 
 /** The envelope as it may be logged: every secret replaced, shape kept. */
