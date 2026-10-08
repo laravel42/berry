@@ -265,7 +265,7 @@ export class EnvelopeBuilder {
       // builds an envelope without the ledger's claim (a preview, a retry
       // path) still gets the issue prompt rather than a bare message.
       const dispatch = input.dispatch ?? (await this.#readDispatch(task.runId));
-      const [related, reviewFeedback, recalled, comments, dependencies, projectResources] = await Promise.all([
+      const [related, reviewFeedback, recalled, loadedComments, dependencies, projectResources] = await Promise.all([
          this.#related(dispatch.issueId),
          lastRejection(this.#deps.sql, dispatch.issueId),
          this.#deps.memory.recall({ agentId: task.agentId, issueId: dispatch.issueId }),
@@ -273,6 +273,7 @@ export class EnvelopeBuilder {
          this.#dependencies(dispatch.issueId),
          this.#projectResources(dispatch.issueId, task.workspaceId),
       ]);
+      const comments = loadedComments.comments;
       const priorWork = recallPrompt(recalled);
       const { repo, delivery, empty } = await this.#repository(task, dispatch, agent);
       return {
@@ -293,6 +294,12 @@ export class EnvelopeBuilder {
                   skills: (extensions?.skills ?? []).map((skill) => ({ name: skill.name, description: skillDescription(skill) })),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
+                     : {}),
+                  // An agent's own comments are its reports. Before any of
+                  // those exist, the comments on the task are a person's
+                  // direction and belong in the prompt.
+                  ...(!loadedComments.agentCommented && comments.length > 0
+                     ? { comments: comments.map(({ author, body }) => ({ author, body })) }
                      : {}),
                }),
                issue: {
@@ -476,20 +483,35 @@ export class EnvelopeBuilder {
       return { env, model: (row.model_default as string | null) ?? null };
    }
 
-   async #comments(issueId: string): Promise<TaskEnvelope['task']['comments']> {
-      const rows = await this.#deps.sql`
-         SELECT c.body, c.created_at, c.author_type::text AS author_type,
-                COALESCE(u.name, a.name, 'someone') AS author
-           FROM comments AS c
-           LEFT JOIN users AS u ON c.author_type = 'user' AND u.id = c.author_id
-           LEFT JOIN agents AS a ON c.author_type = 'agent' AND a.id = c.author_id
-          WHERE c.issue_id = ${issueId}
-          ORDER BY c.created_at DESC LIMIT 30`;
-      return rows.reverse().map((row) => ({
-         author: row.author as string,
-         body: row.body as string,
-         createdAt: new Date(row.created_at as string).toISOString(),
-      }));
+   /**
+    * The latest comments, oldest first, and whether any agent has commented
+    * on the task at all. The window is the last 30; the flag looks at every
+    * comment, so an older agent report still keeps the thread out of the prompt.
+    */
+   async #comments(issueId: string): Promise<{ comments: TaskEnvelope['task']['comments']; agentCommented: boolean }> {
+      const [rows, [flag]] = await Promise.all([
+         this.#deps.sql`
+            SELECT c.body, c.created_at, c.author_type::text AS author_type,
+                   COALESCE(u.name, a.name, 'someone') AS author
+              FROM comments AS c
+              LEFT JOIN users AS u ON c.author_type = 'user' AND u.id = c.author_id
+              LEFT JOIN agents AS a ON c.author_type = 'agent' AND a.id = c.author_id
+             WHERE c.issue_id = ${issueId}
+             ORDER BY c.created_at DESC LIMIT 30`,
+         this.#deps.sql`
+            SELECT EXISTS (
+               SELECT 1 FROM comments
+                WHERE issue_id = ${issueId} AND author_type = 'agent'
+            ) AS agent_commented`,
+      ]);
+      return {
+         comments: rows.reverse().map((row) => ({
+            author: row.author as string,
+            body: row.body as string,
+            createdAt: new Date(row.created_at as string).toISOString(),
+         })),
+         agentCommented: flag?.agent_commented === true,
+      };
    }
 
    /**

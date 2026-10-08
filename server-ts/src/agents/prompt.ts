@@ -60,6 +60,12 @@ export interface PromptContext extends Dispatch {
     * by `read_skill`; without being named here the agent never knew it had them.
     */
    skills?: Array<{ name: string; description: string }>;
+   /**
+    * Comments already on the task, oldest first. Passed only when no agent
+    * has commented: an agent's reports are the run's own record, and a
+    * person's notes written before any of those would otherwise never be read.
+    */
+   comments?: Array<{ author: string; body: string }>;
 }
 
 export function buildMessage(dispatch: PromptContext): string {
@@ -67,6 +73,13 @@ export function buildMessage(dispatch: PromptContext): string {
 
    if (dispatch.issueDescription) {
       message += `\n\nDescription:\n${fenced('issue_description', dispatch.issueDescription)}`;
+   }
+   if (dispatch.comments && dispatch.comments.length > 0) {
+      const text = truncateUtf8(
+         dispatch.comments.map((comment) => `${comment.author}:\n${comment.body.trim()}`).join('\n\n'),
+         8 * 1024
+      );
+      message += `\n\nComments on this task, oldest first:\n${fenced('task_comments', text)}`;
    }
    if (dispatch.related) {
       message += `\n\nThe tasks around this one, for context. They are not yours to do:\n${fenced('related_tasks', dispatch.related)}`;
