@@ -702,12 +702,11 @@ The issue MUST have an agent assignee after applying `agentId` and no active run
 
 #### `POST /api/v1/issues/{issueId}/runs/restart`
 
-Restarts the task's newest agent run when that run is stalled, and the new run recovers the work already saved. A run is stalled when it failed and the failure is retryable, or when it is still `running` but has recorded no event for two minutes. A running stall is cancelled first. The body is an empty object. The new run keeps the stalled run as its origin, without starting a fresh session, and its instructions tell the agent to continue from the branch and commit already written.
+Starts the task again when it is assigned to an agent, its status is To do, In progress, or In review, and it has no queued or running run. A task that has never run is queued for its assignee. A task with an earlier agent run is queued for the assignee it has now, and that run's branch, commit, and instructions are the starting point. A queued or running run is left as it is. The body is an empty object. When there was a previous agent run, the new run keeps it as its origin, without starting a fresh session.
 
 - `202`: accepted `Run`; `Location: /api/v1/runs/{id}`
-- `409 NOT_STALLED`: the newest run is not a stall
-- `409 ACTIVE_RUN_EXISTS`: a run is already in progress and could not be released
-- `409 CONFLICT`: the task is no longer held by its agent
+- `409 ACTIVE_RUN_EXISTS`: a run is already queued or running
+- `409 CONFLICT`: the task is not assigned to an agent, or its status is not To do, In progress, or In review
 - `422`: `VALIDATION_FAILED`
 
 ```json

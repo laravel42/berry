@@ -11,7 +11,7 @@ import type { IdempotencyStore } from '../http/idempotency.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { IssueRepository } from '../core/issues.ts';
 import type { BoardRepository } from '../core/boards.ts';
-import { restartStalled } from '../runs/continuation.ts';
+import { restartTask } from '../runs/continuation.ts';
 import { RunTerminal, type Run, type RunLedger } from '../runs/ledger.ts';
 import type { Sql } from '../db/pool.ts';
 import {
@@ -200,7 +200,7 @@ export function boardRunRoutes(options: RunOptions) {
 
 export function issueRunRoutes(options: RunOptions) {
    const route = new Hono<{ Variables: AuthVariables }>();
-   const { runs, issues, idempotency, ledger, sql } = options;
+   const { runs, issues, idempotency, sql } = options;
 
    route.get('/:issueRef/runs', async (context) => {
       const issue = await resolveIssue(issues, context.req.param('issueRef'), context.get('user').id, 'product.read');
@@ -216,30 +216,27 @@ export function issueRunRoutes(options: RunOptions) {
    });
 
    /**
-    * Restart a stalled task so the agent continues from the work already saved.
+    * Start an agent's task again from the work already saved.
     *
-    * A retryable failure, or a run that has gone quiet, is stopped if it is
-    * still marked running and queued again. The new run keeps the session, so
-    * a runtime that still holds the conversation resumes it.
+    * The task is in To do, In progress, or In review, assigned to an agent,
+    * and nothing is queued or running. A live run is left as it is. The new
+    * run keeps the previous session, so a runtime that still holds the
+    * conversation resumes it.
     */
    route.post('/:issueRef/runs/restart', idempotent(idempotency), async (context) => {
       const issue = await resolveIssue(issues, context.req.param('issueRef'), context.get('user').id, 'product.write');
       await issues.authorize(context.get('user').id, issue.id, 'product.write');
       await decodeBody<Record<string, never>>(context, {});
 
-      const outcome = await restartStalled(sql, {
+      const outcome = await restartTask(sql, {
          issueId: issue.id,
          requestedBy: context.get('user').id,
-         cancel: (runId) => ledger.markCancelled(runId).then(() => undefined),
       });
       if (!outcome.restarted) {
          if (outcome.reason === 'busy') {
             throw new ApiError(409, 'ACTIVE_RUN_EXISTS', 'This task already has a run in progress.');
          }
-         if (outcome.reason === 'task_moved_on') {
-            throw new ApiError(409, 'CONFLICT', 'This task is no longer held by its agent.');
-         }
-         throw new ApiError(409, 'NOT_STALLED', 'This run is not stalled.');
+         throw new ApiError(409, 'CONFLICT', 'This task cannot be restarted.');
       }
       const run = await runs.get(outcome.runId);
       const response = json(serializeRun(run), 202);

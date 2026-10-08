@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { after, afterEach, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
-import { LIMIT_CODE, continuationInstructions, continuationNote, continuedMessage, continueAfterLimit, recoveryInstructions, restartStalled, retryAfterFault, retryNote, runIsStalled, taskStillHeld } from './continuation.ts';
+import { LIMIT_CODE, continuationInstructions, continuationNote, continuedMessage, continueAfterLimit, recoveryInstructions, restartTask, retryAfterFault, retryNote, runIsStalled, taskCanBeRestarted, taskStillHeld } from './continuation.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -160,7 +160,7 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
       assert.equal(next!.requested_by, fixture!.userId);
    });
 
-   test('a person can restart a stall the automatic retry already gave up on', async () => {
+   test('a person can restart an agent task the automatic retry already gave up on', async () => {
       const issueId = await task();
       await ended(issueId, { code: 'RUNTIME_UNAVAILABLE', commit: 'aaaaaaa1', retryable: true, prompt: 'Build the page' });
       const again = await ended(issueId, {
@@ -170,28 +170,20 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
          prompt: 'Build the page',
       });
       assert.deepEqual(await retryAfterFault(sql, { runId: again }), { retried: false, reason: 'already_retried' });
-      let cancelled = false;
-      const outcome = await restartStalled(sql, {
-         issueId,
-         requestedBy: fixture!.userId,
-         cancel: async () => {
-            cancelled = true;
-         },
-      });
-      assert.equal(cancelled, false);
+      const outcome = await restartTask(sql, { issueId, requestedBy: fixture!.userId });
       assert.equal(outcome.restarted, true);
       const [next] = await sql`
          SELECT status, instructions, origin, requested_by FROM runs
           WHERE id = ${outcome.restarted ? outcome.runId : ''}`;
       assert.equal(next!.status, 'queued');
-      assert.match(next!.instructions as string, /do not start over/);
+      assert.match(next!.instructions as string, /do not start over/i);
       assert.match(next!.instructions as string, /commit bbbbbbb/);
       assert.match(next!.instructions as string, /Build the page/);
       assert.deepEqual(next!.origin, { runId: again });
       assert.equal(next!.requested_by, fixture!.userId);
    });
 
-   test('a run that is still recording events is not a stall', async () => {
+   test('a queued or running run is left as it is', async () => {
       const issueId = await task();
       const runId = randomUUID();
       const f = fixture!;
@@ -200,55 +192,60 @@ describe('continuation after a step limit', { skip: url ? false : 'BERRY_TEST_DA
                            branch, head_commit, requested_by, created_at, started_at)
          VALUES (${runId}, ${f.workspaceId}, ${issueId}, ${f.boardId}, ${f.agentId}, 'agent', 'assignment',
                  'running', 'agent/task', 'ccccccc3', ${f.userId}, now() - interval '10 minutes', now() - interval '10 minutes')`;
-      await sql`
-         INSERT INTO run_events (id, run_id, board_id, issue_id, sequence, event_type, payload, public, occurred_at)
-         VALUES (${randomUUID()}, ${runId}, ${f.boardId}, ${issueId}, 1, 'run.output.delta',
-                 ${sql.json({ text: 'still writing' } as never)}, true, now())`;
       await sql`UPDATE issues SET status = 'in_progress', active_run_id = ${runId} WHERE id = ${issueId}`;
-      const outcome = await restartStalled(sql, {
-         issueId,
-         requestedBy: f.userId,
-         cancel: async () => {
-            throw new Error('a live run must not be cancelled');
-         },
-      });
-      assert.deepEqual(outcome, { restarted: false, reason: 'not_stalled' });
+      assert.deepEqual(await restartTask(sql, { issueId, requestedBy: f.userId }), { restarted: false, reason: 'busy' });
+      const [still] = await sql`SELECT status FROM runs WHERE id = ${runId}`;
+      assert.equal(still!.status, 'running');
+
+      await sql`UPDATE runs SET status = 'queued', started_at = NULL WHERE id = ${runId}`;
+      await sql`UPDATE issues SET status = 'todo' WHERE id = ${issueId}`;
+      assert.deepEqual(await restartTask(sql, { issueId, requestedBy: f.userId }), { restarted: false, reason: 'busy' });
+      const [queued] = await sql`SELECT count(*)::int AS n FROM runs WHERE issue_id = ${issueId}`;
+      assert.equal(queued!.n, 1);
    });
 
-   test('a quiet running run is stopped and recovered from its branch', async () => {
+   test('a task in review starts again from the run that finished', async () => {
       const issueId = await task();
-      const runId = randomUUID();
-      const f = fixture!;
-      await sql`
-         INSERT INTO runs (id, workspace_id, issue_id, board_id, agent_id, kind, source, status,
-                           branch, head_commit, requested_by, prompt, created_at, started_at)
-         VALUES (${runId}, ${f.workspaceId}, ${issueId}, ${f.boardId}, ${f.agentId}, 'agent', 'assignment',
-                 'running', 'agent/task', 'ddddddd4', ${f.userId}, 'Keep going',
-                 now() - interval '10 minutes', now() - interval '10 minutes')`;
-      await sql`
-         INSERT INTO run_events (id, run_id, board_id, issue_id, sequence, event_type, payload, public, occurred_at)
-         VALUES (${randomUUID()}, ${runId}, ${f.boardId}, ${issueId}, 1, 'run.output.delta',
-                 ${sql.json({ text: 'paused' } as never)}, true, now() - interval '5 minutes')`;
-      await sql`UPDATE issues SET status = 'in_progress', active_run_id = ${runId} WHERE id = ${issueId}`;
-      const outcome = await restartStalled(sql, {
-         issueId,
-         requestedBy: f.userId,
-         cancel: async (id) => {
-            await sql`
-               UPDATE runs SET status = 'cancelled', completed_at = now(), updated_at = now()
-                WHERE id = ${id}`;
-            await sql`
-               UPDATE issues SET active_run_id = NULL, status = 'todo', updated_at = now()
-                WHERE active_run_id = ${id}`;
-         },
-      });
+      const runId = await ended(issueId, { code: null, commit: 'ddddddd4', prompt: 'Keep going' });
+      await sql`UPDATE issues SET status = 'in_review' WHERE id = ${issueId}`;
+      const outcome = await restartTask(sql, { issueId, requestedBy: fixture!.userId });
       assert.equal(outcome.restarted, true);
-      const [stopped] = await sql`SELECT status FROM runs WHERE id = ${runId}`;
-      assert.equal(stopped!.status, 'cancelled');
       const [next] = await sql`SELECT instructions, origin FROM runs WHERE id = ${outcome.restarted ? outcome.runId : ''}`;
       assert.match(next!.instructions as string, /commit ddddddd/);
       assert.match(next!.instructions as string, /Keep going/);
       assert.deepEqual(next!.origin, { runId });
+   });
+
+   test('a task that has never run is queued for its agent', async () => {
+      const issueId = await task();
+      const outcome = await restartTask(sql, { issueId, requestedBy: fixture!.userId });
+      assert.equal(outcome.restarted, true);
+      const [next] = await sql`
+         SELECT status, agent_id, source, prompt, origin FROM runs
+          WHERE id = ${outcome.restarted ? outcome.runId : ''}`;
+      assert.equal(next!.status, 'queued');
+      assert.equal(next!.agent_id, fixture!.agentId);
+      assert.equal(next!.source, 'assignment');
+      assert.equal(next!.prompt, null);
+      assert.deepEqual(next!.origin, {});
+   });
+
+   test('a done task or a task assigned to a person is not restarted', async () => {
+      const issueId = await task();
+      await sql`UPDATE issues SET status = 'done' WHERE id = ${issueId}`;
+      assert.deepEqual(await restartTask(sql, { issueId, requestedBy: fixture!.userId }), {
+         restarted: false,
+         reason: 'task_moved_on',
+      });
+      await sql`
+         UPDATE issues SET status = 'in_progress', assignee_type = 'user', assignee_id = ${fixture!.userId}
+          WHERE id = ${issueId}`;
+      assert.deepEqual(await restartTask(sql, { issueId, requestedBy: fixture!.userId }), {
+         restarted: false,
+         reason: 'task_moved_on',
+      });
+      const [queued] = await sql`SELECT count(*)::int AS n FROM runs WHERE issue_id = ${issueId} AND status = 'queued'`;
+      assert.equal(queued!.n, 0);
    });
 
    test('a second fault in a row stands, and a final failure is never retried', async () => {
@@ -301,11 +298,22 @@ test('a recovering run is told where the work is and not to start over', () => {
       commit: '0d4c86caaaaaaa',
       prior: 'Fix the merge.',
    });
-   assert.match(text, /do not start over/);
+   assert.match(text, /starts again from the work already saved/);
+   assert.match(text, /do not start over/i);
    assert.match(text, /branch software-engineer\/ber-106 \(commit 0d4c86c\)/);
    assert.match(text, /Fix the merge\./);
    const again = recoveryInstructions({ branch: null, commit: null, prior: text });
-   assert.equal(again.split('The previous run stalled').length, 2);
+   assert.equal(again.split('This run starts again').length, 2);
+});
+
+test('restart is for a task in to do, in progress, or in review', () => {
+   assert.equal(taskCanBeRestarted('todo'), true);
+   assert.equal(taskCanBeRestarted('in_progress'), true);
+   assert.equal(taskCanBeRestarted('in_review'), true);
+   assert.equal(taskCanBeRestarted('blocked'), false);
+   assert.equal(taskCanBeRestarted('backlog'), false);
+   assert.equal(taskCanBeRestarted('done'), false);
+   assert.equal(taskCanBeRestarted('cancelled'), false);
 });
 
 test('a stall is a retryable failure, or a run that has gone quiet', () => {
