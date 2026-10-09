@@ -139,10 +139,17 @@ When a workspace has a connected **subscription AI runtime** under
 [ADR-0019](docs/adr/0019-subscription-ai-runtimes.md), agent runs use it
 instead of Bedrock or Kilo. This is separate from the AgentCore/HTTP compute
 host and from the underlying model provider. The connection id is snapshotted
-on the run. A failed or disconnected subscription does not fall back to
-native/API billing, and an explicit Berry-managed override on one task stays
-on the deployment model. Completion calls stay on Bedrock or Kilo. Kiro CLI runs on the user
-workstation, not inside that container. Every other requested product stays
+on the run. Resolution order is the task override, then the project's
+runtime, then the person's preference, then that person's newest connection,
+then the workspace's newest connection. A failed or disconnected subscription
+does not fall back to native/API billing, and an explicit Berry-managed
+override on one task stays on the deployment model. Completion calls stay on
+Bedrock or Kilo. Kiro is the only connectable runtime: `kiro-cli acp
+--agent-engine=v3` on the workstation, not a container Berry runs, and not
+inside the runtime image. With Kiro connected, Settings → Model tiers places
+Kiro models on BerryMax, BerryMid and BerryLow; the same model may sit on
+more than one tier, and a run with no explicit model uses the first model on
+the agent's tier that Kiro offers. Every other requested product stays
 visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
 
 **The organization gates and routes agent work.** Each role agent has a

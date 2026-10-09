@@ -136,6 +136,11 @@ tiers use the models your own provider key added to the Kilo account serves, suc
 your Bedrock key, unless `BERRY_KILO_ANY_PROVIDER=true` — and a run's cost is exactly
 what Kilo reports for it. The
 `BERRY_BEDROCK_*` settings stay in use for speech and video either way.
+When a Kiro subscription is connected, agent runs use that instead, and
+Settings → Model tiers places Kiro's models on the same three tiers. The
+same model may sit on more than one tier. Kiro runs as `kiro-cli` on this
+workstation; it does not run in the runtime image and it does not give Berry
+a container per model.
 
 Without a runtime target, `agentExecution` reports `false` in `GET /api/v1/config` and
 the dispatcher, scheduler and review gate simply do not start — the rest of Berry works

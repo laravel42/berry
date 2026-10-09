@@ -69,9 +69,9 @@ what a folder is allowed to do.
 | `core/` | The tracker itself: `boards`, `issues`, `comments`, `dependencies`, `reviews`, `goals`, `projects`, `attachments`. | domain |
 | `organization/` | The role catalog, autonomy ceilings, provisioning, discovery and work proposals. See [below](#the-organization). | domain |
 | `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
-| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryMid, BerryLow and BerryFree (BerryAuto is `kilo-auto/efficient`), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
+| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryMid and BerryLow (BerryFree and BerryAuto were removed on 2026-09-27), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
 | `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
-| `agents/runtime/` | Code that runs *inside* the runtime image, never in the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes behind a separate interface; the first is the GitHub Copilot SDK in multi-user `empty` mode. Only this tree may import model or agent SDKs (`check:models`). | integration (builds into the runtime image) |
+| `agents/runtime/` | Code that runs *inside* the runtime image, never imported as a model SDK by the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes. Kiro is the one that runs: the product server starts `kiro-cli acp --agent-engine=v3` on the workstation (`runtime/workstation-kiro.ts`), and the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; Kiro does not) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
 | `plans/` | The planner: `repository`, `generator`, `triage` (routing), `answers`. | domain + integration |
 | `conversations/` | Conversation threads and their model-backed responder. | domain + integration |
@@ -171,13 +171,13 @@ user-scoped agent-process selection from ADR-0019.
   model, and `GET /api/v1/config` reports `modelGateway: true`. The
   `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
 - **User-scoped agent process** (ADR-0019) — the run snapshots an AI-runtime
-  key, model and connection owned by its requester. The runtime image invokes
-  that provider-owned loop and normalizes its text, tool, usage and terminal
-  events into Berry's lifecycle stream. There is no fallback to the native
-  provider. GitHub Copilot is the initial adapter: one OAuth user token per
-  SDK session, `mode: "empty"`, ambient credentials/tools disabled, and only
-  the intersection of Berry's contract and permissions registered as tools.
-  See [`docs/ai-runtimes.md`](../docs/ai-runtimes.md).
+  key, model and connection. Kiro is the only connectable one. The product
+  server starts `kiro-cli` on the workstation, rewrites the envelope callback
+  to `127.0.0.1` on the API port, and records the CLI's text, tool, usage and
+  terminal events. Usage from a subscription is stored unpriced. There is no
+  fallback to Bedrock or Kilo, and Kiro does not hand Berry a container to
+  run. GitHub Copilot is not a runtime. See
+  [`docs/ai-runtimes.md`](../docs/ai-runtimes.md).
 
 ## Agent execution: the control plane
 
@@ -230,14 +230,13 @@ them:
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
    separately.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
-   from `src/agents/runtime/` (the native Strands loop, Bedrock/Kilo clients,
-   and provider-owned adapters such as the pinned GitHub Copilot agent
-   runtime) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
-   and `src/scm/commit-trailer.ts`. `deploy.sh` builds, pushes and publishes it
-   to AWS; it needs account-owner credentials, and with
-   `BERRY_MODEL_PROVIDER=kilo` it passes the Kilo settings to the runtime.
-   Native `runtimeSessionId` is stable per agent/task; a personal adapter adds
-   the connection id before hashing so another user receives another session.
+   from `src/agents/runtime/` (the native Strands loop and Bedrock/Kilo
+   clients) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
+   and `src/scm/commit-trailer.ts`. The container adapter registry is empty:
+   Kiro is a workstation process, not an image. `deploy.sh` builds, pushes
+   and publishes the image to AWS; it needs account-owner credentials, and
+   with `BERRY_MODEL_PROVIDER=kilo` it passes the Kilo settings to the
+   runtime. Native `runtimeSessionId` is stable per agent/task.
 
 ## The organization
 

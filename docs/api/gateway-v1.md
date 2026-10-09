@@ -929,9 +929,14 @@ connection, and the connection id is part of the provider session identity.
 | `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Kiro takes `{ apiKey }` — a `ksk_` subscription key — seals it, and never returns it |
 | `DELETE /api/v1/runtimes/connections/{runtimeId}` | Disconnect, clear this user's matching default, and cancel active runs using the connection |
 | `GET`, `PUT /api/v1/runtimes/preference` | Read / replace this user's default `{ runtimeId, modelId }`; both null selects the native deployment runtime |
+| `GET`, `PUT /api/v1/runtimes/tier-models` | Read / replace the workspace's BerryMax, BerryMid and BerryLow model lists. Each entry is `runtime/model`. A model may appear on more than one tier, at most three times per tier, and only once inside a tier. Admin write |
+| `GET`, `PUT /api/v1/runtimes/agent-tiers` | Read / replace which subscription agents the workspace placed on each tier. The task console does not pick one |
 | `GET /api/v1/runtimes/connections/{runtimeId}/models` | Discover models from the connected runtime; returns `{ nodes, complete, detail }` |
-| `GET`, `PUT /api/v1/issues/{ref}/runtime-selection` | Read / replace a task override; null inherits the user preference, `berry-native` forces native |
+| `GET`, `PUT /api/v1/issues/{ref}/runtime-selection` | Read / replace a task override. Null inherits the project, then the user preference. `berry-native` forces native |
+| `GET`, `PUT /api/v1/projects/{projectId}/runtime-selection` | Read / replace the project's runtime, used when the task has none |
 | `GET`, `PUT /api/v1/conversations/{id}/runtime-selection` | Read / replace a conversation override under participant authorization |
+
+An agent run resolves its subscription in this order: the task override, the project's runtime, the authorizing person's preference, that person's newest connection, then the workspace's newest connection. Native Bedrock or Kilo is used only when nothing is connected. A run with no explicit model uses the first model on the Berry agent's tier that the chosen runtime offers.
 
 A selected subscription runtime never falls back to Bedrock, Kilo, an API
 key, another model, or another user's account. Expected failures use stable
