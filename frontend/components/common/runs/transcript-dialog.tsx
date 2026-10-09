@@ -28,7 +28,6 @@ import {
    type RunEvent,
    type RunRecord,
 } from '@/lib/runs';
-import { formatCost, formatTokens } from '@/lib/usage';
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, Copy, ListFilter, Search, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -153,6 +152,21 @@ function detailOf(value: unknown): StepDetail | null {
    if (typeof raw.count === 'number') detail.count = raw.count;
    if (typeof raw.exitCode === 'number') detail.exitCode = raw.exitCode;
    return Object.keys(detail).length > 0 ? detail : null;
+}
+
+/**
+ * Kiro sometimes writes its tool call in the assistant text as a DSML block.
+ * The console already shows the tool step, so the markup is not part of the
+ * transcript. An unclosed block is still arriving and is hidden the same way.
+ */
+export function stripDsmlFunctionCalls(text: string): string {
+   return text
+      .replace(
+         /<(?:｜|\|)DSML(?:｜|\|)function_calls[\s\S]*?(?:<\/(?:｜|\|)DSML(?:｜|\|)function_calls>|$)/g,
+         ''
+      )
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
 }
 
 /** A thinking passage ends when the next step begins: that is its duration. */
@@ -388,6 +402,7 @@ function StepCard({
    current: boolean;
 }) {
    const t = useTranslations('issueDetail.transcript');
+   const result = isProse(step.kind) ? stripDsmlFunctionCalls(step.result) : step.result;
    return (
       // A row of a log, not a card: rows are ruled apart by the list, the kind
       // sits in a fixed column so titles line up, and the search's current
@@ -442,9 +457,9 @@ function StepCard({
                   aria-label={t('succeeded')}
                />
             ) : null}
-            {isProse(step.kind) && step.result.trim() ? (
+            {isProse(step.kind) && result ? (
                <span className="self-center">
-                  <CopyButton text={step.result} label={t(`row.${step.kind}`)} />
+                  <CopyButton text={result} label={t(`row.${step.kind}`)} />
                </span>
             ) : null}
          </div>
@@ -459,16 +474,16 @@ function StepCard({
             </div>
          ) : null}
 
-         {step.result.trim() ? (
+         {result.trim() ? (
             <div className="mt-2 sm:pl-[6.25rem]">
                {isProse(step.kind) ? null : (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                      <span>{t('result')}</span>
-                     <CopyButton text={step.result} label={t('result')} />
+                     <CopyButton text={result} label={t('result')} />
                   </div>
                )}
                <StepBody
-                  text={step.result}
+                  text={result}
                   query={highlight}
                   maxHeight="18rem"
                   prose={isProse(step.kind)}
@@ -812,14 +827,22 @@ export function RunTranscript({
    const visible = useMemo(() => {
       // Reasoning stays off the log. While the agent is reasoning the thinking
       // row is the whole signal; the passage itself is never shown.
-      const spoken = withFailure.filter((step) => step.kind !== 'reasoning');
+      const spoken = withFailure.filter((step) => {
+         if (step.kind === 'reasoning') return false;
+         if (step.kind === 'thinking' && stripDsmlFunctionCalls(step.result) === '') return false;
+         return true;
+      });
       const byKind =
          kinds.length === 0 ? spoken : spoken.filter((step) => kinds.includes(step.kind));
       const needle = query.trim().toLowerCase();
       const matched = !needle
          ? byKind
          : byKind.filter((step) =>
-              `${step.title}\n${step.input ?? ''}\n${step.result}`.toLowerCase().includes(needle)
+              `${step.title}\n${step.input ?? ''}\n${
+                 step.kind === 'thinking' ? stripDsmlFunctionCalls(step.result) : step.result
+              }`
+                 .toLowerCase()
+                 .includes(needle)
            );
       // Newest first: the last thing an agent did is the thing being waited on.
       // Oldest first reads as it happened, the latest at the foot.
@@ -992,9 +1015,6 @@ export function RunTranscript({
       return () => window.clearInterval(timer);
    }, [runId, live]);
 
-   const totalTokens = run ? run.usage.totalTokens : 0;
-   const cost = run?.usage.costMicros ?? null;
-
    return (
       <div className={cn('flex flex-col', className)}>
          {header?.(status || run?.status || '')}
@@ -1132,21 +1152,11 @@ export function RunTranscript({
             </div>
          </div>
 
-         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2.5 text-muted-foreground">
-            {footerInfo}
-            <span>
-               {t('tokens')}{' '}
-               <span className="tabular-nums text-foreground">{formatTokens(totalTokens)}</span>
-            </span>
-            <span>
-               {t('cost')}{' '}
-               <span className="tabular-nums text-foreground">
-                  {/* No price is unknown, not free: tokens spent on a model with no
-                         published price must not read as $0. */}
-                  {cost === null && totalTokens > 0 ? t('unpriced') : formatCost(cost ?? 0)}
-               </span>
-            </span>
-         </div>
+         {footerInfo ? (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t px-4 py-2.5 text-muted-foreground">
+               {footerInfo}
+            </div>
+         ) : null}
       </div>
    );
 }

@@ -248,6 +248,7 @@
             "berry_low": "Lowest cost"
          },
          "noModel": "No model today",
+         "subscription": "Agent runs use {runtimes}.",
          "leaderboardUnavailable": "Leaderboard unavailable",
          "pinned": "Pinned: {model}",
          "useTier": "Use tier"

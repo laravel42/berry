@@ -20,6 +20,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { ProjectProgressChart } from './project-progress-chart';
+import { RuntimeSelectionControl } from '@/components/common/runtimes/runtime-selection';
 import { LeadAvatarButton, LeadPicker, leadCandidates } from '../lead-picker';
 import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
@@ -142,6 +143,19 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
          <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
             <SidebarSection title="Properties">
                <div className="flex flex-col gap-1.5">
+                  {/* No -ml: the lead control is a filled circle, not a padded
+                      ghost icon — negative margin clipped the avatar. */}
+                  <div className="flex items-center gap-1.5">
+                     <LeadPicker
+                        lead={project.lead}
+                        candidates={leadCandidates(members, project.lead)}
+                        onChange={(member) => updateProjectLead(project.id, member)}
+                     >
+                        <LeadAvatarButton lead={project.lead} />
+                     </LeadPicker>
+                     <span className="truncate">{project.lead.name}</span>
+                     <RuntimeSelectionControl target={{ kind: 'project', id: project.id }} />
+                  </div>
                   <div className="flex items-center gap-1.5 -ml-1.5">
                      <StatusPicker
                         variant="icon"
@@ -162,18 +176,6 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                   <div className="flex items-center gap-1.5 -ml-1.5">
                      <HealthPopover project={project} showLabel={false} />
                      <span>{project.health.name}</span>
-                  </div>
-                  {/* No -ml: the lead control is a filled circle, not a padded
-                      ghost icon — negative margin clipped the avatar. */}
-                  <div className="flex items-center gap-1.5">
-                     <LeadPicker
-                        lead={project.lead}
-                        candidates={leadCandidates(members, project.lead)}
-                        onChange={(member) => updateProjectLead(project.id, member)}
-                     >
-                        <LeadAvatarButton lead={project.lead} />
-                     </LeadPicker>
-                     <span className="truncate">{project.lead.name}</span>
                   </div>
                   <div className="flex min-w-0 items-center gap-1.5 -ml-1.5">
                      <RepositorySelector project={project} />
@@ -311,6 +313,7 @@ export function ProjectPropertiesPanel({
                      <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
                   </Avatar>
                   <span className="truncate max-w-36">{project.lead.name}</span>
+                  <RuntimeSelectionControl target={{ kind: 'project', id: project.id }} />
                </PropertyRow>
                <PropertyRow label="Members">
                   {members.length > 0 ? (

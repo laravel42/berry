@@ -36,6 +36,7 @@ const runSchema = z.object({
    requestedBy: z.object({ type: z.string(), id: z.string() }).nullish(),
    aiRuntimeId: z.string().nullish(),
    aiModelId: z.string().nullish(),
+   aiRuntimeAgent: z.string().nullish(),
    aiRuntimeAccount: z
       .object({
          id: z.string().nullable(),
@@ -550,19 +551,13 @@ export function runToActivityItems(run: RunRecord, actor: User): ActivityItem[] 
    // the agent's final message to the issue as the agent's own comment, which
    // is the record a person replies to; rendering run.summary beside it showed
    // every finished task's result twice, from two sources holding the same
-   // text. What the run contributes to the thread is that it happened and what
-   // it cost — the event above.
+   // text. What the run contributes to the thread is that it happened.
    return items;
 }
 
 function runOutcomeText(run: RunRecord): string {
    const duration = runDurationMs(run);
-   const parts: string[] = [];
-   if (duration !== null) parts.push(formatRunDuration(duration));
-   if (run.usage.totalTokens > 0) {
-      parts.push(`${run.usage.totalTokens.toLocaleString()} tokens`);
-   }
-   const detail = parts.length > 0 ? ` · ${parts.join(' · ')}` : '';
+   const detail = duration !== null ? ` · ${formatRunDuration(duration)}` : '';
 
    switch (run.status) {
       case 'succeeded':

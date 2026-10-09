@@ -287,8 +287,10 @@ const aiRuntimeCatalogSchema = z.object({
 const aiRuntimeSelectionSchema = z.object({
    runtimeId: z.string().nullable(),
    modelId: z.string().nullable(),
+   agentId: z.string().nullable().optional(),
 });
 const aiRuntimeModelSchema = z.object({ id: z.string(), name: z.string() });
+const aiRuntimeAgentSchema = z.object({ id: z.string(), name: z.string() });
 
 export type AiRuntimeConnection = z.infer<typeof aiRuntimeConnectionSchema>;
 export type AiRuntimeDefinition = z.infer<typeof aiRuntimeDefinitionSchema>;
@@ -296,12 +298,97 @@ export type AiRuntimePreference = z.infer<typeof aiRuntimePreferenceSchema>;
 export type AiRuntimeCatalog = z.infer<typeof aiRuntimeCatalogSchema>;
 export type AiRuntimeSelection = z.infer<typeof aiRuntimeSelectionSchema>;
 export type AiRuntimeModel = z.infer<typeof aiRuntimeModelSchema>;
+export type AiRuntimeAgentProfile = z.infer<typeof aiRuntimeAgentSchema>;
+
+/** Provider agent profiles cached on the connection, such as Kiro's built-in agents. */
+export function aiRuntimeAgentsFrom(
+   runtime: AiRuntimeDefinition | undefined
+): AiRuntimeAgentProfile[] {
+   const agents = z.array(aiRuntimeAgentSchema).safeParse(runtime?.connection?.metadata.agents);
+   return agents.success ? agents.data : [];
+}
 
 /** Reads only the model catalogue cached on this immutable connection generation. */
 export function aiRuntimeModelsFrom(runtime: AiRuntimeDefinition | undefined): AiRuntimeModel[] {
-   const fallback = [{ id: runtime?.defaultModel ?? 'auto', name: 'Automatic' }];
+   const fallback = [{ id: runtime?.defaultModel ?? 'default', name: 'Automatic' }];
    const models = z.array(aiRuntimeModelSchema).safeParse(runtime?.connection?.metadata.models);
    return models.success && models.data.length > 0 ? models.data : fallback;
+}
+
+/** Subscription runtimes this person has connected. Empty when none, or when the catalog cannot be read. */
+export async function connectedAiRuntimes(): Promise<AiRuntimeDefinition[]> {
+   try {
+      const catalog = await loadAiRuntimeCatalog();
+      return catalog.nodes.filter(
+         (runtime) =>
+            runtime.availability === 'available' && runtime.connection?.status === 'connected'
+      );
+   } catch {
+      return [];
+   }
+}
+
+const runtimeAgentTierPlacementSchema = z.object({
+   berry_max: z.array(z.string()),
+   berry_mid: z.array(z.string()),
+   berry_low: z.array(z.string()),
+});
+const runtimeAgentTiersSchema = z.object({
+   source: z.enum(['workspace', 'unset']),
+   tiers: runtimeAgentTierPlacementSchema,
+});
+
+export type RuntimeAgentTierPlacement = z.infer<typeof runtimeAgentTierPlacementSchema>;
+export type RuntimeAgentTiers = z.infer<typeof runtimeAgentTiersSchema>;
+
+export const EMPTY_AGENT_TIERS: RuntimeAgentTierPlacement = {
+   berry_max: [],
+   berry_mid: [],
+   berry_low: [],
+};
+
+/** Which tier each agent is on. The three tiers belong to the workspace. */
+export async function getRuntimeAgentTiers(): Promise<RuntimeAgentTiers> {
+   return parse(
+      runtimeAgentTiersSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/agent-tiers'),
+      'Agent tiers'
+   );
+}
+
+export async function saveRuntimeAgentTiers(
+   placement: RuntimeAgentTierPlacement | null
+): Promise<RuntimeAgentTiers> {
+   return parse(
+      runtimeAgentTiersSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/agent-tiers', send('PUT', { placement })),
+      'Agent tiers'
+   );
+}
+
+/** Models placed in the workspace's three tiers. Each id is `runtime/model`. */
+export async function getTierModels(): Promise<RuntimeAgentTiers> {
+   return parse(
+      runtimeAgentTiersSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/tier-models'),
+      'Tier models'
+   );
+}
+
+export async function saveTierModels(
+   placement: RuntimeAgentTierPlacement | null
+): Promise<RuntimeAgentTiers> {
+   return parse(
+      runtimeAgentTiersSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/tier-models', send('PUT', { placement })),
+      'Tier models'
+   );
+}
+
+/** Names of subscription runtimes this person has connected. Empty when none, or when the catalog cannot be read. */
+export async function connectedSubscriptionNames(): Promise<string[]> {
+   const runtimes = await connectedAiRuntimes();
+   return runtimes.map((runtime) => runtime.name);
 }
 
 export async function loadAiRuntimeCatalog(): Promise<AiRuntimeCatalog> {
@@ -356,6 +443,30 @@ export async function listAiRuntimeModels(
          `/api/v1/runtimes/connections/${encodeURIComponent(runtimeId)}/models`
       ),
       'AI runtime models'
+   );
+}
+
+export async function getProjectRuntimeSelection(projectId: string): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/projects/${encodeURIComponent(projectId)}/runtime-selection`
+      ),
+      'Project runtime selection'
+   );
+}
+
+export async function saveProjectRuntimeSelection(
+   projectId: string,
+   selection: AiRuntimeSelection
+): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/projects/${encodeURIComponent(projectId)}/runtime-selection`,
+         send('PUT', selection)
+      ),
+      'Project runtime selection'
    );
 }
 

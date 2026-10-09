@@ -13,9 +13,11 @@ import {
    aiRuntimeModelsFrom,
    getConversationRuntimeSelection,
    getIssueRuntimeSelection,
+   getProjectRuntimeSelection,
    loadAiRuntimeCatalog,
    saveConversationRuntimeSelection,
    saveIssueRuntimeSelection,
+   saveProjectRuntimeSelection,
    type AiRuntimeCatalog,
    type AiRuntimeSelection,
 } from '@/lib/runtimes';
@@ -32,7 +34,7 @@ export function RuntimeSelectionControl({
    disabled,
    className,
 }: {
-   target: { kind: 'issue' | 'conversation'; id: string };
+   target: { kind: 'issue' | 'conversation' | 'project'; id: string };
    disabled?: boolean;
    className?: string;
 }) {
@@ -45,7 +47,9 @@ export function RuntimeSelectionControl({
       const readSelection =
          target.kind === 'issue'
             ? getIssueRuntimeSelection(target.id)
-            : getConversationRuntimeSelection(target.id);
+            : target.kind === 'project'
+              ? getProjectRuntimeSelection(target.id)
+              : getConversationRuntimeSelection(target.id);
       void Promise.all([loadAiRuntimeCatalog(), readSelection]).then(
          ([nextCatalog, nextSelection]) => {
             if (cancelled) return;
@@ -61,14 +65,6 @@ export function RuntimeSelectionControl({
 
    const selectedRuntime = selection?.runtimeId ?? INHERIT;
    const definition = catalog?.nodes.find((runtime) => runtime.id === selection?.runtimeId);
-   const models = useMemo(() => aiRuntimeModelsFrom(definition), [definition]);
-   const label =
-      selectedRuntime === INHERIT
-         ? 'Workspace default'
-         : selectedRuntime === NATIVE
-           ? (catalog?.native.name ?? 'Berry managed')
-           : (definition?.name ?? selectedRuntime);
-
    const connected = useMemo(
       () =>
          (catalog?.nodes ?? []).filter(
@@ -77,6 +73,12 @@ export function RuntimeSelectionControl({
          ),
       [catalog]
    );
+   const label =
+      selectedRuntime === INHERIT
+         ? (connected[0]?.name ?? 'Workspace default')
+         : selectedRuntime === NATIVE
+           ? (catalog?.native.name ?? 'Berry managed')
+           : (definition?.name ?? selectedRuntime);
 
    const save = async (next: AiRuntimeSelection) => {
       setSaving(true);
@@ -84,7 +86,9 @@ export function RuntimeSelectionControl({
          const saved =
             target.kind === 'issue'
                ? await saveIssueRuntimeSelection(target.id, next)
-               : await saveConversationRuntimeSelection(target.id, next);
+               : target.kind === 'project'
+                 ? await saveProjectRuntimeSelection(target.id, next)
+                 : await saveConversationRuntimeSelection(target.id, next);
          setSelection(saved);
       } catch (error) {
          toast.error(
@@ -97,12 +101,24 @@ export function RuntimeSelectionControl({
 
    const chooseRuntime = (runtimeId: string) => {
       if (runtimeId === selectedRuntime) return;
-      if (runtimeId === INHERIT) return void save({ runtimeId: null, modelId: null });
-      if (runtimeId === NATIVE) return void save({ runtimeId: NATIVE, modelId: null });
+      if (runtimeId === INHERIT)
+         return void save({ runtimeId: null, modelId: null, agentId: null });
+      if (runtimeId === NATIVE)
+         return void save({ runtimeId: NATIVE, modelId: null, agentId: null });
       const runtime = connected.find((candidate) => candidate.id === runtimeId);
       if (!runtime) return;
-      void save({ runtimeId, modelId: runtime.defaultModel ?? 'auto' });
+      const first = aiRuntimeModelsFrom(runtime)[0];
+      void save({
+         runtimeId,
+         modelId: first?.id ?? runtime.defaultModel ?? 'default',
+         agentId: null,
+      });
    };
+
+   const effective = definition ?? (selectedRuntime === INHERIT ? connected[0] : undefined);
+   const effectiveModels = useMemo(() => aiRuntimeModelsFrom(effective), [effective]);
+   const modelValue =
+      selection?.modelId ?? effective?.defaultModel ?? effectiveModels[0]?.id ?? 'default';
 
    return (
       <div className={cn('flex min-w-0 items-center gap-1', className)}>
@@ -112,7 +128,7 @@ export function RuntimeSelectionControl({
                   type="button"
                   disabled={disabled || saving || !catalog || !selection}
                   aria-label="AI runtime for this work"
-                  className="inline-flex h-8 max-w-48 items-center gap-1.5 rounded-md border border-border/60 bg-container px-2.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60 max-sm:size-8 max-sm:px-0 max-sm:justify-center"
+                  className="inline-flex h-8 max-w-64 items-center gap-1.5 rounded-md border border-border/60 bg-container px-2.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60 max-sm:size-8 max-sm:px-0 max-sm:justify-center"
                >
                   <Cpu className="size-3.5 shrink-0" aria-hidden />
                   <span className="min-w-0 truncate max-sm:sr-only">{label}</span>
@@ -138,17 +154,17 @@ export function RuntimeSelectionControl({
                      </p>
                   </>
                ) : null}
-               {selection?.runtimeId && selection.runtimeId !== NATIVE && models.length > 0 ? (
+               {effective && effectiveModels.length > 0 ? (
                   <>
                      <DropdownMenuSeparator />
                      <DropdownMenuLabel>Model</DropdownMenuLabel>
                      <DropdownMenuRadioGroup
-                        value={selection.modelId ?? definition?.defaultModel ?? 'auto'}
+                        value={modelValue}
                         onValueChange={(modelId) =>
-                           void save({ runtimeId: selection.runtimeId, modelId })
+                           void save({ runtimeId: effective.id, modelId, agentId: null })
                         }
                      >
-                        {models.map((model) => (
+                        {effectiveModels.map((model) => (
                            <DropdownMenuRadioItem key={model.id} value={model.id}>
                               {model.name}
                            </DropdownMenuRadioItem>
@@ -159,7 +175,7 @@ export function RuntimeSelectionControl({
             </DropdownMenuContent>
          </DropdownMenu>
 
-         {selection?.runtimeId && selection.runtimeId !== NATIVE && models.length > 0 ? (
+         {effective && effectiveModels.length > 0 ? (
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <button
@@ -169,8 +185,7 @@ export function RuntimeSelectionControl({
                      className="inline-flex h-8 max-w-40 items-center gap-1 rounded-md border border-border/60 bg-container px-2.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60 max-sm:hidden"
                   >
                      <span className="min-w-0 truncate">
-                        {models.find((model) => model.id === selection.modelId)?.name ??
-                           selection.modelId ??
+                        {effectiveModels.find((model) => model.id === modelValue)?.name ??
                            'Automatic'}
                      </span>
                      <ChevronDown className="size-3.5 shrink-0" aria-hidden />
@@ -179,12 +194,12 @@ export function RuntimeSelectionControl({
                <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Model</DropdownMenuLabel>
                   <DropdownMenuRadioGroup
-                     value={selection.modelId ?? definition?.defaultModel ?? 'auto'}
+                     value={modelValue}
                      onValueChange={(modelId) =>
-                        void save({ runtimeId: selection.runtimeId, modelId })
+                        void save({ runtimeId: effective.id, modelId, agentId: null })
                      }
                   >
-                     {models.map((model) => (
+                     {effectiveModels.map((model) => (
                         <DropdownMenuRadioItem key={model.id} value={model.id}>
                            {model.name}
                         </DropdownMenuRadioItem>

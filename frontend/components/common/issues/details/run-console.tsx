@@ -187,22 +187,16 @@ export function RunConsole({ issueId }: { issueId: string }) {
          <div className="pointer-events-none relative z-20 h-0 shrink-0">
             <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
                {canRestart ? (
-                  <>
-                     <RuntimeSelectionControl
-                        target={{ kind: 'issue', id: issueId }}
-                        disabled={restarting}
-                     />
-                     <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={restarting}
-                        onClick={() => void restart()}
-                        className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
-                     >
-                        <RotateCcw className="size-4" aria-hidden />
-                        {t('restart')}
-                     </Button>
-                  </>
+                  <Button
+                     variant="outline"
+                     size="sm"
+                     disabled={restarting}
+                     onClick={() => void restart()}
+                     className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
+                  >
+                     <RotateCcw className="size-4" aria-hidden />
+                     {t('restart')}
+                  </Button>
                ) : null}
                <Button
                   variant="outline"
@@ -278,22 +272,16 @@ export function RunConsole({ issueId }: { issueId: string }) {
                </Button>
             ) : null}
             {canRestart ? (
-               <>
-                  <RuntimeSelectionControl
-                     target={{ kind: 'issue', id: issueId }}
-                     disabled={restarting}
-                  />
-                  <Button
-                     variant="ghost"
-                     size="xs"
-                     className="shrink-0 text-berry hover:bg-berry/15 hover:text-berry"
-                     disabled={restarting}
-                     onClick={() => void restart()}
-                  >
-                     <RotateCcw className="size-3.5" aria-hidden />
-                     {t('restart')}
-                  </Button>
-               </>
+               <Button
+                  variant="ghost"
+                  size="xs"
+                  className="shrink-0 text-berry hover:bg-berry/15 hover:text-berry"
+                  disabled={restarting}
+                  onClick={() => void restart()}
+               >
+                  <RotateCcw className="size-3.5" aria-hidden />
+                  {t('restart')}
+               </Button>
             ) : null}
             {live ? (
                <Button

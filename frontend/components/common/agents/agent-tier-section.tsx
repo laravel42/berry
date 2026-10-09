@@ -16,6 +16,13 @@ import {
    type RankedModel,
    type Tier,
 } from '@/lib/agents';
+import {
+   aiRuntimeModelsFrom,
+   connectedAiRuntimes,
+   EMPTY_AGENT_TIERS,
+   getTierModels,
+   type RuntimeAgentTierPlacement,
+} from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 
 /** The list's order: the three tiers, best first. */
@@ -94,6 +101,9 @@ export function AgentTierSection({
 }: AgentTierSectionProps) {
    const t = useTranslations('agentsChat.detail.tiers');
    const [board, setBoard] = useState<Leaderboard>({ status: 'loading' });
+   const [subscriptions, setSubscriptions] = useState<string[]>([]);
+   const [placedModels, setPlacedModels] = useState<RuntimeAgentTierPlacement>(EMPTY_AGENT_TIERS);
+   const [modelNames, setModelNames] = useState<Map<string, string>>(new Map());
 
    const recommended = roleDefaultTier(agent);
    const effective = tier ?? recommended;
@@ -112,6 +122,33 @@ export function AgentTierSection({
          alive = false;
       };
    }, []);
+
+   useEffect(() => {
+      let alive = true;
+      void Promise.all([
+         connectedAiRuntimes(),
+         getTierModels().catch(() => ({
+            source: 'unset' as const,
+            tiers: EMPTY_AGENT_TIERS,
+         })),
+      ]).then(([runtimes, tiers]) => {
+         if (!alive) return;
+         setSubscriptions(runtimes.map((runtime) => runtime.name));
+         const names = new Map<string, string>();
+         for (const runtime of runtimes) {
+            for (const model of aiRuntimeModelsFrom(runtime)) {
+               names.set(`${runtime.id}/${model.id}`, model.name);
+            }
+         }
+         setModelNames(names);
+         setPlacedModels(tiers.tiers);
+      });
+      return () => {
+         alive = false;
+      };
+   }, []);
+
+   const onSubscription = subscriptions.length > 0;
 
    const data = board.status === 'ready' ? board.data : null;
    const modelsOf = (name: Tier): RankedModel[] =>
@@ -151,14 +188,23 @@ export function AgentTierSection({
                   <Check aria-hidden className={cn('size-4 shrink-0', TIER_CARD[name].check)} />
                ) : null}
             </span>
-            {data && models.length === 0 ? (
+            {data && models.length === 0 && !onSubscription ? (
                <span className="text-muted-foreground">{t('noModel')}</span>
             ) : null}
-            {models.length > 0 ? (
+            {models.length > 0 && !onSubscription ? (
                <span className="flex w-full min-w-0 flex-col text-muted-foreground">
                   {models.map((entry) => (
                      <span key={entry.id} className="truncate" title={entry.id}>
                         {modelName(entry.name)}
+                     </span>
+                  ))}
+               </span>
+            ) : null}
+            {onSubscription && placedModels[name].length > 0 ? (
+               <span className="flex w-full min-w-0 flex-col text-muted-foreground">
+                  {placedModels[name].map((id) => (
+                     <span key={id} className="truncate" title={id}>
+                        {modelNames.get(id) ?? id}
                      </span>
                   ))}
                </span>
@@ -180,6 +226,16 @@ export function AgentTierSection({
                ) : null}
             </div>
          )}
+
+         {onSubscription ? (
+            <p className="text-muted-foreground">
+               {t('subscription', {
+                  runtimes: new Intl.ListFormat('en', { type: 'conjunction' }).format(
+                     subscriptions
+                  ),
+               })}
+            </p>
+         ) : null}
 
          <div role="radiogroup" aria-label={t('title')} className="grid gap-2 sm:grid-cols-3">
             {TIER_ORDER.map(option)}

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, within } from 'storybook/test';
+import { expect } from 'storybook/test';
 
 import { useIssueRunsStore } from '@/store/issue-runs-store';
 
@@ -85,18 +85,17 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The sidebar summary; the breakdown opens in a dialog (portal). */
+/** The sidebar names the models and the run count. Token totals and spend stay hidden. */
 export const WithUsage: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'See the breakdown' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await expect(
-         await body.findByRole('dialog', { name: 'What this task has cost' })
-      ).toBeVisible();
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('Models')).toBeVisible();
+      await expect(canvas.getByText('Runs')).toBeVisible();
+      await expect(canvas.queryByText('Tokens')).toBeNull();
+      await expect(canvas.queryByText('Cost')).toBeNull();
    },
 };
 
-/** An unpriced model marks the cost with an asterisk. */
+/** Spend is not shown, including when some events have no price. */
 export const PartlyUnpriced: Story = {
    beforeEach: ({ msw }) => {
       msw.use(

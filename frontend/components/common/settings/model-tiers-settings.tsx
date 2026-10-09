@@ -2,7 +2,7 @@
 
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { TierChip } from '@/components/common/agents/tier-chip';
@@ -28,6 +28,15 @@ import {
    type TierCandidates,
    type TierPlacement,
 } from '@/lib/agents';
+import {
+   aiRuntimeModelsFrom,
+   connectedAiRuntimes,
+   EMPTY_AGENT_TIERS,
+   getTierModels,
+   saveTierModels,
+   type AiRuntimeDefinition,
+   type RuntimeAgentTierPlacement,
+} from '@/lib/runtimes';
 import { useSessionStore } from '@/store/session-store';
 import { useModelGateway } from '@/hooks/use-model-gateway';
 import { SettingsCard, SettingsSection, SettingsShell } from './shared';
@@ -63,21 +72,300 @@ function usd(value: number): string {
  *
  * Owners and admins edit; the server refuses anyone else.
  */
+function listed(names: string[]): string {
+   return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
+}
+
 export default function ModelTiersSettings() {
    const t = useTranslations('workspaceAdmin.modelTiers');
    const gateway = useModelGateway();
+   const [subscriptions, setSubscriptions] = useState<AiRuntimeDefinition[] | null>(null);
+   useEffect(() => {
+      let alive = true;
+      void connectedAiRuntimes().then((runtimes) => {
+         if (alive) setSubscriptions(runtimes);
+      });
+      return () => {
+         alive = false;
+      };
+   }, []);
+   const usingSubscription = (subscriptions?.length ?? 0) > 0;
    return (
-      <SettingsShell title={t('title')} description={t('description')}>
-         {gateway === true ? (
+      <SettingsShell
+         title={t('title')}
+         description={
+            usingSubscription
+               ? t('subscriptionDescription', {
+                    runtimes: listed((subscriptions ?? []).map((runtime) => runtime.name)),
+                 })
+               : t('description')
+         }
+      >
+         {subscriptions === null || gateway === null ? (
+            <p className="text-muted-foreground">{t('loading')}</p>
+         ) : usingSubscription ? (
+            <SubscriptionRoster runtimes={subscriptions} />
+         ) : gateway === true ? (
             <TierPlacementEditor />
-         ) : gateway === false ? (
+         ) : (
             <SettingsCard>
                <p className="text-muted-foreground">{t('gatewayOff')}</p>
             </SettingsCard>
-         ) : (
-            <p className="text-muted-foreground">{t('loading')}</p>
          )}
       </SettingsShell>
+   );
+}
+
+interface TierModelChoice {
+   key: string;
+   name: string;
+   runtimeName: string;
+}
+
+function tierModelChoices(runtimes: AiRuntimeDefinition[]): TierModelChoice[] {
+   const choices: TierModelChoice[] = [];
+   const seen = new Set<string>();
+   for (const runtime of runtimes) {
+      for (const model of aiRuntimeModelsFrom(runtime)) {
+         const key = `${runtime.id}/${model.id}`;
+         if (seen.has(key)) continue;
+         seen.add(key);
+         choices.push({ key, name: model.name, runtimeName: runtime.name });
+      }
+   }
+   return choices;
+}
+
+function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
+   const t = useTranslations('workspaceAdmin.modelTiers');
+   const role = useSessionStore((state) => state.workspace?.role);
+   const canEdit = role === 'owner' || role === 'admin';
+   const choices = useMemo(() => tierModelChoices(runtimes), [runtimes]);
+   const byKey = useMemo(() => new Map(choices.map((choice) => [choice.key, choice])), [choices]);
+   const [saved, setSaved] = useState<RuntimeAgentTierPlacement>(EMPTY_AGENT_TIERS);
+   const [source, setSource] = useState<'workspace' | 'unset'>('unset');
+   const [draft, setDraft] = useState<RuntimeAgentTierPlacement | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [saving, setSaving] = useState(false);
+   const placement = draft ?? saved;
+   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+   const placed = new Set(MAIN_TIERS.flatMap((tier) => placement[tier]));
+
+   useEffect(() => {
+      let alive = true;
+      void getTierModels().then(
+         (stored) => {
+            if (!alive) return;
+            setSaved(stored.tiers);
+            setSource(stored.source);
+            setLoading(false);
+         },
+         () => {
+            if (alive) setLoading(false);
+         }
+      );
+      return () => {
+         alive = false;
+      };
+   }, []);
+
+   const edit = (tier: Tier, next: string[]) => setDraft({ ...placement, [tier]: next });
+   const move = (tier: Tier, index: number, by: number) => {
+      const list = [...placement[tier]];
+      const [item] = list.splice(index, 1);
+      if (item === undefined) return;
+      list.splice(index + by, 0, item);
+      edit(tier, list);
+   };
+   const save = async (next: RuntimeAgentTierPlacement | null) => {
+      setSaving(true);
+      try {
+         const stored = await saveTierModels(next);
+         setSaved(stored.tiers);
+         setSource(stored.source);
+         setDraft(null);
+         toast.success(next === null ? t('agentsCleared') : t('saved'));
+      } catch (cause) {
+         toast.error(cause instanceof Error ? cause.message : t('saveFailed'));
+      } finally {
+         setSaving(false);
+      }
+   };
+
+   const card = (tier: Tier) => {
+      const list = placement[tier];
+      return (
+         <div key={tier} className="flex min-w-0 flex-col gap-2 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+               <TierChip tier={tier} className="px-2 py-1" />
+               {canEdit && list.length < TIER_PLACES ? (
+                  <AddRuntimeModel
+                     choices={choices.filter((choice) => !placed.has(choice.key))}
+                     disabled={saving}
+                     onAdd={(key) => edit(tier, [...list, key])}
+                  />
+               ) : null}
+            </div>
+            {list.length > 0 ? (
+               <ol className="flex flex-col">
+                  {list.map((key, index) => {
+                     const choice = byKey.get(key);
+                     return (
+                        <li key={key} className="flex min-w-0 items-center gap-2 py-1.5">
+                           <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">
+                              {index + 1}
+                           </span>
+                           <span className="min-w-0 flex-1">
+                              <span className="block truncate">{choice?.name ?? key}</span>
+                              {choice ? (
+                                 <span className="block truncate text-muted-foreground">
+                                    {choice.runtimeName}
+                                 </span>
+                              ) : null}
+                           </span>
+                           {canEdit ? (
+                              <span className="flex shrink-0 items-center">
+                                 <Button
+                                    variant="ghost"
+                                    size="xxs"
+                                    aria-label={t('moveUp')}
+                                    disabled={index === 0 || saving}
+                                    onClick={() => move(tier, index, -1)}
+                                 >
+                                    <ArrowUp className="size-3.5" />
+                                 </Button>
+                                 <Button
+                                    variant="ghost"
+                                    size="xxs"
+                                    aria-label={t('moveDown')}
+                                    disabled={index === list.length - 1 || saving}
+                                    onClick={() => move(tier, index, 1)}
+                                 >
+                                    <ArrowDown className="size-3.5" />
+                                 </Button>
+                                 <Button
+                                    variant="ghost"
+                                    size="xxs"
+                                    aria-label={t('remove')}
+                                    disabled={saving}
+                                    onClick={() =>
+                                       edit(
+                                          tier,
+                                          list.filter((other) => other !== key)
+                                       )
+                                    }
+                                 >
+                                    <X className="size-3.5" />
+                                 </Button>
+                              </span>
+                           ) : null}
+                        </li>
+                     );
+                  })}
+               </ol>
+            ) : null}
+         </div>
+      );
+   };
+
+   return (
+      <SettingsSection
+         title={t('section')}
+         description={t('subscriptionDescription', {
+            runtimes: listed(runtimes.map((runtime) => runtime.name)),
+         })}
+         action={
+            canEdit ? (
+               <div className="flex items-center gap-2">
+                  {dirty ? (
+                     <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={saving}
+                        onClick={() => setDraft(null)}
+                     >
+                        {t('discard')}
+                     </Button>
+                  ) : null}
+                  {!dirty && source === 'workspace' ? (
+                     <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={saving}
+                        onClick={() => void save(null)}
+                     >
+                        {t('reset')}
+                     </Button>
+                  ) : null}
+                  <Button
+                     size="sm"
+                     disabled={!dirty || saving}
+                     onClick={() => void save(placement)}
+                  >
+                     {saving ? t('saving') : t('save')}
+                  </Button>
+               </div>
+            ) : null
+         }
+      >
+         {loading ? <p className="text-muted-foreground">{t('loading')}</p> : null}
+         <SettingsCard>{MAIN_TIERS.map(card)}</SettingsCard>
+      </SettingsSection>
+   );
+}
+
+function AddRuntimeModel({
+   choices,
+   disabled,
+   onAdd,
+}: {
+   choices: TierModelChoice[];
+   disabled: boolean;
+   onAdd: (key: string) => void;
+}) {
+   const t = useTranslations('workspaceAdmin.modelTiers');
+   const [open, setOpen] = useState(false);
+   return (
+      <Popover open={open} onOpenChange={setOpen}>
+         <PopoverTrigger asChild>
+            <Button
+               variant="ghost"
+               size="xxs"
+               className="ml-auto"
+               disabled={disabled || choices.length === 0}
+            >
+               <Plus className="size-3.5" />
+               {t('add')}
+            </Button>
+         </PopoverTrigger>
+         <PopoverContent align="end" className="w-80 p-0">
+            <Command>
+               <CommandInput placeholder={t('search')} />
+               <CommandList className="max-h-80">
+                  <CommandEmpty>{t('noMatch')}</CommandEmpty>
+                  <CommandGroup>
+                     {choices.map((choice) => (
+                        <CommandItem
+                           key={choice.key}
+                           value={`${choice.name} ${choice.runtimeName} ${choice.key}`}
+                           onSelect={() => {
+                              onAdd(choice.key);
+                              setOpen(false);
+                           }}
+                        >
+                           <span className="min-w-0 flex-1">
+                              <span className="block truncate">{choice.name}</span>
+                              <span className="block truncate text-muted-foreground">
+                                 {choice.runtimeName}
+                              </span>
+                           </span>
+                        </CommandItem>
+                     ))}
+                  </CommandGroup>
+               </CommandList>
+            </Command>
+         </PopoverContent>
+      </Popover>
    );
 }
 

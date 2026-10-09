@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
+import { readableModelName } from '@/components/common/agents/model-name';
 import { formatRunDuration, isTerminalRunStatus, runTriggerKey, type RunRecord } from '@/lib/runs';
 import { timeAgo } from '@/lib/time-ago';
 import { cn } from '@/lib/utils';
@@ -37,13 +38,15 @@ export function markTone(status: RunRecord['status']): BerryMarkTone {
 }
 
 /**
- * A run in one line, in the console's bottom bar: its mark, status, agent,
- * and why it ran; the tab above it says how long.
+ * A run in one line, in the console's bottom bar: its mark, status, and agent
+ * on the left, and the model it is running on at the right.
  */
 export function RunSummary({ run }: { run: RunRecord }) {
    const t = useTranslations('issueDetail.log');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
-   const name = getAgentById(run.agentId)?.name ?? t('agent');
+   const agent = getAgentById(run.agentId);
+   const name = agent?.name ?? t('agent');
+   const modelId = run.aiModelId?.trim() || agent?.modelName?.trim() || '';
    // Why it ran, when it says something: being assigned is how every run
    // starts unless something else started it, so that one goes unsaid.
    const triggerKey = runTriggerKey(run.source);
@@ -66,6 +69,11 @@ export function RunSummary({ run }: { run: RunRecord }) {
                </>
             ) : null}
          </span>
+         {modelId ? (
+            <span className="ml-auto max-w-[45%] shrink-0 truncate text-foreground" title={modelId}>
+               {readableModelName(modelId)}
+            </span>
+         ) : null}
       </>
    );
 }
