@@ -110,7 +110,7 @@ function ReviewRow({
                className="pt-px"
             />
             <span className="min-w-0 flex-1">
-               <span className="line-clamp-3 leading-5 break-all">
+               <span className="line-clamp-3 text-[12px] leading-5 break-all">
                   <span className="font-bold text-muted-foreground">{item.issue.identifier}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span className={branch ? 'font-mono' : undefined}>{label}</span>

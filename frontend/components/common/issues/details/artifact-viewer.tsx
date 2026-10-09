@@ -637,7 +637,7 @@ const NEEDS_BUILD = /<script[^>]*\bsrc\s*=\s*["'][^"']+\.(?:tsx?|jsx|vue|svelte)
  * the base layer (h1–h4), as everywhere in the app.
  */
 const MARKDOWN = [
-   'mx-auto flex max-w-3xl flex-col gap-3 px-8 py-6 leading-6',
+   'mx-auto flex max-w-3xl flex-col gap-3 px-8 py-6 text-[12px] leading-5',
    '[&_h1]:mt-4 [&_h1]:font-display [&_h2]:mt-4 [&_h2]:font-medium [&_h3]:mt-3 [&_h3]:font-medium [&_h4]:font-medium',
    '[&_a]:text-status-info [&_a]:underline',
    '[&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-0.5',

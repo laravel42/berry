@@ -137,7 +137,10 @@ export default function IssuePropertiesSettings() {
    };
 
    const line = (property: PropertyDefinition) => (
-      <li key={property.id} className="flex items-center justify-between gap-3 px-3 py-2">
+      <li
+         key={property.id}
+         className="flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2"
+      >
          <span className="min-w-0 truncate">
             {property.name}{' '}
             <span className="text-muted-foreground">· {PROPERTY_KIND_LABELS[property.kind]}</span>
@@ -217,12 +220,11 @@ export default function IssuePropertiesSettings() {
             </p>
          ) : null}
 
-         <ul className="flex flex-col divide-y rounded-md border">
-            {active.map(line)}
-            {!properties.loading && active.length === 0 ? (
-               <li className="px-3 py-4 text-muted-foreground">{t('empty')}</li>
-            ) : null}
-         </ul>
+         {active.length > 0 ? (
+            <ul className="grid grid-cols-3 gap-2">{active.map(line)}</ul>
+         ) : !properties.loading ? (
+            <p className="text-muted-foreground">{t('empty')}</p>
+         ) : null}
 
          {archived.length > 0 ? (
             <div className="flex flex-col gap-3">
@@ -233,9 +235,7 @@ export default function IssuePropertiesSettings() {
                {showArchived ? (
                   <>
                      <p className="text-muted-foreground">{t('archivedLead')}</p>
-                     <ul className="flex flex-col divide-y rounded-md border">
-                        {archived.map(line)}
-                     </ul>
+                     <ul className="grid grid-cols-3 gap-2">{archived.map(line)}</ul>
                   </>
                ) : null}
             </div>

@@ -17,7 +17,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
 import { CheckIcon, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActorAvatar, ActorName } from './actor-avatar';
 import { cn } from '@/lib/utils';
 
@@ -80,6 +80,7 @@ export function AssigneeUser({
    plainName = false,
 }: AssigneeUserProps) {
    const t = useTranslations('issueLists.assignee');
+   const listRef = useRef<HTMLDivElement>(null);
    const [open, setOpen] = useState(false);
    const [query, setQuery] = useState('');
    const [currentAssignee, setCurrentAssignee] = useState<User | null>(user);
@@ -115,6 +116,20 @@ export function AssigneeUser({
 
    useEffect(() => {
       if (!open) setQuery('');
+   }, [open]);
+
+   // The menu opens from a sheet, whose scroll lock swallows the wheel. A
+   // non-passive listener on the list keeps that gesture on the names.
+   useEffect(() => {
+      const list = listRef.current;
+      if (!open || !list) return;
+      const onWheel = (event: WheelEvent) => {
+         if (list.scrollHeight <= list.clientHeight) return;
+         event.preventDefault();
+         list.scrollTop += event.deltaY;
+      };
+      list.addEventListener('wheel', onWheel, { passive: false });
+      return () => list.removeEventListener('wheel', onWheel);
    }, [open]);
 
    const choose = (assignee: User | null) => {
@@ -166,8 +181,12 @@ export function AssigneeUser({
                )}
             </button>
          </PopoverTrigger>
-         <PopoverContent align="start" className="w-[240px] p-0">
-            <Command>
+         <PopoverContent
+            align="start"
+            collisionPadding={12}
+            className="flex max-h-(--radix-popover-content-available-height) w-[240px] flex-col overflow-hidden p-0"
+         >
+            <Command className="h-auto max-h-full">
                {searchable ? (
                   <CommandInput
                      autoFocus
@@ -177,7 +196,10 @@ export function AssigneeUser({
                      aria-label={t('search')}
                   />
                ) : null}
-               <CommandList>
+               <CommandList
+                  ref={listRef}
+                  className="max-h-[min(300px,var(--radix-popover-content-available-height))] overscroll-contain"
+               >
                   <CommandEmpty>{t('noMatch')}</CommandEmpty>
                   <CommandGroup>
                      <CommandItem
