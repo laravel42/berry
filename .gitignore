@@ -10,6 +10,7 @@ dist/
 .tmp-agents/
 .tmp-pr/
 .impeccable/
+.berry/
 .DS_Store
 # agent worktrees (large, machine-local) and per-tool mirrors of .agents/skills
 .claude/worktrees/
@@ -17,3 +18,5 @@ dist/
 .kiro/skills/
 .hermes/
 .qwen/
+.pnpm-store/
+.db/

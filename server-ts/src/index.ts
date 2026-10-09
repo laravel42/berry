@@ -16,7 +16,8 @@ const VERSION = (process.env.BERRY_VERSION ?? '').trim() || '0.1.0-dev';
 const PLUGIN_MCP_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
 import { loadConfig } from './config/config.ts';
-import { checkDatabase, closeDatabase, openDatabase } from './db/pool.ts';
+import { isEmbeddedDatabase, openFromUrl } from './db/embedded.ts';
+import { checkDatabase } from './db/pool.ts';
 import { pending as pendingMigrations } from './migrate/migrations.ts';
 import { createApp } from './http/app.ts';
 import { Registry } from './http/registry.ts';
@@ -190,7 +191,8 @@ import { SkillRepository } from './skills/repository.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.serviceName);
-const sql = openDatabase({ url: config.databaseUrl });
+const database = await openFromUrl(config.databaseUrl);
+const sql = database.sql;
 
 // The server does not migrate by itself. On a database that is behind, say so
 // once and stop, rather than serve a schema the code does not match.
@@ -200,7 +202,7 @@ if (unapplied > 0) {
       pending: unapplied,
       command: 'pnpm migrate:server',
    });
-   await closeDatabase(sql);
+   await database.close();
    process.exit(1);
 }
 
@@ -211,7 +213,10 @@ if (unapplied > 0) {
  */
 const authPool =
    config.auth.secret && config.auth.baseUrl
-      ? new pg.Pool({ connectionString: config.databaseUrl, max: 5 })
+      ? new pg.Pool({
+           connectionString: database.url,
+           max: isEmbeddedDatabase(config.databaseUrl) ? 1 : 5,
+        })
       : null;
 
 /**
@@ -1528,8 +1533,8 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             pluginHooks ? pluginHooks.stop() : Promise.resolve(),
             previewEnvironments ? previewEnvironments.stopAll() : Promise.resolve(),
          ])
-            .then(() => closeDatabase(sql))
             .then(() => authPool?.end())
+            .then(() => database.close())
             .then(() => process.exit(0));
       });
    });

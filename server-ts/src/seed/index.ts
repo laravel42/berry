@@ -1,5 +1,5 @@
 import { loadConfig } from '../config/config.ts';
-import { closeDatabase, openDatabase } from '../db/pool.ts';
+import { openFromUrl } from '../db/embedded.ts';
 import { createLogger } from '../observability/log.ts';
 import { BoardSlug, UserEmail, WorkspaceSlug } from './ids.ts';
 import { apply } from './seed.ts';
@@ -8,7 +8,8 @@ import { apply } from './seed.ts';
 
 const config = loadConfig();
 const logger = createLogger(`${config.serviceName}-seed`);
-const sql = openDatabase({ url: config.databaseUrl });
+const database = await openFromUrl(config.databaseUrl);
+const sql = database.sql;
 
 // `BERRY_SEED_DEMO_WORK=false` keeps the identity and the board and skips the
 // demo projects — for a developer working in an empty product.
@@ -26,8 +27,8 @@ try {
    });
 } catch (error) {
    logger.error('seed failed', { error: error instanceof Error ? error.message : String(error) });
-   await closeDatabase(sql).catch(() => {});
+   await database.close().catch(() => {});
    process.exit(1);
 }
 
-await closeDatabase(sql);
+await database.close();

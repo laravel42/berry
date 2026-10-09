@@ -1,5 +1,5 @@
 import { loadConfig } from '../config/config.ts';
-import { closeDatabase, openDatabase } from '../db/pool.ts';
+import { openFromUrl } from '../db/embedded.ts';
 import { createLogger } from '../observability/log.ts';
 import { apply } from './migrations.ts';
 
@@ -12,15 +12,16 @@ import { apply } from './migrations.ts';
 
 const config = loadConfig();
 const logger = createLogger(`${config.serviceName}-migrate`);
-const sql = openDatabase({ url: config.databaseUrl });
+const database = await openFromUrl(config.databaseUrl);
+const sql = database.sql;
 
 try {
    await apply(sql, logger);
    logger.info('database migrations are current');
 } catch (error) {
    logger.error('migration failed', { error: error instanceof Error ? error.message : String(error) });
-   await closeDatabase(sql).catch(() => {});
+   await database.close().catch(() => {});
    process.exit(1);
 }
 
-await closeDatabase(sql);
+await database.close();

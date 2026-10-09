@@ -1,5 +1,5 @@
 import { loadConfig } from '../config/config.ts';
-import { closeDatabase, openDatabase } from '../db/pool.ts';
+import { openFromUrl } from '../db/embedded.ts';
 import { createLogger } from '../observability/log.ts';
 import { apply, assertBerryDatabase } from './reset.ts';
 
@@ -30,7 +30,8 @@ const confirmed = process.argv.slice(2).some((argument) => CONSENT.has(argument)
 
 const config = loadConfig();
 const logger = createLogger(`${config.serviceName}-reset`);
-const sql = openDatabase({ url: config.databaseUrl });
+const database = await openFromUrl(config.databaseUrl);
+const sql = database.sql;
 
 try {
    const [target] = await sql<Array<{ db: string; user: string; server: string | null }>>`
@@ -46,7 +47,7 @@ try {
          removes: 'work, plans, runs, conversations, integrations, GitHub links, plugins, catalogues',
          keeps: 'users, workspaces, agents, skills, autopilots',
       });
-      await closeDatabase(sql);
+      await database.close();
       process.exit(1);
    }
 
@@ -72,8 +73,8 @@ try {
    }
 } catch (error) {
    logger.error('reset failed', { error: error instanceof Error ? error.message : String(error) });
-   await closeDatabase(sql).catch(() => {});
+   await database.close().catch(() => {});
    process.exit(1);
 }
 
-await closeDatabase(sql);
+await database.close();
