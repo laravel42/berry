@@ -11,7 +11,7 @@ Installing an agent framework does not grant model access. A consumer subscripti
 
 ## What works in this release
 
-**GitHub Copilot and Kiro are the connectable subscription runtimes.** Copilot uses GitHub's official SDK in multi-user server mode: `mode: "empty"`, one signed-in user's OAuth token per session, no ambient credentials, and only Berry-authorized tools. That adapter runs inside the runtime image. Kiro runs `kiro-cli acp --agent-engine=v3` on the user workstation, as a process Berry starts beside the server. It does not run inside the runtime container. Each run gets an empty home directory and that user's sealed subscription API key, passed only as `KIRO_API_KEY` and as the answer to `_kiro/auth/getAccessToken`. Native shell and file tools are denied. Berry tools are exposed as the `berry` MCP server. The workstation process streams text, tool events, execution status, and cancellation into Berry's existing run ledger. Model discovery for Kiro runs in that workstation process. The product server still does not call a model.
+**Kiro is the connectable subscription runtime.** It runs `kiro-cli acp --agent-engine=v3` on the user workstation, as a process Berry starts beside the server. It does not run inside the runtime container. Each run gets an empty home directory and that user's sealed subscription API key, passed only as `KIRO_API_KEY` and as the answer to `_kiro/auth/getAccessToken`. Native shell and file tools are denied. Berry tools are exposed as the `berry` MCP server. The workstation process streams text, tool events, execution status, and cancellation into Berry's existing run ledger. Model discovery for Kiro runs in that workstation process. The product server still does not call a model. GitHub sign-in and the GitHub App stay for identity and repository access. GitHub Copilot is not a Berry runtime.
 
 Every other requested runtime remains visible in Settings → AI Runtimes with a specific blocker. A documented local CLI is not marked available when the Berry deployment cannot safely reach that CLI's runtime-owned login.
 
@@ -23,7 +23,6 @@ Evidence was reviewed on 2026-10-08. “Subscription” means an officially docu
 | --- | --- | --- | --- | --- | --- | --- |
 | Claude | Anthropic Claude Agent SDK / Claude Code CLI; macOS, Linux, Windows | Yes: Claude account login for eligible Pro, Max, Team, or Enterprise plans; official setup token for unattended CLI use. Console/API and cloud-provider billing are separate. | Agent SDK or headless CLI; model selection, streamed output, built-in tools, permissions, resumable sessions, cancellation, and usage status. | Local process operated by the integrator; Managed Agents are a separate hosted API product. | **Blocked.** Berry does not copy Claude's local credential store between AgentCore sessions. An official delegated token or persistent per-user host is required. | [Authentication](https://docs.anthropic.com/en/docs/claude-code/team), [Agent SDK](https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-headless) |
 | Codex | OpenAI Codex app-server; macOS, Linux, Windows | Yes: ChatGPT account/device login and Sign in with ChatGPT. API keys are separate. | Documented JSON-RPC app-server: model list, threads, turns, deltas, tools, approvals, resume, interrupt, usage, and rate limits. | Local process; experimental WebSocket transport exists but is not production-supported. | **Blocked by eligibility.** Hosted/commercial app-server auth requires Sign in with ChatGPT and partner/client registration. Berry has no approved OAuth client and does not reuse CLI credentials. | [App-server](https://developers.openai.com/codex/app-server), [Sign in with ChatGPT cookbook](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server) |
-| GitHub Copilot | GitHub Copilot SDK plus bundled headless CLI runtime; macOS, Linux, Windows | Yes: GitHub OAuth user token; each request consumes that user's Copilot entitlement and limits. BYOK is a separate provider-billing mode. | Official SDK/JSON-RPC runtime: dynamic models, streaming, custom tools, sessions, persistence, cancellation, usage and policy errors. | Child process or protected backend runtime. GitHub documents shared runtime pools with per-session tokens and `mode: "empty"`. | **Available and implemented.** Requires Berry GitHub sign-in and an active Copilot entitlement. No API-key fallback. | [OAuth setup](https://docs.github.com/en/copilot/how-tos/copilot-sdk/set-up-copilot-sdk/github-oauth), [Multi-user servers](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/multi-tenancy), [Backend runtime](https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/backend-services) |
 | OpenCode | OpenCode coding agent/server; macOS, Linux, Windows | Provider-dependent. OpenCode Go is its own plan; GitHub Copilot, ChatGPT, and provider API paths are distinct. Claude subscription plugins are explicitly not supported. | HTTP/OpenAPI server and SDK: providers/models, SSE events, sessions, prompts, tools, permission replies, abort, fork and diffs. | Local/headless server; remote exposure requires operator authentication and network controls. | **Blocked.** OpenCode is a framework, not one entitlement. Berry has no principal-isolated OpenCode server and will not read `auth.json`. | [Providers](https://opencode.ai/docs/providers/), [Server API](https://opencode.ai/docs/server/) |
 | OpenClaw | OpenClaw Gateway; macOS, Linux, Windows | Provider-dependent OAuth/API credentials. It can route through a sanctioned local Claude CLI or provider setup token where supported. | WebSocket gateway for models, agent runs, sessions, approvals, cancellation, status, and usage. | Long-running local/self-hosted gateway. | **Blocked.** No per-user Gateway registration or safe credential delegation exists in Berry; Gateway credential stores are not imported. | [Authentication](https://docs.openclaw.ai/gateway/authentication), [Gateway protocol](https://github.com/openclaw/openclaw/blob/main/docs/gateway/protocol.md) |
 | Hermes | Nous Research Hermes Agent; Linux/macOS, Windows through WSL2 | Provider-dependent. Nous Portal is a subscription; other OAuth and API routes retain their own billing rules. | ACP, JSON-RPC TUI gateway, and HTTP/SSE API; model discovery, streaming, tools, approvals, sessions, branch/resume, stop, and usage. | Local process or self-hosted API server. | **Blocked.** Hermes stores principal-wide provider credentials. Berry has not shipped one isolated Hermes gateway per user. | [Programmatic integration](https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration), [Provider/billing guide](https://hermes-agent.nousresearch.com/docs/integrations/providers) |
@@ -39,24 +38,6 @@ Evidence was reviewed on 2026-10-08. “Subscription” means an officially docu
 
 Content was rephrased for compliance with licensing restrictions.
 
-## User setup: GitHub Copilot
-
-Prerequisites:
-
-- Berry GitHub sign-in is configured and the user signed in through GitHub.
-- The GitHub account has an active Copilot plan and its organization/enterprise policy permits SDK or CLI use.
-- `INTEGRATION_ENCRYPTION_KEY` and the normal Better Auth secret remain configured as documented for Berry. No Copilot API key is added.
-- The AgentCore/HTTP runtime image is rebuilt from this revision so it includes `@github/copilot-sdk@1.0.18` and the matching platform runtime artifact.
-
-Steps:
-
-1. Open **Settings → AI runtimes**.
-2. On **GitHub Copilot**, select **Connect**. Berry verifies the GitHub OAuth identity and asks the runtime for the models available to that token.
-3. Confirm the account name and models. Choose a default runtime and model. `Automatic` is the portable default.
-4. On an idle task or conversation, use the runtime control to inherit the workspace preference, force **Berry managed**, or select GitHub Copilot and a model.
-5. Start work. The run record stores `aiRuntimeId` and `aiModelId`; usage is attributed to the Copilot subscription and has no fabricated USD cost.
-6. Disconnecting cancels active runs using that connection and clears the user's default. It does not sign the user out of Berry or revoke the GitHub OAuth grant.
-
 ## User setup: Kiro
 
 Prerequisites:
@@ -69,7 +50,7 @@ Steps:
 
 1. Open **Settings → AI runtimes**.
 2. On **Kiro**, select **Connect** and paste the API key. Berry asks `kiro-cli` on this workstation to verify it and to list models.
-3. Choose a default runtime and one of the models Kiro advertised.
+3. Connecting is enough. Agent runs in this workspace use Kiro instead of Bedrock or Kilo. When Kiro lists no model, the run keeps the CLI's own default.
 4. Start work. The run record stores `aiRuntimeId` and `aiModelId`. Usage stays on that Kiro subscription.
 5. Disconnecting deletes the sealed key, clears the default, and cancels active runs that used the connection.
 
@@ -77,28 +58,26 @@ Steps:
 
 | Condition | Berry behavior | Action |
 | --- | --- | --- |
-| Runtime image not rebuilt / process missing | `RUNTIME_NOT_INSTALLED`; no fallback | For Copilot, rebuild and deploy the runtime image. For Kiro, install `kiro-cli` on the workstation PATH. |
-| GitHub OAuth token missing, wrong type, or expired | `AI_RUNTIME_AUTH_REQUIRED` / `AUTH_EXPIRED`; no fallback | Sign out of Berry, sign in with GitHub again, then reconnect Copilot. |
-| Organization disables Copilot runtime access | Connection/model discovery or run fails with normalized auth/policy error | Ask the GitHub organization owner to enable the feature. |
-| Model not entitled or removed | `MODEL_UNAVAILABLE`; no replacement model | Select **Automatic** or another model returned by live discovery. |
-| Subscription quota exhausted | `QUOTA_EXHAUSTED`; no API-key switch | Check the Copilot quota/reset and retry after it resets. |
+| `kiro-cli` missing | `RUNTIME_NOT_INSTALLED`; no fallback | Install `kiro-cli` on the workstation PATH. |
+| Kiro API key missing or rejected | `AI_RUNTIME_AUTH_REQUIRED` / `AUTH_EXPIRED`; no fallback | Reconnect Kiro with a Pro, Pro+, Pro Max, or Power API key. |
+| Model not entitled or removed | `MODEL_UNAVAILABLE`; no replacement model | Select another model returned by live discovery. |
+| Subscription quota exhausted | `QUOTA_EXHAUSTED`; no API-key switch | Wait for the Kiro quota to reset, then retry. |
 | Runtime network failure | `NETWORK_ERROR`, retryable | Restore egress from the runtime host and retry. |
 | Person cancels login/run | No connection is recorded, or the run becomes cancelled | Start the flow again only when wanted. |
 | Connection is removed mid-run | Berry cancels every active run carrying that connection id | Reconnect and explicitly restart if the work should continue. |
 
 ## Manual validation with a real account
 
-Automated tests never call GitHub or a model. For a release candidate, use a non-production workspace and account:
+Automated tests never call Kiro or a model. For a release candidate, use a non-production workspace and account:
 
-1. Build/deploy the runtime image and migrate a disposable Berry database through migration 221.
-2. Connect a GitHub account with Copilot access. Verify Settings shows the exact login and a live model list.
-3. Set Copilot/Automatic as the personal default. Start a chat and a repository task; verify text, tool start/completion, command output, usage, final result, and delivery appear in order.
-4. Cancel while a command is running. Verify the run becomes cancelled, the Copilot child exits, and no process remains in the session.
-5. Resume the conversation and verify the same connection-scoped session is used. Start the same task as another member and verify Berry requires that member's own connection.
+1. Install `kiro-cli` on the workstation and migrate a disposable Berry database through migration 227.
+2. Connect Kiro with a subscription API key. Verify Settings shows the account and a live model list.
+3. Place models into BerryMax, BerryMid, and BerryLow. Start a repository task and verify text, tool events, usage, and the final result appear in order.
+4. Cancel while a command is running. Verify the run becomes cancelled and the `kiro-cli` child exits.
+5. Start the same task as another member and verify Berry uses that member's own connection, or the workspace connection when the product allows it.
 6. Select a model the account cannot use and verify Berry reports `MODEL_UNAVAILABLE` without invoking Berry-managed Bedrock/Kilo.
-7. Exhaust or temporarily restrict the test account quota and verify the actionable quota message and absent API fallback.
-8. Disconnect during a run. Verify cancellation, default clearing, and that the GitHub sign-in remains available for normal Berry repository access.
-9. Inspect product-server/runtime logs and prompt logs. Verify no OAuth token, task token, repository credential, or provider body appears.
+7. Disconnect during a run. Verify cancellation and that the sealed key is gone.
+8. Inspect product-server logs. Verify no API key, task token, repository credential, or provider body appears.
 
 ## Adding a future adapter
 

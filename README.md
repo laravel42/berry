@@ -46,7 +46,7 @@ Berry runs on the host; there is no container stack in this repository.
 | AWS S3 (or an S3-compatible store) | Artifact storage, through the `S3_*` variables |
 | AWS Bedrock AgentCore Runtime | Where agents run ([ADR-0014](docs/adr/0014-agentcore-runtime-control-plane.md)) |
 | Kilo AI gateway (optional) | Native model calls in Berry's model tiers instead of straight to Bedrock ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)) |
-| User AI subscription (optional) | A supported user-scoped agent process inside the runtime image; GitHub Copilot is the initial adapter ([matrix and setup](docs/ai-runtimes.md)) |
+| User AI subscription (optional) | Kiro on the workstation that runs Berry ([matrix and setup](docs/ai-runtimes.md)) |
 
 Provider keys and object-store credentials are server-side only, never under a
 `NEXT_PUBLIC_*` name.

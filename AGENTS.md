@@ -135,12 +135,13 @@ the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so
 do not name a tier's current models in code or docs. The server only reads
 Kilo's model list, leaderboard and account; it never calls a model.
 
-A person may instead select a **user-scoped subscription AI runtime** under
-[ADR-0019](docs/adr/0019-subscription-ai-runtimes.md). This is separate from
-the AgentCore/HTTP compute host and from the underlying model provider. The
-selection and connection id are snapshotted on the run, and no run may borrow
-another user's connection or silently fall back to native/API billing. GitHub
-Copilot's adapter runs in the runtime image. Kiro CLI runs on the user
+When a workspace has a connected **subscription AI runtime** under
+[ADR-0019](docs/adr/0019-subscription-ai-runtimes.md), agent runs use it
+instead of Bedrock or Kilo. This is separate from the AgentCore/HTTP compute
+host and from the underlying model provider. The connection id is snapshotted
+on the run. A failed or disconnected subscription does not fall back to
+native/API billing, and an explicit Berry-managed override on one task stays
+on the deployment model. Completion calls stay on Bedrock or Kilo. Kiro CLI runs on the user
 workstation, not inside that container. Every other requested product stays
 visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
 

@@ -926,10 +926,10 @@ connection, and the connection id is part of the provider session identity.
 |---|---|
 | `GET /api/v1/runtimes/catalog` | All requested AI runtimes, verified billing/auth/capability evidence, this user's connection state, and preference |
 | `GET /api/v1/runtimes/connections` | This user's AI-runtime connections in the current workspace |
-| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. GitHub Copilot reuses the signed-in GitHub OAuth token. Kiro takes `{ apiKey }` — a `ksk_` subscription key — seals it, and never returns it |
+| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Kiro takes `{ apiKey }` — a `ksk_` subscription key — seals it, and never returns it |
 | `DELETE /api/v1/runtimes/connections/{runtimeId}` | Disconnect, clear this user's matching default, and cancel active runs using the connection |
 | `GET`, `PUT /api/v1/runtimes/preference` | Read / replace this user's default `{ runtimeId, modelId }`; both null selects the native deployment runtime |
-| `GET /api/v1/runtimes/connections/{runtimeId}/models` | Discover models live inside the runtime image; returns `{ nodes, complete, detail }` |
+| `GET /api/v1/runtimes/connections/{runtimeId}/models` | Discover models from the connected runtime; returns `{ nodes, complete, detail }` |
 | `GET`, `PUT /api/v1/issues/{ref}/runtime-selection` | Read / replace a task override; null inherits the user preference, `berry-native` forces native |
 | `GET`, `PUT /api/v1/conversations/{id}/runtime-selection` | Read / replace a conversation override under participant authorization |
 
