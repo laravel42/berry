@@ -94,6 +94,13 @@ async function refuseRepeatInstall(
    return 'Berry did not run this. Dependencies are already installed in this checkout. Do not install again, and do not change a package version because npm printed a deprecation or audit notice.';
 }
 
+/** A search from the filesystem root is how an agent hunts for Playwright. The package is already on NODE_PATH. */
+function refuseBroadFind(command: string): string | null {
+   const body = commandOutsideHeredocs(command);
+   if (!/(?:^|[\n;&|])\s*find\s+(?:\/\S*|\/(?=\s|$)|(?:~|\$HOME)(?:\/\S*)?)/.test(body)) return null;
+   return "Berry did not run this. Playwright is already installed: require('playwright') in a CommonJS script, and Chromium is already on PLAYWRIGHT_BROWSERS_PATH. Do not search the filesystem for the package or the browser.";
+}
+
 export interface CommandToolScope {
    ledger: CommandLedger;
    runId: string;
@@ -139,8 +146,9 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          'A non-zero exit code is a result you should read and act on, not an error. ' +
          'Do not run a web server here to look at a page: use check_page, or check_performance, which serve a ' +
          'folder themselves — a server you start in the background ends with the command that started it. ' +
-         'Playwright with Chromium is already installed for anything else ' +
-         "(`require('playwright')` in a CommonJS script); never install a browser or search for one. " +
+         'Playwright with Chromium is already installed for anything else. ' +
+         "require('playwright') resolves in a CommonJS script, and Chromium is already on PLAYWRIGHT_BROWSERS_PATH. " +
+         'Never install a browser or the playwright package, and never search the filesystem for either. ' +
          'Install a repository\'s dependencies once (`npm ci` when a lockfile is already committed, otherwise `npm install`, or that repository\'s package manager). ' +
          'Never `--package-lock-only` as that install, and never delete node_modules or install again because npm printed an audit, funding or deprecation notice. ' +
          `A command is stopped after ${DEFAULT_COMMAND_TIMEOUT_MS / 60_000} minutes unless you set timeoutMinutes (up to ${MAX_COMMAND_TIMEOUT_MINUTES}) for one you know is long.`,
@@ -163,6 +171,8 @@ export function runCommandTool(scope: CommandToolScope): Tool {
          if (trimmed === '') {
             return { error: 'command was empty', exitCode: null };
          }
+         const searched = refuseBroadFind(trimmed);
+         if (searched !== null) return { error: searched, exitCode: null };
          const refusal = await refuseRepeatInstall(scope, trimmed, cwd, context);
          if (refusal !== null) return { error: refusal, exitCode: null };
          const run = await runInWorkspace(

@@ -259,6 +259,24 @@ test('a substrate that cannot give a workspace is reported, not thrown', async (
    assert.deepEqual(events, []);
 });
 
+test('a search of the filesystem root is refused before it runs', async () => {
+   const { ledger, events } = fakeLedger();
+   let streamed = 0;
+   const session = fakeSession([{ type: 'exit', seq: 0, exitCode: 0 }], () => {
+      streamed += 1;
+   });
+   const installed = tool(session, ledger);
+   const hunted = await call(installed, {
+      command: "find / -maxdepth 8 -type d -name playwright-core -path '*node_modules*' 2>/dev/null | head",
+   });
+   assert.equal(hunted.exitCode, null);
+   assert.match(hunted.error as string, /Do not search the filesystem/);
+   const local = await call(installed, { command: 'find . -name package.json' });
+   assert.equal(local.exitCode, 0);
+   assert.equal(streamed, 1);
+   assert.equal(events.some((event) => event.type === 'started' && event.command === 'find . -name package.json'), true);
+});
+
 test('a second install, a lockfile-only install, and deleting node_modules are refused before they run', async () => {
    const { ledger, events } = fakeLedger();
    let streamed = 0;

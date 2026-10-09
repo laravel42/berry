@@ -31,6 +31,13 @@ test('a command is pointed at the host Playwright cache when one is installed', 
    if (expected && existsSync(expected)) assert.equal(result.stdout, expected);
 });
 
+test('a command resolves playwright from the host install', async () => {
+   if (process.env.NODE_PATH) return;
+   const result = await session().exec('node -e "process.stdout.write(require.resolve(\'playwright/package.json\'))"');
+   if (result.exitCode !== 0) return;
+   assert.match(result.stdout, /node_modules[/\\]playwright[/\\]package\.json$/);
+});
+
 test('cwd is relative to the session root and env reaches the command', async () => {
    const s = session();
    await s.exec('mkdir -p sub');

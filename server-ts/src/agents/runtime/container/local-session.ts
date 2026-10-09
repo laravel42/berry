@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { chmod, lchown, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
    ExecEvent,
    ExecOptions,
@@ -47,6 +48,12 @@ function toolEnv(): Record<string, string> {
       const browsers = hostPlaywrightBrowsers();
       if (browsers) found.PLAYWRIGHT_BROWSERS_PATH = browsers;
    }
+   // The checkout is not the repo that installed Playwright, so
+   // `require('playwright')` fails there and the agent searches the disk.
+   if (!found.NODE_PATH) {
+      const modules = hostPlaywrightModules();
+      if (modules) found.NODE_PATH = modules;
+   }
    return found;
 }
 
@@ -66,6 +73,61 @@ function hostPlaywrightBrowsers(): string | undefined {
              : join(home, '.ms-playwright');
    hostPlaywrightBrowsersCache = existsSync(path) ? path : undefined;
    return hostPlaywrightBrowsersCache;
+}
+
+/**
+ * The `node_modules` directory that contains `playwright`, when this machine
+ * already has a copy whose Chromium revision is installed. Walking up from
+ * this file stays inside the repo; nothing searches the disk.
+ */
+let hostPlaywrightModulesCache: string | undefined | null = null;
+
+function hostPlaywrightModules(): string | undefined {
+   if (hostPlaywrightModulesCache !== null) return hostPlaywrightModulesCache;
+   const browsers = hostPlaywrightBrowsers();
+   let dir = dirname(fileURLToPath(import.meta.url));
+   let found: string | undefined;
+   for (let i = 0; i < 8 && !found; i++) {
+      found = playwrightModulesIn(join(dir, 'node_modules', '.pnpm'), browsers);
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+   }
+   hostPlaywrightModulesCache = found;
+   return hostPlaywrightModulesCache;
+}
+
+function playwrightModulesIn(pnpm: string, browsers: string | undefined): string | undefined {
+   let names: string[];
+   try {
+      names = readdirSync(pnpm);
+   } catch {
+      return undefined;
+   }
+   const candidates = names.filter((name) => name.startsWith('playwright@')).sort().reverse();
+   for (const name of candidates) {
+      const modules = join(pnpm, name, 'node_modules');
+      if (!existsSync(join(modules, 'playwright', 'package.json'))) continue;
+      if (!browsers || playwrightRevisionInstalled(modules, browsers)) return modules;
+   }
+   return undefined;
+}
+
+function playwrightRevisionInstalled(modules: string, browsers: string): boolean {
+   const file = [
+      join(modules, 'playwright-core', 'browsers.json'),
+      join(modules, 'playwright', 'node_modules', 'playwright-core', 'browsers.json'),
+   ].find((path) => existsSync(path));
+   if (!file) return false;
+   let revision = '';
+   try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { browsers?: Array<{ name?: string; revision?: string }> };
+      revision = parsed.browsers?.find((browser) => browser.name === 'chromium')?.revision ?? '';
+   } catch {
+      return false;
+   }
+   if (!/^\d+$/.test(revision)) return false;
+   return existsSync(join(browsers, `chromium-${revision}`)) || existsSync(join(browsers, `chromium_headless_shell-${revision}`));
 }
 
 /** How long output may keep arriving after the shell exits before its group is reaped. */

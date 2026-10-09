@@ -34,7 +34,7 @@ export function pageTools(scope: CommandToolScope): Tool[] {
             'Screenshot a page at phone, tablet and desktop widths, and report the console errors, failed requests ' +
             'and HTTP errors it met while loading. `target` is a URL, or a folder or HTML file in the workspace — a ' +
             'folder is served for you, so never start a server for this. Chromium is already installed; never ' +
-            'install a browser. The images are written outside the repository, so they are not delivered with your ' +
+            'install a browser and never search the filesystem for Playwright or Chromium. The images are written outside the repository, so they are not delivered with your ' +
             'change: put one on the task with collect_file if it is worth showing.',
          inputSchema: z.object({
             target: z
