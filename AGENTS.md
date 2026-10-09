@@ -124,17 +124,25 @@ served over HTTP). The runtime's lifecycle stream is written to the run ledger.
 The runtime calls Berry's tools back at `/api/v1/agent-tools` with a
 task-scoped token. There is no other external worker.
 
-**Models are reached one of two ways**
+**Native models are reached one of two ways**
 ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)). By default
 (`BERRY_MODEL_PROVIDER=bedrock`) the runtime calls Bedrock directly, on the
 agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
 and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
 the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryMid,
-BerryLow) unless it pins a gateway model.
-`server-ts/src/agents/kilo/` refills the tiers hourly from Terminal-Bench
-ratings and Kilo's prices and usage, so do not name a tier's current models in
-code or docs. The server only reads Kilo's model list, leaderboard and account;
-it never calls a model.
+BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
+the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so
+do not name a tier's current models in code or docs. The server only reads
+Kilo's model list, leaderboard and account; it never calls a model.
+
+A person may instead select a **user-scoped subscription AI runtime** under
+[ADR-0019](docs/adr/0019-subscription-ai-runtimes.md). This is separate from
+the AgentCore/HTTP compute host and from the underlying model provider. The
+selection and connection id are snapshotted on the run, and no run may borrow
+another user's connection or silently fall back to native/API billing. GitHub
+Copilot's adapter runs in the runtime image. Kiro CLI runs on the user
+workstation, not inside that container. Every other requested product stays
+visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
 
 **The organization gates and routes agent work.** Each role agent has a
 contract (mission, allowed tools, delegation and escalation targets, required

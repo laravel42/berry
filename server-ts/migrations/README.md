@@ -7,7 +7,7 @@ advisory lock is held. Never edit an applied migration; add a new one.
 ## Numbering
 
 Files are named `NNN_description.up.sql`, numbered sparsely from `000` to the
-current latest (`188` as of this writing). There are no reserved numeric
+current latest (`221` as of this writing). There are no reserved numeric
 ranges by product area — numbering is simply sequential order of authorship.
 
 ## Checksums

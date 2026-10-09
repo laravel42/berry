@@ -109,8 +109,30 @@ export const mcpServerRefSchema = z.object({
    allowedTools: z.array(z.string().min(1)).nullable(),
 });
 
+const runtimeCredentialSchema = z.object({
+   type: z.enum(['oauth', 'api_key']),
+   token: z.string().min(1),
+   accountId: z.string().nullable(),
+   accountName: z.string().nullable(),
+});
+
 export const taskEnvelopeSchema = z.object({
    kind: z.enum(['agent', 'completion']),
+   /**
+    * The AI implementation inside the compute runtime. Absent means Berry's
+    * native Strands loop on the deployment's configured model provider.
+    */
+   runtime: z
+      .object({
+         id: z.string().min(1).max(64),
+         executionMode: z.enum(['direct_inference', 'agent_process']),
+         provider: z.string().min(1).max(120),
+         billing: z.enum(['subscription', 'api_billing', 'provider_dependent', 'unknown']),
+         model: z.string().min(1).max(300).nullable(),
+         credential: runtimeCredentialSchema,
+      })
+      .nullable()
+      .optional(),
    runId: z.string().min(1),
    /** Human-readable `(agent, issue)` / `(agent, chat)` / `completion:<run>` key. */
    sessionKey: z.string().min(1),
@@ -207,12 +229,25 @@ export const resumeRequestSchema = z
 
 export type ResumeRequest = z.infer<typeof resumeRequestSchema>['resume'];
 
+/**
+ * A Kiro subscription API key, the official headless credential.
+ * `ksk_` is the prefix Kiro shows when a paid plan creates a key.
+ */
+export const KIRO_API_KEY_PATTERN = /^ksk_[A-Za-z0-9_-]{8,256}$/;
+
+export function isKiroApiKey(value: string): boolean {
+   return KIRO_API_KEY_PATTERN.test(value);
+}
+
 const REDACTED = '[redacted]';
 
 /** The envelope as it may be logged: every secret replaced, shape kept. */
 export function redactEnvelope(envelope: TaskEnvelope): unknown {
    return {
       ...envelope,
+      ...(envelope.runtime
+         ? { runtime: { ...envelope.runtime, credential: { ...envelope.runtime.credential, token: REDACTED } } }
+         : {}),
       env: Object.fromEntries(Object.keys(envelope.env).map((key) => [key, REDACTED])),
       berry: { apiUrl: envelope.berry.apiUrl, token: REDACTED },
       repo: envelope.repo
@@ -227,3 +262,59 @@ export function redactEnvelope(envelope: TaskEnvelope): unknown {
       },
    };
 }
+
+/** A control-plane request sent through the same authenticated runtime invoke seam. */
+export const runtimeControlRequestSchema = z
+   .object({
+      control: z
+         .object({
+            runtimeSessionId: z.string().min(33).max(100).regex(/^[A-Za-z0-9_-]+$/),
+            operation: z.enum(['availability', 'connection', 'models']),
+            runtimeId: z.string().min(1).max(64),
+            credential: runtimeCredentialSchema.nullable(),
+         })
+         .strict(),
+   })
+   .strict();
+
+export type RuntimeControlRequest = z.infer<typeof runtimeControlRequestSchema>['control'];
+
+const runtimeControlModelSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   reasoning: z.boolean().nullable(),
+   tools: z.boolean().nullable(),
+   policy: z.string().nullable(),
+});
+
+export const AI_RUNTIME_ADAPTER_PROTOCOL_VERSION = 1 as const;
+
+export const runtimeControlResponseSchema = z.discriminatedUnion('ok', [
+   z.object({
+      ok: z.literal(true),
+      availability: z
+         .object({
+            available: z.boolean(),
+            version: z.string().nullable(),
+            reason: z.string().nullable(),
+            protocolVersion: z.literal(AI_RUNTIME_ADAPTER_PROTOCOL_VERSION),
+            principalIsolation: z.enum(['agentcore_session', 'session_container', 'workstation', 'shared_process']),
+         })
+         .optional(),
+      connection: z
+         .object({
+            status: z.enum(['connected', 'expired', 'missing', 'error']),
+            accountId: z.string().nullable(),
+            accountName: z.string().nullable(),
+            detail: z.string().nullable(),
+         })
+         .optional(),
+      models: z.array(runtimeControlModelSchema).optional(),
+   }),
+   z.object({
+      ok: z.literal(false),
+      error: z.object({ code: z.string(), message: z.string(), retryable: z.boolean() }),
+   }),
+]);
+
+export type RuntimeControlResponse = z.infer<typeof runtimeControlResponseSchema>;

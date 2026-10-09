@@ -1,9 +1,14 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { resumeRequestSchema, taskEnvelopeSchema } from '../../../runtime/envelope.ts';
+import {
+   resumeRequestSchema,
+   runtimeControlRequestSchema,
+   taskEnvelopeSchema,
+} from '../../../runtime/envelope.ts';
 import { encodeLifecycle } from '../../../runtime/lifecycle.ts';
 import { handleInvocation, type HandlerDeps } from './handler.ts';
 import { RunJournals } from './journal.ts';
+import { handleRuntimeControl } from '../adapters/control.ts';
 
 /**
  * The AgentCore Runtime service contract: `GET /ping` and `POST /invocations`
@@ -22,7 +27,14 @@ const MAX_BODY_BYTES = 8 * 1024 * 1024;
 const KEEPALIVE_MS = 15_000;
 
 export function createRuntimeServer(
-   deps: HandlerDeps & { localControl?: boolean; authMode?: 'agentcore' | 'token'; authToken?: string; journals?: RunJournals }
+   deps: HandlerDeps & {
+      localControl?: boolean;
+      authMode?: 'agentcore' | 'token';
+      authToken?: string;
+      /** Pins a local-router container to the one principal/session it was created for. */
+      expectedSession?: string;
+      journals?: RunJournals;
+   }
 ): Server {
    if (deps.authMode !== 'agentcore' && (!deps.authToken || deps.authToken.length < 32)) {
       throw new Error('Standalone runtime requires BERRY_RUNTIME_AUTH_TOKEN with at least 32 characters');
@@ -55,6 +67,9 @@ export function createRuntimeServer(
          let session: string;
          try { session = decodeURIComponent(path.slice('/sessions/'.length)); }
          catch { return reply(400, { error: 'invalid session path' }); }
+         if (deps.expectedSession && session !== deps.expectedSession) {
+            return reply(403, { error: 'this container belongs to another runtime session' });
+         }
          const stopped = deps.registry.stop(session);
          response.writeHead(stopped ? 204 : 404).end();
          return;
@@ -69,6 +84,35 @@ export function createRuntimeServer(
                } catch {
                   return reply(400, { error: 'the body is not JSON' });
                }
+               if (parsedJson && typeof parsedJson === 'object' && 'control' in parsedJson) {
+                  const control = runtimeControlRequestSchema.safeParse(parsedJson);
+                  if (!control.success) return reply(400, { error: 'the runtime control request is not valid' });
+                  const header = request.headers[SESSION_HEADER];
+                  if (
+                     typeof header === 'string' &&
+                     header !== control.data.control.runtimeSessionId
+                  ) {
+                     return reply(400, { error: 'the session header does not match the request' });
+                  }
+                  if (
+                     deps.expectedSession &&
+                     control.data.control.runtimeSessionId !== deps.expectedSession
+                  ) {
+                     return reply(403, { error: 'this container belongs to another runtime session' });
+                  }
+                  void handleRuntimeControl(deps.adapters, control.data.control).then(
+                     (result) => reply(200, result),
+                     () => reply(500, {
+                        ok: false,
+                        error: {
+                           code: 'RUNTIME_ERROR',
+                           message: 'The runtime control operation failed.',
+                           retryable: true,
+                        },
+                     })
+                  );
+                  return;
+               }
                if (parsedJson && typeof parsedJson === 'object' && 'resume' in parsedJson) {
                   const resume = resumeRequestSchema.safeParse(parsedJson);
                   if (!resume.success) return reply(400, { error: 'the resume request is not valid' });
@@ -76,6 +120,9 @@ export function createRuntimeServer(
                   const header = request.headers[SESSION_HEADER];
                   if (typeof header === 'string' && header !== runtimeSessionId) {
                      return reply(400, { error: 'the session header does not match the request' });
+                  }
+                  if (deps.expectedSession && runtimeSessionId !== deps.expectedSession) {
+                     return reply(403, { error: 'this container belongs to another runtime session' });
                   }
                   let opened = false;
                   const open = () => {
@@ -119,6 +166,9 @@ export function createRuntimeServer(
                const header = request.headers[SESSION_HEADER];
                if (typeof header === 'string' && header !== envelope.runtimeSessionId) {
                   return reply(400, { error: 'the session header does not match the envelope' });
+               }
+               if (deps.expectedSession && envelope.runtimeSessionId !== deps.expectedSession) {
+                  return reply(403, { error: 'this container belongs to another runtime session' });
                }
                response.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
                const keepalive = setInterval(() => {

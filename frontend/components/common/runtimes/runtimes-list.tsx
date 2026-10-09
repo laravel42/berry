@@ -1,7 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ConfirmAction } from '@/components/common/confirm-action';
 import {
    SettingsCard,
    SettingsRow,
@@ -9,77 +8,237 @@ import {
    SettingsShell,
 } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
+import { Button } from '@/components/ui/button';
 import {
-   createRuntime,
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogFooter,
+   DialogHeader,
+   DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+   connectAiRuntime,
+   disconnectAiRuntime,
    formatSeconds,
    listRuntimes,
+   loadAiRuntimeCatalog,
    runtimeHealth,
+   type AiRuntimeDefinition,
    type Runtime,
 } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
-import { Server } from 'lucide-react';
+import { Bot, Search, Server } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-/** The colour a health level wears, from alive to long silent. */
 const HEALTH_DOT: Record<string, string> = {
    online: 'bg-status-success',
    unchecked: 'bg-muted-foreground/60',
    recentlyLost: 'bg-status-warning',
-   offline: 'bg-destructive',
-   longOffline: 'bg-destructive/60',
+   offline: 'bg-status-danger',
+   longOffline: 'bg-status-danger/60',
    disabled: 'bg-muted-foreground',
 };
 
-/**
- * Where this workspace's agents run. The platform runtime is the deployment's
- * own; an owner can register another AgentCore Runtime by ARN and bind agents
- * to it. Health is a real probe, run from the detail page.
- */
+function RuntimeCard({
+   runtime,
+   busy,
+   onConnect,
+   onDisconnect,
+}: {
+   runtime: AiRuntimeDefinition;
+   busy: boolean;
+   onConnect: () => void;
+   onDisconnect: () => void;
+}) {
+   const connected = runtime.connection?.status === 'connected';
+   const available = runtime.availability === 'available';
+
+   return (
+      <section className="rounded-lg border bg-container" aria-label={runtime.name}>
+         <div className="flex items-start gap-3 p-4">
+            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-foreground">
+               <Bot className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+               <div className="flex flex-wrap items-center gap-2">
+                  <h3>{runtime.name}</h3>
+                  <span
+                     className={cn(
+                        'rounded-md border px-1.5 py-0.5',
+                        connected
+                           ? 'border-status-success/40 bg-status-success/10 text-status-success'
+                           : available
+                             ? 'border-status-info/40 bg-status-info/10 text-status-info'
+                             : 'border-border text-muted-foreground'
+                     )}
+                  >
+                     {connected ? 'Connected' : available ? 'Available' : 'Unavailable'}
+                  </span>
+               </div>
+               <p className="mt-1 text-muted-foreground">{runtime.description}</p>
+               {connected ? (
+                  <p className="mt-2 text-status-success">
+                     Connected as {runtime.connection?.accountName ?? 'your account'} · usage stays
+                     on this account
+                  </p>
+               ) : null}
+            </div>
+            {connected ? (
+               <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
+                  {busy ? 'Disconnecting…' : 'Disconnect'}
+               </Button>
+            ) : available ? (
+               <Button size="xs" disabled={busy} onClick={onConnect}>
+                  {busy ? 'Connecting…' : 'Connect'}
+               </Button>
+            ) : null}
+         </div>
+      </section>
+   );
+}
+
+/** AI products inside a compute host, followed by the existing compute-host registry. */
 export default function RuntimesList() {
    const t = useTranslations('areas.runtimes');
-   const runtimes = useSettingsResource<Runtime[]>(listRuntimes);
+   const catalog = useSettingsResource(loadAiRuntimeCatalog);
+   const hosts = useSettingsResource<Runtime[]>(listRuntimes);
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
-   const [name, setName] = useState('');
-   const [arn, setArn] = useState('');
-   const [adding, setAdding] = useState(false);
+   const [query, setQuery] = useState('');
+   const [onlyAvailable, setOnlyAvailable] = useState(false);
+   const [busy, setBusy] = useState<string | null>(null);
+   const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
+   const [kiroOpen, setKiroOpen] = useState(false);
+   const [kiroKey, setKiroKey] = useState('');
 
-   async function add() {
-      setAdding(true);
+   const shown = useMemo(() => {
+      const needle = query.trim().toLowerCase();
+      return (catalog.value?.nodes ?? [])
+         .filter((runtime) => {
+            if (onlyAvailable && runtime.availability !== 'available') return false;
+            if (needle === '') return true;
+            return [runtime.name, runtime.publisher, runtime.product, runtime.provider]
+               .join(' ')
+               .toLowerCase()
+               .includes(needle);
+         })
+         .toSorted(
+            (left, right) =>
+               Number(left.availability !== 'available') -
+               Number(right.availability !== 'available')
+         );
+   }, [catalog.value?.nodes, onlyAvailable, query]);
+
+   const connect = async (runtime: AiRuntimeDefinition, apiKey?: string) => {
+      setBusy(runtime.id);
       try {
-         await createRuntime({ name: name.trim(), driver: 'agentcore', arn: arn.trim() });
-         setName('');
-         setArn('');
-         runtimes.reload();
+         await connectAiRuntime(runtime.id, apiKey ? { apiKey } : {});
+         toast.success(`${runtime.name} connected`);
+         setKiroKey('');
+         setKiroOpen(false);
+         catalog.reload();
       } catch (error) {
-         toast.error(error instanceof Error ? error.message : 'The runtime could not be added.');
+         toast.error(error instanceof Error ? error.message : `${runtime.name} could not connect.`);
       } finally {
-         setAdding(false);
+         setBusy(null);
       }
-   }
+   };
+
+   const disconnect = async () => {
+      if (!disconnecting) return;
+      setBusy(disconnecting.id);
+      try {
+         await disconnectAiRuntime(disconnecting.id);
+         toast.success(`${disconnecting.name} disconnected`);
+         setDisconnecting(null);
+         catalog.reload();
+      } catch (error) {
+         toast.error(
+            error instanceof Error ? error.message : 'The connection could not be removed.'
+         );
+         throw error;
+      } finally {
+         setBusy(null);
+      }
+   };
 
    return (
       <SettingsShell
-         title="Runtimes"
-         description="Where agents run. A follow-up run on an issue picks up the same session while it is still warm."
+         compact
+         title="AI Runtimes"
+         description="Choose the agent or inference product used inside Berry’s execution host. Runtime identity, model provider, authentication, and billing stay separate."
       >
-         <SettingsSection title="Registered runtimes">
+         <SettingsSection
+            title="Runtime catalog"
+            action={
+               <Button
+                  size="xs"
+                  variant={onlyAvailable ? 'secondary' : 'ghost'}
+                  onClick={() => setOnlyAvailable((value) => !value)}
+               >
+                  {onlyAvailable ? 'Showing available' : 'Show available only'}
+               </Button>
+            }
+         >
+            <div className="relative max-w-sm">
+               <Search
+                  className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden
+               />
+               <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search runtimes and providers"
+                  aria-label="Search AI runtimes"
+                  className="pl-9"
+               />
+            </div>
+            {catalog.error ? <p className="text-status-danger">{catalog.error}</p> : null}
+            {catalog.loading && !catalog.value ? (
+               <p className="text-muted-foreground">Loading runtime evidence…</p>
+            ) : null}
+            <div className="flex flex-col gap-3">
+               {shown.map((runtime) => (
+                  <RuntimeCard
+                     key={runtime.id}
+                     runtime={runtime}
+                     busy={busy === runtime.id}
+                     onConnect={() => {
+                        if (runtime.id === 'kiro') {
+                           setKiroKey('');
+                           setKiroOpen(true);
+                           return;
+                        }
+                        void connect(runtime);
+                     }}
+                     onDisconnect={() => setDisconnecting(runtime)}
+                  />
+               ))}
+            </div>
+            {catalog.value && shown.length === 0 ? (
+               <p className="text-muted-foreground">No runtime matches this view.</p>
+            ) : null}
+         </SettingsSection>
+
+         <SettingsSection
+            title="Execution hosts"
+            description="Compute that receives Berry task envelopes. This is separate from the AI runtime selected above."
+         >
             <SettingsCard>
-               {runtimes.error && <p className="p-4 text-destructive">{runtimes.error}</p>}
-               {runtimes.loading && !runtimes.value && (
-                  <p className="p-4 text-muted-foreground">Loading…</p>
-               )}
-               {runtimes.value?.length === 0 && (
-                  <p className="p-4 text-muted-foreground">
-                     This deployment has no runtime configured yet.
-                  </p>
-               )}
-               {runtimes.value?.map((runtime) => {
+               {hosts.error ? <p className="p-4 text-status-danger">{hosts.error}</p> : null}
+               {hosts.loading && !hosts.value ? (
+                  <p className="p-4 text-muted-foreground">Loading execution hosts…</p>
+               ) : null}
+               {hosts.value?.length === 0 ? (
+                  <p className="p-4 text-muted-foreground">No execution host is configured.</p>
+               ) : null}
+               {hosts.value?.map((runtime) => {
                   const health = runtimeHealth(runtime);
-                  // "Not checked yet" already says it was never reached.
                   const seen = runtime.lastHealthAt
                      ? t('lastSeen', { when: new Date(runtime.lastHealthAt).toLocaleString() })
                      : health === 'unchecked'
@@ -92,9 +251,9 @@ export default function RuntimesList() {
                         title={
                            <span className="flex items-center gap-2">
                               {runtime.name}
-                              {runtime.isDefault && (
-                                 <span className="text-muted-foreground">default</span>
-                              )}
+                              {runtime.isDefault ? (
+                                 <span className="text-muted-foreground">default host</span>
+                              ) : null}
                            </span>
                         }
                         description={
@@ -108,13 +267,13 @@ export default function RuntimesList() {
                               {t(`health.${health}`)}
                               <span aria-hidden>·</span>
                               {t('active', { count: runtime.activeRuns })}
-                              <span aria-hidden>·</span>
-                              {seen && (
+                              {seen ? (
                                  <>
-                                    {seen}
                                     <span aria-hidden>·</span>
+                                    {seen}
                                  </>
-                              )}
+                              ) : null}
+                              <span aria-hidden>·</span>
                               {`idle ${formatSeconds(runtime.idleTimeoutS)} · life ${formatSeconds(runtime.maxLifetimeS)}`}
                            </span>
                         }
@@ -125,33 +284,64 @@ export default function RuntimesList() {
                })}
             </SettingsCard>
          </SettingsSection>
-         <SettingsSection
-            title="Register an AgentCore Runtime"
-            description="The runtime must run Berry's agent image. The AgentCore console shows its ARN."
+
+         <ConfirmAction
+            open={disconnecting !== null}
+            onOpenChange={(open) => {
+               if (!open) setDisconnecting(null);
+            }}
+            title={`Disconnect ${disconnecting?.name ?? 'this runtime'}?`}
+            description={
+               disconnecting?.id === 'kiro'
+                  ? 'Active runs using this connection will be cancelled. Berry deletes the sealed API key. The Kiro account itself stays as it is.'
+                  : 'Active runs using this personal connection will be cancelled. Berry removes the connection and its default, but your provider account and Berry’s GitHub sign-in remain intact.'
+            }
+            confirmLabel="Disconnect"
+            pendingLabel="Disconnecting…"
+            destructive
+            onConfirm={disconnect}
+         />
+
+         <Dialog
+            open={kiroOpen}
+            onOpenChange={(open) => {
+               setKiroOpen(open);
+               if (!open) setKiroKey('');
+            }}
          >
-            <SettingsCard className="flex flex-col gap-3 p-4">
+            <DialogContent>
+               <DialogHeader>
+                  <DialogTitle>Connect Kiro</DialogTitle>
+                  <DialogDescription>
+                     Paste an API key from a Kiro Pro, Pro+, Pro Max, or Power plan. Berry seals it
+                     and sends it only with your own runs. kiro-cli runs on this workstation, not
+                     inside the runtime container.
+                  </DialogDescription>
+               </DialogHeader>
                <Input
-                  placeholder="Name"
-                  aria-label="Runtime name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-label="Kiro API key"
+                  placeholder="ksk_…"
+                  value={kiroKey}
+                  onChange={(event) => setKiroKey(event.target.value)}
                />
-               <Input
-                  placeholder="arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/…"
-                  aria-label="Runtime ARN"
-                  value={arn}
-                  onChange={(event) => setArn(event.target.value)}
-               />
-               <div>
+               <DialogFooter>
                   <Button
-                     disabled={adding || name.trim() === '' || arn.trim() === ''}
-                     onClick={() => void add()}
+                     disabled={
+                        busy === 'kiro' || !/^ksk_[A-Za-z0-9_-]{8,256}$/.test(kiroKey.trim())
+                     }
+                     onClick={() => {
+                        const runtime = catalog.value?.nodes.find((node) => node.id === 'kiro');
+                        if (runtime) void connect(runtime, kiroKey.trim());
+                     }}
                   >
-                     Register runtime
+                     {busy === 'kiro' ? 'Connecting…' : 'Connect'}
                   </Button>
-               </div>
-            </SettingsCard>
-         </SettingsSection>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
       </SettingsShell>
    );
 }

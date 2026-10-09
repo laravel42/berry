@@ -23,6 +23,11 @@ import type { RunLedger } from '../runs/ledger.ts';
 import type { RunRepository } from '../runs/repository.ts';
 import { serializeRun } from './runs.ts';
 import { currentWorkspace, pathId, resolveScoped } from './shared.ts';
+import {
+   AiRuntimeConnectionNotFound,
+   AiRuntimeRepository,
+   AiRuntimeSelectionError,
+} from '../runtime/ai-runtimes.ts';
 import { readJson } from './zod-body.ts';
 
 /**
@@ -64,11 +69,16 @@ const patchSchema = z
    .refine((body) => Object.keys(body).length > 0, 'Provide at least one field.');
 const draftSchema = z.strictObject({ draft: z.string().max(20_000) });
 const messageSchema = z.strictObject({ body: z.string().trim().min(1).max(MAX_BODY) });
+const runtimeSelectionSchema = z.strictObject({
+   runtimeId: z.string().trim().min(1).max(64).nullable(),
+   modelId: z.string().trim().min(1).max(300).nullable(),
+});
 
 export function conversationMounts(options: ConversationOptions): Mount[] {
    const route = new Hono<{ Variables: AuthVariables }>();
    route.use('*', requireSession(options.sessions));
    const { conversations, sql } = options;
+   const aiRuntimes = new AiRuntimeRepository(sql);
 
    /** The workspace of an agent the caller may chat with, or 404 Agent. */
    const agentWorkspace = async (userId: string, agentId: string): Promise<{ workspaceId: string; name: string }> => {
@@ -187,6 +197,26 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
       return new Response(null, { status: 204 });
    });
 
+   route.get('/:conversationId/runtime-selection', async (context) => {
+      const conversation = await load(context);
+      return json(
+         await aiRuntimes
+            .conversationSelection(conversation.workspaceId, conversation.id, context.get('user').id)
+            .catch(rethrowAiRuntime)
+      );
+   });
+
+   route.put('/:conversationId/runtime-selection', async (context) => {
+      const conversation = await load(context);
+      const userId = context.get('user').id;
+      const body = await readJson(context, runtimeSelectionSchema);
+      return json(
+         await aiRuntimes
+            .saveConversationSelection(conversation.workspaceId, conversation.id, userId, body)
+            .catch(rethrowAiRuntime)
+      );
+   });
+
    route.get('/:conversationId/messages', async (context) => {
       const conversation = await load(context);
       const url = new URL(context.req.url);
@@ -213,6 +243,7 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
          if (error instanceof ChatNotAnswerable) {
             throw new ApiError(409, 'CONVERSATION_HAS_NO_AGENT', 'This conversation has no agent to answer it.');
          }
+         if (error instanceof AiRuntimeSelectionError) rethrowAiRuntime(error);
          throw error;
       });
       await conversations.saveDraft(conversation.id, userId, '');
@@ -335,6 +366,15 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
 
 function gone(error: unknown): never {
    if (error instanceof NotFound) throw ApiError.notFound('Conversation');
+   throw error;
+}
+
+function rethrowAiRuntime(error: unknown): never {
+   if (error instanceof AiRuntimeConnectionNotFound) throw ApiError.notFound('Conversation');
+   if (error instanceof AiRuntimeSelectionError) {
+      const status = error.code === 'AI_RUNTIME_UNKNOWN' ? 404 : 409;
+      throw new ApiError(status, error.code, error.message);
+   }
    throw error;
 }
 

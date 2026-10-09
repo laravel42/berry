@@ -70,8 +70,8 @@ what a folder is allowed to do.
 | `organization/` | The role catalog, autonomy ceilings, provisioning, discovery and work proposals. See [below](#the-organization). | domain |
 | `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
 | `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryMid, BerryLow and BerryFree (BerryAuto is `kilo-auto/efficient`), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
-| `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API, runtime registrations. See [below](#agent-execution-the-control-plane). | domain + integration |
-| `agents/runtime/` | The Strands agent loop that runs *inside* the runtime image (not in this process). The model client — Bedrock, or the Kilo gateway through the SDK's OpenAI model (`model.ts`, `kilo-fetch.ts` for own-key enforcement, cache points and reported cost, `fallback-model.ts`) — tools, plugins. Only place model SDK imports (Strands, Bedrock runtime, `openai`) are allowed (`check:models`). | integration (builds into the runtime image) |
+| `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
+| `agents/runtime/` | Code that runs *inside* the runtime image, never in the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes behind a separate interface; the first is the GitHub Copilot SDK in multi-user `empty` mode. Only this tree may import model or agent SDKs (`check:models`). | integration (builds into the runtime image) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
 | `plans/` | The planner: `repository`, `generator`, `triage` (routing), `answers`. | domain + integration |
 | `conversations/` | Conversation threads and their model-backed responder. | domain + integration |
@@ -149,8 +149,9 @@ target; `S3_ENDPOINT` can point at any S3-compatible store instead.
 
 ## Models
 
-Every model call happens in the runtime image, and `BERRY_MODEL_PROVIDER`
-picks where it goes; the server and the runtime must agree on it.
+Every model call happens in the runtime image. The native Strands path is
+selected by `BERRY_MODEL_PROVIDER`; a person-started run may instead carry a
+user-scoped agent-process selection from ADR-0019.
 
 - **`bedrock`** (the default) — the runtime calls Amazon Bedrock directly. An
   agent runs on its own model, else its runtime profile's, else
@@ -169,6 +170,14 @@ picks where it goes; the server and the runtime must agree on it.
   The server reads Kilo's model list, usage leaderboard and account, never a
   model, and `GET /api/v1/config` reports `modelGateway: true`. The
   `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
+- **User-scoped agent process** (ADR-0019) — the run snapshots an AI-runtime
+  key, model and connection owned by its requester. The runtime image invokes
+  that provider-owned loop and normalizes its text, tool, usage and terminal
+  events into Berry's lifecycle stream. There is no fallback to the native
+  provider. GitHub Copilot is the initial adapter: one OAuth user token per
+  SDK session, `mode: "empty"`, ambient credentials/tools disabled, and only
+  the intersection of Berry's contract and permissions registered as tools.
+  See [`docs/ai-runtimes.md`](../docs/ai-runtimes.md).
 
 ## Agent execution: the control plane
 
@@ -183,21 +192,25 @@ them:
 2. **Dispatcher** (`src/runs/dispatcher.ts`) — claims a queued run with
    `SKIP LOCKED` under a renewed lease and sweeps expired leases. Runs only
    when an executor exists; concurrency is `BERRY_RUN_CONCURRENCY`.
-3. **Target selection** (`src/index.ts`) — if `BERRY_AGENTCORE_RUNTIME_ARN` is
+3. **Compute-host selection** (`src/index.ts`) — if `BERRY_AGENTCORE_RUNTIME_ARN` is
    set, the target is the managed AgentCore Runtime; otherwise, if
    `BERRY_AGENT_RUNTIME_URL` is set, the target is the same runtime image
    reached over HTTP. With neither, there is no executor, no dispatcher, no
    scheduler, and `agentExecution` reports `false`. A workspace can register
-   its own runtime to override the default per agent (`agent_runtimes` table,
-   `src/runtime/runtimes.ts`, mounted at `/api/v1/runtimes`).
+   its own compute host to override the default per agent (`agent_runtimes`
+   table, `src/runtime/runtimes.ts`, mounted at `/api/v1/runtimes`). This is
+   independent of the AI-runtime adapter selected inside the host.
 4. **Envelope and transport** (`src/runtime/envelope.ts`,
    `envelope-builder.ts`, `transport.ts`, `http-transport.ts`,
-   `agentcore-transport.ts`) — builds a `TaskEnvelope` (the model, and
-   through the Kilo gateway the tier and fallback model; transcript rebuilt
-   from `run_events`, agent skills, MCP servers, plugin env) and sends it via
-   `InvokeAgentRuntime` or HTTP. Single model calls (planner, triage, review
-   gate, chat, editor) are sent as `kind: 'completion'` tasks rather than full
-   agent runs.
+   `agentcore-transport.ts`) — builds a `TaskEnvelope` (native model/tier or a
+   user-owned agent-process selection; transcript rebuilt from `run_events`,
+   agent skills, MCP servers, plugin env) and sends it via `InvokeAgentRuntime`
+   or HTTP. A personal connection is verified against the run's requester and
+   included in the session identity, so two users never share provider state.
+   The same transport has credential-redacted control operations for adapter
+   availability, auth status and live model discovery. Single native model
+   calls (planner, triage, review gate, chat, editor) remain `kind:
+   'completion'` tasks.
 5. **Callback URL** — the runtime calls Berry back on
    `BERRY_RUNTIME_CALLBACK_URL` (falling back to `BERRY_PUBLIC_URL`, then the
    bind address), which must be reachable from AWS — a tunnel is needed for
@@ -206,8 +219,9 @@ them:
    `task.started | message | usage | completed | failed` back;
    `task-executor.ts` consumes it and `src/runs/ledger.ts` is the only writer
    of run state. Usage is recorded and priced (`usage/record.ts`): from
-   `PriceBook` on the Bedrock path, or through the Kilo gateway exactly as
-   Kilo reported it, a call with no report leaving the run unpriced.
+   `PriceBook` on the Bedrock path, through Kilo exactly as it reported, or
+   explicitly unpriced for subscription usage that exposes tokens/quota but no
+   USD charge.
 7. **Agent-tools API** (`src/runtime/agent-tools/`) — the only way the agent
    acts on Berry, at `/api/v1/agent-tools/:name` with a task-scoped bearer
    token (TTL at most 8 hours), never through the database directly. Core
@@ -216,12 +230,14 @@ them:
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
    separately.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
-   from `src/agents/runtime/` (the Strands loop, the Bedrock and Kilo model
-   clients, tools, plugins) plus `src/execution/`, `src/runtime/envelope.ts`,
-   `lifecycle.ts` and `src/scm/commit-trailer.ts`. `deploy.sh` builds, pushes
-   and publishes it to AWS; it needs account-owner credentials, and with
+   from `src/agents/runtime/` (the native Strands loop, Bedrock/Kilo clients,
+   and provider-owned adapters such as the pinned GitHub Copilot agent
+   runtime) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
+   and `src/scm/commit-trailer.ts`. `deploy.sh` builds, pushes and publishes it
+   to AWS; it needs account-owner credentials, and with
    `BERRY_MODEL_PROVIDER=kilo` it passes the Kilo settings to the runtime.
-   `runtimeSessionId = "berry-" + sha256(agentId:issueId)`.
+   Native `runtimeSessionId` is stable per agent/task; a personal adapter adds
+   the connection id before hashing so another user receives another session.
 
 ## The organization
 

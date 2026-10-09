@@ -14,11 +14,15 @@ drive both.
 Berry is the control plane; it does not run agents in-process and imports no
 model SDK ([ADR-0014](adr/0014-agentcore-runtime-control-plane.md)). A run is
 dispatched to an AWS Bedrock AgentCore Runtime container (or the same runtime
-image reached over HTTP), where a Strands Agents SDK loop calls models on
-Amazon Bedrock directly, or through the Kilo AI gateway on the
-organization's own provider keys, in Berry tiers filled from public
-benchmark leaderboards ([ADR-0017](adr/0017-kilo-gateway-model-tiers.md)). Berry does not
-reimplement sandboxing or provider plumbing beyond that seam.
+image reached over HTTP). By default its Strands Agents SDK loop calls models
+on Amazon Bedrock directly, or through the Kilo AI gateway on the
+organization's own provider keys, in Berry tiers filled from public benchmark
+leaderboards ([ADR-0017](adr/0017-kilo-gateway-model-tiers.md)). A person may
+instead select a supported user-scoped subscription agent process inside that
+same image; the account, billing owner and model provider stay explicit, and
+the run never falls back to another account or paid API path
+([ADR-0019](adr/0019-subscription-ai-runtimes.md)). Berry does not reimplement
+sandboxing or provider plumbing beyond those runtime seams.
 
 Berry owns the product motion and its durable facts: users and workspaces,
 memberships, issues and projects, collaboration, configuration, the
@@ -91,15 +95,18 @@ inbox, conversations, search, saved views, catalogs, plans, and autopilots.
 `GET /api/v1/config` reports only the capabilities a given deployment
 actually has, so the UI can switch off what is missing.
 
-Desktop and mobile clients are not part of the product. A CLI, a daemon and
-its WebSocket, local launchers, provider adapters and filesystem execution
-outside the agent runtime are all out of scope; the AgentCore Runtime holds
-those execution responsibilities.
+Desktop and mobile clients are not part of the product. Berry ships no
+user-machine CLI, daemon, credential-store scraper or local launcher. GitHub
+Copilot's adapter lives inside the configured AgentCore/HTTP runtime image.
+Kiro's `kiro-cli` runs on the workstation that runs Berry, not inside that
+container. A product whose official subscription login exists only on a
+person's laptop stays unavailable until it exposes a safe delegated boundary.
+Filesystem execution for the hosted runtime remains inside the agent runtime.
 
 ## Licensing posture
 
 - **Berry's own code** is developed against permissive licenses only. Every dependency must be MIT / Apache-2.0 (or equivalently permissive); no copyleft in the shipped product.
-- **The agent runtime** runs the Strands Agents SDK against Amazon Bedrock, directly or through the Kilo AI gateway; Berry retains upstream notices.
+- **The agent runtime** runs the native Strands Agents SDK against Amazon Bedrock or Kilo, and may run an approved provider-owned agent process. GitHub Copilot uses the pinned MIT SDK inside the runtime image. Kiro uses the official `kiro-cli` binary on the user workstation, which Berry does not bundle and does not start inside the container. Provider dependencies and their notices remain in the runtime image.
 - **Circle** (frontend template origin) is MIT; its notice is retained in the frontend.
 - Berry's API uses conventional resource-oriented JSON and pagination. No
   third-party product schema, brand, or marks become Berry product identity.

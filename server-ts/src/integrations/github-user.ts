@@ -309,6 +309,38 @@ export class GitHubUserAccess {
    }
 
    /**
+    * The signed-in person's OAuth identity for an official user-scoped AI
+    * runtime integration.
+    *
+    * The token is opened here, used for one GitHub request, and never returned.
+    * A Copilot connection therefore proves which account it will charge before
+    * Berry records the connection.
+    */
+   async runtimeIdentity(userId: string): Promise<{ accountId: string; accountName: string }> {
+      const token = await this.#token(userId);
+      const account = await this.#json<{ id?: unknown; login?: unknown }>(token, userId, '/user');
+      if (!Number.isSafeInteger(Number(account.id)) || typeof account.login !== 'string' || account.login === '') {
+         throw new GitHubUserUnavailable(
+            'GitHub returned an account identity Berry could not verify',
+            'github_error'
+         );
+      }
+      return { accountId: String(account.id), accountName: account.login };
+   }
+
+   /**
+    * The signed-in person's OAuth token for one runtime task envelope.
+    *
+    * This is deliberately user-specific, unlike `workspaceToken`: a personal
+    * Copilot subscription may never serve another workspace member. The only
+    * caller is the envelope builder, which sends it to the isolated runtime
+    * and redacts it from every log.
+    */
+   async runtimeToken(userId: string): Promise<string> {
+      return this.#token(userId);
+   }
+
+   /**
     * The person's GitHub token, unsealed.
     *
     * Better Auth seals it with the deployment's auth secret, and the shape it

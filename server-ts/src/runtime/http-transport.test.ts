@@ -108,3 +108,40 @@ test('keepalives keep a quiet stream alive', async () => {
    for await (const e of transport.invoke({ target, envelope: sampleEnvelope(), signal: new AbortController().signal })) events.push(e);
    assert.deepEqual(events.map((e) => e.type), ['task.started', 'task.failed']);
 });
+
+test('control uses the authenticated invoke seam and validates the runtime response', async () => {
+   const seen: Array<{ url: string; init: RequestInit | undefined }> = [];
+   const fakeFetch = (async (url: string, init?: RequestInit) => {
+      seen.push({ url, init });
+      return Response.json({
+         ok: true,
+         models: [{ id: 'auto', name: 'Automatic', reasoning: null, tools: true, policy: null }],
+      });
+   }) as unknown as typeof fetch;
+   const transport = httpTransport({
+      fetch: fakeFetch,
+      token: 't'.repeat(32),
+      endpointUrl: target.endpointUrl,
+   });
+   const control = transport.control;
+   assert.ok(control);
+   const runtimeSessionId = `berry-${'d'.repeat(64)}`;
+   const result = await control({
+      target,
+      request: {
+         runtimeSessionId,
+         operation: 'models',
+         runtimeId: 'github-copilot',
+         credential: { type: 'oauth', token: 'gho_secret', accountId: '1', accountName: 'one' },
+      },
+      signal: new AbortController().signal,
+   });
+   assert.equal(seen[0]?.url, 'http://agent-runtime:8080/invocations');
+   const headers = new Headers(seen[0]?.init?.headers);
+   assert.equal(headers.get('authorization'), `Bearer ${'t'.repeat(32)}`);
+   assert.equal(headers.get('x-amzn-bedrock-agentcore-runtime-session-id'), runtimeSessionId);
+   assert.deepEqual(result, {
+      ok: true,
+      models: [{ id: 'auto', name: 'Automatic', reasoning: null, tools: true, policy: null }],
+   });
+});

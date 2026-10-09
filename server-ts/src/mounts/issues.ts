@@ -238,7 +238,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
          const run = await autoDispatch(
             options.dispatch,
             created.issue,
-            { workspaceId: scope.workspaceId, requestedBy: user.id },
+            { workspaceId: scope.workspaceId, requestedBy: user.id, runtimeAuthorizedBy: user.id },
             options.stages
          );
          if (run) issueToServe = await issues.get(created.issue.id);
@@ -309,7 +309,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
             const run = await autoDispatch(
                options.dispatch,
                updated,
-               { workspaceId: scope.workspaceId, requestedBy: user.id },
+               { workspaceId: scope.workspaceId, requestedBy: user.id, runtimeAuthorizedBy: user.id },
                options.stages
             );
             if (run) updated = await issues.get(found.id);

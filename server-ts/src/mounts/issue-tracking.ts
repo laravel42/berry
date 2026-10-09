@@ -80,7 +80,12 @@ export function issueTrackingRoutes(options: IssueTrackingOptions): Hono<{ Varia
    };
    const dispatchIfReady = async (issue: Issue, workspaceId: string, userId: string): Promise<Issue> => {
       if (!options.dispatch) return issue;
-      const run = await autoDispatch(options.dispatch, issue, { workspaceId, requestedBy: userId }, gate);
+      const run = await autoDispatch(
+         options.dispatch,
+         issue,
+         { workspaceId, requestedBy: userId, runtimeAuthorizedBy: userId },
+         gate
+      );
       return run ? issues.get(issue.id) : issue;
    };
    const afterWrite = async (write: Parameters<WorkTrackingHooks['afterIssueWrite']>[0]) => {

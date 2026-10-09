@@ -44,7 +44,7 @@ export function readyForAgent(issue: DispatchCandidate, stageOpen = true): boole
 export async function autoDispatch(
    runs: Pick<RunRepository, 'admit'>,
    issue: DispatchCandidate,
-   context: { workspaceId: string; requestedBy: string },
+   context: { workspaceId: string; requestedBy: string; runtimeAuthorizedBy?: string },
    stages?: StageGate
 ): Promise<Run | null> {
    if (!readyForAgent(issue)) return null;
@@ -56,6 +56,7 @@ export async function autoDispatch(
          workspaceId: context.workspaceId,
          agentId: null,
          requestedBy: context.requestedBy,
+         ...(context.runtimeAuthorizedBy ? { runtimeAuthorizedBy: context.runtimeAuthorizedBy } : {}),
          instructions: null,
       });
    } catch (error) {

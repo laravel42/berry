@@ -23,6 +23,7 @@ FORBIDDEN_IMPORTS = (
     "@aws-sdk/client-bedrock-runtime",
     "@aws-sdk/client-bedrock",
     "@anthropic-ai/",
+    "@github/copilot-sdk",
     "openai",
     "@ai-sdk/",
     "@google/genai",
@@ -36,13 +37,13 @@ FORBIDDEN_IMPORTS = (
 # invokes one. Anything else under the bedrock control plane is refused.
 CONTROL_PLANE_ALLOWED = {"server-ts/src/agents/catalog.ts": ("@aws-sdk/client-bedrock",)}
 # The runtime image reaches the Kilo gateway through the agent SDK's OpenAI
-# model, which needs `openai` installed (ADR-0017). The image is built from
-# server-ts/package.json, so that one manifest may depend on it, and only as a
-# runtime dependency. Importing it stays confined to the runtime tree by the
-# import rules above.
-RUNTIME_PROVIDER_ALLOWED = {"server-ts/package.json": {"dependencies": ("openai",)}}
+# model and GitHub Copilot through its official agent-process SDK. Both stay
+# in the runtime tree; the image is built from server-ts/package.json.
+RUNTIME_PROVIDER_ALLOWED = {
+    "server-ts/package.json": {"dependencies": ("@github/copilot-sdk", "openai")}
+}
 PROVIDER_PACKAGES = re.compile(
-    r"^(openai|ai|@anthropic-ai/.*|@ai-sdk/.*|@google/genai|@google/generative-ai|"
+    r"^(openai|ai|@anthropic-ai/.*|@github/copilot-sdk|@ai-sdk/.*|@google/genai|@google/generative-ai|"
     r"@mistralai/.*|cohere-ai|groq-sdk|ollama|@langchain/.*|langchain)$"
 )
 SKIP_DIRS = {"node_modules", ".next", ".next-verify", ".git"}

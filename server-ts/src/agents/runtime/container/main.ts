@@ -5,6 +5,8 @@ import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
 import { SessionIdentities, sealWorkRoot } from './session-identity.ts';
 import { SessionRegistry } from './sessions.ts';
+import { CopilotAgentAdapter } from '../adapters/copilot.ts';
+import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
 
 /**
  * The runtime image's entrypoint.
@@ -53,10 +55,27 @@ if (isolate) {
    console.log(JSON.stringify({ msg: 'sessions are isolated: one user each', workRoot, sealedOlderWorkspaces: sealed }));
 }
 
+const authMode = env.BERRY_RUNTIME_AUTH_MODE === 'agentcore' ? 'agentcore' : 'token';
+const expectedSession = (env.BERRY_RUNTIME_EXPECTED_SESSION ?? '').trim() || null;
+if (expectedSession && !/^[A-Za-z0-9][A-Za-z0-9_-]{32,99}$/.test(expectedSession)) {
+   console.error(JSON.stringify({ level: 'ERROR', msg: 'BERRY_RUNTIME_EXPECTED_SESSION is not a valid runtime session id' }));
+   process.exit(1);
+}
+const principalIsolation =
+   authMode === 'agentcore'
+      ? 'agentcore_session'
+      : expectedSession
+        ? 'session_container'
+        : 'shared_process';
+const adapters = new RuntimeAdapterRegistry([
+   new CopilotAgentAdapter(undefined, { principalIsolation }),
+]);
 const server = createRuntimeServer({
-   authMode: env.BERRY_RUNTIME_AUTH_MODE === 'agentcore' ? 'agentcore' : 'token',
+   authMode,
+   ...(expectedSession ? { expectedSession } : {}),
    ...(env.BERRY_RUNTIME_AUTH_TOKEN ? { authToken: env.BERRY_RUNTIME_AUTH_TOKEN } : {}),
    registry: new SessionRegistry(),
+   adapters,
    modelFactory,
    region,
    credentials,
@@ -79,5 +98,7 @@ server.listen(Number(env.PORT ?? 8080), '0.0.0.0', () => {
    console.log(JSON.stringify({ msg: 'berry agent runtime listening', port: Number(env.PORT ?? 8080) }));
 });
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-   process.once(signal, () => server.close(() => process.exit(0)));
+   process.once(signal, () => {
+      void adapters.disconnect().finally(() => server.close(() => process.exit(0)));
+   });
 }

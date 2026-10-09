@@ -2,6 +2,11 @@ import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import { EnqueueRejected, enqueueTask, type TaskSource } from './queue.ts';
 import { ActiveRunExists } from './repository.ts';
+import { isAiRuntimeId } from '../runtime/ai-runtime-catalog.ts';
+import {
+   AiRuntimeSelectionError,
+   type AiRuntimeRunSelection,
+} from '../runtime/ai-runtimes.ts';
 
 /**
  * A run stopped at its step limit carries on by itself.
@@ -23,6 +28,34 @@ import { ActiveRunExists } from './repository.ts';
 export const LIMIT_CODE = 'RUN_LIMIT_REACHED';
 export const DEFAULT_MAX_CONTINUATIONS = 3;
 
+function retainedSelection(row: Record<string, unknown>): AiRuntimeRunSelection | null {
+   const runtimeId = row.ai_runtime_key;
+   if (runtimeId === null || runtimeId === undefined) return null;
+   const modelId = row.ai_model_id;
+   const connectionId = row.ai_runtime_connection_id;
+   const userId = row.ai_runtime_user_id;
+   if (
+      typeof runtimeId !== 'string' ||
+      !isAiRuntimeId(runtimeId) ||
+      typeof modelId !== 'string' ||
+      typeof connectionId !== 'string' ||
+      typeof userId !== 'string'
+   ) {
+      throw new AiRuntimeSelectionError(
+         'AI_RUNTIME_NOT_CONNECTED',
+         'The original personal AI runtime selection is no longer usable.'
+      );
+   }
+   return {
+      runtimeId,
+      modelId,
+      connectionId,
+      userId,
+      accountId: typeof row.ai_runtime_account_id === 'string' ? row.ai_runtime_account_id : null,
+      accountName: typeof row.ai_runtime_account_name === 'string' ? row.ai_runtime_account_name : null,
+   };
+}
+
 export type ContinuationOutcome =
    | { continued: true; runId: string; attempt: number; of: number; branch: string | null; commit: string | null }
    | { continued: false; reason: 'disabled' | 'not_a_limit_stop' | 'superseded' | 'no_progress' | 'cap_reached' | 'task_moved_on' | 'busy' };
@@ -37,6 +70,8 @@ export async function continueAfterLimit(
    const [run] = await sql`
       SELECT r.id, r.workspace_id, r.issue_id, r.agent_id, r.kind, r.status, r.failure_code,
              r.head_commit, r.branch, r.requested_by, r.created_at,
+             r.ai_runtime_key, r.ai_model_id, r.ai_runtime_connection_id,
+             r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
              i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at
         FROM runs r JOIN issues i ON i.id = r.issue_id
        WHERE r.id = ${input.runId}`;
@@ -67,6 +102,7 @@ export async function continueAfterLimit(
    if (limitStops > max) return { continued: false, reason: 'cap_reached' };
 
    const commit = (run.head_commit as string | null) ?? null;
+   const aiRuntime = retainedSelection(run);
    try {
       const queued = await enqueueTask(sql, {
          workspaceId: run.workspace_id as string,
@@ -83,6 +119,7 @@ export async function continueAfterLimit(
          }),
          origin: { runId: run.id as string, fresh: true },
          ...(run.requested_by ? { requestedBy: run.requested_by as string } : {}),
+         ...(aiRuntime ? { aiRuntime } : { forceNativeRuntime: true }),
       });
       return {
          continued: true,
@@ -199,6 +236,8 @@ export async function retryAfterFault(sql: Sql, input: { runId: string }): Promi
    const [run] = await sql`
       SELECT r.id, r.workspace_id, r.issue_id, r.agent_id, r.kind, r.status, r.failure_retryable,
              r.source, r.prompt, r.requested_by,
+             r.ai_runtime_key, r.ai_model_id, r.ai_runtime_connection_id,
+             r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
              i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at
         FROM runs r JOIN issues i ON i.id = r.issue_id
        WHERE r.id = ${input.runId}`;
@@ -223,6 +262,7 @@ export async function retryAfterFault(sql: Sql, input: { runId: string }): Promi
       return { retried: false, reason: 'already_retried' };
    }
 
+   const aiRuntime = retainedSelection(run);
    try {
       const queued = await enqueueTask(sql, {
          workspaceId: run.workspace_id as string,
@@ -233,6 +273,7 @@ export async function retryAfterFault(sql: Sql, input: { runId: string }): Promi
          ...(run.prompt ? { prompt: run.prompt as string } : {}),
          origin: { runId: run.id as string },
          ...(run.requested_by ? { requestedBy: run.requested_by as string } : {}),
+         ...(aiRuntime ? { aiRuntime } : { forceNativeRuntime: true }),
       });
       return { retried: true, runId: queued.runId };
    } catch (error) {
@@ -387,6 +428,7 @@ export async function restartTask(
               }
             : {}),
          requestedBy: input.requestedBy,
+         runtimeAuthorizedBy: input.requestedBy,
       });
       return { restarted: true, runId: queued.runId };
    } catch (error) {

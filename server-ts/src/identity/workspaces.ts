@@ -6,6 +6,7 @@ import type { NameCursor, TimeCursor } from '../http/cursor.ts';
 import type { Workspace, WorkspaceSettings } from './repository.ts';
 import { installStarterLabels } from '../core/starter-labels.ts';
 import { ensureOrganizationAgents } from '../organization/provision.ts';
+import { revokeAiRuntimeConnectionsForMember } from '../runtime/ai-runtimes.ts';
 
 /**
  * Workspaces and memberships.
@@ -365,8 +366,10 @@ export class WorkspaceRepository {
     * last-owner rule, under the same lock: a sole owner leaving would abandon
     * a workspace nobody can administer, so they must hand it over or delete it.
     */
-   async leave(userId: string, workspaceId: string): Promise<void> {
-      await this.sql.begin(async (tx) => {
+   async leave(userId: string, workspaceId: string): Promise<string[]> {
+      return this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         await lockMembershipChanges(tx, workspaceId);
          const [row] = await tx`
             SELECT m.role::text AS role
               FROM workspace_memberships AS m
@@ -379,6 +382,7 @@ export class WorkspaceRepository {
             throw new LastOwner();
          }
 
+         const activeRunIds = await revokeAiRuntimeConnectionsForMember(tx, workspaceId, userId);
          const deleted = await tx`
             DELETE FROM workspace_memberships
              WHERE workspace_id = ${workspaceId} AND user_id = ${userId}`;
@@ -386,11 +390,14 @@ export class WorkspaceRepository {
          await tx`
             UPDATE users SET last_workspace_id = NULL
              WHERE id = ${userId} AND last_workspace_id = ${workspaceId}`;
+         return activeRunIds;
       });
    }
 
-   async removeMember(workspaceId: string, actorId: string, targetId: string): Promise<void> {
-      await this.sql.begin(async (tx) => {
+   async removeMember(workspaceId: string, actorId: string, targetId: string): Promise<string[]> {
+      return this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         await lockMembershipChanges(tx, workspaceId);
          const roles = await lockRoles(tx, workspaceId, actorId, targetId);
          const actorRole = roles.get(actorId);
          const targetRole = roles.get(targetId);
@@ -403,6 +410,7 @@ export class WorkspaceRepository {
             throw new LastOwner();
          }
 
+         const activeRunIds = await revokeAiRuntimeConnectionsForMember(tx, workspaceId, targetId);
          const deleted = await tx`
             DELETE FROM workspace_memberships
              WHERE workspace_id = ${workspaceId} AND user_id = ${targetId}`;
@@ -410,6 +418,7 @@ export class WorkspaceRepository {
          await tx`
             UPDATE users SET last_workspace_id = NULL
              WHERE id = ${targetId} AND last_workspace_id = ${workspaceId}`;
+         return activeRunIds;
       });
    }
 }
@@ -424,6 +433,10 @@ async function getWorkspaceIn(tx: Queryable, workspaceId: string, userId: string
    return toWorkspace(row);
 }
 
+async function lockMembershipChanges(tx: Queryable, workspaceId: string): Promise<void> {
+   await tx`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}::text, 0))`;
+}
+
 async function lockRoles(
    tx: Queryable,
    workspaceId: string,
@@ -434,6 +447,7 @@ async function lockRoles(
       SELECT user_id, role::text AS role
         FROM workspace_memberships
        WHERE workspace_id = ${workspaceId} AND user_id = ANY(${[actorId, targetId]}::uuid[])
+       ORDER BY user_id
        FOR UPDATE`;
    return new Map(rows.map((row) => [row.user_id as string, row.role as string]));
 }
@@ -443,6 +457,7 @@ async function lockOwners(tx: Queryable, workspaceId: string): Promise<number> {
       SELECT user_id
         FROM workspace_memberships
        WHERE workspace_id = ${workspaceId} AND role = 'owner'
+       ORDER BY user_id
        FOR UPDATE`;
    return rows.length;
 }

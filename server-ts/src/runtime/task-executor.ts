@@ -7,16 +7,19 @@ import { isDetached, type Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
+import { AI_RUNTIME_ADAPTER_PROTOCOL_VERSION, type RuntimeControlResponse } from './envelope.ts';
 import { recordDelivery } from './delivery.ts';
 import { LIMIT_CODE, continuedMessage, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
-import { loadTask, type DeliveryPlan, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
+import { AiRuntimeEnvelopeError, loadTask, type DeliveryPlan, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type LifecycleEvent, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
 import { RunNotResumable, RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
+import type { WorkstationKiro } from './workstation-kiro.ts';
 import { scheduleReview } from '../runs/followups.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
+import { runtimeSessionIdFor } from './session-id.ts';
 
 export type UsageRecorder = (
    sql: Sql,
@@ -55,6 +58,8 @@ export interface RuntimeTaskExecutorOptions {
    builder: EnvelopeBuilder;
    /** The deployment's runtime when a task names none. Null means tasks fail as unconfigured. */
    defaultTarget: RuntimeTarget | null;
+   /** Kiro runs here, on the workstation, instead of inside the runtime container. */
+   workstation?: WorkstationKiro;
    recordUsage: UsageRecorder;
    ledger?: RunLedger;
    memory?: RunMemory;
@@ -169,9 +174,65 @@ export class RuntimeTaskExecutor implements Executor {
       const usage: Usage = { ...ZERO };
       const abort = signal ?? new AbortController().signal;
 
+      const onWorkstation = task.aiRuntimeId === 'kiro';
       const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
       if (!target) {
          return this.#fail(task, recorder, usage, { code: 'RUNTIME_UNCONFIGURED', message: 'No agent runtime is configured for this workspace.', retryable: false });
+      }
+      if (task.aiRuntimeId) {
+         const workstation = this.#o.workstation;
+         const control = this.#o.transport.control;
+         if (onWorkstation && !workstation) {
+            return this.#fail(task, recorder, usage, {
+               code: 'AI_RUNTIME_INCOMPATIBLE',
+               message: 'Kiro runs on this workstation, and that process is not available.',
+               retryable: false,
+            });
+         }
+         if (!onWorkstation && !control) {
+            return this.#fail(task, recorder, usage, {
+               code: 'AI_RUNTIME_INCOMPATIBLE',
+               message: 'The selected compute host cannot verify personal AI runtime adapters. Update its runtime image.',
+               retryable: false,
+            });
+         }
+         let checked: RuntimeControlResponse;
+         try {
+            const request = {
+               runtimeSessionId: runtimeSessionIdFor(`adapter-preflight:${runId}`),
+               operation: 'availability' as const,
+               runtimeId: task.aiRuntimeId,
+               credential: null,
+            };
+            checked = onWorkstation && workstation
+               ? await workstation.control(request, abort)
+               : await control!({
+                    target,
+                    request,
+                    signal: abort,
+                 });
+         } catch (error) {
+            return this.#fail(task, recorder, usage, {
+               code: 'AI_RUNTIME_UNAVAILABLE',
+               message: error instanceof Error ? error.message : 'The selected runtime host could not be verified.',
+               retryable: true,
+            });
+         }
+         const availability = 'error' in checked ? null : checked.availability;
+         if (
+            'error' in checked ||
+            !availability?.available ||
+            availability.protocolVersion !== AI_RUNTIME_ADAPTER_PROTOCOL_VERSION ||
+            availability.principalIsolation === 'shared_process'
+         ) {
+            return this.#fail(task, recorder, usage, {
+               code: 'AI_RUNTIME_INCOMPATIBLE',
+               message:
+                  ('error' in checked ? checked.error.message : availability?.reason) ??
+                  'The selected compute host does not provide the required isolated AI runtime adapter protocol.',
+               retryable: false,
+            });
+         }
       }
 
       let envelopeSession = '';
@@ -187,11 +248,18 @@ export class RuntimeTaskExecutor implements Executor {
          try {
             built = await this.#o.builder.build({ task, dispatch: task.issueId ? (dispatch as Dispatch) : null, token });
          } catch (error) {
-            return await this.#fail(task, recorder, usage, {
-               code: 'TASK_PREPARATION_FAILED',
-               message: error instanceof Error ? error.message : String(error),
-               retryable: false,
-            });
+            return await this.#fail(
+               task,
+               recorder,
+               usage,
+               error instanceof AiRuntimeEnvelopeError
+                  ? { code: error.code, message: error.message, retryable: error.retryable }
+                  : {
+                       code: 'TASK_PREPARATION_FAILED',
+                       message: error instanceof Error ? error.message : String(error),
+                       retryable: false,
+                    }
+            );
          }
          const { envelope, delivery, model, tier } = built;
          envelopeSession = envelope.runtimeSessionId;
@@ -216,9 +284,13 @@ export class RuntimeTaskExecutor implements Executor {
             }
          );
 
+         const stream =
+            onWorkstation && this.#o.workstation
+               ? this.#o.workstation.invoke(envelope, abort)
+               : this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer });
          const outcome = await this.#consume(
             { task, recorder, usage, target, session: envelopeSession, abort, log, cursor: 0, resumed: false, ...resumable },
-            this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer })
+            stream
          );
          if (outcome === null) detached = true;
          return outcome;
@@ -242,7 +314,7 @@ export class RuntimeTaskExecutor implements Executor {
          // ended here rather than left idle on AgentCore until the idle
          // timeout reaps it: an idle session still bills its memory. A
          // cancelled one was stopped by #cancel already.
-         if (task.kind === 'completion' && envelopeSession && !abort.aborted) {
+         if (task.kind === 'completion' && envelopeSession && !abort.aborted && !onWorkstation) {
             await this.#o.transport
                .stop({ target, runtimeSessionId: envelopeSession })
                .catch((error: unknown) => this.#o.onCancelError?.(error));
@@ -268,6 +340,7 @@ export class RuntimeTaskExecutor implements Executor {
          SELECT status, kind, runtime_session_id, runtime_cursor, runtime_resume FROM runs WHERE id = ${runId}`;
       if (!row || row.status !== 'running' || row.kind !== 'agent' || !row.runtime_session_id || !row.runtime_resume) return null;
       const task = await loadTask(sql, runId);
+      if (task.aiRuntimeId === 'kiro') return null;
       const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
       if (!target) return null;
       const session = row.runtime_session_id;

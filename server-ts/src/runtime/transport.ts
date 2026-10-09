@@ -1,4 +1,8 @@
-import type { TaskEnvelope } from './envelope.ts';
+import type {
+   RuntimeControlRequest,
+   RuntimeControlResponse,
+   TaskEnvelope,
+} from './envelope.ts';
 import type { LifecycleEvent } from './lifecycle.ts';
 
 /** Where a task runs: an AgentCore Runtime by ARN, or the same image on a URL. */
@@ -54,6 +58,14 @@ export interface RuntimeTransport {
    }): AsyncIterable<LifecycleEvent>;
    /** Ends the session. Never throws: a session already gone is the goal. */
    stop(input: { target: RuntimeTarget; runtimeSessionId: string }): Promise<void>;
+   /** Ends a session and reports transport failure to an explicit disconnect flow. */
+   stopStrict?(input: { target: RuntimeTarget; runtimeSessionId: string }): Promise<void>;
+   /** Adapter availability, account, and model discovery without starting a task. */
+   control?(input: {
+      target: RuntimeTarget;
+      request: RuntimeControlRequest;
+      signal: AbortSignal;
+   }): Promise<RuntimeControlResponse>;
 }
 
 /** The runtime could not be reached or refused the invoke. Always retryable. */
@@ -82,6 +94,20 @@ export function routingTransport(transports: { agentcore: RuntimeTransport | nul
          const transport = pick(input.target);
          if (!transport.resume) throw new RunNotResumable('this transport cannot resume a run');
          return transport.resume(input);
+      },
+      control: (input) => {
+         const transport = pick(input.target);
+         if (!transport.control) {
+            throw new RuntimeUnavailable('this runtime transport cannot perform adapter control operations');
+         }
+         return transport.control(input);
+      },
+      stopStrict: async (input) => {
+         const transport = pick(input.target);
+         if (!transport.stopStrict) {
+            throw new RuntimeUnavailable('this runtime transport cannot confirm a session stop');
+         }
+         await transport.stopStrict(input);
       },
       stop: async (input) => {
          try {

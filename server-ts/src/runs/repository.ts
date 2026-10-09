@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { Run } from './ledger.ts';
+import { resolveAiRuntimeSelection } from '../runtime/ai-runtimes.ts';
 
 /**
  * Reading the run ledger, and the one write that starts a run.
@@ -40,7 +41,8 @@ export class NoAgentAssigned extends Error {
 const RUN_COLUMNS = `r.id, r.issue_id, r.board_id, COALESCE(r.workspace_id, b.workspace_id) AS workspace_id, r.agent_id, r.status,
    r.sequence, r.summary, r.input_tokens, r.output_tokens, r.total_tokens, r.cost_micros,
    r.currency, r.failure_code, r.failure_message, r.failure_retryable, r.dispatch_state,
-   r.source, r.requested_by,
+   r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id,
+   r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
    r.created_at, r.started_at, r.completed_at`;
 
 // LEFT: a chat or completion run has no board.
@@ -139,6 +141,8 @@ export class RunRepository {
       workspaceId: string;
       agentId: string | null;
       requestedBy: string;
+      /** Direct consent to charge this person's connected AI subscription. */
+      runtimeAuthorizedBy?: string;
       instructions: string | null;
       /**
        * `merge_fix`: the run only brings a finished task's branch level with
@@ -157,7 +161,7 @@ export class RunRepository {
          // index would catch the second, but as a constraint violation rather
          // than as the 409 the caller is owed.
          const [issue] = await tx`
-            SELECT id, assignee_type, assignee_id, active_run_id
+            SELECT id, assignee_type, assignee_id, active_run_id, ai_runtime_key, ai_model_id
               FROM issues WHERE id = ${input.issueId} FOR UPDATE`;
          if (!issue) throw new NotFound();
 
@@ -179,10 +183,22 @@ export class RunRepository {
              LIMIT 1`;
          if (active) throw new ActiveRunExists(active.id as string);
 
+         const aiRuntime = await resolveAiRuntimeSelection(tx, {
+            workspaceId: input.workspaceId,
+            userId: input.runtimeAuthorizedBy ?? null,
+            overrideRuntimeId: (issue.ai_runtime_key as string | null) ?? null,
+            overrideModelId: (issue.ai_model_id as string | null) ?? null,
+         });
+
          await tx`
-            INSERT INTO runs (id, issue_id, board_id, agent_id, instructions, requested_by, source)
+            INSERT INTO runs
+               (id, issue_id, board_id, agent_id, instructions, requested_by, source,
+                ai_runtime_key, ai_model_id, ai_runtime_connection_id, ai_runtime_user_id,
+                ai_runtime_account_id, ai_runtime_account_name)
             VALUES (${runId}, ${input.issueId}, ${input.boardId}, ${agentId},
-                    ${input.instructions}, ${input.requestedBy}, ${input.source ?? 'assignment'})`;
+                    ${input.instructions}, ${input.requestedBy}, ${input.source ?? 'assignment'},
+                    ${aiRuntime.runtimeId}, ${aiRuntime.modelId}, ${aiRuntime.connectionId},
+                    ${aiRuntime.userId}, ${aiRuntime.accountId}, ${aiRuntime.accountName})`;
          await tx`UPDATE issues SET active_run_id = ${runId} WHERE id = ${input.issueId}`;
 
          // Sequence 0, without the allocator: this is the event that starts the
@@ -288,6 +304,11 @@ function toRun(row: Record<string, unknown>): Run {
               },
       source: (row.source as string | null) ?? 'assignment',
       requestedBy: (row.requested_by as string | null) ?? null,
+      aiRuntimeId: (row.ai_runtime_key as string | null) ?? null,
+      aiModelId: (row.ai_model_id as string | null) ?? null,
+      aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
+      aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
+      aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,
       dispatchState: row.dispatch_state as string,
       createdAt: toRFC3339(row.created_at as string)!,
       startedAt: toRFC3339(row.started_at as string | null),

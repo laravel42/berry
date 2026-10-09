@@ -54,6 +54,8 @@ export interface WorkspaceOptions {
     */
    autoseed?: (workspaceId: string) => Promise<unknown>;
    onAutoseedError?: (workspaceId: string, error: unknown) => void;
+   /** Cancels and stops personal-runtime runs after membership revocation commits. */
+   cancelRuntimeRuns?: (runIds: string[]) => Promise<void>;
 }
 
 export function workspaceMounts(options: WorkspaceOptions): Mount[] {
@@ -61,6 +63,25 @@ export function workspaceMounts(options: WorkspaceOptions): Mount[] {
    route.use('*', requireSession(options.sessions));
 
    const { workspaces } = options;
+   const cancelRuntimeRuns = async (runIds: string[]): Promise<void> => {
+      if (runIds.length === 0) return;
+      if (!options.cancelRuntimeRuns) {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_REVOCATION_INCOMPLETE',
+            'Membership ended, but this process cannot stop the member’s active personal runtime sessions.'
+         );
+      }
+      try {
+         await options.cancelRuntimeRuns(runIds);
+      } catch {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_REVOCATION_INCOMPLETE',
+            'Membership ended, but one or more personal runtime sessions could not be stopped. Check runtime health.'
+         );
+      }
+   };
    workspaceInvitationRoutes(route, options.secrets, options.clock ?? (() => new Date()));
 
    route.get('/', async (context) => {
@@ -291,7 +312,10 @@ export function workspaceMounts(options: WorkspaceOptions): Mount[] {
    route.post('/:workspaceId/leave', async (context) => {
       const workspaceId = pathId(context.req.param('workspaceId'), 'Workspace');
       await requireEmptyBody(context.req.raw);
-      await domain('Workspace', () => workspaces.leave(context.get('user').id, workspaceId));
+      const activeRunIds = await domain('Workspace', () =>
+         workspaces.leave(context.get('user').id, workspaceId)
+      );
+      await cancelRuntimeRuns(activeRunIds);
       return new Response(null, { status: 204 });
    });
 
@@ -414,13 +438,12 @@ export function workspaceMounts(options: WorkspaceOptions): Mount[] {
    });
 
    route.delete('/:workspaceId/members/:userId', async (context) => {
-      await domain('Member', () =>
-         workspaces.removeMember(
-            pathId(context.req.param('workspaceId'), 'Workspace'),
-            context.get('user').id,
-            pathId(context.req.param('userId'), 'Member')
-         )
+      const workspaceId = pathId(context.req.param('workspaceId'), 'Workspace');
+      const targetId = pathId(context.req.param('userId'), 'Member');
+      const activeRunIds = await domain('Member', () =>
+         workspaces.removeMember(workspaceId, context.get('user').id, targetId)
       );
+      await cancelRuntimeRuns(activeRunIds);
       return new Response(null, { status: 204 });
    });
 

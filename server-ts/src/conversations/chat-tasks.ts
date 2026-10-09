@@ -40,6 +40,7 @@ export async function sendChatMessage(
       // The sender asked for this run, so anything the agent files in it is
       // filed in their name rather than in nobody's.
       requestedBy: input.userId,
+      runtimeAuthorizedBy: input.userId,
    });
    return { messageId, runId };
 }

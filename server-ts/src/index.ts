@@ -82,7 +82,7 @@ import { InboxRepository } from './inbox/repository.ts';
 import { ApprovalRepository } from './approvals/repository.ts';
 import { OAuthStateStore } from './integrations/oauth.ts';
 import { RunRepository } from './runs/repository.ts';
-import { RunLedger } from './runs/ledger.ts';
+import { RunLedger, RunTerminal } from './runs/ledger.ts';
 import { Dispatcher } from './runs/dispatcher.ts';
 import { FollowupWorker } from './runs/followups.ts';
 import { publishRunArtifacts } from './runs/publish-artifacts.ts';
@@ -153,9 +153,11 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
+import type { RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
+import { workstationKiro } from './runtime/workstation-kiro.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
 import { syncPlatformRuntime } from './runtime/runtimes.ts';
@@ -617,8 +619,11 @@ if (modelGateway && config.modelGateway) {
    setInterval(reconcile, 60 * 60_000).unref();
 }
 
+const kiroOnWorkstation = workstationKiro();
+
 const executor = defaultTarget
    ? new RuntimeTaskExecutor({
+        workstation: kiroOnWorkstation,
         sql,
         transport,
         defaultTarget,
@@ -629,6 +634,59 @@ const executor = defaultTarget
               config.runtime.callbackUrl ??
               config.integrations.publicUrl ??
               `http://${config.apiAddr.host}:${config.apiAddr.port}`,
+           runtimeCredential: async ({ workspaceId, runtimeId, connectionId, userId, accountId }) => {
+              const [connection] = await sql<Array<{
+                 external_account_id: string | null;
+                 external_account_name: string | null;
+              }>>`
+                 SELECT connection.external_account_id, connection.external_account_name
+                   FROM ai_runtime_connections AS connection
+                   JOIN workspace_memberships AS membership
+                     ON membership.workspace_id = connection.workspace_id
+                    AND membership.user_id = connection.user_id
+                  WHERE connection.id = ${connectionId}
+                    AND connection.workspace_id = ${workspaceId}
+                    AND connection.user_id = ${userId}
+                    AND connection.runtime_key = ${runtimeId}
+                    AND connection.status = 'connected'
+                    AND connection.external_account_id IS NOT DISTINCT FROM ${accountId}`;
+              if (!connection) {
+                 throw new Error('the personal AI runtime connection is no longer usable');
+              }
+              if (runtimeId === 'github-copilot') {
+                 if (!githubUserAccess) throw new Error('the personal AI runtime connection is no longer usable');
+                 const identity = await githubUserAccess.runtimeIdentity(userId);
+                 if (identity.accountId !== connection.external_account_id) {
+                    throw new Error('the GitHub account no longer matches the connection that authorized this run');
+                 }
+                 return {
+                    type: 'oauth',
+                    token: await githubUserAccess.runtimeToken(userId),
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                 };
+              }
+              if (runtimeId === 'kiro') {
+                 const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
+                 if (!sealer) throw new Error('this deployment cannot open a sealed Kiro API key');
+                 const [secret] = await sql<Array<{ credential_sealed: Buffer | null }>>`
+                    SELECT credential_sealed
+                      FROM ai_runtime_connections
+                     WHERE id = ${connectionId}
+                       AND workspace_id = ${workspaceId}
+                       AND user_id = ${userId}
+                       AND runtime_key = ${runtimeId}
+                       AND status = 'connected'`;
+                 if (!secret?.credential_sealed) throw new Error('the Kiro API key is no longer stored');
+                 return {
+                    type: 'api_key',
+                    token: sealer.open(Buffer.from(secret.credential_sealed)),
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                 };
+              }
+              throw new Error('the personal AI runtime connection is no longer usable');
+           },
            defaultModel: config.runtime.defaultModel,
            ...(modelGateway ? { gateway: modelGateway.catalog, placements: modelGateway.placements } : {}),
            maxTokens: config.runtime.maxTokens,
@@ -740,6 +798,36 @@ const runOptions = {
    sql,
 };
 
+const cancelPersonalRuntimeRun = async (runId: string): Promise<void> => {
+   const [run] = await sql<Array<{
+      workspace_id: string;
+      runtime_id: string | null;
+      runtime_session_id: string | null;
+   }>>`
+      SELECT workspace_id, runtime_id, runtime_session_id FROM runs WHERE id = ${runId}`;
+   if (!run) return;
+   await runOptions.ledger.markCancelled(runId).catch((error: unknown) => {
+      // A run that ended after revocation selected it still owns a warm
+      // personal session, so only the ledger transition is unnecessary.
+      if (!(error instanceof RunTerminal)) throw error;
+   });
+   if (!run.runtime_session_id) return;
+   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, defaultTarget);
+   const stop = transport.stopStrict;
+   if (!target || !stop) throw new Error('the runtime session stop cannot be confirmed');
+   await stop({ target, runtimeSessionId: run.runtime_session_id });
+};
+
+const cancelPersonalRuntimeRuns = async (runIds: string[]): Promise<void> => {
+   const results = await Promise.allSettled(runIds.map(cancelPersonalRuntimeRun));
+   const failures = results.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason as unknown] : []
+   );
+   if (failures.length > 0) {
+      throw new AggregateError(failures, 'one or more personal runtime sessions could not be stopped');
+   }
+};
+
 const registry = new Registry();
 registry.registerAll(meMounts({ sessions, identity, nested: accountRoutes({ boards, sql }) }));
 registry.registerAll(
@@ -747,6 +835,7 @@ registry.registerAll(
       sessions,
       workspaces,
       secrets,
+      cancelRuntimeRuns: cancelPersonalRuntimeRuns,
       autoseed: async (workspaceId) =>
          autoseedWorkspace(sql, workspaceId, {
             skills: deploySkills,
@@ -1019,6 +1108,20 @@ registry.registerAll(
       sessions,
       sql,
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
+      githubUsers: githubUserAccess,
+      cancelRun: cancelPersonalRuntimeRun,
+      runtimeControl: (request: RuntimeControlRequest) => {
+         if (request.runtimeId === 'kiro') {
+            return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
+         }
+         const control = transport.control;
+         if (!defaultTarget || !control) throw new Error('runtime control is unavailable');
+         return control({
+            target: defaultTarget,
+            request,
+            signal: AbortSignal.timeout(30_000),
+         });
+      },
       defaultTarget,
       health: async (target) => {
          if (target.driver === 'http') {

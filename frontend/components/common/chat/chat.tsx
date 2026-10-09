@@ -53,6 +53,7 @@ import { ChatComposer } from './chat-composer';
 import { ChatSidebar } from './chat-sidebar';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
+import { RuntimeSelectionControl } from '@/components/common/runtimes/runtime-selection';
 
 const PAGE = 50;
 
@@ -594,6 +595,11 @@ export function Chat() {
                      ) : (
                         <span className="min-w-0 flex-1" aria-hidden />
                      )}
+
+                     <RuntimeSelectionControl
+                        target={{ kind: 'conversation', id: active.id }}
+                        disabled={sending || active.activeRunId !== null}
+                     />
 
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>

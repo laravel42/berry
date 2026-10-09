@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
@@ -7,7 +8,16 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
+import { GitHubUserUnavailable, type GitHubUserAccess } from '../integrations/github-user.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
+import { isAiRuntimeId } from '../runtime/ai-runtime-catalog.ts';
+import { isKiroApiKey } from '../runtime/envelope.ts';
+import {
+   AiRuntimeConnectionNotFound,
+   AiRuntimeRepository,
+   AiRuntimeSelectionError,
+   NATIVE_AI_RUNTIME,
+} from '../runtime/ai-runtimes.ts';
 import {
    RuntimeNotFound,
    RuntimeProtected,
@@ -17,6 +27,8 @@ import {
    type RuntimeView,
 } from '../runtime/runtimes.ts';
 import type { RuntimeTarget } from '../runtime/transport.ts';
+import type { RuntimeControlRequest, RuntimeControlResponse } from '../runtime/envelope.ts';
+import { runtimeSessionIdFor } from '../runtime/session-id.ts';
 import type { Permission } from '../identity/roles.ts';
 import type { ScopedDb } from '../identity/workspace-context.ts';
 import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
@@ -67,8 +79,15 @@ export function runtimeMounts(options: {
    defaultTarget?: RuntimeTarget | null;
    /** Writes a session lifecycle onto an AgentCore runtime. Absent without AgentCore. */
    applyLifecycle?: (arn: string, lifecycle: Lifecycle) => Promise<void>;
+   /** Opens only the signed-in person's GitHub OAuth token for Copilot. */
+   githubUsers?: GitHubUserAccess | null;
+   /** Cancels an active run after its personal runtime connection is removed. */
+   cancelRun?: (runId: string) => Promise<void>;
+   /** Runs adapter control operations inside the configured runtime image. */
+   runtimeControl?: (request: RuntimeControlRequest) => Promise<RuntimeControlResponse>;
 }): Mount[] {
    const repository = new RuntimeRepository(options.sql, options.sealer);
+   const aiRuntimes = new AiRuntimeRepository(options.sql);
    const route = new Hono<{ Variables: AuthVariables }>();
    route.use('*', requireSession(options.sessions));
 
@@ -124,6 +143,93 @@ export function runtimeMounts(options: {
          }
          throw error;
       });
+   const aiError = (error: unknown): never => {
+      if (error instanceof AiRuntimeConnectionNotFound) throw ApiError.notFound('AI runtime connection');
+      if (error instanceof AiRuntimeSelectionError) {
+         const status = error.code === 'AI_RUNTIME_UNKNOWN' ? 404 : 409;
+         throw new ApiError(status, error.code, error.message);
+      }
+      if (error instanceof GitHubUserUnavailable) {
+         const code = error.reason === 'not_linked' || error.reason === 'sign_in_again'
+            ? 'GITHUB_SIGN_IN_REQUIRED'
+            : 'AI_RUNTIME_AUTH_FAILED';
+         throw new ApiError(409, code, error.message);
+      }
+      throw error;
+   };
+   const aiRuntimeId = (raw: string | undefined) => {
+      const value = (raw ?? '').trim();
+      if (!isAiRuntimeId(value)) throw ApiError.notFound('AI runtime');
+      return value;
+   };
+   const controlError = (error: Extract<RuntimeControlResponse, { ok: false }>['error']): never => {
+      const status =
+         error.code === 'QUOTA_EXHAUSTED'
+            ? 429
+            : error.code === 'MODEL_UNAVAILABLE'
+              ? 422
+              : error.code.startsWith('AUTH_')
+                ? 409
+                : 503;
+      throw new ApiError(status, `AI_${error.code}`, error.message);
+   };
+   const cancelRuns = async (runIds: string[]): Promise<void> => {
+      if (runIds.length === 0) return;
+      const cancel = options.cancelRun;
+      if (!cancel) {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_DISCONNECT_INCOMPLETE',
+            'The connection was removed, but this process cannot stop its active runs.'
+         );
+      }
+      const results = await Promise.allSettled(runIds.map((runId) => cancel(runId)));
+      if (results.some((result) => result.status === 'rejected')) {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_DISCONNECT_INCOMPLETE',
+            'The connection was removed, but one or more runtime sessions could not be stopped. Check runtime health.'
+         );
+      }
+   };
+   const copilotCredential = async (
+      userId: string,
+      accountId: string | null,
+      accountName: string | null
+   ) => {
+      if (!options.githubUsers) {
+         throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'This deployment cannot open GitHub sign-in credentials for Copilot.');
+      }
+      const token = await options.githubUsers.runtimeToken(userId).catch(aiError);
+      return { type: 'oauth' as const, token, accountId, accountName };
+   };
+   const kiroCredential = async (workspaceId: string, userId: string, connectionId: string) => {
+      if (!options.sealer) {
+         throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot open a Kiro API key.');
+      }
+      const sealed = await aiRuntimes.sealedCredential(workspaceId, userId, 'kiro', connectionId);
+      if (!sealed) {
+         throw new ApiError(409, 'AI_RUNTIME_AUTH_REQUIRED', 'Reconnect Kiro. The stored API key is missing.');
+      }
+      let token: string;
+      try {
+         token = options.sealer.open(sealed);
+      } catch {
+         throw new ApiError(409, 'AI_RUNTIME_AUTH_EXPIRED', 'The stored Kiro API key could not be opened. Reconnect Kiro.');
+      }
+      if (!isKiroApiKey(token)) {
+         throw new ApiError(409, 'AI_RUNTIME_AUTH_REQUIRED', 'Reconnect Kiro with a subscription API key.');
+      }
+      const connection = await aiRuntimes.connection(workspaceId, userId, 'kiro');
+      return {
+         type: 'api_key' as const,
+         token,
+         accountId: connection?.accountId ?? null,
+         accountName: connection?.accountName ?? null,
+      };
+   };
+   const modelId = z.string().trim().min(1).max(300).nullable();
+   const preferenceBody = z.strictObject({ runtimeId: z.string().nullable(), modelId });
 
    /**
     * A profile's idle timeout lives on the AgentCore runtime, not the session,
@@ -144,6 +250,210 @@ export function runtimeMounts(options: {
          return { ...profile, lifecycleApplied: false, lifecycleError: error instanceof Error ? error.message : String(error) };
       }
    };
+
+   route.get('/catalog', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const [connections, preference] = await Promise.all([
+         aiRuntimes.listConnections(workspaceId, user.id),
+         aiRuntimes.preference(workspaceId, user.id),
+      ]);
+      const byRuntime = new Map(connections.map((connection) => [connection.runtimeId, connection]));
+      return json({
+         nodes: aiRuntimes.catalog().map((definition) => ({
+            ...definition,
+            connection: byRuntime.get(definition.id) ?? null,
+         })),
+         preference,
+         native: {
+            id: NATIVE_AI_RUNTIME,
+            name: 'Berry managed',
+            billing: 'api_billing',
+            description: 'The deployment’s existing Bedrock or Kilo model path.',
+         },
+      });
+   });
+
+   route.get('/connections', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      return json({ nodes: await aiRuntimes.listConnections(workspaceId, user.id) });
+   });
+
+   route.post('/connections/:runtimeId', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
+      const body = await parse(context.req.raw, z.strictObject({ apiKey: z.string().trim().min(1).max(300).optional() }));
+      if (runtimeId === 'kiro') {
+         const apiKey = body.apiKey ?? '';
+         if (!isKiroApiKey(apiKey)) {
+            throw ApiError.badRequest('Kiro needs an API key from a Pro, Pro+, Pro Max, or Power plan.');
+         }
+         if (!options.sealer) {
+            throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot store a Kiro API key.');
+         }
+         if (!options.runtimeControl) {
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'Kiro runs on this workstation, and that process is not available.');
+         }
+         const accountId = createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
+         const credential = {
+            type: 'api_key' as const,
+            token: apiKey,
+            accountId,
+            accountName: 'Kiro subscription',
+         };
+         const sessionId = runtimeSessionIdFor(`ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`);
+         const probed = await options.runtimeControl({
+            runtimeSessionId: sessionId,
+            operation: 'connection',
+            runtimeId,
+            credential,
+         });
+         if ('error' in probed) controlError(probed.error);
+         const status = 'connection' in probed ? probed.connection : undefined;
+         if (!status || status.status !== 'connected') {
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? 'Kiro rejected this API key.');
+         }
+         const listed = await options.runtimeControl({
+            runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
+            operation: 'models',
+            runtimeId,
+            credential: {
+               ...credential,
+               accountName: status.accountName ?? credential.accountName,
+            },
+         });
+         if ('error' in listed) controlError(listed.error);
+         const models = 'models' in listed ? (listed.models ?? []) : [];
+         const connected = await aiRuntimes
+            .connect({
+               workspaceId,
+               userId: user.id,
+               runtimeId,
+               authMethod: 'kiro_api_key',
+               accountId,
+               accountName: status.accountName ?? 'Kiro subscription',
+               metadata: { models, modelCatalogComplete: true },
+               credentialSealed: options.sealer.seal(apiKey),
+            })
+            .catch(aiError);
+         await cancelRuns(connected.replacedActiveRunIds);
+         return json(connected.connection, 201);
+      }
+      if (runtimeId !== 'github-copilot') {
+         throw new ApiError(
+            409,
+            'AI_RUNTIME_UNAVAILABLE',
+            aiRuntimes.catalog().find((runtime) => runtime.id === runtimeId)?.unavailableReason ??
+               'This AI runtime is not available in this Berry build.'
+         );
+      }
+      if (!options.githubUsers) {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_AUTH_UNAVAILABLE',
+            'This deployment cannot open GitHub sign-in credentials for Copilot.'
+         );
+      }
+      const identity = await options.githubUsers.runtimeIdentity(user.id).catch(aiError);
+      let metadata: Record<string, unknown> = {
+         models: [{ id: 'auto', name: 'Automatic' }],
+         modelCatalogComplete: false,
+      };
+      if (options.runtimeControl) {
+         const token = await options.githubUsers.runtimeToken(user.id).catch(aiError);
+         const result = await options.runtimeControl({
+            runtimeSessionId: runtimeSessionIdFor(
+               `ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`
+            ),
+            operation: 'models',
+            runtimeId,
+            credential: {
+               type: 'oauth',
+               token,
+               accountId: identity.accountId,
+               accountName: identity.accountName,
+            },
+         });
+         if ('error' in result) controlError(result.error);
+         metadata = {
+            models: 'models' in result ? (result.models ?? []) : [],
+            modelCatalogComplete: true,
+         };
+      }
+      const connected = await aiRuntimes
+         .connect({
+            workspaceId,
+            userId: user.id,
+            runtimeId,
+            authMethod: 'github_oauth_user_token',
+            accountId: identity.accountId,
+            accountName: identity.accountName,
+            metadata,
+         })
+         .catch(aiError);
+      await cancelRuns(connected.replacedActiveRunIds);
+      return json(connected.connection, 201);
+   });
+
+   route.delete('/connections/:runtimeId', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
+      const disconnected = await aiRuntimes.disconnect(workspaceId, user.id, runtimeId);
+      await cancelRuns(disconnected.activeRunIds);
+      return new Response(null, { status: 204 });
+   });
+
+   route.get('/preference', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      return json(await aiRuntimes.preference(workspaceId, user.id));
+   });
+
+   route.put('/preference', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const body = await parse(context.req.raw, preferenceBody);
+      const runtimeId = body.runtimeId === null ? null : aiRuntimeId(body.runtimeId);
+      return json(
+         await aiRuntimes
+            .savePreference(workspaceId, user.id, { runtimeId, modelId: body.modelId })
+            .catch(aiError)
+      );
+   });
+
+   route.get('/connections/:runtimeId/models', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
+      const connection = await aiRuntimes.connection(workspaceId, user.id, runtimeId);
+      if (!connection || connection.status !== 'connected') {
+         throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
+      }
+      if (options.runtimeControl && (runtimeId === 'github-copilot' || runtimeId === 'kiro')) {
+         const credential = runtimeId === 'kiro'
+            ? await kiroCredential(workspaceId, user.id, connection.id)
+            : await copilotCredential(user.id, connection.accountId, connection.accountName);
+         const result = await options.runtimeControl({
+            runtimeSessionId: runtimeSessionIdFor(`ai-runtime-control:${connection.id}`),
+            operation: 'models',
+            runtimeId,
+            credential,
+         });
+         if ('error' in result) controlError(result.error);
+         const models = 'models' in result ? (result.models ?? []) : [];
+         await aiRuntimes.recordModels(connection.id, models).catch(aiError);
+         return json({ nodes: models, complete: true, detail: null });
+      }
+      const models = Array.isArray(connection.metadata.models) ? connection.metadata.models : [];
+      return json({
+         nodes: models,
+         complete: false,
+         detail: 'Model discovery needs a reachable Berry runtime host.',
+      });
+   });
 
    route.get('/', async (context) => {
       const user = context.get('user');

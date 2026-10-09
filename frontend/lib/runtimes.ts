@@ -224,3 +224,185 @@ export function formatSeconds(seconds: number): string {
    if (seconds % 3600 === 0) return `${seconds / 3600} h`;
    return `${Math.round(seconds / 60)} min`;
 }
+
+// ---------------------------------------------------------------- AI runtimes
+
+const aiRuntimeCapabilitySchema = z.enum(['supported', 'unsupported', 'unknown']);
+const aiRuntimeConnectionSchema = z.object({
+   id: z.string(),
+   runtimeId: z.string(),
+   status: z.enum(['connected', 'expired', 'error', 'disconnected']),
+   authMethod: z.string(),
+   accountId: z.string().nullable(),
+   accountName: z.string().nullable(),
+   metadata: z.record(z.string(), z.unknown()),
+   connectedAt: z.string(),
+   disconnectedAt: z.string().nullable(),
+   lastCheckedAt: z.string().nullable(),
+   lastError: z.string().nullable(),
+});
+const aiRuntimeDefinitionSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   publisher: z.string(),
+   product: z.string(),
+   description: z.string(),
+   executionMode: z.enum(['direct_inference', 'agent_process']),
+   provider: z.string(),
+   billing: z.enum(['subscription', 'api_billing', 'provider_dependent', 'unknown']),
+   billingDetail: z.string(),
+   subscriptionAccess: aiRuntimeCapabilitySchema,
+   connectionMethods: z.array(z.string()),
+   platforms: z.array(z.string()),
+   localProcess: z.boolean(),
+   installation: z.string(),
+   defaultModel: z.string().nullable(),
+   capabilities: z.object({
+      modelDiscovery: aiRuntimeCapabilitySchema,
+      streaming: aiRuntimeCapabilitySchema,
+      tools: aiRuntimeCapabilitySchema,
+      sessions: aiRuntimeCapabilitySchema,
+      cancellation: aiRuntimeCapabilitySchema,
+      usage: aiRuntimeCapabilitySchema,
+   }),
+   availability: z.enum(['available', 'blocked']),
+   unavailableReason: z.string().nullable(),
+   officialSources: z.array(z.string()),
+   connection: aiRuntimeConnectionSchema.nullable(),
+});
+const aiRuntimePreferenceSchema = z.object({
+   runtimeId: z.string().nullable(),
+   modelId: z.string().nullable(),
+});
+const aiRuntimeCatalogSchema = z.object({
+   nodes: z.array(aiRuntimeDefinitionSchema),
+   preference: aiRuntimePreferenceSchema,
+   native: z.object({
+      id: z.literal('berry-native'),
+      name: z.string(),
+      billing: z.literal('api_billing'),
+      description: z.string(),
+   }),
+});
+const aiRuntimeSelectionSchema = z.object({
+   runtimeId: z.string().nullable(),
+   modelId: z.string().nullable(),
+});
+const aiRuntimeModelSchema = z.object({ id: z.string(), name: z.string() });
+
+export type AiRuntimeConnection = z.infer<typeof aiRuntimeConnectionSchema>;
+export type AiRuntimeDefinition = z.infer<typeof aiRuntimeDefinitionSchema>;
+export type AiRuntimePreference = z.infer<typeof aiRuntimePreferenceSchema>;
+export type AiRuntimeCatalog = z.infer<typeof aiRuntimeCatalogSchema>;
+export type AiRuntimeSelection = z.infer<typeof aiRuntimeSelectionSchema>;
+export type AiRuntimeModel = z.infer<typeof aiRuntimeModelSchema>;
+
+/** Reads only the model catalogue cached on this immutable connection generation. */
+export function aiRuntimeModelsFrom(runtime: AiRuntimeDefinition | undefined): AiRuntimeModel[] {
+   const fallback = [{ id: runtime?.defaultModel ?? 'auto', name: 'Automatic' }];
+   const models = z.array(aiRuntimeModelSchema).safeParse(runtime?.connection?.metadata.models);
+   return models.success && models.data.length > 0 ? models.data : fallback;
+}
+
+export async function loadAiRuntimeCatalog(): Promise<AiRuntimeCatalog> {
+   return parse(
+      aiRuntimeCatalogSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/catalog'),
+      'AI runtime catalog'
+   );
+}
+
+export async function connectAiRuntime(
+   runtimeId: string,
+   body: { apiKey?: string } = {}
+): Promise<AiRuntimeConnection> {
+   return parse(
+      aiRuntimeConnectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/runtimes/connections/${encodeURIComponent(runtimeId)}`,
+         send('POST', body)
+      ),
+      'AI runtime connection'
+   );
+}
+
+export async function disconnectAiRuntime(runtimeId: string): Promise<void> {
+   await apiFetch(`/api/v1/runtimes/connections/${encodeURIComponent(runtimeId)}`, {
+      method: 'DELETE',
+   });
+}
+
+export async function saveAiRuntimePreference(
+   preference: AiRuntimePreference
+): Promise<AiRuntimePreference> {
+   return parse(
+      aiRuntimePreferenceSchema,
+      await apiFetch<unknown>('/api/v1/runtimes/preference', send('PUT', preference)),
+      'AI runtime preference'
+   );
+}
+
+export async function listAiRuntimeModels(
+   runtimeId: string
+): Promise<{ nodes: AiRuntimeModel[]; complete: boolean; detail: string | null }> {
+   const schema = z.object({
+      nodes: z.array(aiRuntimeModelSchema),
+      complete: z.boolean(),
+      detail: z.string().nullable(),
+   });
+   return parse(
+      schema,
+      await apiFetch<unknown>(
+         `/api/v1/runtimes/connections/${encodeURIComponent(runtimeId)}/models`
+      ),
+      'AI runtime models'
+   );
+}
+
+export async function getIssueRuntimeSelection(issueId: string): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(`/api/v1/issues/${encodeURIComponent(issueId)}/runtime-selection`),
+      'Task runtime selection'
+   );
+}
+
+export async function saveIssueRuntimeSelection(
+   issueId: string,
+   selection: AiRuntimeSelection
+): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/issues/${encodeURIComponent(issueId)}/runtime-selection`,
+         send('PUT', selection)
+      ),
+      'Task runtime selection'
+   );
+}
+
+export async function getConversationRuntimeSelection(
+   conversationId: string
+): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/conversations/${encodeURIComponent(conversationId)}/runtime-selection`
+      ),
+      'Conversation runtime selection'
+   );
+}
+
+export async function saveConversationRuntimeSelection(
+   conversationId: string,
+   selection: AiRuntimeSelection
+): Promise<AiRuntimeSelection> {
+   return parse(
+      aiRuntimeSelectionSchema,
+      await apiFetch<unknown>(
+         `/api/v1/conversations/${encodeURIComponent(conversationId)}/runtime-selection`,
+         send('PUT', selection)
+      ),
+      'Conversation runtime selection'
+   );
+}

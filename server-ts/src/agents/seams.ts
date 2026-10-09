@@ -32,6 +32,11 @@ export interface EnqueueInput {
    priority?: number;
    /** The person who asked, when a person did. Attributes what the run files. */
    requestedBy?: string;
+   /**
+    * The person who authorized this run to use their personal AI subscription.
+    * `enqueueTask` accepts it; unlike `requestedBy` it is not inherited.
+    */
+   runtimeAuthorizedBy?: string;
 }
 
 export type EnqueueTask = (sql: Sql, input: EnqueueInput) => Promise<{ runId: string }>;

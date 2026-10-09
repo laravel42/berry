@@ -172,6 +172,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    'integration_oauth_states',
    'integration_webhook_deliveries',
    'integration_connections',
+   'ai_runtime_preferences',
+   'ai_runtime_connections',
    'github_pull_request_links',
    'github_pull_requests',
    'github_checks',

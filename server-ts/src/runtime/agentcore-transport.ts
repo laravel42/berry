@@ -3,7 +3,11 @@ import {
    InvokeAgentRuntimeCommand,
    StopRuntimeSessionCommand,
 } from '@aws-sdk/client-bedrock-agentcore';
-import type { TaskEnvelope } from './envelope.ts';
+import {
+   runtimeControlResponseSchema,
+   type RuntimeControlResponse,
+   type TaskEnvelope,
+} from './envelope.ts';
 import { parseLifecycleStream, type LifecycleEvent } from './lifecycle.ts';
 import {
    RunNotResumable,
@@ -114,6 +118,61 @@ export function agentCoreTransport(options: {
          }
       },
 
+      async control({ target, request, signal }): Promise<RuntimeControlResponse> {
+         if (!target.arn) throw new RuntimeUnavailable('this runtime has no ARN');
+         const client = clientFor(target.region);
+         try {
+            const response = await client.send(
+               new InvokeAgentRuntimeCommand({
+                  agentRuntimeArn: target.arn,
+                  qualifier: target.qualifier,
+                  runtimeSessionId: request.runtimeSessionId,
+                  contentType: 'application/json',
+                  accept: 'application/json',
+                  payload: new TextEncoder().encode(JSON.stringify({ control: request })),
+               }),
+               { abortSignal: signal as never }
+            );
+            if (response.response === undefined || response.response === null) {
+               throw new Error('the runtime returned no body');
+            }
+            const chunks: Uint8Array[] = [];
+            for await (const chunk of toByteStream(response.response)) chunks.push(chunk);
+            const parsedJson = JSON.parse(new TextDecoder().decode(concat(chunks))) as unknown;
+            const parsed = runtimeControlResponseSchema.safeParse(parsedJson);
+            if (!parsed.success) throw new Error('the runtime returned an invalid control response');
+            return parsed.data;
+         } catch (cause) {
+            throw new RuntimeUnavailable(
+               `could not invoke the AgentCore Runtime control operation: ${message(cause)}`,
+               { cause }
+            );
+         } finally {
+            // Control calls get their own session. Leaving one idle keeps its
+            // microVM billable, so every outcome closes it immediately.
+            await client
+               .send(
+                  new StopRuntimeSessionCommand({
+                     agentRuntimeArn: target.arn,
+                     qualifier: target.qualifier,
+                     runtimeSessionId: request.runtimeSessionId,
+                  })
+               )
+               .catch(() => undefined);
+         }
+      },
+
+      async stopStrict({ target, runtimeSessionId }) {
+         if (!target.arn) return;
+         await clientFor(target.region).send(
+            new StopRuntimeSessionCommand({
+               agentRuntimeArn: target.arn,
+               qualifier: target.qualifier,
+               runtimeSessionId,
+            })
+         );
+      },
+
       async stop({ target, runtimeSessionId }) {
          if (!target.arn) return;
          await clientFor(target.region)
@@ -208,6 +267,17 @@ function toByteStream(body: unknown): AsyncIterable<Uint8Array> {
       })();
    }
    throw new Error('the runtime response body is not a readable stream');
+}
+
+function concat(chunks: Uint8Array[]): Uint8Array {
+   const size = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+   const joined = new Uint8Array(size);
+   let offset = 0;
+   for (const chunk of chunks) {
+      joined.set(chunk, offset);
+      offset += chunk.byteLength;
+   }
+   return joined;
 }
 
 function once(bytes: Uint8Array): AsyncIterable<Uint8Array> {

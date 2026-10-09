@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import { json } from '../http/app.ts';
@@ -22,6 +23,8 @@ import {
 } from '../runs/repository.ts';
 import { pathId } from './shared.ts';
 import type { Mount } from '../http/registry.ts';
+import { AiRuntimeRepository, AiRuntimeSelectionError } from '../runtime/ai-runtimes.ts';
+import { readJson } from './zod-body.ts';
 
 /**
  * `/api/v1/runs`, and the two listings that hang under a board and a task.
@@ -201,6 +204,32 @@ export function boardRunRoutes(options: RunOptions) {
 export function issueRunRoutes(options: RunOptions) {
    const route = new Hono<{ Variables: AuthVariables }>();
    const { runs, issues, idempotency, sql } = options;
+   const aiRuntimes = new AiRuntimeRepository(sql);
+   const runtimeSelectionSchema = z.strictObject({
+      runtimeId: z.string().trim().min(1).max(64).nullable(),
+      modelId: z.string().trim().min(1).max(300).nullable(),
+   });
+
+   route.get('/:issueRef/runtime-selection', async (context) => {
+      const issue = await resolveIssue(
+         issues,
+         context.req.param('issueRef'),
+         context.get('user').id,
+         'product.read'
+      );
+      return json(await aiRuntimes.issueSelection(issue.workspaceId, issue.id).catch(rethrowAiRuntime));
+   });
+
+   route.put('/:issueRef/runtime-selection', async (context) => {
+      const user = context.get('user');
+      const issue = await resolveIssue(issues, context.req.param('issueRef'), user.id, 'product.write');
+      const body = await readJson(context, runtimeSelectionSchema);
+      return json(
+         await aiRuntimes
+            .saveIssueSelection(issue.workspaceId, issue.id, user.id, body)
+            .catch(rethrowAiRuntime)
+      );
+   });
 
    route.get('/:issueRef/runs', async (context) => {
       const issue = await resolveIssue(issues, context.req.param('issueRef'), context.get('user').id, 'product.read');
@@ -231,7 +260,7 @@ export function issueRunRoutes(options: RunOptions) {
       const outcome = await restartTask(sql, {
          issueId: issue.id,
          requestedBy: context.get('user').id,
-      });
+      }).catch(rethrowAiRuntime);
       if (!outcome.restarted) {
          if (outcome.reason === 'busy') {
             throw new ApiError(409, 'ACTIVE_RUN_EXISTS', 'This task already has a run in progress.');
@@ -264,6 +293,7 @@ export function issueRunRoutes(options: RunOptions) {
             workspaceId: scope.workspaceId,
             agentId,
             requestedBy: context.get('user').id,
+            runtimeAuthorizedBy: context.get('user').id,
             instructions,
          });
          // 202, and the location of the thing that was created: the run is
@@ -285,6 +315,7 @@ export function issueRunRoutes(options: RunOptions) {
          if (error instanceof NoAgentAssigned) {
             throw new ApiError(409, 'CONFLICT', 'This task has no agent assigned to run it.');
          }
+         if (error instanceof AiRuntimeSelectionError) rethrowAiRuntime(error);
          throw error;
       }
    });
@@ -318,6 +349,16 @@ export function serializeRun(run: Run): Record<string, unknown> {
       // tell an assignment apart from a mention or an autopilot.
       source: run.source,
       requestedBy: run.requestedBy ? { type: 'user', id: run.requestedBy } : null,
+      aiRuntimeId: run.aiRuntimeId,
+      aiModelId: run.aiModelId,
+      aiRuntimeAccount:
+         run.aiRuntimeId && (run.aiRuntimeAccountId || run.aiRuntimeAccountName)
+            ? {
+                 id: run.aiRuntimeAccountId,
+                 name: run.aiRuntimeAccountName,
+                 userId: run.aiRuntimeUserId,
+              }
+            : null,
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       completedAt: run.completedAt,
@@ -428,4 +469,12 @@ function rethrow(resource: string) {
       if (error instanceof NotFound || error instanceof Forbidden) throw ApiError.notFound(resource);
       throw error;
    };
+}
+
+function rethrowAiRuntime(error: unknown): never {
+   if (error instanceof AiRuntimeSelectionError) {
+      const status = error.code === 'AI_RUNTIME_UNKNOWN' ? 404 : 409;
+      throw new ApiError(status, error.code, error.message);
+   }
+   throw error;
 }

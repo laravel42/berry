@@ -236,7 +236,12 @@ export function approvalMounts(options: ApprovalOptions): Mount[] {
       if (!options.dispatch) return;
       try {
          const issue = await issues.get(issueId);
-         await autoDispatch(options.dispatch, issue, { workspaceId, requestedBy: userId }, options.stages);
+         await autoDispatch(
+            options.dispatch,
+            issue,
+            { workspaceId, requestedBy: userId, runtimeAuthorizedBy: userId },
+            options.stages
+         );
       } catch (error) {
          options.onDispatchError?.(issueId, error);
       }

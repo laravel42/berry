@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import type { McpServerRef, RepoPlan, TaskEnvelope, TranscriptMessage } from './envelope.ts';
+import { isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -25,6 +25,8 @@ import type { RoleKey } from '../organization/contract.ts';
 import { isGatewayModelId, type TierChoice, type TierPlacement } from '../agents/kilo/tiers.ts';
 import type { TierPlacements } from '../agents/kilo/placements.ts';
 import type { Tier } from '../agents/model-tiers.ts';
+import { findAiRuntime, type AiRuntimeId } from './ai-runtime-catalog.ts';
+import type { RuntimeCredential } from '../agents/runtime/adapters/types.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
 const RELATED_PARENT_CHARS = 1500;
@@ -60,6 +62,18 @@ export interface CompletionSpec {
    planId?: string;
 }
 
+export class AiRuntimeEnvelopeError extends Error {
+   override readonly name = 'AiRuntimeEnvelopeError';
+   readonly code: string;
+   readonly retryable: boolean;
+
+   constructor(code: string, message: string, retryable: boolean, options?: ErrorOptions) {
+      super(message, options);
+      this.code = code;
+      this.retryable = retryable;
+   }
+}
+
 export interface TaskRow {
    runId: string;
    workspaceId: string;
@@ -74,6 +88,14 @@ export interface TaskRow {
    fresh: boolean;
    completionSpec: CompletionSpec | null;
    runtimeId: string | null;
+   /** The personal AI adapter snapshot, distinct from the compute runtime above. */
+   aiRuntimeId: AiRuntimeId | null;
+   aiModelId: string | null;
+   aiRuntimeConnectionId: string | null;
+   aiRuntimeUserId: string | null;
+   aiRuntimeAccountId: string | null;
+   aiRuntimeAccountName: string | null;
+   requestedBy: string | null;
 }
 
 export interface AgentConfig {
@@ -116,6 +138,14 @@ export interface EnvelopeDeps {
    sql: Sql;
    /** `BERRY_PUBLIC_URL`: where the runtime calls the Berry tool API. */
    publicUrl: string;
+   /** Opens a user-owned runtime credential only while building that user's task envelope. */
+   runtimeCredential?: ((input: {
+      workspaceId: string;
+      runtimeId: AiRuntimeId;
+      connectionId: string;
+      userId: string;
+      accountId: string | null;
+   }) => Promise<RuntimeCredential>) | undefined;
    defaultModel: string;
    /**
     * The model gateway (ADR-0017), when runs call models through it. A model
@@ -151,7 +181,9 @@ export interface EnvelopeDeps {
 export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
    const [row] = await sql`
       SELECT id, workspace_id, agent_id, issue_id, board_id, chat_session_id, kind, source,
-             prompt, completion_spec, runtime_id, origin
+             prompt, completion_spec, runtime_id, origin, ai_runtime_key, ai_model_id,
+             ai_runtime_connection_id, ai_runtime_user_id, ai_runtime_account_id,
+             ai_runtime_account_name, requested_by
         FROM runs WHERE id = ${runId}`;
    if (!row) throw new Error(`run ${runId} does not exist`);
    const origin = row.origin;
@@ -168,6 +200,13 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
       completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
       runtimeId: (row.runtime_id as string | null) ?? null,
+      aiRuntimeId: (row.ai_runtime_key as AiRuntimeId | null) ?? null,
+      aiModelId: (row.ai_model_id as string | null) ?? null,
+      aiRuntimeConnectionId: (row.ai_runtime_connection_id as string | null) ?? null,
+      aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
+      aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
+      aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,
+      requestedBy: (row.requested_by as string | null) ?? null,
    };
 }
 
@@ -198,11 +237,20 @@ export class EnvelopeBuilder {
       const { task } = input;
       const agent = await this.#agent(task.agentId);
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
-      const sessionKey = sessionKeyFor({
+      const runtime = await this.#runtime(task);
+      const baseSessionKey = sessionKeyFor({
          kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
          ...(task.fresh ? { fresh: true } : {}),
       });
-      const { model, tier, fallback } = await this.#model(task, agent, profile.model);
+      // A personal runtime session belongs to its connection as well as the
+      // agent/task. Two people running the same task must never share the
+      // provider process's transcript, files, or account state.
+      const sessionKey = runtime && task.aiRuntimeConnectionId
+         ? `${baseSessionKey}:connection:${task.aiRuntimeConnectionId}`
+         : baseSessionKey;
+      const { model, tier, fallback } = runtime
+         ? { model: runtime.model, tier: null, fallback: null }
+         : await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -218,6 +266,7 @@ export class EnvelopeBuilder {
 
       const base = {
          runId: task.runId,
+         ...(runtime ? { runtime } : {}),
          sessionKey,
          runtimeSessionId: runtimeSessionIdFor(sessionKey),
          agent: {
@@ -400,6 +449,84 @@ export class EnvelopeBuilder {
          repository: (row.repository as string) ?? '',
          requestId: (row.request_id as string | null) ?? '',
          traceParent: (row.traceparent as string | null) ?? '',
+      };
+   }
+
+   async #runtime(
+      task: TaskRow
+   ): Promise<(NonNullable<TaskEnvelope['runtime']> & { model: string }) | null> {
+      if (!task.aiRuntimeId) return null;
+      if (task.kind !== 'agent') {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_UNSUPPORTED_TASK',
+            'Personal AI runtimes can execute agent tasks only.',
+            false
+         );
+      }
+      const definition = findAiRuntime(task.aiRuntimeId);
+      if (!definition || definition.availability !== 'available') {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_UNAVAILABLE',
+            definition?.unavailableReason ?? `AI runtime ${task.aiRuntimeId} is unavailable.`,
+            false
+         );
+      }
+      if (!task.aiRuntimeConnectionId || !task.aiRuntimeUserId || !this.#deps.runtimeCredential) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            `Reconnect ${definition.name} for your account before running this task.`,
+            false
+         );
+      }
+      let credential: RuntimeCredential;
+      try {
+         credential = await this.#deps.runtimeCredential({
+            workspaceId: task.workspaceId,
+            runtimeId: task.aiRuntimeId,
+            connectionId: task.aiRuntimeConnectionId,
+            userId: task.aiRuntimeUserId,
+            accountId: task.aiRuntimeAccountId,
+         });
+      } catch (cause) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_EXPIRED',
+            `${definition.name} could not use your account. Reconnect it and run the task again.`,
+            false,
+            { cause }
+         );
+      }
+      if (
+         task.aiRuntimeId === 'github-copilot' &&
+         !/^(gho_|ghu_|github_pat_)/.test(credential.token)
+      ) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'GitHub Copilot requires a GitHub OAuth user token. Sign out of Berry and sign in with GitHub again.',
+            false
+         );
+      }
+      if (task.aiRuntimeId === 'kiro' && (credential.type !== 'api_key' || !isKiroApiKey(credential.token))) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'Kiro requires the subscription API key from a Pro, Pro+, Pro Max, or Power plan. Reconnect it in AI Runtimes settings.',
+            false
+         );
+      }
+      const model = task.aiModelId ?? definition.defaultModel;
+      if (!model) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_MODEL_REQUIRED',
+            `Choose a model for ${definition.name} before running this task.`,
+            false
+         );
+      }
+      return {
+         id: definition.id,
+         executionMode: definition.executionMode,
+         provider: definition.provider,
+         billing: definition.billing,
+         model,
+         credential,
       };
    }
 

@@ -43,7 +43,7 @@ Agents and runs:
 - `/api/v1/agents` — roster, capabilities, guide, models, per-agent config/permissions/contract/labels/env/avatar
 - `/api/v1/agent-builder`
 - `/api/v1/runs`
-- `/api/v1/runtimes` — runtime registrations, profiles, agent binding, health
+- `/api/v1/runtimes` — compute-host registrations/profiles/agent binding/health, plus the user-scoped AI-runtime catalog, connections, preferences, live model discovery and task/conversation selection (ADR-0019)
 - `/api/v1/agent-tools` — task-token auth only; the runtime calling Berry's tools
 - `/api/v1/organization`, `/api/v1/work-proposals`
 - `/api/v1/skills`, `/api/v1/mcp-servers`

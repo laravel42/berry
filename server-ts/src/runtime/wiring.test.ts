@@ -39,7 +39,7 @@ test('the composition root gives the agent layer the real queue and completion e
    // The builder's completions.
    assert.match(root, /new AgentBuilder\(\{ sql, complete, /);
    // Mentions and replies on comments.
-   assert.match(root, /triggers: commentTriggers\(\{\s*sql,\s*enqueue: agentEnqueue,/);
+   assert.match(root, /triggers: commentTriggers\(\{\s*sql,\s*issues,\s*enqueue: agentEnqueue,/);
    // The terminal hooks, registered once.
    assert.match(root, /registerChatReplies\(\{ sql, conversations: conversationRepository \}\)/);
    // The envelope carries the agent's skills, MCP servers and env.

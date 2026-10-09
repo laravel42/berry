@@ -34,6 +34,15 @@ const runSchema = z.object({
     */
    source: z.string().default('assignment'),
    requestedBy: z.object({ type: z.string(), id: z.string() }).nullish(),
+   aiRuntimeId: z.string().nullish(),
+   aiModelId: z.string().nullish(),
+   aiRuntimeAccount: z
+      .object({
+         id: z.string().nullable(),
+         name: z.string().nullable(),
+         userId: z.string().nullable(),
+      })
+      .nullish(),
    createdAt: z.string(),
    startedAt: z.string().nullable(),
    completedAt: z.string().nullable(),

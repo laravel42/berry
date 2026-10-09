@@ -56,6 +56,7 @@ export function runArgs(options: DockerContainersOptions, session: string): stri
       '--env', 'PORT=8080',
       '--env', 'BERRY_RUNTIME_WORK_ROOT=/mnt/workspace',
       '--env', 'BERRY_RUNTIME_ISOLATE_SESSIONS=true',
+      '--env', `BERRY_RUNTIME_EXPECTED_SESSION=${session}`,
       '--user', '0:0',
       '--cap-drop', 'ALL',
       ...['SETUID', 'SETGID', 'CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL'].flatMap((cap) => ['--cap-add', cap]),

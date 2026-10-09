@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import { ActiveRunExists } from './repository.ts';
+import {
+   resolveAiRuntimeSelection,
+   retainAiRuntimeSelection,
+   type AiRuntimeRunSelection,
+} from '../runtime/ai-runtimes.ts';
 
 /**
  * Admitting a task, from anywhere in Berry.
@@ -44,6 +49,15 @@ export interface EnqueueTaskInput {
     */
    requestedBy?: string;
    /**
+    * The person who directly authorized this run to consume their personal AI
+    * subscription. Unlike `requestedBy`, this is never inherited for audit.
+    */
+   runtimeAuthorizedBy?: string;
+   /** Immutable selection copied by an automatic continuation or retry. */
+   aiRuntime?: AiRuntimeRunSelection;
+   /** Preserve an originating native run without re-resolving current overrides. */
+   forceNativeRuntime?: boolean;
+   /**
     * The run whose agent started this one (a handoff, an assignment, a
     * mention). Lets a chat follow the work its agent set going, not only its
     * own reply.
@@ -75,15 +89,20 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
       const runtimeId = await resolveRuntimeId(tx, input.workspaceId, (agent.runtime_id as string | null) ?? null);
 
       let boardId: string | null = null;
+      let overrideRuntimeId: string | null = null;
+      let overrideModelId: string | null = null;
       const issueId = input.kind === 'agent' ? (input.issueId ?? null) : null;
       if (issueId) {
          // Locked first, so two triggers on one issue cannot both see it idle.
          const [issue] = await tx`
-            SELECT i.id, i.board_id FROM issues i JOIN boards b ON b.id = i.board_id
+            SELECT i.id, i.board_id, i.ai_runtime_key, i.ai_model_id
+              FROM issues i JOIN boards b ON b.id = i.board_id
              WHERE i.id = ${issueId} AND b.workspace_id = ${input.workspaceId} AND i.deleted_at IS NULL
              FOR UPDATE OF i`;
          if (!issue) throw new NotFound();
          boardId = issue.board_id as string;
+         overrideRuntimeId = (issue.ai_runtime_key as string | null) ?? null;
+         overrideModelId = (issue.ai_model_id as string | null) ?? null;
          const [active] = await tx`
             SELECT id FROM runs WHERE issue_id = ${issueId} AND status IN ('queued', 'running') LIMIT 1`;
          if (active) throw new ActiveRunExists(active.id as string);
@@ -95,21 +114,48 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
       // the one ahead of it ends.
       if (input.chatSessionId) {
          const [session] = await tx`
-            SELECT id FROM conversations
+            SELECT id, ai_runtime_key, ai_model_id FROM conversations
              WHERE id = ${input.chatSessionId} AND workspace_id = ${input.workspaceId}
              FOR UPDATE`;
          if (!session) throw new NotFound();
+         overrideRuntimeId = (session.ai_runtime_key as string | null) ?? null;
+         overrideModelId = (session.ai_model_id as string | null) ?? null;
       }
+
+      const aiRuntime =
+         input.kind !== 'agent' || input.forceNativeRuntime
+            ? {
+                 runtimeId: null,
+                 modelId: null,
+                 connectionId: null,
+                 userId: null,
+                 accountId: null,
+                 accountName: null,
+              }
+            : input.aiRuntime
+              ? await retainAiRuntimeSelection(tx, {
+                   workspaceId: input.workspaceId,
+                   selection: input.aiRuntime,
+                })
+              : await resolveAiRuntimeSelection(tx, {
+                   workspaceId: input.workspaceId,
+                   userId: input.runtimeAuthorizedBy ?? null,
+                   overrideRuntimeId,
+                   overrideModelId,
+                });
 
       await tx`
          INSERT INTO runs (id, workspace_id, issue_id, board_id, agent_id, kind, source, prompt,
                            chat_session_id, autopilot_run_id, priority, runtime_id, instructions,
-                           requested_by, origin)
+                           requested_by, origin, ai_runtime_key, ai_model_id, ai_runtime_connection_id,
+                           ai_runtime_user_id, ai_runtime_account_id, ai_runtime_account_name)
          VALUES (${runId}, ${input.workspaceId}, ${issueId}, ${boardId}, ${input.agentId},
                  ${input.kind}, ${input.source}, ${input.prompt ?? null},
                  ${input.chatSessionId ?? null}, ${input.autopilotRunId ?? null},
                  ${input.priority ?? 0}, ${runtimeId}, ${input.kind === 'agent' ? (input.prompt ?? null) : null},
-                 ${input.requestedBy ?? null}, ${tx.json((input.origin ?? {}) as never)})`;
+                 ${input.requestedBy ?? null}, ${tx.json((input.origin ?? {}) as never)},
+                 ${aiRuntime.runtimeId}, ${aiRuntime.modelId}, ${aiRuntime.connectionId},
+                 ${aiRuntime.userId}, ${aiRuntime.accountId}, ${aiRuntime.accountName})`;
 
       if (input.chatSessionId) {
          // The first queued task becomes the session's active one; the reply

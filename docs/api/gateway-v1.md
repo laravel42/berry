@@ -340,6 +340,8 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
 | `failure` | `RunFailure` or null | yes | Present only when `status` is `failed` |
 | `source` | string | yes | What asked for the run: `assignment`, `mention`, `chat`, `autopilot`, `quick_action`, `builder`, `completion` |
 | `requestedBy` | `ActorRef` or null | yes | The person who asked; null when an agent, an autopilot or a schedule did |
+| `aiRuntimeId` | string or null | yes | User-scoped agent-process runtime snapshotted at admission; null uses the deployment's native runtime |
+| `aiModelId` | string or null | yes | Model selected for `aiRuntimeId`; null with the native runtime |
 | `createdAt` | `Timestamp` | yes | Dispatch accepted time |
 | `startedAt` | `Timestamp` or null | yes | Execution start time |
 | `completedAt` | `Timestamp` or null | yes | Terminal transition time |
@@ -914,6 +916,29 @@ An `agent_runtimes` row describes one execution target: `platform` (the server's
 | `GET`, `POST /api/v1/runtimes/{id}/profiles` | List / create profiles on a runtime |
 | `PATCH`, `DELETE /api/v1/runtimes/{id}/profiles/{profileId}` | Update / remove a profile |
 | `PUT`, `DELETE /api/v1/runtimes/{id}/agents/{agentId}` | Bind / unbind an agent to this runtime |
+
+The routes above describe **compute hosts**. ADR-0019's AI runtime is the
+agent or inference implementation inside that host. Its connections are
+user-scoped: a run may use one only when its `requestedBy` user owns the
+connection, and the connection id is part of the provider session identity.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/runtimes/catalog` | All requested AI runtimes, verified billing/auth/capability evidence, this user's connection state, and preference |
+| `GET /api/v1/runtimes/connections` | This user's AI-runtime connections in the current workspace |
+| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. GitHub Copilot reuses the signed-in GitHub OAuth token. Kiro takes `{ apiKey }` — a `ksk_` subscription key — seals it, and never returns it |
+| `DELETE /api/v1/runtimes/connections/{runtimeId}` | Disconnect, clear this user's matching default, and cancel active runs using the connection |
+| `GET`, `PUT /api/v1/runtimes/preference` | Read / replace this user's default `{ runtimeId, modelId }`; both null selects the native deployment runtime |
+| `GET /api/v1/runtimes/connections/{runtimeId}/models` | Discover models live inside the runtime image; returns `{ nodes, complete, detail }` |
+| `GET`, `PUT /api/v1/issues/{ref}/runtime-selection` | Read / replace a task override; null inherits the user preference, `berry-native` forces native |
+| `GET`, `PUT /api/v1/conversations/{id}/runtime-selection` | Read / replace a conversation override under participant authorization |
+
+A selected subscription runtime never falls back to Bedrock, Kilo, an API
+key, another model, or another user's account. Expected failures use stable
+codes including `AI_RUNTIME_UNAVAILABLE`, `AI_RUNTIME_NOT_CONNECTED`,
+`AI_RUNTIME_USER_REQUIRED`, `AI_RUNTIME_AUTH_REQUIRED`,
+`AI_RUNTIME_AUTH_EXPIRED`, `AI_MODEL_UNAVAILABLE`, and
+`AI_QUOTA_EXHAUSTED`.
 
 ### Agent contract: `/api/v1/agent-tools` (route table only)
 

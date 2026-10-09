@@ -48,6 +48,8 @@ import {
    type Warn,
 } from '../mcp-clients.ts';
 import { writeSkills } from '../skill-files.ts';
+import type { RuntimeAdapterRegistry } from '../adapters/registry.ts';
+import { RuntimeAdapterError } from '../adapters/types.ts';
 
 /**
  * One task envelope, worked to a terminal lifecycle event.
@@ -105,6 +107,8 @@ export interface HandlerDeps {
    freeBytes?: (path: string) => Promise<number | null>;
    /** Connects the agent's MCP servers. Injected by tests; production uses Strands clients. */
    loadMcp?: (servers: EnvelopeMcpServerLike[]) => Promise<McpClient[]>;
+   /** Provider-owned agent processes available in this runtime image. */
+   adapters?: RuntimeAdapterRegistry;
    /** Where a dropped MCP tool is reported. Defaults to a JSON line on stderr. */
    warn?: Warn;
 }
@@ -282,6 +286,100 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          ? await deps.repository.prepare({ envelope, session: workspace, warm, emit, signal })
          : null;
 
+      if (envelope.runtime) {
+         if (envelope.runtime.executionMode !== 'agent_process') {
+            throw new RuntimeAdapterError(
+               'RUNTIME_PROTOCOL',
+               `${envelope.runtime.id} is not an agent-process runtime.`,
+               false
+            );
+         }
+         const adapter = deps.adapters?.agentProcess(envelope.runtime.id) ?? null;
+         if (!adapter) {
+            throw new RuntimeAdapterError(
+               'RUNTIME_NOT_INSTALLED',
+               `${envelope.runtime.id} is not installed in this runtime image.`,
+               false
+            );
+         }
+         await workspace.open();
+         const restored =
+            directory && envelope.repo && !envelope.repo.readOnly
+               ? await restoreTaskFiles(api, workspace, directory).catch(() => ({ placed: [], skipped: [] }))
+               : { placed: [], skipped: [] };
+         const toolchain =
+            directory && envelope.repo && !envelope.repo.readOnly && deps.repository?.describe
+               ? await deps.repository.describe({ session: workspace, directory }).catch(() => '')
+               : '';
+         const prompt =
+            envelope.task.prompt +
+            restoredNote(restored) +
+            toolchain +
+            budgetContract(envelope.agent.maxTurns);
+         const processEnvelope: TaskEnvelope = {
+            ...envelope,
+            task: { ...envelope.task, prompt },
+         };
+         const result = await adapter.start({
+            envelope: processEnvelope,
+            credential: envelope.runtime.credential,
+            workingDirectory: directory ?? workspace.root,
+            stateDirectory: join(workspace.root, '.runtime-state', envelope.runtime.id),
+            tools: authorizedAgentTools(
+               [...tools, ...mcp.tools],
+               envelope,
+               table,
+               new Set(['summarize', ...remote.map((tool) => tool.name), ...mcp.tools.map((tool) => tool.name)])
+            ),
+            emit,
+            signal,
+         });
+         await ledger.flush();
+         const summary = budget.summary();
+         if (summary) {
+            const checkpoint =
+               deps.repository && directory
+                  ? await deps.repository
+                       .deliver({ envelope, session: workspace, directory, summary, emit, signal, checkpoint: true })
+                       .catch(() => null)
+                  : null;
+            emit({
+               type: 'task.failed',
+               failure: {
+                  code: 'RUN_LIMIT_REACHED',
+                  message: 'The agent summarized near its step limit. The next run starts fresh from that summary.',
+                  retryable: false,
+                  summary,
+               },
+               ...(checkpoint ? { delivery: checkpoint } : {}),
+            });
+            return;
+         }
+         signal.throwIfAborted();
+         const text = result.text;
+         const delivery =
+            deps.repository && directory
+               ? await deps.repository.deliver({
+                    envelope,
+                    session: workspace,
+                    directory,
+                    summary: text === '' ? null : text,
+                    emit,
+                    signal,
+                 })
+               : null;
+         signal.throwIfAborted();
+         emit({
+            type: 'task.completed',
+            result: {
+               text: truncateUtf8(text, MAX_SUMMARY_BYTES),
+               truncated: Buffer.byteLength(text) > MAX_SUMMARY_BYTES,
+               delivery,
+            },
+         });
+         return;
+      }
+
       const thinking = thinkingReporter(emit);
       const agent = buildRunAgent(
          {
@@ -400,14 +498,37 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // result, which the model refuses on the next invoke. Cold is safe.
       deps.registry.drop(key);
       const failure =
-         error instanceof Error && error.name === 'RemoteToolsUnavailable'
-            ? { code: 'BERRY_UNREACHABLE', message: error.message, retryable: true }
-            : classify(error);
+         error instanceof RuntimeAdapterError
+            ? { code: error.code, message: error.message, retryable: error.retryable }
+            : error instanceof Error && error.name === 'RemoteToolsUnavailable'
+              ? { code: 'BERRY_UNREACHABLE', message: error.message, retryable: true }
+              : classify(error);
       emit({ type: 'task.failed', failure });
    } finally {
       await workspace.stop();
       await Promise.all(mcpClients.map((client) => client.disconnect().catch(() => undefined)));
    }
+}
+
+/**
+ * The same contract and permission intersection the Strands permission plugin
+ * enforces, applied before another agent process sees a tool at all.
+ */
+export function authorizedAgentTools(
+   tools: Tool[],
+   envelope: TaskEnvelope,
+   table: Record<string, Permission | null>,
+   exempt: ReadonlySet<string>
+): Tool[] {
+   const permissions = permissionsOf(envelope.agent.permissions, envelope.agent.name);
+   const allowed = envelope.agent.tools ? new Set(envelope.agent.tools) : null;
+   return tools.filter((tool) => {
+      if (!exempt.has(tool.name) && allowed && !allowed.has(tool.name)) return false;
+      if (exempt.has(tool.name)) return true;
+      const required = table[tool.name];
+      if (required === undefined) return false;
+      return required === null || permissions.has(required);
+   });
 }
 
 /**

@@ -140,6 +140,7 @@ const keep = [
    '@aws-sdk/client-bedrock-runtime',
    '@aws-sdk/client-polly',
    '@aws-sdk/client-s3',
+   '@github/copilot-sdk',
    '@strands-agents/sdk',
    'openai',
    'zod',
@@ -153,12 +154,26 @@ for (const name of keep) {
    }
    dependencies[name] = version;
 }
+const copilotPlatform = process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
+dependencies[`@github/copilot-sdk-${copilotPlatform}`] = pkg.dependencies['@github/copilot-sdk'];
 pkg.dependencies = dependencies;
+pkg.packageManager = 'pnpm@12.5.1';
 delete pkg.devDependencies;
 fs.writeFileSync('package.json', JSON.stringify(pkg));
 EOF
-RUN printf '%s\n' 'auto-install-peers=true' 'store-dir=/tmp/pnpm-store' > .npmrc \
-   && pnpm install --prod --ignore-workspace --no-optional \
+# pnpm 12 rejects an unapproved dependency build. koffi's script only picks the
+# platform prebuild, so that package stays optional and the local-model peers do not.
+RUN printf '%s\n' \
+      'packages:' '  - .' \
+      'strictDepBuilds: false' \
+      'allowBuilds:' '  koffi: true' \
+      'ignoredOptionalDependencies:' \
+      '  - node-llama-cpp' \
+      '  - better-sqlite3' \
+      '  - "@node-llama-cpp/*"' \
+      > pnpm-workspace.yaml \
+   && printf '%s\n' 'auto-install-peers=true' 'store-dir=/tmp/pnpm-store' > .npmrc \
+   && pnpm install --prod \
    && rm -rf /tmp/pnpm-store /root/.cache
 COPY tsconfig.json ./
 COPY src/agents ./src/agents
