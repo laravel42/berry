@@ -149,7 +149,6 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
    const [saving, setSaving] = useState(false);
    const placement = draft ?? saved;
    const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
-   const placed = new Set(MAIN_TIERS.flatMap((tier) => placement[tier]));
 
    useEffect(() => {
       let alive = true;
@@ -200,7 +199,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                <TierChip tier={tier} className="px-2 py-1" />
                {canEdit && list.length < TIER_PLACES ? (
                   <AddRuntimeModel
-                     choices={choices.filter((choice) => !placed.has(choice.key))}
+                     choices={choices.filter((choice) => !list.includes(choice.key))}
                      disabled={saving}
                      onAdd={(key) => edit(tier, [...list, key])}
                   />

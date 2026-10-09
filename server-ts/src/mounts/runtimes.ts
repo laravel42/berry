@@ -450,11 +450,14 @@ export function runtimeMounts(options: {
       const body = await parse(context.req.raw, tierModelBody);
       if (body.placement !== null) {
          const allowed = await modelsConnected(options.sql, workspaceId);
-         const seen = new Set<string>();
          for (const tier of RUNTIME_AGENT_TIERS) {
+            const seen = new Set<string>();
             for (const id of body.placement[tier]) {
-               if (!allowed.has(id) || seen.has(id)) {
-                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is not a model a connected runtime offers, or it is already in a tier.`);
+               if (!allowed.has(id)) {
+                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is not a model a connected runtime offers.`);
+               }
+               if (seen.has(id)) {
+                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is already in this tier.`);
                }
                seen.add(id);
             }
