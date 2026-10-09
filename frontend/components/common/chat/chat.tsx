@@ -7,7 +7,7 @@ import { ArrowLeft, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
-import { agentHasRuntime } from '@/lib/runtimes';
+import { agentHasRuntime, loadAiRuntimeCatalog } from '@/lib/runtimes';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
@@ -68,6 +68,9 @@ const PAGE = 50;
 export function Chat() {
    const t = useTranslations('agentsChat.chat');
    const coverage = useAgentCoverage();
+   // Null until the catalog answers. A connected Kiro or Claude login runs on
+   // this machine, so a missing compute host is not "no runtime".
+   const [workstationRuntime, setWorkstationRuntime] = useState<boolean | null>(null);
    const router = useRouter();
    const pathname = usePathname();
    const searchParams = useSearchParams();
@@ -190,6 +193,29 @@ export function Chat() {
         : lastMessage.authorType === 'agent' || messages.length === 1
           ? `${suggestIn}:${lastMessage.id}`
           : null;
+   useEffect(() => {
+      let cancelled = false;
+      void loadAiRuntimeCatalog().then(
+         (catalog) => {
+            if (cancelled) return;
+            setWorkstationRuntime(
+               catalog.nodes.some(
+                  (runtime) =>
+                     runtime.localProcess &&
+                     runtime.availability === 'available' &&
+                     runtime.connection?.status === 'connected'
+               )
+            );
+         },
+         () => {
+            if (!cancelled) setWorkstationRuntime(false);
+         }
+      );
+      return () => {
+         cancelled = true;
+      };
+   }, []);
+
    useEffect(() => {
       if (!suggestIn || !suggestFor) {
          setSuggestions([]);
@@ -483,6 +509,7 @@ export function Chat() {
       active !== null &&
       active.topic.trim().toLowerCase() === agentName.trim().toLowerCase();
    const noRuntime =
+      workstationRuntime !== true &&
       active?.agentId !== undefined &&
       active?.agentId !== null &&
       roster.get(active.agentId) !== undefined &&
