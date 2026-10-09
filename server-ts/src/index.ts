@@ -1402,6 +1402,7 @@ registry.registerAll(
          // What the sign-in page believes: true only when the OAuth App is
          // configured and Better Auth is serving it.
          githubSignIn: auth !== null && config.auth.github !== null,
+         passwordlessLogin: config.auth.devLogin,
       },
    })
 );

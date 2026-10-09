@@ -41,6 +41,7 @@ const bootstrapSchema = z.object({
 const configSchema = z.object({
    capabilities: z.looseObject({
       githubSignIn: z.boolean().optional(),
+      passwordlessLogin: z.boolean().optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
    }),
@@ -94,9 +95,19 @@ export async function fetchBootstrap(): Promise<BootstrapPayload> {
 
 /** Whether this server can sign anyone in with GitHub (an OAuth App is configured). */
 export async function fetchGitHubSignInAvailable(): Promise<boolean> {
+   const options = await fetchSignInOptions();
+   return options.github;
+}
+
+/** GitHub stays off the page while development email sign-in is enabled. */
+export async function fetchSignInOptions(): Promise<{ github: boolean; passwordless: boolean }> {
    const json: unknown = await apiFetch('/api/v1/config');
    const parsed = configSchema.safeParse(json);
-   return parsed.success && parsed.data.capabilities.githubSignIn === true;
+   const capabilities = parsed.success ? parsed.data.capabilities : {};
+   return {
+      github: capabilities.githubSignIn === true,
+      passwordless: capabilities.passwordlessLogin === true,
+   };
 }
 
 /**

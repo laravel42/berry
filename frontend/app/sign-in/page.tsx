@@ -1,12 +1,15 @@
 'use client';
 
 import { RiGithubFill } from '@remixicon/react';
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
 import { Button } from '@/components/ui/button';
-import { fetchGitHubSignInAvailable, signInWithGitHub } from '@/lib/auth';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { devLogin, fetchSignInOptions, signInWithGitHub } from '@/lib/auth';
+import { useSessionStore } from '@/store/session-store';
 
 /**
  * What a refused GitHub round trip means, in Berry's words. The server sends
@@ -23,7 +26,58 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 const GENERIC_ERROR = 'We could not sign you in with GitHub. Please try again.';
 
-function SignInContent() {
+function PasswordlessSignIn() {
+   const router = useRouter();
+   const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
+   const [email, setEmail] = useState('');
+   const [pending, setPending] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+
+   const submit = async (event: FormEvent) => {
+      event.preventDefault();
+      setError(null);
+      setPending(true);
+      try {
+         await devLogin(email);
+         await hydrateFromStorage();
+         router.push('/');
+      } catch {
+         setError('That email is not an account on this server.');
+         setPending(false);
+      }
+   };
+
+   return (
+      <AuthCard
+         title="Sign in to Berry"
+         description="Sign in with the email of an account on this server."
+      >
+         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
+            <div className="grid gap-1.5 text-left">
+               <Label htmlFor="sign-in-email">Email</Label>
+               <Input
+                  id="sign-in-email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+               />
+            </div>
+            <Button type="submit" className="w-full" disabled={pending || email.trim() === ''}>
+               {pending ? 'Signing in…' : 'Continue'}
+            </Button>
+            {error ? (
+               <p role="alert" className="text-status-danger">
+                  {error}
+               </p>
+            ) : null}
+         </form>
+      </AuthCard>
+   );
+}
+
+function GitHubSignIn() {
    const params = useSearchParams();
    const returned = params.get('error');
    const [available, setAvailable] = useState<boolean | null>(null);
@@ -34,9 +88,9 @@ function SignInContent() {
 
    useEffect(() => {
       let cancelled = false;
-      fetchGitHubSignInAvailable()
-         .then((value) => {
-            if (!cancelled) setAvailable(value);
+      fetchSignInOptions()
+         .then((options) => {
+            if (!cancelled) setAvailable(options.github);
          })
          .catch(() => {
             if (!cancelled) setAvailable(false);
@@ -79,7 +133,6 @@ function SignInContent() {
                      Sign-in is not set up on this server. An administrator needs to add the GitHub
                      sign-in credentials.
                   </p>
-                  {/* The exact names, for whoever is doing the setting up. */}
                   <p className="font-mono">
                      <code>BERRY_AUTH_GITHUB_CLIENT_ID</code>
                      <br />
@@ -95,6 +148,28 @@ function SignInContent() {
          </div>
       </AuthCard>
    );
+}
+
+function SignInContent() {
+   const [passwordless, setPasswordless] = useState<boolean | null>(null);
+
+   useEffect(() => {
+      let cancelled = false;
+      fetchSignInOptions()
+         .then((options) => {
+            if (!cancelled) setPasswordless(options.passwordless);
+         })
+         .catch(() => {
+            if (!cancelled) setPasswordless(false);
+         });
+      return () => {
+         cancelled = true;
+      };
+   }, []);
+
+   if (passwordless === null) return null;
+   if (passwordless) return <PasswordlessSignIn />;
+   return <GitHubSignIn />;
 }
 
 /** `useSearchParams` needs a Suspense boundary for the page to prerender. */

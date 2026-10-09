@@ -115,7 +115,9 @@ export class SessionService {
          // this closes the rest (a sibling subdomain is "same site"). A
          // request with no Origin is not a browser acting for someone else.
          const origin = request.headers.get('origin');
-         if (origin !== null && !this.trustedOrigins.has(origin)) throw new CrossOriginRefused();
+         if (origin !== null && !originTrusted(origin, this.trustedOrigins)) {
+            throw new CrossOriginRefused();
+         }
       }
       const found = await this.auth.getSession({ headers: request.headers });
       if (!found) throw new SessionUnauthenticated();
@@ -130,6 +132,41 @@ export class SessionService {
  * `currentWorkspaceId` — adding a field to a response is as much a contract
  * change as removing one.
  */
+/** Exact origins match as written. `https://*.trycloudflare.com` matches one label. */
+export function originTrusted(origin: string, trusted: ReadonlySet<string>): boolean {
+   if (trusted.has(origin)) return true;
+   let url: URL;
+   try {
+      url = new URL(origin);
+   } catch {
+      return false;
+   }
+   for (const entry of trusted) {
+      if (!entry.includes('*')) continue;
+      let pattern: URL;
+      try {
+         pattern = new URL(entry.replace('*', 'wildcard'));
+      } catch {
+         continue;
+      }
+      if (pattern.protocol !== url.protocol || pattern.port !== url.port) continue;
+      const suffix = pattern.hostname.startsWith('wildcard.')
+         ? pattern.hostname.slice('wildcard'.length)
+         : null;
+      if (suffix === null) continue;
+      const label = url.hostname.slice(0, -suffix.length);
+      if (
+         url.hostname.endsWith(suffix) &&
+         label.length > 0 &&
+         !label.includes('.') &&
+         /^[a-z0-9-]+$/i.test(label)
+      ) {
+         return true;
+      }
+   }
+   return false;
+}
+
 export function serializeUser(user: User): Record<string, unknown> {
    return {
       id: user.id,

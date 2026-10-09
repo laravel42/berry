@@ -31,6 +31,11 @@ export interface Capabilities {
     * has to be asked on each read.
     */
    githubSignIn: boolean | (() => Promise<boolean>);
+   /**
+    * Development email sign-in (`AUTH_ALLOW_PASSWORDLESS_LOGIN`). When this is
+    * true the sign-in page does not offer GitHub.
+    */
+   passwordlessLogin?: boolean;
 }
 
 export interface PlatformOptions {
@@ -148,6 +153,7 @@ function configRoute(capabilities: Capabilities, version?: string): Hono {
                typeof capabilities.githubSignIn === 'function'
                   ? await capabilities.githubSignIn()
                   : capabilities.githubSignIn,
+            passwordlessLogin: capabilities.passwordlessLogin ?? false,
          },
       })
    );

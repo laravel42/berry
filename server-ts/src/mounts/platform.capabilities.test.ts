@@ -49,7 +49,15 @@ test('a boolean capability is reported as it always was', async () => {
       planner: false,
       githubSignIn: true,
       modelGateway: false,
+      passwordlessLogin: false,
    });
+});
+
+test('passwordlessLogin reports the development email sign-in', async () => {
+   assert.equal(
+      (await capabilitiesOf({ ...base, passwordlessLogin: true })()).passwordlessLogin,
+      true
+   );
 });
 
 test('modelGateway says whether models are called through a gateway with tiers', async () => {

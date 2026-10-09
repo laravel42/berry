@@ -6,6 +6,7 @@ import type { BearerResolver } from './credentials.ts';
 import { generatePersonalToken } from './tokens.ts';
 import {
    CrossOriginRefused,
+   originTrusted,
    SessionService,
    SessionUnauthenticated,
    type SessionLookup,
@@ -170,6 +171,13 @@ test('a cookie-authenticated write from a trusted origin, and a foreign-origin r
          headers: { cookie: 'berry.session_token=good', origin: 'https://evil.test' },
       })
    );
+});
+
+test('a one-label wildcard origin matches a quick-tunnel host', () => {
+   const trusted = new Set(['http://localhost:3000', 'https://*.trycloudflare.com']);
+   assert.equal(originTrusted('https://jim-pending-snapshot-stuck.trycloudflare.com', trusted), true);
+   assert.equal(originTrusted('https://trycloudflare.com', trusted), false);
+   assert.equal(originTrusted('https://evil.example.com', trusted), false);
 });
 
 test('a session whose user row is gone is unauthenticated', async () => {

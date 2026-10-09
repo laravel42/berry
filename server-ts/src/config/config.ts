@@ -800,7 +800,7 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
    // request.
    const extraOrigins = (env.BERRY_AUTH_TRUSTED_ORIGINS ?? '')
       .split(',')
-      .map((value) => origin(value))
+      .map((value) => trustedOrigin(value))
       .filter((value): value is string => value !== null);
    const trustedOrigins = [
       ...new Set(
@@ -848,6 +848,16 @@ function isAddressOrRange(value: string): boolean {
    const prefix = value.slice(slash + 1);
    if (!/^\d{1,3}$/.test(prefix)) return false;
    return Number(prefix) <= (family === 4 ? 32 : 128);
+}
+
+/**
+ * A trusted browser origin. A leading `*` is one hostname label
+ * (`https://*.trycloudflare.com`); anything else must be an absolute URL.
+ */
+function trustedOrigin(value: string): string | null {
+   const trimmed = value.trim();
+   if (/^https?:\/\/\*\.[a-z0-9.-]+$/.test(trimmed)) return trimmed;
+   return origin(trimmed);
 }
 
 /** A URL with no trailing slash, or null when it is not one. */
