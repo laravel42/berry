@@ -248,7 +248,7 @@ export function ReviewDecisionBar({
             </div>
          )}
          {pullRequest?.conflicts && pullRequest.state === 'open' ? (
-            <p className="mb-2 flex items-start gap-1.5 text-sm text-status-warning">
+            <p className="mb-2 flex items-start gap-1.5 text-status-warning">
                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                <span>{t('decision.conflicts', { base, agent })}</span>
             </p>
@@ -287,7 +287,7 @@ export function ReviewDecisionBar({
                   <DialogDescription>{t('decision.sendBackBody')}</DialogDescription>
                </DialogHeader>
                <div className="flex flex-col gap-1.5">
-                  <label htmlFor={noteId} className="text-sm font-medium">
+                  <label htmlFor={noteId} className="font-medium">
                      {t('decision.noteLabel')}
                   </label>
                   <Textarea

@@ -170,7 +170,7 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
                   {item.run.summary ? (
                      <AgentMarkdown
                         body={withoutLeadingSummaryHeading(item.run.summary)}
-                        className="max-w-none text-[12px]"
+                        className="max-w-none"
                      />
                   ) : (
                      <p className="text-muted-foreground">{t('summary.empty')}</p>

@@ -22,15 +22,11 @@ export function DiffView({ diff }: { diff: FileDiff }) {
             )}
          >
             <FileCode2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="text-[12px] font-medium">{diff.name}</span>
-            <span className="truncate text-[12px] text-muted-foreground">{diff.path}/</span>
+            <span className="font-medium">{diff.name}</span>
+            <span className="truncate text-muted-foreground">{diff.path}/</span>
             <span className="flex-1" />
-            <DiffStat
-               additions={diff.additions}
-               deletions={diff.deletions}
-               className="text-[12px]"
-            />
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-[12px] text-muted-foreground">
+            <DiffStat additions={diff.additions} deletions={diff.deletions} />
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-muted-foreground">
                <Checkbox className="size-3.5" />
                Reviewed
             </label>
@@ -50,7 +46,7 @@ export function DiffView({ diff }: { diff: FileDiff }) {
             </button>
          </div>
          {collapsed ? null : (
-            <div className="overflow-x-auto font-mono text-[12px] leading-5">
+            <div className="overflow-x-auto font-mono leading-5">
                {diff.lines.map((line, index) => {
                   if (line.type === 'skip') {
                      return (

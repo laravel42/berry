@@ -64,7 +64,7 @@ export function ReviewDeliveryLine({
               });
 
    return (
-      <div className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-lg', className)}>
+      <div className={cn('flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2', className)}>
          <p className="flex min-w-0 flex-1 items-center gap-2">
             <BerryMark size="sm" tone={stopped ? 'attention' : 'complete'} className="shrink-0" />
             <span className="min-w-0">{outcome}</span>
