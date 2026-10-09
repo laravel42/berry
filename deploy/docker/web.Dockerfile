@@ -11,6 +11,10 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
 COPY frontend/package.json frontend/
 COPY packages/plugin-sdk/package.json packages/plugin-sdk/
 COPY server-ts/package.json server-ts/
+# pnpm-workspace.yaml patches @electric-sql/pglite-socket. The lockfile records
+# that patch, so the file has to be present before install, even though the
+# web package does not import it.
+COPY patches patches
 RUN pnpm install --frozen-lockfile --filter berry-frontend...
 
 COPY frontend frontend
