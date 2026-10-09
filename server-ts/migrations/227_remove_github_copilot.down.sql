@@ -1,0 +1,2 @@
+-- Removing GitHub Copilot does not restore connections, preferences, or
+-- tier placements. Those rows were product selections, not schema.

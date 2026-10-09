@@ -129,6 +129,8 @@ export const taskEnvelopeSchema = z.object({
          provider: z.string().min(1).max(120),
          billing: z.enum(['subscription', 'api_billing', 'provider_dependent', 'unknown']),
          model: z.string().min(1).max(300).nullable(),
+         /** Provider agent profile, such as `kiro_default`. Absent uses the CLI default. */
+         agent: z.string().min(1).max(80).nullable().optional(),
          credential: runtimeCredentialSchema,
       })
       .nullable()

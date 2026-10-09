@@ -1,0 +1,1 @@
+DROP TABLE workspace_runtime_agent_tiers;

@@ -32,6 +32,14 @@ import { GitHubUserUnavailable, type GitHubUserAccess } from '../integrations/gi
 import { githubCredential } from './integrations.ts';
 import type { Logger } from '../observability/log.ts';
 import type { Mount } from '../http/registry.ts';
+import type { Sql } from '../db/pool.ts';
+import { z } from 'zod';
+import { readJson } from './zod-body.ts';
+import {
+   AiRuntimeConnectionNotFound,
+   AiRuntimeRepository,
+   AiRuntimeSelectionError,
+} from '../runtime/ai-runtimes.ts';
 
 /**
  * `/api/v1/projects`.
@@ -107,6 +115,7 @@ export interface ProjectOptions {
     */
    userAccess?: GitHubUserAccess | null;
    logger: Logger;
+   sql: Sql;
 }
 
 export function projectMounts(options: ProjectOptions): Mount[] {
@@ -193,6 +202,26 @@ export function projectMounts(options: ProjectOptions): Mount[] {
       const { workspaceId, projectId } = await scopeOf(context, projects, 'product.read');
       const found = await projects.get(workspaceId, projectId).catch(rethrow);
       return json(serializeProject(found, await options.scm?.linkFor('project', found.id)));
+   });
+
+   const aiRuntimes = new AiRuntimeRepository(options.sql);
+   const runtimeSelectionSchema = z.strictObject({
+      runtimeId: z.string().trim().min(1).max(64).nullable(),
+      modelId: z.string().trim().min(1).max(300).nullable(),
+      agentId: z.string().trim().min(1).max(80).nullable().optional(),
+   });
+
+   route.get('/:projectId/runtime-selection', async (context) => {
+      const { workspaceId, projectId } = await scopeOf(context, projects, 'product.read');
+      return json(await aiRuntimes.projectSelection(workspaceId, projectId).catch(rethrowAiRuntime));
+   });
+
+   route.put('/:projectId/runtime-selection', async (context) => {
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const body = await readJson(context, runtimeSelectionSchema);
+      return json(
+         await aiRuntimes.saveProjectSelection(workspaceId, projectId, userId, body).catch(rethrowAiRuntime)
+      );
    });
 
    route.patch('/:projectId', async (context) => {
@@ -1032,6 +1061,15 @@ function pathUUID(raw: string | undefined, resource: string): string {
 
 function rethrow(error: unknown): never {
    return rethrowAs('Project')(error);
+}
+
+function rethrowAiRuntime(error: unknown): never {
+   if (error instanceof AiRuntimeConnectionNotFound) throw notFound('Project');
+   if (error instanceof AiRuntimeSelectionError) {
+      const status = error.code === 'AI_RUNTIME_UNKNOWN' ? 404 : 409;
+      throw new ApiError(status, error.code, error.message);
+   }
+   throw error;
 }
 
 /** The same mapping, naming whichever resource the route was addressing. */

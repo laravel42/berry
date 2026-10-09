@@ -61,14 +61,14 @@ test('a redacted envelope names no secret', () => {
       redactEnvelope(
          sampleEnvelope({
             runtime: {
-               id: 'github-copilot',
+               id: 'kiro',
                executionMode: 'agent_process',
-               provider: 'GitHub Copilot model service',
+               provider: 'Kiro model service',
                billing: 'subscription',
                model: 'auto',
                credential: {
-                  type: 'oauth',
-                  token: 'gho_copilot_secret',
+                  type: 'api_key',
+                  token: 'ksk_secret_value',
                   accountId: '42',
                   accountName: 'berry-user',
                },
@@ -85,7 +85,7 @@ test('a redacted envelope names no secret', () => {
          })
       )
    );
-   for (const secret of ['hunter2', 'berry_task_secret', 'ghs_secret', 'gho_copilot_secret']) {
+   for (const secret of ['hunter2', 'berry_task_secret', 'ghs_secret', 'ksk_secret_value']) {
       assert.equal(text.includes(secret), false, secret);
    }
 });

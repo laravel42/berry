@@ -518,9 +518,6 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1134.0
         version: 3.1134.0
-      '@github/copilot-sdk':
-        specifier: 1.0.18
-        version: 1.0.18
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.8)
@@ -1188,54 +1185,6 @@ packages:
   '@formatjs/intl-localematcher@0.8.14':
     resolution: {integrity: sha512-8O7V38QmbB11+ryJ3KM/znrzXtiqgpXzqNoqDsndHZZ5/zDKTTL+cf5F0mzXkQEwhx8IlWnqYvEovf2S5EwLTw==}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.18':
-    resolution: {integrity: sha512-ynQ+k5wGG2sy5+kLXPBMh7bGwrYzmej7tDXCqF+7nd3cIr5l4Def1kpRHHTE4VxuWhPzbY1UCAIZThBreTuaWw==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@github/copilot-sdk-darwin-x64@1.0.18':
-    resolution: {integrity: sha512-wihMjNQmyL7oTZOPNYC1zMbkgmfT/x3rcR9575TnAJveHjE9YlsJwd8yVwfRApWqKEY/VqcMMQVT080ZJkmDSg==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@github/copilot-sdk-linux-arm64@1.0.18':
-    resolution: {integrity: sha512-Go509aoMKhR69zBSSQSuVY8IhQXI35n9rJEExVdIkaWxFdkQ+r5Xd/M07tR/7RAeq2wn550FLoENbthrD34zaw==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linux-x64@1.0.18':
-    resolution: {integrity: sha512-AGkXsWIoa+MHaJAJwDfTBxzETh04nOzBse19cBXvBDLB+yMGcQhavW4XATW5IMjtmIiSypblqvTDZT7MLQqkvA==}
-    cpu: [x64]
-    os: [linux]
-    libc: [glibc]
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.18':
-    resolution: {integrity: sha512-wepy7CkX1Xyxvrbd9c7OUUB5j5ABCsv+ZsTqLqehNRmdrrbz4AQ1yNNpobpTepAwpz/F0EQ8aT5K39R7rd85Sg==}
-    cpu: [arm64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.18':
-    resolution: {integrity: sha512-B7NH/UgGZjqM1307sHK4xIaDywOf+zUtYE/w/s9tHXj0pz+JcWQNkqS/aH6ECiwjlfz7xD+a8GSxSirqJivKAQ==}
-    cpu: [x64]
-    os: [linux]
-    libc: [musl]
-
-  '@github/copilot-sdk-win32-arm64@1.0.18':
-    resolution: {integrity: sha512-+wOxP/OkSxCTLTiN9phyVLleRfUUeex/64XZvhihkID+WeT+Xx0ejwwrkcWUgZDpnrO3xfRltb3SnV9FpB2fwA==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@github/copilot-sdk-win32-x64@1.0.18':
-    resolution: {integrity: sha512-3lyIzwErEhGlPUz7wKW2gwJlEhPD+4gK0hASN6Vy+rVDItjzQrftMFh4cSad+NqBxe/K6LE/jGVoex86OzTlIQ==}
-    cpu: [x64]
-    os: [win32]
-
-  '@github/copilot-sdk@1.0.18':
-    resolution: {integrity: sha512-/evtBABAVxlDHa2i3XfpHPb43OLbLu8G4rHVs7wEfwf9YyiQnc8tCBK+N9RTu6l3dBPYnfXz6/rqYwF6idu5dQ==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-
   '@google/genai@2.19.0':
     resolution: {integrity: sha512-IM3u1FjpOLyOPsPh0smGA6Ntj2olUWCPbTs/WQj7cA/2AKCGw/652W7IaySx0XtwuscFnMYBoraebQusSZ0zSQ==}
     engines: {node: '>=20.0.0'}
@@ -1580,96 +1529,6 @@ packages:
 
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
-
-  '@koromix/koffi-android-arm64@3.2.1':
-    resolution: {integrity: sha512-1pJQ4jnZlUJduK9u9DC5CGy3aOgDUPvIXpNb6syV3+Dh5Q/ugezAIGCqvY+w+1mgXsve0pd0NVvJRjdZNHQ6MA==}
-    cpu: [arm64]
-    os: [android]
-
-  '@koromix/koffi-android-x64@3.2.1':
-    resolution: {integrity: sha512-HH40xGh3gVQifjOBnhwT2tECC0lL1lYe+nxHvWNSzxDIyQNcVPXg38ta7vuONRFpD+uIrw7fqGYLzbZIagkVcg==}
-    cpu: [x64]
-    os: [android]
-
-  '@koromix/koffi-darwin-arm64@3.2.1':
-    resolution: {integrity: sha512-Vj4h+xcjc5+Cn0DhPHjgRX4omKAv96Kehtcd+1YgYuY2W7FvQn9vS+3SmzVwhC5Qmg9bIwUZObYQ8T/4hBqQqA==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@koromix/koffi-darwin-x64@3.2.1':
-    resolution: {integrity: sha512-gFCWxNBTZIvxo1p+PURWfsy2Ctj5FGnVVs1f03lTLhBvmxEto70pdIiFztdFLDFkAJ1pmtQmruRKapeK+E8YPA==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@koromix/koffi-freebsd-arm64@3.2.1':
-    resolution: {integrity: sha512-qj+f1s2e6vULaUG1cdlTcCXmunCq2t+rjxku1+esaMIqVnHpOwj0QzPuInG0AFdXjwBNQhyVR/HpDj8daEwwsQ==}
-    cpu: [arm64]
-    os: [freebsd]
-
-  '@koromix/koffi-freebsd-ia32@3.2.1':
-    resolution: {integrity: sha512-6olHb1Qfgai0jjs6ddlDDD0ZfsCxy7SPi8rMRpuYQWH0qhgtyQu82hw5b1p7z+TJ0zZP3ZeQQ6l+U/MlM1ICHQ==}
-    cpu: [ia32]
-    os: [freebsd]
-
-  '@koromix/koffi-freebsd-x64@3.2.1':
-    resolution: {integrity: sha512-Dikhw1ySYNVMkmeFvFVjnU5Wdk6mffNoOjJxm9bTG96vg7OlemylxqdEven47R1YJ3yzNVJn/MlQ207ORWfi2w==}
-    cpu: [x64]
-    os: [freebsd]
-
-  '@koromix/koffi-linux-arm64@3.2.1':
-    resolution: {integrity: sha512-K+cGUL5iBcDqxmsocrjmlASqDf24gc7artbVW3PewG2c9AqwC63lezgwvB85Nx4lZAQjB6zIFHh9A7t1yGbwhw==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@koromix/koffi-linux-arm@3.2.1':
-    resolution: {integrity: sha512-OfwUwZylidq95wQKp6ClInULrfB2giu7dqM6Rhe0zAe6lES5I2SXNw15T9+GnRHk3/9hKT2XZ37OZLaKSyWNLA==}
-    cpu: [arm]
-    os: [linux]
-
-  '@koromix/koffi-linux-ia32@3.2.1':
-    resolution: {integrity: sha512-rxj6UYjU1qd98gxNQOSCdLpc5cPRi5Giq9rNd3jnGuSNIyMkwa6Dxw4cUjmhIBCYESMJtmNt5NWnJp5u9wTfYQ==}
-    cpu: [ia32]
-    os: [linux]
-
-  '@koromix/koffi-linux-loong64@3.2.1':
-    resolution: {integrity: sha512-aHhnHzkPRmT/IHDlGvESJ/Bs32m8N6UE6Ab6kMeJzgk74IN8af2m/81/wZJtybR1M2UxCV4NmlVNUYQQvSAO3Q==}
-    cpu: [loong64]
-    os: [linux]
-
-  '@koromix/koffi-linux-riscv64@3.2.1':
-    resolution: {integrity: sha512-qtQBsjbm3LiirLJvajWmKkNb7ARk7fvJVXdftJ7NtAnF3Xw8EbDvrtvmvtNI1yLPlYcBmlzCCD71hwhWYk0SIA==}
-    cpu: [riscv64]
-    os: [linux]
-
-  '@koromix/koffi-linux-x64@3.2.1':
-    resolution: {integrity: sha512-c7hw7Qs/r5gnFRTQLcbifBwRU7wiocj+2pVuDQ5Ahb3r36SZmupmgYbTWcLvTW+hul1jd7SKRV0d14ZJq/tvSw==}
-    cpu: [x64]
-    os: [linux]
-
-  '@koromix/koffi-openbsd-ia32@3.2.1':
-    resolution: {integrity: sha512-mmY8fY8LQ/CB52+h3yrMYmVyoxzW3x08S0yI6VNfHWdfU6yJtZkKCbhjmQCYMrWbYKC4gMvwZwCywIGPAkLyeA==}
-    cpu: [ia32]
-    os: [openbsd]
-
-  '@koromix/koffi-openbsd-x64@3.2.1':
-    resolution: {integrity: sha512-k4ig6aAPbFSRATOIIOfdf/KtlOGH4SVls6L9fy0QnTxRJYvY2oSltTsQtBDANgEQldlq8Kl5WnpRa1VSibP4Lw==}
-    cpu: [x64]
-    os: [openbsd]
-
-  '@koromix/koffi-win32-arm64@3.2.1':
-    resolution: {integrity: sha512-cTWBJGK//pDMeKQJE/79Aq9MiOAF4H8QyLZHSQ9IWm8czOfwjG4J1AhsQ9DjI9KFOykH77hhnpmQTGVMIubGig==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@koromix/koffi-win32-ia32@3.2.1':
-    resolution: {integrity: sha512-Z50EM6TAZ7CFyMmyX6thv8eNpJchqe9eenhibSIy2Eq/FQYF76gU2VK/LEoaF46L8hfC7TpTp9b10MvReHEyFA==}
-    cpu: [ia32]
-    os: [win32]
-
-  '@koromix/koffi-win32-x64@3.2.1':
-    resolution: {integrity: sha512-ZmZNiBO6bkOSh3QNzgfvb1cMY0yMobn6ZQrSMqbAce21qyYL8niIbyipz9N/PIRDciGhsV0wUxnZsxIO+yWsHQ==}
-    cpu: [x64]
-    os: [win32]
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
@@ -5840,9 +5699,6 @@ packages:
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
 
-  koffi@3.2.1:
-    resolution: {integrity: sha512-0qE3lZ8jllRqPN4Ob6Ajl7c2bJSJDhQWuKLGP5hIEpHLllJWv1ydHFMhHmHc5p/W9GticKVDbYzZd7TBoQ4CZg==}
-
   kysely@0.29.6:
     resolution: {integrity: sha512-hHaB8C/rfzDDtr/t8YZwxAuPJTT0zHyaPoVzcXwDYhYNAgH/4sIfVhi/XLLIY+bL/FqaIJnjATDbi8ObSELmxg==}
     engines: {node: '>=22.0.0'}
@@ -8059,10 +7915,6 @@ packages:
       jsdom:
         optional: true
 
-  vscode-jsonrpc@8.2.1:
-    resolution: {integrity: sha512-kdjOSJ2lLIn7r1rtrMbbNCHjyMPfRnowdKjBQ+mGq6NAW5QY2bEZC/khaC5OR8svbbjvLEaIXkOq45e2X9BIbQ==}
-    engines: {node: '>=14.0.0'}
-
   w3c-keyname@2.2.8:
     resolution: {integrity: sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==}
 
@@ -8188,9 +8040,6 @@ packages:
 
   zod@4.2.1:
     resolution: {integrity: sha512-0wZ1IRqGGhMP76gLqz8EyfBXKk0J2qo2+H3fi4mcUP/KtTocoX08nmIAHl1Z2kJIZbZee8KOpBCSNPRgauucjw==}
-
-  zod@4.3.6:
-    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
 
   zod@4.6.5:
     resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
@@ -9037,45 +8886,6 @@ snapshots:
     dependencies:
       '@formatjs/fast-memoize': 3.1.7
 
-  '@github/copilot-sdk-darwin-arm64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-darwin-x64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-linux-arm64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-linux-x64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-linuxmusl-x64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-win32-arm64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk-win32-x64@1.0.18':
-    optional: true
-
-  '@github/copilot-sdk@1.0.18':
-    dependencies:
-      koffi: 3.2.1
-      vscode-jsonrpc: 8.2.1
-      zod: 4.3.6
-    optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.18
-      '@github/copilot-sdk-darwin-x64': 1.0.18
-      '@github/copilot-sdk-linux-arm64': 1.0.18
-      '@github/copilot-sdk-linux-x64': 1.0.18
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.18
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.18
-      '@github/copilot-sdk-win32-arm64': 1.0.18
-      '@github/copilot-sdk-win32-x64': 1.0.18
-
   '@google/genai@2.19.0(@modelcontextprotocol/sdk@1.30.0(zod@4.6.5))':
     dependencies:
       google-auth-library: 10.9.1
@@ -9328,60 +9138,6 @@ snapshots:
       keyv: 5.6.0
 
   '@keyv/serialize@1.1.1': {}
-
-  '@koromix/koffi-android-arm64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-android-x64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-darwin-arm64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-darwin-x64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-freebsd-arm64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-freebsd-ia32@3.2.1':
-    optional: true
-
-  '@koromix/koffi-freebsd-x64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-arm64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-arm@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-ia32@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-loong64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-riscv64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-linux-x64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-openbsd-ia32@3.2.1':
-    optional: true
-
-  '@koromix/koffi-openbsd-x64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-win32-arm64@3.2.1':
-    optional: true
-
-  '@koromix/koffi-win32-ia32@3.2.1':
-    optional: true
-
-  '@koromix/koffi-win32-x64@3.2.1':
-    optional: true
 
   '@kwsites/file-exists@1.1.1':
     dependencies:
@@ -11708,6 +11464,7 @@ snapshots:
       - msw
       - utf-8-validate
       - vite
+    optional: true
 
   '@vitest/browser-playwright@5.0.1(msw@2.15.0(@types/node@26.6.1)(typescript@7.0.2))(playwright@1.64.0)(vite@8.3.3(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)':
     dependencies:
@@ -11758,6 +11515,7 @@ snapshots:
       - msw
       - utf-8-validate
       - vite
+    optional: true
 
   '@vitest/browser@5.0.1(msw@2.15.0(@types/node@26.6.1)(typescript@7.0.2))(vite@8.3.3(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))(vitest@5.0.1)':
     dependencies:
@@ -11848,7 +11606,6 @@ snapshots:
     optionalDependencies:
       msw: 2.15.0(@types/node@26.6.1)(typescript@7.0.2)
       vite: 8.3.3(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)
-    optional: true
 
   '@vitest/pretty-format@3.2.4':
     dependencies:
@@ -11857,14 +11614,12 @@ snapshots:
   '@vitest/pretty-format@5.0.1':
     dependencies:
       tinyrainbow: 3.1.1
-    optional: true
 
   '@vitest/spy@3.2.4':
     dependencies:
       tinyspy: 4.0.6
 
-  '@vitest/spy@5.0.1':
-    optional: true
+  '@vitest/spy@5.0.1': {}
 
   '@vitest/ui@5.0.1(vitest@5.0.1)':
     dependencies:
@@ -11875,7 +11630,6 @@ snapshots:
       sirv: 3.0.2
       tinyrainbow: 3.1.1
       vitest: 5.0.1(@opentelemetry/api@1.9.1)(@types/node@26.6.1)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(msw@2.15.0(@types/node@26.6.1)(typescript@7.0.2))(vite@8.3.3(@types/node@26.6.1)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1))
-    optional: true
 
   '@vitest/utils@3.2.4':
     dependencies:
@@ -11888,7 +11642,6 @@ snapshots:
       '@vitest/pretty-format': 5.0.1
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
-    optional: true
 
   '@webcontainer/env@1.1.1': {}
 
@@ -13651,27 +13404,6 @@ snapshots:
     dependencies:
       '@keyv/serialize': 1.1.1
 
-  koffi@3.2.1:
-    optionalDependencies:
-      '@koromix/koffi-android-arm64': 3.2.1
-      '@koromix/koffi-android-x64': 3.2.1
-      '@koromix/koffi-darwin-arm64': 3.2.1
-      '@koromix/koffi-darwin-x64': 3.2.1
-      '@koromix/koffi-freebsd-arm64': 3.2.1
-      '@koromix/koffi-freebsd-ia32': 3.2.1
-      '@koromix/koffi-freebsd-x64': 3.2.1
-      '@koromix/koffi-linux-arm': 3.2.1
-      '@koromix/koffi-linux-arm64': 3.2.1
-      '@koromix/koffi-linux-ia32': 3.2.1
-      '@koromix/koffi-linux-loong64': 3.2.1
-      '@koromix/koffi-linux-riscv64': 3.2.1
-      '@koromix/koffi-linux-x64': 3.2.1
-      '@koromix/koffi-openbsd-ia32': 3.2.1
-      '@koromix/koffi-openbsd-x64': 3.2.1
-      '@koromix/koffi-win32-arm64': 3.2.1
-      '@koromix/koffi-win32-ia32': 3.2.1
-      '@koromix/koffi-win32-x64': 3.2.1
-
   kysely@0.29.6: {}
 
   language-subtag-registry@0.3.23: {}
@@ -14894,7 +14626,8 @@ snapshots:
 
   playwright-core@1.63.0: {}
 
-  playwright-core@1.64.0: {}
+  playwright-core@1.64.0:
+    optional: true
 
   playwright@1.63.0:
     dependencies:
@@ -14903,6 +14636,7 @@ snapshots:
   playwright@1.64.0:
     dependencies:
       playwright-core: 1.64.0
+    optional: true
 
   pngjs@7.0.0: {}
 
@@ -15649,8 +15383,7 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  siginfo@2.0.0:
-    optional: true
+  siginfo@2.0.0: {}
 
   signal-exit@3.0.7:
     optional: true
@@ -15762,8 +15495,7 @@ snapshots:
 
   stable-hash@0.0.5: {}
 
-  stackback@0.0.2:
-    optional: true
+  stackback@0.0.2: {}
 
   standard-as-callback@2.1.0: {}
 
@@ -15967,8 +15699,7 @@ snapshots:
 
   tinybench@6.1.4: {}
 
-  tinyexec@1.3.0:
-    optional: true
+  tinyexec@1.3.0: {}
 
   tinyexec@1.3.1: {}
 
@@ -16436,7 +16167,6 @@ snapshots:
       fsevents: 2.3.3
       jiti: 2.7.0
       yaml: 2.9.1
-    optional: true
 
   vitest@5.0.1(@opentelemetry/api@1.9.1)(@types/node@22.20.3)(@vitest/browser-playwright@5.0.1)(@vitest/coverage-v8@5.0.1)(@vitest/ui@5.0.1)(msw@2.15.0(@types/node@22.20.3)(typescript@5.9.3))(vite@8.3.0(@types/node@22.20.3)(esbuild@0.28.2)(jiti@2.7.0)(yaml@2.9.1)):
     dependencies:
@@ -16512,9 +16242,6 @@ snapshots:
       '@vitest/ui': 5.0.1(vitest@5.0.1)
     transitivePeerDependencies:
       - msw
-    optional: true
-
-  vscode-jsonrpc@8.2.1: {}
 
   w3c-keyname@2.2.8: {}
 
@@ -16580,7 +16307,6 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
-    optional: true
 
   word-wrap@1.2.5: {}
 
@@ -16639,8 +16365,6 @@ snapshots:
 
   zod@4.2.1:
     optional: true
-
-  zod@4.3.6: {}
 
   zod@4.6.5: {}
 

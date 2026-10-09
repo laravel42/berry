@@ -619,7 +619,11 @@ if (modelGateway && config.modelGateway) {
    setInterval(reconcile, 60 * 60_000).unref();
 }
 
-const kiroOnWorkstation = workstationKiro();
+// The container reaches Berry through BERRY_RUNTIME_CALLBACK_URL. Kiro is a
+// child of this process, so it uses the port this server is listening on.
+const kiroOnWorkstation = workstationKiro({
+   callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
+});
 
 const executor = defaultTarget
    ? new RuntimeTaskExecutor({
@@ -652,19 +656,6 @@ const executor = defaultTarget
                     AND connection.external_account_id IS NOT DISTINCT FROM ${accountId}`;
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
-              }
-              if (runtimeId === 'github-copilot') {
-                 if (!githubUserAccess) throw new Error('the personal AI runtime connection is no longer usable');
-                 const identity = await githubUserAccess.runtimeIdentity(userId);
-                 if (identity.accountId !== connection.external_account_id) {
-                    throw new Error('the GitHub account no longer matches the connection that authorized this run');
-                 }
-                 return {
-                    type: 'oauth',
-                    token: await githubUserAccess.runtimeToken(userId),
-                    accountId: connection.external_account_id,
-                    accountName: connection.external_account_name,
-                 };
               }
               if (runtimeId === 'kiro') {
                  const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
@@ -1039,6 +1030,7 @@ registry.registerAll(
       githubApp,
       userAccess: githubUserAccess,
       logger,
+      sql,
    })
 );
 registry.registerAll(runMounts(runOptions));
@@ -1108,7 +1100,6 @@ registry.registerAll(
       sessions,
       sql,
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
-      githubUsers: githubUserAccess,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
          if (request.runtimeId === 'kiro') {

@@ -48,3 +48,31 @@ test('control and a task stay on the workstation process', async () => {
    }
    assert.deepEqual(events.map((event) => event.type), ['task.completed']);
 });
+
+test('a workstation task calls Berry on loopback, not the container callback', async () => {
+   const seen: string[] = [];
+   const script = `
+let raw = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => { raw += chunk; });
+process.stdin.on('end', () => {
+   const body = JSON.parse(raw);
+   process.stdout.write(JSON.stringify({
+      type: 'task.completed',
+      result: { text: body.berry.apiUrl, truncated: false, delivery: null },
+   }) + '\\n');
+});
+`;
+   const host = workstationKiro({
+      command: process.execPath,
+      args: ['-e', script],
+      callbackUrl: 'http://127.0.0.1:4000',
+   });
+   for await (const event of host.invoke(
+      { runId: 'run-1', kind: 'agent', berry: { apiUrl: 'http://host.docker.internal:4000', token: 't' } } as TaskEnvelope,
+      new AbortController().signal
+   )) {
+      if (event.type === 'task.completed') seen.push(event.result.text);
+   }
+   assert.deepEqual(seen, ['http://127.0.0.1:4000']);
+});

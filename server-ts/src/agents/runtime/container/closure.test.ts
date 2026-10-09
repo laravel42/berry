@@ -31,7 +31,6 @@ const ALLOWED_PACKAGES = new Set([
    '@strands-agents/sdk',
    // The SDK's OpenAI model, for the Kilo gateway (ADR-0017); it loads `openai`.
    '@strands-agents/sdk/models/openai',
-   '@github/copilot-sdk',
    'zod',
    '@aws-sdk/client-bedrock-runtime',
    '@aws-sdk/client-polly',

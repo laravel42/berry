@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
 import { redactSecret } from './kiro-acp.ts';
-import { KiroAgentAdapter, normalizeKiroUpdate, selectKiroPermission, type KiroLauncher } from './kiro.ts';
+import { KiroAgentAdapter, kiroMcpSocketPath, kiroUsageEvent, normalizeKiroUpdate, selectKiroPermission, type KiroLauncher } from './kiro.ts';
 import { RuntimeAdapterError, type RuntimeCredential } from './types.ts';
 
 const KEY = 'ksk_test_key_value_0001';
@@ -256,5 +256,85 @@ describe('Kiro adapter', () => {
       );
       assert.deepEqual(replayed, []);
       assert.equal(redactSecret(`failed ${KEY}`, KEY).includes(KEY), false);
+   });
+
+   test('the tool socket path fits a macOS unix socket', () => {
+      const path = kiroMcpSocketPath();
+      assert.equal(Buffer.byteLength(path) <= 103, true);
+      assert.equal(path.endsWith('.sock'), true);
+   });
+
+   test('records Kiro token usage without a dollar price', () => {
+      const event = kiroUsageEvent(
+         {
+            stopReason: 'end_turn',
+            usage: {
+               inputTokens: 120,
+               outputTokens: 30,
+               thoughtTokens: 10,
+               cachedReadTokens: 40,
+               cachedWriteTokens: 5,
+               totalTokens: 205,
+            },
+         },
+         'auto'
+      );
+      assert.equal(event?.type, 'task.usage');
+      if (event?.type !== 'task.usage') return;
+      assert.equal(event.usage.inputTokens, 120);
+      assert.equal(event.usage.outputTokens, 40);
+      assert.equal(event.usage.cacheReadTokens, 40);
+      assert.equal(event.usage.cacheWriteTokens, 5);
+      assert.equal(event.usage.reportedCostMicros, null);
+      assert.equal(event.usage.model, 'auto');
+      const context = kiroUsageEvent(
+         { sessionId: 's', update: { sessionUpdate: 'usage_update', used: 18000.9, size: 200000 } },
+         'deepseek-3.2'
+      );
+      assert.equal(context?.type, 'task.usage');
+      if (context?.type !== 'task.usage') return;
+      assert.equal(context.usage.inputTokens, 18000);
+      assert.equal(context.usage.model, 'deepseek-3.2');
+      assert.equal(kiroUsageEvent({ usagePercentage: 15 }, 'auto'), null);
+      const breakdown = kiroUsageEvent(
+         {
+            sessionId: 's',
+            update: {
+               sessionUpdate: 'session_info_update',
+               _meta: {
+                  kiro: {
+                     kind: 'context_usage',
+                     usagePercentage: 2.5,
+                     breakdown: {
+                        contextFiles: { tokens: 0, percent: 0 },
+                        tools: { tokens: 4927, percent: 0.5 },
+                        memory: { tokens: 0, percent: 0 },
+                        kiroResponses: { tokens: 180, percent: 0 },
+                        yourPrompts: { tokens: 4319, percent: 0.4 },
+                        sessionFiles: { tokens: 0, percent: 0 },
+                     },
+                  },
+               },
+            },
+         },
+         'deepseek-3.2'
+      );
+      assert.equal(breakdown?.type, 'task.usage');
+      if (breakdown?.type !== 'task.usage') return;
+      assert.equal(breakdown.usage.inputTokens, 9246);
+      assert.equal(breakdown.usage.outputTokens, 180);
+      assert.equal(breakdown.usage.reportedCostMicros, null);
+      assert.equal(
+         kiroUsageEvent(
+            {
+               update: {
+                  sessionUpdate: 'session_info_update',
+                  _meta: { kiro: { kind: 'turn_completion', promptTurnSummaries: [{ unit: 'credit', usage: 0.08 }] } },
+               },
+            },
+            'auto'
+         ),
+         null
+      );
    });
 });

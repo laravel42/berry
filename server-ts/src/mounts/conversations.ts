@@ -72,6 +72,7 @@ const messageSchema = z.strictObject({ body: z.string().trim().min(1).max(MAX_BO
 const runtimeSelectionSchema = z.strictObject({
    runtimeId: z.string().trim().min(1).max(64).nullable(),
    modelId: z.string().trim().min(1).max(300).nullable(),
+   agentId: z.string().trim().min(1).max(80).nullable().optional(),
 });
 
 export function conversationMounts(options: ConversationOptions): Mount[] {

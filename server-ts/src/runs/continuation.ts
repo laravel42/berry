@@ -49,6 +49,7 @@ function retainedSelection(row: Record<string, unknown>): AiRuntimeRunSelection 
    return {
       runtimeId,
       modelId,
+      agentId: typeof row.ai_runtime_agent === 'string' ? row.ai_runtime_agent : null,
       connectionId,
       userId,
       accountId: typeof row.ai_runtime_account_id === 'string' ? row.ai_runtime_account_id : null,
@@ -72,6 +73,7 @@ export async function continueAfterLimit(
              r.head_commit, r.branch, r.requested_by, r.created_at,
              r.ai_runtime_key, r.ai_model_id, r.ai_runtime_connection_id,
              r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
+             r.ai_runtime_agent,
              i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at
         FROM runs r JOIN issues i ON i.id = r.issue_id
        WHERE r.id = ${input.runId}`;
@@ -238,6 +240,7 @@ export async function retryAfterFault(sql: Sql, input: { runId: string }): Promi
              r.source, r.prompt, r.requested_by,
              r.ai_runtime_key, r.ai_model_id, r.ai_runtime_connection_id,
              r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
+             r.ai_runtime_agent,
              i.status AS issue_status, i.assignee_type, i.assignee_id, i.deleted_at
         FROM runs r JOIN issues i ON i.id = r.issue_id
        WHERE r.id = ${input.runId}`;

@@ -110,6 +110,7 @@ export interface Run {
    /** Personal agent-process runtime and model snapshotted when this run was queued. */
    aiRuntimeId: string | null;
    aiModelId: string | null;
+   aiRuntimeAgent: string | null;
    aiRuntimeUserId: string | null;
    aiRuntimeAccountId: string | null;
    aiRuntimeAccountName: string | null;
@@ -888,7 +889,7 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
              r.agent_id, r.status::text AS status, r.sequence, r.summary,
              r.input_tokens, r.output_tokens, r.total_tokens, r.cost_micros, r.currency,
              r.failure_code, r.failure_message, r.failure_retryable,
-             r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id,
+             r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id, r.ai_runtime_agent,
              r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
              r.dispatch_state, r.created_at, r.started_at, r.completed_at
         FROM runs AS r
@@ -925,6 +926,7 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
       requestedBy: (row.requested_by as string | null) ?? null,
       aiRuntimeId: (row.ai_runtime_key as string | null) ?? null,
       aiModelId: (row.ai_model_id as string | null) ?? null,
+      aiRuntimeAgent: (row.ai_runtime_agent as string | null) ?? null,
       aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
       aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
       aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,

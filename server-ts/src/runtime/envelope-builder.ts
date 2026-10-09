@@ -91,6 +91,7 @@ export interface TaskRow {
    /** The personal AI adapter snapshot, distinct from the compute runtime above. */
    aiRuntimeId: AiRuntimeId | null;
    aiModelId: string | null;
+   aiRuntimeAgent: string | null;
    aiRuntimeConnectionId: string | null;
    aiRuntimeUserId: string | null;
    aiRuntimeAccountId: string | null;
@@ -182,7 +183,7 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
    const [row] = await sql`
       SELECT id, workspace_id, agent_id, issue_id, board_id, chat_session_id, kind, source,
              prompt, completion_spec, runtime_id, origin, ai_runtime_key, ai_model_id,
-             ai_runtime_connection_id, ai_runtime_user_id, ai_runtime_account_id,
+             ai_runtime_agent, ai_runtime_connection_id, ai_runtime_user_id, ai_runtime_account_id,
              ai_runtime_account_name, requested_by
         FROM runs WHERE id = ${runId}`;
    if (!row) throw new Error(`run ${runId} does not exist`);
@@ -202,6 +203,7 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       runtimeId: (row.runtime_id as string | null) ?? null,
       aiRuntimeId: (row.ai_runtime_key as AiRuntimeId | null) ?? null,
       aiModelId: (row.ai_model_id as string | null) ?? null,
+      aiRuntimeAgent: (row.ai_runtime_agent as string | null) ?? null,
       aiRuntimeConnectionId: (row.ai_runtime_connection_id as string | null) ?? null,
       aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
       aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
@@ -495,16 +497,6 @@ export class EnvelopeBuilder {
             { cause }
          );
       }
-      if (
-         task.aiRuntimeId === 'github-copilot' &&
-         !/^(gho_|ghu_|github_pat_)/.test(credential.token)
-      ) {
-         throw new AiRuntimeEnvelopeError(
-            'AI_RUNTIME_AUTH_REQUIRED',
-            'GitHub Copilot requires a GitHub OAuth user token. Sign out of Berry and sign in with GitHub again.',
-            false
-         );
-      }
       if (task.aiRuntimeId === 'kiro' && (credential.type !== 'api_key' || !isKiroApiKey(credential.token))) {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',
@@ -526,6 +518,7 @@ export class EnvelopeBuilder {
          provider: definition.provider,
          billing: definition.billing,
          model,
+         agent: task.aiRuntimeAgent,
          credential,
       };
    }

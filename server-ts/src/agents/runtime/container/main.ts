@@ -5,7 +5,6 @@ import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
 import { SessionIdentities, sealWorkRoot } from './session-identity.ts';
 import { SessionRegistry } from './sessions.ts';
-import { CopilotAgentAdapter } from '../adapters/copilot.ts';
 import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
 
 /**
@@ -61,15 +60,8 @@ if (expectedSession && !/^[A-Za-z0-9][A-Za-z0-9_-]{32,99}$/.test(expectedSession
    console.error(JSON.stringify({ level: 'ERROR', msg: 'BERRY_RUNTIME_EXPECTED_SESSION is not a valid runtime session id' }));
    process.exit(1);
 }
-const principalIsolation =
-   authMode === 'agentcore'
-      ? 'agentcore_session'
-      : expectedSession
-        ? 'session_container'
-        : 'shared_process';
-const adapters = new RuntimeAdapterRegistry([
-   new CopilotAgentAdapter(undefined, { principalIsolation }),
-]);
+// Kiro runs on the workstation, not in this image. No in-container adapter ships.
+const adapters = new RuntimeAdapterRegistry([]);
 const server = createRuntimeServer({
    authMode,
    ...(expectedSession ? { expectedSession } : {}),

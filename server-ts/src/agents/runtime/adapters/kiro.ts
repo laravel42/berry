@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { access, chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,6 +25,19 @@ export type KiroLauncher = (spec: KiroSpawn) => KiroChild;
 const DEFAULT_DEADLINE_MS = 2 * 60 * 60 * 1000;
 const HANDSHAKE_MS = 20_000;
 const BRIDGE = fileURLToPath(new URL('./kiro-mcp-bridge.ts', import.meta.url));
+
+/**
+ * macOS `sockaddr_un.sun_path` is 104 bytes, including the trailing NUL, so a
+ * socket under the session directory is truncated and `listen` reports
+ * EADDRINUSE. `/tmp` keeps the path well under that limit.
+ */
+export function kiroMcpSocketPath(): string {
+   const path = join(process.platform === 'win32' ? tmpdir() : '/tmp', `berry-mcp-${randomBytes(8).toString('hex')}.sock`);
+   if (Buffer.byteLength(path) > 103) {
+      throw new RuntimeAdapterError('RUNTIME_ERROR', 'The Kiro tool socket path is too long for this operating system.', false);
+   }
+   return path;
+}
 
 export interface KiroAdapterOptions {
    command?: string;
@@ -204,14 +218,16 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       await writePermissions(input.stateDirectory);
       const allowed = new Set(input.tools.map((tool) => tool.name));
       const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
+      let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
          onUpdate: (params: unknown): void => {
+            const streamed = kiroUsageEvent(params, runtime.model);
+            if (streamed) pendingUsage = streamed;
             for (const event of normalizeKiroUpdate(params, normalization)) input.emit(event);
          },
          onPermission: (params: unknown) => selectKiroPermission(params, allowed),
       };
-      const socketPath = join(input.stateDirectory, 'berry-mcp.sock');
-      await rm(socketPath, { force: true });
+      const socketPath = kiroMcpSocketPath();
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
       const client = await this.#open(input.credential, input.stateDirectory, handlers);
@@ -235,6 +251,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
                  )
                  .catch(() => null)
             : null;
+         const pinModel = runtime.model !== 'default';
          const session =
             loaded ??
             (await client.request(
@@ -242,7 +259,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
                {
                   cwd: input.workingDirectory,
                   mcpServers,
-                  _meta: { kiro: { modelId: runtime.model } },
+                  _meta: { kiro: pinModel ? { modelId: runtime.model } : {} },
                },
                HANDSHAKE_MS
             ));
@@ -252,16 +269,18 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          }
          await writeFile(join(input.stateDirectory, 'session-id'), sessionId, { mode: 0o600 });
          this.#active.set(sessionId, client);
-         await client
-            .request(
-               'session/set_config_option',
-               { sessionId, configId: 'model', value: runtime.model },
-               HANDSHAKE_MS
-            )
-            .catch((cause: unknown) => {
-               if (cause instanceof RuntimeAdapterError && cause.code === 'RUNTIME_PROTOCOL') return;
-               throw cause;
-            });
+         if (pinModel) {
+            await client
+               .request(
+                  'session/set_config_option',
+                  { sessionId, configId: 'model', value: runtime.model },
+                  HANDSHAKE_MS
+               )
+               .catch((cause: unknown) => {
+                  if (cause instanceof RuntimeAdapterError && cause.code === 'RUNTIME_PROTOCOL') return;
+                  throw cause;
+               });
+         }
          input.signal.addEventListener('abort', abort, { once: true });
          input.signal.throwIfAborted();
          deadline = setTimeout(() => {
@@ -278,6 +297,8 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
             },
             this.#deadlineMs
          );
+         const reported = kiroUsageEvent(result, runtime.model) ?? pendingUsage;
+         if (reported) input.emit(reported);
          if (input.signal.aborted) {
             throw new RuntimeAdapterError('RUNTIME_CANCELLED', 'The Kiro run was cancelled.', false);
          }
@@ -338,9 +359,11 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       }
    ): Promise<KiroAcpClient> {
       await exposeKiroChat(home);
+      // v3 rejects `--agent`. The CLI's own default agent is the one that runs.
+      const args = ['acp', '--agent-engine=v3'];
       const child = this.#launch({
          command: this.#command,
-         args: ['acp', '--agent-engine=v3'],
+         args,
          cwd: home,
          env: childEnvironment(home, credential.token),
       });
@@ -505,6 +528,126 @@ function stopReason(value: unknown): string | null {
    if (!value || typeof value !== 'object') return null;
    const reason = (value as { stopReason?: unknown }).stopReason;
    return typeof reason === 'string' ? reason : null;
+}
+
+/**
+ * One usage report for the turn. The last report wins.
+ *
+ * `kiro-cli acp --agent-engine=v3` does not put token counts on the prompt
+ * result. It sends `session_info_update` with a context breakdown: prompt,
+ * tool, file, and memory tokens, plus `kiroResponses` for model output.
+ * A percentage or a credit total is not a token count, and credits are not
+ * stored as a dollar price.
+ */
+export function kiroUsageEvent(payload: unknown, model: string): LifecycleEvent | null {
+   for (const source of usageSources(payload)) {
+      const event = usageFrom(source, model) ?? breakdownUsage(source, model);
+      if (event) return event;
+   }
+   return null;
+}
+
+const CONTEXT_INPUT_BUCKETS = ['contextFiles', 'tools', 'memory', 'yourPrompts', 'sessionFiles'] as const;
+
+function breakdownUsage(source: Record<string, unknown>, model: string): LifecycleEvent | null {
+   const breakdown = source.breakdown;
+   if (!breakdown || typeof breakdown !== 'object' || Array.isArray(breakdown)) return null;
+   const buckets = breakdown as Record<string, unknown>;
+   let inputTokens = 0;
+   let outputTokens = 0;
+   let seen = false;
+   for (const key of CONTEXT_INPUT_BUCKETS) {
+      const tokens = bucketTokens(buckets[key]);
+      if (tokens === null) continue;
+      seen = true;
+      inputTokens += tokens;
+   }
+   const output = bucketTokens(buckets.kiroResponses);
+   if (output !== null) {
+      seen = true;
+      outputTokens = output;
+   }
+   if (!seen || inputTokens + outputTokens === 0) return null;
+   return usageEvent(model, inputTokens, outputTokens, 0, 0);
+}
+
+function bucketTokens(bucket: unknown): number | null {
+   if (!bucket || typeof bucket !== 'object') return null;
+   const tokens = (bucket as { tokens?: unknown }).tokens;
+   if (typeof tokens !== 'number' || !Number.isFinite(tokens) || tokens < 0) return null;
+   return Math.floor(tokens);
+}
+
+function usageSources(payload: unknown): Record<string, unknown>[] {
+   if (!payload || typeof payload !== 'object') return [];
+   const record = payload as Record<string, unknown>;
+   const update = record.update && typeof record.update === 'object' ? (record.update as Record<string, unknown>) : null;
+   const meta = metaRecord(update) ?? metaRecord(record);
+   return [record.usage, update?.usage, meta, update, record].filter(
+      (value): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
+   );
+}
+
+function metaRecord(value: Record<string, unknown> | null): Record<string, unknown> | null {
+   const meta = value?._meta;
+   if (!meta || typeof meta !== 'object') return null;
+   const kiro = (meta as { kiro?: unknown }).kiro;
+   return kiro && typeof kiro === 'object' && !Array.isArray(kiro) ? (kiro as Record<string, unknown>) : null;
+}
+
+function usageFrom(source: Record<string, unknown>, model: string): LifecycleEvent | null {
+   const whole = (value: unknown): number =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+   const pick = (...keys: string[]): number => {
+      for (const key of keys) {
+         if (source[key] !== undefined) return whole(source[key]);
+      }
+      return 0;
+   };
+   const input = pick('inputTokens', 'input_tokens', 'input_token_count');
+   let output = pick('outputTokens', 'output_tokens', 'output_token_count');
+   const thought = pick('thoughtTokens', 'thought_tokens');
+   const cacheRead = pick('cachedReadTokens', 'cacheReadTokens', 'cache_read_tokens', 'cache_read_input_token_count');
+   const cacheWrite = pick('cachedWriteTokens', 'cacheWriteTokens', 'cache_write_tokens', 'cache_write_input_token_count');
+   const total = pick('totalTokens', 'total_tokens');
+   if (thought > 0 && (total === 0 || input + output + thought <= total)) output += thought;
+   let inputTokens = input;
+   if (inputTokens === 0 && output === 0 && cacheRead === 0 && cacheWrite === 0 && total > 0) inputTokens = total;
+   // ACP context meter: `used` is the tokens currently in the window.
+   if (
+      inputTokens === 0 &&
+      output === 0 &&
+      cacheRead === 0 &&
+      cacheWrite === 0 &&
+      (source.sessionUpdate === 'usage_update' || source.size !== undefined)
+   ) {
+      inputTokens = pick('used');
+   }
+   if (inputTokens + output + cacheRead + cacheWrite === 0) return null;
+   const named = typeof source.modelId === 'string' && source.modelId.trim() !== '' ? source.modelId.trim() : model;
+   return usageEvent(named, inputTokens, output, cacheRead, cacheWrite);
+}
+
+function usageEvent(
+   model: string,
+   inputTokens: number,
+   outputTokens: number,
+   cacheReadTokens: number,
+   cacheWriteTokens: number
+): LifecycleEvent {
+   const named = model.trim();
+   return {
+      type: 'task.usage',
+      usage: {
+         eventId: 'kiro-prompt',
+         model: named || 'kiro',
+         inputTokens,
+         outputTokens,
+         cacheReadTokens,
+         cacheWriteTokens,
+         reportedCostMicros: null,
+      },
+   };
 }
 
 function textOf(state: NormalizationState): string {

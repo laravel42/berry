@@ -208,6 +208,7 @@ export function issueRunRoutes(options: RunOptions) {
    const runtimeSelectionSchema = z.strictObject({
       runtimeId: z.string().trim().min(1).max(64).nullable(),
       modelId: z.string().trim().min(1).max(300).nullable(),
+      agentId: z.string().trim().min(1).max(80).nullable().optional(),
    });
 
    route.get('/:issueRef/runtime-selection', async (context) => {
@@ -351,6 +352,7 @@ export function serializeRun(run: Run): Record<string, unknown> {
       requestedBy: run.requestedBy ? { type: 'user', id: run.requestedBy } : null,
       aiRuntimeId: run.aiRuntimeId,
       aiModelId: run.aiModelId,
+      aiRuntimeAgent: run.aiRuntimeAgent,
       aiRuntimeAccount:
          run.aiRuntimeId && (run.aiRuntimeAccountId || run.aiRuntimeAccountName)
             ? {

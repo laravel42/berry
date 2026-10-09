@@ -140,7 +140,6 @@ const keep = [
    '@aws-sdk/client-bedrock-runtime',
    '@aws-sdk/client-polly',
    '@aws-sdk/client-s3',
-   '@github/copilot-sdk',
    '@strands-agents/sdk',
    'openai',
    'zod',
@@ -154,8 +153,6 @@ for (const name of keep) {
    }
    dependencies[name] = version;
 }
-const copilotPlatform = process.arch === 'arm64' ? 'linux-arm64' : 'linux-x64';
-dependencies[`@github/copilot-sdk-${copilotPlatform}`] = pkg.dependencies['@github/copilot-sdk'];
 pkg.dependencies = dependencies;
 pkg.packageManager = 'pnpm@12.5.1';
 delete pkg.devDependencies;

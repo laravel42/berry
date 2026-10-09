@@ -131,7 +131,7 @@ test('control uses the authenticated invoke seam and validates the runtime respo
       request: {
          runtimeSessionId,
          operation: 'models',
-         runtimeId: 'github-copilot',
+         runtimeId: 'kiro',
          credential: { type: 'oauth', token: 'gho_secret', accountId: '1', accountName: 'one' },
       },
       signal: new AbortController().signal,

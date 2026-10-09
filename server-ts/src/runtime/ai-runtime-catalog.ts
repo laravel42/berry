@@ -1,7 +1,6 @@
 export const AI_RUNTIME_IDS = [
    'claude',
    'codex',
-   'github-copilot',
    'opencode',
    'openclaw',
    'hermes',
@@ -114,34 +113,6 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       officialSources: [
          'https://developers.openai.com/codex/app-server',
          'https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server',
-      ],
-   },
-   {
-      id: 'github-copilot',
-      name: 'GitHub Copilot',
-      publisher: 'GitHub',
-      product: 'GitHub Copilot SDK and headless Copilot CLI runtime',
-      description: 'GitHub’s agent runtime, isolated per Berry session with explicit tools and the signed-in person’s Copilot entitlement.',
-      executionMode: 'agent_process',
-      provider: 'GitHub Copilot model service',
-      billing: 'subscription',
-      billingDetail: 'Usage is charged to the connected person’s GitHub Copilot subscription. Berry never supplies a model API key.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['GitHub OAuth user token'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Bundled with Berry’s pinned @github/copilot-sdk runtime package.',
-      defaultModel: 'auto',
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'available',
-      unavailableReason: null,
-      officialSources: [
-         'https://docs.github.com/en/copilot/how-tos/copilot-sdk/set-up-copilot-sdk/github-oauth',
-         'https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/multi-tenancy',
-         'https://docs.github.com/en/copilot/how-tos/copilot-sdk/setup/backend-services',
       ],
    },
    {

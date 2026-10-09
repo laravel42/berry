@@ -45,8 +45,8 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
       return repository.connect({
          workspaceId: world.workspaceId,
          userId: world.userId,
-         runtimeId: 'github-copilot',
-         authMethod: 'github_oauth_user_token',
+         runtimeId: 'kiro',
+         authMethod: 'kiro_api_key',
          accountId: '42',
          accountName: 'berry-user',
          metadata: { models: [{ id: 'auto', name: 'Automatic' }] },
@@ -57,7 +57,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
       const world = current();
       const connection = await connect();
       await repository.savePreference(world.workspaceId, world.userId, {
-         runtimeId: 'github-copilot',
+         runtimeId: 'kiro',
          modelId: 'auto',
       });
 
@@ -67,11 +67,26 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          overrideRuntimeId: null,
          overrideModelId: null,
       });
-      assert.deepEqual(selected, {
-         runtimeId: 'github-copilot',
-         modelId: 'auto',
-         connectionId: connection.connection.id,
+      assert.equal(selected.runtimeId, 'kiro');
+      assert.equal(selected.modelId, 'auto');
+      assert.equal(selected.connectionId, connection.connection.id);
+      assert.equal(selected.userId, world.userId);
+   });
+
+   test('a connected runtime takes agent work when nobody set a preference', async () => {
+      const world = current();
+      const connection = await connect();
+      await repository.savePreference(world.workspaceId, world.userId, { runtimeId: null, modelId: null });
+      const selected = await resolveAiRuntimeSelection(sql, {
+         workspaceId: world.workspaceId,
+         userId: null,
+         overrideRuntimeId: null,
+         overrideModelId: null,
       });
+      assert.equal(selected.runtimeId, 'kiro');
+      assert.equal(selected.modelId, 'auto');
+      assert.equal(selected.connectionId, connection.connection.id);
+      assert.equal(selected.userId, world.userId);
    });
 
    test('one member cannot use another member subscription connection', async () => {
@@ -90,7 +105,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          resolveAiRuntimeSelection(sql, {
             workspaceId: world.workspaceId,
             userId,
-            overrideRuntimeId: 'github-copilot',
+            overrideRuntimeId: 'kiro',
             overrideModelId: 'auto',
          }),
          (error: unknown) =>
@@ -102,7 +117,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
       const world = current();
       await connect();
       await repository.savePreference(world.workspaceId, world.userId, {
-         runtimeId: 'github-copilot',
+         runtimeId: 'kiro',
          modelId: 'auto',
       });
       const selected = await resolveAiRuntimeSelection(sql, {
@@ -111,14 +126,15 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          overrideRuntimeId: NATIVE_AI_RUNTIME,
          overrideModelId: null,
       });
-      assert.deepEqual(selected, { runtimeId: null, modelId: null, connectionId: null });
+      assert.equal(selected.runtimeId, null);
+      assert.equal(selected.connectionId, null);
    });
 
    test('disconnect returns active runs and clears the personal default', async () => {
       const world = current();
       const connection = await connect();
       await repository.savePreference(world.workspaceId, world.userId, {
-         runtimeId: 'github-copilot',
+         runtimeId: 'kiro',
          modelId: 'auto',
       });
       const issueId = await createIssue(sql, world, 'Personal runtime task');
@@ -134,7 +150,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          SELECT ai_runtime_connection_id FROM runs WHERE id = ${queued.runId}`;
       assert.equal(run?.ai_runtime_connection_id, connection.connection.id);
 
-      const result = await repository.disconnect(world.workspaceId, world.userId, 'github-copilot');
+      const result = await repository.disconnect(world.workspaceId, world.userId, 'kiro');
       assert.deepEqual(result.activeRunIds, [queued.runId]);
       assert.deepEqual(await repository.preference(world.workspaceId, world.userId), {
          runtimeId: null,

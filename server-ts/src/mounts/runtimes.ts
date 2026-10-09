@@ -8,15 +8,17 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
-import { GitHubUserUnavailable, type GitHubUserAccess } from '../integrations/github-user.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
-import { isAiRuntimeId } from '../runtime/ai-runtime-catalog.ts';
+import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { isKiroApiKey } from '../runtime/envelope.ts';
+import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
    AiRuntimeRepository,
    AiRuntimeSelectionError,
+   emptyAgentTiers,
    NATIVE_AI_RUNTIME,
+   RUNTIME_AGENT_TIERS,
 } from '../runtime/ai-runtimes.ts';
 import {
    RuntimeNotFound,
@@ -62,6 +64,35 @@ const profileBody = z.object({
 
 type Lifecycle = { idleRuntimeSessionTimeout: number; maxLifetime: number };
 
+/** `runtime/model` keys a connected runtime in this workspace currently offers. */
+async function modelsConnected(sql: Sql, workspaceId: string): Promise<Set<string>> {
+   const rows = await sql<Array<{ runtime_key: string; metadata: unknown }>>`
+      SELECT runtime_key, metadata FROM ai_runtime_connections
+       WHERE workspace_id = ${workspaceId} AND status = 'connected'`;
+   const allowed = new Set<string>();
+   for (const row of rows) {
+      if (!isAiRuntimeId(row.runtime_key)) continue;
+      const metadata = row.metadata;
+      const listed =
+         metadata !== null && typeof metadata === 'object' && !Array.isArray(metadata)
+            ? (metadata as { models?: unknown }).models
+            : undefined;
+      if (Array.isArray(listed)) {
+         for (const model of listed) {
+            if (model === null || typeof model !== 'object') continue;
+            const id = (model as { id?: unknown }).id;
+            if (typeof id !== 'string') continue;
+            const trimmed = id.trim();
+            if (trimmed.length > 0) allowed.add(`${row.runtime_key}/${trimmed}`);
+         }
+      }
+      const fallback = findAiRuntime(row.runtime_key)?.defaultModel;
+      if (fallback) allowed.add(`${row.runtime_key}/${fallback}`);
+      allowed.add(`${row.runtime_key}/default`);
+   }
+   return allowed;
+}
+
 /**
  * `/api/v1/runtimes`: where a workspace's agents run, and how.
  *
@@ -79,8 +110,6 @@ export function runtimeMounts(options: {
    defaultTarget?: RuntimeTarget | null;
    /** Writes a session lifecycle onto an AgentCore runtime. Absent without AgentCore. */
    applyLifecycle?: (arn: string, lifecycle: Lifecycle) => Promise<void>;
-   /** Opens only the signed-in person's GitHub OAuth token for Copilot. */
-   githubUsers?: GitHubUserAccess | null;
    /** Cancels an active run after its personal runtime connection is removed. */
    cancelRun?: (runId: string) => Promise<void>;
    /** Runs adapter control operations inside the configured runtime image. */
@@ -149,12 +178,6 @@ export function runtimeMounts(options: {
          const status = error.code === 'AI_RUNTIME_UNKNOWN' ? 404 : 409;
          throw new ApiError(status, error.code, error.message);
       }
-      if (error instanceof GitHubUserUnavailable) {
-         const code = error.reason === 'not_linked' || error.reason === 'sign_in_again'
-            ? 'GITHUB_SIGN_IN_REQUIRED'
-            : 'AI_RUNTIME_AUTH_FAILED';
-         throw new ApiError(409, code, error.message);
-      }
       throw error;
    };
    const aiRuntimeId = (raw: string | undefined) => {
@@ -191,17 +214,6 @@ export function runtimeMounts(options: {
             'The connection was removed, but one or more runtime sessions could not be stopped. Check runtime health.'
          );
       }
-   };
-   const copilotCredential = async (
-      userId: string,
-      accountId: string | null,
-      accountName: string | null
-   ) => {
-      if (!options.githubUsers) {
-         throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'This deployment cannot open GitHub sign-in credentials for Copilot.');
-      }
-      const token = await options.githubUsers.runtimeToken(userId).catch(aiError);
-      return { type: 'oauth' as const, token, accountId, accountName };
    };
    const kiroCredential = async (workspaceId: string, userId: string, connectionId: string) => {
       if (!options.sealer) {
@@ -258,6 +270,18 @@ export function runtimeMounts(options: {
          aiRuntimes.listConnections(workspaceId, user.id),
          aiRuntimes.preference(workspaceId, user.id),
       ]);
+      const kiro = connections.find((connection) => connection.runtimeId === 'kiro' && connection.status === 'connected');
+      if (kiro) {
+         const metadata =
+            kiro.metadata !== null && typeof kiro.metadata === 'object' && !Array.isArray(kiro.metadata)
+               ? (kiro.metadata as Record<string, unknown>)
+               : {};
+         if (!Array.isArray(metadata.agents) || metadata.agents.length === 0) {
+            const agents = await listKiroAgents();
+            await aiRuntimes.rememberAgents(kiro.id, agents);
+            kiro.metadata = { ...metadata, agents };
+         }
+      }
       const byRuntime = new Map(connections.map((connection) => [connection.runtimeId, connection]));
       return json({
          nodes: aiRuntimes.catalog().map((definition) => ({
@@ -341,60 +365,12 @@ export function runtimeMounts(options: {
          await cancelRuns(connected.replacedActiveRunIds);
          return json(connected.connection, 201);
       }
-      if (runtimeId !== 'github-copilot') {
-         throw new ApiError(
-            409,
-            'AI_RUNTIME_UNAVAILABLE',
-            aiRuntimes.catalog().find((runtime) => runtime.id === runtimeId)?.unavailableReason ??
-               'This AI runtime is not available in this Berry build.'
-         );
-      }
-      if (!options.githubUsers) {
-         throw new ApiError(
-            503,
-            'AI_RUNTIME_AUTH_UNAVAILABLE',
-            'This deployment cannot open GitHub sign-in credentials for Copilot.'
-         );
-      }
-      const identity = await options.githubUsers.runtimeIdentity(user.id).catch(aiError);
-      let metadata: Record<string, unknown> = {
-         models: [{ id: 'auto', name: 'Automatic' }],
-         modelCatalogComplete: false,
-      };
-      if (options.runtimeControl) {
-         const token = await options.githubUsers.runtimeToken(user.id).catch(aiError);
-         const result = await options.runtimeControl({
-            runtimeSessionId: runtimeSessionIdFor(
-               `ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`
-            ),
-            operation: 'models',
-            runtimeId,
-            credential: {
-               type: 'oauth',
-               token,
-               accountId: identity.accountId,
-               accountName: identity.accountName,
-            },
-         });
-         if ('error' in result) controlError(result.error);
-         metadata = {
-            models: 'models' in result ? (result.models ?? []) : [],
-            modelCatalogComplete: true,
-         };
-      }
-      const connected = await aiRuntimes
-         .connect({
-            workspaceId,
-            userId: user.id,
-            runtimeId,
-            authMethod: 'github_oauth_user_token',
-            accountId: identity.accountId,
-            accountName: identity.accountName,
-            metadata,
-         })
-         .catch(aiError);
-      await cancelRuns(connected.replacedActiveRunIds);
-      return json(connected.connection, 201);
+      throw new ApiError(
+         409,
+         'AI_RUNTIME_UNAVAILABLE',
+         aiRuntimes.catalog().find((runtime) => runtime.id === runtimeId)?.unavailableReason ??
+            'This AI runtime is not available in this Berry build.'
+      );
    });
 
    route.delete('/connections/:runtimeId', async (context) => {
@@ -404,6 +380,88 @@ export function runtimeMounts(options: {
       const disconnected = await aiRuntimes.disconnect(workspaceId, user.id, runtimeId);
       await cancelRuns(disconnected.activeRunIds);
       return new Response(null, { status: 204 });
+   });
+
+   const agentTierList = z.array(z.string().trim().min(1).max(80));
+   const agentTierBody = z.strictObject({
+      placement: z
+         .strictObject({
+            berry_max: agentTierList,
+            berry_mid: agentTierList,
+            berry_low: agentTierList,
+         })
+         .nullable(),
+   });
+
+   route.get('/agent-tiers', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const tiers = await aiRuntimes.agentTiers(workspaceId);
+      return json({
+         source: tiers ? 'workspace' : 'unset',
+         tiers: tiers ?? emptyAgentTiers(),
+      });
+   });
+
+   route.put('/agent-tiers', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, true);
+      const body = await parse(context.req.raw, agentTierBody);
+      if (body.placement !== null) {
+         const allowed = new Set((await listKiroAgents()).map((agent) => agent.id));
+         const seen = new Set<string>();
+         for (const tier of RUNTIME_AGENT_TIERS) {
+            for (const id of body.placement[tier]) {
+               if (!allowed.has(id) || seen.has(id) || !/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(id)) {
+                  throw new ApiError(422, 'AI_RUNTIME_AGENT_INVALID', `${id} already has a tier, or is not an agent.`);
+               }
+               seen.add(id);
+            }
+         }
+      }
+      const tiers = await aiRuntimes.saveAgentTiers(workspaceId, user.id, body.placement);
+      return json({
+         source: tiers ? 'workspace' : 'unset',
+         tiers: tiers ?? emptyAgentTiers(),
+      });
+   });
+
+   const tierModelList = z.array(z.string().trim().min(3).max(360)).max(3);
+   const tierModelBody = z.strictObject({
+      placement: z
+         .strictObject({
+            berry_max: tierModelList,
+            berry_mid: tierModelList,
+            berry_low: tierModelList,
+         })
+         .nullable(),
+   });
+
+   route.get('/tier-models', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
+      const tiers = await aiRuntimes.tierModels(workspaceId);
+      return json({ source: tiers ? 'workspace' : 'unset', tiers: tiers ?? emptyAgentTiers() });
+   });
+
+   route.put('/tier-models', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, true);
+      const body = await parse(context.req.raw, tierModelBody);
+      if (body.placement !== null) {
+         const allowed = await modelsConnected(options.sql, workspaceId);
+         const seen = new Set<string>();
+         for (const tier of RUNTIME_AGENT_TIERS) {
+            for (const id of body.placement[tier]) {
+               if (!allowed.has(id) || seen.has(id)) {
+                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is not a model a connected runtime offers, or it is already in a tier.`);
+               }
+               seen.add(id);
+            }
+         }
+      }
+      const tiers = await aiRuntimes.saveTierModels(workspaceId, user.id, body.placement);
+      return json({ source: tiers ? 'workspace' : 'unset', tiers: tiers ?? emptyAgentTiers() });
    });
 
    route.get('/preference', async (context) => {
@@ -432,10 +490,8 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'github-copilot' || runtimeId === 'kiro')) {
-         const credential = runtimeId === 'kiro'
-            ? await kiroCredential(workspaceId, user.id, connection.id)
-            : await copilotCredential(user.id, connection.accountId, connection.accountName);
+      if (options.runtimeControl && runtimeId === 'kiro') {
+         const credential = await kiroCredential(workspaceId, user.id, connection.id);
          const result = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-control:${connection.id}`),
             operation: 'models',

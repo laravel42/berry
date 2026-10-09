@@ -1,3 +1,4 @@
+import { chmod, rm } from 'node:fs/promises';
 import { createServer, type Server, type Socket } from 'node:net';
 import { createInterface } from 'node:readline';
 import type { Tool, ToolContext } from '@strands-agents/sdk';
@@ -27,16 +28,30 @@ export class BerryMcpHost {
 
    listen(): Promise<void> {
       return new Promise((resolve, reject) => {
-         this.#server.once('error', reject);
-         this.#server.listen(this.#socketPath, () => {
-            this.#server.removeListener('error', reject);
-            resolve();
-         });
+         let retried = false;
+         const onError = (error: NodeJS.ErrnoException) => {
+            this.#server.removeListener('error', onError);
+            if (error.code === 'EADDRINUSE' && !retried) {
+               retried = true;
+               void rm(this.#socketPath, { force: true }).then(start, reject);
+               return;
+            }
+            reject(error);
+         };
+         const start = () => {
+            this.#server.once('error', onError);
+            this.#server.listen(this.#socketPath, () => {
+               this.#server.removeListener('error', onError);
+               void chmod(this.#socketPath, 0o600).then(() => resolve(), reject);
+            });
+         };
+         void rm(this.#socketPath, { force: true }).then(start, reject);
       });
    }
 
    async close(): Promise<void> {
       await new Promise<void>((resolve) => this.#server.close(() => resolve()));
+      await rm(this.#socketPath, { force: true });
    }
 
    async #serve(socket: Socket): Promise<void> {

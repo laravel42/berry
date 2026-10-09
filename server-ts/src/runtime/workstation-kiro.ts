@@ -36,12 +36,19 @@ export interface WorkstationKiroOptions {
    /** Defaults to this Node binary running the workstation host. */
    command?: string;
    args?: string[];
+   /**
+    * Where this process calls Berry's tool API. The container callback
+    * (`host.docker.internal`) does not resolve on the workstation, and this
+    * process is a child of the server, so the address is loopback.
+    */
+   callbackUrl?: string;
 }
 
 /** Runs Kiro on this machine. The runtime container is not asked to start `kiro-cli`. */
 export function workstationKiro(options: WorkstationKiroOptions = {}): WorkstationKiro {
    const command = options.command ?? process.execPath;
    const args = options.args ?? ['--experimental-strip-types', HOST];
+   const callbackUrl = options.callbackUrl;
    return {
       control(request, signal = AbortSignal.timeout(120_000)) {
          return collect(command, args, { control: request }, signal).then((stdout) => {
@@ -59,7 +66,10 @@ export function workstationKiro(options: WorkstationKiroOptions = {}): Workstati
          });
       },
       async *invoke(envelope, signal) {
-         yield* stream(command, args, envelope, signal);
+         const body = callbackUrl
+            ? { ...envelope, berry: { ...envelope.berry, apiUrl: callbackUrl } }
+            : envelope;
+         yield* stream(command, args, body, signal);
       },
    };
 }

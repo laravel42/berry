@@ -4,17 +4,17 @@ import { AI_RUNTIME_CATALOG, AI_RUNTIME_IDS } from './ai-runtime-catalog.ts';
 
 describe('AI runtime catalog', () => {
    test('contains every requested product exactly once', () => {
-      assert.equal(AI_RUNTIME_CATALOG.length, 15);
+      assert.equal(AI_RUNTIME_CATALOG.length, 14);
       assert.deepEqual(
          [...AI_RUNTIME_CATALOG.map((runtime) => runtime.id)].sort(),
          [...AI_RUNTIME_IDS].sort()
       );
-      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 15);
+      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 14);
    });
 
    test('advertises only a fully implemented integration as available', () => {
       const available = AI_RUNTIME_CATALOG.filter((runtime) => runtime.availability === 'available');
-      assert.deepEqual(available.map((runtime) => runtime.id), ['github-copilot', 'kiro']);
+      assert.deepEqual(available.map((runtime) => runtime.id), ['kiro']);
       assert.equal(available[0]?.executionMode, 'agent_process');
       assert.equal(available[0]?.billing, 'subscription');
       assert.equal(available.find((runtime) => runtime.id === 'kiro')?.unavailableReason, null);
