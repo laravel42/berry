@@ -94,7 +94,7 @@ export function ReviewDiff({
             </div>
          )}
          <div className="flex-1 overflow-y-auto">
-            <div className="flex w-full flex-col gap-3 px-6 py-6">
+            <div className="flex w-full flex-col gap-3 px-6 py-6 text-[12px]">
                {error && (
                   <p className="text-status-danger" role="alert">
                      {error}
