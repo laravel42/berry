@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { LocalSession } from './local-session.ts';
@@ -17,6 +17,18 @@ test('the stream starts, carries output, and ends with exit', async () => {
    for await (const event of session().stream('printf hi')) types.push(event.type);
    assert.deepEqual([types[0], types.at(-1)], ['start', 'exit']);
    assert.ok(types.includes('stdout'));
+});
+
+test('a command is pointed at the host Playwright cache when one is installed', async () => {
+   const result = await session().exec('printf %s "$PLAYWRIGHT_BROWSERS_PATH"');
+   const configured = process.env.PLAYWRIGHT_BROWSERS_PATH;
+   if (configured) {
+      assert.equal(result.stdout, configured);
+      return;
+   }
+   const expected =
+      process.platform === 'darwin' ? join(homedir(), 'Library', 'Caches', 'ms-playwright') : '';
+   if (expected && existsSync(expected)) assert.equal(result.stdout, expected);
 });
 
 test('cwd is relative to the session root and env reaches the command', async () => {

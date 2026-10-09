@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { chmod, lchown, lstat, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type {
    ExecEvent,
    ExecOptions,
@@ -39,7 +41,31 @@ function toolEnv(): Record<string, string> {
       const value = process.env[name];
       if (value) found[name] = value;
    }
+   // A command's HOME is the checkout, so Playwright would look for Chromium
+   // under that tree. The browsers stay in the host user's cache.
+   if (!found.PLAYWRIGHT_BROWSERS_PATH) {
+      const browsers = hostPlaywrightBrowsers();
+      if (browsers) found.PLAYWRIGHT_BROWSERS_PATH = browsers;
+   }
    return found;
+}
+
+/** Playwright's own cache for this operating system, when it is already installed. */
+let hostPlaywrightBrowsersCache: string | undefined | null = null;
+
+function hostPlaywrightBrowsers(): string | undefined {
+   if (hostPlaywrightBrowsersCache !== null) return hostPlaywrightBrowsersCache;
+   const home = homedir();
+   const path =
+      process.platform === 'darwin'
+         ? join(home, 'Library', 'Caches', 'ms-playwright')
+         : process.platform === 'linux'
+           ? join(process.env.XDG_CACHE_HOME || join(home, '.cache'), 'ms-playwright')
+           : process.platform === 'win32'
+             ? join(process.env.LOCALAPPDATA || join(home, 'AppData', 'Local'), 'ms-playwright')
+             : join(home, '.ms-playwright');
+   hostPlaywrightBrowsersCache = existsSync(path) ? path : undefined;
+   return hostPlaywrightBrowsersCache;
 }
 
 /** How long output may keep arriving after the shell exits before its group is reaped. */
