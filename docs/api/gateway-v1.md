@@ -926,7 +926,7 @@ connection, and the connection id is part of the provider session identity.
 |---|---|
 | `GET /api/v1/runtimes/catalog` | All requested AI runtimes, verified billing/auth/capability evidence, this user's connection state, and preference |
 | `GET /api/v1/runtimes/connections` | This user's AI-runtime connections in the current workspace |
-| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Kiro takes `{ apiKey }` — a `ksk_` subscription key — seals it, and never returns it |
+| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Body is `{ name?, host?, apiKey? }`. `name` is the person's label (`metadata.connectionName`). `host` is the computer that exposes the CLI: `localhost` or a fully qualified domain name (`metadata.host`). Berry starts the CLI only for `localhost`. Kiro requires `apiKey`, a `ksk_` subscription key, which is sealed and never returned |
 | `DELETE /api/v1/runtimes/connections/{runtimeId}` | Disconnect, clear this user's matching default, and cancel active runs using the connection |
 | `GET`, `PUT /api/v1/runtimes/preference` | Read / replace this user's default `{ runtimeId, modelId }`; both null selects the native deployment runtime |
 | `GET`, `PUT /api/v1/runtimes/tier-models` | Read / replace the workspace's BerryMax, BerryMid and BerryLow model lists. Each entry is `runtime/model`. A model may appear on more than one tier, at most three times per tier, and only once inside a tier. Admin write |

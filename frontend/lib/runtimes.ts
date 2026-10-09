@@ -399,9 +399,33 @@ export async function loadAiRuntimeCatalog(): Promise<AiRuntimeCatalog> {
    );
 }
 
+/** The label a person gave this connection. Absent when they connected before names existed. */
+export function aiRuntimeConnectionName(runtime: AiRuntimeDefinition | undefined): string | null {
+   const name = runtime?.connection?.metadata.connectionName;
+   return typeof name === 'string' && name.trim() !== '' ? name : null;
+}
+
+const HOST_LABEL = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$/;
+
+/** `localhost`, or a fully qualified domain name. A CLI product name is neither. */
+export function computerHost(value: string): string | null {
+   const host = value.trim().toLowerCase().replace(/\.$/, '');
+   if (host === 'localhost') return 'localhost';
+   if (host.length === 0 || host.length > 253 || !host.includes('.')) return null;
+   const labels = host.split('.');
+   if (labels.some((label) => !HOST_LABEL.test(label))) return null;
+   return host;
+}
+
+/** The computer recorded for this connection. Absent on connections made before hosts existed. */
+export function aiRuntimeConnectionHost(runtime: AiRuntimeDefinition | undefined): string | null {
+   const host = runtime?.connection?.metadata.host;
+   return typeof host === 'string' && computerHost(host) !== null ? computerHost(host) : null;
+}
+
 export async function connectAiRuntime(
    runtimeId: string,
-   body: { apiKey?: string } = {}
+   body: { apiKey?: string; name?: string; host?: string } = {}
 ): Promise<AiRuntimeConnection> {
    return parse(
       aiRuntimeConnectionSchema,

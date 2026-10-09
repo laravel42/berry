@@ -10,6 +10,7 @@ import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
+import { computerHost } from '../runtime/computer-host.ts';
 import { CLAUDE_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
@@ -308,7 +309,22 @@ export function runtimeMounts(options: {
       const user = context.get('user');
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
-      const body = await parse(context.req.raw, z.strictObject({ apiKey: z.string().trim().min(1).max(300).optional() }));
+      const body = await parse(context.req.raw, z.strictObject({
+         apiKey: z.string().trim().min(1).max(300).optional(),
+         name: z.string().trim().min(1).max(80).optional(),
+         host: z.string().trim().min(1).max(253).optional(),
+      }));
+      const host = body.host === undefined ? 'localhost' : computerHost(body.host);
+      if (host === null) {
+         throw ApiError.badRequest('Host must be localhost or a fully qualified domain name.');
+      }
+      if (host !== 'localhost') {
+         throw new ApiError(
+            409,
+            'AI_RUNTIME_HOST_UNREACHABLE',
+            `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
+         );
+      }
       if (runtimeId === 'claude') {
          if (!options.runtimeControl) {
             throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'Claude runs on this workstation, and that process is not available.');
@@ -350,7 +366,12 @@ export function runtimeMounts(options: {
                authMethod: 'claude_cli',
                accountId: status.accountId,
                accountName: status.accountName ?? 'Claude',
-               metadata: { models, modelCatalogComplete: true },
+               metadata: {
+                  models,
+                  modelCatalogComplete: true,
+                  host,
+                  ...(body.name ? { connectionName: body.name } : {}),
+               },
             })
             .catch(aiError);
          await cancelRuns(connected.replacedActiveRunIds);
@@ -405,7 +426,12 @@ export function runtimeMounts(options: {
                authMethod: 'kiro_api_key',
                accountId,
                accountName: status.accountName ?? 'Kiro subscription',
-               metadata: { models, modelCatalogComplete: true },
+               metadata: {
+                  models,
+                  modelCatalogComplete: true,
+                  host,
+                  ...(body.name ? { connectionName: body.name } : {}),
+               },
                credentialSealed: options.sealer.seal(apiKey),
             })
             .catch(aiError);

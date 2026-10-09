@@ -9,17 +9,10 @@ import {
 } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import { Button } from '@/components/ui/button';
-import {
-   Dialog,
-   DialogContent,
-   DialogDescription,
-   DialogFooter,
-   DialogHeader,
-   DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-   connectAiRuntime,
+   aiRuntimeConnectionHost,
+   aiRuntimeConnectionName,
    disconnectAiRuntime,
    formatSeconds,
    listRuntimes,
@@ -28,6 +21,7 @@ import {
    type AiRuntimeDefinition,
    type Runtime,
 } from '@/lib/runtimes';
+import { RuntimeConnectWizard } from './runtime-connect-wizard';
 import { cn } from '@/lib/utils';
 import { Bot, Search, Server } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -83,8 +77,12 @@ function RuntimeCard({
                <p className="mt-1 text-muted-foreground">{runtime.description}</p>
                {connected ? (
                   <p className="mt-2 text-status-success">
-                     Connected as {runtime.connection?.accountName ?? 'your account'} · usage stays
-                     on this account
+                     {aiRuntimeConnectionName(runtime) ?? runtime.name} on{' '}
+                     {aiRuntimeConnectionHost(runtime) ?? 'localhost'} is connected
+                     {runtime.connection?.accountName
+                        ? ` as ${runtime.connection.accountName}`
+                        : ''}{' '}
+                     · usage stays on this account
                   </p>
                ) : null}
             </div>
@@ -113,8 +111,7 @@ export default function RuntimesList() {
    const [onlyAvailable, setOnlyAvailable] = useState(false);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
-   const [kiroOpen, setKiroOpen] = useState(false);
-   const [kiroKey, setKiroKey] = useState('');
+   const [connecting, setConnecting] = useState<string | null>(null);
 
    const shown = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -133,21 +130,6 @@ export default function RuntimesList() {
                Number(right.availability !== 'available')
          );
    }, [catalog.value?.nodes, onlyAvailable, query]);
-
-   const connect = async (runtime: AiRuntimeDefinition, apiKey?: string) => {
-      setBusy(runtime.id);
-      try {
-         await connectAiRuntime(runtime.id, apiKey ? { apiKey } : {});
-         toast.success(`${runtime.name} connected`);
-         setKiroKey('');
-         setKiroOpen(false);
-         catalog.reload();
-      } catch (error) {
-         toast.error(error instanceof Error ? error.message : `${runtime.name} could not connect.`);
-      } finally {
-         setBusy(null);
-      }
-   };
 
    const disconnect = async () => {
       if (!disconnecting) return;
@@ -208,14 +190,7 @@ export default function RuntimesList() {
                      key={runtime.id}
                      runtime={runtime}
                      busy={busy === runtime.id}
-                     onConnect={() => {
-                        if (runtime.id === 'kiro') {
-                           setKiroKey('');
-                           setKiroOpen(true);
-                           return;
-                        }
-                        void connect(runtime);
-                     }}
+                     onConnect={() => setConnecting(runtime.id)}
                      onDisconnect={() => setDisconnecting(runtime)}
                   />
                ))}
@@ -302,46 +277,15 @@ export default function RuntimesList() {
             onConfirm={disconnect}
          />
 
-         <Dialog
-            open={kiroOpen}
+         <RuntimeConnectWizard
+            open={connecting !== null}
+            runtimes={catalog.value?.nodes ?? []}
+            initialRuntimeId={connecting}
             onOpenChange={(open) => {
-               setKiroOpen(open);
-               if (!open) setKiroKey('');
+               if (!open) setConnecting(null);
             }}
-         >
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>Connect Kiro</DialogTitle>
-                  <DialogDescription>
-                     Paste an API key from a Kiro Pro, Pro+, Pro Max, or Power plan. Berry seals it
-                     and sends it only with your own runs. kiro-cli runs on this workstation, not
-                     inside the runtime container.
-                  </DialogDescription>
-               </DialogHeader>
-               <Input
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-label="Kiro API key"
-                  placeholder="ksk_…"
-                  value={kiroKey}
-                  onChange={(event) => setKiroKey(event.target.value)}
-               />
-               <DialogFooter>
-                  <Button
-                     disabled={
-                        busy === 'kiro' || !/^ksk_[A-Za-z0-9_-]{8,256}$/.test(kiroKey.trim())
-                     }
-                     onClick={() => {
-                        const runtime = catalog.value?.nodes.find((node) => node.id === 'kiro');
-                        if (runtime) void connect(runtime, kiroKey.trim());
-                     }}
-                  >
-                     {busy === 'kiro' ? 'Connecting…' : 'Connect'}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
+            onConnected={() => catalog.reload()}
+         />
       </SettingsShell>
    );
 }

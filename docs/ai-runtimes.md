@@ -51,7 +51,7 @@ Prerequisites:
 Steps:
 
 1. Open **Settings → AI runtimes**.
-2. On **Kiro**, select **Connect** and paste the API key. Berry asks `kiro-cli` on this workstation to verify it and to list models.
+2. On **Kiro** or **Claude**, select **Connect**. Enter a connection name and the computer that exposes the CLI (`localhost` or a fully qualified domain name). An API key is asked for only when that runtime requires one. Berry asks the CLI on this server to verify a `localhost` connection and to list models, then shows whether the connection was recorded.
 3. Connecting is enough. Agent runs in this workspace use Kiro instead of Bedrock or Kilo. Place models on the tiers under Settings → Model tiers, or pin one on the task or project. When nothing is placed and the task names no model, the run keeps the CLI's own default.
 4. Start work. The run record stores `aiRuntimeId` and `aiModelId`. Usage stays on that Kiro subscription.
 5. Disconnecting deletes the sealed key, clears the default, and cancels active runs that used the connection.
