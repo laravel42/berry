@@ -11,13 +11,15 @@ import { ShellIcon, shellNavRow } from './shell-icon';
 import { isMyTasks, MY_TASKS_HREF } from './shell-routes';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
+const CALENDAR_ICON =
+   '<rect x="4" y="5" width="16" height="15" rx="1" /><path d="M8 3v4M16 3v4M4 10h16" />';
 const TASKS_ICON =
    '<path d="M5 7l2 2 4-4" /><path d="M5 16l2 2 4-4" /><path d="M13 7h6M13 17h6" />';
 const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
 
 /**
- * The rail's "personal" section: the three places that are about you rather
- * than about the workspace.
+ * The rail's "personal" section: the places that are about you rather than
+ * about the workspace.
  *
  * Inbox is the notifications page. Unread counts on the rail row are how you
  * know something arrived without a floating drawer. Inbox and chat follow the
@@ -41,6 +43,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    // every task is Work's Tasks, and only one of the two lights at a time.
    const search = useSearchParams()?.toString() ?? '';
    const onInbox = pathname.startsWith(`/${orgId}/inbox`);
+   const onCalendar = pathname.startsWith(`/${orgId}/calendar`);
    const onIssues = pathname.startsWith(`/${orgId}/tasks`) && isMyTasks(pathname, search);
    const onChat = pathname.startsWith(`/${orgId}/chat`);
 
@@ -63,6 +66,17 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                      count={inboxUnread}
                      label={t('inboxUnread', { count: badgeText(inboxUnread) })}
                   />
+               </Link>
+            </li>
+            <li>
+               <Link
+                  data-shell-nav
+                  href={`/${orgId}/calendar`}
+                  aria-current={onCalendar ? 'page' : undefined}
+                  className={shellNavRow(onCalendar)}
+               >
+                  <ShellIcon path={CALENDAR_ICON} />
+                  {t('calendar')}
                </Link>
             </li>
             <li>

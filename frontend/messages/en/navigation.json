@@ -3,6 +3,8 @@
       "personal": "Personal",
       "inbox": "Inbox",
       "inboxUnread": "Inbox, {count} unread",
+      "calendar": "Calendar",
+      "calendarUntitled": "Untitled",
       "myIssues": "My tasks",
       "chat": "Chat",
       "chatUnread": "Chat, {count} unread",
