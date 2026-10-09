@@ -20,7 +20,6 @@ import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { ProjectProgressChart } from './project-progress-chart';
-import { RuntimeSelectionControl } from '@/components/common/runtimes/runtime-selection';
 import { LeadAvatarButton, LeadPicker, leadCandidates } from '../lead-picker';
 import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
@@ -154,7 +153,6 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                         <LeadAvatarButton lead={project.lead} />
                      </LeadPicker>
                      <span className="truncate">{project.lead.name}</span>
-                     <RuntimeSelectionControl target={{ kind: 'project', id: project.id }} />
                   </div>
                   <div className="flex items-center gap-1.5 -ml-1.5">
                      <StatusPicker
@@ -313,7 +311,6 @@ export function ProjectPropertiesPanel({
                      <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
                   </Avatar>
                   <span className="truncate max-w-36">{project.lead.name}</span>
-                  <RuntimeSelectionControl target={{ kind: 'project', id: project.id }} />
                </PropertyRow>
                <PropertyRow label="Members">
                   {members.length > 0 ? (

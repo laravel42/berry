@@ -18,7 +18,7 @@ import { usePlanStore } from '@/store/plan-store';
 import { useSessionStore } from '@/store/session-store';
 import { Sparkles } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -50,6 +50,25 @@ const STEPS: { title: string; detail: string }[] = [
    },
 ];
 
+/** Set once the AI Workflow explanation has been shown, so later hovers stay quiet. */
+export const AI_WORKFLOW_HINT_KEY = 'berry.ai-workflow-hint';
+
+function hintAlreadySeen(): boolean {
+   try {
+      return window.localStorage.getItem(AI_WORKFLOW_HINT_KEY) === '1';
+   } catch {
+      return true;
+   }
+}
+
+function rememberHint(): void {
+   try {
+      window.localStorage.setItem(AI_WORKFLOW_HINT_KEY, '1');
+   } catch {
+      // A browser that will not store this shows the hint again next visit.
+   }
+}
+
 /** What Berry is asked to plan: everything the project says about itself. */
 function planPrompt(project: Project): string {
    return [project.name.trim(), project.description?.trim() ?? ''].filter(Boolean).join('\n\n');
@@ -63,6 +82,16 @@ export function AiWorkflowButton({ project }: { project: Project }) {
    const upsertRecord = usePlanStore((state) => state.upsertRecord);
    const [open, setOpen] = useState(false);
    const [pending, setPending] = useState(false);
+   // Unknown until the browser is asked, so the server render and the first
+   // client render agree. A store that cannot be read counts as already seen.
+   const [hintSeen, setHintSeen] = useState(false);
+   const [hintKnown, setHintKnown] = useState(false);
+   const hintShown = useRef(false);
+
+   useEffect(() => {
+      setHintSeen(hintAlreadySeen());
+      setHintKnown(true);
+   }, []);
 
    const planPath = (planId: string) => `/${orgId ?? WORKSPACE_SLUG}/plan/${planId}`;
 
@@ -110,7 +139,19 @@ export function AiWorkflowButton({ project }: { project: Project }) {
 
    return (
       <>
-         <Tooltip>
+         <Tooltip
+            open={hintKnown && hintSeen ? false : undefined}
+            onOpenChange={(next) => {
+               if (next) {
+                  hintShown.current = true;
+                  return;
+               }
+               if (!hintShown.current) return;
+               rememberHint();
+               setHintSeen(true);
+               setHintKnown(true);
+            }}
+         >
             <TooltipTrigger asChild>
                {/* The gradient is a wrapper's padding, so the button keeps its
                    own background and the ring reads as a border that moves. */}

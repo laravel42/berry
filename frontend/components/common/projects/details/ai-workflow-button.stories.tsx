@@ -6,7 +6,7 @@ import { readyPlan } from '@/components/common/plans/plan-fixtures';
 import { usePlanStore } from '@/store/plan-store';
 import { useSessionStore } from '@/store/session-store';
 import { projectHealth, seedProjectStores } from '../stories-fixtures';
-import { AiWorkflowButton } from './ai-workflow-button';
+import { AI_WORKFLOW_HINT_KEY, AiWorkflowButton } from './ai-workflow-button';
 
 const meta = {
    component: AiWorkflowButton,
@@ -15,6 +15,7 @@ const meta = {
       nextjs: { navigation: { segments: [['orgId', 'berry']] } },
    },
    beforeEach: ({ msw }) => {
+      window.localStorage.removeItem(AI_WORKFLOW_HINT_KEY);
       seedProjectStores({ sessionReady: true });
       useSessionStore.setState({ boardId: 'board-1' });
       usePlanStore.setState({ records: {} });

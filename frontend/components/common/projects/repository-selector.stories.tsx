@@ -17,6 +17,11 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedProjectStores();
       msw.use(
+         http.get('*/api/v1/integrations/providers', () =>
+            HttpResponse.json({
+               providers: [{ id: 'github', name: 'GitHub', configured: true, connected: true }],
+            })
+         ),
          http.get('*/api/v1/integrations/github/repositories', () =>
             HttpResponse.json(apiRepositories)
          ),
@@ -43,7 +48,7 @@ export const Unlinked: Story = { args: { project: projectInbox } };
 export const LinkRepository: Story = {
    args: { project: projectInbox },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: /Link a repository/ }));
+      await userEvent.click(await canvas.findByRole('button', { name: /Link a repository/ }));
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('option', { name: /berry-dev\/plugin-sdk/ }));
       await expect(await body.findByText('Linked to berry-dev/plugin-sdk')).toBeVisible();
@@ -73,7 +78,7 @@ export const PublicOnly: Story = {
       );
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button'));
+      await userEvent.click(await canvas.findByRole('button', { name: /Link a repository/ }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText(/Only public repositories are visible/)).toBeVisible();
       await expect(body.getByRole('link', { name: 'Install the app' })).toBeVisible();
@@ -95,7 +100,7 @@ export const LoadFails: Story = {
       );
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button'));
+      await userEvent.click(await canvas.findByRole('button', { name: /Link a repository/ }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText('GitHub is not connected.')).toBeVisible();
    },

@@ -30,12 +30,37 @@ import {
    SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { loadProviders } from '@/lib/integrations';
 import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects-store';
+import { useSessionStore } from '@/store/session-store';
 import { Check, Loader2, Plus, RefreshCw, X } from 'lucide-react';
 import { RiGithubFill } from '@remixicon/react';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
+
+/** True once this workspace has a usable GitHub App or sign-in. Stays false while that is unknown, so the picker does not flash in for a workspace that has neither. */
+function useGitHubConnected(): boolean {
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   const [connected, setConnected] = useState(false);
+
+   useEffect(() => {
+      if (!workspaceId) {
+         setConnected(false);
+         return;
+      }
+      let cancelled = false;
+      void loadProviders(workspaceId).then((providers) => {
+         if (cancelled) return;
+         setConnected(providers.some((provider) => provider.id === 'github' && provider.connected));
+      });
+      return () => {
+         cancelled = true;
+      };
+   }, [workspaceId]);
+
+   return connected;
+}
 
 /**
  * Chooses a GitHub repository, over a plain value.
@@ -75,6 +100,7 @@ export function RepositoryPicker({
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
+   const githubConnected = useGitHubConnected();
 
    // The list is loaded once per opening and kept; the reload beside the
    // search is for the moment somebody creates or is granted a repository on
@@ -119,6 +145,10 @@ export function RepositoryPicker({
       },
       [choose]
    );
+
+   // Nothing to link until GitHub is connected: the button would only open a
+   // picker the server refuses.
+   if (!githubConnected) return null;
 
    // `modal`: the picker also opens inside the create-project dialog, whose
    // scroll lock stops wheel events reaching anything outside it, this
