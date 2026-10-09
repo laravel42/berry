@@ -211,6 +211,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       if (!runtime || runtime.id !== this.identity.id || runtime.model === null) {
          throw new RuntimeAdapterError('RUNTIME_PROTOCOL', 'The Kiro task envelope is incomplete.', false);
       }
+      const model = runtime.model;
       this.#assertKey(input.credential);
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
@@ -221,7 +222,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
          onUpdate: (params: unknown): void => {
-            const streamed = kiroUsageEvent(params, runtime.model);
+            const streamed = kiroUsageEvent(params, model);
             if (streamed) pendingUsage = streamed;
             for (const event of normalizeKiroUpdate(params, normalization)) input.emit(event);
          },

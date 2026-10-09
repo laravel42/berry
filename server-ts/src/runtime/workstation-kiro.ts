@@ -162,10 +162,14 @@ function parseEvent(line: string): LifecycleEvent {
    try {
       parsed = JSON.parse(line);
    } catch {
-      throw new LifecycleStreamError('The workstation process wrote a lifecycle event Berry could not read.');
+      throw new LifecycleStreamError('The workstation process wrote a lifecycle event Berry could not read (invalid JSON).');
    }
    const event = lifecycleEventSchema.safeParse(parsed);
-   if (!event.success) throw new LifecycleStreamError('The workstation process wrote a lifecycle event Berry could not read.');
+   if (!event.success) {
+      const issue = event.error.issues[0];
+      const where = issue ? `${issue.path.join('.')}: ${issue.message}` : 'schema';
+      throw new LifecycleStreamError(`The workstation process wrote a lifecycle event Berry could not read (${where}).`);
+   }
    return event.data;
 }
 

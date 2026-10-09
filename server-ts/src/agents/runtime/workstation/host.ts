@@ -35,26 +35,26 @@ let body: unknown;
 try {
    body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
 } catch {
-   fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
+   await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
 }
 
 const control = runtimeControlRequestSchema.safeParse(body);
 if (control.success) {
    const response = await handleRuntimeControl(adapters, control.data.control);
    process.stdout.write(`${JSON.stringify(response)}\n`);
-   process.exit(0);
+   await exitWhenFlushed(0);
 }
 
 const envelope = taskEnvelopeSchema.safeParse(body);
-if (!envelope.success) {
-   fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
-}
+const task = envelope.success
+   ? envelope.data
+   : await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
 
 const caller = new AbortController();
 process.once('SIGTERM', () => caller.abort());
 try {
    await handleInvocation(
-      envelope.data,
+      task,
       (event) => {
          process.stdout.write(`${JSON.stringify(event)}\n`);
       },
@@ -71,13 +71,30 @@ try {
    );
 } catch (error) {
    const message = error instanceof Error ? error.message : 'The workstation process failed.';
-   fail('RUNTIME_FAULT', message, true);
+   await fail('RUNTIME_FAULT', message, true);
 }
-process.exit(0);
+await exitWhenFlushed(0);
 
-function fail(code: string, message: string, retryable: boolean): never {
+/**
+ * `process.exit` returns before a large write reaches the pipe. The last
+ * event of a run is the delivery, and it is bigger than the buffer, so the
+ * parent would read a cut-off line and reject it.
+ */
+async function exitWhenFlushed(code: number): Promise<never> {
+   await new Promise<void>((resolve) => {
+      const done = () => resolve();
+      try {
+         process.stdout.write('', done);
+      } catch {
+         done();
+      }
+   });
+   process.exit(code);
+}
+
+async function fail(code: string, message: string, retryable: boolean): Promise<never> {
    process.stdout.write(
       `${JSON.stringify({ type: 'task.failed', failure: { code, message, retryable } })}\n`
    );
-   process.exit(1);
+   return exitWhenFlushed(1);
 }
