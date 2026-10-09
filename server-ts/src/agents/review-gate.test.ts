@@ -80,6 +80,8 @@ test('a long diff keeps its tail and says what was cut', () => {
 });
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
+/** GitHub's pull request id. One per state read, so releases do not collapse onto one row. */
+let nextPullRequestId = 1000;
 
 describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
    let sql: Sql;
@@ -245,7 +247,10 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
                refuse
                   ? { merged: false, sha: null, reason: refuse, conflict: isMergeConflict(refuse) }
                   : { merged: true, sha: 'f00dfeed', reason: null, conflict: false },
-            pullRequestState: async () => ({ merged: false, open: true, conflicts: refuse !== null, base: 'main' }),
+            pullRequestState: async () => ({
+               merged: false, open: true, conflicts: refuse !== null, base: 'main',
+               githubId: nextPullRequestId++, repoId: 1, title: '', url: '', headRef: 'coder/gt-1',
+            }),
             updatePullRequestBranch: async (_owner: string, _name: string, number: number) => {
                updated.push(number);
                return { updated: true, reason: null };

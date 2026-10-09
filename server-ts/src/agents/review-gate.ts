@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { withinTx, type Sql } from '../db/pool.ts';
 import type { CompletionResult, RuntimeCompletion } from '../runtime/completion.ts';
 import type { GitHubClient } from '../integrations/github.ts';
-import { IssueRepository } from '../core/issues.ts';
+import { IssueRepository, recordPullRequestRelease } from '../core/issues.ts';
 import { conflictInstructions, refusedInstructions, sendBack } from './send-back.ts';
 import { afterMerge } from './conflicts.ts';
 import { parseContract, type RoleContract } from '../organization/contract.ts';
@@ -871,6 +871,10 @@ export class ReviewGate {
 
       if (outcome.merged) {
          await this.#comment(material.issue.id, reviewerId, mergedComment(number, outcome.sha));
+         // The done transition refuses a task whose delivery still names an open
+         // pull request. The merge just happened, so the row has to say so
+         // before the task is closed — the same record Approve writes.
+         await this.#recordRelease(material, client, number);
          // The default branch just moved under every other task in flight:
          // each is brought up to date, and one that now conflicts goes back to
          // its author before anyone reviews it. Best effort, and never this
@@ -902,6 +906,30 @@ export class ReviewGate {
          outcome.conflict ? conflictInstructions(number, baseBranch) : refusedInstructions(number, reason)
       );
       return false;
+   }
+
+   /** Writes the pull request as merged so the done transition can see the release. */
+   async #recordRelease(material: ReviewMaterial, client: GitHubClient, number: number): Promise<void> {
+      if (!material.repository) return;
+      try {
+         const { owner, name } = parseRepository(material.repository);
+         const state = await client.pullRequestState(owner, name, number);
+         if (typeof state.githubId !== 'number' || typeof state.repoId !== 'number') return;
+         await recordPullRequestRelease(this.#sql, {
+            workspaceId: material.workspaceId,
+            issueId: material.issue.id,
+            repoFullName: material.repository,
+            number,
+            state: 'merged',
+            githubId: state.githubId,
+            repoId: state.repoId,
+            title: state.title,
+            url: state.url,
+            headRef: state.headRef,
+         });
+      } catch (error) {
+         this.#onError(`recording pull request #${number} as merged failed`, error);
+      }
    }
 
    /**
