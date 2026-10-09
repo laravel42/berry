@@ -2,6 +2,7 @@ packages:
    - frontend
    - server-ts
    - packages/plugin-sdk
+   - apps/mobile
 
 # pnpm 12 reads these here, not from package.json's "pnpm" field.
 allowBuilds:
@@ -34,6 +35,9 @@ minimumReleaseAgeExclude:
   - '@github/copilot-sdk-win32-arm64@1.0.18'
   - '@github/copilot-sdk-win32-x64@1.0.18'
   - '@github/copilot-sdk@1.0.18'
+
+patchedDependencies:
+  '@electric-sql/pglite-socket@0.2.11': patches/@electric-sql__pglite-socket@0.2.11.patch
 
 peerDependencyRules:
    allowedVersions:
