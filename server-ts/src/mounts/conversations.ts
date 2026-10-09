@@ -27,6 +27,7 @@ import {
    AiRuntimeConnectionNotFound,
    AiRuntimeRepository,
    AiRuntimeSelectionError,
+   NATIVE_AI_RUNTIME,
 } from '../runtime/ai-runtimes.ts';
 import { readJson } from './zod-body.ts';
 
@@ -42,6 +43,37 @@ import { readJson } from './zod-body.ts';
 
 const MAX_BODY = 20_000;
 
+/**
+ * Whether a reply from this conversation will be claimed.
+ *
+ * With a compute host, every reply can. Without one, only a reply that
+ * resolves to a workstation runtime (the conversation's own choice, else a
+ * connected Kiro or Claude login) will.
+ */
+async function replyCanRun(
+   options: ConversationOptions,
+   conversation: ConversationContext,
+   userId: string
+): Promise<boolean> {
+   const allowed = options.workstationRuntimes;
+   if (!options.enqueue) return false;
+   if (!allowed) return true;
+   const [session] = await options.sql<Array<{ ai_runtime_key: string | null }>>`
+      SELECT ai_runtime_key FROM conversations
+       WHERE id = ${conversation.id} AND workspace_id = ${conversation.workspaceId}`;
+   const chosen = session?.ai_runtime_key ?? null;
+   if (chosen === NATIVE_AI_RUNTIME) return false;
+   if (chosen !== null) return allowed.includes(chosen);
+   const [connected] = await options.sql`
+      SELECT 1 FROM ai_runtime_connections
+       WHERE workspace_id = ${conversation.workspaceId}
+         AND user_id = ${userId}
+         AND status = 'connected'
+         AND runtime_key IN ${options.sql(allowed)}
+       LIMIT 1`;
+   return Boolean(connected);
+}
+
 export interface ConversationOptions {
    sessions: SessionService;
    conversations: ConversationRepository;
@@ -49,6 +81,12 @@ export interface ConversationOptions {
    sql: Sql;
    /** Workstream A's enqueueTask; null until A is wired in (Task 13). */
    enqueue: EnqueueTask | null;
+   /**
+    * Set when this process has no compute host and can only run these AI
+    * runtimes on the workstation. A reply that would not land on one of them
+    * is refused, because nothing here would claim it.
+    */
+   workstationRuntimes?: readonly string[];
    /** Workstream A's runCompletion, for titles; null until A is wired in. */
    complete: CompleteFn | null;
    ledger: Pick<RunLedger, 'markCancelled'>;
@@ -231,7 +269,7 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
       const conversation = await load(context);
       const userId = context.get('user').id;
       const { body } = await readJson(context, messageSchema);
-      if (!options.enqueue) {
+      if (!options.enqueue || !(await replyCanRun(options, conversation, userId))) {
          // Kept, so what the person typed is not lost; nobody can run it here.
          await conversations.append({ conversationId: conversation.id, authorType: 'user', authorId: userId, body });
          throw new ApiError(503, 'AGENT_TASKS_UNAVAILABLE', 'This server cannot run agent tasks.');

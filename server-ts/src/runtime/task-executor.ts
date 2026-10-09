@@ -117,6 +117,20 @@ async function* prepend<T>(first: IteratorResult<T>, rest: AsyncIterator<T>): As
 }
 
 const ZERO: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null };
+
+/** Kiro and Claude run in a process beside the server, so they need no AgentCore or HTTP host. */
+const WORKSTATION_TARGET: RuntimeTarget = {
+   id: null,
+   driver: 'http',
+   arn: null,
+   qualifier: 'DEFAULT',
+   region: null,
+   endpointUrl: null,
+};
+
+function runsOnWorkstation(aiRuntimeId: string | null): boolean {
+   return aiRuntimeId === 'kiro' || aiRuntimeId === 'claude';
+}
 const STREAM_ENDED: Failure = {
    code: 'RUNTIME_STREAM_ENDED',
    message: 'The runtime stopped reporting before the task finished.',
@@ -174,8 +188,10 @@ export class RuntimeTaskExecutor implements Executor {
       const usage: Usage = { ...ZERO };
       const abort = signal ?? new AbortController().signal;
 
-      const onWorkstation = task.aiRuntimeId === 'kiro';
-      const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
+      const onWorkstation = runsOnWorkstation(task.aiRuntimeId);
+      const target =
+         (await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget)) ??
+         (onWorkstation ? WORKSTATION_TARGET : null);
       if (!target) {
          return this.#fail(task, recorder, usage, { code: 'RUNTIME_UNCONFIGURED', message: 'No agent runtime is configured for this workspace.', retryable: false });
       }
@@ -185,7 +201,7 @@ export class RuntimeTaskExecutor implements Executor {
          if (onWorkstation && !workstation) {
             return this.#fail(task, recorder, usage, {
                code: 'AI_RUNTIME_INCOMPATIBLE',
-               message: 'Kiro runs on this workstation, and that process is not available.',
+               message: 'This AI runtime runs on this workstation, and that process is not available.',
                retryable: false,
             });
          }
@@ -340,7 +356,7 @@ export class RuntimeTaskExecutor implements Executor {
          SELECT status, kind, runtime_session_id, runtime_cursor, runtime_resume FROM runs WHERE id = ${runId}`;
       if (!row || row.status !== 'running' || row.kind !== 'agent' || !row.runtime_session_id || !row.runtime_resume) return null;
       const task = await loadTask(sql, runId);
-      if (task.aiRuntimeId === 'kiro') return null;
+      if (runsOnWorkstation(task.aiRuntimeId)) return null;
       const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
       if (!target) return null;
       const session = row.runtime_session_id;
@@ -669,7 +685,7 @@ export class RuntimeTaskExecutor implements Executor {
       // so a cancellation someone asked for would reappear as an abandoned
       // retryable failure a sweep later. The session is the runtime's to reap;
       // the run's own ending is ours, and it is recorded either way.
-      if (session) {
+      if (session && !runsOnWorkstation(task.aiRuntimeId)) {
          await this.#o.transport
             .stop({ target, runtimeSessionId: session })
             .catch((error: unknown) => this.#o.onCancelError?.(error));

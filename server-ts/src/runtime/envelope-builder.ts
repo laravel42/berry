@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import { isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
+import { CLAUDE_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -495,6 +495,13 @@ export class EnvelopeBuilder {
             `${definition.name} could not use your account. Reconnect it and run the task again.`,
             false,
             { cause }
+         );
+      }
+      if (task.aiRuntimeId === 'claude' && (credential.type !== 'oauth' || credential.token !== CLAUDE_CLI_LOGIN)) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'Connect Claude in AI Runtimes. Berry uses the Claude CLI login on this workstation.',
+            false
          );
       }
       if (task.aiRuntimeId === 'kiro' && (credential.type !== 'api_key' || !isKiroApiKey(credential.token))) {

@@ -10,7 +10,7 @@ import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
-import { isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -309,6 +309,53 @@ export function runtimeMounts(options: {
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
       const body = await parse(context.req.raw, z.strictObject({ apiKey: z.string().trim().min(1).max(300).optional() }));
+      if (runtimeId === 'claude') {
+         if (!options.runtimeControl) {
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'Claude runs on this workstation, and that process is not available.');
+         }
+         const credential = {
+            type: 'oauth' as const,
+            token: CLAUDE_CLI_LOGIN,
+            accountId: null,
+            accountName: null,
+         };
+         const probed = await options.runtimeControl({
+            runtimeSessionId: runtimeSessionIdFor(`ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`),
+            operation: 'connection',
+            runtimeId,
+            credential,
+         });
+         if ('error' in probed) controlError(probed.error);
+         const status = 'connection' in probed ? probed.connection : undefined;
+         if (!status || status.status !== 'connected') {
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? 'Claude CLI is not signed in on this workstation.');
+         }
+         const listed = await options.runtimeControl({
+            runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
+            operation: 'models',
+            runtimeId,
+            credential: {
+               ...credential,
+               accountId: status.accountId,
+               accountName: status.accountName,
+            },
+         });
+         if ('error' in listed) controlError(listed.error);
+         const models = 'models' in listed ? (listed.models ?? []) : [];
+         const connected = await aiRuntimes
+            .connect({
+               workspaceId,
+               userId: user.id,
+               runtimeId,
+               authMethod: 'claude_cli',
+               accountId: status.accountId,
+               accountName: status.accountName ?? 'Claude',
+               metadata: { models, modelCatalogComplete: true },
+            })
+            .catch(aiError);
+         await cancelRuns(connected.replacedActiveRunIds);
+         return json(connected.connection, 201);
+      }
       if (runtimeId === 'kiro') {
          const apiKey = body.apiKey ?? '';
          if (!isKiroApiKey(apiKey)) {
@@ -493,8 +540,16 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && runtimeId === 'kiro') {
-         const credential = await kiroCredential(workspaceId, user.id, connection.id);
+      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude')) {
+         const credential =
+            runtimeId === 'claude'
+               ? {
+                    type: 'oauth' as const,
+                    token: CLAUDE_CLI_LOGIN,
+                    accountId: connection.accountId,
+                    accountName: connection.accountName,
+                 }
+               : await kiroCredential(workspaceId, user.id, connection.id);
          const result = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-control:${connection.id}`),
             operation: 'models',

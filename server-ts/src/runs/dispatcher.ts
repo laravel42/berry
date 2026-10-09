@@ -88,6 +88,12 @@ export interface DispatcherOptions {
     * another file is asserting about.
     */
    workspaceIds?: readonly string[];
+   /**
+    * When set, only runs already bound to one of these AI runtimes are claimed.
+    * A server with no AgentCore or HTTP host still runs Kiro and Claude beside
+    * itself, and must leave every other queued run for a process that can.
+    */
+   onlyAiRuntimeKeys?: readonly string[];
 }
 
 export class Dispatcher {
@@ -100,6 +106,8 @@ export class Dispatcher {
    readonly #heartbeatMs: number;
    /** The workspaces this dispatcher serves, or null for all of them. */
    readonly #workspaceIds: readonly string[] | null;
+   /** AI runtimes this dispatcher may claim, or null when it claims every run. */
+   readonly #aiRuntimeKeys: readonly string[] | null;
 
    /** Runs this process is executing, and the handle that stops each one. */
    readonly #inflight = new Map<string, AbortController>();
@@ -131,6 +139,10 @@ export class Dispatcher {
          options.workspaceIds && options.workspaceIds.length > 0
             ? [...options.workspaceIds]
             : null;
+      this.#aiRuntimeKeys =
+         options.onlyAiRuntimeKeys && options.onlyAiRuntimeKeys.length > 0
+            ? [...options.onlyAiRuntimeKeys]
+            : null;
    }
 
    /**
@@ -141,6 +153,13 @@ export class Dispatcher {
       const ids = this.#workspaceIds;
       if (!ids) return this.#sql``;
       return this.#sql`AND ${this.#sql(alias)}.workspace_id IN ${this.#sql(ids)}`;
+   }
+
+   /** `AND <alias>.ai_runtime_key IN (…)` when this dispatcher only runs workstation agents. */
+   #aiRuntimes(alias: string) {
+      const keys = this.#aiRuntimeKeys;
+      if (!keys) return this.#sql``;
+      return this.#sql`AND ${this.#sql(alias)}.ai_runtime_key IN ${this.#sql(keys)}`;
    }
 
    start(): void {
@@ -303,6 +322,7 @@ export class Dispatcher {
                   AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
                   AND (rt.id IS NULL OR rt.status <> 'disabled')
                   ${this.#scope('r')}
+                  ${this.#aiRuntimes('r')}
                   -- One task per chat session at a time (spec 2.2a): a
                   -- session's run waits while another of its runs is running
                   -- or is ahead of it in claim order.

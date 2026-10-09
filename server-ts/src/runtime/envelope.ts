@@ -241,6 +241,12 @@ export function isKiroApiKey(value: string): boolean {
    return KIRO_API_KEY_PATTERN.test(value);
 }
 
+/**
+ * Marks a Claude run whose login stays inside the Claude Code CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const CLAUDE_CLI_LOGIN = 'claude-cli';
+
 const REDACTED = '[redacted]';
 
 /** The envelope as it may be logged: every secret replaced, shape kept. */

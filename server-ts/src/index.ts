@@ -154,7 +154,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import type { RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -630,8 +630,9 @@ const kiroOnWorkstation = workstationKiro({
    callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
 });
 
-const executor = defaultTarget
-   ? new RuntimeTaskExecutor({
+// Built even when no AgentCore or HTTP host is configured. Kiro and Claude run
+// in a process beside this server; native tasks still need `defaultTarget`.
+const executor = new RuntimeTaskExecutor({
         workstation: kiroOnWorkstation,
         sql,
         transport,
@@ -661,6 +662,14 @@ const executor = defaultTarget
                     AND connection.external_account_id IS NOT DISTINCT FROM ${accountId}`;
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
+              }
+              if (runtimeId === 'claude') {
+                 return {
+                    type: 'oauth',
+                    token: CLAUDE_CLI_LOGIN,
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                 };
               }
               if (runtimeId === 'kiro') {
                  const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
@@ -725,8 +734,7 @@ const executor = defaultTarget
            logger.error('a run stopped at its limit could not be continued', {
               error: error instanceof Error ? error.message : String(error),
            }),
-     })
-   : null;
+     });
 
 // Every workspace sees the deployment's own runtime as a row it can bind
 // agents to and probe. A failure here costs the listing, never the boot.
@@ -856,7 +864,7 @@ registry.registerAll(
 );
 // Work tracking: subscriptions and inbox rows after writes, and the stage
 // barrier on sub-issues. Dispatch only where runs can execute, as below.
-const workDispatch = executor ? runOptions.runs : undefined;
+const workDispatch = defaultTarget ? runOptions.runs : undefined;
 const workHooks = workTrackingHooks({ sql, issues, dispatch: workDispatch, release: releaseTask });
 const commentOptions = {
    sessions,
@@ -895,7 +903,7 @@ registry.registerAll(
       runs: issueRunRoutes(runOptions),
       // A task handed to an agent starts on its own. Only where runs can
       // execute: without an executor a queued run would sit forever.
-      ...(executor ? { dispatch: runOptions.runs } : {}),
+      ...(defaultTarget ? { dispatch: runOptions.runs } : {}),
       stages: stageGate(sql),
       hooks: workHooks,
       // Quick actions queue through the runtime's task queue.
@@ -920,7 +928,7 @@ registry.registerAll(
                // The agent the task is assigned to, else the last one that worked it:
                // a task in review is often a person's by then. Queued like any other
                // task, so it is the dispatcher that starts it.
-               ...(executor
+               ...(defaultTarget
                   ? {
                        fix: async (issue, instructions, userId) => {
                           const [last] = issue.assigneeAgentId
@@ -1047,7 +1055,7 @@ const planOptions: PlanOptions = {
    // needs it, and a null generator answers PLANNER_UNAVAILABLE rather
    // than opening a plan nothing will ever fill in.
    generator:
-      executor
+      defaultTarget
       ? new PlanGenerator({
            sql,
            completion,
@@ -1059,7 +1067,7 @@ const planOptions: PlanOptions = {
    // Routing needs the same credential planning does: it is the
    // orchestrator reading the roster and deciding, not a lookup table.
    triage:
-      executor
+      defaultTarget
       ? new PlanTriage({
            sql,
            completion,
@@ -1107,7 +1115,7 @@ registry.registerAll(
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
-         if (request.runtimeId === 'kiro') {
+         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude') {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
@@ -1213,12 +1221,17 @@ registry.registerAll(
       // is watching this one arrive, and a poll interval of dead air before the
       // agent even starts is the most visible latency chat has. Completions
       // already do this; chat was left waiting.
-      enqueue: executor ? async (sql, input) => {
+      enqueue: async (sql, input) => {
          const queued = await agentEnqueue(sql, input);
          dispatcher?.nudge();
          return queued;
-      } : null,
-      complete,
+      },
+      // No compute host: a reply is admitted only when it will run on the
+      // workstation. Anything else would sit queued with nobody to claim it.
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude'] as const }),
+      // A title is a completion on the compute host. Without one it would sit
+      // queued ahead of the next reply and nothing would claim it.
+      complete: defaultTarget ? complete : null,
       ledger: runOptions.ledger,
       runs: runOptions.runs,
       logger,
@@ -1228,7 +1241,7 @@ registry.registerAll(
    editorMounts({
       sessions,
       assist:
-         executor
+         defaultTarget
          ? new EditorAssist({
               completion,
               defaultModel: config.runtime.defaultModel,
@@ -1237,7 +1250,7 @@ registry.registerAll(
       // The new-project assistant is a completion too, so it is offered
       // exactly where the editor's rewrite is.
       projectDraft:
-         executor
+         defaultTarget
          ? new ProjectDraftAssist({
               completion,
               defaultModel: config.runtime.defaultModel,
@@ -1373,7 +1386,7 @@ registry.registerAll(
          // serving from dispatching, and this is reported by whichever server
          // answers — so it has to be a property of the build and its
          // configuration rather than of which process was asked.
-         agentExecution: executor !== null,
+         agentExecution: defaultTarget !== null,
          metrics: true,
          // The event streams are served here now. The relay is not wired, so
          // a fact published by another process arrives on the next poll
@@ -1384,7 +1397,7 @@ registry.registerAll(
          valkey: false,
          // The planner runs when there is a model credential to run it with.
          // Planning is a completion task, so it runs wherever tasks do.
-         planner: executor !== null,
+         planner: defaultTarget !== null,
          modelGateway: modelGateway !== null,
          // What the sign-in page believes: true only when the OAuth App is
          // configured and Better Auth is serving it.
@@ -1400,10 +1413,15 @@ registry.registerAll(
  * the ledger and admit runs, and a dispatcher there would claim work it cannot
  * do and fail every run it touched.
  */
-const dispatcher = executor
-   ? new Dispatcher({ sql, executor, logger, concurrency: config.runtime.concurrency })
-   : null;
-dispatcher?.start();
+const dispatcher = new Dispatcher({
+   sql,
+   executor,
+   logger,
+   concurrency: config.runtime.concurrency,
+   // Without a compute host this process can only run Kiro and Claude.
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude'] }),
+});
+dispatcher.start();
 
 /**
  * Publish, then review.
@@ -1453,7 +1471,9 @@ followupWorker?.start();
 // Schedules fire only where tasks can run: a schedule on a server with no
 // dispatcher would queue work nothing takes. Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
-const autopilotScheduler = dispatcher ? new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger }) : null;
+const autopilotScheduler = defaultTarget
+   ? new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger })
+   : null;
 autopilotScheduler?.start();
 
 const app = createApp(registry);
