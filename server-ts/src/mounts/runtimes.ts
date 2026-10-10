@@ -11,7 +11,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -46,6 +46,7 @@ const WORKSTATION_CLI_LOGINS = {
    claude: { label: 'Claude', token: CLAUDE_CLI_LOGIN, authMethod: 'claude_cli', defaultAccountName: 'Claude' },
    codex: { label: 'Codex', token: CODEX_CLI_LOGIN, authMethod: 'codex_cli', defaultAccountName: 'ChatGPT' },
    cursor: { label: 'Cursor', token: CURSOR_CLI_LOGIN, authMethod: 'cursor_cli', defaultAccountName: 'Cursor' },
+   kimi: { label: 'Kimi', token: KIMI_CLI_LOGIN, authMethod: 'kimi_cli', defaultAccountName: 'Kimi Code' },
 } as const;
 
 const seconds = z.number().int().min(60).max(28_800);
@@ -337,7 +338,9 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor') {
+      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi') {
+         // Each keeps its login inside the CLI on this workstation. Berry
+         // forwards no API key: the oauth token is a non-secret sentinel.
          const cli = WORKSTATION_CLI_LOGINS[runtimeId];
          if (!options.runtimeControl) {
             throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cli.label} runs on this workstation, and that process is not available.`);
@@ -579,9 +582,9 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor')) {
+      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi')) {
          const credential =
-            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor'
+            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi'
                ? {
                     type: 'oauth' as const,
                     token: WORKSTATION_CLI_LOGINS[runtimeId].token,
