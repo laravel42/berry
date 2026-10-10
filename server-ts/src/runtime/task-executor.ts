@@ -129,7 +129,7 @@ const WORKSTATION_TARGET: RuntimeTarget = {
 };
 
 function runsOnWorkstation(aiRuntimeId: string | null): boolean {
-   return aiRuntimeId === 'kiro' || aiRuntimeId === 'claude' || aiRuntimeId === 'codex';
+   return aiRuntimeId === 'kiro' || aiRuntimeId === 'claude' || aiRuntimeId === 'codex' || aiRuntimeId === 'cursor';
 }
 const STREAM_ENDED: Failure = {
    code: 'RUNTIME_STREAM_ENDED',

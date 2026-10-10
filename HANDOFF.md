@@ -1,0 +1,27 @@
+HANDOFF.md
+
+# Handoff from BER-243
+
+Wire the Cursor AI runtime (workstation CLI login)
+
+I'll start by reviewing the current state of my previous work and the review feedback. Let me check git status and the branch.The run instructions say my work is on branch `software-engineer/ber-243-...` at commit `bce8767`, but git shows I'm on `main` at `b643b1a snapshot` with a clean tree. Let me check what branches exist.Only `main` with a single snapshot commit exists — the previous branch `bce8767` is not present. The workspace is a fresh snapshot of the repo. Let me verify whether my previous changes are present in the working tree (maybe the snapshot already includes them) by checking for the cursor adapter and the catalog state.My previous work is present in the snapshot (cursor.ts, cursor.test.ts exist, and HANDOFF.md is here). The snapshot captured the prior branch's tree onto `main`. Now let me address each review point. Let me first read the review-flagged files to understand exactly what's there now.
+
+Let me look at `runtimeCredential` in index.ts (first review point).Let me read the full `runtimeCredential` block (lines 654-700).Review point 1 confirmed: `runtimeCredential` handles claude/codex/kiro but not cursor, so a Cursor run throws. I need to add cursor beside claude/codex using `CURSOR_CLI_LOGIN`. First let me import `CURSOR_CLI_LOGIN` and add the branch. Let me update the import line first.The str_replace tool is rejected in this environment, as before. I'll use Python via run_command for precise edits. Let me update the import.Now update the `runtimeCredential` branch to include cursor beside claude/codex.Review point 1 done. Now review point 2: `runsOnWorkstation` in task-executor.ts. Let me find it.Review point 2 done. Now review point 3: dispatcher allow-list (`onlyAiRuntimeKeys`) and envelope builder's login check. Let me find these.The dispatcher allow-list is set in index.ts line 1437. Let me view the context and update it.Now the envelope builder's login check. Let me find it.I'll add the import for `CURSOR_CLI_LOGIN` and a cursor login check mirroring claude/codex. First the import.Now add the cursor login check after the codex check.Review point 3 done. Now review points 4-5 are in the adapter (cursor.ts): remove `--force` (which lets the CLI write files/run shell), and don't store email from `status` as account name. Let me read the current cursor.ts run args and the login/status handling.Let me read the run args block (218-235) and the readLogin function (401-411) to edit them precisely.Now I understand the review's point about `--force`. The reviewer notes the adapter comment claims built-in shell/file tools stay off, but `--force` lets the Cursor CLI change files and run its own shell with auto-approval. The right boundary: Berry provides tools over MCP, and the CLI's own write/shell tools must not auto-run.
+
+Let me check Cursor CLI's permission flags. The cursor-agent headless mode needs a way to not block on approvals while still restricting its built-in tools. Let me verify the correct flags from official docs.Cursor CLI supports `permissions.allow` / `permissions.deny` in config, and `--force` auto-approves everything (shell, writes, deletes). The reviewer is right: `--force` is not the boundary. 
+
+The adapter's design (mirroring codex/kiro) is: Berry's tools come via the MCP server, and the CLI's own built-in write/shell tools must be denied. The way to express that in cursor-agent headless mode without `--force` is a `permissions.deny` list in the config that blocks the built-in Shell/Write/Edit/Delete tools, so the CLI's own file/shell tools stay off while the Berry MCP tools remain the admitted path. But MCP tool calls in print mode also need approval; with a `permissions.allow` entry for the Berry MCP server and `permissions.deny` for the built-in mutating tools, non-interactive runs can proceed without `--force`.
+
+Let me check the permissions doc for exact field shapes.Let me get the permissions config shape via search instead.The permissions model uses tokens like `Shell(...)`, `Write`, `Read`, `Delete`, and MCP tool names, configured in CLI config with `permissions.allow` / `permissions.deny`. The cleanest, documented approach to keep built-in shell/file tools off while allowing the Berry MCP tools and running non-interactively: pass a `permissions` block in the MCP/agent config with `deny` for the mutating built-ins and `allow` for the Berry MCP server, instead of `--force`.
+
+Let me look at how the config is passed. Let me read the `mcpConfig` helper and the full args/config flow in cursor.ts.Let me check how codex.ts handles the equivalent "deny built-in tools" boundary, since I should mirror it. Codex uses `--sandbox read-only`. Let me check the kiro adapter's approach too, and understand what cursor-agent offers. Let me look at codex's run args again.Codex uses `--sandbox read-only` to keep its built-in shell/file tools from writing. Kiro writes a `permissions.yaml` denying built-in shell/file/fetch tools and allowing MCP. The pattern is clear: deny the
+
+## Files
+- server-ts/src/agents/runtime/adapters/cursor.test.ts
+- server-ts/src/agents/runtime/adapters/cursor.ts
+- server-ts/src/index.ts
+- server-ts/src/runtime/envelope-builder.ts
+- server-ts/src/runtime/task-executor.ts
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-243-wire-the-cursor-ai-runtime-workstation

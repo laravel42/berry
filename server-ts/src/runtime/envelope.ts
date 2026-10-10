@@ -253,6 +253,12 @@ export const CLAUDE_CLI_LOGIN = 'claude-cli';
  */
 export const CODEX_CLI_LOGIN = 'codex-cli';
 
+/**
+ * Marks a Cursor run whose login stays inside the Cursor Agent CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const CURSOR_CLI_LOGIN = 'cursor-cli';
+
 const REDACTED = '[redacted]';
 
 /** The envelope as it may be logged: every secret replaced, shape kept. */
