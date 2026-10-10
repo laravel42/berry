@@ -73,7 +73,7 @@ export class BerryMcpHost {
    async #respond(message: {
       id?: number;
       method?: string;
-      params?: { name?: string; arguments?: unknown };
+      params?: { name?: string; arguments?: unknown; protocolVersion?: unknown };
    }): Promise<unknown | null> {
       if (message.id === undefined) return null;
       if (message.method === 'ping' || message.method === 'initialize') {
@@ -84,7 +84,7 @@ export class BerryMcpHost {
                message.method === 'ping'
                   ? {}
                   : {
-                       protocolVersion: '2024-11-05',
+                       protocolVersion: negotiatedProtocol(message.params?.protocolVersion),
                        capabilities: { tools: {} },
                        serverInfo: { name: 'berry', version: '1' },
                     },
@@ -131,6 +131,11 @@ export class BerryMcpHost {
       }
       return { jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'Method not found' } };
    }
+}
+
+/** The client's requested revision, when it is a protocol date. */
+function negotiatedProtocol(requested: unknown): string {
+   return typeof requested === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : '2024-11-05';
 }
 
 export async function invokeStrandsTool(

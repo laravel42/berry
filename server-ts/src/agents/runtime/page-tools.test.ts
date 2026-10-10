@@ -124,6 +124,18 @@ test('a page that fails its budget is a report, not a broken check', async () =>
    assert.equal(result.error, undefined, 'the audit ran; it is the page that is slow');
 });
 
+test('a helper that is not installed is a skip, not a page verdict', async () => {
+   const { result } = await call('check_page', { target: 'dist' }, [
+      { type: 'stderr', seq: 0, data: '/bin/bash: berry-screenshots: command not found\n' },
+      { type: 'exit', seq: 1, exitCode: 127 },
+   ]);
+   assert.equal(result.ok, false);
+   assert.equal(result.skipped, true);
+   assert.match(String(result.error), /Skip it/);
+   assert.match(String(result.error), /do not write documentation/);
+   assert.equal(result.report, undefined);
+});
+
 test('a check that could not run at all says why, and is not reported as a verdict', async () => {
    const { result } = await call('check_performance', { target: 'src' }, [
       { type: 'stderr', seq: 0, data: 'Unable to connect to Chrome\n' },

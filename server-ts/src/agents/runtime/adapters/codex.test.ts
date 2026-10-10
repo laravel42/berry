@@ -168,12 +168,14 @@ describe('Codex adapter', () => {
          assert.equal(run.env.HOME, process.env.HOME);
          assert.ok(run.args.includes('--json'));
          assert.ok(run.args.includes('--sandbox'));
-         assert.ok(run.args.includes('read-only'));
+         assert.ok(run.args.includes('workspace-write'));
+         assert.ok(run.args.includes('sandbox_workspace_write.network_access=true'));
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('gpt-5.4'));
          assert.ok(run.args.includes('skip_host_skill_discovery'));
          assert.ok(run.args.includes('skills.bundled.enabled=false'));
          assert.ok(run.args.includes('cloud.skills.enabled=false'));
+         assert.ok(run.args.includes('mcp_servers.berry.default_tools_approval_mode="approve"'));
          assert.equal(run.args.some((arg) => arg.includes('sk-')), false);
       } finally {
          if (previous === undefined) delete process.env.OPENAI_API_KEY;

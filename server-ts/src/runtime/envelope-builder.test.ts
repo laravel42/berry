@@ -24,6 +24,12 @@ test('a task that waits on others is told their unmerged work is not in its chec
    assert.doesNotMatch(note, /BER-140/);
    assert.match(note, /do not wait or poll/);
    assert.equal(dependencyNote([{ identifier: 'BER-140', title: 'x', status: 'todo', direction: 'blocks' }]), null);
+   const withHandoff = dependencyNote(
+      [{ identifier: 'BER-134', title: 'Login screen', status: 'done', direction: 'depends_on' }],
+      [{ identifier: 'BER-134', title: 'Login screen', body: 'HANDOFF.md\n\nThe form is in src/Login.tsx.' }]
+   );
+   assert.match(withHandoff ?? '', /Handoff attached to BER-134/);
+   assert.match(withHandoff ?? '', /src\/Login\.tsx/);
 });
 
 describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {

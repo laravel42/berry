@@ -1,4 +1,3 @@
-import { createHash, randomUUID } from 'node:crypto';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
@@ -11,7 +10,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, KIRO_CLI_LOGIN } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -216,31 +215,10 @@ export function runtimeMounts(options: {
          );
       }
    };
-   const kiroCredential = async (workspaceId: string, userId: string, connectionId: string) => {
-      if (!options.sealer) {
-         throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot open a Kiro API key.');
-      }
-      const sealed = await aiRuntimes.sealedCredential(workspaceId, userId, 'kiro', connectionId);
-      if (!sealed) {
-         throw new ApiError(409, 'AI_RUNTIME_AUTH_REQUIRED', 'Reconnect Kiro. The stored API key is missing.');
-      }
-      let token: string;
-      try {
-         token = options.sealer.open(sealed);
-      } catch {
-         throw new ApiError(409, 'AI_RUNTIME_AUTH_EXPIRED', 'The stored Kiro API key could not be opened. Reconnect Kiro.');
-      }
-      if (!isKiroApiKey(token)) {
-         throw new ApiError(409, 'AI_RUNTIME_AUTH_REQUIRED', 'Reconnect Kiro with a subscription API key.');
-      }
-      const connection = await aiRuntimes.connection(workspaceId, userId, 'kiro');
-      return {
-         type: 'api_key' as const,
-         token,
-         accountId: connection?.accountId ?? null,
-         accountName: connection?.accountName ?? null,
-      };
-   };
+   const cliToken = (runtimeId: 'claude' | 'codex' | 'kiro') =>
+      runtimeId === 'codex' ? CODEX_CLI_LOGIN : runtimeId === 'kiro' ? KIRO_CLI_LOGIN : CLAUDE_CLI_LOGIN;
+   const cliName = (runtimeId: 'claude' | 'codex' | 'kiro') =>
+      runtimeId === 'codex' ? 'Codex' : runtimeId === 'kiro' ? 'Kiro' : 'Claude';
    const modelId = z.string().trim().min(1).max(300).nullable();
    const preferenceBody = z.strictObject({ runtimeId: z.string().nullable(), modelId });
 
@@ -325,13 +303,13 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex') {
+      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'kiro') {
          if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${runtimeId === 'codex' ? 'Codex' : 'Claude'} runs on this workstation, and that process is not available.`);
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cliName(runtimeId)} runs on this workstation, and that process is not available.`);
          }
          const credential = {
             type: 'oauth' as const,
-            token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
+            token: cliToken(runtimeId),
             accountId: null,
             accountName: null,
          };
@@ -344,7 +322,7 @@ export function runtimeMounts(options: {
          if ('error' in probed) controlError(probed.error);
          const status = 'connection' in probed ? probed.connection : undefined;
          if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${runtimeId === 'codex' ? 'Codex' : 'Claude'} CLI is not signed in on this workstation.`);
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${cliName(runtimeId)} CLI is not signed in on this workstation.`);
          }
          const listed = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
@@ -363,76 +341,15 @@ export function runtimeMounts(options: {
                workspaceId,
                userId: user.id,
                runtimeId,
-               authMethod: runtimeId === 'codex' ? 'codex_cli' : 'claude_cli',
+               authMethod: runtimeId === 'codex' ? 'codex_cli' : runtimeId === 'kiro' ? 'kiro_cli' : 'claude_cli',
                accountId: status.accountId,
-               accountName: status.accountName ?? (runtimeId === 'codex' ? 'ChatGPT' : 'Claude'),
+               accountName: status.accountName ?? (runtimeId === 'codex' ? 'ChatGPT' : cliName(runtimeId)),
                metadata: {
                   models,
                   modelCatalogComplete: true,
                   host,
                   ...(body.name ? { connectionName: body.name } : {}),
                },
-            })
-            .catch(aiError);
-         await cancelRuns(connected.replacedActiveRunIds);
-         return json(connected.connection, 201);
-      }
-      if (runtimeId === 'kiro') {
-         const apiKey = body.apiKey ?? '';
-         if (!isKiroApiKey(apiKey)) {
-            throw ApiError.badRequest('Kiro needs an API key from a Pro, Pro+, Pro Max, or Power plan.');
-         }
-         if (!options.sealer) {
-            throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot store a Kiro API key.');
-         }
-         if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'Kiro runs on this workstation, and that process is not available.');
-         }
-         const accountId = createHash('sha256').update(apiKey).digest('hex').slice(0, 16);
-         const credential = {
-            type: 'api_key' as const,
-            token: apiKey,
-            accountId,
-            accountName: 'Kiro subscription',
-         };
-         const sessionId = runtimeSessionIdFor(`ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`);
-         const probed = await options.runtimeControl({
-            runtimeSessionId: sessionId,
-            operation: 'connection',
-            runtimeId,
-            credential,
-         });
-         if ('error' in probed) controlError(probed.error);
-         const status = 'connection' in probed ? probed.connection : undefined;
-         if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? 'Kiro rejected this API key.');
-         }
-         const listed = await options.runtimeControl({
-            runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
-            operation: 'models',
-            runtimeId,
-            credential: {
-               ...credential,
-               accountName: status.accountName ?? credential.accountName,
-            },
-         });
-         if ('error' in listed) controlError(listed.error);
-         const models = 'models' in listed ? (listed.models ?? []) : [];
-         const connected = await aiRuntimes
-            .connect({
-               workspaceId,
-               userId: user.id,
-               runtimeId,
-               authMethod: 'kiro_api_key',
-               accountId,
-               accountName: status.accountName ?? 'Kiro subscription',
-               metadata: {
-                  models,
-                  modelCatalogComplete: true,
-                  host,
-                  ...(body.name ? { connectionName: body.name } : {}),
-               },
-               credentialSealed: options.sealer.seal(apiKey),
             })
             .catch(aiError);
          await cancelRuns(connected.replacedActiveRunIds);
@@ -567,15 +484,12 @@ export function runtimeMounts(options: {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
       if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex')) {
-         const credential =
-            runtimeId === 'claude' || runtimeId === 'codex'
-               ? {
-                    type: 'oauth' as const,
-                    token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
-                    accountId: connection.accountId,
-                    accountName: connection.accountName,
-                 }
-               : await kiroCredential(workspaceId, user.id, connection.id);
+         const credential = {
+            type: 'oauth' as const,
+            token: cliToken(runtimeId),
+            accountId: connection.accountId,
+            accountName: connection.accountName,
+         };
          const result = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-control:${connection.id}`),
             operation: 'models',

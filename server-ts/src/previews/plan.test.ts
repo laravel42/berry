@@ -71,9 +71,32 @@ test('a repository is installed, built and started with the package manager it c
 
 test('a Vite project, a static page and a repository with nothing to run', () => {
    assert.equal(planFor(repo({ 'package.json': { devDependencies: { vite: '6' }, scripts: { build: 'vite build' } }, 'index.html': '' }))!.apps[0]!.kind, 'vite');
+   // `vite build` is the site. It shares a program with `vite preview` and is still the build.
+   const typed = planFor(repo({
+      'package.json': { devDependencies: { vite: '6', typescript: '5' }, scripts: { build: 'tsc --noEmit && vite build' } },
+      'index.html': '',
+   }))!;
+   assert.equal(typed.apps[0]!.build, 'npm run build');
+   assert.match(typed.apps[0]!.start, /vite preview/);
    assert.equal(planFor(repo({ 'index.html': '<h1>hi</h1>', 'style.css': '' }))!.apps[0]!.kind, 'static');
    assert.equal(planFor(repo({ 'README.md': '', 'infra/main.tf': '' })), null);
    assert.equal(planFor(repo({ 'package.json': { scripts: { test: 'vitest' } } })), null);
+});
+
+test('a dev script is what the preview runs, on the port that script names', () => {
+   const plan = planFor(repo({
+      'package.json': {
+         devDependencies: { vite: '6' },
+         scripts: { dev: 'vite --host 0.0.0.0 --port 5173', build: 'tsc --noEmit && vite build' },
+      },
+      'index.html': '',
+   }))!;
+   const app = plan.apps[0]!;
+   assert.equal(app.start, 'npm run dev');
+   assert.equal(app.build, null);
+   assert.equal(app.port, 5173);
+   assert.equal(app.env.PORT, '5173');
+   assert.equal(app.env.NODE_ENV, 'development');
 });
 
 test('a workspace root that only orchestrates is not an app beside its packages', () => {

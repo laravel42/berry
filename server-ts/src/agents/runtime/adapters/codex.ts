@@ -62,8 +62,8 @@ export interface CodexAdapterOptions {
  * Codex on this workstation.
  *
  * The CLI keeps its ChatGPT login. Berry never reads that store and never
- * passes an API key. The process may only call Berry tools; its own shell
- * stays read-only.
+ * passes an API key. Its shell may write inside the task checkout, which is
+ * what Berry commits. Writes outside that checkout stay denied.
  */
 export class CodexAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -225,7 +225,9 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
          '--ignore-user-config',
          '--skip-git-repo-check',
          '--sandbox',
-         'read-only',
+         'workspace-write',
+         '--config',
+         'sandbox_workspace_write.network_access=true',
          // Host, bundled and cloud SKILL.md files otherwise join every turn.
          // Berry skills are read with `read_skill`.
          '--enable',
@@ -238,6 +240,10 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
          `mcp_servers.berry.command=${tomlString(process.execPath)}`,
          '--config',
          `mcp_servers.berry.args=${tomlArray(['--experimental-strip-types', BRIDGE, socketPath])}`,
+         // `codex exec` asks for nothing, so an MCP call is refused unless
+         // the server is pre-approved.
+         '--config',
+         'mcp_servers.berry.default_tools_approval_mode="approve"',
       ];
       if (!resume) args.push('--ephemeral');
       if (model && model !== 'default') args.push('--model', model);

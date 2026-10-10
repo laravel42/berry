@@ -87,7 +87,7 @@ function berryWithWriteFile(calls: string[], answer: () => Response): typeof fet
    }) as typeof fetch;
 }
 
-test('write_file also lands in the checkout, byte for byte, where commands run', async () => {
+test('write_file lands in the checkout and does not upload', async () => {
    const calls: string[] = [];
    const saved = () => Response.json({ result: { path: 'server/a.ts', version: 1, saved: true } });
    const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-mirror-')) });
@@ -103,16 +103,16 @@ test('write_file also lands in the checkout, byte for byte, where commands run',
    });
    agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
    await agent.invoke('go');
-   assert.deepEqual(calls, ['https://berry.test/api/v1/agent-tools/write_file']);
+   assert.deepEqual(calls, []);
    assert.equal(await session.readFile('repo/server/a.ts'), content);
    assert.equal((await session.exec('cat server/a.ts', { cwd: 'repo' })).stdout, content);
 });
 
-test('write_file never writes outside the workspace, nor mirrors a save Berry refused', async () => {
+test('write_file never writes outside the workspace', async () => {
    const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-mirror-')) });
-   const run = async (path: string, answer: () => Response) => {
+   const run = async (path: string) => {
       const tools = await loadRemoteTools(
-         { apiUrl: 'https://berry.test', token: 't', fetch: berryWithWriteFile([], answer) },
+         { apiUrl: 'https://berry.test', token: 't', fetch: berryWithWriteFile([], () => Response.json({ result: { saved: true } })) },
          { session: async () => session }
       );
       const agent = new Agent({
@@ -123,9 +123,8 @@ test('write_file never writes outside the workspace, nor mirrors a save Berry re
       agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
       await agent.invoke('go');
    };
-   await run('../escaped.txt', () => Response.json({ result: { saved: true } }));
-   await run('/tmp/berry-mirror-absolute.txt', () => Response.json({ result: { saved: true } }));
-   await run('refused.txt', () => Response.json({ error: { message: 'no' } }, { status: 403 }));
+   await run('../escaped.txt');
+   await run('/tmp/berry-mirror-absolute.txt');
    const listing = await session.exec('find . -type f; test -e /tmp/berry-mirror-absolute.txt && echo LEAKED');
    assert.equal(listing.stdout, '');
 });
