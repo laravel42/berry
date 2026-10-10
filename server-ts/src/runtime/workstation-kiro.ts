@@ -25,6 +25,9 @@ const INHERITED = new Set([
    'NODE_EXTRA_CA_CERTS',
    'SSL_CERT_FILE',
    'SSL_CERT_DIR',
+   // Grok reads its subscription login from $GROK_HOME (default ~/.grok);
+   // forward it so a non-default config home still finds the user's login.
+   'GROK_HOME',
 ]);
 
 export interface WorkstationKiro {

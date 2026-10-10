@@ -11,7 +11,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, GROK_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -92,6 +92,33 @@ async function modelsConnected(sql: Sql, workspaceId: string): Promise<Set<strin
       allowed.add(`${row.runtime_key}/default`);
    }
    return allowed;
+}
+
+/** The three workstation-CLI runtimes keep their own login; Berry only starts them. */
+type WorkstationCliRuntime = 'claude' | 'codex' | 'grok';
+
+function workstationCliLogin(runtimeId: WorkstationCliRuntime): string {
+   if (runtimeId === 'codex') return CODEX_CLI_LOGIN;
+   if (runtimeId === 'grok') return GROK_CLI_LOGIN;
+   return CLAUDE_CLI_LOGIN;
+}
+
+function workstationCliLabel(runtimeId: WorkstationCliRuntime): string {
+   if (runtimeId === 'codex') return 'Codex';
+   if (runtimeId === 'grok') return 'Grok';
+   return 'Claude';
+}
+
+function workstationCliAuthMethod(runtimeId: WorkstationCliRuntime): string {
+   if (runtimeId === 'codex') return 'codex_cli';
+   if (runtimeId === 'grok') return 'grok_cli';
+   return 'claude_cli';
+}
+
+function workstationCliAccountName(runtimeId: WorkstationCliRuntime): string {
+   if (runtimeId === 'codex') return 'ChatGPT';
+   if (runtimeId === 'grok') return 'Grok';
+   return 'Claude';
 }
 
 /**
@@ -325,13 +352,13 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex') {
+      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok') {
          if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${runtimeId === 'codex' ? 'Codex' : 'Claude'} runs on this workstation, and that process is not available.`);
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${workstationCliLabel(runtimeId)} runs on this workstation, and that process is not available.`);
          }
          const credential = {
             type: 'oauth' as const,
-            token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
+            token: workstationCliLogin(runtimeId),
             accountId: null,
             accountName: null,
          };
@@ -344,7 +371,7 @@ export function runtimeMounts(options: {
          if ('error' in probed) controlError(probed.error);
          const status = 'connection' in probed ? probed.connection : undefined;
          if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${runtimeId === 'codex' ? 'Codex' : 'Claude'} CLI is not signed in on this workstation.`);
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${workstationCliLabel(runtimeId)} CLI is not signed in on this workstation.`);
          }
          const listed = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
@@ -363,9 +390,9 @@ export function runtimeMounts(options: {
                workspaceId,
                userId: user.id,
                runtimeId,
-               authMethod: runtimeId === 'codex' ? 'codex_cli' : 'claude_cli',
+               authMethod: workstationCliAuthMethod(runtimeId),
                accountId: status.accountId,
-               accountName: status.accountName ?? (runtimeId === 'codex' ? 'ChatGPT' : 'Claude'),
+               accountName: status.accountName ?? workstationCliAccountName(runtimeId),
                metadata: {
                   models,
                   modelCatalogComplete: true,
@@ -566,12 +593,12 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex')) {
+      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok')) {
          const credential =
-            runtimeId === 'claude' || runtimeId === 'codex'
+            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok'
                ? {
                     type: 'oauth' as const,
-                    token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
+                    token: workstationCliLogin(runtimeId),
                     accountId: connection.accountId,
                     accountName: connection.accountName,
                  }

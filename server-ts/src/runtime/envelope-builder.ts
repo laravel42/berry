@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, GROK_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -498,6 +498,13 @@ export class EnvelopeBuilder {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',
             'Connect Codex in AI Runtimes. Berry uses the Codex CLI login on this workstation.',
+            false
+         );
+      }
+      if (task.aiRuntimeId === 'grok' && (credential.type !== 'oauth' || credential.token !== GROK_CLI_LOGIN)) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'Connect Grok in AI Runtimes. Berry uses the Grok CLI login on this workstation.',
             false
          );
       }
