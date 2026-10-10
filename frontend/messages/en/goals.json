@@ -50,6 +50,20 @@
          "title": "No open plans.",
          "titleAll": "No plans yet.",
          "body": "A plan is what Berry proposes for a request: its goal, its tasks and what it needs. Ask for one from a project, or ask the Orchestrator in chat."
+      },
+      "menu": {
+         "subscribe": "Subscribe",
+         "unsubscribe": "Unsubscribe",
+         "pin": "Pin",
+         "unpin": "Unpin",
+         "archive": "Archive",
+         "archived": "Archived",
+         "delete": "Delete",
+         "deleteTitle": "Delete this plan?",
+         "deleteBody": "The plan leaves the list. Tasks it already created stay on the board.",
+         "cancel": "Cancel",
+         "confirmDelete": "Delete",
+         "failed": "That could not be saved."
       }
    }
 }

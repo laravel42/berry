@@ -401,6 +401,36 @@ export async function answerPlan(planId: string, answers: PlanAnswerInput[]): Pr
    return parseRecord(json);
 }
 
+const subscriptionSchema = z.object({ subscribed: z.boolean() });
+
+/** Whether the signed-in person follows this plan. */
+export async function planSubscription(planId: string): Promise<boolean> {
+   const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/subscription`);
+   return subscriptionSchema.parse(json).subscribed;
+}
+
+/** Follow or stop following this plan. */
+export async function setPlanSubscription(planId: string, subscribed: boolean): Promise<boolean> {
+   const json: unknown = await apiFetch(
+      `/api/v1/plans/${encodeURIComponent(planId)}/subscription`,
+      { method: 'PUT', body: JSON.stringify({ subscribed }) }
+   );
+   return subscriptionSchema.parse(json).subscribed;
+}
+
+/** Hide the plan from the open list. It stays under All. */
+export async function archivePlan(planId: string): Promise<void> {
+   await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/archive`, {
+      method: 'POST',
+      body: '{}',
+   });
+}
+
+/** Remove the plan. A later read is a missing plan. */
+export async function deletePlan(planId: string): Promise<void> {
+   await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}`, { method: 'DELETE' });
+}
+
 /** Close an open plan; a draft goal it created with no issues is archived. */
 export async function rejectPlan(planId: string, note?: string): Promise<PlanRecord> {
    const json: unknown = await apiFetch(`/api/v1/plans/${encodeURIComponent(planId)}/reject`, {
@@ -458,6 +488,7 @@ export const planSummarySchema = z.object({
    createdTasks: z.number(),
    finishedTasks: z.number(),
    autoGate: z.boolean().default(false),
+   archived: z.boolean().default(false),
    createdAt: z.string(),
    updatedAt: z.string(),
 });

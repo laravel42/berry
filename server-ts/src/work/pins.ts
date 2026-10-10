@@ -3,7 +3,7 @@ import type { Queryable } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 
 /** A person's sidebar pins in one workspace (`user_pins`). */
-export const PIN_TARGETS = ['issue', 'view', 'project'] as const;
+export const PIN_TARGETS = ['issue', 'view', 'project', 'plan'] as const;
 export type PinTarget = (typeof PIN_TARGETS)[number];
 
 export const pinCreateSchema = z
@@ -26,7 +26,11 @@ export interface Pin {
 export async function listPins(q: Queryable, workspaceId: string, userId: string): Promise<Pin[]> {
    const rows = await q`
       SELECT pin.id, pin.target_type, pin.target_id, pin.position,
-             COALESCE(issue.title, saved.name, project.name) AS title,
+             COALESCE(issue.title, saved.name, project.name,
+                      CASE WHEN plan.id IS NOT NULL THEN
+                           COALESCE(NULLIF(plan.ir->'goal'->>'title', ''), plan_goal.title,
+                                    left(plan.source_prompt, 120), 'Untitled plan')
+                      END) AS title,
              CASE WHEN pin.target_type = 'issue'
                   THEN berry_issue_identifier(${workspaceId}, issue.number) END AS identifier
         FROM user_pins AS pin
@@ -37,6 +41,9 @@ export async function listPins(q: Queryable, workspaceId: string, userId: string
          AND (saved.visibility <> 'private' OR saved.owner_id = ${userId})
         LEFT JOIN projects AS project
           ON pin.target_type = 'project' AND project.id = pin.target_id AND project.deleted_at IS NULL
+        LEFT JOIN plans AS plan
+          ON pin.target_type = 'plan' AND plan.id = pin.target_id AND plan.deleted_at IS NULL
+        LEFT JOIN goals AS plan_goal ON plan_goal.id = plan.goal_id
        WHERE pin.workspace_id = ${workspaceId} AND pin.user_id = ${userId}
        ORDER BY pin.position, pin.id`;
    return rows
@@ -69,9 +76,13 @@ async function targetVisible(
                 SELECT 1 FROM saved_issue_views
                  WHERE id = ${targetId} AND workspace_id = ${workspaceId}
                    AND (visibility <> 'private' OR owner_id = ${userId})`
-           : await q`
-                SELECT 1 FROM projects
-                 WHERE id = ${targetId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`;
+           : targetType === 'plan'
+             ? await q`
+                  SELECT 1 FROM plans
+                   WHERE id = ${targetId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`
+             : await q`
+                  SELECT 1 FROM projects
+                   WHERE id = ${targetId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`;
    return rows.length === 1;
 }
 

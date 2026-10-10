@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SplitIndex, useSelectFirst } from '@/components/common/page/split-index';
 import Header from '@/components/layout/headers/plans/header';
 import { cn } from '@/lib/utils';
+import { PlanContextMenu } from './plan-context-menu';
 import PlanPreview from './plan-preview';
 import { planSummaryLook } from './plan-status-badge';
 
@@ -49,66 +50,73 @@ function PlanRow({
    plan,
    selected,
    onSelect,
+   onChanged,
 }: {
    plan: PlanSummary;
    selected: boolean;
    onSelect: (planId: string) => void;
+   onChanged: () => void;
 }) {
    const t = useTranslations('goals.plans');
    const look = planSummaryLook(plan);
    const started = plan.createdTasks > 0;
    const percent = started ? Math.round((plan.finishedTasks / plan.createdTasks) * 100) : 0;
    return (
-      <button
-         type="button"
-         aria-current={selected ? 'true' : undefined}
-         onClick={() => onSelect(plan.id)}
-         className={cn(
-            'flex w-full items-start gap-3 border-b border-muted-foreground/5 px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
-            selected ? 'bg-accent' : 'hover:bg-sidebar/50'
-         )}
-      >
-         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">
-            <BerryMark
-               size="sm"
-               tone={look.tone}
-               state={look.state}
-               pulse={look.pulse}
-               label={look.label}
-            />
-         </span>
-         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="flex items-center gap-2">
-               <StatusBadge look={look} />
-               <span className="ml-auto shrink-0 text-muted-foreground">
-                  {timeAgo(plan.updatedAt)}
-               </span>
+      <PlanContextMenu plan={plan} onChanged={onChanged}>
+         <button
+            type="button"
+            aria-current={selected ? 'true' : undefined}
+            onClick={() => onSelect(plan.id)}
+            className={cn(
+               'flex w-full items-start gap-3 border-b border-muted-foreground/5 px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
+               selected ? 'bg-accent' : 'hover:bg-sidebar/50'
+            )}
+         >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">
+               <BerryMark
+                  size="sm"
+                  tone={look.tone}
+                  state={look.state}
+                  pulse={look.pulse}
+                  label={look.label}
+               />
             </span>
-            <span className="line-clamp-2">{plan.title}</span>
-            <span className="flex min-w-0 items-center gap-2">
-               <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                  {plan.projectName ?? t('list.noProject')}
-               </span>
-               {started ? (
-                  <span className="ml-auto flex shrink-0 items-center gap-2">
-                     <span className="h-1 w-20 overflow-hidden rounded-full bg-muted">
-                        <span
-                           className="block h-full rounded-full bg-primary"
-                           style={{ width: `${percent}%` }}
-                        />
-                     </span>
-                     <span className="shrink-0 text-muted-foreground tabular-nums">
-                        {t('tasks', { finished: plan.finishedTasks, created: plan.createdTasks })}
-                     </span>
-                  </span>
-               ) : plan.plannedTasks > 0 ? (
+            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+               <span className="flex items-center gap-2">
+                  <StatusBadge look={look} />
                   <span className="ml-auto shrink-0 text-muted-foreground">
-                     {t('planned', { count: plan.plannedTasks })}
+                     {timeAgo(plan.updatedAt)}
                   </span>
-               ) : null}
+               </span>
+               <span className="line-clamp-2">{plan.title}</span>
+               <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                     {plan.projectName ?? t('list.noProject')}
+                  </span>
+                  {started ? (
+                     <span className="ml-auto flex shrink-0 items-center gap-2">
+                        <span className="h-1 w-20 overflow-hidden rounded-full bg-muted">
+                           <span
+                              className="block h-full rounded-full bg-primary"
+                              style={{ width: `${percent}%` }}
+                           />
+                        </span>
+                        <span className="shrink-0 text-muted-foreground tabular-nums">
+                           {t('tasks', {
+                              finished: plan.finishedTasks,
+                              created: plan.createdTasks,
+                           })}
+                        </span>
+                     </span>
+                  ) : plan.plannedTasks > 0 ? (
+                     <span className="ml-auto shrink-0 text-muted-foreground">
+                        {t('planned', { count: plan.plannedTasks })}
+                     </span>
+                  ) : null}
+               </span>
             </span>
-         </span>
-      </button>
+         </button>
+      </PlanContextMenu>
    );
 }
 
@@ -203,6 +211,7 @@ export default function PlansList() {
                      plan={plan}
                      selected={plan.id === selected}
                      onSelect={select}
+                     onChanged={() => void load()}
                   />
                ))
             )}

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import { Box, GripVertical, Layers, X } from 'lucide-react';
+import { Box, GripVertical, Layers, ListChecks, X } from 'lucide-react';
 
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { loadPins, reorderPins, unpinTarget, type Pin } from '@/lib/pins';
@@ -21,12 +21,13 @@ const REFRESH_DEBOUNCE_MS = 400;
 function hrefFor(orgId: string, pin: Pin): string {
    if (pin.targetType === 'issue') return `/${orgId}/issue/${pin.identifier ?? pin.targetId}`;
    if (pin.targetType === 'view') return `/${orgId}/view/${pin.targetId}`;
+   if (pin.targetType === 'plan') return `/${orgId}/plan/${pin.targetId}`;
    return `/${orgId}/project/${pin.targetId}/overview`;
 }
 
 /**
- * The rail's "pinned" section: tasks, projects and saved views a person keeps
- * at hand. Hidden when nothing is pinned.
+ * The rail's "pinned" section: tasks, projects, plans and saved views a person
+ * keeps at hand. Hidden when nothing is pinned.
  *
  * A pin whose target is deleted, or which stops being visible to this person,
  * simply stops being listed: `GET /api/v1/pins` leaves it out rather than
@@ -61,7 +62,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
       if (!workspaceId) return;
       let timer: ReturnType<typeof setTimeout> | undefined;
       const unsubscribe = subscribeWorkspaceEvents((event) => {
-         if (!/^(issue|project|view)\./.test(event.type)) return;
+         if (!/^(issue|project|view|plan)\./.test(event.type)) return;
          if (timer) clearTimeout(timer);
          timer = setTimeout(refresh, REFRESH_DEBOUNCE_MS);
       });
@@ -189,6 +190,8 @@ export function ShellPins({ orgId }: { orgId: string }) {
                               ))
                            ) : pin.targetType === 'project' ? (
                               <Box className="size-3.5" />
+                           ) : pin.targetType === 'plan' ? (
+                              <ListChecks className="size-3.5" />
                            ) : (
                               <Layers className="size-3.5" />
                            )}

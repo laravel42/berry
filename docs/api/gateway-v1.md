@@ -800,9 +800,9 @@ Plans the same request again on this plan (`product.write`). The plan must still
 
 #### `GET /api/v1/plans`
 
-The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`; `all` adds `rejected` and `superseded`). At most 200 rows.
+The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`, and not archived; `all` adds `rejected`, `superseded` and archived). Deleted plans are left out of both. At most 200 rows.
 
-- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "goalId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "createdAt", "updatedAt" }] }`
+- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "goalId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
 
 #### `GET /api/v1/plans/roles`
 
@@ -847,6 +847,31 @@ Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan
 #### `POST /api/v1/plans/{planId}/compile`
 
 Retries a failed compile. Same responses as approve, never `202`.
+
+#### `GET /api/v1/plans/{planId}/subscription`
+
+Whether the caller follows this plan (`product.read`).
+
+- `200`: `{ "subscribed": boolean }`
+
+#### `PUT /api/v1/plans/{planId}/subscription`
+
+Follow or stop following. Request `{ "subscribed": boolean }` (`product.read`).
+
+- `200`: `{ "subscribed": boolean }`
+
+#### `POST /api/v1/plans/{planId}/archive`
+
+Hide the plan from the open list (`product.write`). Request `{}`. Status is unchanged, so an approved plan keeps its approver. The plan stays readable and is listed when `state=all`.
+
+- `200`: `Plan`
+
+#### `DELETE /api/v1/plans/{planId}`
+
+Soft-delete (`product.write`). Tasks the plan already created stay.
+
+- `204`: empty
+- `404`: `NOT_FOUND`
 
 #### `POST /api/v1/plans/{planId}/reject`
 

@@ -40,6 +40,8 @@ export interface PlanSummary {
    createdTasks: number;
    finishedTasks: number;
    autoGate: boolean;
+   /** Hidden from the open list. Still readable, and still listed under All. */
+   archived: boolean;
    /** Latest execute-stage outcome, while routing is in progress or after it. */
    routingStatus: string | null;
    createdAt: string;
@@ -140,12 +142,12 @@ export class PlanRepository {
 
    /**
     * The workspace's plans, newest activity first. `open` keeps the ones still
-    * in play — drafts, awaiting approval, started — and leaves out rejected and
-    * superseded ones.
+    * in play — drafts, awaiting approval, started — and leaves out rejected,
+    * superseded, archived and deleted ones. `all` keeps the archived ones.
     */
    async list(workspaceId: string, filter: { open: boolean }): Promise<PlanSummary[]> {
       const rows = await this.#sql`
-         SELECT p.id, p.status, p.goal_id, p.auto_gate, p.created_at, p.updated_at,
+         SELECT p.id, p.status, p.goal_id, p.auto_gate, p.archived_at, p.created_at, p.updated_at,
                 p.generation_status, p.generation_error, p.generation_stage,
                 p.validation_status, p.compile_status,
                 COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
@@ -161,7 +163,10 @@ export class PlanRepository {
            LEFT JOIN goals AS g ON g.id = p.goal_id
            LEFT JOIN projects AS pr ON pr.id = COALESCE(p.project_id, g.project_id) AND pr.deleted_at IS NULL
           WHERE p.workspace_id = ${workspaceId}
-            AND (${!filter.open} OR p.status IN ('draft', 'pending_approval', 'approved'))
+            AND p.deleted_at IS NULL
+            AND (${!filter.open} OR (
+                 p.status IN ('draft', 'pending_approval', 'approved')
+                 AND p.archived_at IS NULL))
           ORDER BY p.updated_at DESC, p.id DESC
           LIMIT 200`;
       return rows.map((row) => ({
@@ -182,6 +187,7 @@ export class PlanRepository {
          createdTasks: Number(row.created),
          finishedTasks: Number(row.finished),
          autoGate: Boolean(row.auto_gate),
+         archived: row.archived_at != null,
          routingStatus: (row.routing_status as string | null) ?? null,
          createdAt: new Date(row.created_at as string).toISOString(),
          updatedAt: new Date(row.updated_at as string).toISOString(),
@@ -190,7 +196,7 @@ export class PlanRepository {
 
    async get(planId: string): Promise<PlanRecord> {
       const [row] = await this.#sql`
-         SELECT ${this.#sql.unsafe(COLUMNS)} FROM plans WHERE id = ${planId}`;
+         SELECT ${this.#sql.unsafe(COLUMNS)} FROM plans WHERE id = ${planId} AND deleted_at IS NULL`;
       if (!row) throw new NotFound();
       return await this.#hydrate(row);
    }
@@ -412,6 +418,49 @@ export class PlanRepository {
          UPDATE plans SET status = 'rejected', decision_note = ${note}, updated_at = ${now}
           WHERE id = ${planId} AND status IN ('draft', 'pending_approval', 'approved')`;
       return this.get(planId);
+   }
+
+   /**
+    * Hide the plan from the open list without rejecting it. An approved plan
+    * keeps its approver; the open-plan indexes are what free the slot.
+    */
+   async archive(planId: string): Promise<PlanRecord> {
+      const now = this.#clock().toISOString();
+      await this.#sql`
+         UPDATE plans SET archived_at = ${now}, updated_at = ${now}
+          WHERE id = ${planId} AND deleted_at IS NULL AND archived_at IS NULL`;
+      return this.get(planId);
+   }
+
+   /** Soft-delete. A later read is a missing plan. */
+   async remove(planId: string): Promise<void> {
+      const now = this.#clock().toISOString();
+      const rows = await this.#sql`
+         UPDATE plans SET deleted_at = ${now}, updated_at = ${now}
+          WHERE id = ${planId} AND deleted_at IS NULL
+          RETURNING id`;
+      if (rows.length === 0) throw new NotFound();
+   }
+
+   async subscribed(planId: string, userId: string): Promise<boolean> {
+      await this.get(planId);
+      const rows = await this.#sql`
+         SELECT 1 FROM plan_subscribers WHERE plan_id = ${planId} AND user_id = ${userId}`;
+      return rows.length === 1;
+   }
+
+   async setSubscribed(planId: string, userId: string, subscribed: boolean): Promise<boolean> {
+      const record = await this.get(planId);
+      if (subscribed) {
+         await this.#sql`
+            INSERT INTO plan_subscribers (workspace_id, plan_id, user_id)
+            VALUES (${record.workspaceId}, ${planId}, ${userId})
+            ON CONFLICT (plan_id, user_id) DO NOTHING`;
+      } else {
+         await this.#sql`
+            DELETE FROM plan_subscribers WHERE plan_id = ${planId} AND user_id = ${userId}`;
+      }
+      return subscribed;
    }
 
    /**

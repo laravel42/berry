@@ -428,6 +428,38 @@ export function planMounts(options: PlanOptions): Mount[] {
       return json(serializePlan(await plans.close(record.id, (value.note ?? '').trim() || null)));
    });
 
+   route.get('/:planId/subscription', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.read');
+      return json({ subscribed: await plans.subscribed(record.id, context.get('user').id) });
+   });
+
+   route.put('/:planId/subscription', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.read');
+      const { value } = await decodeBody<{ subscribed?: boolean }>(context, { subscribed: 'boolean' });
+      if (typeof value.subscribed !== 'boolean') {
+         assertValid([fieldError('/subscribed', 'required', 'subscribed is required.')]);
+         throw new ApiError(400, 'INVALID_REQUEST', 'subscribed is required.');
+      }
+      const subscribed = await plans.setSubscribed(record.id, context.get('user').id, value.subscribed);
+      return json({ subscribed });
+   });
+
+   route.post('/:planId/archive', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.write');
+      await decodeBody<Record<string, never>>(context, {});
+      return json(serializePlan(await plans.archive(record.id)));
+   });
+
+   route.delete('/:planId', async (context) => {
+      const record = await load(context.req.param('planId'));
+      await authorizeWorkspace(context, options, record.workspaceId, 'product.write');
+      await plans.remove(record.id);
+      return new Response(null, { status: 204 });
+   });
+
    return [{ prefix: '/api/v1/plans', handler: route }];
 
    async function load(raw: string | undefined): Promise<PlanRecord> {
