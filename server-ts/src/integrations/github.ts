@@ -142,6 +142,96 @@ export class GitHubClient {
       };
    }
 
+   /**
+    * The first commit on a repository that has none, on `branch`.
+    *
+    * The Git database answers 409 "Git Repository is empty" until something
+    * has been committed, including while GitHub is still provisioning a
+    * repository it just created. The contents API is the call that creates
+    * that first commit and the branch. The file is removed in the commit
+    * after, so the branch tip has nothing a later branch can conflict with.
+    * The commit sha comes back from those writes: reading the ref can still
+    * say the repository is empty for a moment after the branch exists.
+    */
+   async seedEmptyBranch(input: { owner: string; name: string; branch: string }): Promise<string> {
+      const present = await this.#branchCommit(input.owner, input.name, input.branch);
+      if (present) return present;
+      const root = `/repos/${encode(input.owner)}/${encode(input.name)}`;
+      const path = 'README.md';
+      const message = `Initial commit on ${input.branch}`;
+      try {
+         const created = await this.#whileEmpty(() =>
+            this.#json<{ commit?: { sha?: unknown }; content?: { sha?: unknown } }>(
+               'PUT',
+               `${root}/contents/${path}`,
+               {
+                  message,
+                  content: Buffer.from('\n', 'utf8').toString('base64'),
+                  branch: input.branch,
+               }
+            )
+         );
+         const commit = created.commit?.sha;
+         const blob = created.content?.sha;
+         if (typeof commit !== 'string' || typeof blob !== 'string') {
+            throw new GitHubError('GitHub did not confirm the initial commit', 0);
+         }
+         try {
+            const removed = await this.#whileEmpty(() =>
+               this.#json<{ commit?: { sha?: unknown } }>('DELETE', `${root}/contents/${path}`, {
+                  message,
+                  sha: blob,
+                  branch: input.branch,
+               })
+            );
+            if (typeof removed.commit?.sha === 'string') return removed.commit.sha;
+         } catch (error) {
+            // The branch exists either way. Leaving the placeholder is still a
+            // repository a run can check out.
+            if (!(error instanceof GitHubError)) throw error;
+         }
+         return commit;
+      } catch (error) {
+         const head = await this.#branchCommit(input.owner, input.name, input.branch);
+         if (head) return head;
+         throw error;
+      }
+   }
+
+   /** The branch tip, or null when the repository has no commits yet. */
+   async #branchCommit(owner: string, name: string, branch: string): Promise<string | null> {
+      const ref = await this.branchHead(owner, name, branch);
+      if (ref) return ref;
+      // The git-ref read answers 409 for an empty repository and, briefly,
+      // for one whose first commit just landed. The branches API is the
+      // other way to see the tip.
+      try {
+         const found = await this.#json<{ commit?: { sha?: unknown } }>(
+            'GET',
+            `/repos/${encode(owner)}/${encode(name)}/branches/${encode(branch)}`
+         );
+         return typeof found.commit?.sha === 'string' ? found.commit.sha : null;
+      } catch (error) {
+         if (error instanceof GitHubError && (error.status === 404 || error.status === 409)) return null;
+         throw error;
+      }
+   }
+
+   /** Retries while GitHub is still provisioning an empty repository. */
+   async #whileEmpty<T>(call: () => Promise<T>): Promise<T> {
+      let last: GitHubError | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+         try {
+            return await call();
+         } catch (error) {
+            if (!(error instanceof GitHubError) || error.status !== 409) throw error;
+            last = error;
+            await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+         }
+      }
+      throw last ?? new GitHubError('GitHub is still preparing the repository', 409);
+   }
+
    async branchHead(owner: string, name: string, branch: string): Promise<string | null> {
       try {
          const ref = await this.#json<{ object: { sha: string } }>('GET', `/repos/${encode(owner)}/${encode(name)}/git/ref/heads/${encode(branch)}`);

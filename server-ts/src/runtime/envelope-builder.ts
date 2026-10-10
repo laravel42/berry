@@ -838,29 +838,17 @@ export class EnvelopeBuilder {
 }
 
 /**
- * A repository with no commits has no default branch to check out, and every
- * run on the project failed at "the default branch is missing". A person
- * links a repository they just created more often than one they have already
- * pushed to, so Berry gives it its first commit: an empty README on the
- * default branch, the way GitHub's own "create README" button does. Only a run
+ * A repository with no commits has no default branch to check out. New
+ * repositories are given that commit when they are created; one that was
+ * linked while still empty gets it here, the same empty commit. Only a run
  * that may push does it; a read-only run goes ahead without a checkout.
  */
 async function initialiseRepository(
-   client: Pick<GitHubClient, 'putFile' | 'branchHead'>,
+   client: Pick<GitHubClient, 'seedEmptyBranch' | 'branchHead'>,
    input: { owner: string; name: string; fullName: string; branch: string }
 ): Promise<string> {
    try {
-      await client.putFile({
-         owner: input.owner,
-         name: input.name,
-         branch: input.branch,
-         path: 'README.md',
-         // Empty on purpose: the first agent to write a README replaces it whole,
-         // and an empty file is the one version of it no later branch can conflict with.
-         content: '',
-         message: `Initial commit on ${input.branch}`,
-         sha: null,
-      });
+      return await client.seedEmptyBranch({ owner: input.owner, name: input.name, branch: input.branch });
    } catch (error) {
       // A plan starts several tasks at once, and each finds the repository
       // empty: the first run's commit wins, and GitHub answers the others
@@ -870,9 +858,6 @@ async function initialiseRepository(
       if (head) return head;
       throw error;
    }
-   const head = await client.branchHead(input.owner, input.name, input.branch);
-   if (!head) throw new Error(`${input.fullName} still has no ${input.branch} after Berry's first commit`);
-   return head;
 }
 
 /** The description a skill's SKILL.md frontmatter carries, or nothing. */

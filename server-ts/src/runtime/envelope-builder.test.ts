@@ -307,6 +307,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          const asked: string[] = [];
          const mintedFor: Array<string | null | undefined> = [];
          const written: Array<{ path: string; branch: string; sha: string | null }> = [];
+         const seeded: string[] = [];
          // An empty repository has no main until something is committed to it.
          let mainExists = options.empty !== true;
          const client = {
@@ -315,10 +316,14 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
                branch === 'main' ? (mainExists ? MAIN_HEAD : null) : options.branchExists === false ? null : BRANCH_HEAD,
             putFile: async (input: { path: string; branch: string; sha: string | null }) => {
                written.push({ path: input.path, branch: input.branch, sha: input.sha });
+               return { commit: MAIN_HEAD, blob: 'readme-blob' };
+            },
+            seedEmptyBranch: async (input: { branch: string }) => {
+               seeded.push(input.branch);
                mainExists = true;
                // Another run's first commit landed first.
-               if (options.raced) throw new GitHubError('GitHub PUT README.md failed: 409 reference already exists', 409);
-               return { commit: MAIN_HEAD, blob: 'readme-blob' };
+               if (options.raced) throw new GitHubError('GitHub POST /git/refs failed: 422 Reference already exists', 422);
+               return MAIN_HEAD;
             },
             mergeBase: async () => {
                asked.push('mergeBase');
@@ -339,6 +344,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             }),
             mintedFor,
             written,
+            seeded,
          };
       }
 
@@ -415,10 +421,11 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       });
 
       test('an empty repository gets a first commit on its default branch instead of failing every run', async () => {
-         const { builder: withRepository, written } = repositoryBuilder({}, { empty: true, branchExists: false });
+         const { builder: withRepository, seeded, written } = repositoryBuilder({}, { empty: true, branchExists: false });
          const task = await queued('First task on an empty repository');
          const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
-         assert.deepEqual(written, [{ path: 'README.md', branch: 'main', sha: null }]);
+         assert.deepEqual(seeded, ['main']);
+         assert.deepEqual(written, []);
          assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
       });
 

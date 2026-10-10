@@ -234,6 +234,15 @@ describe(
                const owner = target.pathname === '/user/repos' ? 'alice' : 'acme';
                return reply({ id: 400, name: body.name, full_name: `${owner}/${body.name}`, private: body.private, default_branch: 'main', owner: { login: owner }, permissions: { push: true } }, 201);
             }
+            if ((init?.method === 'PUT' || init?.method === 'DELETE') && /^\/repos\/[^/]+\/[^/]+\/contents\/README\.md$/.test(target.pathname)) {
+               const body = JSON.parse(String(init.body)) as { branch?: string; sha?: string };
+               assert.equal(body.branch, 'main');
+               if (init.method === 'PUT') {
+                  return reply({ commit: { sha: 'a'.repeat(40) }, content: { sha: 'b'.repeat(40) } }, 201);
+               }
+               assert.equal(body.sha, 'b'.repeat(40));
+               return reply({ commit: { sha: 'c'.repeat(40) } });
+            }
             if (target.pathname === '/orgs/outsiders/repos') return reply({ message: 'Not Found' }, 404);
             if (target.pathname === '/user/repos') return reply(rows);
             if (target.pathname === '/repos/alice/notes') return reply(rows[0]);
@@ -261,12 +270,13 @@ describe(
          ]);
       });
 
-      test('creates a repository under the person or an organisation, empty, and relays a refusal', async () => {
+      test('creates a repository under the person or an organisation, with an empty commit on main, and relays a refusal', async () => {
          const calls: string[] = [];
          const user = access(userReposStub(calls));
          const mine = await user.createRepository(u1Id, { name: 'fresh', private: true });
          assert.equal(mine.fullName, 'alice/fresh');
          assert.equal(mine.private, true);
+         assert.ok(calls.includes('/repos/alice/fresh/contents/README.md'));
          // Naming their own login is the same as naming nobody.
          const own = await user.createRepository(u1Id, { name: 'again', owner: 'Alice', private: false });
          assert.equal(own.fullName, 'alice/again');
