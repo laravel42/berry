@@ -294,29 +294,44 @@ export class Dispatcher {
       // many as its runtime allowed. Only task runs count and wait: a single
       // model call under the agent (planning, routing, a verdict, a chat
       // reply) is not one of its tasks.
+      //
+      // Busy counts are one grouped read each, not a count per queued row.
+      // A pending run with no live lease is not busy, including the
+      // candidates themselves, so the aggregates do not count the rows this
+      // statement is about to claim.
       const rows = await this.#sql`
-         WITH candidate AS (
+         WITH runtime_busy AS (
+            SELECT runtime_id, count(*)::int AS busy_count
+              FROM runs
+             WHERE status IN ('queued', 'running')
+               AND runtime_id IS NOT NULL
+               AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
+             GROUP BY runtime_id
+         ),
+         agent_busy AS (
+            SELECT agent_id, count(*)::int AS busy_count
+              FROM runs
+             WHERE kind = 'agent'
+               AND status IN ('queued', 'running')
+               AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
+             GROUP BY agent_id
+         ),
+         candidate AS (
             SELECT ranked.id, ranked.priority, ranked.created_at FROM (
                SELECT r.id, r.priority, r.created_at, rt.concurrency_limit,
                       row_number() OVER (PARTITION BY r.runtime_id
                                          ORDER BY r.priority DESC, r.created_at ASC) AS slot,
-                      (SELECT count(*) FROM runs AS busy
-                        WHERE busy.runtime_id = r.runtime_id
-                          AND busy.status IN ('queued', 'running')
-                          AND (busy.dispatch_state <> 'pending'
-                               OR busy.dispatch_lease_until > now())) AS busy_count,
+                      COALESCE(runtime_busy.busy_count, 0) AS busy_count,
                       agent.max_concurrency AS agent_limit,
                       row_number() OVER (PARTITION BY r.agent_id, r.kind
                                          ORDER BY r.priority DESC, r.created_at ASC) AS agent_slot,
                       r.kind,
-                      (SELECT count(*) FROM runs AS busy
-                        WHERE busy.agent_id = r.agent_id AND busy.kind = 'agent'
-                          AND busy.status IN ('queued', 'running')
-                          AND (busy.dispatch_state <> 'pending'
-                               OR busy.dispatch_lease_until > now())) AS agent_busy
+                      COALESCE(agent_busy.busy_count, 0) AS agent_busy
                  FROM runs AS r
                  LEFT JOIN agent_runtimes AS rt ON rt.id = r.runtime_id
                  LEFT JOIN agents AS agent ON agent.id = r.agent_id
+                 LEFT JOIN runtime_busy ON runtime_busy.runtime_id = r.runtime_id
+                 LEFT JOIN agent_busy ON agent_busy.agent_id = r.agent_id
                 WHERE r.status = 'queued'
                   AND r.dispatch_state = 'pending'
                   AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
