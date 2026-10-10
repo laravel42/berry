@@ -9,17 +9,18 @@ import { handleRuntimeControl } from '../adapters/control.ts';
 import { ClaudeAgentAdapter } from '../adapters/claude.ts';
 import { CodexAgentAdapter } from '../adapters/codex.ts';
 import { CursorAgentAdapter } from '../adapters/cursor.ts';
+import { GrokAgentAdapter } from '../adapters/grok.ts';
 import { KimiAgentAdapter } from '../adapters/kimi.ts';
 import { KiroAgentAdapter } from '../adapters/kiro.ts';
 import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
 import { runtimeControlRequestSchema, taskEnvelopeSchema } from '../../../runtime/envelope.ts';
 
 /**
- * Kiro, Claude Code, Codex, Cursor, and Kimi on the machine the person is using.
+ * Kiro, Claude Code, Codex, Cursor, Kimi, and Grok on the machine the person is using.
  *
  * The product server starts this process and writes one JSON document on
  * stdin: a runtime control request, or a task envelope. Lifecycle events come
- * back as one JSON object per line. `kiro-cli`, `claude`, `codex`, `cursor-agent`, or `kimi` is a child of this process,
+ * back as one JSON object per line. `kiro-cli`, `claude`, `codex`, `cursor-agent`, `kimi`, or `grok` is a child of this process,
  * found on the workstation PATH. Nothing here listens on a port, and the
  * runtime container is not involved.
  */
@@ -33,6 +34,7 @@ const adapters = new RuntimeAdapterRegistry([
    new CodexAgentAdapter({ principalIsolation: 'workstation' }),
    new CursorAgentAdapter({ principalIsolation: 'workstation' }),
    new KimiAgentAdapter({ principalIsolation: 'workstation' }),
+   new GrokAgentAdapter({ principalIsolation: 'workstation' }),
 ]);
 const modelFactory = (() => {
    throw new Error('This workstation process does not call a Berry model provider.');

@@ -254,6 +254,12 @@ export const CLAUDE_CLI_LOGIN = 'claude-cli';
 export const CODEX_CLI_LOGIN = 'codex-cli';
 
 /**
+ * Marks a Grok run whose login stays inside the Grok Build CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const GROK_CLI_LOGIN = 'grok-cli';
+
+/**
  * Marks a Kimi run whose login stays inside the Kimi Code CLI.
  * Berry does not store or read that credential. The value is not a secret.
  */

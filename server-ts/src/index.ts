@@ -156,7 +156,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -670,7 +670,7 @@ const executor = new RuntimeTaskExecutor({
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
               }
-              if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi') {
+              if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi' || runtimeId === 'grok') {
                  return {
                     type: 'oauth',
                     token:
@@ -680,7 +680,9 @@ const executor = new RuntimeTaskExecutor({
                             ? CURSOR_CLI_LOGIN
                             : runtimeId === 'kimi'
                               ? KIMI_CLI_LOGIN
-                              : CLAUDE_CLI_LOGIN,
+                              : runtimeId === 'grok'
+                                ? GROK_CLI_LOGIN
+                                : CLAUDE_CLI_LOGIN,
                     accountId: connection.external_account_id,
                     accountName: connection.external_account_name,
                  };
@@ -1130,7 +1132,14 @@ registry.registerAll(
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
-         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude' || request.runtimeId === 'codex' || request.runtimeId === 'cursor' || request.runtimeId === 'kimi') {
+         if (
+            request.runtimeId === 'kiro' ||
+            request.runtimeId === 'claude' ||
+            request.runtimeId === 'codex' ||
+            request.runtimeId === 'cursor' ||
+            request.runtimeId === 'kimi' ||
+            request.runtimeId === 'grok'
+         ) {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
@@ -1436,7 +1445,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok'] }),
 });
 dispatcher.start();
 

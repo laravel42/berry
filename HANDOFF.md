@@ -1,33 +1,40 @@
 HANDOFF.md
 
-# Handoff from BER-244
+# Handoff from BER-245
 
-Wire the Kimi AI runtime (workstation CLI login)
+Wire the Grok AI runtime (workstation CLI login)
 
-The reviewer's blocking concern is specific: `kimi.ts` reads the Berry MCP tool identity at `_meta.mcpTool.identity`, but the review wants evidence that `kimi acp` actually emits that shape in its `session/request_permission` payload (vs. a Kiro-style nesting). I need to verify the real ACP `session/request_permission` payload shape against official Kimi/ACP docs and make `berryToolName` robust to the actual shape.
+This run addresses specific review feedback. The central issue: the Grok adapter uses the Claude MCP bridge (Content-Length framed) when it should mirror the Kiro/Kimi bridge (newline-delimited). Let me first examine the current state of the adapter and both bridges to understand the fix precisely.Now let me read both bridges to confirm the framing difference the reviewer described, and how the Kiro/Kimi adapters wire theirs.The reviewer is correct. The Claude bridge translates Content-Length framing; the Kiro bridge is a plain newline-delimited passthrough. Both Kiro and Kimi (which the task says to mirror) use the plain `kiro-mcp-bridge.ts`. The Grok adapter wrongly uses the Claude bridge.
 
-Let me first find the checkout and look at the current `kimi.ts` permission code.Now let me verify the real ACP `session/request_permission` payload shape from the official Agent Client Protocol spec, since both Kiro and Kimi speak ACP and the standard shape is what matters. Let me check the ACP spec for the permission request structure and how tool calls (including MCP tool calls) are identified.Let me use the remote web search tool to find the ACP permission request schema and how the tool call / MCP tool is represented in `session/request_permission`.Key finding: the standard ACP `session/request_permission` payload carries a `toolCall` object (with `toolCallId`, `title`, `kind`, `rawInput`, etc.) and `options`. There is **no standard `_meta.mcpTool.identity` field** — that nesting is Kiro-specific (`_meta.kiro.mcpTool.identity`). The standard ACP shape identifies the tool by `toolCall` fields, and importantly `rawInput` can be empty when the permission request arrives before `tool_call_update` (per the OpenCode issues).
+Now I need to determine Grok's actual MCP stdio framing. The MCP spec's stdio transport is newline-delimited JSON. Let me verify what Grok Build's MCP stdio client expects. Let me check the official Grok MCP docs. First let me see how the Kimi adapter (the closest mirror, newest) wires its bridge and MCP, since Kimi was added on main and the task names it alongside Grok.Now I understand the two patterns clearly. Kimi mirrors Kiro: it uses `kiro-mcp-bridge.ts` (plain newline passthrough) and talks ACP (`kimi acp`), passing `mcpServers` in the ACP `session/new` params with `{ name, command, args, env }`. The Berry MCP server (`berry`) is a stdio server that the CLI's own MCP client spawns.
 
-Let me read the authoritative ACP schema to see exactly what `session/request_permission` contains and how an MCP tool call surfaces its name/server.Let me use the search tool to get the schema fields for the permission request and tool call, since direct fetch is being declined.This is decisive and surfaces a real security concern beyond the review's. The findings:
+The key question: **does Grok's embedded MCP stdio client use newline-delimited framing (standard MCP) or Content-Length?** The MCP spec stdio transport is newline-delimited JSON. The reviewer is right that the Kiro/Kimi bridge is the standard one. Let me verify Grok Build's MCP stdio behavior from the official docs rather than assume. Let me check the MCP docs I fetched before, and the key question of framing.Key confirmations:
+1. The MCP spec stdio transport is **newline-delimited JSON** (official modelcontextprotocol.io result #2 and #5), explicitly "one newline-delimited JSON-RPC message per line."
+2. Result #4 confirms **Claude Code's MCP client uses Content-Length header framing** (the exception), which is exactly why `claude-mcp-bridge.ts` exists.
+3. Result #9 (agent-network grok-build-acp doc) confirms Grok Build speaks ACP over **newline-delimited JSON-RPC**.
 
-1. **Standard ACP v1 `session/request_permission` carries a `toolCall` field** (a `ToolCallUpdate` with `toolCallId`, optional `title`, optional `name`, optional `rawInput`). There is **no standard `_meta.mcpTool.identity`** — that's Kiro's custom extension (`_meta.kiro.mcpTool.identity`). So `kimi.ts` reading `_meta.mcpTool.identity` is reading a field that standard ACP agents (including Kimi Code CLI, which is a standard ACP server) **do not emit** → **every Berry tool call would be denied and runs would stall**. The reviewer's blocking concern is correct and the current code is wrong.
+So Grok's MCP stdio client follows the standard newline-delimited transport, not Claude's Content-Length. The reviewer is correct: Grok must use the **plain `kiro-mcp-bridge.ts`** (newline passthrough), like Kiro and Kimi — not the Claude bridge.
 
-2. The ACP tool `name`/`title`/`rawInput` are explicitly **"opaque, informational metadata: they do not advertise a capability or grant authorization"**, and there are published advisories (OpenClaw GHSA) about **auto-approval bypass via untrusted tool metadata / name heuristics / rawInput spoofing**. So approving based on a tool name/title alone is a known anti-pattern.
+Let me verify the official Grok MCP docs page to confirm the config.toml `[mcp_servers.berry]` stdio shape and framing. Let me fetch the official MCP servers doc.The official Grok MCP docs confirm: config.toml `[mcp_servers.<name>]` with `command`/`args` for stdio local-process servers, and it references the standard MCP specification (modelcontextprotocol.io) for protocol details — which is newline-delimited stdio. Grok uses the standard off-the-shelf stdio transport (the examples are the standard `@modelcontextprotocol/server-*` npx servers, which all speak newline-delimited JSON). So the plain `kiro-mcp-bridge.ts` is correct for Grok, confirming the reviewer.
 
-This changes the correct design. The right approach: **don't rely on a provider-specific `_meta` nesting at all**, and don't trust a free-form title. Kimi Code CLI is a standard ACP server, so the permission payload is the standard shape (`toolCall` with `toolCallId`/`name`/`title` and `options`). 
+Now I have evidence-backed decisions for all the review points. Let me check the ACP path too — the agent-network doc said Grok Build speaks ACP (`grok agent stdio`). But the Grok adapter currently uses headless `--output-format streaming-json`, which has its own documented event vocabulary. Both are legitimate; the review's concern is that these flags are unverified. Let me verify the headless flags against the official docs I fetched before (headless-mode doc). Let me re-fetch and confirm the exact flags the adapter uses.All the flags the adapter uses are confirmed against the official headless docs:
+- `--prompt-file <PATH>` ✓ (line 42)
+- `--output-format streaming-json` ✓ (line 30)
+- `--disallowed-tools` with `web_search,web_fetch` ✓ (lines 35, 60 — example uses exactly `web_search,web_fetch`)
+- `--permission-mode bypassPermissions` ✓ (line 38)
+- `--sandbox <PROFILE>` ✓ (line 45)
+- `--cwd`, `--no-auto-update`, `--resume` ✓
+- streaming-json event vocabulary `type: thought/tool_call/tool_call_update/text/usage/end` ✓ (lines 217-222) and `error` ✓ (line 209)
 
-The question is how to safely approve only Berry MCP tools. In the standard ACP shape, the agent-side `toolCall.name` for an MCP tool is the tool name, but there is no guaranteed server-qualified identity in the permission request. The robust approach used across these adapters: the MCP tool call's `name`/`title` corresponds to the Berry MCP server's tools, and I gate strictly against the known allow-set, choosing the reject option by default. But a native tool titled like a Berry tool must not be approved.
+**Critical catch at line 325:** "Like `streaming-json`, this stream is **read only**. **Tool approvals and other bidirectional flows use the ACP interface (`grok agent`)**." 
 
-Let me look at how the actual kiro.ts and cursor.ts resolve this, and whether Kimi Code CLI (which the catalog says is TypeScript, repo `MoonshotAI/kimi-code`) prefixes MCP tool names. Let me first read kiro.ts and cursor.ts permission functions in this checkout to mirror the proven pattern precisely.Now I understand the landscape. Cursor doesn't use ACP permission callbacks (it's `--print --output-format stream-json` with a project-level permissions policy file, so no `request_permission` identity issue). Kiro uses its custom `_meta.kiro.mcpTool.identity`. Kimi Code CLI is a **standard ACP server**, so its `session/request_permission` uses the standard shape.
-
-Let me verify precisely how Kimi Code CLI (the actual implementation, `MoonshotAI/kimi-code`, TypeScript) names MCP tools in the permission request. The critical question: for an MCP server named `berry` with tool `read_issue`, what does `toolCall.name`/`title` look like in Kimi's `request_permission`? Let me search the Kimi Code CLI repo and ACP MCP docs.There's an official `kimi acp` reference page. Let me fetch it to see the exact ACP permission/tool-call payload Kimi emits.Web fetch is being declined. I have enough from the authoritative ACP spec results to make the correct engineering decision. Let me reason it through with the systematic-debugging lens, since this is the crux defect.
-
-**Estab
+This is the deeper problem the reviewer sensed. In headless `streaming-json` mode, the stream is read-only — it cannot do interactive tool approvals. More importantly, this tells me the MCP tool-call path still works (MCP servers run as child processes of grok and respond directly over stdio; they're not "approvals"), but `bypassPermissions` is what auto-approves them. Let me confirm the sandbox `workspace` profile exists and verify there is no remaining gap. Let me check the sandbox doc profiles.Everything the ada
 
 ## Files
-- server-ts/src/agents/runtime/adapters/kimi-acp.ts
-- server-ts/src/agents/runtime/adapters/kimi.test.ts
-- server-ts/src/agents/runtime/adapters/kimi.ts
+- docs/ai-runtimes.md
+- server-ts/src/agents/runtime/adapters/grok.test.ts
+- server-ts/src/agents/runtime/adapters/grok.ts
+- server-ts/src/runtime/ai-runtime-catalog.ts
 
 Repository: laravel42/berry
-Branch: software-engineer/ber-244-wire-the-kimi-ai-runtime-workstation
+Branch: software-engineer/ber-245-wire-the-grok-ai-runtime-workstation
