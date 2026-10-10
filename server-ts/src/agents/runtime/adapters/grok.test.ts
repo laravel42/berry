@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createInterface } from 'node:readline';
 import { describe, test } from 'node:test';
+import { tool } from '@strands-agents/sdk';
+import { z } from 'zod';
 import { GROK_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
-import { GrokAgentAdapter, type GrokChild, type GrokLauncher, type GrokSpawn } from './grok.ts';
+import { BerryMcpHost } from './kiro-mcp.ts';
+import { GrokAgentAdapter, grokMcpBridgePath, type GrokChild, type GrokLauncher, type GrokSpawn } from './grok.ts';
 import type { RuntimeCredential } from './types.ts';
 
 const credential: RuntimeCredential = {
@@ -245,5 +251,88 @@ describe('Grok adapter', () => {
       });
       const availability = await adapter.checkAvailability();
       assert.equal(availability.available, false);
+   });
+
+   test('uses the newline-delimited (not Content-Length) MCP bridge', () => {
+      // Grok's embedded MCP client speaks the standard MCP stdio transport
+      // (newline-delimited JSON-RPC), the same as Kiro and Kimi. The Claude
+      // bridge translates Content-Length framing and would break Grok tool
+      // calls. Guard the choice so it cannot regress.
+      assert.ok(grokMcpBridgePath().endsWith('kiro-mcp-bridge.ts'), grokMcpBridgePath());
+   });
+
+   // The central tool-call path: a Berry tool reached through the real bridge
+   // Grok's config.toml points at, over the real BerryMcpHost socket, with
+   // newline-delimited JSON-RPC framing. This is what proves repository work
+   // can happen, which the scripted-launcher tests above cannot show.
+   test('a Berry tool runs through the real MCP bridge over newline-delimited JSON-RPC', async () => {
+      const controller = new AbortController();
+      const workingDirectory = await mkdtemp(join(tmpdir(), 'berry-grok-mcp-'));
+      // A short /tmp path: the macOS sockaddr_un limit is 104 bytes, and os.tmpdir()
+   // can be long. Mirrors Kimi's socket-path choice.
+   const socketRoot = process.platform === 'win32' ? tmpdir() : '/tmp';
+   const socketPath = join(socketRoot, `bgt-${randomBytes(6).toString('hex')}.sock`);
+      const ran: Array<{ note: string }> = [];
+      const echo = tool({
+         name: 'echo_note',
+         description: 'Records and echoes a note, to prove a Berry tool executed.',
+         inputSchema: z.object({ note: z.string() }),
+         callback: async ({ note }: { note: string }) => {
+            ran.push({ note });
+            return { echoed: note };
+         },
+      });
+      const host = new BerryMcpHost(socketPath, [echo], workingDirectory, controller.signal);
+      await host.listen();
+
+      // Spawn the exact bridge the adapter configures, exactly as Grok would:
+      // `node --experimental-strip-types <bridge> <socket>`. Berry's end of
+      // the socket is the real tool host; the bridge's stdio is the CLI side.
+      const bridge = spawn(process.execPath, ['--experimental-strip-types', grokMcpBridgePath(), socketPath], {
+         stdio: ['pipe', 'pipe', 'inherit'],
+      });
+
+      const replies: Array<{ id?: number; result?: unknown; error?: unknown }> = [];
+      const waiters = new Map<number, (value: { id?: number; result?: unknown }) => void>();
+      createInterface({ input: bridge.stdout }).on('line', (line) => {
+         const trimmed = line.trim();
+         if (trimmed === '') return;
+         const message = JSON.parse(trimmed) as { id?: number; result?: unknown; error?: unknown };
+         replies.push(message);
+         if (typeof message.id === 'number') waiters.get(message.id)?.(message);
+      });
+
+      const call = (payload: { id: number; method: string; params?: unknown }): Promise<{ id?: number; result?: unknown }> => {
+         const settled = new Promise<{ id?: number; result?: unknown }>((resolve) => waiters.set(payload.id, resolve));
+         // Standard MCP stdio framing: one JSON object per line, newline-terminated.
+         bridge.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', ...payload })}\n`);
+         return settled;
+      };
+
+      try {
+         const initialized = await call({ id: 1, method: 'initialize', params: {} });
+         assert.equal((initialized.result as { serverInfo?: { name?: string } }).serverInfo?.name, 'berry');
+
+         const listed = await call({ id: 2, method: 'tools/list' });
+         const tools = (listed.result as { tools?: Array<{ name?: string }> }).tools ?? [];
+         assert.deepEqual(tools.map((entry) => entry.name), ['echo_note']);
+
+         const called = await call({
+            id: 3,
+            method: 'tools/call',
+            params: { name: 'echo_note', arguments: { note: 'hello from grok' } },
+         });
+         const result = called.result as { content?: Array<{ text?: string }>; isError?: boolean };
+         assert.equal(result.isError, false);
+         assert.match(result.content?.[0]?.text ?? '', /hello from grok/);
+         // The tool really executed on Berry's side, not just echoed framing.
+         assert.deepEqual(ran, [{ note: 'hello from grok' }]);
+      } finally {
+         bridge.stdin.end();
+         bridge.kill('SIGTERM');
+         controller.abort();
+         await host.close();
+         await rm(workingDirectory, { recursive: true, force: true });
+      }
    });
 });

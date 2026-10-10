@@ -18,7 +18,18 @@ import {
    type RuntimePrincipalIsolation,
 } from './types.ts';
 
-const BRIDGE = fileURLToPath(new URL('./claude-mcp-bridge.ts', import.meta.url));
+// Grok's embedded MCP client uses the standard MCP stdio transport —
+// newline-delimited JSON-RPC, one message per line (modelcontextprotocol.io).
+// That is the plain line passthrough `kiro-mcp-bridge.ts` implements against
+// BerryMcpHost, the same bridge the Kiro and Kimi adapters this task mirrors
+// use. The Claude bridge is only for Claude Code's LSP-style Content-Length
+// framing, which Grok does not speak.
+const BRIDGE = fileURLToPath(new URL('./kiro-mcp-bridge.ts', import.meta.url));
+
+/** The MCP stdio bridge Grok's config.toml points `[mcp_servers.berry]` at. Exposed so a test can prove it is the newline-delimited (not Content-Length) bridge. */
+export function grokMcpBridgePath(): string {
+   return BRIDGE;
+}
 
 const INHERITED = [
    'PATH',

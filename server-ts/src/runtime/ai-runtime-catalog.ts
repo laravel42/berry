@@ -413,6 +413,8 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
          'https://docs.x.ai/build/overview',
          'https://docs.x.ai/build/cli/reference',
          'https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/02-authentication.md',
+         'https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/14-headless-mode.md',
+         'https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/07-mcp-servers.md',
       ],
    },
    {
