@@ -254,6 +254,12 @@ export const CLAUDE_CLI_LOGIN = 'claude-cli';
 export const CODEX_CLI_LOGIN = 'codex-cli';
 
 /**
+ * Marks a Kimi run whose login stays inside the Kimi Code CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const KIMI_CLI_LOGIN = 'kimi-cli';
+
+/**
  * Marks a Cursor run whose login stays inside the Cursor Agent CLI.
  * Berry does not store or read that credential. The value is not a secret.
  */

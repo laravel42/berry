@@ -11,7 +11,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, QODER_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, QODER_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -46,6 +46,7 @@ const WORKSTATION_CLI_LOGINS = {
    claude: { label: 'Claude', token: CLAUDE_CLI_LOGIN, authMethod: 'claude_cli', defaultAccountName: 'Claude' },
    codex: { label: 'Codex', token: CODEX_CLI_LOGIN, authMethod: 'codex_cli', defaultAccountName: 'ChatGPT' },
    cursor: { label: 'Cursor', token: CURSOR_CLI_LOGIN, authMethod: 'cursor_cli', defaultAccountName: 'Cursor' },
+   kimi: { label: 'Kimi', token: KIMI_CLI_LOGIN, authMethod: 'kimi_cli', defaultAccountName: 'Kimi Code' },
    qoder: { label: 'Qoder', token: QODER_CLI_LOGIN, authMethod: 'qoder_cli', defaultAccountName: 'Qoder' },
 } as const;
 
@@ -338,7 +339,15 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'qoder') {
+      if (
+         runtimeId === 'claude' ||
+         runtimeId === 'codex' ||
+         runtimeId === 'cursor' ||
+         runtimeId === 'kimi' ||
+         runtimeId === 'qoder'
+      ) {
+         // Each keeps its login inside the CLI on this workstation. Berry
+         // forwards no API key: the oauth token is a non-secret sentinel.
          const cli = WORKSTATION_CLI_LOGINS[runtimeId];
          if (!options.runtimeControl) {
             throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cli.label} runs on this workstation, and that process is not available.`);
@@ -586,10 +595,15 @@ export function runtimeMounts(options: {
             runtimeId === 'claude' ||
             runtimeId === 'codex' ||
             runtimeId === 'cursor' ||
+            runtimeId === 'kimi' ||
             runtimeId === 'qoder')
       ) {
          const credential =
-            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'qoder'
+            runtimeId === 'claude' ||
+            runtimeId === 'codex' ||
+            runtimeId === 'cursor' ||
+            runtimeId === 'kimi' ||
+            runtimeId === 'qoder'
                ? {
                     type: 'oauth' as const,
                     token: WORKSTATION_CLI_LOGINS[runtimeId].token,
