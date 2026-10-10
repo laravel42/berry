@@ -51,7 +51,7 @@ export interface AiRuntimeDefinition {
 }
 
 /**
- * Product facts verified from first-party documentation on 2026-10-08.
+ * Product facts verified from first-party documentation on 2026-10-08, with Qoder, Hermes, and Antigravity re-reviewed 2026-10-10.
  *
  * `available` means this Berry build has both a supported authentication
  * boundary and an executable adapter. A documented CLI alone is not enough:
@@ -188,10 +188,11 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       },
       availability: 'blocked',
       unavailableReason:
-         'Hermes is an agent framework whose credentials live in its own principal-wide store. Berry has not shipped an isolated Hermes gateway per connected user.',
+         'Hermes’ Nous Portal path is a single in-CLI OAuth login (hermes auth login, token in ~/.hermes/auth.json) and `hermes acp` is a stdio ACP child, matching the Claude/Codex login model. But Hermes documents itself as a shared host "not tied to your laptop" with one principal-wide credential store, its stdio ACP spawns a fresh process whose session dies per invocation, and other model routes need separate provider credentials. Berry has not shipped the isolated per-connection Hermes boundary ADR-0019 requires (login model verified 2026-10-10).',
       officialSources: [
          'https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration',
-         'https://hermes-agent.nousresearch.com/docs/integrations/providers',
+         'https://hermes-agent.nousresearch.com/docs/developer-guide/acp-internals',
+         'https://hermes-agent.nousresearch.com/docs/integrations/nous-portal',
       ],
    },
    {
@@ -327,10 +328,11 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       },
       availability: 'blocked',
       unavailableReason:
-         'Google supports launching the official CLI as a local child but forbids extracting or reusing its OAuth credential. Berry has no local companion; the remote managed agent is API-billed preview access, not subscription access.',
+         'Google now confirms launching the official `agy` binary as a local child, with `agy auth login` and all backend traffic staying inside it, is a supported use of CLI Headless Mode (login model qualifies). But the only headless path, `agy -p`, is documented to hang or emit empty output on exit 0 when stdout is a non-TTY subprocess pipe — exactly how Berry would spawn it — and there is no official ACP contract. No working non-TTY headless child contract exists to wire without an unofficial PTY/scrape bridge (verified 2026-10-10).',
       officialSources: [
-         'https://ai.google.dev/gemini-api/docs/antigravity-agent',
+         'https://discuss.ai.google.dev/t/is-invoking-the-official-antigravity-cli-from-codex-allowed/186952',
          'https://discuss.ai.google.dev/t/is-external-orchestration-of-antigravity-cli-headless-mode-supported-with-account-based-usage/183051',
+         'https://github.com/google-antigravity/antigravity-cli/issues/318',
       ],
    },
    {
@@ -338,28 +340,27 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       name: 'Qoder',
       publisher: 'Qoder',
       product: 'Qoder CLI and Agent SDK',
-      description: 'Qoder’s coding-agent process, available through ACP or its TypeScript/Python Agent SDK.',
+      description: 'Qoder’s coding agent. Berry starts the Qoder CLI already signed in on this workstation and drives it over ACP.',
       executionMode: 'agent_process',
       provider: 'Qoder model service',
       billing: 'subscription',
-      billingDetail: 'Browser login or a Qoder PAT uses the Qoder account and its plan quota; it is not a model-provider API key.',
+      billingDetail: 'The CLI’s browser sign-in uses the person’s Qoder account and its plan quota. A Qoder PAT is a separate CI path and is not used.',
       subscriptionAccess: 'supported',
-      connectionMethods: ['Qoder browser login', 'Qoder Personal Access Token'],
+      connectionMethods: ['Qoder browser login on this workstation'],
       platforms: ['macOS', 'Linux', 'Windows'],
       localProcess: true,
-      installation: 'Install Qoder CLI on the runtime host; third-party automation should use its PAT or SDK authentication.',
+      installation: 'Install the official Qoder CLI on the workstation PATH and sign in on first run. Berry starts `qoder --acp`, does not bundle the CLI, does not read its credential store, and does not pass a PAT or API key.',
       defaultModel: null,
       capabilities: {
          modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
          cancellation: 'supported', usage: 'supported',
       },
-      availability: 'blocked',
-      unavailableReason:
-         'Qoder has an official third-party PAT boundary, but its CLI/SDK is not shipped in Berry’s runtime image and has not completed Berry’s dependency and protocol validation.',
+      availability: 'available',
+      unavailableReason: null,
       officialSources: [
          'https://docs.qoder.com/cli/acp',
          'https://docs.qoder.com/cli/authentication',
-         'https://docs.qoder.com/cli/sdk/quick-start',
+         'https://docs.qoder.com/cli/cli-reference',
       ],
    },
    {

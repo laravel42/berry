@@ -265,6 +265,13 @@ export const KIMI_CLI_LOGIN = 'kimi-cli';
  */
 export const CURSOR_CLI_LOGIN = 'cursor-cli';
 
+/**
+ * Marks a Qoder run whose login stays inside the Qoder CLI. The CLI signs in
+ * with a browser PKCE flow and keeps the account token in its own local store.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const QODER_CLI_LOGIN = 'qoder-cli';
+
 const REDACTED = '[redacted]';
 
 /** The envelope as it may be logged: every secret replaced, shape kept. */
