@@ -150,10 +150,11 @@ on the run. Resolution order is the task override, then the project's
 runtime, then the person's preference, then that person's newest connection,
 then the workspace's newest connection. A failed or disconnected subscription
 does not fall back to native/API billing, and an explicit Berry-managed
-override on one task stays on the deployment model. Completion calls stay on
-Bedrock or Kilo. Kiro is the only connectable runtime: `kiro-cli acp
---agent-engine=v3` on the workstation, not a container Berry runs, and not
-inside the runtime image. With Kiro connected, Settings → Model tiers places
+override on one task stays on the deployment model. A completion runs as
+the Orchestrator and uses the first connected model on that agent's selected
+tier; with none placed, it stays on Bedrock or Kilo. Kiro, Claude Code, and Codex are the connectable runtimes,
+each a CLI on the workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or
+`codex`), not a container Berry runs. With Kiro connected, Settings → Model tiers places
 Kiro models on BerryMax, BerryMid and BerryLow; the same model may sit on
 more than one tier, and a run with no explicit model uses the first model on
 the agent's tier that Kiro offers. Every other requested product stays

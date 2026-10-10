@@ -161,8 +161,10 @@ user-scoped agent-process selection from ADR-0019.
 - **`kilo`** (ADR-0017) — the runtime calls the Kilo AI gateway
   (OpenAI-compatible) with `BERRY_KILO_API_KEY`. An agent that names no
   gateway model runs on its tier (its own, else its role's), and
-  `agents/kilo/` picks the tier's model for the session plus a fallback; a
-  completion that names no model runs on BerryLow. Paid models must be
+  `agents/kilo/` picks the tier's model for the session plus a fallback. A
+  completion runs as the Orchestrator. When that agent's selected tier has a
+  connected runtime's model placed first, the completion uses it; otherwise
+  it uses the first gateway model on the tier. Paid models must be
   served by one of the deployment's own provider keys added to Kilo (its
   Bedrock key): a paid call Kilo bills to its own credits is refused
   (`NOT_OWN_KEY`), while `kilo-auto/*` and `:free` models are exempt. Cost
@@ -171,8 +173,8 @@ user-scoped agent-process selection from ADR-0019.
   model, and `GET /api/v1/config` reports `modelGateway: true`. The
   `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
 - **User-scoped agent process** (ADR-0019) — the run snapshots an AI-runtime
-  key, model and connection. Kiro is the only connectable one. The product
-  server starts `kiro-cli` on the workstation, rewrites the envelope callback
+  key, model and connection. Kiro, Claude, and Codex are the connectable ones. The product
+  server starts the matching CLI on the workstation, rewrites the envelope callback
   to `127.0.0.1` on the API port, and records the CLI's text, tool, usage and
   terminal events. Usage from a subscription is stored unpriced. There is no
   fallback to Bedrock or Kilo, and Kiro does not hand Berry a container to

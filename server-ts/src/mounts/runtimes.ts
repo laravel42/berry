@@ -11,7 +11,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -325,13 +325,13 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude') {
+      if (runtimeId === 'claude' || runtimeId === 'codex') {
          if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', 'Claude runs on this workstation, and that process is not available.');
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${runtimeId === 'codex' ? 'Codex' : 'Claude'} runs on this workstation, and that process is not available.`);
          }
          const credential = {
             type: 'oauth' as const,
-            token: CLAUDE_CLI_LOGIN,
+            token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
             accountId: null,
             accountName: null,
          };
@@ -344,7 +344,7 @@ export function runtimeMounts(options: {
          if ('error' in probed) controlError(probed.error);
          const status = 'connection' in probed ? probed.connection : undefined;
          if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? 'Claude CLI is not signed in on this workstation.');
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${runtimeId === 'codex' ? 'Codex' : 'Claude'} CLI is not signed in on this workstation.`);
          }
          const listed = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
@@ -363,9 +363,9 @@ export function runtimeMounts(options: {
                workspaceId,
                userId: user.id,
                runtimeId,
-               authMethod: 'claude_cli',
+               authMethod: runtimeId === 'codex' ? 'codex_cli' : 'claude_cli',
                accountId: status.accountId,
-               accountName: status.accountName ?? 'Claude',
+               accountName: status.accountName ?? (runtimeId === 'codex' ? 'ChatGPT' : 'Claude'),
                metadata: {
                   models,
                   modelCatalogComplete: true,
@@ -566,12 +566,12 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude')) {
+      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex')) {
          const credential =
-            runtimeId === 'claude'
+            runtimeId === 'claude' || runtimeId === 'codex'
                ? {
                     type: 'oauth' as const,
-                    token: CLAUDE_CLI_LOGIN,
+                    token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
                     accountId: connection.accountId,
                     accountName: connection.accountName,
                  }

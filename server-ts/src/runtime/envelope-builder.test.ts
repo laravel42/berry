@@ -236,17 +236,18 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          }
       });
 
-      test('a plan is made on its agent\'s tier; every other single call on BerryLow', async () => {
+      test('a completion runs on the first model of its agent\'s selected tier', async () => {
          const f = fixture!;
          await sql`UPDATE agents SET model_tier = 'berry_max' WHERE id = ${f.agentId}`;
          try {
-            for (const [purpose, tier] of [['planner', 'berry_max'], ['critic', 'berry_max'], ['triage', 'berry_low']] as const) {
+            for (const purpose of ['planner', 'critic', 'triage', 'project_draft'] as const) {
                asked.length = 0;
                const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, kind: 'completion', source: 'completion', prompt: 'x' });
-               // The model the generator names is a Bedrock id, which the gateway does not take.
-               await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose, system: 's', jsonSchema: null, model: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' } as never)} WHERE id = ${runId}`;
-               await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
-               assert.deepEqual(asked, [tier], purpose);
+               // A named gateway model must not beat the tier's first choice.
+               await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose, system: 's', jsonSchema: null, model: 'anthropic/claude-haiku-4.5' } as never)} WHERE id = ${runId}`;
+               const built = await gatewayBuilder.build({ task: await loadTask(sql, runId), dispatch: null, token: 't' });
+               assert.deepEqual(asked, ['berry_max'], purpose);
+               assert.equal(built.envelope.agent.model, 'vendor/berry_max-choice', purpose);
             }
          } finally {
             await sql`UPDATE agents SET model_tier = NULL WHERE id = ${f.agentId}`;

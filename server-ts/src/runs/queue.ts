@@ -4,6 +4,7 @@ import { NotFound } from '../identity/errors.ts';
 import { ActiveRunExists } from './repository.ts';
 import {
    resolveAiRuntimeSelection,
+   resolveCompletionRuntime,
    retainAiRuntimeSelection,
    type AiRuntimeRunSelection,
 } from '../runtime/ai-runtimes.ts';
@@ -125,7 +126,7 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
       }
 
       const aiRuntime =
-         input.kind !== 'agent' || input.forceNativeRuntime
+         input.forceNativeRuntime
             ? {
                  runtimeId: null,
                  modelId: null,
@@ -135,6 +136,12 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
                  accountId: null,
                  accountName: null,
               }
+            : input.kind === 'completion'
+              ? await resolveCompletionRuntime(tx, {
+                   workspaceId: input.workspaceId,
+                   berryAgentId: input.agentId,
+                   userId: input.runtimeAuthorizedBy ?? null,
+                })
             : input.aiRuntime
               ? await retainAiRuntimeSelection(tx, {
                    workspaceId: input.workspaceId,

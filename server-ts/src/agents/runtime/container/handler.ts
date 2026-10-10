@@ -24,6 +24,7 @@ import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
 import { truncateUtf8 } from '../utf8.ts';
 import { runCompletionTask } from './completion-task.ts';
+import { runRuntimeCompletion } from './runtime-completion.ts';
 import { toConversation } from './conversation.ts';
 import { emitterSink, type Emit } from './emitter.ts';
 import { LocalSession } from './local-session.ts';
@@ -177,6 +178,16 @@ export async function handleInvocation(
       if (event.type === 'task.completed' || event.type === 'task.failed') ended = true;
       emit(event);
    };
+   if (envelope.kind === 'completion' && envelope.runtime) {
+      await deps.registry
+         .exclusive(
+            envelope.runtimeSessionId,
+            (signal) => runRuntimeCompletion(envelope, say, deps, signal),
+            caller
+         )
+         .catch(ignoreCallerGone);
+      return;
+   }
    if (envelope.kind === 'completion') {
       // Fresh by construction: no registry, so nothing warm is read or kept.
       await deps.registry

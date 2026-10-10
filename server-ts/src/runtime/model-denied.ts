@@ -54,8 +54,6 @@ export function modelsAfterPermissionDenial(pools: TierPools, tier: Tier, ownFal
    return rest;
 }
 
-const PLAN_PURPOSES: ReadonlySet<string> = new Set(['planner', 'repair', 'critic']);
-
 interface GatewayDenialSource {
    catalog: { poolsFor(place?: TierPlacement | null): Promise<TierPools> };
    placements: { get(workspaceId: string): Promise<TierPlacement | null> };
@@ -63,8 +61,8 @@ interface GatewayDenialSource {
 
 /**
  * The models a completion should try after a permission refusal, for this
- * workspace's placement. A plan's calls follow the Orchestrator's tier, the
- * same rule as the envelope; every other completion follows BerryLow.
+ * workspace's placement. The call follows the Orchestrator's selected tier,
+ * the same rule as the envelope.
  */
 export async function gatewayModelsAfterDenial(
    sql: Sql,
@@ -76,8 +74,8 @@ export async function gatewayModelsAfterDenial(
    const [agent] = await sql`
       SELECT model_tier, fallback_model FROM agents
        WHERE workspace_id = ${input.workspaceId} AND protected AND archived_at IS NULL`;
-   const stored = agent?.model_tier as Tier | null | undefined;
-   const tier: Tier = PLAN_PURPOSES.has(input.purpose) && stored ? stored : 'berry_low';
+   const stored = agent?.model_tier;
+   const tier: Tier = stored === 'berry_max' || stored === 'berry_mid' || stored === 'berry_low' ? stored : 'berry_low';
    const own = (agent?.fallback_model as string | null | undefined) ?? null;
    return modelsAfterPermissionDenial(pools, tier, own);
 }

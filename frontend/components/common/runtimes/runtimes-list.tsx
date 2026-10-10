@@ -11,8 +11,7 @@ import { useSettingsResource } from '@/components/common/settings/use-settings-r
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-   aiRuntimeConnectionHost,
-   aiRuntimeConnectionName,
+   connectAiRuntime,
    disconnectAiRuntime,
    formatSeconds,
    listRuntimes,
@@ -21,7 +20,6 @@ import {
    type AiRuntimeDefinition,
    type Runtime,
 } from '@/lib/runtimes';
-import { RuntimeConnectWizard } from './runtime-connect-wizard';
 import { cn } from '@/lib/utils';
 import { Bot, Search, Server } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -75,16 +73,6 @@ function RuntimeCard({
                   </span>
                </div>
                <p className="mt-1 text-muted-foreground">{runtime.description}</p>
-               {connected ? (
-                  <p className="mt-2 text-status-success">
-                     {aiRuntimeConnectionName(runtime) ?? runtime.name} on{' '}
-                     {aiRuntimeConnectionHost(runtime) ?? 'localhost'} is connected
-                     {runtime.connection?.accountName
-                        ? ` as ${runtime.connection.accountName}`
-                        : ''}{' '}
-                     · usage stays on this account
-                  </p>
-               ) : null}
             </div>
             {connected ? (
                <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
@@ -111,7 +99,6 @@ export default function RuntimesList() {
    const [onlyAvailable, setOnlyAvailable] = useState(false);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
-   const [connecting, setConnecting] = useState<string | null>(null);
 
    const shown = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -130,6 +117,19 @@ export default function RuntimesList() {
                Number(right.availability !== 'available')
          );
    }, [catalog.value?.nodes, onlyAvailable, query]);
+
+   const connect = async (runtime: AiRuntimeDefinition) => {
+      setBusy(runtime.id);
+      try {
+         await connectAiRuntime(runtime.id, { name: runtime.name, host: 'localhost' });
+         toast.success(`${runtime.name} connected`);
+         catalog.reload();
+      } catch (error) {
+         toast.error(error instanceof Error ? error.message : `${runtime.name} could not connect.`);
+      } finally {
+         setBusy(null);
+      }
+   };
 
    const disconnect = async () => {
       if (!disconnecting) return;
@@ -184,13 +184,13 @@ export default function RuntimesList() {
             {catalog.loading && !catalog.value ? (
                <p className="text-muted-foreground">Loading runtime evidence…</p>
             ) : null}
-            <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3">
                {shown.map((runtime) => (
                   <RuntimeCard
                      key={runtime.id}
                      runtime={runtime}
                      busy={busy === runtime.id}
-                     onConnect={() => setConnecting(runtime.id)}
+                     onConnect={() => void connect(runtime)}
                      onDisconnect={() => setDisconnecting(runtime)}
                   />
                ))}
@@ -275,16 +275,6 @@ export default function RuntimesList() {
             pendingLabel="Disconnecting…"
             destructive
             onConfirm={disconnect}
-         />
-
-         <RuntimeConnectWizard
-            open={connecting !== null}
-            runtimes={catalog.value?.nodes ?? []}
-            initialRuntimeId={connecting}
-            onOpenChange={(open) => {
-               if (!open) setConnecting(null);
-            }}
-            onConnected={() => catalog.reload()}
          />
       </SettingsShell>
    );

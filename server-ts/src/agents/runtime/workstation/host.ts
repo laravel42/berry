@@ -7,16 +7,17 @@ import { handleInvocation } from '../container/handler.ts';
 import { SessionRegistry } from '../container/sessions.ts';
 import { handleRuntimeControl } from '../adapters/control.ts';
 import { ClaudeAgentAdapter } from '../adapters/claude.ts';
+import { CodexAgentAdapter } from '../adapters/codex.ts';
 import { KiroAgentAdapter } from '../adapters/kiro.ts';
 import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
 import { runtimeControlRequestSchema, taskEnvelopeSchema } from '../../../runtime/envelope.ts';
 
 /**
- * Kiro and Claude Code on the machine the person is using.
+ * Kiro, Claude Code, and Codex on the machine the person is using.
  *
  * The product server starts this process and writes one JSON document on
  * stdin: a runtime control request, or a task envelope. Lifecycle events come
- * back as one JSON object per line. `kiro-cli` or `claude` is a child of this process,
+ * back as one JSON object per line. `kiro-cli`, `claude`, or `codex` is a child of this process,
  * found on the workstation PATH. Nothing here listens on a port, and the
  * runtime container is not involved.
  */
@@ -27,6 +28,7 @@ await mkdir(workRoot, { recursive: true });
 const adapters = new RuntimeAdapterRegistry([
    new KiroAgentAdapter({ principalIsolation: 'workstation' }),
    new ClaudeAgentAdapter({ principalIsolation: 'workstation' }),
+   new CodexAgentAdapter({ principalIsolation: 'workstation' }),
 ]);
 const modelFactory = (() => {
    throw new Error('This workstation process does not call a Berry model provider.');

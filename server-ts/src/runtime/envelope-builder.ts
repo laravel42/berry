@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import { CLAUDE_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -211,9 +211,6 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       requestedBy: (row.requested_by as string | null) ?? null,
    };
 }
-
-/** The completions that make a plan (`plans/generator.ts`), which run on their agent's tier. */
-const PLAN_PURPOSES: ReadonlySet<string> = new Set(['planner', 'repair', 'critic']);
 
 /**
  * Where a merge fix runs: a tier below its agent's. It only reconciles a
@@ -458,13 +455,6 @@ export class EnvelopeBuilder {
       task: TaskRow
    ): Promise<(NonNullable<TaskEnvelope['runtime']> & { model: string }) | null> {
       if (!task.aiRuntimeId) return null;
-      if (task.kind !== 'agent') {
-         throw new AiRuntimeEnvelopeError(
-            'AI_RUNTIME_UNSUPPORTED_TASK',
-            'Personal AI runtimes can execute agent tasks only.',
-            false
-         );
-      }
       const definition = findAiRuntime(task.aiRuntimeId);
       if (!definition || definition.availability !== 'available') {
          throw new AiRuntimeEnvelopeError(
@@ -504,6 +494,13 @@ export class EnvelopeBuilder {
             false
          );
       }
+      if (task.aiRuntimeId === 'codex' && (credential.type !== 'oauth' || credential.token !== CODEX_CLI_LOGIN)) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'Connect Codex in AI Runtimes. Berry uses the Codex CLI login on this workstation.',
+            false
+         );
+      }
       if (task.aiRuntimeId === 'kiro' && (credential.type !== 'api_key' || !isKiroApiKey(credential.token))) {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',
@@ -533,10 +530,10 @@ export class EnvelopeBuilder {
    /**
     * The model a task runs on. Without a gateway: the completion's own model,
     * else the agent's, else its runtime profile's, else the server default.
-    * Through the gateway (ADR-0017) the same order, but only a gateway model
-    * id counts — a Bedrock profile id would be refused — and when none is
-    * named the agent runs on its tier's choice for today. A completion that
-    * names none runs on BerryLow's, as it ran on Haiku before.
+    * Through the gateway (ADR-0017) an agent that names a gateway model uses
+    * it, and otherwise runs on its tier's first model for today. A completion
+    * always runs as the Orchestrator, on the first model of that agent's
+    * selected tier, even when the caller named a model.
     */
    /** How many times this task's work was rejected at review (migration 214). */
    async #rejections(issueId: string): Promise<number> {
@@ -555,21 +552,18 @@ export class EnvelopeBuilder {
          return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null, fallback: null };
       }
 
-      const named = [
-         completionModel,
-         task.kind === 'completion' ? null : agent.modelProvider === 'kilo' || isGatewayModelId(agent.model) ? agent.model : null,
-         task.kind === 'completion' ? null : profileModel,
-         isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
-      ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
-      // A single call runs on BerryLow, except a plan's: the plan decides every
-      // task, its order and who takes it, so it is written, repaired and
-      // criticised on the tier of the agent it runs as, the Orchestrator.
-      const tier: Tier =
-         task.kind !== 'completion' || PLAN_PURPOSES.has(task.completionSpec?.purpose ?? '')
-            ? task.source === 'merge_fix'
-               ? TIER_BELOW[agent.tier]
-               : agent.tier
-            : 'berry_low';
+      // A completion is Berry speaking as the Orchestrator. It takes the first
+      // model on that agent's selected tier, not a model the caller named and
+      // not the deployment default.
+      const named =
+         task.kind === 'completion'
+            ? undefined
+            : [
+                 agent.modelProvider === 'kilo' || isGatewayModelId(agent.model) ? agent.model : null,
+                 profileModel,
+                 isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
+              ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
+      const tier: Tier = task.source === 'merge_fix' ? TIER_BELOW[agent.tier] : agent.tier;
       // A task starts on its tier's first model and moves down the list only
       // when its work is rejected at review (`chooseForTier`).
       const choice = await gateway.choose(

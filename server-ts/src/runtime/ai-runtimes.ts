@@ -605,14 +605,12 @@ async function berryAgentTier(sql: Sql, workspaceId: string, agentId: string): P
 async function agentForTier(
    sql: Sql,
    workspaceId: string,
-   runtimeId: AiRuntimeId,
    berryAgentId: string | null | undefined,
    chosen: string | null
 ): Promise<string | null> {
    const explicit = agentName(chosen);
    if (explicit) return explicit;
    if (!berryAgentId) return null;
-   if (runtimeId !== 'kiro') return null;
    const tier = await berryAgentTier(sql, workspaceId, berryAgentId);
    const [row] = await sql<Array<{ agent_key: string }>>`
       SELECT agent_key FROM workspace_agent_tiers
@@ -647,6 +645,52 @@ async function modelForTier(
 
 function stringList(value: string[] | undefined): string[] {
    return Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.length > 0) : [];
+}
+
+/** `runtime/model` as stored on a tier. The model id may itself contain slashes. */
+export function splitPlacedModel(entry: string): { runtimeId: AiRuntimeId; modelId: string } | null {
+   const slash = entry.indexOf('/');
+   if (slash <= 0) return null;
+   const runtimeId = entry.slice(0, slash);
+   const modelId = entry.slice(slash + 1);
+   if (!isAiRuntimeId(runtimeId) || modelId.length === 0) return null;
+   return { runtimeId, modelId };
+}
+
+/** The first placed model whose runtime is connected, in the tier's own order. */
+export function firstConnectedPlacement(
+   entries: readonly string[],
+   connected: ReadonlySet<string>
+): { runtimeId: AiRuntimeId; modelId: string } | null {
+   for (const entry of entries) {
+      const placed = splitPlacedModel(entry);
+      if (placed && connected.has(placed.runtimeId)) return placed;
+   }
+   return null;
+}
+
+/**
+ * The runtime a completion should use: the first connected model on the
+ * Orchestrator's selected tier. Empty when the tier has none, so the call
+ * stays on the deployment model.
+ */
+export async function resolveCompletionRuntime(
+   sql: Sql,
+   input: { workspaceId: string; berryAgentId: string; userId: string | null }
+): Promise<ResolvedAiRuntimeSelection> {
+   const tier = await berryAgentTier(sql, input.workspaceId, input.berryAgentId);
+   const [row] = await sql<Array<Record<string, string[]>>>`
+      SELECT berry_max, berry_mid, berry_low FROM workspace_tier_models
+       WHERE workspace_id = ${input.workspaceId}`;
+   if (!row) return emptySelection();
+   for (const entry of stringList(row[tier])) {
+      const placed = splitPlacedModel(entry);
+      if (!placed) continue;
+      const picked = await pickConnectedRuntime(sql, input.workspaceId, input.userId, placed.runtimeId);
+      if (!picked) continue;
+      return snapshot(picked, placed.modelId, null);
+   }
+   return emptySelection();
 }
 
 function agentName(value: string | null | undefined): string | null {
@@ -804,7 +848,7 @@ export async function resolveAiRuntimeSelection(
             metadata: connected.metadata,
          },
          modelId ?? (await modelForTier(sql, input.workspaceId, runtimeId, input.berryAgentId)),
-         await agentForTier(sql, input.workspaceId, runtimeId, input.berryAgentId, agentId)
+         await agentForTier(sql, input.workspaceId, input.berryAgentId, agentId)
       );
    }
    const picked = await pickConnectedRuntime(sql, input.workspaceId, input.userId, runtimeId);
@@ -820,7 +864,7 @@ export async function resolveAiRuntimeSelection(
    return snapshot(
       picked,
       modelId ?? (await modelForTier(sql, input.workspaceId, picked.runtimeId, input.berryAgentId)),
-      await agentForTier(sql, input.workspaceId, picked.runtimeId, input.berryAgentId, agentId)
+      await agentForTier(sql, input.workspaceId, input.berryAgentId, agentId)
    );
 }
 
