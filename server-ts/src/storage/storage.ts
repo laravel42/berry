@@ -259,6 +259,9 @@ export class Storage {
    }
 }
 
+/** The methods a caller uses. A directory store satisfies them without S3. */
+export type ObjectStore = Pick<Storage, 'put' | 'open' | 'presignGet' | 'stat' | 'delete' | 'destroy'>;
+
 function isMissing(error: unknown): boolean {
    const name = (error as { name?: string })?.name;
    const status = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;

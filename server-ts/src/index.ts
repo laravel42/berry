@@ -138,7 +138,8 @@ import { createBerryAuth, devSessionCookies } from './auth/better-auth.ts';
 import { drain } from './http/drain.ts';
 import { FirstRunSetup, databaseWorld } from './auth/first-run-setup.ts';
 import { betterAuthMounts } from './mounts/better-auth.ts';
-import { Storage } from './storage/storage.ts';
+import { DirectoryStorage } from './storage/directory.ts';
+import { Storage, type ObjectStore } from './storage/storage.ts';
 import { ReviewGate } from './agents/review-gate.ts';
 import { afterDelivery, type ConflictDeps } from './agents/conflicts.ts';
 import { ReviewQueue } from './core/review-queue.ts';
@@ -313,23 +314,26 @@ const broadcaster = new Distributed(new Hub(config.realtimeBuffer), null);
 const idempotency = new IdempotencyStore(sql);
 
 /**
- * Object storage, where an agent's files land. Null when none is configured:
- * the tool API then refuses file writes rather than dropping them.
+ * Object storage, where an agent's files land. A directory when this process
+ * asked for one (the desktop app); otherwise S3. Null when neither is
+ * configured: the tool API then refuses file writes rather than dropping them.
  */
-const storage = config.storage
-   ? new Storage({
-        bucket: config.storage.bucket,
-        region: config.storage.region,
-        ...(config.storage.endpoint ? { endpoint: config.storage.endpoint } : {}),
-        forcePathStyle: config.storage.forcePathStyle,
-        ...(config.storage.accessKeyId ? { accessKeyId: config.storage.accessKeyId } : {}),
-        ...(config.storage.secretAccessKey
-           ? { secretAccessKey: config.storage.secretAccessKey }
-           : {}),
-        ...(config.storage.sessionToken ? { sessionToken: config.storage.sessionToken } : {}),
-        maxBytes: config.storage.maxBytes,
-     })
-   : null;
+const storage: ObjectStore | null = !config.storage
+   ? null
+   : config.storage.directory
+     ? new DirectoryStorage({ directory: config.storage.directory, maxBytes: config.storage.maxBytes })
+     : new Storage({
+          bucket: config.storage.bucket,
+          region: config.storage.region,
+          ...(config.storage.endpoint ? { endpoint: config.storage.endpoint } : {}),
+          forcePathStyle: config.storage.forcePathStyle,
+          ...(config.storage.accessKeyId ? { accessKeyId: config.storage.accessKeyId } : {}),
+          ...(config.storage.secretAccessKey
+             ? { secretAccessKey: config.storage.secretAccessKey }
+             : {}),
+          ...(config.storage.sessionToken ? { sessionToken: config.storage.sessionToken } : {}),
+          maxBytes: config.storage.maxBytes,
+       });
 // Builds an agent's web project in a container so its preview shows the site.
 // Needs Docker on this host; without it the preview says so.
 /**

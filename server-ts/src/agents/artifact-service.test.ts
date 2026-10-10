@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
 import { artifactPath, BerryArtifactService, partToBytes } from './artifact-service.ts';
-import { InvalidKey, sniffContentType, validateKey, type Storage } from '../storage/storage.ts';
+import { InvalidKey, sniffContentType, validateKey, type ObjectStore } from '../storage/storage.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { RunLedger } from '../runs/ledger.ts';
@@ -98,7 +98,7 @@ describe('files across the runs of one task', { skip: url ? false : 'BERRY_TEST_
       delete: async (key: string) => {
          objects.delete(key);
       },
-   } as unknown as Storage;
+   } as unknown as ObjectStore;
 
    before(async () => {
       sql = openDatabase({ url: url! });

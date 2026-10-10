@@ -7,7 +7,7 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
-import { ObjectNotFound, type Storage } from '../storage/storage.ts';
+import { ObjectNotFound, type ObjectStore } from '../storage/storage.ts';
 
 /**
  * What an agent produced on a task, for the people looking at it.
@@ -25,7 +25,7 @@ export interface ArtifactMountOptions {
    sessions: SessionService;
    artifacts: RunArtifactRepository;
    issues: IssueRepository;
-   storage: Storage | null;
+   storage: ObjectStore | null;
 }
 
 export function artifactMounts(options: ArtifactMountOptions): Mount[] {

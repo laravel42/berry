@@ -7,7 +7,7 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
-import { ObjectNotFound, type Storage } from '../storage/storage.ts';
+import { ObjectNotFound, type ObjectStore } from '../storage/storage.ts';
 import type { SiteBuilds } from '../previews/site-builds.ts';
 
 /**
@@ -203,7 +203,7 @@ export const BUILD_PREFIX = '__build__/';
 export function artifactPreviewMounts(options: {
    artifacts: RunArtifactRepository;
    tokens: PreviewTokens;
-   storage: Storage | null;
+   storage: ObjectStore | null;
    builds?: SiteBuilds | null;
 }): Mount[] {
    const route = new Hono();

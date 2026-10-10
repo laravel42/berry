@@ -5,7 +5,7 @@ import type { ProjectRepository } from '../../core/projects.ts';
 import { json } from '../../http/app.ts';
 import { ApiError } from '../../http/errors.ts';
 import type { Mount } from '../../http/registry.ts';
-import type { Storage } from '../../storage/storage.ts';
+import type { ObjectStore } from '../../storage/storage.ts';
 import { agentToolAllowlist } from '../../organization/enforcement.ts';
 import { registerCoreAgentTools } from './core-tools.ts';
 import type { FetchLimits } from './fetch-url.ts';
@@ -24,7 +24,7 @@ import { mergeArchive, planMerge } from '../merge-plan.ts';
  */
 export function agentToolMounts(options: {
    sql: Sql;
-   storage: Storage | null;
+   storage: ObjectStore | null;
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
    github?: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;

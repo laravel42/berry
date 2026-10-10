@@ -17,6 +17,7 @@ describe('local stack', () => {
       const stack = localStack('/tmp/berry desktop/pglite');
       const env = serverChildEnv({ DATABASE_URL: 'postgres://postgres@127.0.0.1:5432/berry', PATH: '/usr/bin' }, stack);
       assert.equal(env.DATABASE_URL, 'pglite:/tmp/berry desktop/pglite');
+      assert.equal(env.BERRY_STORAGE_DIR, '/tmp/berry desktop/artifacts');
       assert.equal(env.API_ADDR, '127.0.0.1:4173');
       assert.equal(env.BERRY_APP_URL, 'http://127.0.0.1:4174');
       assert.equal(env.BERRY_PUBLIC_URL, 'http://127.0.0.1:4173');

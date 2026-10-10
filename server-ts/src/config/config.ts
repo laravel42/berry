@@ -209,6 +209,11 @@ export interface StorageConfig {
    secretAccessKey: string | undefined;
    sessionToken: string | undefined;
    maxBytes: number;
+   /**
+    * A directory on this machine. When set, artifacts stay here and S3 is
+    * not used, which is how the desktop app keeps files without a bucket.
+    */
+   directory: string | null;
 }
 
 /** OAuth credentials, and the origins a provider redirects between. */
@@ -492,6 +497,21 @@ function execution(env: NodeJS.ProcessEnv, problems: string[]): ExecutionConfig 
  * outside development.
  */
 function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
+   const maxBytes = positiveInt(env.STORAGE_MAX_BYTES, 25 * 1024 * 1024);
+   const directory = (env.BERRY_STORAGE_DIR ?? '').trim();
+   if (directory) {
+      return {
+         bucket: '',
+         region: '',
+         endpoint: undefined,
+         forcePathStyle: false,
+         accessKeyId: undefined,
+         secretAccessKey: undefined,
+         sessionToken: undefined,
+         maxBytes,
+         directory,
+      };
+   }
    const bucket = (env.S3_BUCKET ?? '').trim();
    if (!bucket) return null;
    return {
@@ -503,7 +523,8 @@ function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
       accessKeyId: (env.AWS_ACCESS_KEY_ID ?? '').trim() || undefined,
       secretAccessKey: (env.AWS_SECRET_ACCESS_KEY ?? '').trim() || undefined,
       sessionToken: (env.AWS_SESSION_TOKEN ?? '').trim() || undefined,
-      maxBytes: positiveInt(env.STORAGE_MAX_BYTES, 25 * 1024 * 1024),
+      maxBytes,
+      directory: null,
    };
 }
 

@@ -42,7 +42,7 @@ export interface ListVersionsRequest {
    version?: number | undefined;
 }
 import type { Sql } from '../db/pool.ts';
-import { ObjectNotFound, sniffContentType, type Storage } from '../storage/storage.ts';
+import { ObjectNotFound, sniffContentType, type ObjectStore } from '../storage/storage.ts';
 
 /**
  * ADK artifacts backed by `run_artifacts` and object storage.
@@ -62,7 +62,7 @@ const APP_SCOPE = 'berry';
 
 export interface BerryArtifactOptions {
    sql: Sql;
-   storage: Storage;
+   storage: ObjectStore;
    /** The run these artifacts belong to, and the workspace that owns it. */
    workspaceId: string;
    runId: string;
@@ -75,7 +75,7 @@ export interface BerryArtifactOptions {
 
 export class BerryArtifactService {
    private readonly sql: Sql;
-   private readonly storage: Storage;
+   private readonly storage: ObjectStore;
    private readonly workspaceId: string;
    private readonly runId: string;
    private readonly issueId: string;

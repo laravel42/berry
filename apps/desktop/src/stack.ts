@@ -62,6 +62,9 @@ export function serverChildEnv(base: NodeJS.ProcessEnv, stack: LocalStack): Node
    delete env.ELECTRON_RUN_AS_NODE;
    const apiPort = new URL(stack.apiOrigin).port;
    env.DATABASE_URL = `pglite:${stack.dataDir}`;
+   // Beside the database, not in the repo's S3 bucket: a desktop process has
+   // no bucket of its own, and a key in the repo env is that deployment's.
+   env.BERRY_STORAGE_DIR = path.join(path.dirname(stack.dataDir), 'artifacts');
    env.API_ADDR = `127.0.0.1:${apiPort}`;
    env.BERRY_APP_URL = stack.webOrigin;
    env.BERRY_PUBLIC_URL = stack.apiOrigin;

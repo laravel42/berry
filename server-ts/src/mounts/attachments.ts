@@ -5,7 +5,7 @@ import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { Mount } from '../http/registry.ts';
-import { ObjectNotFound, type Storage } from '../storage/storage.ts';
+import { ObjectNotFound, type ObjectStore } from '../storage/storage.ts';
 import type { Attachment, AttachmentRepository } from '../core/attachments.ts';
 
 /**
@@ -22,7 +22,7 @@ export interface AttachmentOptions {
    sessions: SessionService;
    attachments: AttachmentRepository;
    /** Null when this server has no object store; downloads then 503. */
-   storage: Storage | null;
+   storage: ObjectStore | null;
 }
 
 export function attachmentMounts(options: AttachmentOptions): Mount[] {

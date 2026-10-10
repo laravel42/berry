@@ -56,8 +56,8 @@ write code. Never run one workspace's tools over another.
 
 `apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
 With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
-with `DATABASE_URL=pglite:<userData>/pglite`, migrates that directory, and
-serves the web app on `127.0.0.1:4174`. Set `BERRY_DESKTOP_URL` to open an
+with `DATABASE_URL=pglite:<userData>/pglite`, migrates that directory, stores
+artifacts under `<userData>/artifacts`, and serves the web app on `127.0.0.1:4174`. Set `BERRY_DESKTOP_URL` to open an
 existing server instead. Navigation stays on that origin plus GitHub sign-in.
 `pnpm dev:desktop`.
 
