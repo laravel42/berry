@@ -250,6 +250,17 @@ describe('goals', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, 
       );
    });
 
+   test('a search for % matches that character and not every goal', async () => {
+      await make('50% done');
+      await make('plain goal');
+      const listed = await goals.list(
+         fixture.workspaceId, { query: '%', status: null, projectId: null }, null, 100
+      );
+      const titles = listed.map((goal) => goal.title);
+      assert.ok(titles.includes('50% done'));
+      assert.ok(!titles.includes('plain goal'));
+   });
+
    test('the page is newest-updated first and resumes where it stopped', async () => {
       const workspaceId = await freshWorkspace(sql, fixture.userId);
       const created = [];

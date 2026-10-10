@@ -3,7 +3,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import type { Scope } from './boards.ts';
-import { dbStatusToApi } from './issues.ts';
+import { dbStatusToApi, escapeSearchLiteral } from './issues.ts';
 import type { ActorRef } from './comments.ts';
 
 /**
@@ -193,6 +193,9 @@ export class GoalRepository {
       after: GoalCursor | null,
       limit: number
    ): Promise<Goal[]> {
+      // Built even when the query is empty: the guard below is what skips the
+      // match. `%` and `_` are escaped so a search for them is literal.
+      const like = escapeSearchLiteral(filter.query);
       const rows = await this.sql`
          SELECT ${this.sql.unsafe(GOAL_COLUMNS)}
            FROM goals AS goal
@@ -200,7 +203,7 @@ export class GoalRepository {
             AND goal.deleted_at IS NULL
             AND (${filter.status ?? ''} = '' OR goal.status = ${filter.status ?? ''})
             AND (${filter.projectId === null} OR goal.project_id = ${filter.projectId}::uuid)
-            AND (${filter.query} = '' OR goal.title ILIKE '%' || ${filter.query} || '%')
+            AND (${filter.query} = '' OR goal.title ILIKE ${like} ESCAPE E'\\\\')
             AND (${after === null} OR (goal.updated_at, goal.id) < (${after?.updatedAt ?? null}::timestamptz, ${after?.id ?? null}::uuid))
           ORDER BY goal.updated_at DESC, goal.id DESC
           LIMIT ${limit}`;
