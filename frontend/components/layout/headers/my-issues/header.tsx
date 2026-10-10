@@ -48,14 +48,9 @@ export default function Header() {
                }}
             />
             {canEdit ? (
-               <Button
-                  size="xs"
-                  className="h-9 shrink-0 gap-1.5 px-3"
-                  aria-label={t('create')}
-                  onClick={() => openModal()}
-               >
-                  <Plus className="size-4" />
-                  <span className="max-sm:hidden">{t('create')}</span>
+               <Button size="xs" className="h-[34px] shrink-0" onClick={() => openModal()}>
+                  <Plus className="size-4" aria-hidden />
+                  {t('create')}
                </Button>
             ) : null}
          </PageKpiHeader>

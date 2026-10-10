@@ -5,7 +5,7 @@
       "search": "Search tasks",
       "insights": "Insights",
       "breakdown": "Breakdown",
-      "create": "Create task",
+      "create": "New task",
       "kpi": {
          "open": "Open",
          "openDetail": "{waiting} on you · {running} running",

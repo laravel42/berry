@@ -36,7 +36,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Admin: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Create task' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'New task' }));
       await expect(useCreateIssueStore.getState().isOpen).toBe(true);
    },
 };
@@ -47,7 +47,7 @@ export const Viewer: Story = {
       seedSession('viewer');
    },
    play: async ({ canvas }) => {
-      await expect(canvas.queryByRole('button', { name: 'Create task' })).toBeNull();
+      await expect(canvas.queryByRole('button', { name: 'New task' })).toBeNull();
    },
 };
 

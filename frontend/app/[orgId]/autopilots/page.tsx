@@ -108,9 +108,6 @@ export default function AutopilotsPage() {
             line={t('statement.line', { count: enabled })}
             sub={t('statement.sub')}
          >
-            {/* On a phone the search gives way and the button keeps only its
-                icon, so the row fits instead of pushing the button off the
-                right edge. */}
             <div className="flex min-w-0 items-center gap-2">
                <Input
                   value={query}
@@ -121,15 +118,16 @@ export default function AutopilotsPage() {
                />
                {canEdit ? (
                   <Button
-                     size="xs"
-                     className="h-[34px] shrink-0"
+                     size="icon"
+                     className="size-[34px] shrink-0"
+                     aria-label={t('new')}
+                     title={t('new')}
                      onClick={() => {
                         setTemplate(null);
                         setCreating(true);
                      }}
                   >
                      <Plus className="size-4" aria-hidden />
-                     <span className="max-sm:sr-only">{t('new')}</span>
                   </Button>
                ) : null}
             </div>
