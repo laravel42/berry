@@ -42,6 +42,9 @@
       "dropHere": "Drop files to attach them",
       "uploadFailed": "The file could not be attached."
    },
+   "attachments": {
+      "title": "Attachments"
+   },
    "viewer": {
       "label": "Images on this task",
       "previous": "Previous image",

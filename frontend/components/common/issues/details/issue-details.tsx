@@ -22,6 +22,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './activity-feed';
 import { FindInIssue } from './find-in-issue';
+import { IssueAttachments, isHandoffComment } from './issue-attachments';
 import { IssueDescription } from './issue-description';
 import { IssuePropertiesPanel } from './issue-properties-panel';
 import { IssueQuickActions } from './issue-quick-actions';
@@ -282,6 +283,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                         issueRef={issue.identifier}
                         description={issue.description}
                      />
+                     <IssueAttachments comments={activity.comments} />
                   </div>
 
                   <SubIssues issue={issue} />
@@ -292,7 +294,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   />
 
                   <ActivityFeedList
-                     comments={activity.comments}
+                     comments={activity.comments.filter((comment) => !isHandoffComment(comment))}
                      events={activity.events}
                      error={activity.error}
                      issueRef={issue.identifier}
