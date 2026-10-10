@@ -18,7 +18,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-   FIXED_SHORTCUTS,
    SHORTCUTS,
    comboFromEvent,
    comboProblem,
@@ -29,6 +28,7 @@ import {
 } from '@/lib/shortcuts';
 import { setShortcutsSuspended } from '@/components/layout/shortcut-provider';
 import { useShortcutBindings, useShortcutsStore } from '@/store/shortcuts-store';
+import { cn } from '@/lib/utils';
 import { SettingsCard, SettingsShell } from './shared';
 
 /**
@@ -141,18 +141,7 @@ export function KeyboardShortcuts() {
       });
    }, [search, bindings, t]);
 
-   const fixed = useMemo(() => {
-      const needle = search.trim().toLowerCase();
-      if (!needle) return FIXED_SHORTCUTS;
-      return FIXED_SHORTCUTS.filter(
-         (entry) =>
-            t(`fixedActions.${entry.labelKey}` as never)
-               .toLowerCase()
-               .includes(needle) || formatCombo(entry.combo).toLowerCase().includes(needle)
-      );
-   }, [search, t]);
-
-   const nothingMatches = matching.length === 0 && fixed.length === 0;
+   const nothingMatches = matching.length === 0;
 
    return (
       <SettingsShell compact title={t('title')} description={t('description')}>
@@ -192,18 +181,21 @@ export function KeyboardShortcuts() {
                const rows = matching.filter((shortcut) => shortcut.group === group);
                if (rows.length === 0) return null;
                return (
-                  <div key={group} className="divide-y divide-border/60">
-                     <div className="bg-muted/30 px-3 py-1 text-muted-foreground uppercase tracking-[0.14em]">
+                  <div key={group} className="grid grid-cols-1 sm:grid-cols-2">
+                     <div className="col-span-full border-b border-border/60 bg-muted/30 px-3 py-1 text-muted-foreground uppercase tracking-[0.14em]">
                         {title}
                      </div>
-                     {rows.map((shortcut) => {
+                     {rows.map((shortcut, index) => {
                         const combo = bindings[shortcut.id];
                         const isRecording = recording === shortcut.id;
                         const overridden = combo !== defaultOf(shortcut);
                         return (
                            <div
                               key={shortcut.id}
-                              className="group flex items-center gap-2 px-3 py-1 text-left"
+                              className={cn(
+                                 'group flex items-center gap-2 px-3 py-1 text-left',
+                                 gridCellClass(index, rows.length)
+                              )}
                            >
                               <div className="min-w-0 flex-1">
                                  <div>{label(shortcut)}</div>
@@ -261,25 +253,23 @@ export function KeyboardShortcuts() {
                   </div>
                );
             })}
-            {fixed.length > 0 ? (
-               <div className="divide-y divide-border/60">
-                  <div className="bg-muted/30 px-3 py-1 text-muted-foreground uppercase tracking-[0.14em]">
-                     {t('fixed')}
-                  </div>
-                  {fixed.map((entry) => (
-                     <div key={entry.labelKey} className="flex items-center gap-2 px-3 py-1">
-                        <span className="min-w-0 flex-1 truncate">
-                           {t(`fixedActions.${entry.labelKey}` as never)}
-                        </span>
-                        <span className="inline-flex h-6 min-w-16 items-center justify-center rounded-md border px-1.5 tabular-nums text-muted-foreground">
-                           {formatCombo(entry.combo)}
-                        </span>
-                     </div>
-                  ))}
-               </div>
-            ) : null}
          </SettingsCard>
       </SettingsShell>
+   );
+}
+
+/**
+ * Hairline between the two columns and between rows. A single column below
+ * `sm` only separates rows, and the last row leaves the section divider to
+ * the card.
+ */
+function gridCellClass(index: number, count: number): string {
+   const lastRowStart = count - (count % 2 === 0 ? 2 : 1);
+   return cn(
+      'border-border/60',
+      index < count - 1 && 'max-sm:border-b',
+      index < lastRowStart && 'sm:border-b',
+      index % 2 === 0 && index + 1 < count && 'sm:border-r'
    );
 }
 
