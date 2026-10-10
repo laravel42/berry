@@ -22,6 +22,7 @@ describe('runCompletion', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
    let dispatcher: Dispatcher;
    let reply: (envelopeSystem: string) => LifecycleEvent[] = () => [];
    const systems: string[] = [];
+   const models: string[] = [];
 
    before(async () => {
       sql = openDatabase({ url: url! });
@@ -29,6 +30,7 @@ describe('runCompletion', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       const transport: RuntimeTransport = {
          async *invoke({ envelope }) {
             systems.push(envelope.completion?.system ?? '');
+            models.push(envelope.agent.model);
             for (const event of reply(envelope.completion?.system ?? '')) yield event;
          },
          async stop() {},
@@ -63,6 +65,42 @@ describe('runCompletion', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
    });
 
    const deps = () => ({ sql, nudge: () => dispatcher.nudge(), pollMs: 25, timeoutMs: 10_000 });
+
+   test('a model the key may not call is retried on the next model', async () => {
+      const before = models.length;
+      let attempt = 0;
+      reply = () => {
+         attempt += 1;
+         if (attempt === 1) {
+            return [{
+               type: 'task.failed',
+               failure: {
+                  code: 'UPSTREAM_REJECTED',
+                  message: '403 "[BYOK] Your API key does not have permission to access this model. Please check your API key permissions."',
+                  retryable: false,
+               },
+            }];
+         }
+         return [
+            { type: 'task.started' },
+            { type: 'task.completed', result: { text: '', truncated: false, structured: { ok: true }, delivery: null } },
+         ];
+      };
+      const value = await runCompletion(
+         { ...deps(), modelsAfterDenial: async () => ['vendor/next'] },
+         {
+            workspaceId: fixture!.workspaceId,
+            purpose: 'project_draft',
+            system: 'Draft it',
+            prompt: 'a board',
+            model: 'low/denied',
+            schema: z.object({ ok: z.boolean() }),
+         }
+      );
+      assert.equal(attempt, 2);
+      assert.deepEqual(value, { ok: true });
+      assert.deepEqual(models.slice(before), ['low/denied', 'vendor/next']);
+   });
 
    test('a structured answer comes back validated against the caller schema', async () => {
       reply = () => [

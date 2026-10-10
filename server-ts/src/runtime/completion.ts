@@ -3,6 +3,7 @@ import type { Sql } from '../db/pool.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import type { TranscriptMessage } from './envelope.ts';
 import type { CompletionSpec } from './envelope-builder.ts';
+import { isModelPermissionDenied } from './model-denied.ts';
 
 /**
  * One model call for the parts of Berry that are not an agent, executed as a
@@ -19,6 +20,12 @@ export interface CompletionDeps {
    timeoutMs?: number;
    pollMs?: number;
    defaultModel?: string;
+   /**
+    * Models to try after the gateway refuses the one this key may call.
+    * The runtime has already tried the tier's choice and its one fallback.
+    * Absent when there is no gateway.
+    */
+   modelsAfterDenial?: (input: { workspaceId: string; purpose: string }) => Promise<string[]>;
 }
 
 export interface CompletionResult<T> {
@@ -99,15 +106,54 @@ export async function runCompletionTask(
    }
 ): Promise<CompletionResult<unknown>> {
    const started = Date.now();
+   const deadline = started + (input.timeoutMs ?? deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
    const [orchestrator] = await deps.sql`
       SELECT id FROM agents WHERE workspace_id = ${input.workspaceId} AND protected AND archived_at IS NULL`;
    if (!orchestrator) throw new CompletionFailed({ code: 'NO_ORCHESTRATOR', message: 'this workspace has no orchestrator', retryable: false });
 
+   let model = input.model ?? deps.defaultModel ?? null;
+   let remaining: string[] | null = null;
+   for (;;) {
+      try {
+         return await runOnce(deps, input, orchestrator.id as string, model, started, deadline);
+      } catch (error) {
+         if (!(error instanceof CompletionFailed) || !isModelPermissionDenied(error.message) || !deps.modelsAfterDenial) throw error;
+         if (remaining === null) {
+            try {
+               remaining = await deps.modelsAfterDenial({ workspaceId: input.workspaceId, purpose: input.purpose });
+            } catch {
+               throw error;
+            }
+         }
+         const next = remaining.shift();
+         if (!next || Date.now() > deadline) throw error;
+         model = next;
+      }
+   }
+}
+
+async function runOnce(
+   deps: CompletionDeps,
+   input: {
+      workspaceId: string;
+      purpose: string;
+      system: string;
+      prompt: string;
+      schema: z.ZodType | null;
+      transcript?: TranscriptMessage[];
+      signal?: AbortSignal;
+      subject?: { planId: string };
+   },
+   agentId: string,
+   model: string | null,
+   started: number,
+   deadline: number
+): Promise<CompletionResult<unknown>> {
    const spec: CompletionSpec = {
       purpose: input.purpose,
       system: input.system,
       jsonSchema: input.schema ? (z.toJSONSchema(input.schema) as Record<string, unknown>) : null,
-      model: input.model ?? deps.defaultModel ?? null,
+      model,
       ...(input.transcript ? { transcript: input.transcript } : {}),
       ...(input.subject ? { planId: input.subject.planId } : {}),
    };
@@ -116,7 +162,7 @@ export async function runCompletionTask(
       const tx = transaction as unknown as Sql;
       ({ runId } = await enqueueTask(tx, {
          workspaceId: input.workspaceId,
-         agentId: orchestrator.id as string,
+         agentId,
          kind: 'completion',
          source: 'completion',
          prompt: input.prompt,
@@ -126,7 +172,6 @@ export async function runCompletionTask(
    });
    deps.nudge?.();
 
-   const deadline = started + (input.timeoutMs ?? deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
    while (true) {
       const [row] = await deps.sql`
          SELECT status::text AS status, result, input_tokens, output_tokens,

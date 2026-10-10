@@ -73,6 +73,7 @@ import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { ProjectDraftAssist } from './editor/project-draft.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
+import { gatewayModelsAfterDenial } from './runtime/model-denied.ts';
 import { planMounts, type PlanOptions } from './mounts/plans.ts';
 import { registerPlanningTools } from './plans/agent-tools.ts';
 import { PlanAnswerRepository } from './plans/answers.ts';
@@ -478,6 +479,7 @@ const completion = new RuntimeCompletion({
    // Declared further down; called only at request time, after boot.
    nudge: () => dispatcher?.nudge(),
    defaultModel: config.runtime.defaultModel,
+   modelsAfterDenial: (input) => (modelGateway ? gatewayModelsAfterDenial(sql, modelGateway, input) : Promise.resolve([])),
 });
 
 /** The agent layer's single model calls, as completion tasks on the runtime. */
@@ -485,6 +487,7 @@ const complete = agentCompletion({
    sql,
    nudge: () => dispatcher?.nudge(),
    defaultModel: config.runtime.defaultModel,
+   modelsAfterDenial: (input) => (modelGateway ? gatewayModelsAfterDenial(sql, modelGateway, input) : Promise.resolve([])),
 });
 
 /**
