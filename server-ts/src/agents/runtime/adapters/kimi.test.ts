@@ -210,6 +210,31 @@ describe('Kimi adapter', () => {
       );
    });
 
+   test('an unsigned Kimi CLI surfaces as missing via the ACP -32000 auth error', async () => {
+      // ACP reserves -32000 for "Authentication required": what an ACP agent
+      // returns from session/new when its own login is missing. Berry forwards
+      // no credential, so this is the unsigned-CLI path.
+      const authRequiredLauncher: KimiLauncher = () => {
+         const child = new ScriptedChild();
+         const originalWrite = child.write.bind(child);
+         child.write = (line: string) => {
+            const message = JSON.parse(line) as { id?: number; method?: string };
+            if (message.method === 'session/new') {
+               child.pushLine(
+                  JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32000, message: 'Authentication required' } })
+               );
+               return;
+            }
+            originalWrite(line);
+         };
+         return child;
+      };
+      const adapter = new KimiAgentAdapter({ launcher: authRequiredLauncher });
+      const status = await adapter.connectionStatus(credential);
+      assert.equal(status.status, 'missing');
+      assert.match(status.detail ?? '', /login|signed in/i);
+   });
+
    test('reports the CLI version and a missing binary', async () => {
       const present = new KimiAgentAdapter({ launcher: launcher([]) });
       const availability = await present.checkAvailability();
@@ -239,28 +264,41 @@ describe('Kimi adapter', () => {
       assert.equal(models[1]?.name, 'kimi-mini');
    });
 
-   test('approves only a Berry MCP tool, never a native tool by title', () => {
+   test('approves a Berry tool from the standard ACP request_permission shape', () => {
       const options = [
          { optionId: 'once', name: 'Allow', kind: 'allow_once' },
          { optionId: 'no', name: 'Deny', kind: 'reject_once' },
       ];
-      const berry = selectKimiPermission(
-         { options, _meta: { mcpTool: { identity: { serverName: 'berry', toolName: 'read_issue' } } } },
-         new Set(['read_issue'])
-      );
-      assert.equal(berry.outcome.optionId, 'once');
-      // A native tool is denied even when its title equals an allowed Berry tool name.
-      const nativeNamedLikeBerry = selectKimiPermission(
-         { options, toolCall: { title: 'read_issue' } },
-         new Set(['read_issue'])
-      );
-      assert.equal(nativeNamedLikeBerry.outcome.optionId, 'no');
-      // A tool from another MCP server is denied even when its tool name is allowed.
+      const allowed = new Set(['read_issue']);
+      // Standard ACP v1 payload: the tool is named by toolCall.name. The Kimi
+      // child only has the Berry MCP server as its tool source, so an allowed
+      // name is a Berry tool and is approved.
+      const byName = selectKimiPermission({ options, toolCall: { toolCallId: 't1', name: 'read_issue' } }, allowed);
+      assert.equal(byName.outcome.optionId, 'once');
+      // Resolve from title when name is absent.
+      const byTitle = selectKimiPermission({ options, toolCall: { toolCallId: 't2', title: 'read_issue' } }, allowed);
+      assert.equal(byTitle.outcome.optionId, 'once');
+      // A Berry server qualifier on the name is stripped before the allow-set check.
+      for (const qualified of ['berry__read_issue', 'mcp__berry__read_issue', 'berry.read_issue', 'berry/read_issue']) {
+         const q = selectKimiPermission({ options, toolCall: { toolCallId: 'q', name: qualified } }, allowed);
+         assert.equal(q.outcome.optionId, 'once', qualified);
+      }
+      // A tool not in the allow-set is denied.
+      const unknown = selectKimiPermission({ options, toolCall: { toolCallId: 't3', name: 'run_shell' } }, allowed);
+      assert.equal(unknown.outcome.optionId, 'no');
+      // When an explicit MCP identity is present, a non-Berry server is denied
+      // even if its tool name is in the allow-set.
       const otherServer = selectKimiPermission(
-         { options, _meta: { mcpTool: { identity: { serverName: 'other', toolName: 'read_issue' } } } },
-         new Set(['read_issue'])
+         { options, toolCall: { toolCallId: 't4', name: 'read_issue' }, _meta: { mcpTool: { identity: { serverName: 'other', toolName: 'read_issue' } } } },
+         allowed
       );
       assert.equal(otherServer.outcome.optionId, 'no');
+      // An explicit Berry MCP identity is honored.
+      const berryIdentity = selectKimiPermission(
+         { options, _meta: { mcpTool: { identity: { serverName: 'berry', toolName: 'read_issue' } } } },
+         allowed
+      );
+      assert.equal(berryIdentity.outcome.optionId, 'once');
    });
 
    test('skips replayed text and records usage without a dollar price', () => {

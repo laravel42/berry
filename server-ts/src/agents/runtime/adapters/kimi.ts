@@ -539,18 +539,66 @@ function permissionOptions(params: unknown): Array<{ optionId: string; kind: str
    });
 }
 
+const BERRY_MCP_SERVER = 'berry';
+
+/**
+ * The Berry tool a `session/request_permission` is asking to run, or null.
+ *
+ * Kimi Code CLI is a standard Agent Client Protocol server, so the payload is
+ * the ACP v1 shape `{ toolCall: { toolCallId, name?, title?, ... }, options }`
+ * — there is no Kiro-style `_meta.kiro` nesting, and ACP states a tool's
+ * `name`/`title` is opaque, informational metadata that does not itself grant
+ * authorization. The authorization boundary is Berry's own: the Kimi child is
+ * spawned with the `berry` MCP server as its only tool source and native
+ * tools denied, and `selectKimiPermission` gates the resolved name against the
+ * allow-set (the role contract ∩ Berry permissions). This returns a candidate
+ * name; it is never trusted on its own.
+ *
+ * If an agent does carry an explicit MCP identity (the standard
+ * `_meta.mcpTool.identity`, or Kiro's `_meta.kiro.mcpTool.identity`), a
+ * non-`berry` server is rejected outright; otherwise the standard
+ * `toolCall.name`/`title` is used, with a `berry` server qualifier stripped.
+ */
 function berryToolName(params: unknown): string | null {
    if (!params || typeof params !== 'object') return null;
    const record = params as {
-      _meta?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } };
+      toolCall?: { title?: unknown; name?: unknown };
+      _meta?: {
+         mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } };
+         kiro?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } };
+      };
    };
-   // Approve a call only when the MCP identity names Berry as the server. A
-   // native tool whose title merely equals a Berry tool name is not approved.
-   const identity = record._meta?.mcpTool?.identity;
-   if (identity && identity.serverName === 'berry' && typeof identity.toolName === 'string' && identity.toolName !== '') {
-      return identity.toolName;
+
+   // An explicit MCP identity, when present, is authoritative: a tool from any
+   // server other than Berry is not a Berry tool, whatever it is named.
+   const identity = record._meta?.mcpTool?.identity ?? record._meta?.kiro?.mcpTool?.identity;
+   if (identity && typeof identity.serverName === 'string') {
+      if (identity.serverName !== BERRY_MCP_SERVER) return null;
+      return typeof identity.toolName === 'string' && identity.toolName !== '' ? identity.toolName : null;
    }
-   return null;
+
+   // Standard ACP shape: resolve from the tool call's programmatic name, then
+   // its title. Strip a Berry MCP server qualifier if the agent prefixes one.
+   const raw =
+      (typeof record.toolCall?.name === 'string' && record.toolCall.name !== '' ? record.toolCall.name : null) ??
+      (typeof record.toolCall?.title === 'string' && record.toolCall.title !== '' ? record.toolCall.title : null);
+   return raw === null ? null : stripBerryQualifier(raw);
+}
+
+/**
+ * MCP clients name a server's tool in several forms. Strip a leading `berry`
+ * server qualifier so the bare tool name can be checked against the allow-set;
+ * a name with a different server qualifier is left unchanged and will miss the
+ * allow-set.
+ */
+function stripBerryQualifier(name: string): string {
+   for (const sep of ['__', '/', '.', ':']) {
+      const prefix = `${BERRY_MCP_SERVER}${sep}`;
+      if (name.startsWith(prefix)) return name.slice(prefix.length);
+   }
+   const mcpPrefix = `mcp__${BERRY_MCP_SERVER}__`;
+   if (name.startsWith(mcpPrefix)) return name.slice(mcpPrefix.length);
+   return name;
 }
 
 function promptContext(input: AgentProcessRun): string {

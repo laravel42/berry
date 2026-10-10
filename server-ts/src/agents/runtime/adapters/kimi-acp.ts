@@ -209,6 +209,17 @@ function failureFromRpc(error: { code?: number; message?: string }, stderr: stri
    if (error.code === -32601) {
       return new RuntimeAdapterError('RUNTIME_PROTOCOL', 'Kimi CLI does not support that ACP method.', false);
    }
+   // ACP reserves -32000 for "Authentication required": the error an ACP agent
+   // returns from session/new when its own login is missing. Berry forwards no
+   // credential, so an unsigned Kimi CLI surfaces here. Map it directly rather
+   // than depending on the human-readable message wording.
+   if (error.code === -32000) {
+      return new RuntimeAdapterError(
+         'AUTH_REQUIRED',
+         'Kimi CLI is not signed in on this workstation. Run `kimi` and `/login` with a Kimi Code account, then connect again.',
+         false
+      );
+   }
    return classifyKimiText(`${error.message ?? ''} ${stderr}`);
 }
 
@@ -227,7 +238,13 @@ export function classifyKimiText(text: string): RuntimeAdapterError {
       lower.includes('authentication') ||
       lower.includes('not logged in') ||
       lower.includes('please log in') ||
-      lower.includes('/login') ||
+      lower.includes('log in') ||
+      lower.includes('login') ||
+      lower.includes('sign in') ||
+      lower.includes('signed in') ||
+      lower.includes('auth required') ||
+      lower.includes('auth_required') ||
+      lower.includes('authenticate') ||
       lower.includes('invalid token') ||
       lower.includes('token expired')
    ) {
