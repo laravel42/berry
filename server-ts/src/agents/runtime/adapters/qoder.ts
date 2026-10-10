@@ -60,6 +60,10 @@ interface NormalizationState {
  * reused. No access-token callback is answered — unlike Kiro, Qoder keeps the
  * credential entirely in the CLI, so the ACP client carries an empty token.
  * Native shell and file tools are denied; Berry tools arrive over MCP.
+ *
+ * Flags are the official CLI reference (`docs.qoder.com/cli/cli-reference`):
+ * `--acp` starts the ACP server, `--list-models` lists models and exits,
+ * and the child's working directory is the task checkout.
  */
 export class QoderAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -214,7 +218,13 @@ export class QoderAgentAdapter implements AgentProcessAdapter {
          if (/log ?in|sign ?in|unauthenticated|unauthorized|not authenticated|authentication/.test(report)) {
             throw new RuntimeAdapterError('AUTH_REQUIRED', 'Run `qoder` once on this workstation and sign in, then connect again.', false);
          }
-         return [];
+         // A non-zero exit that is not an auth error is a CLI or flag problem,
+         // not a signed-out account: surface it instead of reporting signed out.
+         throw new RuntimeAdapterError(
+            'RUNTIME_ERROR',
+            `qoder --list-models exited ${exit.code ?? 'without a status'}. Check that the installed Qoder CLI supports --list-models.`,
+            true
+         );
       }
       return parseModels(body);
    }
@@ -242,7 +252,7 @@ export class QoderAgentAdapter implements AgentProcessAdapter {
       const socketPath = qoderMcpSocketPath();
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
-      const client = this.#open(handlers);
+      const client = this.#open(input.workingDirectory, handlers);
       let sessionId = '';
       let timedOut = false;
       const abort = () => {
@@ -324,11 +334,15 @@ export class QoderAgentAdapter implements AgentProcessAdapter {
       }
    }
 
-   #open(handlers: { onUpdate: (params: unknown) => void; onPermission: (params: unknown) => unknown }): KiroAcpClient {
+   #open(
+      workingDirectory: string,
+      handlers: { onUpdate: (params: unknown) => void; onPermission: (params: unknown) => unknown }
+   ): KiroAcpClient {
       const child = this.#launch({
          command: this.#command,
          args: ['--acp'],
-         cwd: process.cwd(),
+         // Start the CLI in the task checkout, not the server's own directory.
+         cwd: workingDirectory,
          env: childEnvironment(),
       });
       // Qoder keeps its login in the CLI, so no access token is forwarded.

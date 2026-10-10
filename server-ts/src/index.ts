@@ -1123,7 +1123,12 @@ registry.registerAll(
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
-         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude' || request.runtimeId === 'codex') {
+         if (
+            request.runtimeId === 'kiro' ||
+            request.runtimeId === 'claude' ||
+            request.runtimeId === 'codex' ||
+            request.runtimeId === 'qoder'
+         ) {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
@@ -1236,7 +1241,7 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude'] as const }),
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'qoder'] as const }),
       // A title is a completion on the compute host. Without one it would sit
       // queued ahead of the next reply and nothing would claim it.
       complete: defaultTarget ? complete : null,
@@ -1429,7 +1434,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'qoder'] }),
 });
 dispatcher.start();
 

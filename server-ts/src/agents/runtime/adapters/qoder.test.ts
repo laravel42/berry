@@ -24,6 +24,7 @@ const credential: RuntimeCredential = {
 class ScriptedChild {
    readonly sent: unknown[] = [];
    #queue: string[] = [];
+   #errQueue: string[] = [];
    #waiters: Array<() => void> = [];
    #done = false;
    readonly exited: Promise<{ code: number | null; error: Error | null }>;
@@ -59,16 +60,26 @@ class ScriptedChild {
       this.#wake();
    }
 
+   pushError(line: string): void {
+      this.#errQueue.push(line);
+      this.#wake();
+   }
+
    fail(error: Error): void {
       this.#done = true;
       this.#finish({ code: null, error });
       this.#wake();
    }
 
-   kill(): void {
+   /** Resolve the child with an explicit exit code, like a real process. */
+   exit(code: number): void {
       this.#done = true;
-      this.#finish({ code: 0, error: null });
+      this.#finish({ code, error: null });
       this.#wake();
+   }
+
+   kill(): void {
+      this.exit(0);
    }
 
    async *lines(): AsyncIterable<string> {
@@ -83,7 +94,14 @@ class ScriptedChild {
    }
 
    async *errors(): AsyncIterable<string> {
-      return;
+      for (;;) {
+         if (this.#errQueue.length > 0) {
+            yield this.#errQueue.shift() ?? '';
+            continue;
+         }
+         if (this.#done) return;
+         await new Promise<void>((resolve) => this.#waiters.push(resolve));
+      }
    }
 
    #push(message: unknown): void {
@@ -137,9 +155,9 @@ function envelope(): TaskEnvelope {
    });
 }
 
-function launcher(seen: Array<{ args: string[]; env: Record<string, string> }>): QoderLauncher {
+function launcher(seen: Array<{ args: string[]; env: Record<string, string>; cwd: string }>): QoderLauncher {
    return (spec) => {
-      seen.push({ args: spec.args, env: spec.env });
+      seen.push({ args: spec.args, env: spec.env, cwd: spec.cwd });
       if (spec.args[0] === '--version') {
          const child = new ScriptedChild();
          queueMicrotask(() => {
@@ -161,8 +179,8 @@ function launcher(seen: Array<{ args: string[]; env: Record<string, string> }>):
 }
 
 describe('Qoder adapter', () => {
-   test('runs over ACP without forwarding any credential', async () => {
-      const seen: Array<{ args: string[]; env: Record<string, string> }> = [];
+   test('runs over ACP in the task checkout without forwarding any credential', async () => {
+      const seen: Array<{ args: string[]; env: Record<string, string>; cwd: string }> = [];
       const adapter = new QoderAgentAdapter({ launcher: launcher(seen) });
       const directory = await mkdtemp(join(tmpdir(), 'berry-qoder-run-'));
       const events: string[] = [];
@@ -180,6 +198,8 @@ describe('Qoder adapter', () => {
          assert.equal(result.sessionId, 'sess_q1');
          const acp = seen.find((call) => call.args[0] === '--acp');
          assert.ok(acp, 'the CLI is started as an ACP server');
+         // The ACP process runs in the task checkout, not the server's own directory.
+         assert.equal(acp?.cwd, directory);
          // Berry forwards no account token or API key into the child environment.
          for (const value of Object.values(acp?.env ?? {})) {
             assert.equal(value.includes(QODER_CLI_LOGIN), false);
@@ -218,6 +238,38 @@ describe('Qoder adapter', () => {
       assert.equal(models[0]?.id, 'qoder-default');
       const status = await adapter.connectionStatus(credential);
       assert.equal(status.status, 'connected');
+   });
+
+   test('reports a signed-out CLI as missing, not connected', async () => {
+      const adapter = new QoderAgentAdapter({
+         launcher: () => {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushError('Error: not authenticated. Please sign in with /login.');
+               child.exit(1);
+            });
+            return child;
+         },
+      });
+      const status = await adapter.connectionStatus(credential);
+      assert.equal(status.status, 'missing');
+      await assert.rejects(adapter.discoverModels(credential), /sign in/i);
+   });
+
+   test('surfaces a CLI or flag failure as an error, never a false signed-out', async () => {
+      const adapter = new QoderAgentAdapter({
+         launcher: () => {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushError("error: unknown option '--list-models'");
+               child.exit(2);
+            });
+            return child;
+         },
+      });
+      const status = await adapter.connectionStatus(credential);
+      assert.equal(status.status, 'error');
+      assert.match(status.detail ?? '', /list-models/);
    });
 
    test('refuses a credential that is not the Qoder CLI login', async () => {
