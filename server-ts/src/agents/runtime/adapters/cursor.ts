@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,8 +138,8 @@ export class CursorAgentAdapter implements AgentProcessAdapter {
       this.#assertLogin(credential);
       try {
          const login = await this.#loginStatus();
-         if (login.state === 'account') {
-            return { status: 'connected', accountId: null, accountName: login.accountName ?? 'Cursor', detail: null };
+         if (login === 'account') {
+            return { status: 'connected', accountId: null, accountName: 'Cursor', detail: null };
          }
          return {
             status: 'missing',
@@ -166,7 +166,7 @@ export class CursorAgentAdapter implements AgentProcessAdapter {
    async discoverModels(credential: RuntimeCredential): Promise<RuntimeModel[]> {
       this.#assertLogin(credential);
       const login = await this.#loginStatus();
-      if (login.state !== 'account') {
+      if (login !== 'account') {
          throw new RuntimeAdapterError('AUTH_REQUIRED', 'Run `cursor-agent login` on this workstation with a Cursor account, then connect again.', false);
       }
       const home = await mkdtemp(join(tmpdir(), 'berry-cursor-models-'));
@@ -214,13 +214,17 @@ export class CursorAgentAdapter implements AgentProcessAdapter {
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
+      // Deny the CLI's own write, delete, and shell tools so Berry's MCP tools
+      // are the only way it can act. `--force` would instead auto-approve all
+      // of them, which is not the boundary Berry wants: the checkout is
+      // writable, but only through admitted Berry tools.
+      await writePermissions(input.workingDirectory);
       const socketPath = join(process.platform === 'win32' ? tmpdir() : '/tmp', `berry-cursor-${randomBytes(8).toString('hex')}.sock`);
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
       const model = runtime.model;
       const args = [
          '--print',
-         '--force',
          '--output-format',
          'stream-json',
          '--mcp-config',
@@ -269,7 +273,7 @@ export class CursorAgentAdapter implements AgentProcessAdapter {
       return { text, sessionId: sessionId || input.envelope.runId };
    }
 
-   async #loginStatus(): Promise<{ state: 'account' | 'missing'; accountName: string | null }> {
+   async #loginStatus(): Promise<'account' | 'missing'> {
       this.#assertIsolated();
       const home = await mkdtemp(join(tmpdir(), 'berry-cursor-auth-'));
       const child = this.#launch({
@@ -390,6 +394,34 @@ function mcpConfig(socketPath: string): string {
    });
 }
 
+/**
+ * Writes the project-level Cursor CLI permissions policy into the checkout.
+ *
+ * The run is non-interactive, so without a policy the CLI would prompt and
+ * stall. Rather than `--force` (which auto-approves the CLI's own writes,
+ * deletes, and shell), Berry allows only reads and the `berry` MCP tools and
+ * denies the built-in write, delete, and shell tools. Berry's admitted tools
+ * remain the only way the agent changes anything.
+ */
+async function writePermissions(workingDirectory: string): Promise<void> {
+   const directory = join(workingDirectory, '.cursor');
+   await mkdir(directory, { recursive: true });
+   await writeFile(
+      join(directory, 'cli.json'),
+      JSON.stringify(
+         {
+            permissions: {
+               allow: ['Read(**)', 'Mcp(berry:*)'],
+               deny: ['Write(**)', 'Delete(**)', 'Shell(*)'],
+            },
+         },
+         null,
+         2
+      ),
+      { mode: 0o600 }
+   );
+}
+
 function promptFor(input: AgentProcessRun): string {
    const transcript = input.envelope.transcript
       .map((message) => `${message.role}: ${message.text}`)
@@ -398,16 +430,17 @@ function promptFor(input: AgentProcessRun): string {
    return `${restored}${input.envelope.agent.instructions}\n\n${input.envelope.task.prompt}`;
 }
 
-function readLogin(report: string): { state: 'account' | 'missing'; accountName: string | null } {
-   if (/not logged in|no (?:active )?(?:login|session)|please (?:run )?.*login/i.test(report)) {
-      return { state: 'missing', accountName: null };
+/**
+ * Reads only whether the CLI reports a signed-in Cursor account. The account
+ * email the CLI prints is deliberately not captured: Berry stores no personal
+ * identifier from the credential store, only that a login exists.
+ */
+function readLogin(report: string): 'account' | 'missing' {
+   if (/not logged in|not authenticated|no (?:active )?(?:login|session)|please (?:run )?.*login/i.test(report)) {
+      return 'missing';
    }
-   const email = report.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
-   if (email) return { state: 'account', accountName: email[0] };
-   if (/logged in|signed in|authenticated/i.test(report)) {
-      return { state: 'account', accountName: null };
-   }
-   return { state: 'missing', accountName: null };
+   if (/logged in|signed in|authenticated/i.test(report)) return 'account';
+   return 'missing';
 }
 
 function listedModels(body: string): RuntimeModel[] {

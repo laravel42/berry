@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
@@ -115,6 +115,7 @@ function launcher(seen: CursorSpawn[]): CursorLauncher {
          }
          if (spec.args[0] === 'status') {
             child.push('Logged in as builder@example.com');
+            child.push('Status: authenticated');
             child.finish();
             return;
          }
@@ -147,7 +148,7 @@ describe('Cursor adapter', () => {
       try {
          const status = await adapter.connectionStatus(credential);
          assert.equal(status.status, 'connected');
-         assert.equal(status.accountName, 'builder@example.com');
+         assert.equal(status.accountName, 'Cursor');
          const models = await adapter.discoverModels(credential);
          assert.deepEqual(models.map((model) => model.id), ['sonnet-4.5', 'gpt-5.4']);
          const result = await adapter.start({
@@ -172,6 +173,19 @@ describe('Cursor adapter', () => {
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('sonnet-4.5'));
          assert.equal(run.args.some((arg) => arg.includes('should-not-pass') || arg.includes('cursor_should')), false);
+         // The run must not auto-approve the CLI's own write/shell/delete tools.
+         assert.equal(run.args.includes('--force'), false);
+         // The permissions policy denies the built-in mutating tools and allows
+         // only reads and the berry MCP server, so Berry tools are the only path.
+         const policy = JSON.parse(await readFile(join(directory, '.cursor', 'cli.json'), 'utf8')) as {
+            permissions: { allow: string[]; deny: string[] };
+         };
+         assert.ok(policy.permissions.deny.includes('Write(**)'));
+         assert.ok(policy.permissions.deny.includes('Shell(*)'));
+         assert.ok(policy.permissions.deny.includes('Delete(**)'));
+         assert.ok(policy.permissions.allow.includes('Mcp(berry:*)'));
+         // The account email the CLI printed is not stored as the account name.
+         assert.notEqual(status.accountName, 'builder@example.com');
       } finally {
          if (previousKey === undefined) delete process.env.CURSOR_API_KEY;
          else process.env.CURSOR_API_KEY = previousKey;
