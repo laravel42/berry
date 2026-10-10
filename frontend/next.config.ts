@@ -52,6 +52,12 @@ const nextConfig: NextConfig = {
    turbopack: {
       root: repoRoot,
    },
+   experimental: {
+      // Rewrites to the API default to 30s. A project draft waits on a model
+      // call for up to 90s, and the proxy turning that wait into a reset is
+      // what the browser reports as a status 500 with no error body.
+      proxyTimeout: 120_000,
+   },
    async rewrites() {
       return [
          {
