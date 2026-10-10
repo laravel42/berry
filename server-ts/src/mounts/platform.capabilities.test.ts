@@ -50,6 +50,7 @@ test('a boolean capability is reported as it always was', async () => {
       githubSignIn: true,
       modelGateway: false,
       passwordlessLogin: false,
+      emailRegistration: false,
    });
 });
 

@@ -227,18 +227,28 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       assert.equal(accounts.length, 0);
    });
 
-   test('email and password sign-up is not served', async () => {
+   test('email and password sign-up creates a credential account', async () => {
+      const email = `register-${randomUUID()}@berry.test`;
       const response = await auth.handler(
          new Request(`${BASE}/api/auth/sign-up/email`, {
             method: 'POST',
             headers: { 'content-type': 'application/json', origin: BASE },
             body: JSON.stringify({
-               email: 'x@berry.test',
+               email,
                password: 'long-enough-password',
-               name: 'x',
+               name: 'Registered',
             }),
          })
       );
-      assert.ok(response.status >= 400, `expected a refusal, got ${response.status}`);
+      assert.equal(response.status, 200, await response.clone().text());
+      const [user] = await sql`SELECT id FROM users WHERE lower(email) = ${email}`;
+      assert.ok(user);
+      created.push(user.id as string);
+      const [account] = await sql`
+         SELECT provider_id, password IS NOT NULL AS has_password
+         FROM auth_accounts WHERE user_id = ${user.id as string}`;
+      assert.equal(account?.provider_id, 'credential');
+      assert.equal(account?.has_password, true);
+      assert.match(response.headers.getSetCookie().join('\n'), /berry\.session_token=/);
    });
 });

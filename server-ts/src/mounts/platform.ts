@@ -36,6 +36,11 @@ export interface Capabilities {
     * true the sign-in page does not offer GitHub.
     */
    passwordlessLogin?: boolean;
+   /**
+    * Email and password registration (`POST /api/auth/sign-up/email`). True
+    * when Better Auth is serving, including a PGlite desktop database.
+    */
+   emailRegistration?: boolean;
 }
 
 export interface PlatformOptions {
@@ -154,6 +159,7 @@ function configRoute(capabilities: Capabilities, version?: string): Hono {
                   ? await capabilities.githubSignIn()
                   : capabilities.githubSignIn,
             passwordlessLogin: capabilities.passwordlessLogin ?? false,
+            emailRegistration: capabilities.emailRegistration ?? false,
          },
       })
    );

@@ -1403,6 +1403,7 @@ registry.registerAll(
          // configured and Better Auth is serving it.
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
+         emailRegistration: auth !== null,
       },
    })
 );

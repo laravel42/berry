@@ -5,7 +5,7 @@ import { testUtils, type TestHelpers } from 'better-auth/plugins';
 import type { Pool } from 'pg';
 
 /**
- * Sign-in: Better Auth with GitHub and nothing else.
+ * Sign-in: Better Auth with GitHub, plus email and password registration.
  *
  * Better Auth's user model *is* `users`, so an account keeps the id every
  * workspace, issue and token already points at. Its own state — sessions,
@@ -36,6 +36,15 @@ export interface BerryAuthOptions {
    sessionTtlMs: number;
    /** Enables Better Auth's testUtils plugin: dev-login and tests only. */
    testUtils?: boolean;
+}
+
+const MIN_PASSWORD_LENGTH = 12;
+
+/** The route path Better Auth puts on the endpoint context for email sign-up. */
+function endpointPath(context: unknown): string {
+   if (!context || typeof context !== 'object' || !('path' in context)) return '';
+   const path = context.path;
+   return typeof path === 'string' ? path : '';
 }
 
 /** What GitHub tells us about whoever just signed in. */
@@ -83,9 +92,13 @@ export function createBerryAuth(options: BerryAuthOptions) {
       secret: options.secret,
       trustedOrigins: options.trustedOrigins,
       database: options.pool,
-      // GitHub is the only way in. Stated rather than left to the default so
-      // a future default cannot quietly open a second door.
-      emailAndPassword: { enabled: false },
+      // Registration does not send mail. A new account is unverified and can
+      // sign in immediately; GitHub sign-up still requires a verified address.
+      emailAndPassword: {
+         enabled: true,
+         minPasswordLength: MIN_PASSWORD_LENGTH,
+         maxPasswordLength: 256,
+      },
       socialProviders: options.github
          ? {
               github: {
@@ -117,13 +130,18 @@ export function createBerryAuth(options: BerryAuthOptions) {
          user: {
             create: {
                // Better Auth has no "verified email only" switch for social
-               // sign-up: linking an *existing* user already needs GitHub's
-               // verified flag (it is not a trusted provider), but a *new* user
-               // would be created from an unverified address. Refused here, so
-               // an unverified GitHub email never becomes a Berry account.
-               // Returning false aborts the create; the callback redirects to
-               // errorCallbackURL with an error code.
-               before: async (user) => (user.emailVerified === true ? { data: user } : false),
+               // sign-up. Email registration is the /sign-up/email route and
+               // arrives unverified, because there is no mailer. Every other
+               // create, including a new GitHub user, still needs a verified
+               // address. Returning false aborts the create.
+               before: async (user, context) => {
+                  if (endpointPath(context) === '/sign-up/email') {
+                     const name = typeof user.name === 'string' ? user.name.trim() : '';
+                     if (name.length < 1 || name.length > 80) return false;
+                     return { data: { ...user, name } };
+                  }
+                  return user.emailVerified === true ? { data: user } : false;
+               },
             },
          },
       },
@@ -162,10 +180,8 @@ export function createBerryAuth(options: BerryAuthOptions) {
             // address (userInfo.emailVerified from GitHub's /user/emails).
             trustedProviders: [],
             allowDifferentEmails: false,
-            // Existing Berry users were never email-verified: they signed in
-            // with a password or a dev login. The proof of ownership is
-            // GitHub's verified address, and with password sign-in gone there
-            // is no other way to create an unverified local user.
+            // Email registration creates an unverified user, because there is
+            // no mailer. Linking still requires GitHub's verified address.
             requireLocalEmailVerified: false,
          },
       },

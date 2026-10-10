@@ -10,7 +10,7 @@ import type { Mount } from '../http/registry.ts';
  * `/api/v1/auth`.
  *
  * Signing in and out is Better Auth's, at `/api/auth/*` (mounts/better-auth.ts),
- * and GitHub is the only way in. What stays here is `GET /me`, which answers
+ * and email registration is `/api/auth/sign-up/email`. What stays here is `GET /me`, which answers
  * for any credential — the browser's cookie or an API client's token — and,
  * in development only, `POST /dev-login`.
  */
