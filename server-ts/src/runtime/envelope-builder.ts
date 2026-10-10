@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, KIMI_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -505,6 +505,13 @@ export class EnvelopeBuilder {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',
             'Connect Kimi in AI Runtimes. Berry uses the Kimi Code CLI login on this workstation.',
+            false
+         );
+      }
+      if (task.aiRuntimeId === 'cursor' && (credential.type !== 'oauth' || credential.token !== CURSOR_CLI_LOGIN)) {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            'Connect Cursor in AI Runtimes. Berry uses the Cursor CLI login on this workstation.',
             false
          );
       }
