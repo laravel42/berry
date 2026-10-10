@@ -637,8 +637,8 @@ const kiroOnWorkstation = workstationKiro({
    callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
 });
 
-// Built even when no AgentCore or HTTP host is configured. Kiro, Claude, and
-// Codex run in a process beside this server; native tasks still need `defaultTarget`.
+// Built even when no AgentCore or HTTP host is configured. Kiro, Claude,
+// Codex, and Cursor run in a process beside this server; native tasks still need `defaultTarget`.
 const executor = new RuntimeTaskExecutor({
         workstation: kiroOnWorkstation,
         sql,
@@ -1123,7 +1123,7 @@ registry.registerAll(
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
-         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude' || request.runtimeId === 'codex') {
+         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude' || request.runtimeId === 'codex' || request.runtimeId === 'cursor') {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
@@ -1236,7 +1236,7 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude'] as const }),
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor'] as const }),
       // A title is a completion on the compute host. Without one it would sit
       // queued ahead of the next reply and nothing would claim it.
       complete: defaultTarget ? complete : null,
