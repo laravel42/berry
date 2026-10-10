@@ -221,7 +221,7 @@ export default function IssuePropertiesSettings() {
          ) : null}
 
          {active.length > 0 ? (
-            <ul className="grid grid-cols-3 gap-2">{active.map(line)}</ul>
+            <ul className="grid grid-cols-2 gap-2">{active.map(line)}</ul>
          ) : !properties.loading ? (
             <p className="text-muted-foreground">{t('empty')}</p>
          ) : null}
@@ -235,7 +235,7 @@ export default function IssuePropertiesSettings() {
                {showArchived ? (
                   <>
                      <p className="text-muted-foreground">{t('archivedLead')}</p>
-                     <ul className="grid grid-cols-3 gap-2">{archived.map(line)}</ul>
+                     <ul className="grid grid-cols-2 gap-2">{archived.map(line)}</ul>
                   </>
                ) : null}
             </div>

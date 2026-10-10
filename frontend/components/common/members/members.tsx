@@ -287,8 +287,6 @@ export default function Members() {
    return (
       <div className="h-full w-full overflow-y-auto">
          <PageStatement
-            heading="h2"
-            label={t('title')}
             figure={members.value ? members.value.length : undefined}
             line={t('statement.line', { count: members.value?.length ?? 0 })}
             sub={t('statement.sub')}

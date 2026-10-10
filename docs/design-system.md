@@ -84,7 +84,7 @@ interface face - `--font-sans` and `--font-mono` both resolve to it - and DM Ser
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
 | Interface | JetBrains Mono 400, 13 px / 1.2 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | DM Serif Display 400 | Wordmark, page display titles (the task, goal, plan and project title; a full-screen empty or access state) and quoted agent handoff only |
+| Display | DM Serif Display 400 | Every `h1`–`h6` title and the `data-heading="h1|h2|h3|h4|display"` stand-ins, plus the wordmark and headline figures |
 | Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here. `text-base` (14 px) is the rail items and tab titles |
 | Heading small | `h4` = 13/20 px | Row-level heading |
 | Heading | `h3` = 14/20, `h2` = 16/24, `h1` = 18/24 px, weight 500 | Dialog/card title, section title, page title |
@@ -111,9 +111,9 @@ Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` 
 `--foreground` (about 40% opacity), not low-opacity `--muted-foreground`, so they
 stay visible on void.
 
-DM Serif Display never appears in buttons, controls, tables, dense queue rows, or section
-titles inside a page: a settings page name or a card title is a heading, not a display
-title. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
+DM Serif Display is the title face: `h1`–`h6` and their `data-heading` stand-ins set
+`font-family: var(--font-display)` in the base layer. It stays off buttons, controls,
+tables and dense queue rows. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
 labels into named `type-micro` and `type-overline` styles if they survive accessibility review.
 
 ### Spacing and sizing

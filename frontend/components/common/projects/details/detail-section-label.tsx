@@ -11,7 +11,7 @@ export function DetailSectionLabel({ className, ...props }: ComponentProps<'div'
    return (
       <div
          className={cn(
-            'mb-1 pb-[7px] font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]',
+            'mb-1 pb-[7px] font-display font-medium uppercase tracking-[0.14em] text-[var(--shell-text-dim)]',
             className
          )}
          {...props}

@@ -149,7 +149,7 @@ export default function IssueLabelsSettings() {
 
             {labels.error ? <p className="py-6 text-status-danger">{labels.error}</p> : null}
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                {rows.map((label) => (
                   <div
                      key={label.id}

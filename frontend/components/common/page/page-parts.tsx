@@ -52,7 +52,12 @@ export function SectionLabel({
    children: ReactNode;
 }) {
    return (
-      <Tag className={cn('font-medium tracking-wider text-muted-foreground uppercase', className)}>
+      <Tag
+         className={cn(
+            'font-display font-medium tracking-wider text-muted-foreground uppercase',
+            className
+         )}
+      >
          {children}
       </Tag>
    );
@@ -72,8 +77,8 @@ export function PageStatement({
    sub,
    children,
 }: {
-   /** The page's name. Rendered as its `<h1>`. */
-   label: string;
+   /** The page's name. Omit when a header above this one already names the page. */
+   label?: string;
    /** `h2` where the page already has an `<h1>` above it, as every Settings page does. */
    heading?: 'h1' | 'h2';
    /** Omit while the count is unknown, so a loading page does not claim zero. */
@@ -85,11 +90,18 @@ export function PageStatement({
    children?: ReactNode;
 }) {
    return (
-      <header className="flex w-full flex-col gap-3 border-b px-6 pt-4 pb-5">
-         <div className="flex min-h-7 items-center justify-between gap-4">
-            <SectionLabel as={heading}>{label}</SectionLabel>
-            {children}
-         </div>
+      <header
+         className={cn(
+            'flex w-full flex-col gap-3 border-b px-6',
+            label || children ? 'pt-4 pb-5' : 'py-2'
+         )}
+      >
+         {label || children ? (
+            <div className="flex min-h-7 items-center justify-between gap-4">
+               {label ? <SectionLabel as={heading}>{label}</SectionLabel> : null}
+               {children}
+            </div>
+         ) : null}
          {figure !== undefined ? (
             <div className="flex items-end gap-4">
                <Figure size="xl" className={tone}>

@@ -40,7 +40,7 @@ export default function HeaderNav() {
 
    return (
       <div className="w-full flex justify-between items-center border-b py-1.5 px-6 h-10">
-         <h1 className="min-w-0 truncate font-medium tracking-wider text-muted-foreground uppercase">
+         <h1 className="min-w-0 truncate font-display font-medium tracking-wider text-muted-foreground uppercase">
             {t('title')}
          </h1>
 

@@ -361,10 +361,26 @@
       line-height: var(--text-3xl--line-height);
    }
 
+   /* Every title is set in the display face, including the fields that stand
+      in for a heading. Body, controls and labels stay on the interface face. */
+   h1,
+   h2,
+   h3,
+   h4,
+   h5,
+   h6,
+   [data-heading='h1'],
+   [data-heading='h2'],
+   [data-heading='h3'],
+   [data-heading='h4'],
+   [data-heading='display'] {
+      font-family: var(--font-display);
+   }
+
    /* Headings carry one step of weight over the 400 body so a page title, a
       dialog title and a section title read as a different role from the row
-      text beside them, not merely a different size. Mono has no italic
-      voice and few weights; this is the one weight step the scale spends. */
+      text beside them, not merely a different size. This is the one weight
+      step the scale spends. */
    h1,
    h2,
    h3,

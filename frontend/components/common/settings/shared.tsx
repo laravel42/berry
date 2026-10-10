@@ -91,7 +91,7 @@ export function SettingsSection({
                      {title ? (
                         <h2
                            data-heading="h3"
-                           className="font-medium tracking-wider text-muted-foreground uppercase"
+                           className="font-display font-medium tracking-wider text-muted-foreground uppercase"
                         >
                            {title}
                         </h2>

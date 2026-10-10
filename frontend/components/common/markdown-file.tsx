@@ -145,7 +145,7 @@ export function MarkdownFile({
                </Button>
             ) : null}
             <FileText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-            <h3 className="min-w-0 truncate font-mono font-medium">{fileName}</h3>
+            <h3 className="min-w-0 truncate font-medium">{fileName}</h3>
             {badge}
             <div className="ml-auto flex flex-wrap items-center gap-2">
                {open ? (
