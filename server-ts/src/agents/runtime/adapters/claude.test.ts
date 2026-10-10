@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { CLAUDE_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
+import { leakedInvokes } from './claude-invokes.ts';
 import { ClaudeAgentAdapter, type ClaudeChild, type ClaudeLauncher, type ClaudeSpawn } from './claude.ts';
 import type { RuntimeCredential } from './types.ts';
 
@@ -134,6 +135,16 @@ function launcher(seen: ClaudeSpawn[]): ClaudeLauncher {
    };
 }
 
+test('invoke tags in a reply are the tool calls', () => {
+   const calls = leakedInvokes(
+      '<invoke name="list_files">\n</invoke>\n<invoke name="read_skill">\n<parameter name="name">prd-authoring</parameter>\n</invoke>'
+   );
+   assert.deepEqual(calls, [
+      { name: 'list_files', input: {} },
+      { name: 'read_skill', input: { name: 'prd-authoring' } },
+   ]);
+});
+
 describe('Claude adapter', () => {
    test('uses the CLI login and does not forward an API key', async () => {
       const seen: ClaudeSpawn[] = [];
@@ -170,6 +181,70 @@ describe('Claude adapter', () => {
       } finally {
          if (previous === undefined) delete process.env.ANTHROPIC_API_KEY;
          else process.env.ANTHROPIC_API_KEY = previous;
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('a turn of invoke tags is run and the session continues', async () => {
+      const seen: ClaudeSpawn[] = [];
+      const calls: Array<{ name: string; input: unknown }> = [];
+      const xml =
+         'I will look first.\n\n<invoke name="list_files">\n</invoke>\n<invoke name="read_skill">\n<parameter name="name">prd-authoring</parameter>\n</invoke>';
+      const adapter = new ClaudeAgentAdapter({
+         launcher: (spec) => {
+            seen.push(spec);
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               const text = spec.args.includes('--resume') ? 'The timing model is turn-based.' : xml;
+               child.push(JSON.stringify({
+                  type: 'assistant',
+                  session_id: 'sess-1',
+                  message: { content: [{ type: 'text', text }] },
+               }));
+               child.push(JSON.stringify({
+                  type: 'result',
+                  subtype: 'success',
+                  result: text,
+                  session_id: 'sess-1',
+                  usage: { input_tokens: 2, output_tokens: 8, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+               }));
+               child.finish();
+            });
+            return child;
+         },
+      });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-claude-invoke-'));
+      const events: string[] = [];
+      try {
+         const result = await adapter.start({
+            envelope: envelope(),
+            credential,
+            workingDirectory: directory,
+            stateDirectory: directory,
+            tools: (['list_files', 'read_skill'] as const).map((name) => ({
+               name,
+               invoke: async (input: unknown) => {
+                  calls.push({ name, input });
+                  return name === 'list_files' ? { files: [] } : { found: true, name: 'prd-authoring' };
+               },
+            })) as never,
+            emit: (event) => events.push(JSON.stringify(event)),
+            signal: AbortSignal.timeout(5_000),
+         });
+         assert.equal(result.text, 'The timing model is turn-based.');
+         assert.deepEqual(calls, [
+            { name: 'list_files', input: {} },
+            { name: 'read_skill', input: { name: 'prd-authoring' } },
+         ]);
+         assert.equal(seen.filter((spec) => spec.args.includes('-p')).length, 2);
+         const continued = seen.find((spec) => spec.args.includes('--resume'));
+         assert.ok(continued);
+         assert.ok(continued.args.includes('sess-1'));
+         assert.match(continued.stdin, /prd-authoring/);
+         assert.equal(events.some((event) => event.includes('<invoke')), false);
+         assert.equal(events.some((event) => event.includes('list_files')), true);
+         assert.equal(events.some((event) => event.includes('I will look first.')), true);
+      } finally {
          await rm(directory, { recursive: true, force: true });
       }
    });

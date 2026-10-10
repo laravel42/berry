@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CLAUDE_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { leakedInvokes, MAX_LEAKED_TOOL_ROUNDS, proseBesideInvokes, resumeAfterLeakedInvokes } from './claude-invokes.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
    RuntimeAdapterError,
@@ -248,13 +249,60 @@ export class ClaudeAgentAdapter implements AgentProcessAdapter {
          ...input.tools.flatMap((tool) => ['--allowedTools', `mcp__berry__${tool.name}`]),
       ];
       if (model && model !== 'default') args.push('--model', model);
-      if (resume) args.push('--resume', resume);
+      try {
+         // A turn that is only `<invoke>` tags is the model asking for tools,
+         // and print mode would otherwise end the run on that text. Run the
+         // calls and send Claude back in with the results.
+         let resumeId = resume;
+         let stdin = promptFor(input);
+         for (let round = 0; round < MAX_LEAKED_TOOL_ROUNDS; round++) {
+            const turn = await this.#turn(input, args, model ?? 'claude', stdin, resumeId);
+            const invokes = leakedInvokes(turn.text);
+            if (invokes.length === 0) {
+               if (turn.text !== '') {
+                  input.emit({ type: 'task.message', message: { kind: 'output', channel: 'assistant', text: turn.text } });
+               }
+               return { text: turn.text, sessionId: turn.sessionId || input.envelope.runId };
+            }
+            const progress = proseBesideInvokes(turn.text);
+            if (progress !== '') {
+               input.emit({ type: 'task.message', message: { kind: 'output', channel: 'assistant', text: progress } });
+            }
+            stdin = await resumeAfterLeakedInvokes(
+               input.tools,
+               invokes,
+               input.workingDirectory,
+               input.signal,
+               input.emit,
+               round
+            );
+            resumeId = turn.sessionId || resumeId;
+         }
+         throw new RuntimeAdapterError(
+            'RUNTIME_ERROR',
+            'Claude kept writing tool calls as text, so the run did not finish.',
+            true
+         );
+      } finally {
+         await host.close();
+      }
+   }
+
+   /** One Claude process. Assistant text stays with the caller, which may continue the session. */
+   async #turn(
+      input: AgentProcessRun,
+      args: string[],
+      model: string,
+      stdin: string,
+      resume: string | null
+   ): Promise<{ text: string; sessionId: string }> {
+      const turnArgs = resume ? [...args, '--resume', resume] : args;
       const child = this.#launch({
          command: this.#command,
-         args,
+         args: turnArgs,
          cwd: input.workingDirectory,
          env: childEnvironment(),
-         stdin: promptFor(input),
+         stdin,
       });
       const tracked = resume ?? input.envelope.runId;
       this.#active.set(tracked, child);
@@ -264,19 +312,11 @@ export class ClaudeAgentAdapter implements AgentProcessAdapter {
       input.signal.addEventListener('abort', stop, { once: true });
       try {
          for await (const line of child.lines()) {
-            const parsed = readEvent(line, model ?? 'claude');
+            const parsed = readEvent(line, model);
             if (!parsed) continue;
             if (parsed.sessionId) sessionId = parsed.sessionId;
-            if (parsed.text) {
-               text += parsed.text;
-               input.emit({ type: 'task.message', message: { kind: 'output', channel: 'assistant', text: parsed.text } });
-            }
-            if (parsed.finalText !== null) {
-               if (text === '') {
-                  input.emit({ type: 'task.message', message: { kind: 'output', channel: 'assistant', text: parsed.finalText } });
-               }
-               text = parsed.finalText;
-            }
+            if (parsed.text) text += parsed.text;
+            if (parsed.finalText !== null) text = parsed.finalText;
             for (const message of parsed.messages) input.emit(message);
             if (parsed.usage) input.emit(parsed.usage);
             if (parsed.failure) throw new RuntimeAdapterError(parsed.failure.code, parsed.failure.message, parsed.failure.retryable);
@@ -288,12 +328,11 @@ export class ClaudeAgentAdapter implements AgentProcessAdapter {
          if (exit.code !== 0 && text === '') {
             throw new RuntimeAdapterError('RUNTIME_ERROR', exit.stderr || `Claude CLI exited ${exit.code ?? 'without a status'}.`, true);
          }
+         return { text, sessionId };
       } finally {
          input.signal.removeEventListener('abort', stop);
          this.#active.delete(tracked);
-         await host.close();
       }
-      return { text, sessionId: sessionId || input.envelope.runId };
    }
 
    async #authStatus(): Promise<AuthStatus> {

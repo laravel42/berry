@@ -133,7 +133,7 @@ export class BerryMcpHost {
    }
 }
 
-async function invokeStrandsTool(
+export async function invokeStrandsTool(
    tool: Tool,
    input: unknown,
    workingDirectory: string,
@@ -153,7 +153,7 @@ async function invokeStrandsTool(
    return next.value;
 }
 
-function stringifyToolResult(value: unknown): string {
+export function stringifyToolResult(value: unknown): string {
    if (typeof value === 'string') return value;
    try {
       return JSON.stringify(value) ?? '';
