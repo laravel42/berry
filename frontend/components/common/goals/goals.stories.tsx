@@ -5,8 +5,6 @@ import { useGoalsStore } from '@/store/goals-store';
 import { seedGoalStores, seedProjectStores, storyGoals } from '../projects/stories-fixtures';
 import Goals from './goals';
 
-const openGoals = storyGoals.filter((goal) => goal.status !== 'completed');
-
 /** The rail rows: one button per goal, named by its title. */
 function goalRows(canvas: { queryAllByRole: (role: 'button') => HTMLElement[] }) {
    return canvas
@@ -21,7 +19,7 @@ const meta = {
    beforeEach: () => {
       seedProjectStores();
       seedGoalStores();
-      useGoalsListStore.setState({ scope: 'open', query: '' });
+      useGoalsListStore.setState({ query: '' });
    },
    decorators: [
       (Story) => (
@@ -38,20 +36,9 @@ type Story = StoryObj<typeof meta>;
 export const List: Story = {
    play: async ({ canvas }) => {
       const rows = goalRows(canvas);
-      await expect(rows).toHaveLength(openGoals.length);
+      await expect(rows).toHaveLength(storyGoals.length);
       // The first goal opens beside the list.
       await expect(rows[0]).toHaveAttribute('aria-current', 'true');
-   },
-};
-
-export const All: Story = {
-   beforeEach: () => {
-      seedProjectStores();
-      seedGoalStores();
-      useGoalsListStore.setState({ scope: 'all', query: '' });
-   },
-   play: async ({ canvas }) => {
-      await expect(goalRows(canvas)).toHaveLength(storyGoals.length);
    },
 };
 
@@ -59,7 +46,7 @@ export const Search: Story = {
    beforeEach: () => {
       seedProjectStores();
       seedGoalStores();
-      useGoalsListStore.setState({ scope: 'all', query: 'zzz-no-match' });
+      useGoalsListStore.setState({ query: 'zzz-no-match' });
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('No goal matches this search.')).toBeVisible();

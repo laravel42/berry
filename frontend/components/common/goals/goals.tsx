@@ -20,10 +20,6 @@ import Header from '@/components/layout/headers/goals/header';
 import GoalLine from './goal-line';
 import GoalOverview from './goal-overview';
 
-function isOpenGoal(status: string): boolean {
-   return status !== 'completed';
-}
-
 function EmptyGoals() {
    const t = useTranslations('goals.empty');
    return (
@@ -51,7 +47,6 @@ export default function Goals() {
    const loaded = useGoalsStore((state) => state.loaded);
    const error = useGoalsStore((state) => state.error);
    const projects = useProjectsStore((state) => state.projects);
-   const scope = useGoalsListStore((state) => state.scope);
    const query = useGoalsListStore((state) => state.query);
 
    const projectNameById = useMemo(() => {
@@ -60,14 +55,9 @@ export default function Goals() {
       return map;
    }, [projects]);
 
-   const scoped = useMemo(
-      () => (scope === 'open' ? goals.filter((goal) => isOpenGoal(goal.status)) : goals),
-      [goals, scope]
-   );
-
    const displayed = useMemo(
-      () => applySearch(scoped, query, projectNameById),
-      [scoped, query, projectNameById]
+      () => applySearch(goals, query, projectNameById),
+      [goals, query, projectNameById]
    );
 
    const [selectedId, setSelectedId] = useQueryState('goal');
@@ -88,10 +78,6 @@ export default function Goals() {
                </div>
             ) : goals.length === 0 ? (
                <EmptyGoals />
-            ) : scoped.length === 0 ? (
-               <div className="flex h-40 items-center justify-center px-4 text-center text-muted-foreground">
-                  {scope === 'open' ? t('noneOpen') : t('noneMatch')}
-               </div>
             ) : displayed.length === 0 ? (
                <div className="flex h-40 items-center justify-center px-4 text-center text-muted-foreground">
                   {t('noneMatch')}

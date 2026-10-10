@@ -13,13 +13,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('tab', { name: /Open/ })).toBeVisible();
-      await expect(canvas.getByRole('tab', { name: /All/ })).toBeVisible();
       await expect(canvas.getByPlaceholderText('Search goals')).toBeVisible();
+      await expect(canvas.queryByRole('tab')).toBeNull();
    },
 };
 
-/** At phone width the scope tabs still fit. */
+/** At phone width the search still fits. */
 export const Narrow: Story = {
    decorators: [
       (Story) => (

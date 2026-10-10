@@ -1,15 +1,7 @@
 {
-   "header": {
-      "title": "Goals"
-   },
-   "filter": {
-      "open": "Open",
-      "all": "All"
-   },
    "list": {
       "search": "Search goals",
       "noneMatch": "No goal matches this search.",
-      "noneOpen": "No open goals.",
       "goal": "Goal",
       "status": "Status",
       "progress": "Progress",
