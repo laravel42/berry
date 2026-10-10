@@ -11,7 +11,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, GROK_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, isKiroApiKey } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -35,6 +35,19 @@ import { runtimeSessionIdFor } from '../runtime/session-id.ts';
 import type { Permission } from '../identity/roles.ts';
 import type { ScopedDb } from '../identity/workspace-context.ts';
 import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
+
+/**
+ * The subscription runtimes whose login stays inside a CLI on the workstation
+ * that runs Berry. Berry starts the CLI as its own child process and never
+ * reads or forwards its credential store. The token is a non-secret sentinel
+ * that marks the run as using that CLI's own login.
+ */
+const WORKSTATION_CLI_LOGINS = {
+   claude: { label: 'Claude', token: CLAUDE_CLI_LOGIN, authMethod: 'claude_cli', defaultAccountName: 'Claude' },
+   codex: { label: 'Codex', token: CODEX_CLI_LOGIN, authMethod: 'codex_cli', defaultAccountName: 'ChatGPT' },
+   cursor: { label: 'Cursor', token: CURSOR_CLI_LOGIN, authMethod: 'cursor_cli', defaultAccountName: 'Cursor' },
+   grok: { label: 'Grok', token: GROK_CLI_LOGIN, authMethod: 'grok_cli', defaultAccountName: 'Grok' },
+} as const;
 
 const seconds = z.number().int().min(60).max(28_800);
 const runtimeBody = z.object({
@@ -92,33 +105,6 @@ async function modelsConnected(sql: Sql, workspaceId: string): Promise<Set<strin
       allowed.add(`${row.runtime_key}/default`);
    }
    return allowed;
-}
-
-/** The three workstation-CLI runtimes keep their own login; Berry only starts them. */
-type WorkstationCliRuntime = 'claude' | 'codex' | 'grok';
-
-function workstationCliLogin(runtimeId: WorkstationCliRuntime): string {
-   if (runtimeId === 'codex') return CODEX_CLI_LOGIN;
-   if (runtimeId === 'grok') return GROK_CLI_LOGIN;
-   return CLAUDE_CLI_LOGIN;
-}
-
-function workstationCliLabel(runtimeId: WorkstationCliRuntime): string {
-   if (runtimeId === 'codex') return 'Codex';
-   if (runtimeId === 'grok') return 'Grok';
-   return 'Claude';
-}
-
-function workstationCliAuthMethod(runtimeId: WorkstationCliRuntime): string {
-   if (runtimeId === 'codex') return 'codex_cli';
-   if (runtimeId === 'grok') return 'grok_cli';
-   return 'claude_cli';
-}
-
-function workstationCliAccountName(runtimeId: WorkstationCliRuntime): string {
-   if (runtimeId === 'codex') return 'ChatGPT';
-   if (runtimeId === 'grok') return 'Grok';
-   return 'Claude';
 }
 
 /**
@@ -352,13 +338,14 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok') {
+      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'grok') {
+         const cli = WORKSTATION_CLI_LOGINS[runtimeId];
          if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${workstationCliLabel(runtimeId)} runs on this workstation, and that process is not available.`);
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cli.label} runs on this workstation, and that process is not available.`);
          }
          const credential = {
             type: 'oauth' as const,
-            token: workstationCliLogin(runtimeId),
+            token: cli.token,
             accountId: null,
             accountName: null,
          };
@@ -371,7 +358,7 @@ export function runtimeMounts(options: {
          if ('error' in probed) controlError(probed.error);
          const status = 'connection' in probed ? probed.connection : undefined;
          if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${workstationCliLabel(runtimeId)} CLI is not signed in on this workstation.`);
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${cli.label} CLI is not signed in on this workstation.`);
          }
          const listed = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
@@ -390,9 +377,9 @@ export function runtimeMounts(options: {
                workspaceId,
                userId: user.id,
                runtimeId,
-               authMethod: workstationCliAuthMethod(runtimeId),
+               authMethod: cli.authMethod,
                accountId: status.accountId,
-               accountName: status.accountName ?? workstationCliAccountName(runtimeId),
+               accountName: status.accountName ?? cli.defaultAccountName,
                metadata: {
                   models,
                   modelCatalogComplete: true,
@@ -593,12 +580,15 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok')) {
+      if (
+         options.runtimeControl &&
+         (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'grok')
+      ) {
          const credential =
-            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok'
+            runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'grok'
                ? {
                     type: 'oauth' as const,
-                    token: workstationCliLogin(runtimeId),
+                    token: WORKSTATION_CLI_LOGINS[runtimeId].token,
                     accountId: connection.accountId,
                     accountName: connection.accountName,
                  }

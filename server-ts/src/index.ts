@@ -156,7 +156,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, GROK_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -637,8 +637,8 @@ const kiroOnWorkstation = workstationKiro({
    callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
 });
 
-// Built even when no AgentCore or HTTP host is configured. Kiro, Claude, and
-// Codex run in a process beside this server; native tasks still need `defaultTarget`.
+// Built even when no AgentCore or HTTP host is configured. Kiro, Claude,
+// Codex, and Cursor run in a process beside this server; native tasks still need `defaultTarget`.
 const executor = new RuntimeTaskExecutor({
         workstation: kiroOnWorkstation,
         sql,
@@ -670,15 +670,17 @@ const executor = new RuntimeTaskExecutor({
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
               }
-              if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'grok') {
+              if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'grok') {
                  return {
                     type: 'oauth',
                     token:
                        runtimeId === 'codex'
                           ? CODEX_CLI_LOGIN
-                          : runtimeId === 'grok'
-                            ? GROK_CLI_LOGIN
-                            : CLAUDE_CLI_LOGIN,
+                          : runtimeId === 'cursor'
+                            ? CURSOR_CLI_LOGIN
+                            : runtimeId === 'grok'
+                              ? GROK_CLI_LOGIN
+                              : CLAUDE_CLI_LOGIN,
                     accountId: connection.external_account_id,
                     accountName: connection.external_account_name,
                  };
@@ -1132,6 +1134,7 @@ registry.registerAll(
             request.runtimeId === 'kiro' ||
             request.runtimeId === 'claude' ||
             request.runtimeId === 'codex' ||
+            request.runtimeId === 'cursor' ||
             request.runtimeId === 'grok'
          ) {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
@@ -1246,7 +1249,7 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude'] as const }),
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor'] as const }),
       // A title is a completion on the compute host. Without one it would sit
       // queued ahead of the next reply and nothing would claim it.
       complete: defaultTarget ? complete : null,
@@ -1439,7 +1442,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'grok'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'grok'] }),
 });
 dispatcher.start();
 
