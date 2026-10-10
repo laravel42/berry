@@ -37,5 +37,7 @@ test('the skills an agent carries are named, with what each is for and how to re
    assert.match(message, /- systematic-debugging: Use for a bug with no obvious cause\./);
    assert.match(message, /- error-handling: Use when adding error paths\./);
    assert.match(message, /read it with read_skill/);
+   assert.match(message, /\.berry\/skills\/<name>\/SKILL\.md/);
+   assert.doesNotMatch(message, /\.claude\/skills/);
    assert.doesNotMatch(buildMessage({ ...base, skills: [] }), /Skills you carry/);
 });

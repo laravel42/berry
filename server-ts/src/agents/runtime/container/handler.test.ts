@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -219,7 +219,11 @@ test('an agent task writes its skills into the session workspace and connects it
       })
    );
    assert.equal(events.at(-1)!.type, 'task.completed');
-   assert.equal(readFileSync(join(deps.workRoot, SESSION, '.claude/skills/lint/SKILL.md'), 'utf8'), manifest);
+   assert.equal(readFileSync(join(deps.workRoot, SESSION, '.berry/skills/lint/SKILL.md'), 'utf8'), manifest);
+   assert.equal(existsSync(join(deps.workRoot, SESSION, '.claude/skills/lint/SKILL.md')), false);
+   assert.equal(existsSync(join(deps.workRoot, SESSION, '.codex/skills/lint/SKILL.md')), false);
+   assert.equal(existsSync(join(deps.workRoot, SESSION, '.agents/skills/lint/SKILL.md')), false);
+   assert.equal(existsSync(join(deps.workRoot, SESSION, '.kiro/skills/lint/SKILL.md')), false);
    assert.deepEqual(loaded, ['docs']);
 });
 

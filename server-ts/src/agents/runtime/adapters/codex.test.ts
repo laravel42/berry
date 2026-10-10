@@ -171,6 +171,9 @@ describe('Codex adapter', () => {
          assert.ok(run.args.includes('read-only'));
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('gpt-5.4'));
+         assert.ok(run.args.includes('skip_host_skill_discovery'));
+         assert.ok(run.args.includes('skills.bundled.enabled=false'));
+         assert.ok(run.args.includes('cloud.skills.enabled=false'));
          assert.equal(run.args.some((arg) => arg.includes('sk-')), false);
       } finally {
          if (previous === undefined) delete process.env.OPENAI_API_KEY;

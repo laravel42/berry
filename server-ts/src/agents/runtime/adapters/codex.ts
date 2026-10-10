@@ -226,6 +226,14 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
          '--skip-git-repo-check',
          '--sandbox',
          'read-only',
+         // Host, bundled and cloud SKILL.md files otherwise join every turn.
+         // Berry skills are read with `read_skill`.
+         '--enable',
+         'skip_host_skill_discovery',
+         '--config',
+         'skills.bundled.enabled=false',
+         '--config',
+         'cloud.skills.enabled=false',
          '--config',
          `mcp_servers.berry.command=${tomlString(process.execPath)}`,
          '--config',

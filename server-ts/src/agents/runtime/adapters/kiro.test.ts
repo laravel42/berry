@@ -191,6 +191,7 @@ describe('Kiro adapter', () => {
          const childEnv = seen.find((call) => call.args[0] === 'acp')?.env;
          assert.equal(childEnv?.KIRO_API_KEY, KEY);
          assert.equal(childEnv?.HOME, join(directory, 'state'));
+         assert.notEqual(childEnv?.HOME, process.env.HOME);
          assert.equal(events.some((event) => event.includes(KEY)), false);
       } finally {
          await rm(directory, { recursive: true, force: true });

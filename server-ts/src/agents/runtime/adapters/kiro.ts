@@ -55,10 +55,11 @@ interface NormalizationState {
  * Kiro CLI V3 as a process on the user's workstation.
  *
  * Each run gets an empty home directory, so another person's `kiro-cli login`
- * cannot win authentication precedence. The subscription API key is passed
- * only as `KIRO_API_KEY` and as the answer to `_kiro/auth/getAccessToken`.
- * Native shell and file tools are denied. Berry tools are the MCP server Kiro
- * is allowed to call.
+ * cannot win authentication precedence and `~/.kiro/skills` is not on the
+ * prompt. The subscription API key is passed only as `KIRO_API_KEY` and as
+ * the answer to `_kiro/auth/getAccessToken`. Native shell and file tools are
+ * denied. Berry tools are the MCP server Kiro is allowed to call. Berry
+ * skills live under `.berry/skills/`, which Kiro does not scan.
  */
 export class KiroAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -473,6 +474,8 @@ function childEnvironment(home: string, token: string | null): Record<string, st
 async function writePermissions(home: string): Promise<void> {
    const directory = join(home, '.kiro', 'settings');
    await mkdir(directory, { recursive: true, mode: 0o700 });
+   // An empty home has no `~/.kiro/skills`. Do not create `.kiro/skills`
+   // here either: Kiro would list those files on every turn.
    // Native capabilities stay denied. Berry tools arrive through the MCP server.
    await writeFile(
       join(directory, 'permissions.yaml'),
