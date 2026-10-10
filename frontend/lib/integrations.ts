@@ -414,14 +414,12 @@ export interface GitHubInstallNext {
 }
 
 /**
- * Whether this person still has to grant repository access, asked once by the
- * page that hands them on after sign-in.
+ * Whether this person still has to grant repository access.
  *
- * Access is granted once, at a first login. Somebody who has been asked before
- * is never sent back — including somebody who declined, which is why the answer
- * comes from the server rather than from whether an installation exists. A
- * refusal (no permission to install, no workspace yet) is not an obstacle to
- * logging in, so the caller reads it as "nothing to do".
+ * Sign-in and registration do not call this. Somebody who has been asked
+ * before is never sent back — including somebody who declined, which is why
+ * the answer comes from the server rather than from whether an installation
+ * exists.
  */
 export async function nextGitHubInstallStep(): Promise<GitHubInstallNext> {
    const nothing: GitHubInstallNext = { next: 'no_app', installUrl: null, reason: null };

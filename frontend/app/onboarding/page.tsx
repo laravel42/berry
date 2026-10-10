@@ -9,7 +9,6 @@ import { CreateOrJoin } from '@/components/onboarding/create-or-join';
 import { WorkspaceStep } from '@/components/onboarding/workspace-step';
 import { BerryMark } from '@/components/brand/berry-mark';
 import { fetchBootstrap } from '@/lib/auth';
-import { nextGitHubInstallStep } from '@/lib/integrations';
 import { saveUserSettings } from '@/lib/settings';
 import { selectWorkspace } from '@/lib/workspaces';
 import { useSessionStore } from '@/store/session-store';
@@ -150,20 +149,9 @@ export default function OnboardingPage() {
                   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
                })[0];
 
-            // Repository access is granted once, at a first login. Whoever has
-            // already been asked is never sent back — the server answers from a
-            // row, so declining GitHub's form costs a person nothing but the
-            // access, and never traps them here. The workspace is made current
-            // first because it is the one the install would belong to.
             if (bootstrap.currentWorkspaceId !== target.id) {
                await selectWorkspace(target.id).catch(() => undefined);
                if (cancelled) return;
-            }
-            const step = await nextGitHubInstallStep();
-            if (cancelled) return;
-            if (step.installUrl) {
-               window.location.assign(step.installUrl);
-               return;
             }
 
             router.replace(workspacePath(target.slug));
@@ -187,13 +175,6 @@ export default function OnboardingPage() {
          setError(null);
          const selected = await selectWorkspace(workspaceId);
          await refreshWorkspaces();
-         // After the workspace, not before it: an installation belongs to a
-         // workspace, so there is nothing to record it against until this point.
-         const step = await nextGitHubInstallStep();
-         if (step.installUrl) {
-            window.location.assign(step.installUrl);
-            return;
-         }
          router.replace(workspacePath(selected.slug));
       },
       [refreshWorkspaces, router]
