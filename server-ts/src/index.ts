@@ -923,6 +923,7 @@ registry.registerAll(
          dispatch: workDispatch,
          hooks: workHooks,
          enqueue: quickActionEnqueue,
+         ...(reviewGate ? { gate: reviewGate } : {}),
       }),
       artifacts: issueArtifactRoutes({ artifacts: runArtifacts, issues })
          .route('/', issueArtifactPreviewRoutes({ issues, tokens: previewTokens, builds: siteBuilds }))

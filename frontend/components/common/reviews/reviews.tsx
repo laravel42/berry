@@ -34,7 +34,7 @@ import {
 } from 'react';
 import type { ReviewOutcome } from './review-decision-bar';
 import { ReviewDetail, type ReviewSection } from './review-detail';
-import { DiffStat, PeerVerdictChip, PrIcon } from './review-shared';
+import { DiffStat, PeerVerdictChip, PrIcon, shownPeerApproval } from './review-shared';
 
 /** How a task at the gate reads in the list: what the last decision on it was. */
 export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
@@ -70,6 +70,9 @@ function ReviewRow({
 }) {
    const latest = item.verdicts[0];
    const status = reviewStatusOf(item);
+   const peerApproval = latest
+      ? shownPeerApproval(latest.approved, status === 'open', item.issue.autoGate)
+      : null;
    const href = `/${orgId}/review/${item.id}${listTab === 'created' ? '?list=created' : ''}`;
    // A branch with no commit and no pull request is not something to review.
    // The row names the task instead of a ref that holds nothing.
@@ -123,8 +126,8 @@ function ReviewRow({
                   />
                ) : null}
             </span>
-            {item.issue.autoGate && latest && latest.approved !== null && (
-               <PeerVerdictChip verdict={latest} />
+            {item.issue.autoGate && latest && peerApproval !== null && (
+               <PeerVerdictChip verdict={{ ...latest, approved: peerApproval }} />
             )}
             <span className="shrink-0 pt-px text-muted-foreground">
                {reviewTimeAgo(item.run.completedAt ?? item.updatedAt)}
@@ -208,6 +211,13 @@ export default function Reviews({
    const state: ReviewQueueState = listTab === 'for-you' ? 'open' : 'completed';
    const [items, setItems] = useState<ReviewItem[] | null>(null);
    const [error, setError] = useState<string | null>(null);
+   // The Waiting / Decided switch is only useful once something has been
+   // decided. Null until that list has been read, on the waiting tab.
+   const [decidedCount, setDecidedCount] = useState<number | null>(null);
+   // Which queue `items` was loaded for. Until a completed load lands, the
+   // waiting tab's decided count decides whether the switch is shown.
+   const [loadedFor, setLoadedFor] = useState<ReviewQueueState | null>(null);
+   const decidedFetch = useRef(0);
    const [outcome, setOutcome] = useState<ReviewOutcome | null>(null);
    // Selection is local so clicking a row hydrates the right pane without
    // remounting this list (a Next navigation between /reviews and /review/:id
@@ -275,6 +285,7 @@ export default function Reviews({
       try {
          const loaded = await loadReviews(workspace.id, state);
          setItems(loaded);
+         setLoadedFor(state);
          setError(null);
          return loaded;
       } catch (cause) {
@@ -294,6 +305,22 @@ export default function Reviews({
       void fetchItems();
    }, [fetchItems, queueSignature]);
 
+   // The waiting tab does not load decided tasks, so the switch cannot tell
+   // from `items` whether any exist. Read that list beside it.
+   useEffect(() => {
+      if (!workspace || state === 'completed') return;
+      const request = ++decidedFetch.current;
+      let cancelled = false;
+      void loadReviews(workspace.id, 'completed')
+         .then((loaded) => {
+            if (!cancelled && decidedFetch.current === request) setDecidedCount(loaded.length);
+         })
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [workspace, state, queueSignature]);
+
    /**
     * After a decision the decided task leaves the waiting list. The next one
     * down takes its place on the right and its row takes focus, so a reviewer
@@ -306,6 +333,12 @@ export default function Reviews({
          const index = previous.findIndex((item) => item.id === decided.reviewId);
          const fresh = await fetchItems();
          setOutcome(decided);
+         if (state === 'open') {
+            // Drop a count read that started before this decision, and show
+            // the switch now rather than waiting for the next queue refresh.
+            decidedFetch.current += 1;
+            setDecidedCount((count) => (count ?? 0) + 1);
+         }
          if (state !== 'open') return;
          const remaining = (fresh ?? previous).filter(
             (item) => item.id !== decided.reviewId && !reportedWithoutChanges(item)
@@ -367,6 +400,9 @@ export default function Reviews({
       : null;
 
    const caughtUp = items !== null && listed.length === 0 && state === 'open';
+   const knownDecided =
+      state === 'completed' && loadedFor === 'completed' ? (items?.length ?? 0) : decidedCount;
+   const showScope = (knownDecided ?? 0) > 0;
 
    // The shared queue the rail's badge counts: what waits, whichever tab is open.
    const waitingCount = useReviewsStore(selectOpenReviewCount);
@@ -391,18 +427,20 @@ export default function Reviews({
                   sub={t('statement.sub')}
                />
             </div>
-            <div className="shrink-0 px-4 py-[6px]">
-               <Tabs value={listTab} className="gap-0">
-                  <TabsList className="h-9">
-                     <TabsTrigger value="for-you" asChild>
-                        <Link href={`/${orgId}/reviews`}>{t('tabs.waiting')}</Link>
-                     </TabsTrigger>
-                     <TabsTrigger value="created" asChild>
-                        <Link href={`/${orgId}/reviews/created`}>{t('tabs.decided')}</Link>
-                     </TabsTrigger>
-                  </TabsList>
-               </Tabs>
-            </div>
+            {showScope ? (
+               <div className="shrink-0 px-4 py-[6px]">
+                  <Tabs value={listTab} className="items-center gap-0">
+                     <TabsList className="h-9">
+                        <TabsTrigger value="for-you" asChild>
+                           <Link href={`/${orgId}/reviews`}>{t('tabs.waiting')}</Link>
+                        </TabsTrigger>
+                        <TabsTrigger value="created" asChild>
+                           <Link href={`/${orgId}/reviews/created`}>{t('tabs.decided')}</Link>
+                        </TabsTrigger>
+                     </TabsList>
+                  </Tabs>
+               </div>
+            ) : null}
             <div className="flex-1 overflow-y-auto">
                {items === null && !error && <EmptyStateLoading label={t('loading')} />}
                {error && (
@@ -506,9 +544,9 @@ export default function Reviews({
                      </>
                   ) : (
                      <>
-                        <p className="text-foreground">
+                        <h2 className="text-foreground outline-none">
                            {state === 'open' ? t('select.open') : t('select.decided')}
-                        </p>
+                        </h2>
                         {items && (
                            <p>
                               {t(state === 'open' ? 'count.open' : 'count.decided', {

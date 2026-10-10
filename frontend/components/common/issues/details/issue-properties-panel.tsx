@@ -109,7 +109,11 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                         </>
                      )}
                   </div>
-                  <ReviewerProperty issueRef={issue.identifier} />
+                  <ReviewerProperty
+                     issueRef={issue.identifier}
+                     inReview={issue.status.id === 'in-review'}
+                     autoGate={issue.autoGate}
+                  />
 
                   <div className="flex items-center gap-2">
                      <button

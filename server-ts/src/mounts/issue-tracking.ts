@@ -57,6 +57,8 @@ export interface IssueTrackingOptions {
    dispatch?: Pick<RunRepository, 'admit'> | undefined;
    enqueue?: QuickActionEnqueue | undefined;
    hooks?: WorkTrackingHooks | undefined;
+   /** Starts a waiting review when a batch turns AutoGate on for a task in review. */
+   gate?: { reviewLatest(issueId: string): Promise<unknown> } | undefined;
 }
 
 const valueBody = z.object({ value: z.unknown() }).strict();
@@ -203,7 +205,10 @@ export function issueTrackingRoutes(options: IssueTrackingOptions): Hono<{ Varia
                   throw ApiError.notFound('Assignee');
                }
             }
+            if (input.patch.autoGate !== undefined) patch.autoGate = input.patch.autoGate;
+            const reviewNow = input.patch.autoGate === true && !issue.autoGate && issue.status === 'inReview';
             await applyPatch(issue, workspaceId, userId, patch);
+            if (reviewNow) void options.gate?.reviewLatest(issue.id).catch(() => undefined);
             updated.push(issue.id);
          } catch (error) {
             failed.push({ id: issueId, code: failureCode(error) });

@@ -71,6 +71,28 @@ export const SentBackThenApproved: Story = {
    },
 };
 
+export const RejectedWhileInReview: Story = {
+   args: { inReview: true, autoGate: true },
+   beforeEach: ({ msw }) => {
+      msw.use(
+         answer([
+            review({
+               approved: false,
+               reason: 'The redirect drops the query string.',
+            }),
+         ])
+      );
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('Peer reviewing')).toBeInTheDocument();
+      await expect(canvas.getByText(/drops the query string/)).toBeInTheDocument();
+      await expect(canvas.queryByText('Peer sent back')).not.toBeInTheDocument();
+      await expect(
+         canvas.queryByText('Sent back to To do to be worked again, with this feedback.')
+      ).not.toBeInTheDocument();
+   },
+};
+
 export const StillReading: Story = {
    beforeEach: ({ msw }) => {
       msw.use(answer([review({ approved: null, inProgress: true, decidedAt: null, reason: '' })]));

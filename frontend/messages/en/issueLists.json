@@ -121,7 +121,8 @@
       "changeError": "The change could not be applied.",
       "deleteFailed": "{count, plural, =1 {1 task} other {# tasks}} could not be deleted.",
       "deleteError": "The tasks could not be deleted.",
-      "frequentFirst": "Most assigned by you first"
+      "frequentFirst": "Most assigned by you first",
+      "autoGate": "AutoGate"
    },
    "views": {
       "title": "Views",

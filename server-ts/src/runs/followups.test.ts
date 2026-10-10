@@ -52,6 +52,7 @@ describe('durable run followups', { skip: !process.env.BERRY_TEST_DATABASE_URL }
    test('review waits for parent success and survives a new worker instance', async () => {
       assert.ok(fixture);
       const issueId = await createIssue(sql, fixture);
+      await sql`UPDATE issues SET auto_gate = true WHERE id = ${issueId}`;
       const { runId } = await enqueueTask(sql, { workspaceId: fixture.workspaceId, issueId, agentId: fixture.agentId, kind: 'agent', source: 'assignment' });
       await scheduleReview(sql, runId);
       await scheduleReview(sql, runId);

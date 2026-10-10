@@ -612,7 +612,8 @@ export type AutoReview = z.infer<typeof autoReviewSchema>;
  * Peer verdicts on a task, newest first.
  *
  * Only AutoGate plans have these. A rejection is the case that matters: the
- * task stays in review and, without this, nothing on the page says why.
+ * task can still be in review, and without the reason nothing on the page
+ * says why. Calling that "sent back" waits until the task has left review.
  */
 export async function loadAutoReviews(issueRef: string): Promise<AutoReview[]> {
    if (!issueRef) return [];

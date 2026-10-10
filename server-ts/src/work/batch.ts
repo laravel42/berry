@@ -17,6 +17,7 @@ export const batchUpdateSchema = z
             statusId: z.uuid().optional(),
             priority: z.enum(PRIORITIES).optional(),
             assignee: assignee.nullable().optional(),
+            autoGate: z.boolean().optional(),
          })
          .strict()
          .refine((patch) => Object.keys(patch).length > 0, { message: 'At least one field must be provided.' })

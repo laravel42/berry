@@ -8,6 +8,7 @@ import { useParams } from 'next/navigation';
 import { useRef, type Ref } from 'react';
 import { useDrag } from 'react-dnd';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
+import { AutoGateMark } from './auto-gate-mark';
 import { AssigneeUser } from './assignee-user';
 import { IssueDragType } from './issue-grid';
 import { LabelBadge } from './label-badge';
@@ -89,6 +90,7 @@ function IssueLineView({
                      {issue.identifier}
                   </span>
                )}
+               {issue.autoGate ? <AutoGateMark className="mr-1" /> : null}
                {displayProperties.status && (
                   <span className={cn('flex items-center', CONTROL)}>
                      <IssueStatusPicker issue={issue} />

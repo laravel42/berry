@@ -204,6 +204,9 @@ export function BatchToolbar({ visibleIds = [] }: { visibleIds?: string[] }) {
                   </DropdownMenuItem>
                </DropdownMenuContent>
             </DropdownMenu>
+            <Button size="xs" variant="secondary" onClick={() => apply({ autoGate: true })}>
+               {t('selection.autoGate')}
+            </Button>
             <Button size="xs" variant="ghost" onClick={() => setConfirmingDelete(true)}>
                {t('selection.delete')}
             </Button>

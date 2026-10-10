@@ -38,6 +38,7 @@ export const Waiting: Story = {
       const needsHelp = await canvas.findByRole('button', { name: /Needs help/ });
       await expect(canvas.getByRole('button', { name: /Waiting for a decision/ })).toBeVisible();
       await expect(canvas.getByText('3 waiting · 1 needs help')).toBeVisible();
+      await expect(await canvas.findByRole('tab', { name: 'Decided' })).toBeVisible();
       // The group header really folds its rows.
       await userEvent.click(needsHelp);
       await expect(needsHelp).toHaveAttribute('aria-expanded', 'false');
@@ -63,5 +64,6 @@ export const AllCaughtUp: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findByRole('heading', { name: 'All caught up' })).toBeVisible();
+      await expect(canvas.queryByRole('tab', { name: 'Decided' })).toBeNull();
    },
 };

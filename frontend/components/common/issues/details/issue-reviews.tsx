@@ -1,6 +1,6 @@
 'use client';
 
-import { PeerVerdictChip } from '@/components/common/reviews/review-shared';
+import { PeerVerdictChip, shownPeerApproval } from '@/components/common/reviews/review-shared';
 import { type AutoReview, loadAutoReviews } from '@/lib/runs';
 import { cn } from '@/lib/utils';
 import { CircleCheck, CircleX, Loader2, ShieldCheck } from 'lucide-react';
@@ -16,10 +16,20 @@ import { useEffect, useState } from 'react';
  * like one nobody had looked at yet. The reason is the useful part: it says
  * what to fix before the task is worth running again.
  *
- * The verdict is the same chip Reviews draws, so "Peer sent back" here is
- * "Peer sent back" there.
+ * The verdict is the same chip Reviews draws. While AutoGate is on and the
+ * task is still in review, a rejection stays "Peer reviewing". With AutoGate
+ * off that rejection is the verdict it already was. The reason is on the
+ * page either way.
  */
-export function IssueReviews({ issueRef }: { issueRef: string }) {
+export function IssueReviews({
+   issueRef,
+   inReview = false,
+   autoGate = false,
+}: {
+   issueRef: string;
+   inReview?: boolean;
+   autoGate?: boolean;
+}) {
    const t = useTranslations('issueDetail.reviews');
    const tPeer = useTranslations('reviews.peer');
    const [reviews, setReviews] = useState<AutoReview[]>([]);
@@ -55,7 +65,8 @@ export function IssueReviews({ issueRef }: { issueRef: string }) {
          </h2>
          <div className="flex flex-col gap-2">
             {reviews.map((review) => {
-               const approved = review.inProgress ? null : review.approved;
+               const decided = review.inProgress ? null : review.approved;
+               const approved = shownPeerApproval(decided, inReview, autoGate);
                return (
                   <div
                      key={review.id}
@@ -89,14 +100,14 @@ export function IssueReviews({ issueRef }: { issueRef: string }) {
                               : ''}
                         </span>
                      </div>
-                     {approved === null ? (
+                     {decided === null ? (
                         <p className="text-muted-foreground">
                            {tPeer('reading', { reviewer: review.reviewer, author: review.author })}
                         </p>
                      ) : (
                         <p className="whitespace-pre-wrap text-muted-foreground">{review.reason}</p>
                      )}
-                     {approved === false ? (
+                     {approved === false && !inReview ? (
                         <p className="mt-2 text-muted-foreground">{tPeer('returned')}</p>
                      ) : null}
                   </div>

@@ -542,6 +542,13 @@ Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `s
 - `409`: `APPROVAL_REQUIRED` with `details.approvalId` when the issue's plan or its `issueStart` approval is not approved and the move targets `todo`
 - `422`: `VALIDATION_FAILED`, `GOAL_NOT_FOUND`
 
+#### `POST /api/v1/issues/batch`
+
+`{ "issueIds": Uuid[], "patch": { ... } }`. `issueIds` holds 1 to 100 ids. `patch` is a non-empty subset of `status`, `statusId`, `priority`, `assignee`, and `autoGate` (boolean). Send `status` or `statusId`, not both. Turning `autoGate` on for an issue in `inReview` starts its review, the same as `PATCH`. Each issue is authorized on its own; one that cannot be changed is listed in `failed` and the rest still apply.
+
+- `200`: `{ "updated": Uuid[], "failed": [{ "id": Uuid, "code": string }] }`
+- `422`: `VALIDATION_FAILED`
+
 #### `GET /api/v1/issues/{issueId}/dependencies`
 
 - `200`: `{ "dependsOn": IssueDependencyRef[], "blocks": IssueDependencyRef[] }`

@@ -542,6 +542,16 @@ export class IssueRepository {
                updated_at = ${now}
              WHERE id = ${params.issueId}`.catch(classifyWrite);
          if (updated.count !== 1) throw new NotFound();
+         if (patch.autoGate === false) {
+            await tx`
+               UPDATE run_followups AS followup
+                  SET status = 'cancelled', completed_at = now(), lease_until = NULL
+                 FROM runs AS run
+                WHERE followup.run_id = run.id
+                  AND run.issue_id = ${params.issueId}
+                  AND followup.kind = 'review'
+                  AND followup.status = 'pending'`;
+         }
 
          if (patch.assigneeSet && patch.assignee) {
             // `assigned_by` names a person (users.id). An agent assigning work is

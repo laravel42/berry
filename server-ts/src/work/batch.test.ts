@@ -17,6 +17,8 @@ test('a batch patch needs a field, and not status and statusId together', () => 
    assert.equal(batchUpdateSchema.safeParse({ issueIds: [id], patch: {} }).success, false);
    assert.equal(batchUpdateSchema.safeParse({ issueIds: [id], patch: { status: 'todo', statusId: id } }).success, false);
    assert.equal(batchUpdateSchema.safeParse({ issueIds: [id], patch: { priority: 'high' } }).success, true);
+   assert.equal(batchUpdateSchema.safeParse({ issueIds: [id], patch: { autoGate: true } }).success, true);
+   assert.equal(batchUpdateSchema.safeParse({ issueIds: [id], patch: { autoGate: 'yes' } }).success, false);
    assert.equal(childCreateSchema.safeParse({}).success, false);
 });
 

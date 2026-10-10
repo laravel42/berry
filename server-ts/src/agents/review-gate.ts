@@ -511,6 +511,12 @@ export class ReviewGate {
     * blocking rejection sends the task back; every required blocking approval
     * releases an AutoGate task, while a manually reviewed task waits for a
     * person. Anything else names the reviews still missing and why.
+    *
+    * The lock transaction only reads. The comment, the status change and the
+    * merge run after it commits, each on its own connection. Holding the
+    * transaction open across those writes deadlocks the embedded database,
+    * which runs one query at a time: the close waits on a connection that
+    * cannot start until this transaction ends.
     */
    async #settleRequired(
       runId: string,
@@ -522,77 +528,50 @@ export class ReviewGate {
       const required = await this.#requiredFor(material, contract);
       const issueId = material.issue.id;
 
-      return withinTx(this.#sql, async (tx) => {
-         // A transaction-scoped advisory lock rather than FOR UPDATE on the
-         // issue: the status change, the comment and the re-admission are
-         // written by repositories on their own connections, and each of them
-         // locks the issue row — a held row lock here would deadlock them.
+      const decision = await withinTx(this.#sql, async (tx) => {
          await tx`SELECT pg_advisory_xact_lock(hashtextextended(${settleLockKey(issueId)}, 0))`;
          const [issue] = await tx<Array<{ status: string }>>`
             SELECT status::text AS status FROM issues WHERE id = ${issueId} AND deleted_at IS NULL`;
-         if (issue?.status !== 'in_review') return { kind: 'skipped', because: 'not_in_review' } as GateOutcome;
+         if (issue?.status !== 'in_review') return { action: 'skip' as const, because: 'not_in_review' as const };
 
-         // Read-only from here inside this transaction: every write goes
-         // through a repository on its own connection, so this transaction
-         // holds no row lock those writes would wait on.
          const rows = await tx<Array<{ reviewer_id: string; approved: boolean | null; reason: string | null; decided_at: string | null }>>`
             SELECT reviewer_id, approved, reason, decided_at FROM issue_auto_reviews WHERE run_id = ${runId}`;
          const byReviewer = new Map(rows.map((row) => [row.reviewer_id, row]));
          const attempt = await this.#attemptOf(tx, issueId, runId);
          const fresh = new Set(options.fresh ?? []);
-
-         for (const entry of required) {
-            if (entry.authority !== 'advisory' || !entry.reviewer || !fresh.has(entry.reviewer.id)) continue;
+         const advisory = required.flatMap((entry) => {
+            if (entry.authority !== 'advisory' || !entry.reviewer || !fresh.has(entry.reviewer.id)) return [];
             const row = byReviewer.get(entry.reviewer.id);
-            if (!row?.decided_at) continue;
-            await this.#comment(issueId, entry.reviewer.id, advisoryComment(entry.role, row.approved === true, row.reason ?? '', material));
-         }
+            if (!row?.decided_at) return [];
+            return [{ reviewerId: entry.reviewer.id, role: entry.role, approved: row.approved === true, reason: row.reason ?? '' }];
+         });
 
          const blocking = required.filter((entry) => entry.authority === 'blocking');
          const rejected = blocking.filter((entry) => entry.reviewer && byReviewer.get(entry.reviewer.id)?.approved === false);
          if (rejected.length > 0) {
             const lead = rejected[0]!.reviewer!;
             const reasons = rejected.map((entry) => ({ role: entry.role, reason: byReviewer.get(entry.reviewer!.id)!.reason ?? '' }));
-            await this.#comment(issueId, lead.id, sentBackComment(reasons, material, attempt));
-            await this.#sendBack(material, lead.id, attempt);
             return {
-               kind: 'reviewed',
-               approved: false,
+               action: 'reject' as const,
+               advisory,
                attempt,
+               speakerId: lead.id,
                reviewer: { id: lead.id, name: lead.name, model: lead.model },
-               reason: reasons.map((entry) => `${entry.role}: ${entry.reason}`).join('\n\n'),
-            } as GateOutcome;
+               reasons,
+            };
          }
 
          const owed = blocking.filter((entry) => !entry.reviewer || byReviewer.get(entry.reviewer.id)?.approved !== true);
          const speaker = required.find((entry) => entry.reviewer)?.reviewer ?? null;
          const speakerId = speaker?.id ?? material.run.agentId;
-         if (blocking.length === 0) {
-            // Nothing to pass: no required reviewer applies (e.g. QA's own
-            // work, which QA cannot review). Saying "passed" would claim a
-            // review that never happened.
-            await this.#comment(issueId, speakerId, noReviewersComment(material));
-            return { kind: 'skipped', because: 'no_reviewer' } as GateOutcome;
-         }
+         const reviewer = speaker
+            ? { id: speaker.id, name: speaker.name, model: speaker.model }
+            : { id: material.run.agentId, name: 'author', model: null as string | null };
+         if (blocking.length === 0) return { action: 'none' as const, advisory, speakerId };
          if (owed.length === 0) {
-            // Every blocking reviewer approved. With AutoGate the plan already
-            // carries a person's consent to release on exactly this, so the task
-            // closes and whatever it was blocking starts; without it the reviews
-            // are advice and the task waits.
             const approvals = blocking.map((entry) => ({ role: entry.role, reason: byReviewer.get(entry.reviewer!.id)!.reason ?? '' }));
-            const released = await this.#release(material, speakerId);
-            await this.#comment(issueId, speakerId, passedComment(approvals, material, released));
-            return {
-               kind: 'reviewed',
-               approved: true,
-               attempt,
-               reviewer: speaker ? { id: speaker.id, name: speaker.name, model: speaker.model } : { id: material.run.agentId, name: 'author', model: null },
-               reason: released
-                  ? 'Required reviews passed — released by AutoGate.'
-                  : 'Required reviews passed — waiting for a person.',
-            } as GateOutcome;
+            return { action: 'pass' as const, advisory, attempt, speakerId, reviewer, approvals };
          }
-
          const missing = owed.map((entry) => ({
             role: entry.role,
             why: !entry.reviewer
@@ -601,9 +580,51 @@ export class ReviewGate {
                  ? 'the review could not be completed'
                  : 'has not reviewed yet',
          }));
-         await this.#comment(issueId, speakerId, pendingComment(missing, material));
-         return { kind: 'skipped', because: 'no_reviewer' } as GateOutcome;
+         return { action: 'pending' as const, advisory, speakerId, missing };
       });
+
+      if (decision.action === 'skip') return { kind: 'skipped', because: decision.because };
+
+      for (const note of decision.advisory) {
+         await this.#comment(issueId, note.reviewerId, advisoryComment(note.role, note.approved, note.reason, material));
+      }
+      if (decision.action === 'reject') {
+         await this.#comment(issueId, decision.speakerId, sentBackComment(decision.reasons, material, decision.attempt));
+         await this.#sendBack(material, decision.speakerId, decision.attempt);
+         return {
+            kind: 'reviewed',
+            approved: false,
+            attempt: decision.attempt,
+            reviewer: decision.reviewer,
+            reason: decision.reasons.map((entry) => `${entry.role}: ${entry.reason}`).join('\n\n'),
+         };
+      }
+      if (decision.action === 'none') {
+         // Nothing to pass: no required reviewer applies (e.g. QA's own
+         // work, which QA cannot review). Saying "passed" would claim a
+         // review that never happened.
+         await this.#comment(issueId, decision.speakerId, noReviewersComment(material));
+         return { kind: 'skipped', because: 'no_reviewer' };
+      }
+      if (decision.action === 'pass') {
+         // Every blocking reviewer approved. With AutoGate the plan already
+         // carries a person's consent to release on exactly this, so the task
+         // closes and whatever it was blocking starts; without it the reviews
+         // are advice and the task waits.
+         const released = await this.#release(material, decision.speakerId);
+         await this.#comment(issueId, decision.speakerId, passedComment(decision.approvals, material, released));
+         return {
+            kind: 'reviewed',
+            approved: true,
+            attempt: decision.attempt,
+            reviewer: decision.reviewer,
+            reason: released
+               ? 'Required reviews passed — released by AutoGate.'
+               : 'Required reviews passed — waiting for a person.',
+         };
+      }
+      await this.#comment(issueId, decision.speakerId, pendingComment(decision.missing, material));
+      return { kind: 'skipped', because: 'no_reviewer' };
    }
 
    /** The roles the author's contract requires for this run; `reviewer` is null when no agent holds the role. Never the author. */

@@ -102,6 +102,23 @@ export function peerOutcomeOf(verdict: Pick<ReviewVerdict, 'approved'>): PeerOut
    return verdict.approved ? 'approved' : 'sentBack';
 }
 
+/**
+ * What the chip may claim while an AutoGate task is still in review.
+ *
+ * A recorded rejection is the peer's answer. It is not a send-back until the
+ * task has left review, so the chip keeps saying the peer is reviewing.
+ * With AutoGate off there is no peer review in progress, and the verdict
+ * stands as it was recorded.
+ */
+export function shownPeerApproval(
+   approved: boolean | null,
+   inReview: boolean,
+   autoGate = true
+): boolean | null {
+   if (autoGate && inReview && approved === false) return null;
+   return approved;
+}
+
 const PEER_TONE: Record<PeerOutcome, string> = {
    approved: 'text-review-approved',
    sentBack: 'text-review-changes',

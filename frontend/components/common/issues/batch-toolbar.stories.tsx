@@ -15,6 +15,7 @@ import {
 } from './stories-fixtures';
 
 const visibleIds = storyIssues.map((issue) => issue.id);
+let sentPatch: { autoGate?: boolean } | null = null;
 const picked = visibleIds.slice(0, 3);
 
 const member = (user: typeof andrea, role: string) => ({
@@ -101,6 +102,27 @@ export const HandToAnAgentAsksFirst: Story = {
       await expect(
          await body.findByText('3 tasks are being assigned to Backend Engineer.')
       ).toBeVisible();
+   },
+};
+
+export const TurnOnAutoGate: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.post('*/api/v1/issues/batch', async ({ request }) => {
+            const body = (await request.json()) as {
+               issueIds: string[];
+               patch: { autoGate?: boolean };
+            };
+            sentPatch = body.patch;
+            return HttpResponse.json({ updated: body.issueIds, failed: [] });
+         })
+      );
+   },
+   play: async ({ canvas, userEvent }) => {
+      sentPatch = null;
+      await userEvent.click(canvas.getByRole('button', { name: 'AutoGate' }));
+      await waitFor(() => expect(sentPatch).toEqual({ autoGate: true }));
+      await waitFor(() => expect(useIssueSelectionStore.getState().selected).toEqual([]));
    },
 };
 

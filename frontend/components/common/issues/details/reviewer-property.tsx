@@ -1,6 +1,6 @@
 'use client';
 
-import { PeerVerdictChip } from '@/components/common/reviews/review-shared';
+import { PeerVerdictChip, shownPeerApproval } from '@/components/common/reviews/review-shared';
 import { type AutoReview, loadAutoReviews } from '@/lib/runs';
 import { CircleCheck, CircleX, Loader2, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -18,7 +18,16 @@ import { useEffect, useState } from 'react';
  * stream for it; a request every few seconds for the minute it lasts is
  * cheaper than the machinery to push it.
  */
-export function ReviewerProperty({ issueRef }: { issueRef: string }) {
+export function ReviewerProperty({
+   issueRef,
+   inReview = false,
+   autoGate = false,
+}: {
+   issueRef: string;
+   inReview?: boolean;
+   /** Peer review runs only while AutoGate is on. */
+   autoGate?: boolean;
+}) {
    const tPeer = useTranslations('reviews.peer');
    const [review, setReview] = useState<AutoReview | null>(null);
 
@@ -52,7 +61,11 @@ export function ReviewerProperty({ issueRef }: { issueRef: string }) {
 
    if (!review) return null;
 
-   const approved = review.inProgress ? null : review.approved;
+   const approved = shownPeerApproval(
+      review.inProgress ? null : review.approved,
+      inReview,
+      autoGate
+   );
    const title =
       approved === null
          ? tPeer('reading', { reviewer: review.reviewer, author: review.author })

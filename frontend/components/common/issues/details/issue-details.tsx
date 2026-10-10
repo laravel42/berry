@@ -285,7 +285,11 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   </div>
 
                   <SubIssues issue={issue} />
-                  <IssueReviews issueRef={issue.identifier} />
+                  <IssueReviews
+                     issueRef={issue.identifier}
+                     inReview={issue.status.id === 'in-review'}
+                     autoGate={issue.autoGate}
+                  />
 
                   <ActivityFeedList
                      comments={activity.comments}

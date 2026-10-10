@@ -5,6 +5,15 @@ import { enqueueTask } from './queue.ts';
 import { ActiveRunExists } from './repository.ts';
 
 export async function scheduleReview(sql: Sql, runId: string): Promise<void> {
+   // A task without AutoGate waits for a person. Scheduling the review and
+   // then skipping it still showed up as a peer review on a task whose gate
+   // had been turned off.
+   const [issue] = await sql<Array<{ auto_gate: boolean }>>`
+      SELECT issue.auto_gate
+        FROM runs AS run
+        JOIN issues AS issue ON issue.id = run.issue_id
+       WHERE run.id = ${runId}`;
+   if (!issue?.auto_gate) return;
    await sql`INSERT INTO run_followups (run_id, kind, dedupe_key)
       VALUES (${runId}, 'review', ${`review:${runId}`}) ON CONFLICT (dedupe_key) DO NOTHING`;
 }

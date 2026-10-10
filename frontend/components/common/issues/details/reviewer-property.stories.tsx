@@ -56,6 +56,30 @@ export const SentBack: Story = {
    },
 };
 
+/** Recorded while AutoGate is on and the task is still in review, so it has not been sent back. */
+export const RejectedWhileInReview: Story = {
+   args: { inReview: true, autoGate: true },
+   beforeEach: ({ msw }) => {
+      msw.use(answer([review({ approved: false, attempt: 2 })]));
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('Peer reviewing')).toBeInTheDocument();
+      await expect(canvas.queryByText('Peer sent back')).not.toBeInTheDocument();
+   },
+};
+
+/** AutoGate is off, so a finished rejection is not a peer still being asked. */
+export const AutoGateOff: Story = {
+   args: { inReview: true, autoGate: false },
+   beforeEach: ({ msw }) => {
+      msw.use(answer([review({ approved: false, attempt: 2 })]));
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('Peer sent back')).toBeInTheDocument();
+      await expect(canvas.queryByText('Peer reviewing')).not.toBeInTheDocument();
+   },
+};
+
 export const Reading: Story = {
    beforeEach: ({ msw }) => {
       msw.use(answer([review({ approved: null, inProgress: true, decidedAt: null })]));

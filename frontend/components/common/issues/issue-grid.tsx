@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
+import { AutoGateMark } from './auto-gate-mark';
 import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
 import { IssuePriorityPicker } from './issue-pickers';
@@ -36,6 +37,7 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <IssuePriorityPicker issue={issue} />
             <span className="min-w-0 truncate text-subtle-foreground">{issue.identifier}</span>
+            {issue.autoGate ? <AutoGateMark /> : null}
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                {format(new Date(issue.createdAt), 'MMM dd')}
             </span>
@@ -214,6 +216,7 @@ export function IssueGrid({
                               {issue.identifier}
                            </span>
                         ) : null}
+                        {issue.autoGate ? <AutoGateMark /> : null}
                         {displayProperties.created ? (
                            <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                               {format(new Date(issue.createdAt), 'MMM dd')}
