@@ -29,7 +29,7 @@ Shipped but not yet given a full schema here — treat the implementation as aut
 | Identifiers | UUID strings unless a field is explicitly documented as opaque |
 | Timestamps | UTC RFC 3339 strings, for example `2026-08-22T06:30:00.000Z` |
 | Nullable values | Represented as JSON `null`; omitted fields mean “not requested/not available,” not null |
-| Authentication | Browser: the `berry.session_token` cookie set by GitHub sign-in (`/api/auth/*`, Better Auth). API clients: `Authorization: Bearer berry_pat_<id>_<secret>`. A request with an `Authorization` header is decided by it alone. |
+| Authentication | Browser: the `berry.session_token` cookie set by GitHub sign-in (Better Auth at `/api/auth/*`). API clients: `Authorization: Bearer berry_pat_<id>_<secret>`. A request with an `Authorization` header is decided by it alone. |
 | Request tracing | Server returns `X-Request-Id`; the same value appears in error envelopes |
 | Idempotency | Mutating create/dispatch endpoints accept `Idempotency-Key`, described below |
 

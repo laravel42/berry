@@ -83,7 +83,7 @@ function PasswordlessSignIn() {
    );
 }
 
-function GitHubSignIn() {
+function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
    const params = useSearchParams();
    const returned = params.get('error');
    const [available, setAvailable] = useState<boolean | null>(null);
@@ -91,6 +91,18 @@ function GitHubSignIn() {
    const [error, setError] = useState<string | null>(
       returned ? (ERROR_MESSAGES[returned] ?? GENERIC_ERROR) : null
    );
+
+   const start = async () => {
+      setError(null);
+      setPending(true);
+      try {
+         // On success the browser navigates to GitHub; nothing after this runs.
+         await signInWithGitHub();
+      } catch {
+         setError(GENERIC_ERROR);
+         setPending(false);
+      }
+   };
 
    useEffect(() => {
       let cancelled = false;
@@ -106,22 +118,36 @@ function GitHubSignIn() {
       };
    }, []);
 
-   const start = async () => {
-      setError(null);
+   useEffect(() => {
+      if (params.get('github') !== '1') return;
+      let cancelled = false;
       setPending(true);
-      try {
-         // On success the browser navigates to GitHub; nothing after this runs.
-         await signInWithGitHub();
-      } catch {
-         setError(GENERIC_ERROR);
-         setPending(false);
-      }
-   };
+      void signInWithGitHub().catch(() => {
+         if (!cancelled) {
+            setError(GENERIC_ERROR);
+            setPending(false);
+         }
+      });
+      return () => {
+         cancelled = true;
+      };
+   }, [params]);
 
    return (
       <AuthCard
          title="Sign in to Berry"
          description="Berry uses your GitHub account to sign you in."
+         footer={
+            onUseEmail ? (
+               <button
+                  type="button"
+                  className="underline-offset-4 hover:underline"
+                  onClick={onUseEmail}
+               >
+                  Use email instead
+               </button>
+            ) : undefined
+         }
       >
          <div className="grid gap-4">
             <Button
@@ -136,7 +162,7 @@ function GitHubSignIn() {
             {available === false ? (
                <div role="status" className="grid gap-1.5 text-muted-foreground">
                   <p>
-                     Sign-in is not set up on this server. An administrator needs to add the GitHub
+                     Sign-in is not set up on this server. An administrator needs to add GitHub
                      sign-in credentials.
                   </p>
                   <p className="font-mono">
@@ -156,7 +182,7 @@ function GitHubSignIn() {
    );
 }
 
-function EmailRegistration() {
+function EmailRegistration({ onBack }: { onBack?: () => void }) {
    const router = useRouter();
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
    const [mode, setMode] = useState<'register' | 'sign-in'>('register');
@@ -194,16 +220,27 @@ function EmailRegistration() {
                : 'Sign in with the email and password you registered.'
          }
          footer={
-            <button
-               type="button"
-               className="underline-offset-4 hover:underline"
-               onClick={() => {
-                  setMode(registering ? 'sign-in' : 'register');
-                  setError(null);
-               }}
-            >
-               {registering ? 'Already have an account? Sign in' : 'Need an account? Register'}
-            </button>
+            <div className="grid gap-2">
+               <button
+                  type="button"
+                  className="underline-offset-4 hover:underline"
+                  onClick={() => {
+                     setMode(registering ? 'sign-in' : 'register');
+                     setError(null);
+                  }}
+               >
+                  {registering ? 'Already have an account? Sign in' : 'Need an account? Register'}
+               </button>
+               {onBack ? (
+                  <button
+                     type="button"
+                     className="underline-offset-4 hover:underline"
+                     onClick={onBack}
+                  >
+                     Continue with GitHub
+                  </button>
+               ) : null}
+            </div>
          }
       >
          <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
@@ -268,9 +305,11 @@ function EmailRegistration() {
 
 function SignInContent() {
    const [options, setOptions] = useState<{
+      github: boolean;
       passwordless: boolean;
       emailRegistration: boolean;
    } | null>(null);
+   const [forceEmail, setForceEmail] = useState(false);
 
    useEffect(() => {
       let cancelled = false;
@@ -278,13 +317,16 @@ function SignInContent() {
          .then((next) => {
             if (!cancelled) {
                setOptions({
+                  github: next.github,
                   passwordless: next.passwordless,
                   emailRegistration: next.emailRegistration,
                });
             }
          })
          .catch(() => {
-            if (!cancelled) setOptions({ passwordless: false, emailRegistration: false });
+            if (!cancelled) {
+               setOptions({ github: false, passwordless: false, emailRegistration: false });
+            }
          });
       return () => {
          cancelled = true;
@@ -292,7 +334,16 @@ function SignInContent() {
    }, []);
 
    if (options === null) return null;
-   if (options.emailRegistration) return <EmailRegistration />;
+   if (options.github && !forceEmail) {
+      return (
+         <GitHubSignIn
+            onUseEmail={options.emailRegistration ? () => setForceEmail(true) : undefined}
+         />
+      );
+   }
+   if (options.emailRegistration) {
+      return <EmailRegistration onBack={options.github ? () => setForceEmail(false) : undefined} />;
+   }
    if (options.passwordless) return <PasswordlessSignIn />;
    return <GitHubSignIn />;
 }

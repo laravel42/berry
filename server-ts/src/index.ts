@@ -248,15 +248,14 @@ const githubUserAccess = config.auth.secret
    : null;
 
 /**
- * Sign-in: Better Auth's GitHub provider on a GitHub OAuth App, from
- * `BERRY_AUTH_GITHUB_CLIENT_ID` / `_SECRET`, built once at boot.
+ * Sign-in: Better Auth sessions, built once at boot.
  *
- * The OAuth App is separate from the repository GitHub App. It asks for the
- * `repo` scope (repositories and their issues, read and write) and `workflow`
- * (so a delivery can write `.github/workflows/`) on top of the profile scopes,
- * and its callback is Better Auth's own,
- * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes a
- * restart, like any other environment setting.
+ * GitHub is Better Auth's GitHub provider on `BERRY_AUTH_GITHUB_CLIENT_ID` /
+ * `_SECRET`. The OAuth App is separate from the repository GitHub App. It
+ * asks for the `repo` scope and `workflow` on top of the profile scopes, and
+ * its callback is Better Auth's own,
+ * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes
+ * a restart.
  */
 const auth =
    authPool && config.auth.secret && config.auth.baseUrl
@@ -1407,12 +1406,13 @@ registry.registerAll(
          // Planning is a completion task, so it runs wherever tasks do.
          planner: defaultTarget !== null,
          modelGateway: modelGateway !== null,
-         // What the sign-in page believes: true only when the OAuth App is
-         // configured and Better Auth is serving it.
+         // What the sign-in page believes: true when the GitHub OAuth App
+         // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
       },
+      signInOrigin: config.auth.baseUrl,
    })
 );
 
@@ -1524,7 +1524,11 @@ logger.info('Berry server listening', {
       : 'no encryption key',
    // Named at boot so a missing BERRY_AUTH_GITHUB_* is visible before anyone
    // meets a disabled button.
-   signIn: auth ? (config.auth.github ? 'github (OAuth App)' : 'no BERRY_AUTH_GITHUB_* credentials') : 'off',
+   signIn: auth
+      ? config.auth.github
+         ? 'github'
+         : 'no GitHub sign-in credentials'
+      : 'off',
    mounts: registry.prefixes,
 });
 
