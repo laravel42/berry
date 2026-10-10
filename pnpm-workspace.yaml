@@ -3,6 +3,7 @@ packages:
    - server-ts
    - packages/plugin-sdk
    - apps/mobile
+   - apps/desktop
 
 # pnpm 12 reads these here, not from package.json's "pnpm" field.
 allowBuilds:
@@ -11,6 +12,9 @@ allowBuilds:
    '@parcel/watcher': true
    '@swc/core': true
    better-sqlite3: true
+   electron: true
+   electron-builder: true
+   electron-winstaller: true
    esbuild: true
    koffi: true
    msw: true

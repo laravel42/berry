@@ -54,6 +54,13 @@ write code. Never run one workspace's tools over another.
 | Tests | `node --test` | none — lint + build | `node --test` |
 | Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
 
+`apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
+With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
+with `DATABASE_URL=pglite:<userData>/pglite`, migrates that directory, and
+serves the web app on `127.0.0.1:4174`. Set `BERRY_DESKTOP_URL` to open an
+existing server instead. Navigation stays on that origin plus GitHub sign-in.
+`pnpm dev:desktop`.
+
 Also in the repo: `docs/` and `scripts/` (Python repository checks). There is
 no container stack: Berry runs on the host against its own PostgreSQL 16, AWS
 S3 (or an S3-compatible store) and AgentCore Runtime.

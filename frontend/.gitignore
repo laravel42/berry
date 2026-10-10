@@ -20,6 +20,8 @@
 /.next-verify/
 # `pnpm dev:docker` builds here, apart from the Mac's own .next.
 /.next-docker/
+# Electron's local stack, so it does not share .next with `next dev`.
+/.next-desktop/
 /out/
 
 # production

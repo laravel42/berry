@@ -13,6 +13,7 @@
       "prepare": "husky",
       "dev:frontend": "pnpm --filter berry-frontend dev",
       "dev:mobile": "pnpm --filter @berry/mobile start",
+      "dev:desktop": "pnpm --filter @berry/desktop dev",
       "lint:frontend": "pnpm --filter berry-frontend lint",
       "build:frontend": "pnpm --filter berry-frontend build",
       "dev:server": "pnpm --filter @berry/server dev",

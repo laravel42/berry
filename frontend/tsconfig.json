@@ -31,7 +31,9 @@
       ".next-verify/dev/types/**/*.ts",
       ".next/dev/types/**/*.ts",
       ".next-docker/types/**/*.ts",
-      ".next-docker/dev/types/**/*.ts"
+      ".next-docker/dev/types/**/*.ts",
+      ".next-desktop/types/**/*.ts",
+      ".next-desktop/dev/types/**/*.ts"
    ],
    "exclude": ["node_modules"]
 }

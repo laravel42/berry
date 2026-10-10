@@ -95,8 +95,10 @@ inbox, conversations, search, saved views, catalogs, plans, and autopilots.
 `GET /api/v1/config` reports only the capabilities a given deployment
 actually has, so the UI can switch off what is missing.
 
-Desktop and mobile clients are not part of the product. Berry ships no
-user-machine CLI, daemon, credential-store scraper or local launcher.
+`apps/desktop` is an Electron window onto this web UI. It can start the
+server beside the window with PGlite as the database directory. It does not
+embed a model or a credential store. Berry ships no user-machine CLI,
+daemon, credential-store scraper, or local launcher.
 Kiro's `kiro-cli` runs on the workstation that runs Berry, not inside that
 container, and Kiro does not supply a container per model. With Kiro
 connected, the workspace places Kiro's models on BerryMax, BerryMid and

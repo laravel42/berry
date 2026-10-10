@@ -22,6 +22,10 @@ Know which workspace you are in before you write code.
 | Tests | `node --test` | none — lint + `build:check` | `node --test` |
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 
+`apps/desktop` compiles TypeScript to `dist/` and runs Electron. Match the
+server style (3-space, single quotes). It loads the frontend and does not
+import the server.
+
 **Never run one workspace's formatter or linter over another.** Berry is the
 control plane for agent execution and imports no model SDK outside
 `server-ts/src/agents/runtime/`; `pnpm check:models` enforces this repo-wide.

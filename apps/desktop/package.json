@@ -1,0 +1,48 @@
+{
+   "name": "@berry/desktop",
+   "version": "0.0.1",
+   "private": true,
+   "type": "module",
+   "description": "Electron window onto Berry. Starts the server with a PGlite database.",
+   "main": "dist/main.js",
+   "scripts": {
+      "build:js": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs",
+      "dev": "pnpm build:js && electron .",
+      "typecheck": "tsc -p tsconfig.json --noEmit",
+      "test": "node --experimental-strip-types --test test/*.test.ts",
+      "package": "pnpm build:js && electron-builder --dir"
+   },
+   "build": {
+      "appId": "pm.berry.desktop",
+      "productName": "Berry",
+      "directories": {
+         "output": "release"
+      },
+      "files": [
+         "dist/**/*",
+         "package.json"
+      ],
+      "mac": {
+         "category": "public.app-category.productivity",
+         "target": [
+            "dir"
+         ]
+      },
+      "linux": {
+         "target": [
+            "dir"
+         ]
+      },
+      "win": {
+         "target": [
+            "dir"
+         ]
+      }
+   },
+   "devDependencies": {
+      "@types/node": "^26.6.4",
+      "electron": "^44.7.0",
+      "electron-builder": "^26.15.3",
+      "typescript": "^7.0.2"
+   }
+}
