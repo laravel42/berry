@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
@@ -103,7 +103,8 @@ function envelope(): TaskEnvelope {
    });
 }
 
-function launcher(seen: GrokSpawn[]): GrokLauncher {
+/** A launcher whose `models` probe exits with the given code, to test auth detection. */
+function launcher(seen: GrokSpawn[], options: { modelsExit?: number } = {}): GrokLauncher {
    return (spec) => {
       seen.push(spec);
       const child = new ScriptedChild();
@@ -114,6 +115,10 @@ function launcher(seen: GrokSpawn[]): GrokLauncher {
             return;
          }
          if (spec.args[0] === 'models') {
+            if ((options.modelsExit ?? 0) !== 0) {
+               child.finish(options.modelsExit, 'Not signed in. Run `grok login`.\n');
+               return;
+            }
             child.push(
                JSON.stringify([
                   { id: 'grok-4.6', display_name: 'Grok 4.6' },
@@ -143,12 +148,13 @@ function launcher(seen: GrokSpawn[]): GrokLauncher {
 }
 
 describe('Grok adapter', () => {
-   test('uses the Grok CLI login and does not forward an API key', async () => {
+   test('runs on the CLI login, writes nothing into the checkout, forwards no API key', async () => {
       const seen: GrokSpawn[] = [];
       const previous = process.env.XAI_API_KEY;
       delete process.env.XAI_API_KEY;
       const adapter = new GrokAgentAdapter({ launcher: launcher(seen) });
-      const directory = await mkdtemp(join(tmpdir(), 'berry-grok-run-'));
+      const workingDirectory = await mkdtemp(join(tmpdir(), 'berry-grok-cwd-'));
+      const stateDirectory = await mkdtemp(join(tmpdir(), 'berry-grok-state-'));
       const events: string[] = [];
       try {
          const status = await adapter.connectionStatus(credential);
@@ -158,8 +164,8 @@ describe('Grok adapter', () => {
          const result = await adapter.start({
             envelope: envelope(),
             credential,
-            workingDirectory: directory,
-            stateDirectory: directory,
+            workingDirectory,
+            stateDirectory,
             tools: [],
             emit: (event) => events.push(JSON.stringify(event)),
             signal: AbortSignal.timeout(5_000),
@@ -168,22 +174,36 @@ describe('Grok adapter', () => {
          assert.equal(result.sessionId, 'session-1');
          assert.equal(events.some((event) => event.includes('Done.')), true);
          assert.equal(events.some((event) => event.includes('tool.started')), true);
-         const run = seen.find((spec) => spec.args.includes('-p'));
-         assert.ok(run);
+
+         const run = seen.find((spec) => spec.args.includes('--prompt-file'));
+         assert.ok(run, 'the run passes the prompt as a file, not an argv string');
+         // The prompt is a file path, and the prompt text is not an argv entry.
+         const promptPath = run.args[run.args.indexOf('--prompt-file') + 1];
+         assert.ok(typeof promptPath === 'string' && promptPath.endsWith('prompt.txt'));
+         assert.equal(run.args.some((arg) => arg.includes('Inspect the repository')), false);
+         const promptBody = await readFile(promptPath, { encoding: 'utf8' });
+         assert.match(promptBody, /Inspect the repository/);
+
+         // No API key reaches the child; the subscription session owns the run.
          assert.equal(run.env.XAI_API_KEY, undefined);
-         assert.equal(run.env.HOME, process.env.HOME);
          assert.ok(run.args.includes('streaming-json'));
-         assert.ok(run.args.includes('--sandbox'));
-         assert.ok(run.args.includes('read-only'));
+         // A writable checkout: the workspace sandbox, not read-only.
+         assert.equal(run.args[run.args.indexOf('--sandbox') + 1], 'workspace');
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('grok-4.6'));
          assert.equal(run.args.some((arg) => arg.includes('xai-')), false);
-         const config = await readFile(join(directory, '.grok', 'config.toml'), 'utf8');
+
+         // The MCP config is written into a private per-run GROK_HOME under the
+         // state directory, never into the committed working directory.
+         assert.ok(run.env.GROK_HOME && run.env.GROK_HOME.startsWith(stateDirectory));
+         const config = await readFile(join(run.env.GROK_HOME, 'config.toml'), 'utf8');
          assert.match(config, /\[mcp_servers\.berry\]/);
+         await assert.rejects(access(join(workingDirectory, '.grok', 'config.toml')));
       } finally {
          if (previous === undefined) delete process.env.XAI_API_KEY;
          else process.env.XAI_API_KEY = previous;
-         await rm(directory, { recursive: true, force: true });
+         await rm(workingDirectory, { recursive: true, force: true });
+         await rm(stateDirectory, { recursive: true, force: true });
       }
    });
 
@@ -195,6 +215,20 @@ describe('Grok adapter', () => {
          const status = await adapter.connectionStatus(credential);
          assert.equal(status.status, 'error');
          assert.match(status.detail ?? '', /API billing/);
+      } finally {
+         if (previous === undefined) delete process.env.XAI_API_KEY;
+         else process.env.XAI_API_KEY = previous;
+      }
+   });
+
+   test('a non-zero `grok models` reads as signed out, not connected', async () => {
+      const previous = process.env.XAI_API_KEY;
+      delete process.env.XAI_API_KEY;
+      try {
+         const adapter = new GrokAgentAdapter({ launcher: launcher([], { modelsExit: 1 }) });
+         const status = await adapter.connectionStatus(credential);
+         assert.equal(status.status, 'missing');
+         await assert.rejects(adapter.discoverModels(credential), /grok login/);
       } finally {
          if (previous === undefined) delete process.env.XAI_API_KEY;
          else process.env.XAI_API_KEY = previous;

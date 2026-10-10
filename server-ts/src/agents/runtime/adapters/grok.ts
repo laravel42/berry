@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GROK_CLI_LOGIN } from '../../../runtime/envelope.ts';
@@ -34,10 +33,20 @@ const INHERITED = [
    'SSL_CERT_FILE',
    'SSL_CERT_DIR',
    'NODE_EXTRA_CA_CERTS',
-   // Grok's own config home. Inherited so the CLI finds the user's own
-   // subscription login (`~/.grok/auth.json`); Berry never reads that file.
+   // Grok's own config home. Inherited so a probe or run finds the user's own
+   // subscription login (`$GROK_HOME/auth.json`); Berry never reads that file.
    'GROK_HOME',
 ] as const;
+
+/**
+ * Grok reads its session login and its MCP servers from the same config home
+ * (`$GROK_HOME`, default `~/.grok`). Berry needs the login but must not write
+ * its own MCP config into either the user's home or the committed checkout.
+ * The files Grok owns in that home that a per-run home must still reach:
+ * the login and its MCP OAuth tokens. They stay owned by the user; Berry
+ * links to them and never reads their bytes.
+ */
+const LINKED_FROM_REAL_HOME = ['auth.json', 'mcp_credentials.json'] as const;
 
 export interface GrokSpawn {
    command: string;
@@ -65,10 +74,10 @@ export interface GrokAdapterOptions {
  * Grok Build on this workstation.
  *
  * The CLI keeps its own subscription login (`grok login`, stored in
- * `~/.grok/auth.json`). Berry never reads that store and never passes
+ * `$GROK_HOME/auth.json`). Berry never reads that store and never passes
  * `XAI_API_KEY`: the API key is a distinct, separately billed path, and the
  * child process is spawned without it so the session token stays in control.
- * The process may only call Berry tools over MCP; its own shell is read-only.
+ * The process may only call Berry tools over MCP.
  */
 export class GrokAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -199,29 +208,41 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
-      const socketPath = join(process.platform === 'win32' ? tmpdir() : '/tmp', `berry-grok-${randomBytes(8).toString('hex')}.sock`);
+      const socketPath = join(process.platform === 'win32' ? tmpdir() : '/tmp', `berry-grok-${randomSuffix()}.sock`);
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
-      // Grok reads MCP servers from a project `.grok/config.toml` on the
-      // cwd→git-root chain, not from a `--mcp-config` flag. Write Berry's
-      // stdio MCP server into the working directory so the headless run can
-      // reach only Berry tools.
-      await this.#writeMcpConfig(input.workingDirectory, socketPath);
+      // Grok reads MCP servers only from a `config.toml` in the cwd, the git
+      // root, or `$GROK_HOME`. Writing one into the working directory would put
+      // the socket path and bridge command into the tree Berry commits, so
+      // Berry builds a private `$GROK_HOME` under the run's state directory
+      // instead: Berry's MCP server is written there, and the user's own login
+      // files are linked in so the CLI keeps its subscription session. Berry
+      // never reads those files.
+      const grokHome = join(input.stateDirectory, 'grok-home');
+      await this.#prepareHome(grokHome, socketPath);
+      // The prompt can be large; `-p` would overflow the argv limit, and Grok
+      // does not read a piped prompt from stdin, so pass it as a file.
+      const promptPath = join(input.stateDirectory, 'prompt.txt');
+      await writeFile(promptPath, promptFor(input));
       const model = runtime.model;
       const args = [
-         '-p',
-         promptFor(input),
+         '--prompt-file',
+         promptPath,
          '--output-format',
          'streaming-json',
          '--no-auto-update',
          '--cwd',
          input.workingDirectory,
+         // Writable checkout: read everywhere, write the working directory and
+         // temp. This is Grok's recommended development profile.
          '--sandbox',
-         'read-only',
-         // Deny every built-in mutating tool; Berry tools arrive over MCP.
+         'workspace',
+         // Remove Grok's own web tools; repository work goes through Berry's
+         // admitted tools over MCP. (Tool ids are Grok internal names.)
          '--disallowed-tools',
-         'bash,run_terminal_cmd,write_file,search_replace,edit_file,Agent',
-         // Only the Berry MCP meta-tools may be auto-approved.
+         'web_search,web_fetch',
+         // Auto-approve tool calls: the run is unattended and Berry already
+         // gates which tools exist.
          '--permission-mode',
          'bypassPermissions',
       ];
@@ -231,7 +252,7 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
          command: this.#command,
          args,
          cwd: input.workingDirectory,
-         env: childEnvironment(),
+         env: childEnvironment(grokHome),
          stdin: '',
       });
       const tracked = resume ?? input.envelope.runId;
@@ -268,13 +289,25 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
       return { text, sessionId: sessionId || input.envelope.runId };
    }
 
-   /** Writes a project `.grok/config.toml` registering only Berry's MCP server. */
-   async #writeMcpConfig(workingDirectory: string, socketPath: string): Promise<void> {
-      const dir = join(workingDirectory, '.grok');
-      await mkdir(dir, { recursive: true });
+   /**
+    * Builds a private `$GROK_HOME` for one run: Berry's MCP server config, and
+    * symlinks to the user's own login files in the real home. The links point
+    * at files owned by the user; Berry does not open or copy them, so the
+    * credential never enters Berry's memory or the checkout.
+    */
+   async #prepareHome(grokHome: string, socketPath: string): Promise<void> {
+      await rm(grokHome, { recursive: true, force: true });
+      await mkdir(grokHome, { recursive: true, mode: 0o700 });
+      const realHome = realGrokHome();
+      for (const name of LINKED_FROM_REAL_HOME) {
+         await symlink(join(realHome, name), join(grokHome, name)).catch(() => undefined);
+      }
       const argv = tomlArray([process.execPath, '--experimental-strip-types', BRIDGE, socketPath]);
+      // `[mcp_servers]` is read from this private home. The session login lives
+      // in the symlinked `auth.json`, not in `config.toml`, so a Berry-only
+      // config.toml here does not drop the user's login.
       const toml = `[mcp_servers.berry]\ncommand = ${tomlString(process.execPath)}\nargs = ${argv}\nenabled = true\n`;
-      await writeFile(join(dir, 'config.toml'), toml);
+      await writeFile(join(grokHome, 'config.toml'), toml);
    }
 
    async #loginStatus(): Promise<
@@ -288,11 +321,15 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
       // "soft auth via `grok models`" probe. An API key present in the
       // ambient environment is treated as API billing and refused.
       if (apiKeyInEnvironment()) return { kind: 'api_key' };
-      const home = await mkdtemp(join(tmpdir(), 'berry-grok-models-'));
+      // `grok models` lists models and, because Berry passes no API key, only
+      // succeeds when a CLI-owned session login is active. It takes no --json
+      // flag (unlike `grok inspect`/`grok mcp list`), so Berry parses whatever
+      // the subcommand prints and never passes an unsupported flag that would
+      // make a signed-in account look signed out.
       const child = this.#launch({
          command: this.#command,
-         args: ['models', '--json'],
-         cwd: home,
+         args: ['models'],
+         cwd: realGrokHome(),
          env: childEnvironment(),
          stdin: '',
       });
@@ -305,15 +342,13 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
          throw cause;
       }
       const exit = await child.exited;
-      await rm(home, { recursive: true, force: true });
       if (exit.error && (exit.error as NodeJS.ErrnoException).code === 'ENOENT') {
          throw new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'grok is not installed on this workstation.', false);
       }
-      const report = `${body}\n${exit.stderr}`;
-      if (exit.code !== 0) {
-         if (/log ?in|sign ?in|not authenticated|unauthorized|auth/i.test(report)) return { kind: 'missing' };
-         return { kind: 'missing' };
-      }
+      // `grok models` exits non-zero when no session is active, directing the
+      // user to sign in. Treat any non-zero exit as not signed in rather than
+      // guessing a model list.
+      if (exit.code !== 0) return { kind: 'missing' };
       return { kind: 'session', accountName: null, models: listedModels(body) };
    }
 
@@ -391,7 +426,13 @@ export function spawnGrokProcess(spec: GrokSpawn): GrokChild {
    };
 }
 
-function childEnvironment(): Record<string, string> {
+function realGrokHome(): string {
+   const configured = process.env.GROK_HOME;
+   if (typeof configured === 'string' && configured.trim() !== '') return configured;
+   return join(homedir(), '.grok');
+}
+
+function childEnvironment(grokHome?: string): Record<string, string> {
    const env: Record<string, string> = {};
    for (const name of INHERITED) {
       const value = process.env[name];
@@ -399,12 +440,19 @@ function childEnvironment(): Record<string, string> {
    }
    // Never forward an API key: the subscription session login must own the run.
    delete env.XAI_API_KEY;
+   // A run points Grok at the private per-run home that holds Berry's MCP
+   // config and the symlinked login. A probe leaves GROK_HOME as inherited.
+   if (grokHome !== undefined) env.GROK_HOME = grokHome;
    return env;
 }
 
 function apiKeyInEnvironment(): boolean {
    const key = process.env.XAI_API_KEY;
    return typeof key === 'string' && key.trim() !== '';
+}
+
+function randomSuffix(): string {
+   return `${process.pid.toString(36)}-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
 function promptFor(input: AgentProcessRun): string {
@@ -423,14 +471,29 @@ function tomlArray(values: string[]): string {
    return `[${values.map(tomlString).join(', ')}]`;
 }
 
+/** Grok's default model when the list cannot be parsed; the run keeps the CLI's own default. */
+const DEFAULT_MODEL: RuntimeModel = { id: 'default', name: 'Grok (CLI default)', reasoning: null, tools: true, policy: null };
+
+/**
+ * Parses the output of `grok models`. The subcommand's format is not a
+ * documented machine contract, so Berry reads JSON when it is given JSON and
+ * otherwise reads one model id per line. Either way a signed-in account with
+ * no parseable list still gets a usable `default` entry rather than none.
+ */
 function listedModels(body: string): RuntimeModel[] {
+   const fromJson = modelsFromJson(body);
+   if (fromJson.length > 0) return fromJson;
+   const fromLines = modelsFromLines(body);
+   if (fromLines.length > 0) return fromLines;
+   return [DEFAULT_MODEL];
+}
+
+function modelsFromJson(body: string): RuntimeModel[] {
    let parsed: unknown;
    try {
       parsed = JSON.parse(body);
    } catch {
-      // `grok models` without `--json` support still proves auth; surface the
-      // CLI default so a connection is usable even without a parseable list.
-      return [{ id: 'default', name: 'Grok (CLI default)', reasoning: null, tools: true, policy: null }];
+      return [];
    }
    const rows = Array.isArray(parsed)
       ? parsed
@@ -458,8 +521,22 @@ function listedModels(body: string): RuntimeModel[] {
               : id;
       listed.push({ id, name, reasoning: null, tools: true, policy: null });
    }
-   if (listed.length === 0) {
-      return [{ id: 'default', name: 'Grok (CLI default)', reasoning: null, tools: true, policy: null }];
+   return listed;
+}
+
+function modelsFromLines(body: string): RuntimeModel[] {
+   const listed: RuntimeModel[] = [];
+   const seen = new Set<string>();
+   for (const raw of body.split('\n')) {
+      // Take the first word-like token on each line and keep plausible model
+      // ids. A heading or a decorative row contributes nothing.
+      const line = raw.replace(/^[\s*\-•\u2022]+/, '').trim();
+      const token = line.split(/[\s,]+/)[0] ?? '';
+      if (!/^[A-Za-z][A-Za-z0-9._:-]{1,80}$/.test(token)) continue;
+      if (!token.toLowerCase().includes('grok')) continue;
+      if (seen.has(token)) continue;
+      seen.add(token);
+      listed.push({ id: token, name: token, reasoning: null, tools: true, policy: null });
    }
    return listed;
 }
