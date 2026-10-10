@@ -544,21 +544,35 @@ export async function workOverview(q: ScopedQuery, window: UsageWindow, filter: 
            FROM runs AS r
           WHERE r.id IN (SELECT s.id FROM (${runsInScope(q, filter)}) AS s WHERE s.created_at >= ${window.from})`,
       q.sql`
+         WITH completed AS MATERIALIZED (
+            ${completedInScope(q, window, filter)}
+         )
          SELECT to_char(b.at, ${format}) AS key,
-                (SELECT COUNT(*)::bigint FROM (${completedInScope(q, window, filter)}) AS c
-                  WHERE c.completed_at >= b.at AT TIME ZONE ${window.timezone}
-                    AND c.completed_at < (b.at + ${step}) AT TIME ZONE ${window.timezone}) AS done
+                COUNT(c.id)::bigint AS done
            FROM ${frameBuckets(q, window, frame)} AS b(at)
+           LEFT JOIN completed AS c
+             ON c.completed_at >= b.at AT TIME ZONE ${window.timezone}
+            AND c.completed_at < (b.at + ${step}) AT TIME ZONE ${window.timezone}
+          GROUP BY b.at
           ORDER BY b.at`,
       q.sql`
+         WITH completed AS MATERIALIZED (
+            ${completedInScope(q, window, filter)}
+         ),
+         done_by_agent AS (
+            SELECT assignee_id, COUNT(*)::bigint AS done
+              FROM completed
+             WHERE assignee_type = 'agent'
+             GROUP BY assignee_id
+         )
          SELECT a.id::text AS agent_id, a.name AS agent_name,
-                (SELECT COUNT(*)::bigint FROM (${completedInScope(q, window, filter)}) AS c
-                  WHERE c.assignee_type = 'agent' AND c.assignee_id = a.id) AS done,
+                COALESCE(MAX(done_by_agent.done), 0) AS done,
                 COUNT(r.id)::bigint AS runs,
                 COALESCE(SUM(EXTRACT(EPOCH FROM (r.completed_at - r.started_at)))
                          FILTER (WHERE r.completed_at IS NOT NULL AND r.started_at IS NOT NULL), 0) AS seconds
            FROM agents AS a
            LEFT JOIN (${runsInScope(q, filter)}) AS r ON r.agent_id = a.id AND r.created_at >= ${window.from}
+           LEFT JOIN done_by_agent ON done_by_agent.assignee_id = a.id
           WHERE a.workspace_id = ${q.workspaceId}
           GROUP BY a.id, a.name
          HAVING COUNT(r.id) > 0
@@ -578,10 +592,16 @@ export async function workOverview(q: ScopedQuery, window: UsageWindow, filter: 
                    JOIN (${runsInScope(q, filter)}) AS r ON r.issue_id = c.id
                   GROUP BY c.id) AS n`,
       q.sql`
-         SELECT (SELECT COUNT(*)::bigint FROM (${waitingReviews(q, filter)}) AS w) AS reviews,
-                (SELECT COUNT(*)::bigint FROM (${waitingDecisions(q, filter)}) AS w) AS decisions,
-                LEAST((SELECT MIN(w.since) FROM (${waitingReviews(q, filter)}) AS w),
-                      (SELECT MIN(w.since) FROM (${waitingDecisions(q, filter)}) AS w)) AS oldest`,
+         WITH reviews AS MATERIALIZED (
+            ${waitingReviews(q, filter)}
+         ),
+         decisions AS MATERIALIZED (
+            ${waitingDecisions(q, filter)}
+         )
+         SELECT (SELECT COUNT(*)::bigint FROM reviews) AS reviews,
+                (SELECT COUNT(*)::bigint FROM decisions) AS decisions,
+                LEAST((SELECT MIN(since) FROM reviews),
+                      (SELECT MIN(since) FROM decisions)) AS oldest`,
    ]);
    const done = Number(totals?.done ?? 0);
    return {
