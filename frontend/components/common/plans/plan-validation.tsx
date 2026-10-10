@@ -32,7 +32,7 @@ export function PlanGenerationProgress({ record }: { record: PlanRecord }) {
       <div
          role="status"
          aria-live="polite"
-         className="mt-5 rounded-md border border-border/60 bg-background px-4 py-3"
+         className="mb-5 rounded-md border border-border/60 bg-background px-4 py-3"
       >
          <div className="flex items-center gap-2">
             <BerryMark size="sm" tone="working" pulse />

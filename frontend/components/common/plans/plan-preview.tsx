@@ -64,11 +64,19 @@ function whenText(iso: string): string {
    }
 }
 
-/** A prompt shortened to a title's length while there is no goal yet. */
-function promptTitle(prompt: string | null | undefined): string {
-   const text = prompt?.replace(/\s+/g, ' ').trim() ?? '';
-   if (!text) return 'New plan';
-   return text.length > 90 ? `${text.slice(0, 89)}…` : text;
+/**
+ * The first line of a prompt is its heading. The rest stays body text, so a
+ * long brief wraps under the title instead of becoming the title.
+ */
+function promptHeading(prompt: string | null | undefined): { title: string; body: string } {
+   const text = prompt?.trim() ?? '';
+   if (!text) return { title: 'New plan', body: '' };
+   const breakAt = text.search(/\r?\n/);
+   if (breakAt === -1) return { title: text, body: '' };
+   return {
+      title: text.slice(0, breakAt).trim() || 'New plan',
+      body: text.slice(breakAt).trim(),
+   };
 }
 
 /**
@@ -220,7 +228,9 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
 
    const plan = record.plan;
    const generating = isPlanGenerating(record);
-   const title = plan?.goal.title ?? promptTitle(record.sourcePrompt);
+   const fromPrompt = promptHeading(record.sourcePrompt);
+   const title = plan?.goal.title || fromPrompt.title;
+   const promptBody = plan?.goal.title ? '' : fromPrompt.body;
    const counts = planCounts(plan);
    // A blocked plan is a goal-only skeleton: its confidence is not a
    // judgement of anything, and its blocking assumptions are the questions
@@ -239,10 +249,12 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
-               <div className="w-full px-6 py-6 sm:px-8 sm:py-8">
+               <div className="w-full px-6 py-3 sm:px-8 sm:py-4">
+                  <PlanGenerationProgress record={record} />
                   <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
                      {title}
                   </h1>
+                  {promptBody ? <p className="mt-4 whitespace-pre-line">{promptBody}</p> : null}
                   <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
                      {plan ? (
                         <span>{describePlanCounts(counts)}</span>
@@ -254,7 +266,6 @@ export default function PlanPreview({ planId }: PlanPreviewProps) {
                         · <PlanStatusBadge record={record} className="align-middle" />
                      </span>
                   </p>
-                  <PlanGenerationProgress record={record} />
                   <PlanGenerationFailure record={record} />
                   <PlanBlockedQuestions
                      record={record}
