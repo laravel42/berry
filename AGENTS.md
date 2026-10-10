@@ -313,3 +313,12 @@ and a manual check of the changed view. No secrets or `.env` files.
   `{{resolve:secretsmanager:secret-id:SecretString:json-key}}` with
   `asm-exec` so the secret resolves at runtime without entering context.
 <!-- END AWS Agent Toolkit rules -->
+
+## Repository development skills
+
+Task-specific development guidance is available in `.agents/skills/`; see
+[`docs/development-skills.md`](docs/development-skills.md) for the inventory,
+source pins, and usage rules. Load only relevant skills. This repository's
+instructions, workspace manifests, and user authorization take precedence
+over upstream workflows. Installing skills does not authorize release actions
+or import them into Berry's product skill catalog.
