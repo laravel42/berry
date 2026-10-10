@@ -542,13 +542,15 @@ function permissionOptions(params: unknown): Array<{ optionId: string; kind: str
 function berryToolName(params: unknown): string | null {
    if (!params || typeof params !== 'object') return null;
    const record = params as {
-      toolCall?: { title?: unknown };
       _meta?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } };
    };
+   // Approve a call only when the MCP identity names Berry as the server. A
+   // native tool whose title merely equals a Berry tool name is not approved.
    const identity = record._meta?.mcpTool?.identity;
-   if (identity && identity.serverName === 'berry' && typeof identity.toolName === 'string') return identity.toolName;
-   const title = record.toolCall?.title;
-   return typeof title === 'string' && title !== '' ? title : null;
+   if (identity && identity.serverName === 'berry' && typeof identity.toolName === 'string' && identity.toolName !== '') {
+      return identity.toolName;
+   }
+   return null;
 }
 
 function promptContext(input: AgentProcessRun): string {

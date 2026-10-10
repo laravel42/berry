@@ -239,7 +239,7 @@ describe('Kimi adapter', () => {
       assert.equal(models[1]?.name, 'kimi-mini');
    });
 
-   test('allows one Berry tool call and denies anything else', () => {
+   test('approves only a Berry MCP tool, never a native tool by title', () => {
       const options = [
          { optionId: 'once', name: 'Allow', kind: 'allow_once' },
          { optionId: 'no', name: 'Deny', kind: 'reject_once' },
@@ -249,11 +249,18 @@ describe('Kimi adapter', () => {
          new Set(['read_issue'])
       );
       assert.equal(berry.outcome.optionId, 'once');
-      const shell = selectKimiPermission(
-         { options, toolCall: { title: 'run_shell' } },
+      // A native tool is denied even when its title equals an allowed Berry tool name.
+      const nativeNamedLikeBerry = selectKimiPermission(
+         { options, toolCall: { title: 'read_issue' } },
          new Set(['read_issue'])
       );
-      assert.equal(shell.outcome.optionId, 'no');
+      assert.equal(nativeNamedLikeBerry.outcome.optionId, 'no');
+      // A tool from another MCP server is denied even when its tool name is allowed.
+      const otherServer = selectKimiPermission(
+         { options, _meta: { mcpTool: { identity: { serverName: 'other', toolName: 'read_issue' } } } },
+         new Set(['read_issue'])
+      );
+      assert.equal(otherServer.outcome.optionId, 'no');
    });
 
    test('skips replayed text and records usage without a dollar price', () => {
