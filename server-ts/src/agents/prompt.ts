@@ -2,6 +2,9 @@ import type { Sql } from '../db/pool.ts';
 import type { Dispatch } from '../runs/ledger.ts';
 import { truncateUtf8 } from './runtime/utf8.ts';
 
+/** A review that threw, rather than a verdict. Not a rejection of the work. */
+export const INCOMPLETE_REVIEW = 'The review could not be completed';
+
 /**
  * The message a run sends its agent.
  *
@@ -370,9 +373,11 @@ export async function lastRejection(sql: Sql, issueId: string): Promise<string> 
         LEFT JOIN agents AS reviewer ON reviewer.id = review.reviewer_id
        WHERE review.issue_id = ${issueId} AND review.approved = false AND review.authority = 'blocking'
          AND review.decided_at IS NOT NULL
+         AND review.reason NOT LIKE ${INCOMPLETE_REVIEW + '%'}
          AND review.run_id = (
             SELECT run_id FROM issue_auto_reviews
              WHERE issue_id = ${issueId} AND approved = false AND authority = 'blocking' AND decided_at IS NOT NULL
+               AND reason NOT LIKE ${INCOMPLETE_REVIEW + '%'}
              ORDER BY decided_at DESC LIMIT 1)
        ORDER BY review.decided_at ASC`;
    const gate = gates.at(-1);
