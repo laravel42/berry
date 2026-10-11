@@ -25,7 +25,7 @@ import {
 } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 
-/** The list's order: the three tiers, best first. */
+/** The list's order: the paid tiers, best first. */
 export const TIER_ORDER = MAIN_TIERS;
 
 /**
@@ -38,6 +38,16 @@ const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> =
       idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
       chosen: 'border-primary bg-primary/15',
       check: 'text-primary',
+   },
+   berry_xhigh: {
+      idle: 'border-status-warning/30 bg-status-warning/5 enabled:hover:bg-status-warning/10',
+      chosen: 'border-status-warning bg-status-warning/15',
+      check: 'text-status-warning',
+   },
+   berry_high: {
+      idle: 'border-review-pending/30 bg-review-pending/5 enabled:hover:bg-review-pending/10',
+      chosen: 'border-review-pending bg-review-pending/15',
+      check: 'text-review-pending',
    },
    berry_mid: {
       idle: 'border-status-info/30 bg-status-info/5 enabled:hover:bg-status-info/10',
@@ -237,7 +247,11 @@ export function AgentTierSection({
             </p>
          ) : null}
 
-         <div role="radiogroup" aria-label={t('title')} className="grid gap-2 sm:grid-cols-3">
+         <div
+            role="radiogroup"
+            aria-label={t('title')}
+            className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3"
+         >
             {TIER_ORDER.map(option)}
          </div>
 

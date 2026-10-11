@@ -330,6 +330,8 @@ export async function connectedAiRuntimes(): Promise<AiRuntimeDefinition[]> {
 
 const runtimeAgentTierPlacementSchema = z.object({
    berry_max: z.array(z.string()),
+   berry_xhigh: z.array(z.string()).default([]),
+   berry_high: z.array(z.string()).default([]),
    berry_mid: z.array(z.string()),
    berry_low: z.array(z.string()),
 });
@@ -343,11 +345,13 @@ export type RuntimeAgentTiers = z.infer<typeof runtimeAgentTiersSchema>;
 
 export const EMPTY_AGENT_TIERS: RuntimeAgentTierPlacement = {
    berry_max: [],
+   berry_xhigh: [],
+   berry_high: [],
    berry_mid: [],
    berry_low: [],
 };
 
-/** Which tier each agent is on. The three tiers belong to the workspace. */
+/** Which tier each agent is on. The tiers belong to the workspace. */
 export async function getRuntimeAgentTiers(): Promise<RuntimeAgentTiers> {
    return parse(
       runtimeAgentTiersSchema,
@@ -366,7 +370,7 @@ export async function saveRuntimeAgentTiers(
    );
 }
 
-/** Models placed in the workspace's three tiers. Each id is `runtime/model`. */
+/** Models placed in the workspace's tiers. Each id is `runtime/model`. */
 export async function getTierModels(): Promise<RuntimeAgentTiers> {
    return parse(
       runtimeAgentTiersSchema,

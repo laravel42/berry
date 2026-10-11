@@ -244,6 +244,8 @@
          "title": "Tier",
          "outcome": {
             "berry_max": "Best results",
+            "berry_xhigh": "Stronger results",
+            "berry_high": "Strong results",
             "berry_mid": "Balanced",
             "berry_low": "Lowest cost"
          },
