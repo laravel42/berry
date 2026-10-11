@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
-import { ChevronDown, Maximize2, Minus, Minimize2, X } from 'lucide-react';
+import { ChevronDown, Maximize2, Minus, Minimize2, Pin, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
@@ -410,6 +410,12 @@ export function FloatingChat() {
                      type="button"
                      className="flex min-h-11 min-w-0 flex-1 items-center gap-1 truncate rounded text-left text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] sm:min-h-0"
                   >
+                     {active?.pinned ? (
+                        <Pin
+                           className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"
+                           aria-label={chat('pin')}
+                        />
+                     ) : null}
                      <span className="truncate">{active ? active.topic : t('title')}</span>
                      <ChevronDown className="size-3.5 flex-none text-[var(--shell-text-dim)]" />
                   </button>
@@ -429,7 +435,10 @@ export function FloatingChat() {
                   ) : (
                      threads.slice(0, 8).map((thread) => (
                         <DropdownMenuItem key={thread.id} onSelect={() => void openThread(thread)}>
-                           <span className="truncate">{thread.topic}</span>
+                           <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
+                           {thread.pinned ? (
+                              <Pin className="size-3 flex-none fill-current" aria-hidden />
+                           ) : null}
                         </DropdownMenuItem>
                      ))
                   )}

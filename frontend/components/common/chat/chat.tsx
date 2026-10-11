@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
@@ -564,9 +564,17 @@ export function Chat() {
                      >
                         <ArrowLeft className="size-4" aria-hidden />
                      </button>
-                     <h2 className="min-w-0 flex-none truncate text-[var(--shell-text)]">
-                        {agentName ?? active.topic}
-                     </h2>
+                     <div className="flex min-w-0 flex-none items-center gap-1.5">
+                        <h2 className="min-w-0 truncate text-[var(--shell-text)]">
+                           {agentName ?? active.topic}
+                        </h2>
+                        {active.pinned ? (
+                           <Pin
+                              className="size-3.5 flex-none fill-current text-[var(--shell-text-dim)]"
+                              aria-label={t('pin')}
+                           />
+                        ) : null}
+                     </div>
 
                      {renaming ? (
                         <input
@@ -659,7 +667,10 @@ export function Chat() {
                               {active.archived ? t('unarchive') : t('archive')}
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
-                           <DropdownMenuItem onSelect={() => setDeleting(true)}>
+                           <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setDeleting(true)}
+                           >
                               {t('delete')}
                            </DropdownMenuItem>
                         </DropdownMenuContent>

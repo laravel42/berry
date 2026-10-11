@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
@@ -128,6 +128,12 @@ function SessionRow({
                   />
                ) : null}
                <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
+               {thread.pinned ? (
+                  <Pin
+                     className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"
+                     aria-label={t('pin')}
+                  />
+               ) : null}
                {thread.unread > 0 ? (
                   <span className="flex-none rounded-sm bg-[var(--shell-line)] px-1.5 tabular-nums text-[var(--shell-text)]">
                      {thread.unread}
@@ -163,7 +169,12 @@ function SessionRow({
                   <DropdownMenuItem onSelect={onStop}>{t('stop')}</DropdownMenuItem>
                ) : null}
                <DropdownMenuSeparator />
-               <DropdownMenuItem onSelect={() => setDeleting(true)}>{t('delete')}</DropdownMenuItem>
+               <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setDeleting(true)}
+               >
+                  {t('delete')}
+               </DropdownMenuItem>
             </DropdownMenuContent>
          </DropdownMenu>
 
