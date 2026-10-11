@@ -340,7 +340,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                <Button
                   variant="ghost"
                   size="xs"
-                  className="-ml-2"
+                  className="-ml-2 uppercase"
                   aria-expanded={!collapsed}
                   aria-label={collapsed ? t('expand') : t('collapse')}
                   onClick={() => setCollapsed(issue.identifier, !collapsed)}
