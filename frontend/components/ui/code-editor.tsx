@@ -28,7 +28,6 @@ import {
    keymap,
    rectangularSelection,
 } from '@codemirror/view';
-import { contextMenuExtension } from '@esbitan/codemirror-context-menu';
 import { tags as t } from '@lezer/highlight';
 import CodeMirror from '@uiw/react-codemirror';
 import { memo, useMemo, useRef, type MutableRefObject } from 'react';
@@ -311,22 +310,6 @@ export const CodeEditor = memo(function CodeEditor({
                }
             }
          }),
-         // The menu injects a stylesheet as soon as the extension is built,
-         // which the server render has no document for.
-         ...(typeof document === 'undefined'
-            ? []
-            : [
-                 contextMenuExtension(
-                    readOnly
-                       ? {
-                            theme: 'dark',
-                            enableUndoRedo: null,
-                            enableCut: false,
-                            enablePaste: false,
-                         }
-                       : { theme: 'dark' }
-                 ),
-              ]),
          // Language packages register their own completion sources; word
          // completion is a fallback for shell / plain, not an override.
          ...(readOnly

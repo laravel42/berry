@@ -29,7 +29,6 @@
       "@codemirror/lint": "^6.9.7",
       "@codemirror/state": "^6.7.5",
       "@codemirror/view": "^6.43.12",
-      "@esbitan/codemirror-context-menu": "^1.0.2",
       "@hookform/resolvers": "^5.9.1",
       "@kayron013/lexorank": "^2.0.0",
       "@lezer/highlight": "^1.2.3",
