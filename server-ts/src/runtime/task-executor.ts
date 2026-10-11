@@ -119,7 +119,7 @@ async function* prepend<T>(first: IteratorResult<T>, rest: AsyncIterator<T>): As
 
 const ZERO: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null };
 
-/** Kiro, Claude, and Codex run in a process beside the server, so they need no AgentCore or HTTP host. */
+/** Kiro, Claude, Codex, Kimi, Cursor, and Grok run in a process beside the server, so they need no AgentCore or HTTP host. */
 const WORKSTATION_TARGET: RuntimeTarget = {
    id: null,
    driver: 'http',
@@ -130,7 +130,14 @@ const WORKSTATION_TARGET: RuntimeTarget = {
 };
 
 function runsOnWorkstation(aiRuntimeId: string | null): boolean {
-   return aiRuntimeId === 'kiro' || aiRuntimeId === 'claude' || aiRuntimeId === 'codex' || aiRuntimeId === 'kimi' || aiRuntimeId === 'cursor';
+   return (
+      aiRuntimeId === 'kiro' ||
+      aiRuntimeId === 'claude' ||
+      aiRuntimeId === 'codex' ||
+      aiRuntimeId === 'kimi' ||
+      aiRuntimeId === 'cursor' ||
+      aiRuntimeId === 'grok'
+   );
 }
 const STREAM_ENDED: Failure = {
    code: 'RUNTIME_STREAM_ENDED',
@@ -504,18 +511,21 @@ export class RuntimeTaskExecutor implements Executor {
             const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
             if (result.delivery.candidate) {
                if (!github) throw new Error('Trusted repository delivery is not configured');
+               // Hold the (possibly handoff-rewritten) delivery in a non-null
+               // local: reassigning `result` below otherwise widens
+               // `result.delivery` back to nullable and loses the narrowing.
+               let delivery = result.delivery;
                if (task.kind === 'agent' && summary) {
                   const document = summary.trimStart().startsWith('HANDOFF.md')
                      ? summary.endsWith('\n') ? summary : `${summary}\n`
-                     : await this.#handoffText(task, summary, plan, result.delivery, null);
-                  if (document) {
-                     result = {
-                        ...result,
-                        delivery: { ...result.delivery, candidate: withHandoffFile(result.delivery.candidate, document) },
-                     };
+                     : await this.#handoffText(task, summary, plan, delivery, null);
+                  if (document && delivery.candidate) {
+                     delivery = { ...delivery, candidate: withHandoffFile(delivery.candidate, document) };
+                     result = { ...result, delivery };
                   }
                }
-               result = { ...result, delivery: await publishTrustedDelivery(this.#o.sql, task.runId, github, result.delivery) };
+               delivery = await publishTrustedDelivery(this.#o.sql, task.runId, github, delivery);
+               result = { ...result, delivery };
             } else {
                const [snapshot] = await this.#o.sql`SELECT run_id FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
                if (snapshot) throw new Error('Runtime did not return a delivery candidate; update the runtime image');
