@@ -10,7 +10,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, KIRO_CLI_LOGIN } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -34,6 +34,20 @@ import { runtimeSessionIdFor } from '../runtime/session-id.ts';
 import type { Permission } from '../identity/roles.ts';
 import type { ScopedDb } from '../identity/workspace-context.ts';
 import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
+
+/**
+ * The subscription runtimes whose login stays inside a CLI on the workstation
+ * that runs Berry. Berry starts the CLI as its own child process and never
+ * reads or forwards its credential store. The token is a non-secret sentinel
+ * that marks the run as using that CLI's own login.
+ */
+const WORKSTATION_CLI_LOGINS = {
+   claude: { label: 'Claude', token: CLAUDE_CLI_LOGIN, authMethod: 'claude_cli', defaultAccountName: 'Claude' },
+   codex: { label: 'Codex', token: CODEX_CLI_LOGIN, authMethod: 'codex_cli', defaultAccountName: 'ChatGPT' },
+   cursor: { label: 'Cursor', token: CURSOR_CLI_LOGIN, authMethod: 'cursor_cli', defaultAccountName: 'Cursor' },
+   kimi: { label: 'Kimi', token: KIMI_CLI_LOGIN, authMethod: 'kimi_cli', defaultAccountName: 'Kimi Code' },
+   kiro: { label: 'Kiro', token: KIRO_CLI_LOGIN, authMethod: 'kiro_cli', defaultAccountName: 'Kiro' },
+} as const;
 
 const seconds = z.number().int().min(60).max(28_800);
 const runtimeBody = z.object({
@@ -215,10 +229,6 @@ export function runtimeMounts(options: {
          );
       }
    };
-   const cliToken = (runtimeId: 'claude' | 'codex' | 'kiro') =>
-      runtimeId === 'codex' ? CODEX_CLI_LOGIN : runtimeId === 'kiro' ? KIRO_CLI_LOGIN : CLAUDE_CLI_LOGIN;
-   const cliName = (runtimeId: 'claude' | 'codex' | 'kiro') =>
-      runtimeId === 'codex' ? 'Codex' : runtimeId === 'kiro' ? 'Kiro' : 'Claude';
    const modelId = z.string().trim().min(1).max(300).nullable();
    const preferenceBody = z.strictObject({ runtimeId: z.string().nullable(), modelId });
 
@@ -303,13 +313,16 @@ export function runtimeMounts(options: {
             `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
          );
       }
-      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'kiro') {
+      if (runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi' || runtimeId === 'kiro') {
+         // Each keeps its login inside the CLI on this workstation. Berry
+         // forwards no API key: the oauth token is a non-secret sentinel.
+         const cli = WORKSTATION_CLI_LOGINS[runtimeId];
          if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cliName(runtimeId)} runs on this workstation, and that process is not available.`);
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cli.label} runs on this workstation, and that process is not available.`);
          }
          const credential = {
             type: 'oauth' as const,
-            token: cliToken(runtimeId),
+            token: cli.token,
             accountId: null,
             accountName: null,
          };
@@ -322,7 +335,7 @@ export function runtimeMounts(options: {
          if ('error' in probed) controlError(probed.error);
          const status = 'connection' in probed ? probed.connection : undefined;
          if (!status || status.status !== 'connected') {
-            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${cliName(runtimeId)} CLI is not signed in on this workstation.`);
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${cli.label} CLI is not signed in on this workstation.`);
          }
          const listed = await options.runtimeControl({
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
@@ -341,9 +354,9 @@ export function runtimeMounts(options: {
                workspaceId,
                userId: user.id,
                runtimeId,
-               authMethod: runtimeId === 'codex' ? 'codex_cli' : runtimeId === 'kiro' ? 'kiro_cli' : 'claude_cli',
+               authMethod: cli.authMethod,
                accountId: status.accountId,
-               accountName: status.accountName ?? (runtimeId === 'codex' ? 'ChatGPT' : cliName(runtimeId)),
+               accountName: status.accountName ?? cli.defaultAccountName,
                metadata: {
                   models,
                   modelCatalogComplete: true,
@@ -483,10 +496,10 @@ export function runtimeMounts(options: {
       if (!connection || connection.status !== 'connected') {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
-      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex')) {
+      if (options.runtimeControl && (runtimeId === 'kiro' || runtimeId === 'claude' || runtimeId === 'codex' || runtimeId === 'cursor' || runtimeId === 'kimi')) {
          const credential = {
             type: 'oauth' as const,
-            token: cliToken(runtimeId),
+            token: WORKSTATION_CLI_LOGINS[runtimeId].token,
             accountId: connection.accountId,
             accountName: connection.accountName,
          };

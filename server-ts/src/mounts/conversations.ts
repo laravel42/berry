@@ -48,7 +48,7 @@ const MAX_BODY = 20_000;
  *
  * With a compute host, every reply can. Without one, only a reply that
  * resolves to a workstation runtime (the conversation's own choice, else a
- * connected Kiro or Claude login) will.
+ * connected Kiro, Claude, or Cursor login) will.
  */
 async function replyCanRun(
    options: ConversationOptions,
