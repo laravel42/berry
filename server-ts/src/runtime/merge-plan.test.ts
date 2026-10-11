@@ -95,6 +95,8 @@ test('the run is told which files, what to keep, and that nothing may be dropped
    assert.match(prompt, /keep what this task added and keep what main\s+added/);
    assert.match(prompt, /Remove nothing the other task contributed/);
    assert.match(prompt, /run the checks/);
+   assert.match(prompt, /Reconcile this merge before you finish/);
+   assert.match(prompt, /moves the task to review/);
    // A long list is cut, and says where the rest is.
    const many = mergePrompt({ baseBranch: 'main', branch: 'b', conflicts: Array.from({ length: 60 }, (_, index) => `src/${index}.ts`) });
    assert.match(many, /and 10 more/);

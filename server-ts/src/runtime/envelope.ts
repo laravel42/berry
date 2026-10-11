@@ -232,14 +232,10 @@ export const resumeRequestSchema = z
 export type ResumeRequest = z.infer<typeof resumeRequestSchema>['resume'];
 
 /**
- * A Kiro subscription API key, the official headless credential.
- * `ksk_` is the prefix Kiro shows when a paid plan creates a key.
+ * Marks a Kiro run whose login stays inside the Kiro CLI.
+ * Berry does not store or read that credential. The value is not a secret.
  */
-export const KIRO_API_KEY_PATTERN = /^ksk_[A-Za-z0-9_-]{8,256}$/;
-
-export function isKiroApiKey(value: string): boolean {
-   return KIRO_API_KEY_PATTERN.test(value);
-}
+export const KIRO_CLI_LOGIN = 'kiro-cli';
 
 /**
  * Marks a Claude run whose login stays inside the Claude Code CLI.

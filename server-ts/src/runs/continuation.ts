@@ -364,7 +364,7 @@ export function recoveryInstructions(input: {
    const lead =
       `${leadStart} Do not start over. ` +
       saved +
-      'First see what is already there (git status, git log, the files), in one or two commands; then do only what is still missing.';
+      'First see what is already there (git status, git log, the files), one command at a time; then do only what is still missing.';
    const prior = input.prior?.trim() ?? '';
    if (!prior || prior.startsWith(leadStart)) return lead;
    const room = 20_000 - lead.length - 2;

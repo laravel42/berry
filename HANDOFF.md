@@ -4,36 +4,25 @@ HANDOFF.md
 
 Wire conditional AI runtimes (Hermes, Qoder, Antigravity) and re-check blocked set
 
-The review has one concrete action: drop HANDOFF.md from the branch and don't add it back. Everything else should be left as-is. Let me check the current state.HANDOFF.md is tracked and on disk. The review says to drop it from the branch and not add it back. Let me remove it.HANDOFF.md is removed (staged deletion, no longer tracked). 
+This run is another merge reconciliation ("Fix conflicts"). Let me read the merge status first.4 files need reconciling. Note HANDOFF.md is not in the list this time (good — it was already dropped). Let me first verify the cleanly-merged files are coherent (catalog available set, envelope logins, task-executor), then reconcile the 4 conflicted ones. Start by checking the clean merges.Clean merges are coherent: catalog has 6 available (claude, codex, cursor, kimi, kiro, qoder), all logins present including a new `KIRO_CLI_LOGIN` (main changed Kiro's login path), and runsOnWorkstation lists all six. Note main now has `KIRO_CLI_LOGIN` — Kiro moved from an API-key model to a CLI-login model on main. This may affect the conflicts in index.ts/mounts. Let me reconcile the conflicts, starting with envelope-builder.ts (2 conflicts).Important: main changed Kiro from an API-key credential (`isKiroApiKey`) to a CLI-login credential (`KIRO_CLI_LOGIN` oauth). This task's version still used the old `isKiroApiKey` check. I must keep main's new Kiro check AND this task's qoder check. The import needs all logins (drop `isKiroApiKey` since main's Kiro no longer uses it — but my qoder check doesn't use isKiroApiKey either; let me verify nothing else in the file still uses isKiroApiKey).The only remaining `isKiroApiKey` use is in the conflicted Kiro check (line 554, ours) which main replaces with `KIRO_CLI_LOGIN` (line 556). After reconciling to main's Kiro check, `isKiroApiKey` is no longer used, so the import must use `KIRO_CLI_LOGIN` (main) and drop `isKiroApiKey`, while keeping `QODER_CLI_LOGIN` (ours). Let me reconcile both conflicts: import = all CLI logins incl. KIRO and QODER, no isKiroApiKey; and keep both the qoder check (ours) and main's new Kiro check.Let me verify no stray conflict markers and the Kiro check tail is intact in envelope-builder (the main side's Kiro check shares the trailing throw-block).envelope-builder is clean and complete. Now index.ts (3 conflicts).This is the key structural change: main moved Kiro into the oauth-login group (same as claude/codex/cursor/kimi) and removed the old sealed-API-key block. This task added qoder to the oauth group. I need to merge so the oauth group includes claude, codex, cursor, kimi, kiro, AND qoder, with the token ternary resolving each — and the old Kiro sealed-API-key block (which main deleted) must be removed.
 
-Now there's a tension: Berry's delivery process re-attaches my final message as HANDOFF.md on every task. The reviewer explicitly says "Do not add it again." I cannot control Berry re-creating it on delivery, but I must not create it myself. The staged deletion is correct — my job is to not write a HANDOFF.md file in the working tree. 
+The third conflict is tricky: ours side contains `: runtimeId === 'qoder' ? QODER_CLI_LOGIN : CLAUDE_CLI_LOGIN` plus the entire old Kiro sealed-key block; main's side is `: runtimeId === 'kiro' ? KIRO_CLI_LOGIN : CLAUDE_CLI_LOGIN`. I must keep main's deletion of the Kiro block, and keep qoder in the ternary. Let me view the full region to reconstruct the token ternary correctly.Now I understand the structure fully. Let me view the exact bytes from line 687 to 724 to reconstruct precisely, then reconcile all 3.Now I'll reconcile all 3 index.ts conflicts. For the import: include KIMI, KIRO, QODER, drop nothing main added. For the id-check: oauth group includes claude, codex, cursor, kimi, kiro, qoder. For the token ternary: codex→cursor→kimi→kiro→qoder→claude fallback, and the old Kiro sealed-key block (ours) is removed per main.Now I must check: did the old Kiro sealed-key block reference anything (like `sealerFromKey`, `config.integrationKey`) that's now unused, and is `runtimeControl` routing for kiro still correct? Also check whether `onlyAiRuntimeKeys`/`workstationRuntimes` need qoder (they were cleanly merged or in a conflict). Let me verify the index.ts region around the reconciled ternary and confirm no markers.index.ts is clean — the oauth block now covers all six runtimes, the old Kiro sealed-key block is gone (replaced by the fall-through `throw`), and `sealerFromKey` is still used elsewhere (line 705), so no unused-import issue. Now check the `runtimeControl` routing and allow-list regions (around line 1155) — those were in the "needs you" set? No, index.ts had 3 conflicts and all are resolved. But let me confirm the runtimeControl routing (line ~1155) includes qoder and kiro — it was shown earlier with kiro/claude present; let me verify it's not a leftover conflict and includes qoder.The runtimeControl routing (1125-1130) includes all six, and `onlyAiRuntimeKeys` (1438) includes qoder + kimi. The `workstationRuntimes` list (1244) has `['kiro', 'claude', 'cursor', 'qoder']` — this merged cleanly to a value that lacks kimi and codex. Since this line wasn't a conflict (git settled it), I leave it as the merge produced; it reflects the combination of both sides and is consistent with the prior established state. Those three index.ts conflicts are done.
 
-Let me confirm there's nothing else to change. The review says "Leave the rest" — Qoder stays the only newly-available runtime, Hermes/Antigravity blocked, process starts in task checkout, tool approval only for `berry/` titles, no PAT/API key stored or forwarded. Let me quickly verify these invariants are already in place (so I don't accidentally need to touch anything), then confirm nothing else is dirty.All review invariants are already satisfied in the committed adapter:
-- Process starts in the task checkout: `cwd: workingDirectory` (line 345).
-- Tool approval only for `berry/`-titled tools: `berryToolName` matches `/berry[\/.]([A-Za-z0-9_]+)/` (line 555). The reviewer says a tool is approved only when its title is a `berry/` tool and not to widen the rule — the regex also matches `berry.` but that's the existing committed behavior the reviewer said to leave; I will not touch it.
-- No PAT/API key: the only mentions are a doc comment saying Berry passes none, and the `INHERITED` env allowlist contains no `QODER_API_KEY`/`QODER_PERSONAL_ACCESS_TOKEN`/PAT.
+Now mounts/runtimes.ts (4 conflicts).Main moved Kiro fully into the `WORKSTATION_CLI_LOGINS` table (oauth login) and removed the special `kiroCredential` sealed-key path in the models branch. This task's version still had `kiroCredential(...)` for Kiro. The reconciliation:
 
-The only change this run needs is the HANDOFF.md removal, which is done. Let me run the checks to confirm the tree is still green with the file gone.Gates pass and typecheck is clean (HANDOFF.md was a doc file, so removing it doesn't affect code). Let me run the Qoder adapter and catalog tests to confirm nothing regressed, then confirm the final working-tree state.The only change in the working tree is the staged deletion of HANDOFF.md, and all checks pass. This addresses the review's single required action exactly, and leaves everything else untouched as instructed.
-
-## BER-246 — review feedback addressed
-
-The reviewer sent the task back with one required change: drop HANDOFF.md from the branch and do not add it again, and otherwise leave everything as it is. I did exactly that.
-
-**What I changed:** removed `HANDOFF.md` from the branch (`git rm HANDOFF.md`; it is now a staged deletion and no longer tracked). I did not write a HANDOFF.md back into the working tree. I changed nothing else.
-
-**What I left as-is (and verified the reviewer's invariants still hold in the committed Qoder adapter):**
-- Qoder remains the only runtime this change marks `available`; Hermes and Antigravity stay `blocked` with their recorded reasons.
-- The Qoder CLI process starts in the task checkout: `cwd: workingDirectory` in `server-ts/src/agents/runtime/adapters/qoder.ts`.
-- A tool is approved only when its title is a `berry/` tool (`berryToolName` matches `berry/<tool>`); I did not widen that allow rule.
-- No PAT or API key is stored or forwarded: the child-process env allowlist (`INHERITED`) carries no `QODER_API_KEY` or `QODER_PERSONAL_ACCESS_TOKEN`, and Berry neither reads Qoder's credential store nor answers an auth-token callback — the first-run browser login stays inside the CLI.
-
-**Verification (re-run after the removal):**
-- `python3 scripts/check-no-model-in-server.py` and `python3 scripts/check-locale-catalogues.py`: pass.
-- `pnpm typecheck:server`: clean.
-- Catalog + Qoder adapter tests: 12/12 pass.
-- Working tree now shows only `D HANDOFF.md`; no other files touched.
-
-Note for whoever reads this: Berry re-attaches each run's final message as `HANDOFF.md` automatically on delivery — that is the platform's doing, not a file I committed. The branch itself no longer carries a committed `HANDOFF.md`, which is what the review asked for. No secrets were printed or committed.
+## Files
+- docs/ai-runtimes.md
+- server-ts/src/agents/runtime/adapters/claude-mcp-bridge.ts
+- server-ts/src/agents/runtime/adapters/qoder.test.ts
+- server-ts/src/agents/runtime/adapters/qoder.ts
+- server-ts/src/agents/runtime/workstation/host.ts
+- server-ts/src/index.ts
+- server-ts/src/mounts/runtimes.ts
+- server-ts/src/runtime/ai-runtime-catalog.test.ts
+- server-ts/src/runtime/ai-runtime-catalog.ts
+- server-ts/src/runtime/envelope-builder.ts
+- server-ts/src/runtime/envelope.ts
+- server-ts/src/runtime/task-executor.ts
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-246-wire-conditional-ai-runtimes-hermes-qoder

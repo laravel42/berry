@@ -13,6 +13,15 @@ test('the tasks around a task are given as context, fenced like any task data, a
    assert.doesNotMatch(buildMessage(base), /related_tasks/);
 });
 
+test('a task that waits on another is told to read its handoff and not to scan its files', () => {
+   const message = buildMessage({ ...base, readBlockerHandoff: true, related: 'Handoff attached to BER-216' });
+   const instruction = message.split('</related_tasks>')[1] ?? '';
+   assert.match(instruction, /Handoffs from the tasks this one depends on/);
+   assert.match(instruction, /read_file, path HANDOFF\.md/);
+   assert.match(instruction, /Do not scan, list, or search the files/);
+   assert.doesNotMatch(buildMessage(base), /Handoffs from the tasks/);
+});
+
 test('comments on a task are fenced into the prompt, and absent when there are none', () => {
    const message = buildMessage({
       ...base,
@@ -23,6 +32,15 @@ test('comments on a task are fenced into the prompt, and absent when there are n
    assert.equal(message.split('</task_comments>').length, 2);
    assert.doesNotMatch(buildMessage(base), /task_comments/);
    assert.doesNotMatch(buildMessage({ ...base, comments: [] }), /task_comments/);
+});
+
+test('a code run merges the default branch into its own before the task goes to review', () => {
+   const message = buildMessage({ ...base, repository: 'acme/app' });
+   assert.match(message, /Before the task moves to review/);
+   assert.match(message, /default branch — main, unless the repository uses another — is merged into your branch/);
+   assert.match(message, /Do not move the task to in review yourself/);
+   assert.match(message, /This checkout is writable/);
+   assert.doesNotMatch(buildMessage(base), /Before the task moves to review/);
 });
 
 test('the skills an agent carries are named, with what each is for and how to read one', () => {
@@ -37,5 +55,8 @@ test('the skills an agent carries are named, with what each is for and how to re
    assert.match(message, /- systematic-debugging: Use for a bug with no obvious cause\./);
    assert.match(message, /- error-handling: Use when adding error paths\./);
    assert.match(message, /read it with read_skill/);
+   assert.match(message, /A documentation skill is not how you handle a check that could not run/);
+   assert.match(message, /\.berry\/skills\/<name>\/SKILL\.md/);
+   assert.doesNotMatch(message, /\.claude\/skills/);
    assert.doesNotMatch(buildMessage({ ...base, skills: [] }), /Skills you carry/);
 });

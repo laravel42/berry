@@ -1,7 +1,7 @@
 import { symmetricDecrypt } from 'better-auth/crypto';
 
 import type { Queryable, Sql } from '../db/pool.ts';
-import type { RepositoryChoice } from './github.ts';
+import { GitHubClient, GitHubError, type RepositoryChoice } from './github.ts';
 
 /**
  * What a signed-in person granted Berry on GitHub, read with their own token.
@@ -582,8 +582,10 @@ export class GitHubUserAccess {
     * The GitHub App deliberately holds no `administration` permission, so a
     * repository is created as the signed-in person, under their account or an
     * organisation they may create in; GitHub decides which, and its refusal is
-    * relayed. Made empty on purpose: a run gives it its first commit (see the
-    * envelope builder), and an empty repository is the one nothing can
+    * relayed. Created with an empty commit on its default branch in the same
+    * step: a repository with no commits has no branch to check out, and the
+    * contents API can report a first commit without creating that branch.
+    * An empty tree is the commit, so nothing is there for a later branch to
     * conflict with. The token still never leaves this class.
     */
    async createRepository(
@@ -609,6 +611,22 @@ export class GitHubUserAccess {
       });
       const choice = toRepositoryChoice(row);
       if (!choice) throw new GitHubUserUnavailable('GitHub did not return the repository it created', 'github_error');
+      try {
+         await new GitHubClient({ token, fetch: this.#fetch, baseUrl: this.#api }).seedEmptyBranch({
+            owner: choice.owner ?? choice.fullName.split('/')[0] ?? '',
+            name: choice.name,
+            branch: choice.defaultBranch,
+         });
+      } catch (error) {
+         if (error instanceof GitHubError) {
+            throw new GitHubUserUnavailable(
+               `${choice.fullName} was created, but its ${choice.defaultBranch} branch could not be pushed: ${error.message}`,
+               error.status === 401 ? 'sign_in_again' : 'github_error',
+               error.status || null
+            );
+         }
+         throw error;
+      }
       return choice;
    }
 

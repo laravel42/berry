@@ -96,7 +96,6 @@ export default function RuntimesList() {
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
    const [query, setQuery] = useState('');
-   const [onlyAvailable, setOnlyAvailable] = useState(false);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
 
@@ -104,7 +103,6 @@ export default function RuntimesList() {
       const needle = query.trim().toLowerCase();
       return (catalog.value?.nodes ?? [])
          .filter((runtime) => {
-            if (onlyAvailable && runtime.availability !== 'available') return false;
             if (needle === '') return true;
             return [runtime.name, runtime.publisher, runtime.product, runtime.provider]
                .join(' ')
@@ -116,7 +114,7 @@ export default function RuntimesList() {
                Number(left.availability !== 'available') -
                Number(right.availability !== 'available')
          );
-   }, [catalog.value?.nodes, onlyAvailable, query]);
+   }, [catalog.value?.nodes, query]);
 
    const connect = async (runtime: AiRuntimeDefinition) => {
       setBusy(runtime.id);
@@ -155,18 +153,7 @@ export default function RuntimesList() {
          title="AI Runtimes"
          description="Choose the agent or inference product used inside Berry’s execution host. Runtime identity, model provider, authentication, and billing stay separate."
       >
-         <SettingsSection
-            title="Runtime catalog"
-            action={
-               <Button
-                  size="xs"
-                  variant={onlyAvailable ? 'secondary' : 'ghost'}
-                  onClick={() => setOnlyAvailable((value) => !value)}
-               >
-                  {onlyAvailable ? 'Showing available' : 'Show available only'}
-               </Button>
-            }
-         >
+         <SettingsSection title="Runtime catalog">
             <div className="relative max-w-sm">
                <Search
                   className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
@@ -266,11 +253,7 @@ export default function RuntimesList() {
                if (!open) setDisconnecting(null);
             }}
             title={`Disconnect ${disconnecting?.name ?? 'this runtime'}?`}
-            description={
-               disconnecting?.id === 'kiro'
-                  ? 'Active runs using this connection will be cancelled. Berry deletes the sealed API key. The Kiro account itself stays as it is.'
-                  : 'Active runs using this personal connection will be cancelled. Berry removes the connection and its default, but your provider account and Berry’s GitHub sign-in remain intact.'
-            }
+            description="Active runs using this personal connection will be cancelled. Berry removes the connection and its default, but your provider account and Berry’s GitHub sign-in remain intact."
             confirmLabel="Disconnect"
             pendingLabel="Disconnecting…"
             destructive

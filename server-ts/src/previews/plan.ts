@@ -312,20 +312,52 @@ export function blankPublicExample(plan: PreviewPlan, view: RepositoryView, prov
    return missing;
 }
 
-/** The program a command runs, past a leading assignment and `npx`. */
-function commandName(command: string): string {
+/**
+ * The program a command runs, and its first real argument.
+ *
+ * Past a leading assignment and `npx`. `vite build` and `vite preview` share
+ * a program and are still different commands; the argument is what tells them
+ * apart. A flag and the value after it (`--port 3000`) are not that argument.
+ */
+function commandShape(command: string): { program: string; action: string | null } {
    const words = command.trim().split(/\s+/);
    let index = 0;
    while (index < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index] ?? '')) index += 1;
    let name = words[index] ?? '';
    if (name === 'npx' || name === 'bunx') {
-      name = words.slice(index + 1).find((word) => !word.startsWith('-')) ?? name;
+      index += 1;
+      while ((words[index] ?? '').startsWith('-')) index += 1;
+      name = words[index] ?? '';
    }
    const slash = name.lastIndexOf('/');
    if (slash >= 0) name = name.slice(slash + 1);
    const version = name.indexOf('@');
    if (version > 0) name = name.slice(0, version);
-   return name;
+   return { program: name, action: positionalAt(words, index + 1) };
+}
+
+function positionalAt(words: readonly string[], index: number): string | null {
+   let cursor = index;
+   while (cursor < words.length) {
+      const word = words[cursor] ?? '';
+      if (!word.startsWith('-')) return word;
+      cursor += 1;
+      if (word !== '--' && !word.includes('=') && cursor < words.length && !(words[cursor] ?? '').startsWith('-')) cursor += 1;
+   }
+   return null;
+}
+
+/**
+ * Whether a build segment is the process the preview will start.
+ *
+ * Same program and, when both name one, the same argument: `serve dist` is
+ * the start command, `vite build` is not `vite preview`.
+ */
+function sameServer(segment: string, start: string): boolean {
+   const left = commandShape(segment);
+   const right = commandShape(start);
+   if (left.program === '' || left.program !== right.program) return false;
+   return left.action === null || right.action === null || left.action === right.action;
 }
 
 /**
@@ -335,8 +367,7 @@ function commandName(command: string): string {
  */
 function detachServerFromBuild(app: PreviewApp, view: RepositoryView): void {
    if (!app.build) return;
-   const start = commandName(app.start);
-   if (!start) return;
+   if (commandShape(app.start).program === '') return;
    let body = app.build;
    const invoked = /^(?:npm|pnpm|yarn|bun)(?:\s+run)?\s+(\S+)$/.exec(app.build.trim());
    if (invoked) {
@@ -353,7 +384,7 @@ function detachServerFromBuild(app: PreviewApp, view: RepositoryView): void {
       body = script;
    }
    const segments = body.split(/\s&&\s/).map((part) => part.trim()).filter(Boolean);
-   const server = segments.findIndex((segment) => commandName(segment) === start);
+   const server = segments.findIndex((segment) => sameServer(segment, app.start));
    if (server <= 0) return;
    app.build = segments.slice(0, server).join(' && ');
 }
@@ -374,7 +405,7 @@ function candidateDirs(paths: readonly string[]): string[] {
 }
 
 function detect(view: RepositoryView): PreviewPlan | null {
-   const found: Array<PreviewApp & { frontend: boolean; pkg: PackageJson | null }> = [];
+   const found: Array<PreviewApp & { frontend: boolean; pkg: PackageJson | null; pinnedPort: boolean; devServer: boolean }> = [];
    const used = new Set<string>();
    for (const dir of candidateDirs(view.paths)) {
       const at = (file: string) => (dir === '.' ? file : `${dir}/${file}`);
@@ -383,7 +414,7 @@ function detect(view: RepositoryView): PreviewPlan | null {
       if (text !== null) {
          try { pkg = JSON.parse(text) as PackageJson; } catch { pkg = null; }
       }
-      const app = pkg ? appFromPackage(pkg, packageManagerFor(view.paths, dir)) : view.paths.includes(at('index.html')) ? STATIC_SITE : null;
+      const app = pkg ? appFromPackage(pkg, packageManagerFor(view.paths, dir)) : view.paths.includes(at('index.html')) ? { ...STATIC_SITE, pinnedPort: false, devServer: false } : null;
       if (!app) continue;
       let appName = (dir === '.' ? (app.frontend ? 'web' : 'app') : dir.split('/').at(-1)!).toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^[^a-z]+/, '') || 'app';
       appName = appName.slice(0, 24);
@@ -400,8 +431,18 @@ function detect(view: RepositoryView): PreviewPlan | null {
    const backends = apps.filter((app) => !app.frontend);
    (frontends[0] ?? apps[0]!).primary = true;
    // Distinct ports, so two apps that both default to 3000 can share a network
-   // without surprising anyone reading the log.
-   apps.forEach((app, index) => { app.port = 3000 + index; });
+   // without surprising anyone reading the log. A dev script that names its
+   // own port keeps it: that is the port the process binds, and the one Docker
+   // publishes.
+   const taken = new Set(apps.filter((app) => app.pinnedPort).map((app) => app.port));
+   let nextPort = 3000;
+   for (const app of apps) {
+      if (app.pinnedPort) continue;
+      while (taken.has(nextPort)) nextPort += 1;
+      app.port = nextPort;
+      taken.add(app.port);
+      nextPort += 1;
+   }
 
    const services: PreviewService[] = [];
    for (const app of apps) {
@@ -410,7 +451,7 @@ function detect(view: RepositoryView): PreviewPlan | null {
       const examples = new Map([...example.matchAll(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=[ \t]*(.*)$/gm)].map((match) => [match[1]!, match[2]!.trim().replace(/^["']|["']$/g, '')]));
       const keys = new Set(examples.keys());
       app.env.PORT = String(app.port);
-      app.env.NODE_ENV = 'production';
+      app.env.NODE_ENV = app.devServer ? 'development' : 'production';
       app.env.HOST = '0.0.0.0';
       if (keys.has('DATABASE_URL') && ['pg', 'postgres', 'prisma', '@prisma/client', 'drizzle-orm', 'knex', 'typeorm', 'sequelize'].some((dep) => dep in deps)) {
          if (!services.some((service) => service.name === 'db')) {
@@ -451,7 +492,7 @@ function detect(view: RepositoryView): PreviewPlan | null {
    }
    return {
       source: 'detected',
-      apps: apps.map(({ frontend: _frontend, pkg: _pkg, ...app }) => app),
+      apps: apps.map(({ frontend: _frontend, pkg: _pkg, pinnedPort: _pinnedPort, devServer: _devServer, ...app }) => app),
       services,
    };
 }
@@ -490,17 +531,32 @@ const STATIC_SITE = {
    port: 3000,
 };
 
-function appFromPackage(pkg: PackageJson, manager: PackageManager): Omit<PreviewApp, 'name' | 'dir' | 'env' | 'primary'> & { frontend: boolean } | null {
+/** The port a dev script binds, when it writes one (`--port 5173`). `$PORT` is not a number and stays Berry's. */
+function portNamedIn(command: string): number | null {
+   const match = /(?:^|\s)--port(?:=|\s+)(\d{2,5})(?!\d)|(?:^|\s)-p\s+(\d{2,5})(?!\d)/.exec(command);
+   const raw = match?.[1] ?? match?.[2];
+   if (!raw) return null;
+   const port = Number(raw);
+   return port >= 1 && port <= 65535 ? port : null;
+}
+
+function appFromPackage(pkg: PackageJson, manager: PackageManager): Omit<PreviewApp, 'name' | 'dir' | 'env' | 'primary'> & { frontend: boolean; pinnedPort: boolean; devServer: boolean } | null {
    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
    const scripts = pkg.scripts ?? {};
    const build = scripts.build ? runScript(manager, 'build') : null;
-   const base = { install: installCommand(manager), migrate: null, port: 3000 };
-   if ('next' in deps) return { ...base, kind: 'next', frontend: true, build: build ?? 'npx next build', start: 'npx next start -H 0.0.0.0 -p $PORT' };
-   if ('astro' in deps) return { ...base, kind: 'astro', frontend: true, build: build ?? 'npx astro build', start: 'npx astro preview --host 0.0.0.0 --port $PORT' };
+   const namedPort = scripts.dev ? portNamedIn(scripts.dev) : null;
+   // A `dev` script is the preview. It compiles as it runs, so there is no
+   // production build first: that build was a second server, and `vite preview`
+   // of it is what came up blank.
+   const dev = scripts.dev ? { build: null as string | null, start: runScript(manager, 'dev'), devServer: true } : null;
+   const base = { install: installCommand(manager), migrate: null, port: namedPort ?? 3000, pinnedPort: namedPort !== null, devServer: false };
+   if ('next' in deps) return { ...base, kind: 'next', frontend: true, build: build ?? 'npx next build', start: 'npx next start -H 0.0.0.0 -p $PORT', ...dev };
+   if ('astro' in deps) return { ...base, kind: 'astro', frontend: true, build: build ?? 'npx astro build', start: 'npx astro preview --host 0.0.0.0 --port $PORT', ...dev };
    if ('@sveltejs/kit' in deps || 'vite' in deps) {
-      return { ...base, kind: 'vite', frontend: true, build: build ?? 'npx vite build', start: 'npx vite preview --host 0.0.0.0 --port $PORT --strictPort' };
+      return { ...base, kind: 'vite', frontend: true, build: build ?? 'npx vite build', start: 'npx vite preview --host 0.0.0.0 --port $PORT --strictPort', ...dev };
    }
-   if ('react-scripts' in deps) return { ...base, kind: 'cra', frontend: true, build: build ?? 'npx react-scripts build', start: 'npx --yes serve@14 -s build -l tcp://0.0.0.0:$PORT' };
+   if ('react-scripts' in deps) return { ...base, kind: 'cra', frontend: true, build: build ?? 'npx react-scripts build', start: 'npx --yes serve@14 -s build -l tcp://0.0.0.0:$PORT', ...dev };
+   if (dev) return { ...base, kind: 'node', frontend: false, ...dev };
    if (scripts.start) return { ...base, kind: 'node', frontend: false, build, start: runScript(manager, 'start') };
    return null;
 }

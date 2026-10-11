@@ -123,10 +123,17 @@ describe('agent tool API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
    });
 
    test('set_status moves the task as the agent', async () => {
-      const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 'in_review' }) });
+      const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 'in_progress' }) });
       assert.equal(response.status, 200);
       assert.deepEqual((statusCalls[0] as { actorType: string; issueId: string }).actorType, 'agent');
       assert.equal((statusCalls[0] as { issueId: string }).issueId, issueId);
+   });
+
+   test('set_status refuses in review until the default branch is merged', async () => {
+      const before = statusCalls.length;
+      const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 'in_review' }) });
+      assert.equal(response.status, 409);
+      assert.equal(statusCalls.length, before);
    });
 
    test('invalid input is a 400 that names the field', async () => {

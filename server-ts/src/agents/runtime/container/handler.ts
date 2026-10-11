@@ -239,8 +239,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          });
          return;
       }
-      // The agent's skills, laid out where skill-aware tools look, and its
-      // MCP servers as Strands clients beside Berry's own tools.
+      // The agent's skills, under `.berry/skills/` so Claude, Codex and
+      // Kiro do not attach every file to the model prompt. Bedrock and
+      // Kilo read a skill only through `read_skill`. MCP servers become
+      // Strands clients beside Berry's own tools.
       await writeSkills(join(deps.workRoot, key), envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
       // Injected loaders keep their single-arg shape; the production loader
       // bounds each connect and reports a server it had to drop.

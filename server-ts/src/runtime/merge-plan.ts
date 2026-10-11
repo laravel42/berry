@@ -193,5 +193,6 @@ export function mergePrompt(input: { baseBranch: string; branch: string; conflic
          'added. Remove nothing the other task contributed, and do not settle a conflict by discarding one side. Leave no ' +
          'conflict marker behind — Berry refuses a delivery that still has one — then run the checks.',
       `${MERGE_DIRECTORY}/ is working material: it is never delivered, so do not move your work into it.`,
+      'Reconcile this merge before you finish. Finishing is what moves the task to review, and the task stays out of review while the default branch is not in your branch.',
    ].join('\n\n');
 }

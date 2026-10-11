@@ -65,6 +65,22 @@ test('modelGateway says whether models are called through a gateway with tiers',
    assert.equal((await capabilitiesOf({ ...base, modelGateway: true })()).modelGateway, true);
 });
 
+test('signInOrigin is the browser origin GitHub sign-in must start on', async () => {
+   const registry = new Registry();
+   registry.registerAll(
+      platformMounts({
+         database: async () => undefined,
+         capabilities: base,
+         version: 'test',
+         signInOrigin: 'http://localhost:3000',
+      })
+   );
+   const body = (await (await createApp(registry).request('/api/v1/config')).json()) as {
+      signInOrigin: string | null;
+   };
+   assert.equal(body.signInOrigin, 'http://localhost:3000');
+});
+
 test('githubSignIn is answered at the time of asking, and flips with the App', async () => {
    let signIn = false;
    const read = capabilitiesOf({ ...base, githubSignIn: async () => signIn });

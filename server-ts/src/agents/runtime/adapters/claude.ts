@@ -44,6 +44,18 @@ const INHERITED = [
    'NODE_EXTRA_CA_CERTS',
 ] as const;
 
+/**
+ * Claude Code otherwise lists every SKILL.md it finds under the real home
+ * and the project `.claude/skills/` on the system prompt of every turn.
+ * Berry skills are read with `read_skill` on every provider; these keep
+ * Claude's own and managed packs out of that listing.
+ * `--disable-slash-commands` is what turns the listing off.
+ */
+const SKILL_OFF = {
+   CLAUDE_CODE_DISABLE_BUNDLED_SKILLS: '1',
+   CLAUDE_CODE_DISABLE_POLICY_SKILLS: '1',
+} as const;
+
 export interface ClaudeSpawn {
    command: string;
    args: string[];
@@ -239,6 +251,7 @@ export class ClaudeAgentAdapter implements AgentProcessAdapter {
          '--verbose',
          '--tools',
          '',
+         '--disable-slash-commands',
          '--strict-mcp-config',
          '--mcp-config',
          configPath,
@@ -451,7 +464,7 @@ export function spawnClaudeProcess(spec: ClaudeSpawn): ClaudeChild {
 }
 
 function childEnvironment(): Record<string, string> {
-   const env: Record<string, string> = {};
+   const env: Record<string, string> = { ...SKILL_OFF };
    for (const name of INHERITED) {
       const value = process.env[name];
       if (value) env[name] = value;

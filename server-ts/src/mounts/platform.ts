@@ -32,8 +32,7 @@ export interface Capabilities {
     */
    githubSignIn: boolean | (() => Promise<boolean>);
    /**
-    * Development email sign-in (`AUTH_ALLOW_PASSWORDLESS_LOGIN`). When this is
-    * true the sign-in page does not offer GitHub.
+    * Development email sign-in (`AUTH_ALLOW_PASSWORDLESS_LOGIN`).
     */
    passwordlessLogin?: boolean;
    /**
@@ -49,6 +48,12 @@ export interface PlatformOptions {
    /** Optional probes; an absent one is treated as passing, as in Go. */
    checks?: Record<string, Checker | undefined>;
    capabilities: Capabilities;
+   /**
+    * Browser origin Better Auth builds callback URLs on. The GitHub button
+    * must start there so the OAuth state cookie and the GitHub callback stay
+    * on the same host.
+    */
+   signInOrigin?: string | null;
    /** Null on a deployment that reports `metrics: false`; the route then 404s. */
    metrics?: MetricsSource | null;
    /**
@@ -66,7 +71,10 @@ export function platformMounts(options: PlatformOptions): Mount[] {
       { prefix: '/ready', handler: readyRoute(options) },
       { prefix: '/readyz', handler: readyRoute(options) },
       { prefix: '/metrics', handler: metricsRoute(options.metrics ?? null) },
-      { prefix: '/api/v1/config', handler: configRoute(options.capabilities, options.version) },
+      {
+         prefix: '/api/v1/config',
+         handler: configRoute(options.capabilities, options.version, options.signInOrigin),
+      },
    ];
 }
 
@@ -137,7 +145,11 @@ function metricsRoute(source: MetricsSource | null): Hono {
    return route;
 }
 
-function configRoute(capabilities: Capabilities, version?: string): Hono {
+function configRoute(
+   capabilities: Capabilities,
+   version?: string,
+   signInOrigin?: string | null
+): Hono {
    const route = new Hono();
    route.get('/', async () =>
       // Declaration order, not sorted: the Go server marshalled this as a
@@ -146,6 +158,7 @@ function configRoute(capabilities: Capabilities, version?: string): Hono {
       // the old shape keeps reading it unchanged.
       json({
          version: version ?? null,
+         signInOrigin: signInOrigin ?? null,
          capabilities: {
             agentExecution: capabilities.agentExecution,
             metrics: capabilities.metrics,

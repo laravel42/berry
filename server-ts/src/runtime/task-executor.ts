@@ -5,6 +5,7 @@ import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
 import { gitWriteInvisible, type GitHubClient } from '../integrations/github.ts';
 import { isDetached, type Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
+import { handoffDocument, withHandoffFile } from '../runs/handoff.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { AI_RUNTIME_ADAPTER_PROTOCOL_VERSION, type RuntimeControlResponse } from './envelope.ts';
@@ -510,7 +511,17 @@ export class RuntimeTaskExecutor implements Executor {
             const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
             if (result.delivery.candidate) {
                if (!github) throw new Error('Trusted repository delivery is not configured');
-               result = { ...result, delivery: await publishTrustedDelivery(this.#o.sql, task.runId, github, result.delivery) };
+               let delivery = { ...result.delivery, candidate: result.delivery.candidate };
+               if (task.kind === 'agent' && summary) {
+                  const document = summary.trimStart().startsWith('HANDOFF.md')
+                     ? summary.endsWith('\n') ? summary : `${summary}\n`
+                     : await this.#handoffText(task, summary, plan, delivery, null);
+                  if (document) {
+                     delivery = { ...delivery, candidate: withHandoffFile(delivery.candidate, document) };
+                     result = { ...result, delivery };
+                  }
+               }
+               result = { ...result, delivery: await publishTrustedDelivery(this.#o.sql, task.runId, github, delivery) };
             } else {
                const [snapshot] = await this.#o.sql`SELECT run_id FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
                if (snapshot) throw new Error('Runtime did not return a delivery candidate; update the runtime image');
@@ -561,14 +572,75 @@ export class RuntimeTaskExecutor implements Executor {
       if (task.issueId) {
          if (summary) {
             await this.#memory.record({ agentId: task.agentId, issueId: task.issueId, role: 'ASSISTANT', text: summary, runId: task.runId });
+            const occurredAt = (this.#o.clock ?? (() => new Date()))().toISOString();
             await postRunResult(this.#o.sql, {
                issueId: task.issueId, agentId: task.agentId, text: result.text, cut: result.truncated,
-               occurredAt: (this.#o.clock ?? (() => new Date()))().toISOString(), newId: this.#o.newId ?? randomUUID,
+               occurredAt, newId: this.#o.newId ?? randomUUID,
                runId: task.runId,
             }).catch(() => null);
+            if (task.kind === 'agent') {
+               await this.#attachHandoff(task, summary, plan, result.delivery, opened?.pull_request_number ?? null, occurredAt);
+            }
          }
       }
       return { runId: task.runId, status: 'succeeded', summary, usage, result };
+   }
+
+   /**
+    * Attaches HANDOFF.md to the task this run finished.
+    *
+    * Every agent task, not one project: the next task that waits on this one
+    * reads the comment instead of scanning the files this run produced.
+    */
+   async #attachHandoff(
+      task: TaskRow,
+      summary: string,
+      plan: Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery'],
+      delivery: TaskResult['delivery'] | null | undefined,
+      pullRequest: number | null,
+      occurredAt: string
+   ): Promise<void> {
+      if (!task.issueId || summary.trimStart().startsWith('HANDOFF.md')) return;
+      const text = await this.#handoffText(task, summary, plan, delivery, pullRequest);
+      if (!text) return;
+      await postRunResult(this.#o.sql, {
+         issueId: task.issueId,
+         agentId: task.agentId,
+         text,
+         cut: false,
+         occurredAt,
+         newId: this.#o.newId ?? randomUUID,
+      }).catch(() => null);
+   }
+
+   /** The handoff for this run, or null when the task cannot be named. */
+   async #handoffText(
+      task: TaskRow,
+      summary: string,
+      plan: Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery'],
+      delivery: TaskResult['delivery'] | null | undefined,
+      pullRequest: number | null
+   ): Promise<string | null> {
+      if (!task.issueId) return null;
+      const [issue] = await this.#o.sql<Array<{ identifier: string; title: string }>>`
+         SELECT berry_issue_identifier(board.workspace_id, issue.number) AS identifier, issue.title
+           FROM issues AS issue
+           JOIN boards AS board ON board.id = issue.board_id
+          WHERE issue.id = ${task.issueId}`;
+      if (!issue) return null;
+      const written = (delivery?.candidate ?? [])
+         .filter((file) => file.path !== 'HANDOFF.md' && file.content !== null)
+         .map((file) => file.path);
+      return handoffDocument({
+         identifier: issue.identifier,
+         title: issue.title,
+         summary,
+         files: written.length > 0 ? written : (delivery?.files ?? []).filter((file) => file !== 'HANDOFF.md'),
+         repository: plan?.fullName ?? null,
+         branch: delivery?.branch ?? plan?.branch ?? null,
+         commit: delivery?.commit ?? null,
+         pullRequest,
+      });
    }
 
    /**

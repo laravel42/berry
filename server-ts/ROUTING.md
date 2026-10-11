@@ -108,9 +108,12 @@ have no narrower read-only or issues-only scope. `workflow` is what lets that
 token create or change a file under `.github/workflows/`. A GitHub account links to an
 existing Berry user only through a GitHub-verified email. Sessions are a
 Better Auth cookie; personal access tokens remain the bearer credential for
-API clients. `POST /api/v1/auth/dev-login` (`{email}`) signs in an existing
-user by email when `APP_ENV` is explicitly `development` or `test` and
-passwordless login is allowed — development and test only.
+API clients. GitHub sign-in is Better Auth at `/api/auth/*`. Integrations
+is connected after a GitHub token with `repo` is stored
+(`auth_accounts.provider_id = 'github'`), via Settings → Connect GitHub.
+`POST /api/v1/auth/dev-login` (`{email}`) signs
+in an existing user by email when `APP_ENV` is explicitly `development` or
+`test` and passwordless login is allowed — development and test only.
 
 ## The JSON escaping every response gets
 

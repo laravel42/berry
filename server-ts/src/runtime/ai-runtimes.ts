@@ -620,6 +620,40 @@ async function agentForTier(
    return agentName(row?.agent_key ?? null);
 }
 
+/**
+ * The first model on this agent's tier whose runtime this run can actually
+ * use. The tier's order is the order; a newer connection of another runtime
+ * does not jump the queue.
+ */
+async function connectedTierPlacement(
+   sql: Sql,
+   workspaceId: string,
+   userId: string | null,
+   berryAgentId: string
+): Promise<{ runtimeId: AiRuntimeId; modelId: string } | null> {
+   const tier = await berryAgentTier(sql, workspaceId, berryAgentId);
+   const [row] = await sql<Array<Record<string, string[]>>>`
+      SELECT berry_max, berry_mid, berry_low FROM workspace_tier_models
+       WHERE workspace_id = ${workspaceId}`;
+   if (!row) return null;
+   const connected = await connectedRuntimeIds(sql, workspaceId, userId);
+   return firstConnectedPlacement(stringList(row[tier]), connected);
+}
+
+/** Runtimes this run may start: the person's own when they authorized it, otherwise the workspace's. */
+async function connectedRuntimeIds(sql: Sql, workspaceId: string, userId: string | null): Promise<Set<string>> {
+   const rows = await sql<Array<{ runtime_key: string }>>`
+      SELECT DISTINCT connection.runtime_key
+        FROM ai_runtime_connections AS connection
+        JOIN workspace_memberships AS membership
+          ON membership.workspace_id = connection.workspace_id
+         AND membership.user_id = connection.user_id
+       WHERE connection.workspace_id = ${workspaceId}
+         AND connection.status = 'connected'
+         AND (${userId}::uuid IS NULL OR connection.user_id = ${userId}::uuid)`;
+   return new Set(rows.map((row) => row.runtime_key));
+}
+
 /** The first model this runtime has in the Berry agent's tier. `runtime/model` in storage. */
 async function modelForTier(
    sql: Sql,
@@ -791,11 +825,11 @@ export const SUBSCRIPTION_DEFAULT_MODEL = 'default';
  *
  * `berry-native` opts this one task back onto Bedrock or Kilo. Otherwise a
  * connected subscription wins: the task override, then the project's
- * runtime, then that person's preference, then their newest connection,
- * then any connected runtime in the workspace. Agent work therefore stays
- * off the deployment's API bill once someone has connected a runtime. A
- * missing connection still does not fall through to Kilo after a
- * subscription was selected.
+ * runtime, then that person's preference, then the first connected model
+ * on the agent's tier, then their newest connection, then any connected
+ * runtime in the workspace. Agent work therefore stays off the deployment's
+ * API bill once someone has connected a runtime. A missing connection still
+ * does not fall through to Kilo after a subscription was selected.
  */
 export async function resolveAiRuntimeSelection(
    sql: Sql,
@@ -828,6 +862,16 @@ export async function resolveAiRuntimeSelection(
       runtimeId = preference?.runtime_key ?? null;
       modelId = preference?.model_id ?? null;
       agentId = null;
+   }
+   // Nobody named a runtime. The models placed on this agent's tier are the
+   // choice, including which subscription they run on. Otherwise the newest
+   // connection wins and a tier that names a different runtime never starts.
+   if (runtimeId === null && modelId === null && input.berryAgentId) {
+      const placed = await connectedTierPlacement(sql, input.workspaceId, input.userId, input.berryAgentId);
+      if (placed) {
+         runtimeId = placed.runtimeId;
+         modelId = placed.modelId;
+      }
    }
    if (runtimeId === NATIVE_AI_RUNTIME) {
       return emptySelection();

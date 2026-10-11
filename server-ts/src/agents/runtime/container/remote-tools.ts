@@ -34,13 +34,10 @@ const manifestSchema = z.object({
 const MAX_COLLECT_BYTES = 10 * 1024 * 1024;
 
 /**
- * The run's workspace, for the one remote tool whose effect belongs in it too.
+ * The run's workspace.
  *
- * `write_file` saves on the task, in Berry's bucket; commands run in the
- * checkout. An agent that saved sixteen files and then ran `cd server` found
- * nothing there and wrote them all again through a heredoc. With this, a saved
- * file is also written into the workspace at the same path, so the next
- * command sees it and the delivery commit carries it.
+ * `write_file` writes into this container, where commands run and where the
+ * delivery commit is taken. It does not upload the file.
  */
 export interface WorkspaceMirror {
    session: () => Promise<ExecutionSession>;
@@ -64,21 +61,20 @@ export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): 
          description: entry.description,
          inputSchema: entry.inputSchema as JSONSchema,
          callback: async (input: unknown, context?: ToolContext) => {
-            const result = await callBerry(api, entry.name, input);
-            if (entry.name !== 'write_file' || !mirror || refused(result)) return result;
-            return { ...(isRecord(result) ? result : {}), ...(await mirrorWrite(mirror, input, context)) };
+            if (entry.name !== 'write_file' || !mirror) return callBerry(api, entry.name, input);
+            const written = await writeInWorkspace(mirror, input, context);
+            if ('workspaceError' in written) return { error: written.workspaceError };
+            return { path: written.workspacePath, saved: true, workspacePath: written.workspacePath };
          },
       })
    );
 }
 
 /**
- * Writes a saved file into the workspace; reports where, or why not.
- *
- * Never throws: the file is already safe on the task, so a workspace that
- * refuses it is something the model is told, not a failed tool call.
+ * Writes the file into the checkout. A path outside the workspace is refused
+ * and nothing is written.
  */
-async function mirrorWrite(
+async function writeInWorkspace(
    mirror: WorkspaceMirror,
    input: unknown,
    context?: ToolContext
@@ -86,7 +82,7 @@ async function mirrorWrite(
    const { path, content } = (isRecord(input) ? input : {}) as { path?: unknown; content?: unknown };
    if (typeof path !== 'string' || typeof content !== 'string') return { workspaceError: 'no path or content to write' };
    const relative = insideDirectory(path);
-   if (relative === null) return { workspaceError: `${path} is outside the workspace; saved on the task only` };
+   if (relative === null) return { workspaceError: `${path} is outside the workspace` };
    // The checkout when the run has one, else the workspace root — where run_command runs.
    const workdir = context?.agent.appState.get(WORKDIR_KEY);
    const target = typeof workdir === 'string' ? `${workdir}/${relative}` : relative;
@@ -94,13 +90,10 @@ async function mirrorWrite(
       await (await mirror.session()).writeFile(target, content);
       return { workspacePath: relative };
    } catch (cause) {
-      mirror.warn?.('write_file saved on the task but not in the workspace', { path: relative, error: message(cause) });
-      return { workspaceError: `saved on the task, but not written to the workspace: ${message(cause)}` };
+      const detail = message(cause);
+      mirror.warn?.('write_file could not be written into the workspace', { path: relative, error: detail });
+      return { workspaceError: `not written to the workspace: ${detail}` };
    }
-}
-
-function refused(result: JSONValue): boolean {
-   return isRecord(result) && 'error' in result;
 }
 
 function isRecord(value: unknown): value is Record<string, JSONValue> {

@@ -156,7 +156,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -248,15 +248,14 @@ const githubUserAccess = config.auth.secret
    : null;
 
 /**
- * Sign-in: Better Auth's GitHub provider on a GitHub OAuth App, from
- * `BERRY_AUTH_GITHUB_CLIENT_ID` / `_SECRET`, built once at boot.
+ * Sign-in: Better Auth sessions, built once at boot.
  *
- * The OAuth App is separate from the repository GitHub App. It asks for the
- * `repo` scope (repositories and their issues, read and write) and `workflow`
- * (so a delivery can write `.github/workflows/`) on top of the profile scopes,
- * and its callback is Better Auth's own,
- * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes a
- * restart, like any other environment setting.
+ * GitHub is Better Auth's GitHub provider on `BERRY_AUTH_GITHUB_CLIENT_ID` /
+ * `_SECRET`. The OAuth App is separate from the repository GitHub App. It
+ * asks for the `repo` scope and `workflow` on top of the profile scopes, and
+ * its callback is Better Auth's own,
+ * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes
+ * a restart.
  */
 const auth =
    authPool && config.auth.secret && config.auth.baseUrl
@@ -675,6 +674,7 @@ const executor = new RuntimeTaskExecutor({
                  runtimeId === 'codex' ||
                  runtimeId === 'cursor' ||
                  runtimeId === 'kimi' ||
+                 runtimeId === 'kiro' ||
                  runtimeId === 'qoder'
               ) {
                  return {
@@ -686,28 +686,11 @@ const executor = new RuntimeTaskExecutor({
                             ? CURSOR_CLI_LOGIN
                             : runtimeId === 'kimi'
                               ? KIMI_CLI_LOGIN
-                              : runtimeId === 'qoder'
-                                ? QODER_CLI_LOGIN
-                                : CLAUDE_CLI_LOGIN,
-                    accountId: connection.external_account_id,
-                    accountName: connection.external_account_name,
-                 };
-              }
-              if (runtimeId === 'kiro') {
-                 const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
-                 if (!sealer) throw new Error('this deployment cannot open a sealed Kiro API key');
-                 const [secret] = await sql<Array<{ credential_sealed: Buffer | null }>>`
-                    SELECT credential_sealed
-                      FROM ai_runtime_connections
-                     WHERE id = ${connectionId}
-                       AND workspace_id = ${workspaceId}
-                       AND user_id = ${userId}
-                       AND runtime_key = ${runtimeId}
-                       AND status = 'connected'`;
-                 if (!secret?.credential_sealed) throw new Error('the Kiro API key is no longer stored');
-                 return {
-                    type: 'api_key',
-                    token: sealer.open(Buffer.from(secret.credential_sealed)),
+                              : runtimeId === 'kiro'
+                                ? KIRO_CLI_LOGIN
+                                : runtimeId === 'qoder'
+                                  ? QODER_CLI_LOGIN
+                                  : CLAUDE_CLI_LOGIN,
                     accountId: connection.external_account_id,
                     accountName: connection.external_account_name,
                  };
@@ -1429,12 +1412,13 @@ registry.registerAll(
          // Planning is a completion task, so it runs wherever tasks do.
          planner: defaultTarget !== null,
          modelGateway: modelGateway !== null,
-         // What the sign-in page believes: true only when the OAuth App is
-         // configured and Better Auth is serving it.
+         // What the sign-in page believes: true when the GitHub OAuth App
+         // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
       },
+      signInOrigin: config.auth.baseUrl,
    })
 );
 
@@ -1546,7 +1530,11 @@ logger.info('Berry server listening', {
       : 'no encryption key',
    // Named at boot so a missing BERRY_AUTH_GITHUB_* is visible before anyone
    // meets a disabled button.
-   signIn: auth ? (config.auth.github ? 'github (OAuth App)' : 'no BERRY_AUTH_GITHUB_* credentials') : 'off',
+   signIn: auth
+      ? config.auth.github
+         ? 'github'
+         : 'no GitHub sign-in credentials'
+      : 'off',
    mounts: registry.prefixes,
 });
 

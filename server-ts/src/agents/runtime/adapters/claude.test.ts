@@ -178,6 +178,9 @@ describe('Claude adapter', () => {
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('sonnet'));
          assert.ok(run.args.includes('--tools'));
+         assert.ok(run.args.includes('--disable-slash-commands'));
+         assert.equal(run.env.CLAUDE_CODE_DISABLE_BUNDLED_SKILLS, '1');
+         assert.equal(run.env.CLAUDE_CODE_DISABLE_POLICY_SKILLS, '1');
       } finally {
          if (previous === undefined) delete process.env.ANTHROPIC_API_KEY;
          else process.env.ANTHROPIC_API_KEY = previous;

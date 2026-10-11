@@ -268,6 +268,33 @@ test('an unreachable GitHub is a failure with no status, not a crash', async () 
    });
 });
 
+test('an empty repository gets its first commit through the contents API', async () => {
+   const commit = 'a'.repeat(40);
+   const removed = 'c'.repeat(40);
+   const { client, calls } = stub((call) => {
+      if (call.method === 'GET' && call.url.includes('/git/ref/')) {
+         return json({ message: 'Git Repository is empty.' }, 409);
+      }
+      if (call.method === 'GET' && call.url.includes('/branches/')) {
+         return json({ message: 'Branch not found' }, 404);
+      }
+      if (call.method === 'PUT' && call.url.includes('/contents/README.md')) {
+         assert.equal((call.body as { branch: string }).branch, 'main');
+         return json({ commit: { sha: commit }, content: { sha: 'b'.repeat(40) } }, 201);
+      }
+      if (call.method === 'DELETE' && call.url.includes('/contents/README.md')) {
+         assert.equal((call.body as { sha: string }).sha, 'b'.repeat(40));
+         return json({ commit: { sha: removed } });
+      }
+      return json({ message: 'Not Found' }, 404);
+   });
+   assert.equal(await client.seedEmptyBranch({ owner: 'andrealune', name: 'pacman', branch: 'main' }), removed);
+   assert.equal(
+      calls.some((call) => call.url.includes('/git/trees')),
+      false
+   );
+});
+
 test('an empty repository and a missing branch both have no head; other failures still throw', async () => {
    const empty = stub(() => json({ message: 'Git Repository is empty.' }, 409));
    assert.equal(await empty.client.branchHead('andrealune', 'nova8-pro', 'main'), null);

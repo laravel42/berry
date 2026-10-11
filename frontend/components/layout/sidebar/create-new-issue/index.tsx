@@ -32,7 +32,7 @@ import { BerryApiError } from '@/lib/api';
 import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
 import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
-import { createBoardIssue, rankFromSortOrder } from '@/lib/issues';
+import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
 import { loadWorkspaceLabels } from '@/lib/labels';
 import { loadProperties, setIssueProperty, type PropertyDefinition } from '@/lib/properties';
 import { useCreateIssueStore } from '@/store/create-issue-store';
@@ -258,7 +258,8 @@ export function CreateNewIssue() {
          finish();
       } catch (error) {
          if (error instanceof BerryApiError && error.status === 409) duplicateToast(error);
-         else toast.error(error instanceof BerryApiError ? error.message : t('failed'));
+         else
+            toast.error(error instanceof BerryApiError ? describePatchFailure(error) : t('failed'));
       } finally {
          setPending(false);
       }
