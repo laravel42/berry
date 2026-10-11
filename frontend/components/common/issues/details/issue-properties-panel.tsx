@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
 import { IssueDetail } from '@/data/issue-details';
 import { Issue } from '@/data/issues';
 import { describePatchFailure, patchBoardIssue } from '@/lib/issues';
@@ -34,7 +35,7 @@ interface IssuePropertiesPanelProps {
 /**
  * Everything about this task that is not its text.
  *
- * The order is the order a person asks: what state is it in and who has it,
+ * The order is the order a person asks: who has it, what state it is in,
  * then what it belongs to, then what it relates to, and finally where it came
  * from.
  */
@@ -78,64 +79,41 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
       <div className="flex h-full min-h-0 flex-col">
          <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto">
             <Section title={t('title')}>
-               <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2">
-                     <div className="flex size-7 shrink-0 items-center justify-center">
-                        <IssueStatusPicker issue={issue} />
-                     </div>
-                     <span className="min-w-0 truncate">{issue.status.name}</span>
-                  </div>
+               <div className="flex flex-col gap-0.75">
+                  <AssigneeUser
+                     user={issue.assignee}
+                     issueId={issue.id}
+                     monogram={false}
+                     row
+                     emptyLabel={t('assign')}
+                  />
+                  <IssueStatusPicker issue={issue} variant="row" />
                   <CustomStatusSelect issue={issue} />
-                  <div className="flex items-center gap-2">
-                     <div className="flex size-7 shrink-0 items-center justify-center">
-                        <IssuePriorityPicker issue={issue} />
-                     </div>
-                     <span className="min-w-0 truncate">{issue.priority.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                     {issue.assignee ? (
-                        <AssigneeUser
-                           user={issue.assignee}
-                           issueId={issue.id}
-                           monogram={false}
-                           showName
-                        />
-                     ) : (
-                        <>
-                           <div className="flex size-7 shrink-0 items-center justify-center">
-                              <AssigneeUser user={null} issueId={issue.id} monogram={false} />
-                           </div>
-                           <span className="min-w-0 truncate">{t('assign')}</span>
-                        </>
-                     )}
-                  </div>
+                  <IssuePriorityPicker issue={issue} variant="row" />
                   <ReviewerProperty
                      issueRef={issue.identifier}
                      inReview={issue.status.id === 'in-review'}
                      autoGate={issue.autoGate}
                   />
 
-                  <div className="flex items-center gap-2">
-                     <button
+                  <div className="relative">
+                     <Button
                         type="button"
-                        className="flex size-7 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        aria-label={t('dueDate')}
+                        variant="ghost"
+                        size="sm"
+                        className="w-full min-w-0 justify-start gap-2 px-1.5"
                         onClick={openDuePicker}
                      >
                         <CalendarClock className="size-4 text-status-info" aria-hidden />
-                     </button>
-                     <button
-                        type="button"
-                        className={cn(
-                           'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                           dueLabel
-                              ? 'h-7 tabular-nums hover:bg-accent/40'
-                              : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground'
-                        )}
-                        onClick={openDuePicker}
-                     >
-                        {dueLabel ?? t('setDate')}
-                     </button>
+                        <span
+                           className={cn(
+                              'truncate',
+                              dueLabel ? 'tabular-nums' : 'text-muted-foreground'
+                           )}
+                        >
+                           {dueLabel ?? t('setDate')}
+                        </span>
+                     </Button>
                      <input
                         ref={duePicker}
                         type="date"

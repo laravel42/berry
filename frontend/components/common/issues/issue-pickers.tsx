@@ -12,12 +12,19 @@ type IssueRef = Pick<Issue, 'id' | 'priority' | 'status'>;
  * change is optimistic and rolls back, with a toast, if the server refuses it.
  * Each option shows how many loaded tasks sit at that priority.
  */
-export function IssuePriorityPicker({ issue }: { issue: Pick<IssueRef, 'id' | 'priority'> }) {
+export function IssuePriorityPicker({
+   issue,
+   variant = 'icon',
+}: {
+   issue: Pick<IssueRef, 'id' | 'priority'>;
+   /** `row` is the full property line in the task sidebar. */
+   variant?: 'icon' | 'row';
+}) {
    const updateIssuePriority = useIssuesStore((state) => state.updateIssuePriority);
    const filterByPriority = useIssuesStore((state) => state.filterByPriority);
    return (
       <PriorityPicker
-         variant="icon"
+         variant={variant}
          priority={issue.priority}
          onChange={(next) => updateIssuePriority(issue.id, next)}
          countFor={(id) => filterByPriority(id).length}
@@ -25,13 +32,20 @@ export function IssuePriorityPicker({ issue }: { issue: Pick<IssueRef, 'id' | 'p
    );
 }
 
-/** A task's status as a mark-only picker bound to the issues store, with per-status counts. */
-export function IssueStatusPicker({ issue }: { issue: Pick<IssueRef, 'id' | 'status'> }) {
+/** A task's status as a picker bound to the issues store, with per-status counts. */
+export function IssueStatusPicker({
+   issue,
+   variant = 'icon',
+}: {
+   issue: Pick<IssueRef, 'id' | 'status'>;
+   /** `row` is the full property line in the task sidebar. */
+   variant?: 'icon' | 'row';
+}) {
    const updateIssueStatus = useIssuesStore((state) => state.updateIssueStatus);
    const filterByStatus = useIssuesStore((state) => state.filterByStatus);
    return (
       <StatusPicker
-         variant="icon"
+         variant={variant}
          status={issue.status}
          options={ISSUE_STATUS_OPTIONS}
          onChange={(next) => updateIssueStatus(issue.id, next)}

@@ -23,7 +23,7 @@ export const ChipWithDate: Story = {
    },
 };
 
-/** The project sidebar row, empty: a dashed "Target date" prompt. */
+/** The project sidebar row, empty: the prompt fills the row. */
 export const RowEmpty: Story = { args: { layout: 'row', emptyLabel: 'Target date' } };
 
 export const RowWithDate: Story = {

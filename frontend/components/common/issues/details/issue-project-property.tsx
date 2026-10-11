@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
 import {
    Command,
    CommandEmpty,
@@ -48,29 +49,20 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <button
+            <Button
                type="button"
+               variant="ghost"
+               size="sm"
                aria-haspopup="listbox"
                aria-expanded={open}
                aria-label={t('project')}
-               className={cn(
-                  'flex w-full min-w-0 items-center gap-2 rounded-sm text-left outline-none',
-                  'hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50'
-               )}
+               className="w-full min-w-0 justify-start gap-2 px-1.5"
             >
-               <div className="flex size-7 shrink-0 items-center justify-center">
-                  <Icon className="size-4 text-status-warning" aria-hidden />
-               </div>
-               <span
-                  className={cn(
-                     'min-w-0 truncate',
-                     !issue.project &&
-                        'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground'
-                  )}
-               >
+               <Icon className="size-4 text-status-warning" aria-hidden />
+               <span className={cn('min-w-0 truncate', !issue.project && 'text-muted-foreground')}>
                   {issue.project?.name ?? t('noProject')}
                </span>
-            </button>
+            </Button>
          </PopoverTrigger>
          <PopoverContent align="start" className="w-64 p-0">
             <Command>

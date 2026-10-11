@@ -148,6 +148,23 @@ export function PickerIconButton({
    );
 }
 
+/**
+ * Icon and label across the whole property row. Same ghost hover as the
+ * repository row in the project sidebar.
+ */
+export function PickerRowButton({ className, ...props }: PickerButtonProps) {
+   return (
+      <Button
+         role="combobox"
+         type="button"
+         size="sm"
+         variant="ghost"
+         className={cn('w-full min-w-0 justify-start gap-2 px-1.5', className)}
+         {...props}
+      />
+   );
+}
+
 /** A glyph and its label on a secondary chip, for the property row of a create dialog. */
 export function PickerChipButton({ className, ...props }: PickerButtonProps) {
    return (

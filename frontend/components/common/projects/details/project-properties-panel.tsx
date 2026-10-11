@@ -1,5 +1,7 @@
 'use client';
 
+import { ActorAvatar } from '@/components/common/issues/actor-avatar';
+import { Button } from '@/components/ui/button';
 import { ArrowRight, Calendar, UserPlus } from 'lucide-react';
 import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
@@ -20,7 +22,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { ProjectProgressChart } from './project-progress-chart';
-import { LeadAvatarButton, LeadPicker, leadCandidates } from '../lead-picker';
+import { LeadPicker, leadCandidates } from '../lead-picker';
 import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
 
@@ -141,44 +143,47 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
       <div className="flex h-full min-h-0 flex-col">
          <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
             <SidebarSection title="Properties">
-               <div className="flex flex-col gap-1.5">
-                  {/* No -ml: the lead control is a filled circle, not a padded
-                      ghost icon — negative margin clipped the avatar. */}
-                  <div className="flex items-center gap-1.5">
+               <div className="flex flex-col gap-0.75">
+                  <div className="flex min-w-0 items-center">
                      <LeadPicker
                         lead={project.lead}
                         candidates={leadCandidates(members, project.lead)}
                         onChange={(member) => updateProjectLead(project.id, member)}
                      >
-                        <LeadAvatarButton lead={project.lead} />
+                        <Button
+                           type="button"
+                           variant="ghost"
+                           size="sm"
+                           className="w-full min-w-0 justify-start gap-2 px-1.5"
+                           aria-label={`Lead: ${project.lead.name}`}
+                        >
+                           <ActorAvatar user={project.lead} />
+                           <span className="truncate">{project.lead.name}</span>
+                        </Button>
                      </LeadPicker>
-                     <span className="truncate">{project.lead.name}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 -ml-1.5">
+                  <div className="flex min-w-0 items-center">
                      <StatusPicker
-                        variant="icon"
+                        variant="row"
                         status={project.status}
                         options={projectCreateStatusOptions}
                         onChange={(status) => updateProjectStatus(project.id, status)}
                      />
-                     <span>{project.status.name}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 -ml-1.5">
+                  <div className="flex min-w-0 items-center">
                      <PriorityPicker
-                        variant="icon"
+                        variant="row"
                         priority={project.priority}
                         onChange={(priority) => updateProjectPriority(project.id, priority)}
                      />
-                     <span>{project.priority.name}</span>
                   </div>
-                  <div className="flex items-center gap-1.5 -ml-1.5">
-                     <HealthPopover project={project} showLabel={false} />
-                     <span>{project.health.name}</span>
+                  <div className="flex min-w-0 items-center">
+                     <HealthPopover project={project} row />
                   </div>
-                  <div className="flex min-w-0 items-center gap-1.5 -ml-1.5">
+                  <div className="flex min-w-0 items-center">
                      <RepositorySelector project={project} />
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex min-w-0 items-center">
                      <ProjectDateSelector
                         layout="row"
                         label="Start"
@@ -186,6 +191,8 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                         date={project.startDate ? parseISO(project.startDate) : undefined}
                         onChange={(date) => updateProjectStartDate(project.id, toIso(date))}
                      />
+                  </div>
+                  <div className="flex min-w-0 items-center">
                      <ProjectDateSelector
                         layout="row"
                         label="Target"

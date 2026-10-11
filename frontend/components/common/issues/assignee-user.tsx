@@ -15,6 +15,7 @@ import { agentToUser } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
+import { Button } from '@/components/ui/button';
 import { CheckIcon, UserRound } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -44,6 +45,12 @@ interface AssigneeUserProps {
    showName?: boolean;
    /** Body weight for that name. The default is one step heavier. */
    plainName?: boolean;
+   /**
+    * The whole property line is the control, matching the project sidebar.
+    * `emptyLabel` is the word shown when nobody is assigned.
+    */
+   row?: boolean;
+   emptyLabel?: string;
 }
 
 function AssigneePlaceholder() {
@@ -78,6 +85,8 @@ export function AssigneeUser({
    monogram = true,
    showName = false,
    plainName = false,
+   row = false,
+   emptyLabel,
 }: AssigneeUserProps) {
    const t = useTranslations('issueLists.assignee');
    const listRef = useRef<HTMLDivElement>(null);
@@ -141,45 +150,75 @@ export function AssigneeUser({
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <button
-               type="button"
-               aria-haspopup="listbox"
-               aria-expanded={open}
-               aria-label={
-                  currentAssignee ? t('assigned', { name: currentAssignee.name }) : t('unassigned')
-               }
-               className={cn(
-                  'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                  showName ? 'max-w-full' : 'w-fit'
-               )}
-            >
-               {currentAssignee ? (
-                  <>
-                     <span className="relative shrink-0">
+            {row ? (
+               <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-haspopup="listbox"
+                  aria-expanded={open}
+                  aria-label={
+                     currentAssignee
+                        ? t('assigned', { name: currentAssignee.name })
+                        : t('unassigned')
+                  }
+                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+               >
+                  {currentAssignee ? (
+                     <>
                         <ActorAvatar user={currentAssignee} monogram={monogram} />
-                        {currentAssignee.role !== 'Application' ? (
-                           <span
-                              className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
-                              style={{
-                                 backgroundColor: statusUserColors[currentAssignee.status],
-                              }}
-                           >
-                              <span className="sr-only">{currentAssignee.status}</span>
-                           </span>
+                        <span className="min-w-0 truncate">{currentAssignee.name}</span>
+                     </>
+                  ) : (
+                     <>
+                        <AssigneePlaceholder />
+                        <span className="min-w-0 truncate text-muted-foreground">{emptyLabel}</span>
+                     </>
+                  )}
+               </Button>
+            ) : (
+               <button
+                  type="button"
+                  aria-haspopup="listbox"
+                  aria-expanded={open}
+                  aria-label={
+                     currentAssignee
+                        ? t('assigned', { name: currentAssignee.name })
+                        : t('unassigned')
+                  }
+                  className={cn(
+                     'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                     showName ? 'max-w-full' : 'w-fit'
+                  )}
+               >
+                  {currentAssignee ? (
+                     <>
+                        <span className="relative shrink-0">
+                           <ActorAvatar user={currentAssignee} monogram={monogram} />
+                           {currentAssignee.role !== 'Application' ? (
+                              <span
+                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
+                                 style={{
+                                    backgroundColor: statusUserColors[currentAssignee.status],
+                                 }}
+                              >
+                                 <span className="sr-only">{currentAssignee.status}</span>
+                              </span>
+                           ) : null}
+                        </span>
+                        {showName ? (
+                           <ActorName
+                              user={currentAssignee}
+                              plain={plainName}
+                              className="min-w-0 truncate"
+                           />
                         ) : null}
-                     </span>
-                     {showName ? (
-                        <ActorName
-                           user={currentAssignee}
-                           plain={plainName}
-                           className="min-w-0 truncate"
-                        />
-                     ) : null}
-                  </>
-               ) : (
-                  <AssigneePlaceholder />
-               )}
-            </button>
+                     </>
+                  ) : (
+                     <AssigneePlaceholder />
+                  )}
+               </button>
+            )}
          </PopoverTrigger>
          <PopoverContent
             align="start"

@@ -45,25 +45,21 @@ export function AutoGateProperty({ issue }: { issue: Issue }) {
    return (
       <Tooltip>
          <TooltipTrigger asChild>
-            <div className="flex items-center gap-2">
-               <Button
-                  type="button"
-                  size="xxs"
-                  variant="outline"
-                  disabled={saving}
-                  aria-pressed={enabled}
-                  onClick={() => change(!enabled)}
-                  className={cn(
-                     'flex min-w-0 items-center gap-1 px-2',
-                     enabled
-                        ? 'border-status-warning/40 bg-status-warning/10 text-status-warning hover:bg-status-warning/15 hover:text-status-warning'
-                        : 'border-status-neutral/40 bg-status-neutral/10 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral'
-                  )}
-               >
-                  <ShieldCheck className="size-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">{t('autoGate')}</span>
-               </Button>
-            </div>
+            <Button
+               type="button"
+               size="sm"
+               variant="ghost"
+               disabled={saving}
+               aria-pressed={enabled}
+               onClick={() => change(!enabled)}
+               className={cn(
+                  'w-full min-w-0 justify-start gap-2 px-1.5',
+                  enabled && 'text-status-warning hover:text-status-warning'
+               )}
+            >
+               <ShieldCheck className="size-4 shrink-0" aria-hidden />
+               <span className="truncate">{t('autoGate')}</span>
+            </Button>
          </TooltipTrigger>
          <TooltipContent side="left" className="max-w-72">
             {enabled ? t('autoGateOn') : t('autoGateOff')}

@@ -72,8 +72,8 @@ export function ReviewerProperty({
          : `${tPeer('by', { reviewer: review.reviewer })} · ${tPeer('attempt', { attempt: review.attempt })}`;
 
    return (
-      <div className="flex items-center gap-2" title={title}>
-         <div className="flex size-7 shrink-0 items-center justify-center">
+      <div className="flex h-8 items-center gap-2 px-1.5" title={title}>
+         <div className="flex size-4 shrink-0 items-center justify-center">
             {approved === null ? (
                <Loader2 className="size-4 animate-spin text-review-pending" aria-hidden />
             ) : approved ? (
