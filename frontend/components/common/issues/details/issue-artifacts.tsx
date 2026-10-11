@@ -476,7 +476,7 @@ export function IssueArtifacts({
             >
                <aside
                   aria-label={t('tree')}
-                  className="relative flex shrink-0 flex-col overflow-y-auto border-r bg-background py-1"
+                  className="relative flex shrink-0 flex-col overflow-hidden border-r bg-background"
                   style={{
                      width: treeWidth,
                      minWidth: TREE_WIDTH_MIN,
@@ -485,7 +485,7 @@ export function IssueArtifacts({
                   }}
                >
                   {root ? (
-                     <div className="flex min-h-6 min-w-0 items-center gap-0.5 pr-1 text-muted-foreground">
+                     <div className="flex min-h-6 shrink-0 items-center gap-0.5 border-b pr-1 text-muted-foreground">
                         <button
                            type="button"
                            onClick={() => toggle(ROOT)}
@@ -535,24 +535,26 @@ export function IssueArtifacts({
                         ) : null}
                      </div>
                   ) : null}
-                  {draft && draft.at === '' ? draftRow(root ? 1 : 0) : null}
-                  {root && collapsed.has(ROOT)
-                     ? null
-                     : tree.map((node) => (
-                          <TreeRow
-                             key={node.path}
-                             node={node}
-                             depth={root ? 1 : 0}
-                             collapsed={collapsed}
-                             selectedId={selectedId}
-                             onToggle={toggle}
-                             onView={view}
-                             marked={marked}
-                             selectedFolder={folder}
-                             draftAt={draft ? draft.at : null}
-                             draftRow={draftRow}
-                          />
-                       ))}
+                  <div className="min-h-0 flex-1 overflow-y-auto py-1">
+                     {draft && draft.at === '' ? draftRow(root ? 1 : 0) : null}
+                     {root && collapsed.has(ROOT)
+                        ? null
+                        : tree.map((node) => (
+                             <TreeRow
+                                key={node.path}
+                                node={node}
+                                depth={root ? 1 : 0}
+                                collapsed={collapsed}
+                                selectedId={selectedId}
+                                onToggle={toggle}
+                                onView={view}
+                                marked={marked}
+                                selectedFolder={folder}
+                                draftAt={draft ? draft.at : null}
+                                draftRow={draftRow}
+                             />
+                          ))}
+                  </div>
                   <span
                      className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize"
                      style={{ touchAction: 'none' }}
