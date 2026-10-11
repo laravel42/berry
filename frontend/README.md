@@ -33,13 +33,13 @@ The frontend reaches Berry through a same-origin proxy. `next.config.ts`
 rewrites `/api/*`, `/v1/*`, `/health` and `/ready` to a server-only origin;
 the browser never sees the upstream URL.
 
-| Variable | Purpose |
-| --- | --- |
-| `BERRY_API_ORIGIN` | Server-only target for the proxy (default `http://127.0.0.1:4000`). Read only by the Next.js server; never put credentials in it. |
-| `NEXT_PUBLIC_BERRY_API_URL` | Optional cross-origin escape hatch, inlined into the browser bundle. Leave empty outside deliberate cross-origin development. |
-| `NEXT_PUBLIC_AUTO_LOGIN_EMAIL` | Dev-only auto-login email. |
-| `NEXT_PUBLIC_BOARD_ID`, `NEXT_PUBLIC_WORKSPACE_SLUG`, `NEXT_PUBLIC_WORKSPACE_NAME` | Workspace/board defaults. |
-| `NEXT_PUBLIC_CHANGELOG_URL`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_FEEDBACK_URL` | Optional external links surfaced in the UI. |
+| Variable                                                                           | Purpose                                                                                                                           |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `BERRY_API_ORIGIN`                                                                 | Server-only target for the proxy (default `http://127.0.0.1:4000`). Read only by the Next.js server; never put credentials in it. |
+| `NEXT_PUBLIC_BERRY_API_URL`                                                        | Optional cross-origin escape hatch, inlined into the browser bundle. Leave empty outside deliberate cross-origin development.     |
+| `NEXT_PUBLIC_AUTO_LOGIN_EMAIL`                                                     | Dev-only auto-login email.                                                                                                        |
+| `NEXT_PUBLIC_BOARD_ID`, `NEXT_PUBLIC_WORKSPACE_SLUG`, `NEXT_PUBLIC_WORKSPACE_NAME` | Workspace/board defaults.                                                                                                         |
+| `NEXT_PUBLIC_CHANGELOG_URL`, `NEXT_PUBLIC_DOCS_URL`, `NEXT_PUBLIC_FEEDBACK_URL`    | Optional external links surfaced in the UI.                                                                                       |
 
 No secret may use a `NEXT_PUBLIC_*` name — that prefix ships to the browser.
 The Berry client lives in `lib/api.ts` (`apiUrl` / `apiFetch`); it includes
@@ -93,5 +93,5 @@ helpers stay so API wiring can land incrementally:
 
 ## License
 
-Berry's own code and the Circle template code in this directory are
-MIT-licensed. The upstream Circle notice is retained in `LICENSE.md`.
+Berry's own code in this directory is licensed under the GNU Affero General Public License v3.
+The upstream Circle notice is retained in `LICENSE.md`.

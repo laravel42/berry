@@ -161,6 +161,6 @@ normally.
 
 ## Licensing
 
-Berry is MIT licensed — see [LICENSE](LICENSE). Its web interface began as the
-MIT-licensed Circle template, and every dependency it resolves is permissively licensed.
-Both are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Berry is licensed under the GNU Affero General Public License v3. See [LICENSE](LICENSE).
+The web interface began as the MIT-licensed Circle template; that notice stays in `frontend/LICENSE.md`.
+Dependencies keep their own permissive licenses.
