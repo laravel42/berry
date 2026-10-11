@@ -136,8 +136,8 @@ task-scoped token. There is no other external worker.
 (`BERRY_MODEL_PROVIDER=bedrock`) the runtime calls Bedrock directly, on the
 agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
 and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
-the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryMid,
-BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
+the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryXHigh,
+BerryHigh, BerryMid, BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
 the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so
 do not name a tier's current models in code or docs. The server only reads
 Kilo's model list, leaderboard and account; it never calls a model.
@@ -155,7 +155,7 @@ the Orchestrator and uses the first connected model on that agent's selected
 tier; with none placed, it stays on Bedrock or Kilo. Kiro, Claude Code, and Codex are the connectable runtimes,
 each a CLI on the workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or
 `codex`), not a container Berry runs. With Kiro connected, Settings → Model tiers places
-Kiro models on BerryMax, BerryMid and BerryLow; the same model may sit on
+Kiro models on BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit on
 more than one tier, and a run with no explicit model uses the first model on
 the agent's tier that Kiro offers. Every other requested product stays
 visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).

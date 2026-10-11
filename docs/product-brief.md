@@ -101,8 +101,8 @@ embed a model or a credential store. Berry ships no user-machine CLI,
 daemon, credential-store scraper, or local launcher.
 Kiro's `kiro-cli` runs on the workstation that runs Berry, not inside that
 container, and Kiro does not supply a container per model. With Kiro
-connected, the workspace places Kiro's models on BerryMax, BerryMid and
-BerryLow; the same model may sit on more than one tier. A product whose
+connected, the workspace places Kiro's models on BerryMax, BerryXHigh,
+BerryHigh, BerryMid and BerryLow; the same model may sit on more than one tier. A product whose
 official subscription login exists only on a
 person's laptop stays unavailable until it exposes a safe delegated boundary.
 Filesystem execution for the hosted runtime remains inside the agent runtime.

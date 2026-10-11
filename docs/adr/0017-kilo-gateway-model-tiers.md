@@ -19,10 +19,11 @@
   Kilo's per-request reports, carried as `reportedCostMicros` through
   `task.usage` to `src/usage/record.ts`.
 - **BerryFree and BerryAuto were removed on 2026-09-27**: the tiers are
-  BerryMax, BerryMid and BerryLow, all paid. Past usage recorded on the two
-  keeps its tier, and BerryAuto's classifier fees are still reconciled for
-  it; nothing new runs on them. Decisions 6 and 9 below describe them as they
-  were.
+  BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow, all paid.
+  BerryXHigh and BerryHigh sit between BerryMax and BerryMid. Past usage
+  recorded on the two removed tiers keeps its tier, and BerryAuto's
+  classifier fees are still reconciled for it; nothing new runs on them.
+  Decisions 6 and 9 below describe them as they were.
 - Runtime support for BerryAuto (`kilo-auto/*`) is in place: the own-key
   exemption, the session header, and usage recorded per model Kilo picked.
 - Ratings are Terminal-Bench resolution rates on the 4.0 scale, older
@@ -31,8 +32,9 @@
   Kilo serves (2026-09-26, superseding the own-key rule and the price
   cascade of Decision 6): Max the three best rated; Low the best of the
   cheapest third of rated models, preferring those not outclassed (another
-  rates as well for less) and reaching a quarter of the best rating; Mid the
-  best rated of the rest below Max's cheapest.
+  rates as well for less) and reaching a quarter of the best rating; then
+  xHigh, High and Mid, each the best rated of what remains priced below the
+  tier above.
 - A rating converted from another source (an older Terminal-Bench, or
   Kilo's benchmark) is an estimate: the tier table marks it ≈ and names its
   source, and ranking counts it at 85% (`ESTIMATE_WEIGHT`), so a measured
@@ -49,7 +51,7 @@
   call, for a model a person pins.
 - A deployment has its own say (`TierPolicy`, 2026-09-26): `BERRY_KILO_EXCLUDE`
   takes models out of every tier, `BERRY_KILO_PREFER` puts models first in
-  the tier they reach, and `BERRY_KILO_MAX|MID|LOW` place a model in a tier
+  the tier they reach, and `BERRY_KILO_MAX|XHIGH|HIGH|MID|LOW` place a model in a tier
   whatever its rating, the rule filling the rest. Ids or id prefixes
   (`z-ai/`). That day: GLM excluded after GLM-5.3 ran a reply to the 32,000
   output-token ceiling; Grok preferred; Gemini 3.8 Flash placed in Mid.
