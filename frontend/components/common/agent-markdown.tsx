@@ -23,6 +23,8 @@ interface Clamp {
 interface AgentMarkdownProps {
    body: string;
    className?: string;
+   /** Tighter block gap and leading, for comment threads. */
+   compact?: boolean;
    /** Fold long text after this many lines; omit to show everything. */
    clamp?: Clamp;
 }
@@ -41,13 +43,13 @@ interface AgentMarkdownProps {
  * bullet list of file names wraps very differently from a paragraph, and the
  * control should appear only when something is actually hidden.
  */
-export function AgentMarkdown({ body, className, clamp }: AgentMarkdownProps) {
+export function AgentMarkdown({ body, className, compact, clamp }: AgentMarkdownProps) {
    const [open, setOpen] = useState(false);
    const [overflows, setOverflows] = useState(false);
    const boxRef = useRef<HTMLDivElement>(null);
    const id = useId();
 
-   const lineHeight = 1.25; // rem, matches --text-sm--line-height
+   const lineHeight = compact ? 1.125 : 1.25; // rem, matches the rendered leading
    const maxHeight = clamp ? `${clamp.lines * lineHeight}rem` : undefined;
 
    useEffect(() => {
@@ -79,11 +81,18 @@ export function AgentMarkdown({ body, className, clamp }: AgentMarkdownProps) {
             className={cn('relative', folded && 'overflow-hidden')}
             style={folded ? { maxHeight } : undefined}
          >
-            <ChatMarkdown body={body} tone="page" />
+            <ChatMarkdown
+               body={body}
+               tone="page"
+               className={compact ? 'gap-1 leading-snug' : undefined}
+            />
             {hidden ? (
                <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-container to-transparent"
+                  className={cn(
+                     'pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-container to-transparent',
+                     compact ? 'h-5' : 'h-10'
+                  )}
                />
             ) : null}
          </div>
