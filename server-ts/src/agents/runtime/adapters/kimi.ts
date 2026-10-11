@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { KIMI_CLI_LOGIN } from '../../../runtime/envelope.ts';
@@ -21,6 +22,16 @@ import {
 
 export type KimiLauncher = (spec: KimiSpawn) => KimiChild;
 
+/**
+ * The Kimi Code CLI. The installer writes `~/.kimi-code/bin/kimi` and adds
+ * that directory to the shell profile, which a server started earlier does
+ * not inherit. A `kimi` already on PATH is used when that file is absent.
+ */
+export function kimiExecutable(home = homedir()): string {
+   const installed = join(home, '.kimi-code', 'bin', 'kimi');
+   return existsSync(installed) ? installed : 'kimi';
+}
+
 const DEFAULT_DEADLINE_MS = 2 * 60 * 60 * 1000;
 const HANDSHAKE_MS = 20_000;
 const BRIDGE = fileURLToPath(new URL('./kiro-mcp-bridge.ts', import.meta.url));
@@ -40,7 +51,9 @@ interface NormalizationState {
 /**
  * Moonshot Kimi Code CLI as a process on the user's workstation.
  *
- * The CLI keeps its own Kimi Code login (`kimi` then `/login`). Berry starts
+ * The CLI keeps its own Kimi Code login (`kimi` then `/login`). The official
+ * installer places the binary in `~/.kimi-code/bin` and only a new shell sees
+ * that directory, so Berry uses that path when it is present. Berry starts
  * `kimi acp`, forwards no API key, and never answers an auth-token callback —
  * the CLI authenticates itself. Native shell and file tools are denied; Berry
  * tools are the only MCP server the process may call.
@@ -69,7 +82,7 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
    readonly #active = new Map<string, KimiAcpClient>();
 
    constructor(options: KimiAdapterOptions = {}) {
-      this.#command = options.command ?? 'kimi';
+      this.#command = options.command ?? kimiExecutable();
       this.#launch = options.launcher ?? spawnKimiProcess;
       this.#principalIsolation = options.principalIsolation ?? 'workstation';
       this.#deadlineMs = options.deadlineMs ?? DEFAULT_DEADLINE_MS;

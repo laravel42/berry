@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { KIMI_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
 import {
    KimiAgentAdapter,
+   kimiExecutable,
    kimiMcpSocketPath,
    kimiUsageEvent,
    modelsFromSession,
@@ -317,6 +318,19 @@ describe('Kimi adapter', () => {
       assert.equal(event.usage.reportedCostMicros, null);
       assert.equal(event.usage.model, 'kimi-k2');
       assert.equal(kimiUsageEvent({ update: { creditsUsed: 0.08 } }, 'kimi-k2'), null);
+   });
+
+   test('uses the installer binary when the shell PATH does not list it', async () => {
+      const home = await mkdtemp(join(tmpdir(), 'berry-kimi-home-'));
+      try {
+         assert.equal(kimiExecutable(home), 'kimi');
+         const binary = join(home, '.kimi-code', 'bin', 'kimi');
+         await mkdir(join(home, '.kimi-code', 'bin'), { recursive: true });
+         await writeFile(binary, '');
+         assert.equal(kimiExecutable(home), binary);
+      } finally {
+         await rm(home, { recursive: true, force: true });
+      }
    });
 
    test('the tool socket path fits a macOS unix socket', () => {
