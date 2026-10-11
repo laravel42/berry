@@ -3,10 +3,10 @@ import { createInterface } from 'node:readline';
 import { RuntimeAdapterError } from './types.ts';
 
 /**
- * Newline-delimited JSON-RPC to `kiro-cli acp --agent-engine=v3`.
+ * Newline-delimited JSON-RPC to `kiro-cli acp --agent-engine=v3 --auth-method cli`.
  *
- * The CLI asks this process for the user's access token. The reply is written
- * to the CLI's stdin and nowhere else.
+ * The CLI owns the login. An access-token request is refused here so a key
+ * cannot be substituted for that session.
  */
 
 export interface KiroSpawn {
@@ -191,7 +191,9 @@ export class KiroAcpClient {
    }
 
    #answer(method: string, params: unknown): { result: unknown } | { error: { code: number; message: string } } {
-      if (method === '_kiro/auth/getAccessToken') return { result: { accessToken: this.#token } };
+      if (method === '_kiro/auth/getAccessToken') {
+         return { error: { code: -32601, message: 'Kiro CLI owns this login.' } };
+      }
       if (method === 'session/request_permission') return { result: this.handlers.onPermission(params) };
       return { error: { code: -32601, message: 'Method not supported' } };
    }

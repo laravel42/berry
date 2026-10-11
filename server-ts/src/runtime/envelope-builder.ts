@@ -11,7 +11,7 @@ import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import type { Dispatch } from '../runs/ledger.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, isKiroApiKey, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
@@ -38,17 +38,37 @@ const RELATED_CHILDREN = 12;
  * spent fifteen minutes polling `git status` for the task it depended on,
  * whose commits were on that task's own branch and could never appear.
  */
-export function dependencyNote(dependencies: TaskEnvelope['task']['dependencies']): string | null {
+/** How much of a blocking task's handoff is carried into the next prompt. */
+const HANDOFF_CHARS = 2500;
+
+export interface BlockerHandoff {
+   identifier: string;
+   title: string;
+   body: string;
+}
+
+export function dependencyNote(
+   dependencies: TaskEnvelope['task']['dependencies'],
+   handoffs: BlockerHandoff[] = []
+): string | null {
    const waitsOn = dependencies.filter((dependency) => dependency.direction === 'depends_on');
    if (waitsOn.length === 0) return null;
-   return (
+   const note =
       'This task depends on:\n' +
       waitsOn.map((dependency) => `- ${dependency.identifier} (${dependency.status}): ${dependency.title}`).join('\n') +
       '\nYour checkout holds the default branch as it is now. Work on those tasks that is not merged yet ' +
       'lives on their own branches and never appears in your workspace, so do not wait or poll for it. ' +
       'Build on what the checkout holds; when the task cannot be done without unmerged work, call ' +
-      'summarize and say which task it needs.'
-   );
+      'summarize and say which task it needs.';
+   if (handoffs.length === 0) return note;
+   const attached = handoffs
+      .map((handoff) => {
+         const body = handoff.body.trim();
+         const clipped = body.length <= HANDOFF_CHARS ? body : `${body.slice(0, HANDOFF_CHARS).trimEnd()} […]`;
+         return `Handoff attached to ${handoff.identifier} (${handoff.title}), file HANDOFF.md:\n${clipped}`;
+      })
+      .join('\n\n');
+   return `${note}\n\n${attached}`;
 }
 
 export interface CompletionSpec {
@@ -334,17 +354,18 @@ export class EnvelopeBuilder {
       // builds an envelope without the ledger's claim (a preview, a retry
       // path) still gets the issue prompt rather than a bare message.
       const dispatch = input.dispatch ?? (await this.#readDispatch(task.runId));
-      const [related, reviewFeedback, recalled, loadedComments, dependencies, projectResources] = await Promise.all([
+      const [related, reviewFeedback, recalled, loadedComments, dependencies, handoffs, projectResources] = await Promise.all([
          this.#related(dispatch.issueId),
          lastRejection(this.#deps.sql, dispatch.issueId),
          this.#deps.memory.recall({ agentId: task.agentId, issueId: dispatch.issueId }),
          this.#comments(dispatch.issueId),
          this.#dependencies(dispatch.issueId),
+         this.#handoffs(dispatch.issueId),
          this.#projectResources(dispatch.issueId, task.workspaceId),
       ]);
       const comments = loadedComments.comments;
       const priorWork = recallPrompt(recalled);
-      const relatedText = [related, dependencyNote(dependencies)].filter(Boolean).join('\n\n');
+      const relatedText = [related, dependencyNote(dependencies, handoffs)].filter(Boolean).join('\n\n');
       const { repo, delivery, empty } = await this.#repository(task, dispatch, agent);
       return {
          model,
@@ -358,6 +379,9 @@ export class EnvelopeBuilder {
                   ...dispatch,
                   reviewFeedback,
                   ...(relatedText ? { related: relatedText } : {}),
+                  ...(dependencies.some((dependency) => dependency.direction === 'depends_on')
+                     ? { readBlockerHandoff: true }
+                     : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
                   ...(empty ? { repositoryEmpty: true } : {}),
@@ -522,10 +546,10 @@ export class EnvelopeBuilder {
             false
          );
       }
-      if (task.aiRuntimeId === 'kiro' && (credential.type !== 'api_key' || !isKiroApiKey(credential.token))) {
+      if (task.aiRuntimeId === 'kiro' && (credential.type !== 'oauth' || credential.token !== KIRO_CLI_LOGIN)) {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',
-            'Kiro requires the subscription API key from a Pro, Pro+, Pro Max, or Power plan. Reconnect it in AI Runtimes settings.',
+            'Connect Kiro in AI Runtimes. Berry uses the Kiro CLI login on this workstation.',
             false
          );
       }
@@ -754,6 +778,55 @@ export class EnvelopeBuilder {
       }));
    }
 
+   /**
+    * HANDOFF.md posted on each task this one waits for, and on the tasks
+    * those wait for.
+    *
+    * The comment is the copy the next prompt carries. A file saved only in
+    * object storage is unread when that store is down, and the next agent
+    * would inventory the repository instead. The earliest handoff comes
+    * first, so the foundation is read before the task that sits on it.
+    */
+   async #handoffs(issueId: string): Promise<BlockerHandoff[]> {
+      const rows = await this.#deps.sql`
+         WITH RECURSIVE blockers AS (
+            SELECT edge.depends_on_issue_id AS id, 1 AS depth
+              FROM issue_dependencies AS edge
+             WHERE edge.issue_id = ${issueId}
+            UNION
+            SELECT edge.depends_on_issue_id, blockers.depth + 1
+              FROM blockers
+              JOIN issue_dependencies AS edge ON edge.issue_id = blockers.id
+             WHERE blockers.depth < 12
+         )
+         SELECT identifier, title, body
+           FROM (
+              SELECT DISTINCT ON (blocker.id)
+                     berry_issue_identifier(ob.workspace_id, blocker.number) AS identifier,
+                     blocker.title,
+                     handoff.body,
+                     blockers.depth
+                FROM blockers
+                JOIN issues AS blocker ON blocker.id = blockers.id AND blocker.deleted_at IS NULL
+                JOIN boards AS ob ON ob.id = blocker.board_id
+                JOIN LATERAL (
+                   SELECT body FROM comments
+                    WHERE issue_id = blocker.id
+                      AND parent_id IS NULL
+                      AND body LIKE 'HANDOFF.md%'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                ) AS handoff ON true
+               ORDER BY blocker.id, blockers.depth DESC
+           ) AS found
+          ORDER BY depth DESC, identifier`;
+      return rows.map((row) => ({
+         identifier: row.identifier as string,
+         title: row.title as string,
+         body: row.body as string,
+      }));
+   }
+
    /** Spec 2.2: the envelope carries the project resources (same rows as `read_project_resources`). */
    async #projectResources(issueId: string, workspaceId: string): Promise<TaskEnvelope['task']['projectResources']> {
       const rows = await this.#deps.sql`
@@ -859,29 +932,17 @@ export class EnvelopeBuilder {
 }
 
 /**
- * A repository with no commits has no default branch to check out, and every
- * run on the project failed at "the default branch is missing". A person
- * links a repository they just created more often than one they have already
- * pushed to, so Berry gives it its first commit: an empty README on the
- * default branch, the way GitHub's own "create README" button does. Only a run
+ * A repository with no commits has no default branch to check out. New
+ * repositories are given that commit when they are created; one that was
+ * linked while still empty gets it here, the same empty commit. Only a run
  * that may push does it; a read-only run goes ahead without a checkout.
  */
 async function initialiseRepository(
-   client: Pick<GitHubClient, 'putFile' | 'branchHead'>,
+   client: Pick<GitHubClient, 'seedEmptyBranch' | 'branchHead'>,
    input: { owner: string; name: string; fullName: string; branch: string }
 ): Promise<string> {
    try {
-      await client.putFile({
-         owner: input.owner,
-         name: input.name,
-         branch: input.branch,
-         path: 'README.md',
-         // Empty on purpose: the first agent to write a README replaces it whole,
-         // and an empty file is the one version of it no later branch can conflict with.
-         content: '',
-         message: `Initial commit on ${input.branch}`,
-         sha: null,
-      });
+      return await client.seedEmptyBranch({ owner: input.owner, name: input.name, branch: input.branch });
    } catch (error) {
       // A plan starts several tasks at once, and each finds the repository
       // empty: the first run's commit wins, and GitHub answers the others
@@ -891,9 +952,6 @@ async function initialiseRepository(
       if (head) return head;
       throw error;
    }
-   const head = await client.branchHead(input.owner, input.name, input.branch);
-   if (!head) throw new Error(`${input.fullName} still has no ${input.branch} after Berry's first commit`);
-   return head;
 }
 
 /** The description a skill's SKILL.md frontmatter carries, or nothing. */

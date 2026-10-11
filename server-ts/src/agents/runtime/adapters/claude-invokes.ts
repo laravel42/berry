@@ -99,7 +99,7 @@ export async function resumeAfterLeakedInvokes(
    }
    return (
       'Berry ran the tool calls from your last message. Continue the task from these results. ' +
-      'Call tools through the tool interface.\n\n' +
+      'Call tools through the tool interface, one command at a time.\n\n' +
       results.join('\n\n')
    );
 }

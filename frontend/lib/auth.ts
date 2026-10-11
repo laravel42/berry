@@ -39,6 +39,7 @@ const bootstrapSchema = z.object({
 });
 
 const configSchema = z.object({
+   signInOrigin: z.string().url().nullish(),
    capabilities: z.looseObject({
       githubSignIn: z.boolean().optional(),
       passwordlessLogin: z.boolean().optional(),
@@ -53,12 +54,21 @@ export type BootstrapWorkspace = z.infer<typeof workspaceSchema>;
 export type BootstrapPayload = z.infer<typeof bootstrapSchema>;
 
 /**
- * Starts GitHub sign-in. The browser leaves for GitHub and comes back through
- * the server's callback, which sets the session cookie and lands on `/`; a
- * refusal lands on `/sign-in?error=<code>` instead.
+ * Starts GitHub sign-in through Better Auth's OAuth App (`repo` + `workflow`).
+ *
+ * The browser must start on the server's sign-in origin so the state cookie
+ * and the GitHub callback stay on the same host.
  */
 export async function signInWithGitHub(): Promise<void> {
-   const origin = window.location.origin;
+   const available = await fetchSignInOptions();
+   const signInOrigin = (available.signInOrigin ?? '').replace(/\/$/, '');
+   if (signInOrigin && window.location.origin !== signInOrigin) {
+      const next = new URL('/sign-in', signInOrigin);
+      next.searchParams.set('github', '1');
+      window.location.assign(next.toString());
+      return;
+   }
+   const origin = signInOrigin || window.location.origin;
    const { error } = await authClient().signIn.social({
       provider: 'github',
       callbackURL: `${origin}/`,
@@ -94,17 +104,18 @@ export async function fetchBootstrap(): Promise<BootstrapPayload> {
    return parsed.data;
 }
 
-/** Whether this server can sign anyone in with GitHub (an OAuth App is configured). */
+/** Whether this server can sign anyone in with GitHub. */
 export async function fetchGitHubSignInAvailable(): Promise<boolean> {
    const options = await fetchSignInOptions();
    return options.github;
 }
 
-/** GitHub stays off the page while development email sign-in is enabled. */
+/** What the sign-in page can offer. GitHub is shown whenever it is configured. */
 export async function fetchSignInOptions(): Promise<{
    github: boolean;
    passwordless: boolean;
    emailRegistration: boolean;
+   signInOrigin: string | null;
 }> {
    const json: unknown = await apiFetch('/api/v1/config');
    const parsed = configSchema.safeParse(json);
@@ -113,6 +124,7 @@ export async function fetchSignInOptions(): Promise<{
       github: capabilities.githubSignIn === true,
       passwordless: capabilities.passwordlessLogin === true,
       emailRegistration: capabilities.emailRegistration === true,
+      signInOrigin: parsed.success ? (parsed.data.signInOrigin ?? null) : null,
    };
 }
 

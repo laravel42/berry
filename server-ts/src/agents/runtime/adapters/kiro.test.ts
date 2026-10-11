@@ -3,17 +3,16 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
-import { taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
+import { KIRO_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
 import { redactSecret } from './kiro-acp.ts';
 import { KiroAgentAdapter, kiroMcpSocketPath, kiroUsageEvent, normalizeKiroUpdate, selectKiroPermission, type KiroLauncher } from './kiro.ts';
 import { RuntimeAdapterError, type RuntimeCredential } from './types.ts';
 
-const KEY = 'ksk_test_key_value_0001';
 const credential: RuntimeCredential = {
-   type: 'api_key',
-   token: KEY,
-   accountId: 'abc',
-   accountName: 'Kiro subscription',
+   type: 'oauth',
+   token: KIRO_CLI_LOGIN,
+   accountId: 'IamIdentityCenter',
+   accountName: 'IAM Identity Center',
 };
 
 class ScriptedChild {
@@ -82,8 +81,12 @@ class ScriptedChild {
    }
 
    kill(): void {
+      this.exit(0);
+   }
+
+   exit(code: number): void {
       this.#done = true;
-      this.#finish({ code: 0, error: null });
+      this.#finish({ code, error: null });
       this.#wake();
    }
 
@@ -169,9 +172,19 @@ function launcher(seen: Array<{ args: string[]; env: Record<string, string> }>):
 }
 
 describe('Kiro adapter', () => {
-   test('answers the access-token callback and keeps the key out of the reply text', async () => {
+   test('uses the CLI login and does not forward an API key', async () => {
       const seen: Array<{ args: string[]; env: Record<string, string> }> = [];
-      const adapter = new KiroAgentAdapter({ launcher: launcher(seen) });
+      const children: ScriptedChild[] = [];
+      const previous = process.env.KIRO_API_KEY;
+      process.env.KIRO_API_KEY = 'ksk_should_not_pass';
+      const adapter = new KiroAgentAdapter({
+         launcher: (spec) => {
+            seen.push({ args: spec.args, env: spec.env });
+            const child = new ScriptedChild();
+            children.push(child);
+            return child;
+         },
+      });
       const directory = await mkdtemp(join(tmpdir(), 'berry-kiro-run-'));
       const events: string[] = [];
       try {
@@ -186,15 +199,54 @@ describe('Kiro adapter', () => {
          });
          assert.equal(result.text, 'Done.');
          assert.equal(result.sessionId, 'sess_1');
-         const tokenReply = seen.length > 0;
-         assert.equal(tokenReply, true);
-         const childEnv = seen.find((call) => call.args[0] === 'acp')?.env;
-         assert.equal(childEnv?.KIRO_API_KEY, KEY);
-         assert.equal(childEnv?.HOME, join(directory, 'state'));
-         assert.equal(events.some((event) => event.includes(KEY)), false);
+         const run = seen.find((call) => call.args[0] === 'acp');
+         assert.ok(run);
+         assert.ok(run.args.includes('--auth-method'));
+         assert.ok(run.args.includes('cli'));
+         assert.equal(run.env.KIRO_API_KEY, undefined);
+         assert.equal(run.env.HOME, process.env.HOME);
+         const replied = children.flatMap((child) => child.sent);
+         assert.equal(JSON.stringify(replied).includes('ksk_should_not_pass'), false);
+         assert.equal(JSON.stringify(replied).includes('accessToken'), false);
+         assert.equal(events.some((event) => event.includes('ksk_')), false);
       } finally {
+         if (previous === undefined) delete process.env.KIRO_API_KEY;
+         else process.env.KIRO_API_KEY = previous;
          await rm(directory, { recursive: true, force: true });
       }
+   });
+
+   test('a workstation login is connected, and an API-key account is refused', async () => {
+      const loggedIn = new KiroAgentAdapter({
+         launcher: (spec) => {
+            const child = new ScriptedChild();
+            if (spec.args[0] === 'whoami') {
+               queueMicrotask(() => {
+                  child.pushLine('{"accountType":"BuilderId","email":"hidden@example.com"}');
+                  child.exit(0);
+               });
+            }
+            return child;
+         },
+      });
+      const status = await loggedIn.connectionStatus(credential);
+      assert.equal(status.status, 'connected');
+      assert.equal(status.accountName, 'Builder ID');
+      assert.equal(JSON.stringify(status).includes('hidden@example.com'), false);
+
+      const keyed = new KiroAgentAdapter({
+         launcher: () => {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushLine('{"accountType":"ApiKey"}');
+               child.exit(0);
+            });
+            return child;
+         },
+      });
+      const refused = await keyed.connectionStatus(credential);
+      assert.equal(refused.status, 'error');
+      assert.match(refused.detail ?? '', /API key/);
    });
 
    test('reports the CLI version and a missing binary', async () => {
@@ -255,7 +307,7 @@ describe('Kiro adapter', () => {
          state
       );
       assert.deepEqual(replayed, []);
-      assert.equal(redactSecret(`failed ${KEY}`, KEY).includes(KEY), false);
+      assert.equal(redactSecret('failed ksk_test_key_value_0001', 'ksk_test_key_value_0001').includes('ksk_test_key_value_0001'), false);
    });
 
    test('the tool socket path fits a macOS unix socket', () => {

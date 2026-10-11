@@ -68,8 +68,6 @@
       "searchPlaceholder": "Search shortcuts…",
       "general": "General",
       "navigation": "Navigation",
-      "fixed": "Fixed shortcuts",
-      "fixedDescription": "The shell keeps these. They cannot be changed.",
       "noMatches": "No shortcut matches that.",
       "record": "Record a new shortcut for {action}",
       "recording": "Press keys…",

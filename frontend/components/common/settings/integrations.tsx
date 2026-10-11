@@ -253,6 +253,15 @@ function ProviderCard({
                      enable Connect.
                   </p>
                )}
+               {provider.id === 'github' &&
+                  !provider.connected &&
+                  provider.status !== 'reconnect' &&
+                  provider.status !== 'expired' && (
+                     <p className="mt-1 text-muted-foreground">
+                        Signing in with GitHub is your identity. Connect to grant repository access
+                        so agents can clone, push and open pull requests.
+                     </p>
+                  )}
                {provider.id === 'github' && provider.status === 'reconnect' && (
                   <p className="mt-1 text-muted-foreground">
                      GitHub refused the sign-in agents were using, so tasks that need a repository
@@ -284,7 +293,9 @@ function ProviderCard({
             </div>
             <div className="flex shrink-0 items-center gap-2">
                {provider.id === 'github' &&
-                  (provider.status === 'reconnect' || provider.status === 'expired') && (
+                  (!provider.connected ||
+                     provider.status === 'reconnect' ||
+                     provider.status === 'expired') && (
                      <Button
                         size="xs"
                         onClick={() => {
@@ -301,7 +312,9 @@ function ProviderCard({
                            );
                         }}
                      >
-                        Reconnect GitHub
+                        {provider.status === 'reconnect' || provider.status === 'expired'
+                           ? 'Reconnect GitHub'
+                           : 'Connect GitHub'}
                      </Button>
                   )}
                {!builtIn && provider.id !== 'github' && provider.connected && (

@@ -58,20 +58,26 @@ describe('recording a delivery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
    function github(open: () => Promise<{ number: number; url: string; created: boolean }>) {
       const opened: string[] = [];
+      const updated: number[] = [];
       const client = {
          openPullRequest: async (input: { head: string }) => {
             opened.push(input.head);
             return open();
          },
+         updatePullRequestBranch: async (_owner: string, _name: string, number: number) => {
+            updated.push(number);
+            return { updated: true, reason: null };
+         },
       } as unknown as GitHubClient;
-      return { client, opened };
+      return { client, opened, updated };
    }
 
    test('a run that added nothing to a branch of earlier work opens its pull request', async () => {
       const runId = await run('checkpoint-2fe6276');
-      const { client, opened } = github(async () => ({ number: 7, url: 'https://github.test/pull/7', created: true }));
+      const { client, opened, updated } = github(async () => ({ number: 7, url: 'https://github.test/pull/7', created: true }));
       await recordDelivery({ sql, ledger, github: client, runId, plan, delivery: nothing, summary: 'Done.', verified: null });
       assert.deepEqual(opened, ['designer/ber-3']);
+      assert.deepEqual(updated, [7], 'the default branch is merged before the task can move to review');
       const [row] = await sql`SELECT pull_request_number, head_commit FROM runs WHERE id = ${runId}`;
       assert.equal(Number(row!.pull_request_number), 7);
       assert.equal(row!.head_commit, 'checkpoint-2fe6276', 'the delivery is the earlier work');

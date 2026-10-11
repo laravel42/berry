@@ -19,7 +19,7 @@ For the same list grouped by area with reference notes, see
 Every prefix `src/index.ts` registers today:
 
 ```
-/api/auth             (Better Auth: GitHub sign-in, callback, session, sign-out)
+/api/auth             (Better Auth: session, sign-out, optional GitHub OAuth App, email)
 /api/v1/agent-tools   (task-token auth only: the runtime calling Berry's tools)
 /api/v1/agent-builder /api/v1/agents        /api/v1/approvals     /api/v1/artifacts
 /api/v1/attachments   /api/v1/auth          /api/v1/autopilots    /api/v1/boards
@@ -38,8 +38,8 @@ Every prefix `src/index.ts` registers today:
 /v1                   (public API: personal and plugin tokens only)
 ```
 
-`/api/auth` is Better Auth's own route set (GitHub sign-in, callback, session,
-sign-out), outside `/api/v1` because its shapes are the library's.
+`/api/auth` is Better Auth's own route set (session, sign-out, optional GitHub
+OAuth App, email), outside `/api/v1` because its shapes are the library's.
 
 If a prefix in this block stops answering, that is a bug, not a scope
 decision.

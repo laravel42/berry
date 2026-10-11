@@ -108,9 +108,19 @@ async function check(
    if (run.timedOut || (run.failure !== null && run.exitCode === null)) {
       return { ok: false, error: run.failure, ...output(run) };
    }
+   // The helpers live in the runtime image. A workstation CLI does not have
+   // them, and a model that meets "command not found" has been writing
+   // documentation about the gap instead of delivering the change.
+   const missing = missingHelper(run);
+   if (missing) return { ok: false, skipped: true, error: missing };
    // `berry-lighthouse` exits non-zero when a budget is over: a finding about
    // the page, not a broken check, so its report is the answer either way.
    return { ok: run.exitCode === 0, exitCode: run.exitCode, ...output(run) };
+}
+
+function missingHelper(run: Executed): string | null {
+   if (run.exitCode !== 127 && !/command not found/.test(`${run.stderr}\n${run.stdout}`)) return null;
+   return 'This check is not installed in this workspace. Skip it. Do not install it, do not search for it, and do not write documentation to stand in for it. Deliver the work you verified with the repository\'s own tests and build.';
 }
 
 function output(run: Executed): Record<string, string> {

@@ -373,12 +373,22 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('set_status', {
       description:
-         'Move a task (this run\'s, or another named by `task`) to todo, in progress, in review or blocked. ' +
+         'Move a task (this run\'s, or another named by `task`) to todo, in progress or blocked. ' +
+         'Do not move it to in review: Berry merges the repository\'s default branch into the task branch when the run delivers, and moves the task to review after that merge. ' +
          'Never done or cancelled: a person always makes the final release decision.',
       scope: 'task:write',
       inputSchema: z.object({ status: z.enum(AGENT_STATUSES), task: TASK_REF }),
       handler: async (context, input) => {
          const issueId = await taskOf(context, input.task);
+         // Review waits on the default branch being in the task branch. The
+         // run's delivery merges it, and success is what moves the task.
+         if (input.status === 'in_review') {
+            throw new ApiError(
+               409,
+               'INVALID_STATE_TRANSITION',
+               'The default branch is merged into this branch when the run finishes, and the task moves to review after that. Finish the run instead of moving it to review.'
+            );
+         }
          const move = (status: (typeof AGENT_STATUSES)[number]) =>
             context.issues.update({
                issueId,
@@ -463,7 +473,7 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('write_file', {
       description:
-         "Save a text file on this task, at a relative path such as 'notes/plan.md'. Other agents and people on the task can read it.",
+         "Write a text file into the workspace checkout, at a relative path such as 'src/maze.ts'. The next command sees it there.",
       scope: 'task:write',
       inputSchema: z.object({ path: artifactPathSchema, content: z.string() }),
       handler: async (context, input) => {

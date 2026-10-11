@@ -46,7 +46,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          workspaceId: world.workspaceId,
          userId: world.userId,
          runtimeId: 'kiro',
-         authMethod: 'kiro_api_key',
+         authMethod: 'kiro_cli',
          accountId: '42',
          accountName: 'berry-user',
          metadata: { models: [{ id: 'auto', name: 'Automatic' }] },
@@ -111,6 +111,40 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          (error: unknown) =>
             error instanceof AiRuntimeSelectionError && error.code === 'AI_RUNTIME_NOT_CONNECTED'
       );
+   });
+
+   test('a tier placement beats a newer connection of another runtime', async () => {
+      const world = current();
+      await connect();
+      await repository.connect({
+         workspaceId: world.workspaceId,
+         userId: world.userId,
+         runtimeId: 'claude',
+         authMethod: 'oauth',
+         accountId: 'claude-account',
+         accountName: 'Claude',
+         metadata: { models: [{ id: 'sonnet', name: 'Sonnet' }] },
+      });
+      await repository.saveTierModels(world.workspaceId, world.userId, {
+         berry_max: ['kiro/auto'],
+         berry_mid: [],
+         berry_low: [],
+      });
+      await sql`UPDATE agents SET model_tier = 'berry_max' WHERE id = ${world.agentId}`;
+      try {
+         const selected = await resolveAiRuntimeSelection(sql, {
+            workspaceId: world.workspaceId,
+            userId: world.userId,
+            overrideRuntimeId: null,
+            overrideModelId: null,
+            berryAgentId: world.agentId,
+         });
+         assert.equal(selected.runtimeId, 'kiro');
+         assert.equal(selected.modelId, 'auto');
+      } finally {
+         await sql`UPDATE agents SET model_tier = NULL WHERE id = ${world.agentId}`;
+         await repository.saveTierModels(world.workspaceId, world.userId, null);
+      }
    });
 
    test('an explicit native override does not borrow the personal default', async () => {

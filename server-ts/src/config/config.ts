@@ -15,7 +15,7 @@ export interface Config {
    metricsEnabled: boolean;
    sessionTtlMs: number;
    allowPasswordlessLogin: boolean;
-   /** Better Auth: GitHub-only sign-in. See AuthConfig. */
+   /** Better Auth sessions; GitHub via a GitHub OAuth App. See AuthConfig. */
    auth: AuthConfig;
    /** Per-subscriber realtime event buffer, before a slow client is dropped. */
    realtimeBuffer: number;
@@ -230,7 +230,7 @@ export interface IntegrationsConfig {
    appUrl: string | null;
 }
 
-/** Sign-in: Better Auth with GitHub as the only provider. */
+/** Sign-in: Better Auth sessions, GitHub via a GitHub OAuth App. */
 export interface AuthConfig {
    /** >= 32 chars. Null disables cookie sessions (bearer tokens still work). */
    secret: string | null;
@@ -768,11 +768,11 @@ function integrations(env: NodeJS.ProcessEnv): IntegrationsConfig {
 const DEVELOPMENT_AUTH_SECRET = 'berry-development-only-auth-secret-do-not-deploy';
 
 /**
- * Sign-in, which is Better Auth with GitHub and nothing else.
+ * Sign-in: Better Auth sessions, GitHub through a GitHub OAuth App.
  *
- * Its GitHub credential has its own names on purpose: GITHUB_CLIENT_ID belongs
- * to the older repository connection, with its own callback. Sign-in's OAuth
- * App asks for `repo` and `workflow` itself (see GITHUB_SIGN_IN_SCOPES in auth/better-auth.ts).
+ * The GitHub OAuth App credential has its own names on purpose: GITHUB_CLIENT_ID
+ * belongs to the older repository connection, with its own callback. That App
+ * asks for `repo` and `workflow` itself (see GITHUB_SIGN_IN_SCOPES).
  */
 function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): AuthConfig {
    // Explicit APP_ENV only. `appEnv` defaults to 'development' when unset, and
@@ -797,6 +797,7 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       problems.push('BERRY_AUTH_GITHUB_CLIENT_ID is required with BERRY_AUTH_GITHUB_CLIENT_SECRET');
    }
    const github = clientId && clientSecret ? { clientId, clientSecret } : null;
+
    if (github && !explicit && !development) {
       problems.push('BERRY_AUTH_SECRET is required when GitHub sign-in is configured');
    }

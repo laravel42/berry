@@ -668,7 +668,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          assert.match(text, /Rotate the session id on sign-in/);
       });
 
-      test('a Security verdict without exploitability is not decided, and the task stays in review', async () => {
+      test('a Security verdict without exploitability is not a rejection, and the task returns to todo', async () => {
          const { issueId, runId } = await delivered('Org invalid', true, { authorId: backend, files: ['server-ts/src/auth/x.ts'] });
          const { gate: g, errors } = gate(
             [
@@ -683,19 +683,21 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
          const found = await rows(issueId);
          const securityRow = found.find((row) => row.reviewer_role === 'security-engineer')!;
-         assert.equal(securityRow.approved, null);
-         assert.equal(securityRow.reason, null);
-         assert.equal(securityRow.decided_at, null);
-         assert.equal((await issueState(issueId)).status, 'in_review');
+         assert.equal(securityRow.approved, false);
+         assert.match(securityRow.reason ?? '', /could not be completed/);
+         assert.ok(securityRow.decided_at);
+         const state = await issueState(issueId);
+         assert.equal(state.status, 'todo');
+         assert.deepEqual(state.runs, ['succeeded'], 'a review that could not finish does not start another run');
          assert.ok(!(await comments(issueId)).some((body) => /Required reviews passed/.test(body)), 'an undecided review is never an approval');
          assert.ok(
-            (await comments(issueId)).some((body) => /security-engineer/.test(body) && /could not be completed/.test(body)),
-            'a person can see which review is missing and why'
+            (await comments(issueId)).some((body) => /security-engineer/.test(body) && /could not be completed/.test(body) && /sent back to todo/.test(body)),
+            'a person can see which review failed and that the task left review'
          );
          assert.ok(errors.some((message) => /security-engineer/.test(message)), 'the failure is reported');
       });
 
-      test('a reviewer whose model fails leaves its row undecided and costs the author no attempt', async () => {
+      test('a reviewer whose model fails sends the task to todo and costs the author no attempt', async () => {
          const { issueId, runId } = await delivered('Org failure', true, { authorId: backend });
          const g = new ReviewGate({
             sql,
@@ -711,14 +713,19 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
          const found = await rows(issueId);
          assert.equal(found.length, 1);
-         assert.equal(found[0]!.approved, null);
-         assert.equal(found[0]!.decided_at, null);
-         assert.equal((await issueState(issueId)).status, 'in_review');
+         assert.equal(found[0]!.approved, false);
+         assert.match(found[0]!.reason ?? '', /^The review could not be completed/);
+         assert.ok(found[0]!.decided_at);
+         const state = await issueState(issueId);
+         assert.equal(state.status, 'todo');
+         assert.deepEqual(state.runs, ['succeeded'], 'the author is not started again');
          const [count] = await sql`
-            SELECT count(*)::int AS n FROM issue_auto_reviews WHERE issue_id = ${issueId} AND approved = false`;
-         assert.equal(count!.n, 0);
-         const notes = (await comments(issueId)).filter((body) => /qa-engineer/.test(body) && /could not be completed/.test(body));
-         assert.ok(notes.length >= 1, 'the failing reviewer is named where a person reads the task');
+            SELECT count(*)::int AS n FROM issue_auto_reviews
+             WHERE issue_id = ${issueId} AND approved = false AND authority = 'blocking'
+               AND reason NOT LIKE 'The review could not be completed%'`;
+         assert.equal(count!.n, 0, 'a review that could not finish is not a rejection');
+         const notes = (await comments(issueId)).filter((body) => /qa-engineer/.test(body) && /could not be completed/.test(body) && /sent back to todo/.test(body));
+         assert.equal(notes.length, 1, 'the failing reviewer is named where a person reads the task');
       });
 
       test('a specialist the workspace does not have is not waited on: QA\'s review is enough', async () => {

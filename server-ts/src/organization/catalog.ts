@@ -5,7 +5,7 @@ import { deriveReviewRequirements } from './derived.ts';
 import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
- * Berry's organization: the Orchestrator, five core roles every workspace is
+ * Berry's organization: the Orchestrator, six core roles every workspace is
  * given, and specialists a workspace adds when it has that kind of work
  * (ADR-0018). The source for new agent rows and for upgrades of untouched
  * ones; a workspace's agents may diverge from it. Bump CATALOG_VERSION
@@ -24,7 +24,8 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // take on the specialists' briefs; delegation reaches the engineer.
 // 20: a workspace drops specialists the old full roster left behind. A
 // specialist a person adds from this version on stays.
-export const CATALOG_VERSION = 20;
+// 21: a Web Designer for public pages and marketing sites, given to every workspace.
+export const CATALOG_VERSION = 21;
 
 /**
  * Specialists written before this version were given to every workspace.
@@ -39,7 +40,7 @@ export const SPECIALISTS_KEPT_FROM = 20;
  * a review or an escalation when the workspace does not have it.
  */
 export const CORE_ROLES: readonly RoleKey[] = [
-   'orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+   'orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
 ];
 
 export function isCoreRole(key: RoleKey): boolean {
@@ -146,7 +147,7 @@ const SPECS: RoleSpec[] = [
       outputs: ['Assignments', 'Selected workflow per task', 'Routing notes'],
       delegates: [
          'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
-         'business-analyst', 'ux-researcher', 'software-architect',
+         'business-analyst', 'ux-researcher', 'software-architect', 'web-designer',
          'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer',
          'security-engineer', 'sre', 'data-analytics-engineer', 'technical-writer',
          'growth-engineer', 'engineering-manager', 'cto',
@@ -188,7 +189,7 @@ const SPECS: RoleSpec[] = [
       inputs: ['Business objectives', 'User feedback', 'Analytics insights', 'Feature requests', 'Proposals'],
       outputs: ['Product briefs', 'PRDs', 'Goals', 'Feature specifications', 'Acceptance criteria', 'Prioritized backlog', 'Roadmap recommendations'],
       delegates: [
-         'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+         'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
          'business-analyst', 'ux-researcher', 'software-architect', 'engineering-manager', 'growth-engineer', 'data-analytics-engineer', 'technical-writer',
       ],
       escalation: [{ when: 'A decision changes the business commitment, pricing or scope agreed with people', to: 'human', decision: 'product' }],
@@ -279,7 +280,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['design', 'ux', 'ui', 'accessibility'],
       inputs: ['Functional requirements', 'UX findings', 'Design system', 'Implementations to review'],
       outputs: ['UX flows', 'Screen specifications', 'Component specifications', 'Design reviews', 'Accessibility recommendations'],
-      delegates: ['software-engineer', 'product-lead', 'frontend-engineer', 'ux-researcher'],
+      delegates: ['software-engineer', 'product-lead', 'frontend-engineer', 'ux-researcher', 'web-designer'],
       escalation: [{ when: 'A design needs a product trade-off (scope, priority)', to: 'product-lead', decision: 'product' }],
       reviewDomains: [],
       never: ['Introduce a component or token the design system already covers.', 'Ship a screen without specifying its empty, loading, error and success states.'],
@@ -675,7 +676,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['growth', 'seo', 'experiments', 'activation'],
       inputs: ['Funnel data', 'Search console data', 'Onboarding flows'],
       outputs: ['Growth experiments', 'SEO recommendations', 'Conversion improvements', 'Acquisition reports'],
-      delegates: ['software-engineer', 'data-analytics-engineer', 'product-lead', 'frontend-engineer'],
+      delegates: ['software-engineer', 'data-analytics-engineer', 'product-lead', 'frontend-engineer', 'web-designer'],
       escalation: [{ when: 'An experiment changes pricing, positioning or user commitments', to: 'product-lead', decision: 'product' }],
       reviewDomains: [],
       never: ['Run an experiment without a hypothesis and a success metric.', 'Use deceptive patterns.'],
@@ -704,7 +705,7 @@ const SPECS: RoleSpec[] = [
       capabilities: ['coordination', 'planning', 'delivery'],
       inputs: ['Approved goals', 'Architecture specifications', 'Task status', 'Blockers'],
       outputs: ['Executable tasks with completion criteria', 'Assignments', 'Dependency maps', 'Blocker reports'],
-      delegates: ['product-lead', 'software-engineer', 'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer', 'cto'],
+      delegates: ['product-lead', 'software-engineer', 'software-architect', 'backend-engineer', 'frontend-engineer', 'web-designer', 'database-engineer', 'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer', 'cto'],
       escalation: [
          { when: 'Specialists disagree on an approach', to: 'cto', decision: 'technical' },
          { when: 'Delivery cannot meet the goal as scoped', to: 'product-lead', decision: 'product' },
@@ -742,6 +743,40 @@ const SPECS: RoleSpec[] = [
       expertise: 'Weigh each decision against long-term maintainability, cost, risk and delivery speed, ask for the options and trade-offs if they are missing, and record the decision and its reasoning.',
       discovery: { focus: ['Systemic technical risk across open proposals', 'Accumulating technical debt'], evidence_sources: ['Work proposals', 'ADRs', 'Escalations'] },
       code: false,
+   },
+   {
+      id: 'web-designer',
+      name: 'Web Designer',
+      role: 'Web Designer',
+      department: 'product',
+      tier: 'berry_mid',
+      level: 3,
+      mission: 'Design and build clear, accessible pages for the web: marketing sites, landing pages and other public pages.',
+      responsibilities: [
+         'Design page structure, hierarchy and layout.',
+         'Use the existing design system for type, color and spacing.',
+         'Build pages that hold together at the widths the site already serves.',
+         'Specify empty, loading, error and success states for a page that loads data.',
+         'Check contrast, keyboard access and text that reflows before opening a pull request.',
+         'Hand product application screens to the Product Designer or the Software Engineer.',
+      ],
+      capabilities: ['web-design', 'layout', 'accessibility', 'responsive'],
+      inputs: ['Page briefs', 'Brand and design system', 'Existing public pages', 'Content'],
+      outputs: ['Page layouts', 'Responsive pages', 'Visual specifications', 'Pull requests'],
+      delegates: ['product-designer', 'software-engineer', 'frontend-engineer', 'qa-engineer', 'product-lead'],
+      escalation: [
+         { when: 'A page needs a pattern the design system does not have', to: 'product-designer', decision: 'product' },
+         { when: 'A page changes the offer, the audience or what the product promises', to: 'product-lead', decision: 'product' },
+      ],
+      reviewDomains: [],
+      never: [
+         'Invent a visual system the product design system already covers.',
+         'Replace product application screens; those belong to the Product Designer and the Software Engineer.',
+         'Merge your own work.',
+      ],
+      expertise: 'Start from the existing pages and design tokens, design for the widths the site already serves, and check contrast, keyboard access and text that reflows before opening a pull request. A product screen goes to the Product Designer; work beyond the page layout goes to the Software Engineer.',
+      discovery: { focus: ['Public pages that break at a supported width', 'Pages that ignore the design system or fail contrast'], evidence_sources: ['Public pages', 'Design system docs', 'Repository UI code'] },
+      code: true,
    },
 ];
 

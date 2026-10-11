@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { BerryApiError } from '@/lib/api';
-import { createBoardIssue } from '@/lib/issues';
+import { createBoardIssue, describePatchFailure } from '@/lib/issues';
 import type { Agent } from '@/lib/agents';
 import { useIssuesStore } from '@/store/issues-store';
 import { useSessionStore } from '@/store/session-store';
@@ -66,7 +66,9 @@ export default function AgentAssignWorkDialog({
          setDescription('');
          onOpenChange(false);
       } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('failureUnknown'));
+         toast.error(
+            error instanceof BerryApiError ? describePatchFailure(error) : t('failureUnknown')
+         );
       } finally {
          setBusy(false);
       }
