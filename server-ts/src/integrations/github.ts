@@ -627,6 +627,23 @@ export class GitHubClient {
       return { commit: value.commit.sha, blob: value.content.sha };
    }
 
+   /**
+    * Removes one file from a branch as a commit of its own.
+    *
+    * `sha` is the blob being removed, so a file that moved on the branch is
+    * left where it is.
+    */
+   async deleteFile(input: { owner: string; name: string; branch: string; path: string; message: string; sha: string }): Promise<{ commit: string }> {
+      const path = input.path.split('/').map(encode).join('/');
+      const value = await this.#json<{ commit?: { sha?: unknown } }>(
+         'DELETE',
+         `/repos/${encode(input.owner)}/${encode(input.name)}/contents/${path}`,
+         { message: input.message, sha: input.sha, branch: input.branch }
+      );
+      if (typeof value.commit?.sha !== 'string') throw new GitHubError('GitHub did not confirm the commit', 0);
+      return { commit: value.commit.sha };
+   }
+
    /** Where a pull request's branch stands: the commit a reviewer is looking at, and its name. */
    async pullRequestHead(owner: string, name: string, number: number): Promise<{ commit: string; branch: string | null }> {
       const pull = await this.#json<{ head?: { sha?: unknown; ref?: unknown } }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
