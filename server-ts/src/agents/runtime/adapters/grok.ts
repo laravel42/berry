@@ -31,6 +31,44 @@ export function grokMcpBridgePath(): string {
    return BRIDGE;
 }
 
+/**
+ * Grok's built-in tools that can change the repository or reach the network,
+ * by their internal tool id (the shell is `run_terminal_cmd`, not `bash`).
+ * `--disallowed-tools` removes them from the toolset entirely, so a run can
+ * only touch the repository through Berry's admitted MCP tools. `Agent` stops
+ * subagent spawning so a child cannot regain a denied tool. The always-on MCP
+ * meta-tools are not listed, which is how the Berry MCP server stays reachable.
+ */
+export const GROK_DISALLOWED_TOOLS = [
+   'run_terminal_cmd',
+   'run_terminal_command',
+   'search_replace',
+   'write_file',
+   'create_file',
+   'edit_file',
+   'apply_patch',
+   'delete_file',
+   'web_search',
+   'web_fetch',
+   'Agent',
+] as const;
+
+/**
+ * Capability-level denies, as a second layer under `--disallowed-tools`. A
+ * `deny` rule beats any `allow` and any permission mode, so even a built-in
+ * that is renamed or missed from the id list above still cannot write a file,
+ * edit a file, or run a shell command.
+ */
+export const GROK_DENY_RULES = ['Write', 'Edit', 'Bash'] as const;
+
+/**
+ * The only thing an unattended run auto-approves: Berry's MCP tools, which are
+ * namespaced `berry__<tool>` (two underscores) by Grok's MCP client. Under the
+ * `dontAsk` mode this run uses, any call without a matching allow is denied,
+ * so nothing else runs without a human.
+ */
+export const GROK_ALLOW_RULES = ['MCPTool(berry__*)'] as const;
+
 const INHERITED = [
    'PATH',
    'HOME',
@@ -248,15 +286,25 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
          // temp. This is Grok's recommended development profile.
          '--sandbox',
          'workspace',
-         // Remove Grok's own web tools; repository work goes through Berry's
-         // admitted tools over MCP. (Tool ids are Grok internal names.)
+         // Remove every built-in tool that can write a file, run a command, or
+         // reach the network, so repository changes can only go through Berry's
+         // admitted tools over MCP. These are Grok's internal tool ids (the
+         // shell is `run_terminal_cmd`, not `bash`); `Agent` stops subagent
+         // spawning. The always-on MCP meta-tools stay, which is how the Berry
+         // MCP server is reached.
          '--disallowed-tools',
-         'web_search,web_fetch',
-         // Auto-approve tool calls: the run is unattended and Berry already
-         // gates which tools exist.
-         '--permission-mode',
-         'bypassPermissions',
+         GROK_DISALLOWED_TOOLS.join(','),
       ];
+      // Belt-and-suspenders capability denies (deny beats allow and any mode):
+      // even a built-in that is renamed or missed above still cannot write,
+      // edit, or run a shell command.
+      for (const rule of GROK_DENY_RULES) args.push('--deny', rule);
+      // Strict allowlist: only pre-approved tools and built-in read-only
+      // handling run; any other call is denied, not escalated. This is not
+      // bypassPermissions, which would approve whatever remained. The run is
+      // unattended, so Berry's own MCP tools are the one thing auto-approved.
+      args.push('--permission-mode', 'dontAsk');
+      for (const rule of GROK_ALLOW_RULES) args.push('--allow', rule);
       if (model && model !== 'default') args.push('--model', model);
       if (resume) args.push('--resume', resume);
       const child = this.#launch({

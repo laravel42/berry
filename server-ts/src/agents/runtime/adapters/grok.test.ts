@@ -10,7 +10,16 @@ import { tool } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { GROK_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
-import { GrokAgentAdapter, grokMcpBridgePath, type GrokChild, type GrokLauncher, type GrokSpawn } from './grok.ts';
+import {
+   GrokAgentAdapter,
+   grokMcpBridgePath,
+   GROK_ALLOW_RULES,
+   GROK_DENY_RULES,
+   GROK_DISALLOWED_TOOLS,
+   type GrokChild,
+   type GrokLauncher,
+   type GrokSpawn,
+} from './grok.ts';
 import type { RuntimeCredential } from './types.ts';
 
 const credential: RuntimeCredential = {
@@ -195,6 +204,25 @@ describe('Grok adapter', () => {
          assert.ok(run.args.includes('streaming-json'));
          // A writable checkout: the workspace sandbox, not read-only.
          assert.equal(run.args[run.args.indexOf('--sandbox') + 1], 'workspace');
+
+         // Repository changes may only go through Berry's MCP tools. Every
+         // built-in tool that writes a file, runs a command, or reaches the
+         // network is removed from the toolset, and the run uses the strict
+         // `dontAsk` mode (not bypassPermissions, which would approve whatever
+         // was left). Only Berry's MCP tools are allowed; nothing else runs
+         // without a human.
+         assert.equal(run.args.includes('bypassPermissions'), false);
+         assert.equal(run.args[run.args.indexOf('--permission-mode') + 1], 'dontAsk');
+         const disallowed = (run.args[run.args.indexOf('--disallowed-tools') + 1] ?? '').split(',');
+         for (const id of GROK_DISALLOWED_TOOLS) assert.ok(disallowed.includes(id), id);
+         for (const builtin of ['run_terminal_cmd', 'write_file', 'search_replace', 'apply_patch', 'delete_file']) {
+            assert.ok(disallowed.includes(builtin), builtin);
+         }
+         const denyRules = run.args.filter((_, i) => run.args[i - 1] === '--deny');
+         for (const rule of GROK_DENY_RULES) assert.ok(denyRules.includes(rule), rule);
+         const allowRules = run.args.filter((_, i) => run.args[i - 1] === '--allow');
+         assert.deepEqual(allowRules, [...GROK_ALLOW_RULES]);
+         assert.ok(allowRules.every((rule) => rule.includes('berry__')));
          assert.ok(run.args.includes('--model'));
          assert.ok(run.args.includes('grok-4.6'));
          assert.equal(run.args.some((arg) => arg.includes('xai-')), false);
