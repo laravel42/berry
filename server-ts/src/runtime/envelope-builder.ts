@@ -237,7 +237,13 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
  * finished task with main, and on BerryMax those runs cost about $0.75 each
  * to resolve README prose. BerryLow has nothing below it.
  */
-const TIER_BELOW: Record<Tier, Tier> = { berry_max: 'berry_mid', berry_mid: 'berry_low', berry_low: 'berry_low' };
+const TIER_BELOW: Record<Tier, Tier> = {
+   berry_max: 'berry_xhigh',
+   berry_xhigh: 'berry_high',
+   berry_high: 'berry_mid',
+   berry_mid: 'berry_low',
+   berry_low: 'berry_low',
+};
 
 export class EnvelopeBuilder {
    readonly #deps: EnvelopeDeps;

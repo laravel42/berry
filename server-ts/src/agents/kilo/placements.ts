@@ -5,7 +5,7 @@ import { TIERS, type GatewayModel, type TierPlacement } from './tiers.ts';
  * The models each workspace placed in its tiers (`workspace_model_tiers`).
  *
  * A workspace without a row runs on the deployment's placement
- * (`BERRY_KILO_MAX|MID|LOW`); with one, its own lists replace all three, and
+ * (`BERRY_KILO_MAX|XHIGH|HIGH|MID|LOW`); with one, its own lists replace all of them, and
  * an empty list leaves that tier to the leaderboard.
  */
 export class TierPlacements {
@@ -17,17 +17,23 @@ export class TierPlacements {
 
    async get(workspaceId: string): Promise<TierPlacement | null> {
       const [row] = await this.#sql<Array<Record<string, string[]>>>`
-         SELECT berry_max, berry_mid, berry_low FROM workspace_model_tiers WHERE workspace_id = ${workspaceId}`;
+         SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low
+           FROM workspace_model_tiers WHERE workspace_id = ${workspaceId}`;
       if (!row) return null;
       return Object.fromEntries(TIERS.map((tier) => [tier, row[tier] ?? []])) as TierPlacement;
    }
 
    async set(workspaceId: string, userId: string, placement: TierPlacement): Promise<void> {
       await this.#sql`
-         INSERT INTO workspace_model_tiers (workspace_id, berry_max, berry_mid, berry_low, updated_by, updated_at)
-         VALUES (${workspaceId}, ${placement.berry_max}, ${placement.berry_mid}, ${placement.berry_low}, ${userId}, now())
+         INSERT INTO workspace_model_tiers
+            (workspace_id, berry_max, berry_xhigh, berry_high, berry_mid, berry_low, updated_by, updated_at)
+         VALUES (
+            ${workspaceId}, ${placement.berry_max}, ${placement.berry_xhigh}, ${placement.berry_high},
+            ${placement.berry_mid}, ${placement.berry_low}, ${userId}, now()
+         )
          ON CONFLICT (workspace_id) DO UPDATE
-            SET berry_max = EXCLUDED.berry_max, berry_mid = EXCLUDED.berry_mid, berry_low = EXCLUDED.berry_low,
+            SET berry_max = EXCLUDED.berry_max, berry_xhigh = EXCLUDED.berry_xhigh, berry_high = EXCLUDED.berry_high,
+                berry_mid = EXCLUDED.berry_mid, berry_low = EXCLUDED.berry_low,
                 updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`;
    }
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { TIERS } from '../agents/model-tiers.ts';
 import { KNOWN_TOOLS, toolCeiling } from './autonomy.ts';
 import { CATALOG, CORE_ROLES, catalogRole, WORKFLOWS } from './catalog.ts';
 import { roleContractSchema } from './contract.ts';
@@ -108,7 +109,7 @@ describe('the Berry organization catalog', () => {
          assert.equal(catalogRole(key)?.tier, 'berry_low', key);
       }
       for (const role of CATALOG) {
-         assert.ok(['berry_max', 'berry_mid', 'berry_low'].includes(role.tier ?? ''), role.id);
+         assert.ok((TIERS as readonly string[]).includes(role.tier ?? ''), role.id);
          assert.equal(role.preferred_model, undefined, role.id);
       }
    });

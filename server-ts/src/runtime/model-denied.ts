@@ -1,7 +1,7 @@
 import type { Sql } from '../db/pool.ts';
 import type { TierPlacement, TierPools } from '../agents/kilo/tiers.ts';
 import { chooseForTier, isGatewayModelId } from '../agents/kilo/tiers.ts';
-import type { Tier } from '../agents/model-tiers.ts';
+import { isTier, type Tier } from '../agents/model-tiers.ts';
 
 /**
  * The gateway refused this key for the model that was called.
@@ -21,9 +21,11 @@ export function isModelPermissionDenied(message: string): boolean {
 const GATEWAY_AUTO_MODEL = 'kilo-auto/efficient';
 
 const AFTER: Record<Tier, readonly Tier[]> = {
-   berry_low: ['berry_low', 'berry_mid', 'berry_max'],
-   berry_mid: ['berry_mid', 'berry_low', 'berry_max'],
-   berry_max: ['berry_max', 'berry_mid', 'berry_low'],
+   berry_low: ['berry_low', 'berry_mid', 'berry_high', 'berry_xhigh', 'berry_max'],
+   berry_mid: ['berry_mid', 'berry_low', 'berry_high', 'berry_xhigh', 'berry_max'],
+   berry_high: ['berry_high', 'berry_mid', 'berry_low', 'berry_xhigh', 'berry_max'],
+   berry_xhigh: ['berry_xhigh', 'berry_high', 'berry_mid', 'berry_low', 'berry_max'],
+   berry_max: ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'],
 };
 
 /**
@@ -75,7 +77,7 @@ export async function gatewayModelsAfterDenial(
       SELECT model_tier, fallback_model FROM agents
        WHERE workspace_id = ${input.workspaceId} AND protected AND archived_at IS NULL`;
    const stored = agent?.model_tier;
-   const tier: Tier = stored === 'berry_max' || stored === 'berry_mid' || stored === 'berry_low' ? stored : 'berry_low';
+   const tier: Tier = isTier(stored) ? stored : 'berry_low';
    const own = (agent?.fallback_model as string | null | undefined) ?? null;
    return modelsAfterPermissionDenial(pools, tier, own);
 }

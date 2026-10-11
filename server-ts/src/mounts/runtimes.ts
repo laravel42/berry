@@ -398,6 +398,8 @@ export function runtimeMounts(options: {
       placement: z
          .strictObject({
             berry_max: agentTierList,
+            berry_xhigh: agentTierList.default([]),
+            berry_high: agentTierList.default([]),
             berry_mid: agentTierList,
             berry_low: agentTierList,
          })
@@ -442,6 +444,8 @@ export function runtimeMounts(options: {
       placement: z
          .strictObject({
             berry_max: tierModelList,
+            berry_xhigh: tierModelList.default([]),
+            berry_high: tierModelList.default([]),
             berry_mid: tierModelList,
             berry_low: tierModelList,
          })

@@ -146,7 +146,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       });
 
       test("a run takes its tier's model from its own workspace's placement", async () => {
-         placed = { berry_max: [], berry_mid: [], berry_low: ['minimax/minimax-m3'] };
+         placed = { berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: [], berry_low: ['minimax/minimax-m3'] };
          try {
             assert.equal(await modelOf(), 'minimax/minimax-m3');
          } finally {

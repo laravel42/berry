@@ -83,6 +83,8 @@ type Tier = RoleTier;
  */
 const RUN_LIMITS: Record<Tier, RoleContract['run_limits']> = {
    berry_max: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   berry_xhigh: { max_turns: 40, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
+   berry_high: { max_turns: 60, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
    berry_mid: { max_turns: 80, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
    berry_low: { max_turns: 60, max_output_tokens: MAX_RUN_OUTPUT_TOKENS },
 };

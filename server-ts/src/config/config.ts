@@ -587,8 +587,8 @@ export interface ModelGatewayConfig {
    prefer: string[];
    /** Paid tiers also take models billed to Kilo credits (`BERRY_KILO_ANY_PROVIDER=true`); off, only the deployment's own keys'. */
    anyProvider: boolean;
-   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_MID`, `_LOW`). */
-   place: { berry_max: string[]; berry_mid: string[]; berry_low: string[] };
+   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_XHIGH`, `_HIGH`, `_MID`, `_LOW`). */
+   place: { berry_max: string[]; berry_xhigh: string[]; berry_high: string[]; berry_mid: string[]; berry_low: string[] };
 }
 
 /**
@@ -619,6 +619,8 @@ function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
       anyProvider: (env.BERRY_KILO_ANY_PROVIDER ?? '').trim().toLowerCase() === 'true',
       place: {
          berry_max: idList(env.BERRY_KILO_MAX),
+         berry_xhigh: idList(env.BERRY_KILO_XHIGH),
+         berry_high: idList(env.BERRY_KILO_HIGH),
          berry_mid: idList(env.BERRY_KILO_MID),
          berry_low: idList(env.BERRY_KILO_LOW),
       },

@@ -127,6 +127,8 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
       });
       await repository.saveTierModels(world.workspaceId, world.userId, {
          berry_max: ['kiro/auto'],
+         berry_xhigh: [],
+         berry_high: [],
          berry_mid: [],
          berry_low: [],
       });

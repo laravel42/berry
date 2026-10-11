@@ -4,8 +4,8 @@ import { isPaidEligible, matchesAny, rankTiers, tierOf, type GatewayModel, type 
 
 /**
  * The ranking rule (ADR-0017): every paid tier from the ratings — Max the
- * best rated, Mid the best rated below Max's cheapest, Low the best rated
- * below Mid's cheapest — one tier per model.
+ * best rated, then xHigh, High and Mid each the best rated below the tier
+ * above, Low the best of the cheapest third — one tier per model.
  */
 
 function model(id: string, input: number, output: number, extra: Partial<GatewayModel> = {}): GatewayModel {
@@ -53,19 +53,22 @@ const catalog = [
 ];
 const usage = [code('o/luna', 2.77e9), code('o/luna-old', 4.07e9), code('o/sol-6', 3.15e9), code('q/coder', 0.2e9), code('x/not-mine', 9e9), code('p/free-a:free', 5e9)];
 
-test('Max is the best rated; Mid the best rated below Max\'s cheapest; Low below Mid\'s; one tier per model', () => {
+test('Max is the best rated; xHigh, High and Mid step down in price; Low is the cheapest third', () => {
    const pools = rankTiers(catalog, usage);
    // Blended (3 in : 1 out): astra and fable 20.00/M, sol 8.00/M.
    assert.deepEqual(pools.berry_max.map((m) => m.id), ['a/astra', 'a/fable', 'a/sol']);
    // Below 8.00: kimi 6.00, sonnet 4.00, terra 3.00.
-   assert.deepEqual(pools.berry_mid.map((m) => m.id), ['m/kimi', 'a/sonnet', 'o/terra']);
-   // Below 3.00: k25 1.50, glm 0.70, luna-5 0.40 — by rating, not per dollar.
+   assert.deepEqual(pools.berry_xhigh.map((m) => m.id), ['m/kimi', 'a/sonnet', 'o/terra']);
+   // Low already holds the models under terra, so the next bands stay empty.
+   assert.deepEqual(pools.berry_high, []);
+   assert.deepEqual(pools.berry_mid, []);
+   // Cheapest third, at or under 1.50/M: k25, glm, luna-5 — by rating, not per dollar.
    assert.deepEqual(pools.berry_low.map((m) => m.id), ['k/k25', 'z/glm', 'o/luna-5']);
    assert.equal(tierOf(pools, 'o/oss'), null, 'cheapest of all, but below Low\'s floor');
    // Rated below Max and priced at or above its cheapest: never the better choice.
    assert.equal(tierOf(pools, 'a/gpt-55'), null);
    assert.equal(tierOf(pools, 'a/opus'), null);
-   const all = [...pools.berry_max, ...pools.berry_mid, ...pools.berry_low].map((m) => m.id);
+   const all = [...pools.berry_max, ...pools.berry_xhigh, ...pools.berry_high, ...pools.berry_mid, ...pools.berry_low].map((m) => m.id);
    assert.equal(new Set(all).size, all.length);
 });
 
@@ -94,7 +97,9 @@ test('opened to every provider, three per tier; Low is the best of the cheapest 
    // The cheapest third (six of sixteen, up to 1.50/M): the two that earn their
    // place, then the best rated of the rest to make three.
    assert.deepEqual(pools.berry_low.map((m) => m.id), ['deepseek/flash', 'openai/luna', 'google/flash-3.8']);
-   assert.deepEqual(pools.berry_mid.map((m) => m.id), ['z/glm-5.3', 'x/grok', 'openai/sol']);
+   assert.deepEqual(pools.berry_xhigh.map((m) => m.id), ['z/glm-5.3', 'x/grok', 'openai/sol']);
+   assert.deepEqual(pools.berry_high, []);
+   assert.deepEqual(pools.berry_mid, []);
    // Priced at 4.00/M with a cheaper model rated higher: in none of them.
    assert.equal(tierOf(pools, 'anthropic/sonnet'), null);
    // Served by Kilo credits rather than the deployment's own key, and still chosen.
@@ -123,11 +128,11 @@ test('an estimated rating is ranked behind a measured one of similar value, and 
       ],
       []
    );
-   const mid = pools.berry_mid;
-   assert.deepEqual(mid.map((m) => m.id), ['o/sol', 'x/grok', 'd/flash']);
-   assert.equal(mid[2]!.completion, 0.4, 'the rating shown is the estimate itself');
-   assert.deepEqual(mid[2]!.estimatedFrom, ['Kilo']);
-   assert.equal(mid[0]!.estimatedFrom, null, 'a measured rating says so');
+   const xhigh = pools.berry_xhigh;
+   assert.deepEqual(xhigh.map((m) => m.id), ['o/sol', 'x/grok', 'd/flash']);
+   assert.equal(xhigh[2]!.completion, 0.4, 'the rating shown is the estimate itself');
+   assert.deepEqual(xhigh[2]!.estimatedFrom, ['Kilo']);
+   assert.equal(xhigh[0]!.estimatedFrom, null, 'a measured rating says so');
 });
 
 test('a deployment excludes, prefers and places models, and the rule fills the rest', () => {
@@ -136,9 +141,10 @@ test('a deployment excludes, prefers and places models, and the rule fills the r
       prefer: ['o/terra'],
       place: { berry_mid: ['z/glm'] },
    });
-   // Kimi (m/) is out; GLM, placed in Mid, is in no other tier; Terra, preferred, leads Mid.
+   // Kimi (m/) is out; GLM, placed in Mid, is in no other tier; Terra, preferred, leads the tier it reaches.
    assert.equal(tierOf(pools, 'm/kimi'), null);
-   assert.deepEqual(pools.berry_mid.map((m) => m.id), ['o/terra', 'z/glm', 'a/sonnet']);
+   assert.deepEqual(pools.berry_mid.map((m) => m.id), ['z/glm']);
+   assert.equal(pools.berry_xhigh[0]?.id, 'o/terra');
    assert.equal(pools.berry_low.some((m) => m.id === 'z/glm'), false);
    assert.equal(pools.berry_low.length, 3, 'Low is still filled to three');
 });
@@ -155,12 +161,12 @@ test('placed models keep the order they were listed in, and a full id names that
    assert.equal(matchesAny('z/glm-5', ['z/']), true, 'a prefix ending in / names the vendor');
 });
 
-test('Mid costs less than Max, and Low is drawn from the cheapest third', () => {
+test('each band costs less than the one above, and Low is drawn from the cheapest third', () => {
    const pools = rankTiers(catalog, usage);
-   const prices = (tier: 'berry_max' | 'berry_mid' | 'berry_low') => pools[tier].map((m) => m.blendedPricePerM!);
-   assert.ok(Math.max(...prices('berry_mid')) < Math.min(...prices('berry_max')));
-   assert.ok(Math.max(...prices('berry_low')) < Math.min(...prices('berry_mid')));
-   for (const tier of ['berry_max', 'berry_mid', 'berry_low'] as const) assert.equal(pools[tier].length, 3, tier);
+   const prices = (tier: 'berry_max' | 'berry_xhigh' | 'berry_low') => pools[tier].map((m) => m.blendedPricePerM!);
+   assert.ok(Math.max(...prices('berry_xhigh')) < Math.min(...prices('berry_max')));
+   assert.ok(Math.max(...prices('berry_low')) < Math.min(...prices('berry_xhigh')));
+   for (const tier of ['berry_max', 'berry_xhigh', 'berry_low'] as const) assert.equal(pools[tier].length, 3, tier);
 });
 
 test('unrated models are in no paid tier, however much they are used', () => {
@@ -179,15 +185,17 @@ test('a real id, tools, and no retirement are required for a paid tier; the own 
    assert.equal(tierOf(pools, '~a/sonnet-latest'), null);
 });
 
-test('there are three tiers, all paid: free models and Kilo\'s router are in none', () => {
+test('there are five tiers, all paid: free models and Kilo\'s router are in none', () => {
    const pools = rankTiers(catalog, usage);
-   assert.deepEqual(Object.keys(pools), ['berry_max', 'berry_mid', 'berry_low']);
+   assert.deepEqual(Object.keys(pools), ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low']);
    for (const id of ['p/free-a:free', 'p/free-b:free', 'kilo-auto/efficient']) assert.equal(tierOf(pools, id), null, id);
 });
 
-test('with no scores at all, Max and Mid are empty and Low ranks by usage per dollar, uncapped', () => {
+test('with no scores at all, every tier but Low is empty and Low ranks by usage per dollar, uncapped', () => {
    const pools = rankTiers(catalog.map((m) => ({ ...m, bench: null })), usage);
    assert.deepEqual(pools.berry_max, []);
+   assert.deepEqual(pools.berry_xhigh, []);
+   assert.deepEqual(pools.berry_high, []);
    assert.deepEqual(pools.berry_mid, []);
    // luna (0.20/M, 2.77B) beats luna-old (0.45/M, 4.07B) per dollar; not-mine
    // is served by no key of the deployment's own.
@@ -199,8 +207,11 @@ test('a tier falls back to the nearest tier in price when empty today', async ()
    const pools = rankTiers(catalog, usage);
    assert.equal(modelForTier(pools, 'berry_low'), 'k/k25');
    const noLow = { ...pools, berry_low: [] };
-   assert.equal(modelForTier(noLow, 'berry_low'), 'm/kimi', 'empty Low falls to Mid, not Max');
-   assert.equal(modelForTier({ ...noLow, berry_mid: [], berry_max: [] }, 'berry_low'), null);
+   assert.equal(modelForTier(noLow, 'berry_low'), 'm/kimi', 'empty Low falls toward a cheaper tier, not Max');
+   assert.equal(
+      modelForTier({ ...noLow, berry_mid: [], berry_high: [], berry_xhigh: [], berry_max: [] }, 'berry_low'),
+      null
+   );
 });
 
 test('a gateway id names a vendor; a Bedrock profile does not', async () => {
@@ -222,11 +233,18 @@ test('a task runs on its tier\'s first model, and each rejected review moves it 
 test('the default fallback is the top of the next tier down, never the model itself', async () => {
    const { chooseForTier } = await import('./tiers.ts');
    const pools = rankTiers(catalog, usage);
-   assert.equal(chooseForTier(pools, 'berry_max')!.fallback, 'm/kimi', 'Max falls back to Mid');
-   assert.equal(chooseForTier(pools, 'berry_mid')!.fallback, 'k/k25', 'Mid falls back to Low');
+   assert.equal(chooseForTier(pools, 'berry_max')!.fallback, 'm/kimi', 'Max falls back to xHigh');
+   assert.equal(chooseForTier(pools, 'berry_xhigh')!.fallback, 'k/k25', 'xHigh falls back toward Low');
+   assert.equal(chooseForTier(pools, 'berry_mid')!.model, 'k/k25', 'empty Mid falls to Low');
    const low = chooseForTier(pools, 'berry_low')!;
    assert.notEqual(low.fallback, low.model, 'Low falls back to another Low model');
-   assert.equal(chooseForTier({ ...pools, berry_max: [], berry_mid: [], berry_low: [] }, 'berry_max'), null);
+   assert.equal(
+      chooseForTier(
+         { ...pools, berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: [], berry_low: [] },
+         'berry_max'
+      ),
+      null
+   );
 });
 
 test('a ranked model carries its input and output prices beside the blended one', () => {
@@ -245,8 +263,8 @@ test('a model without a cache price gives its place to the next cached model, pl
    const pools = rankTiers(mixed, usage, 'code', { place: { berry_mid: ['m/kimi', 'a/sonnet'] } });
    assert.deepEqual(pools.berry_max.map((m) => m.id), ['a/astra', 'a/sol', 'a/gpt-55'], 'fable is passed over');
    assert.equal(pools.berry_mid[0]?.id, 'a/sonnet', 'placed kimi is passed over; the next placed model leads');
-   assert.equal(pools.berry_mid.length, 3, 'the rule fills the place kimi left');
-   for (const tier of [pools.berry_max, pools.berry_mid, pools.berry_low]) {
+   assert.equal(pools.berry_xhigh[0]?.id, 'o/terra', 'the band above Mid still fills from models that clear the floor');
+   for (const tier of [pools.berry_max, pools.berry_xhigh, pools.berry_high, pools.berry_mid, pools.berry_low]) {
       assert.ok(!tier.some((m) => m.id === 'a/fable' || m.id === 'm/kimi'));
    }
    // With no cache price anywhere, every eligible model stays a candidate, so no tier empties.

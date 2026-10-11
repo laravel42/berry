@@ -64,9 +64,11 @@ test("a workspace's placement replaces the deployment's for its runs only", asyn
       apiKey: 'k', baseUrl: 'https://gw/', usageUrl: 'https://site/usage', ratingsUrl: null, fetch, clock: () => 0, ttlMs: 1000,
       policy: { place: { berry_mid: ['a/good'] } },
    });
-   assert.deepEqual(catalog.deploymentPlacement, { berry_max: [], berry_mid: ['a/good'], berry_low: [] });
+   assert.deepEqual(catalog.deploymentPlacement, {
+      berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: ['a/good'], berry_low: [],
+   });
    assert.equal((await catalog.choose('berry_mid'))?.model, 'a/good');
-   const own = { berry_max: [], berry_mid: ['a/cheap'], berry_low: [] };
+   const own = { berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: ['a/cheap'], berry_low: [] };
    assert.equal((await catalog.choose('berry_mid', 0, own))?.model, 'a/cheap');
    assert.equal(await catalog.poolsFor(own), await catalog.poolsFor({ ...own }), 'ranked once per placement');
    assert.equal((await catalog.choose('berry_mid'))?.model, 'a/good', 'the deployment placement is untouched');

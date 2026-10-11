@@ -100,7 +100,10 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
    test("a workspace places its own tier models, which only an admin may change, and can go back to the deployment's", async () => {
       const tiers = await call(app, world.ownerToken, 'GET', '/api/v1/agents/tiers');
       assert.equal(tiers.status, 200);
-      assert.deepEqual(tiers.body.placement, { source: 'deployment', tiers: { berry_max: [], berry_mid: ['v/mid'], berry_low: [] } });
+      assert.deepEqual(tiers.body.placement, {
+         source: 'deployment',
+         tiers: { berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: ['v/mid'], berry_low: [] },
+      });
 
       const candidates = await call(app, world.ownerToken, 'GET', '/api/v1/agents/tiers/candidates');
       assert.deepEqual((candidates.body.models as Array<{ id: string }>).map((m) => m.id), ['v/top', 'v/mid'], 'no cache price, no candidate');
