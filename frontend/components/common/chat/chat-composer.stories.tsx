@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
 import { expect, fn, waitFor } from 'storybook/test';
+import { chatAgents } from './chat-fixtures';
 import { ChatComposer } from './chat-composer';
 
 type ComposerProps = Parameters<typeof ChatComposer>[0];
@@ -73,46 +74,95 @@ export const Disabled: Story = {
    args: { disabled: true, placeholder: 'Message an agent…' },
 };
 
-/** Typing `@` searches issues and projects; Enter inserts the identifier. */
-export const MentionAnIssue: Story = {
+const page = { pageInfo: { hasNextPage: false, endCursor: null } };
+
+/** Typing `@` lists people and agents; Enter tags the highlighted one. */
+export const MentionSomeone: Story = {
    beforeEach: ({ msw }) => {
       msw.use(
-         http.get('*/api/v1/search', () =>
+         http.get('*/api/v1/workspaces/:workspaceId/members', () =>
             HttpResponse.json({
                nodes: [
                   {
-                     type: 'issue',
-                     id: 'issue-42',
-                     title: 'Persist project health',
-                     subtitle: null,
-                     identifier: 'BERR-42',
-                     boardId: 'board-1',
-                     agentId: null,
-                     status: 'in_progress',
-                  },
-                  {
-                     type: 'project',
-                     id: 'project-berry',
-                     title: 'Berry core',
-                     subtitle: null,
-                     identifier: null,
-                     boardId: null,
-                     agentId: null,
-                     status: null,
+                     userId: 'user-andrea',
+                     workspaceId: 'ws-1',
+                     role: 'admin',
+                     email: 'andrea@example.com',
+                     name: 'Andrea Lunelio',
+                     avatarUrl: null,
+                     joinedAt: '2026-01-04T00:00:00Z',
+                     updatedAt: '2026-01-04T00:00:00Z',
                   },
                ],
-               pageInfo: { hasNextPage: false, endCursor: null },
+               ...page,
+            })
+         ),
+         http.get('*/api/v1/agents', () => HttpResponse.json({ nodes: chatAgents, ...page }))
+      );
+   },
+   play: async ({ args, canvas, userEvent }) => {
+      const input = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
+      await userEvent.type(input, 'Ask @');
+      await expect(await canvas.findByRole('option', { name: 'Andrea Lunelio' })).toBeVisible();
+      await expect(canvas.getByRole('option', { name: 'Orchestrator' })).toBeVisible();
+      await userEvent.keyboard('{Enter}');
+      await waitFor(() => expect(input).toHaveValue('Ask @Andrea Lunelio '));
+      // Enter tagged the person; it did not send the message.
+      await expect(args.onSend).not.toHaveBeenCalled();
+   },
+};
+
+/** Typing `/` lists skills and commands; Enter writes the highlighted one. */
+export const SlashSkillOrCommand: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.get('*/api/v1/skills', () =>
+            HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'skill-release',
+                     name: 'release-notes',
+                     description: 'Turn merged work into a changelog entry.',
+                     content: 'Write the notes.',
+                     labels: [],
+                     source: { kind: 'manual', url: null, ref: null, importedAt: null },
+                     files: [],
+                     createdBy: null,
+                     creatorName: null,
+                     agents: [],
+                     createdAt: '2026-08-01T09:00:00Z',
+                     updatedAt: '2026-09-10T09:00:00Z',
+                  },
+               ],
+            })
+         ),
+         http.get('*/api/v1/catalogs/:workspaceId/quick-actions', () =>
+            HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'action-summarise',
+                     workspaceId: 'ws-1',
+                     name: 'Summarise',
+                     description: 'A short recap of the conversation.',
+                     targetAgentId: 'agent-backend',
+                     prompt: 'Summarise this conversation.',
+                     visibility: 'workspace',
+                     createdBy: 'user-andrea',
+                     createdAt: '2026-08-01T09:00:00Z',
+                     updatedAt: '2026-09-10T09:00:00Z',
+                  },
+               ],
             })
          )
       );
    },
    play: async ({ args, canvas, userEvent }) => {
       const input = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
-      await userEvent.type(input, 'Look at @pers');
-      await expect(await canvas.findByRole('button', { name: /BERR-42/ })).toBeVisible();
+      await userEvent.type(input, '/');
+      await expect(await canvas.findByRole('option', { name: /release-notes/ })).toBeVisible();
+      await expect(canvas.getByRole('option', { name: /Summarise/ })).toBeVisible();
       await userEvent.keyboard('{Enter}');
-      await waitFor(() => expect(input).toHaveValue('Look at BERR-42 '));
-      // Enter picked the mention; it did not send the message.
+      await waitFor(() => expect(input).toHaveValue('/release-notes '));
       await expect(args.onSend).not.toHaveBeenCalled();
    },
 };

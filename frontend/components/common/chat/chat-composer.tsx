@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { ArrowUp, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { searchWorkspace, type SearchResult } from '@/lib/search';
+import { useComposerPalette } from '@/components/common/composer-palette';
 
 interface ChatComposerProps {
    value: string;
@@ -30,16 +30,13 @@ const SEND_VARIANT = {
    secondary: 'bg-[var(--shell-line)] text-[var(--shell-text)] hover:bg-[var(--shell-line-strong)]',
 } as const;
 
-/** `@` immediately before the caret, with whatever has been typed since. */
-const MENTION = /(?:^|\s)@([\w-]{0,40})$/;
-
 /**
  * The message box.
  *
- * Enter sends and Shift+Enter breaks the line, which is the convention every
- * chat shares and the one thing people do without looking. Typing `@` searches
- * the workspace's issues and projects and inserts the identifier, so a message
- * can name a piece of work in the terms the rest of Berry uses.
+ * Enter sends and Shift+Enter breaks the line. `@` lists the workspace's
+ * people and agents so one can be tagged into the message. `/` lists every
+ * skill in the workspace, and the commands. Choosing a skill writes its name
+ * into the message; the run then carries that skill and the agent follows it.
  */
 export function ChatComposer({
    value,
@@ -54,30 +51,13 @@ export function ChatComposer({
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
    const input = useRef<HTMLTextAreaElement>(null);
-   const [query, setQuery] = useState<string | null>(null);
-   const [results, setResults] = useState<SearchResult[]>([]);
-   const [highlighted, setHighlighted] = useState(0);
-
-   // Debounced: every keystroke inside a mention would otherwise be a search.
-   useEffect(() => {
-      if (query === null || !workspaceId) {
-         setResults([]);
-         return;
-      }
-      let cancelled = false;
-      const timer = setTimeout(() => {
-         void searchWorkspace(workspaceId, query, ['issue', 'project']).then((found) => {
-            if (!cancelled) {
-               setResults(found.slice(0, 6));
-               setHighlighted(0);
-            }
-         });
-      }, 150);
-      return () => {
-         cancelled = true;
-         clearTimeout(timer);
-      };
-   }, [query, workspaceId]);
+   const palette = useComposerPalette({
+      textareaRef: input,
+      value,
+      onChange,
+      workspaceId,
+      listClassName: 'left-6 right-6 w-auto',
+   });
 
    // Grow with the message, up to the same max the className allows.
    useEffect(() => {
@@ -86,70 +66,12 @@ export function ChatComposer({
       element.style.height = '0px';
       element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
    }, [value]);
-
-   const syncMention = (text: string, caret: number) => {
-      const match = MENTION.exec(text.slice(0, caret));
-      setQuery(match ? (match[1] ?? '') : null);
-   };
-
-   const insert = (result: SearchResult) => {
-      const element = input.current;
-      const caret = element?.selectionStart ?? value.length;
-      const before = value.slice(0, caret);
-      const match = MENTION.exec(before);
-      if (!match) return;
-      // Issues are referred to by identifier everywhere else in Berry; a
-      // project has no identifier, so its name is what names it.
-      const token = result.identifier ?? result.title;
-      const start = before.length - (match[1]?.length ?? 0) - 1;
-      const next = `${value.slice(0, start)}${token} ${value.slice(caret)}`;
-      onChange(next);
-      setQuery(null);
-      setResults([]);
-      requestAnimationFrame(() => {
-         element?.focus();
-         const at = start + token.length + 1;
-         element?.setSelectionRange(at, at);
-      });
-   };
-
-   const open = query !== null && results.length > 0;
    const canSend = !disabled && value.trim() !== '';
    const sendLabel = queueing ? t('queue') : t('send');
 
    return (
       <div className="relative mx-auto w-full max-w-3xl flex-none">
-         {open ? (
-            <ul className="absolute bottom-full left-6 right-6 z-10 mb-2 max-w-80 overflow-hidden rounded-md border border-[var(--shell-line)] bg-[var(--shell-surface)] shadow-lg">
-               {results.map((result, index) => (
-                  <li key={`${result.type}-${result.id}`}>
-                     <button
-                        type="button"
-                        onMouseDown={(event) => {
-                           // Mouse-down, not click: the textarea must not lose
-                           // focus before the insertion happens.
-                           event.preventDefault();
-                           insert(result);
-                        }}
-                        className={[
-                           'flex w-full items-center gap-2 px-3 py-1.5 text-left',
-                           index === highlighted
-                              ? 'bg-[var(--shell-hover)] text-[var(--shell-text)]'
-                              : 'text-[var(--shell-text-muted)]',
-                        ].join(' ')}
-                     >
-                        <span className="flex-none text-[var(--shell-text-dim)]">
-                           {result.type === 'issue' ? t('mentionIssues') : t('mentionProjects')}
-                        </span>
-                        <span className="min-w-0 truncate">
-                           {result.identifier ? `${result.identifier} ` : ''}
-                           {result.title}
-                        </span>
-                     </button>
-                  </li>
-               ))}
-            </ul>
-         ) : null}
+         {palette.list}
 
          <form
             className="flex items-end gap-2 px-6 pt-2 pb-5"
@@ -166,35 +88,27 @@ export function ChatComposer({
                   disabled={disabled}
                   placeholder={placeholder}
                   aria-label={placeholder}
+                  aria-autocomplete="list"
                   onChange={(event) => {
                      onChange(event.target.value);
-                     syncMention(event.target.value, event.target.selectionStart ?? 0);
+                     palette.sync(event.target.value, event.target.selectionStart ?? 0);
+                  }}
+                  onClick={(event) =>
+                     palette.sync(
+                        event.currentTarget.value,
+                        event.currentTarget.selectionStart ?? 0
+                     )
+                  }
+                  onKeyUp={(event) => {
+                     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                        palette.sync(
+                           event.currentTarget.value,
+                           event.currentTarget.selectionStart ?? 0
+                        );
+                     }
                   }}
                   onKeyDown={(event) => {
-                     if (open) {
-                        if (event.key === 'ArrowDown') {
-                           event.preventDefault();
-                           setHighlighted((current) => (current + 1) % results.length);
-                           return;
-                        }
-                        if (event.key === 'ArrowUp') {
-                           event.preventDefault();
-                           setHighlighted(
-                              (current) => (current - 1 + results.length) % results.length
-                           );
-                           return;
-                        }
-                        if (event.key === 'Enter' || event.key === 'Tab') {
-                           event.preventDefault();
-                           const picked = results[highlighted];
-                           if (picked) insert(picked);
-                           return;
-                        }
-                        if (event.key === 'Escape') {
-                           setQuery(null);
-                           return;
-                        }
-                     }
+                     if (palette.onKeyDown(event)) return;
                      if (event.key === 'Enter' && !event.shiftKey) {
                         event.preventDefault();
                         if (canSend) onSend();

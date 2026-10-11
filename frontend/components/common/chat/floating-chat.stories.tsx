@@ -32,7 +32,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Opens on a fresh conversation with the Orchestrator; one click and the composer is there. */
+/** Opens on the roster; choosing the Orchestrator opens its composer. */
 export const StartAConversation: Story = {
    beforeEach: ({ msw }) => {
       // Opening the Orchestrator's thread answers with its own conversation,
@@ -57,7 +57,9 @@ export const StartAConversation: Story = {
       );
    },
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('button', { name: 'Start a chat' }));
+      await userEvent.click(
+         await canvas.findByRole('button', { name: 'Start a chat with Orchestrator' })
+      );
       await expect(
          await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
       ).toBeVisible();

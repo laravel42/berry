@@ -19,13 +19,7 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import {
-   isOrchestrator,
-   loadAgentRoster,
-   loadWorkspaceAgents,
-   type Agent,
-   type AgentRoster,
-} from '@/lib/agents';
+import { loadAgentRoster, loadWorkspaceAgents, type Agent, type AgentRoster } from '@/lib/agents';
 import {
    cancelSessionTask,
    createSession,
@@ -53,7 +47,7 @@ import { ChatComposer } from './chat-composer';
 import { ChatSidebar } from './chat-sidebar';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
-import { RuntimeSelectionControl } from '@/components/common/runtimes/runtime-selection';
+import { ChatTierModelSelect } from './chat-tier-model-select';
 
 const PAGE = 50;
 
@@ -75,6 +69,7 @@ export function Chat() {
    const pathname = usePathname();
    const searchParams = useSearchParams();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const sessionUserId = useSessionStore((state) => state.user?.id);
 
    const [agents, setAgents] = useState<Agent[]>([]);
    const [roster, setRoster] = useState<Map<string, AgentRoster>>(new Map());
@@ -405,17 +400,9 @@ export function Chat() {
       }, 600);
    };
 
-   // Every conversation starts with the Orchestrator: it reads the request
-   // and hands the work to the right role, so nobody picks an agent first.
-   const orchestrator = agents.find(isOrchestrator) ?? null;
-
-   const newChat = async () => {
-      if (!orchestrator) {
-         setError(t('bannerNoOrchestrator'));
-         return;
-      }
+   const newChat = async (agent: Agent) => {
       try {
-         const id = await createSession(orchestrator.id);
+         const id = await createSession(agent.id);
          const found = await refreshThreads();
          const thread = found.find((entry) => entry.id === id);
          if (thread) {
@@ -534,6 +521,9 @@ export function Chat() {
          <div className="flex min-h-0 flex-1">
             <ChatSidebar
                className={cn('max-md:w-full', active && 'max-md:hidden')}
+               agents={agents}
+               roster={roster}
+               sessionUserId={sessionUserId}
                threads={threads}
                archived={archived}
                showArchived={showArchived}
@@ -543,7 +533,7 @@ export function Chat() {
                   if (next) void refreshArchived();
                }}
                activeId={activeId}
-               onNewChat={() => void newChat()}
+               onNewChat={(agent) => void newChat(agent)}
                onSelect={(thread) => {
                   void select(thread);
                   show(thread);
@@ -623,8 +613,9 @@ export function Chat() {
                         <span className="min-w-0 flex-1" aria-hidden />
                      )}
 
-                     <RuntimeSelectionControl
-                        target={{ kind: 'conversation', id: active.id }}
+                     <ChatTierModelSelect
+                        conversationId={active.id}
+                        agent={activeAgent}
                         disabled={sending || active.activeRunId !== null}
                      />
 
