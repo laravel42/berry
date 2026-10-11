@@ -15,7 +15,7 @@ import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KI
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
 import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
-import { loadAgentExtensions, type ExtensionDeps } from '../agents/extensions.ts';
+import { envelopeSkill, loadAgentExtensions, type EnvelopeSkill, type ExtensionDeps } from '../agents/extensions.ts';
 import { pluginMcpServers } from '../plugins/mcp.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
@@ -25,6 +25,7 @@ import type { RoleKey } from '../organization/contract.ts';
 import { isGatewayModelId, type TierChoice, type TierPlacement } from '../agents/kilo/tiers.ts';
 import type { TierPlacements } from '../agents/kilo/placements.ts';
 import type { Tier } from '../agents/model-tiers.ts';
+import { invokedSkillNames, requiredSkillsContract } from '../skills/invoke.ts';
 import { findAiRuntime, type AiRuntimeId } from './ai-runtime-catalog.ts';
 import type { RuntimeCredential } from '../agents/runtime/adapters/types.ts';
 
@@ -340,15 +341,18 @@ export class EnvelopeBuilder {
            });
 
       if (!task.issueId) {
-         // A chat task: the prompt is the message; workstream D adds the chat context.
+         // A chat task: the prompt is the message. A skill the message names
+         // is carried on this run and the prompt requires the agent to follow it.
+         const chat = await this.#chatSkills(task.workspaceId, task.prompt ?? '', extensions?.skills ?? []);
          return {
             model,
             tier,
             delivery: null,
             envelope: {
                ...base,
+               agent: { ...base.agent, skills: chat.skills },
                kind: 'agent',
-               task: { prompt: task.prompt ?? '', issue: null, comments: [], dependencies: [], projectResources: [], priorWork: null },
+               task: { prompt: chat.prompt, issue: null, comments: [], dependencies: [], projectResources: [], priorWork: null },
                transcript,
                repo: null,
                completion: null,
@@ -638,6 +642,31 @@ export class EnvelopeBuilder {
       }
       if (!choice) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
       return { model: choice.model, tier, fallback: own && own !== choice.model ? own : choice.fallback };
+   }
+
+   /**
+    * Skills a chat message invoked, added to the ones the agent already carries,
+    * and a prompt that requires the agent to follow them.
+    */
+   async #chatSkills(
+      workspaceId: string,
+      body: string,
+      carried: EnvelopeSkill[]
+   ): Promise<{ skills: EnvelopeSkill[]; prompt: string }> {
+      const names = invokedSkillNames(body);
+      if (names.length === 0 || !this.#deps.extensions) return { skills: carried, prompt: body };
+      const found = await this.#deps.extensions.skills.byNames(workspaceId, names);
+      const have = new Set(carried.map((skill) => skill.name));
+      const skills = [
+         ...carried,
+         ...found.filter((skill) => !have.has(skill.name)).map((skill) => envelopeSkill(skill)),
+      ];
+      const required = names.flatMap((name) => {
+         const skill = found.find((candidate) => candidate.name === name);
+         return skill ? [skill] : [];
+      });
+      const prompt = required.length === 0 ? body : `${body}${requiredSkillsContract(required)}`;
+      return { skills, prompt };
    }
 
    async #agent(agentId: string): Promise<AgentConfig> {

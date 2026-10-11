@@ -24,6 +24,22 @@ export function skillManifest(skill: { name: string; description: string; conten
    return `---\nname: ${skill.name}\ndescription: ${JSON.stringify(skill.description)}\n---\n${skill.content}`;
 }
 
+/** One skill as the envelope and `read_skill` carry it. */
+export function envelopeSkill(skill: {
+   name: string;
+   description: string;
+   content: string;
+   fileContents: { path: string; content: string }[];
+}): EnvelopeSkill {
+   return {
+      name: skill.name,
+      files: [
+         { path: 'SKILL.md', content: skillManifest(skill) },
+         ...skill.fileContents.filter((file) => file.path !== 'SKILL.md'),
+      ],
+   };
+}
+
 export interface AgentExtensions {
    skills: EnvelopeSkill[];
    mcpServers: EnvelopeMcpServer[];
@@ -90,13 +106,7 @@ export async function loadAgentExtensions(
    }
 
    return {
-      skills: skills.map((skill) => ({
-         name: skill.name,
-         files: [
-            { path: 'SKILL.md', content: skillManifest(skill) },
-            ...skill.fileContents.filter((file) => file.path !== 'SKILL.md'),
-         ],
-      })),
+      skills: skills.map(envelopeSkill),
       mcpServers,
       env,
       skipped,
