@@ -20,6 +20,9 @@ import { useEffect, useState } from 'react';
  * task is still in review, a rejection stays "Peer reviewing". With AutoGate
  * off that rejection is the verdict it already was. The reason is on the
  * page either way.
+ *
+ * A review that has not answered yet is not drawn here. The sidebar already
+ * names the reviewer and says they are reading, and this box only repeated that.
  */
 export function IssueReviews({
    issueRef,
@@ -52,7 +55,8 @@ export function IssueReviews({
       };
    }, [issueRef]);
 
-   if (reviews.length === 0) return null;
+   const settled = reviews.filter((review) => !review.inProgress && review.approved !== null);
+   if (settled.length === 0) return null;
 
    return (
       <div>
@@ -64,9 +68,8 @@ export function IssueReviews({
             {t('title')}
          </h2>
          <div className="flex flex-col gap-2">
-            {reviews.map((review) => {
-               const decided = review.inProgress ? null : review.approved;
-               const approved = shownPeerApproval(decided, inReview, autoGate);
+            {settled.map((review) => {
+               const approved = shownPeerApproval(review.approved, inReview, autoGate);
                return (
                   <div
                      key={review.id}
@@ -100,13 +103,9 @@ export function IssueReviews({
                               : ''}
                         </span>
                      </div>
-                     {decided === null ? (
-                        <p className="text-muted-foreground">
-                           {tPeer('reading', { reviewer: review.reviewer, author: review.author })}
-                        </p>
-                     ) : (
+                     {review.reason ? (
                         <p className="whitespace-pre-wrap text-muted-foreground">{review.reason}</p>
-                     )}
+                     ) : null}
                      {approved === false && !inReview ? (
                         <p className="mt-2 text-muted-foreground">{tPeer('returned')}</p>
                      ) : null}
