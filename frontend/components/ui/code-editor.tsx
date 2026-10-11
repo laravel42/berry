@@ -370,6 +370,9 @@ export const CodeEditor = memo(function CodeEditor({
                '.cm-content': {
                   caretColor: readOnly ? 'transparent' : 'var(--brand-chalk)',
                   color: 'var(--brand-chalk)',
+                  // The selection is a layer behind the text. An opaque
+                  // background here covers it.
+                  backgroundColor: 'transparent',
                   fontFamily: 'inherit',
                   fontSize: 'inherit',
                   lineHeight: 'inherit',
@@ -380,6 +383,7 @@ export const CodeEditor = memo(function CodeEditor({
                   fontSize: 'inherit',
                   lineHeight: 'inherit',
                   color: 'var(--brand-chalk)',
+                  backgroundColor: 'transparent',
                },
                '.cm-gutters': {
                   backgroundColor: 'var(--brand-void)',
@@ -418,22 +422,23 @@ export const CodeEditor = memo(function CodeEditor({
                           borderLeftColor: 'var(--brand-chalk)',
                        },
                     }),
-               // Force past CodeMirror's base theme — light gray on selected lines.
-               '&.cm-focused > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground': {
-                  background: 'rgba(255, 255, 255, 0.14) !important',
-               },
-               '& > .cm-scroller > .cm-selectionLayer > .cm-selectionBackground': {
-                  background: 'rgba(255, 255, 255, 0.1) !important',
+               // CodeMirror's dark selection is #222, which vanishes on void.
+               // !important beats that base rule. The rectangles sit behind the text.
+               '.cm-selectionBackground': {
+                  backgroundColor:
+                     'color-mix(in oklab, var(--brand-azure) 55%, transparent) !important',
                },
                // Native fallback when the drawSelection layer is not painted.
                '.cm-content ::selection': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                  backgroundColor: 'color-mix(in oklab, var(--brand-azure) 55%, transparent)',
+                  color: 'var(--brand-chalk)',
                },
                '.cm-content ::-moz-selection': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.18)',
+                  backgroundColor: 'color-mix(in oklab, var(--brand-azure) 55%, transparent)',
+                  color: 'var(--brand-chalk)',
                },
                '.cm-selectionMatch': {
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  backgroundColor: 'color-mix(in oklab, var(--brand-azure) 28%, transparent)',
                },
                '.cm-tooltip-autocomplete': {
                   backgroundColor: 'var(--brand-void)',
@@ -487,8 +492,9 @@ export const CodeEditor = memo(function CodeEditor({
             '[&_.cm-editor]:h-full [&_.cm-editor]:bg-[var(--brand-void)] [&_.cm-editor]:text-[var(--brand-chalk)] [&_.cm-editor]:outline-none',
             '[&_.cm-scroller]:bg-[var(--brand-void)]',
             '[&_.cm-gutters]:bg-[var(--brand-void)]',
-            '[&_.cm-content]:bg-[var(--brand-void)] [&_.cm-content]:text-[var(--brand-chalk)]',
-            '[&_.cm-selectionBackground]:!bg-white/15',
+            '[&_.cm-content]:bg-transparent [&_.cm-content]:text-[var(--brand-chalk)]',
+            '[&_.cm-line]:bg-transparent',
+            '[&_.cm-selectionBackground]:![background-color:color-mix(in_oklab,var(--brand-azure)_55%,transparent)]',
             readOnly
                ? '[&_.cm-content]:caret-transparent'
                : '[&_.cm-content]:caret-[var(--brand-chalk)]',
