@@ -3,14 +3,17 @@
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
+import { useShortcut } from '@/components/layout/shortcut-provider';
 import { useProject } from '@/hooks/use-project';
 import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
+import { useComposerPalette } from '@/components/common/composer-palette';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
+import { useSessionStore } from '@/store/session-store';
 import { cn } from '@/lib/utils';
 import { SendHorizonal } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
 import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -28,7 +31,16 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const { issues: allIssues } = useIssuesStore();
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
+   const workspaceId = useSessionStore((state) => state.workspace?.id);
    const [draft, setDraft] = useState('');
+   const [focused, setFocused] = useState(false);
+   const updateRef = useRef<HTMLTextAreaElement>(null);
+   const palette = useComposerPalette({
+      textareaRef: updateRef,
+      value: draft,
+      onChange: setDraft,
+      workspaceId,
+   });
    const issues = useMemo(
       () => (project ? allIssues.filter((issue) => issue.project?.id === project.id) : []),
       [allIssues, project]
@@ -39,6 +51,15 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       if (!text || !project) return;
       void postUpdate(project.id, 'on-track', text).then(() => setDraft(''));
    }, [draft, postUpdate, project]);
+
+   useShortcut('composer.send', submitComment, { enabled: focused });
+
+   useEffect(() => {
+      const element = updateRef.current;
+      if (!element) return;
+      element.style.height = '0px';
+      element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+   }, [draft]);
 
    const description = project?.description ?? '';
 
@@ -54,7 +75,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
          )}
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-            <div className="min-h-0 shrink overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto">
                <div className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8">
                   <ProjectTitle project={project} />
                   <TiptapAiEditor
@@ -80,38 +101,65 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                </div>
             </div>
 
-            <div className="relative z-10 flex min-h-32 flex-1 flex-col border-t border-border/60 bg-container">
-               <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-1 flex-col px-6 pt-5 pb-3 sm:px-8">
-                  {/* A project update, not an issue comment. It used to borrow
-                      the issue composer, which has since become issue-shaped —
-                      mentions that start agents, per-task drafts, uploads onto
-                      a task. None of that applies to a project update, so this
-                      posts through the project updates store directly. */}
-                  <div className="relative min-h-0 flex-1">
-                     <textarea
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                           if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                              event.preventDefault();
-                              submitComment();
-                           }
-                        }}
-                        placeholder="Post an update…"
-                        aria-label="Project update"
-                        className="h-full min-h-0 w-full resize-none bg-transparent pr-10 pb-1 text-foreground outline-none placeholder:text-foreground/40"
-                     />
-                     <Button
-                        type="button"
-                        size="icon"
-                        className="absolute right-0 bottom-0 size-7"
-                        aria-label="post update"
-                        title="post update"
-                        onClick={submitComment}
-                        disabled={!draft.trim()}
-                     >
-                        <SendHorizonal className="size-3.5" aria-hidden />
-                     </Button>
+            <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
+               <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
+                  {/* Posts a project update. The bar matches the task comment
+                      composer; a mention here is text in the update. */}
+                  <div className="flex flex-col">
+                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
+                        <div className="flex items-end gap-2">
+                           <div className="relative min-w-0 flex-1">
+                              {palette.list}
+                              <textarea
+                                 ref={updateRef}
+                                 value={draft}
+                                 rows={1}
+                                 onChange={(event) => {
+                                    setDraft(event.target.value);
+                                    palette.sync(
+                                       event.target.value,
+                                       event.target.selectionStart ?? 0
+                                    );
+                                 }}
+                                 onClick={(event) =>
+                                    palette.sync(
+                                       event.currentTarget.value,
+                                       event.currentTarget.selectionStart ?? 0
+                                    )
+                                 }
+                                 onKeyUp={(event) => {
+                                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                                       palette.sync(
+                                          event.currentTarget.value,
+                                          event.currentTarget.selectionStart ?? 0
+                                       );
+                                    }
+                                 }}
+                                 onKeyDown={(event) => {
+                                    palette.onKeyDown(event);
+                                 }}
+                                 onFocus={() => setFocused(true)}
+                                 onBlur={() => setFocused(false)}
+                                 onPointerDown={(event) => event.stopPropagation()}
+                                 placeholder="Post an update…"
+                                 aria-label="Project update"
+                                 aria-autocomplete="list"
+                                 className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                              />
+                           </div>
+                           <Button
+                              type="button"
+                              size="icon"
+                              className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
+                              aria-label="post update"
+                              title="post update"
+                              onClick={submitComment}
+                              disabled={!draft.trim()}
+                           >
+                              <SendHorizonal className="size-3.5" aria-hidden />
+                           </Button>
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>

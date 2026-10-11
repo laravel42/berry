@@ -23,6 +23,7 @@ import { toUiUser } from '@/lib/catalog';
 import {
    createIssueComment,
    loadIssueComments,
+   mentionToken,
    previewCommentTriggers,
    setCommentResolved,
    splitMentions,
@@ -32,9 +33,10 @@ import {
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { type RunRecord } from '@/lib/runs';
 import { subscribeShellEvent } from '@/lib/shell-events';
-import { listSkills, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
+import { useComposerPalette } from '@/components/common/composer-palette';
 import { useAgentsStore } from '@/store/agents-store';
+import { useSessionStore } from '@/store/session-store';
 import { useCommentDraftStore } from '@/store/comment-draft-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { timeAgo } from '@/lib/time-ago';
@@ -60,7 +62,6 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { toast } from 'sonner';
 import { CommentActions } from './comment-actions';
 import { ReactionBar } from './issue-reactions';
-import { useMentionPicker } from './mention-picker';
 
 /**
  * What has happened to this task, and the place to add to it.
@@ -125,7 +126,8 @@ function decorateBody(body: string, origin: string, org: string): string {
  *
  * Agents write Markdown — a heading, a list of what they found, a fenced
  * diff — and people increasingly do too. Printing "## Summary" literally made
- * every agent reply look like a dump. Long ones fold at a screenful.
+ * every agent reply look like a dump. Long ones fold after a few lines;
+ * "Read the rest" opens the full transcript.
  */
 function CommentBody({
    body,
@@ -145,6 +147,7 @@ function CommentBody({
    return (
       <AgentMarkdown
          body={decorated}
+         compact
          clamp={clamp}
          className={thin ? 'font-thin [&_*]:font-thin' : undefined}
       />
@@ -154,7 +157,7 @@ function CommentBody({
 function EventRow({ item }: { item: EventItem }) {
    return (
       <div className="flex items-center gap-2.5 py-0.5 text-muted-foreground">
-         <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
+         <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent p-0.5">
             {item.actor.role === 'Application' ? (
                <BerryMark
                   size="sm"
@@ -269,12 +272,12 @@ function CommentCard({
       <div
          data-comment-id={comment.id}
          className={cn(
-            'rounded-sm border border-border/60 bg-container px-3.5 py-2 transition-colors',
+            'rounded-sm border border-border/60 bg-container px-2 py-1 transition-colors',
             isAgent && 'border-actor-agent/40',
             highlighted && 'border-status-warning bg-status-warning/5'
          )}
       >
-         <div className="mb-1.5 flex items-center gap-2">
+         <div className="mb-0.5 flex items-center gap-1.5">
             <ActorAvatar user={actor} size="sm" />
             <ActorName user={actor} />
             <span className="text-muted-foreground">{timeAgo(comment.createdAt, 'recently')}</span>
@@ -293,18 +296,14 @@ function CommentCard({
             />
          </div>
 
-         <div className="flex flex-col gap-[6px]">
+         <div className="flex flex-col gap-1">
             <CommentBody
                body={comment.body}
                thin={isAgent}
-               clamp={
-                  isAgent
-                     ? { lines: 12, moreLabel: t('readRest'), lessLabel: t('showLess') }
-                     : undefined
-               }
+               clamp={{ lines: 6, moreLabel: t('readRest'), lessLabel: t('showLess') }}
             />
 
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1">
                <ReactionBar target="comment" id={comment.id} />
                <Button
                   variant="ghost"
@@ -609,7 +608,7 @@ export function ActivityFeedList({
             </div>
          ) : null}
 
-         <div className="flex flex-col gap-1.5">
+         <div className="flex flex-col gap-1">
             {timeline.map((row, index) =>
                row.kind === 'events' ? (
                   <EventGroup key={`events-${row.items[0]?.id ?? index}`} items={row.items} />
@@ -676,29 +675,33 @@ export function ActivityCommentComposer({
    );
 
    const textareaRef = useRef<HTMLTextAreaElement>(null);
-   const picker = useMentionPicker(textareaRef, draft, setDraft);
+   const workspaceId = useSessionStore((state) => state.workspace?.id);
    const [plan, setPlan] = useState<TriggerPlan | null>(null);
    const [skipped, setSkipped] = useState<string[]>([]);
    const [note, setNote] = useState(false);
    const [sending, setSending] = useState(false);
    const [uploading, setUploading] = useState(0);
-   const [skills, setSkills] = useState<Skill[]>([]);
-   const [slash, setSlash] = useState(false);
    const [focused, setFocused] = useState(false);
    const filePicker = useRef<HTMLInputElement>(null);
-
-   // Slash commands open on a leading "/" and close as soon as the line stops
-   // being one, so typing a path in a sentence does not summon a menu.
-   useEffect(() => {
-      setSlash(/^\/[\w-]*$/.test(draft));
-   }, [draft]);
-
-   useEffect(() => {
-      if (!slash || skills.length > 0) return;
-      void listSkills()
-         .then(setSkills)
-         .catch(() => setSkills([]));
-   }, [slash, skills.length]);
+   const slashExtras = useMemo(
+      () => [
+         {
+            key: 'note',
+            name: t('note'),
+            detail: t('noteHint'),
+            onChoose: () => setNote(true),
+         },
+      ],
+      [t]
+   );
+   const palette = useComposerPalette({
+      textareaRef,
+      value: draft,
+      onChange: setDraft,
+      workspaceId,
+      agentMention: (agent) => mentionToken('agent', agent.id, agent.name),
+      slashExtras,
+   });
 
    // Debounced: the preview is advice, and a request per keystroke is not.
    useEffect(() => {
@@ -816,26 +819,42 @@ export function ActivityCommentComposer({
                   className="hidden"
                   onChange={(event) => void upload(event.target.files)}
                />
-               <textarea
-                  ref={textareaRef}
-                  value={draft}
-                  rows={1}
-                  aria-label={t('placeholder')}
-                  onChange={(event) => {
-                     setDraft(event.target.value);
-                     requestAnimationFrame(picker.sync);
-                  }}
-                  onKeyUp={(event) => {
-                     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') picker.sync();
-                  }}
-                  onClick={picker.sync}
-                  onKeyDown={(event) => picker.handleKeyDown(event)}
-                  onFocus={() => setFocused(true)}
-                  onBlur={() => setFocused(false)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  placeholder={t('placeholder')}
-                  className="max-h-40 min-h-8 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
-               />
+               <div className="relative min-w-0 flex-1">
+                  {palette.list}
+                  <textarea
+                     ref={textareaRef}
+                     value={draft}
+                     rows={1}
+                     aria-label={t('placeholder')}
+                     aria-autocomplete="list"
+                     onChange={(event) => {
+                        setDraft(event.target.value);
+                        palette.sync(event.target.value, event.target.selectionStart ?? 0);
+                     }}
+                     onKeyUp={(event) => {
+                        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                           palette.sync(
+                              event.currentTarget.value,
+                              event.currentTarget.selectionStart ?? 0
+                           );
+                        }
+                     }}
+                     onClick={(event) =>
+                        palette.sync(
+                           event.currentTarget.value,
+                           event.currentTarget.selectionStart ?? 0
+                        )
+                     }
+                     onKeyDown={(event) => {
+                        palette.onKeyDown(event);
+                     }}
+                     onFocus={() => setFocused(true)}
+                     onBlur={() => setFocused(false)}
+                     onPointerDown={(event) => event.stopPropagation()}
+                     placeholder={t('placeholder')}
+                     className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+               </div>
                <Button
                   size="icon"
                   // Secondary: on a task in review the decision bar holds the
@@ -849,49 +868,6 @@ export function ActivityCommentComposer({
                   <SendHorizonal className="size-3.5" aria-hidden />
                </Button>
             </div>
-
-            {picker.list}
-
-            {slash ? (
-               <ul className="z-20 max-h-48 w-72 overflow-auto rounded-md border border-border bg-popover p-1 shadow-md">
-                  <li className="px-2 pt-1 pb-0.5 uppercase tracking-[0.12em] text-muted-foreground">
-                     {t('slashTitle')}
-                  </li>
-                  <li>
-                     <button
-                        type="button"
-                        className="flex w-full items-center justify-between gap-2 rounded px-2 py-1 hover:bg-accent"
-                        onMouseDown={(event) => {
-                           event.preventDefault();
-                           setNote(true);
-                           setDraft('');
-                           textareaRef.current?.focus();
-                        }}
-                     >
-                        <span>{t('note')}</span>
-                        <span className="text-muted-foreground">{t('noteHint')}</span>
-                     </button>
-                  </li>
-                  <li className="px-2 pt-1 pb-0.5 uppercase tracking-[0.12em] text-muted-foreground">
-                     {t('skills')}
-                  </li>
-                  {skills.map((skill) => (
-                     <li key={skill.id}>
-                        <button
-                           type="button"
-                           className="flex w-full min-w-0 items-center gap-2 rounded px-2 py-1 text-left hover:bg-accent"
-                           onMouseDown={(event) => {
-                              event.preventDefault();
-                              setDraft(`/${skill.name} `);
-                              textareaRef.current?.focus();
-                           }}
-                        >
-                           <span className="min-w-0 truncate">{skill.name}</span>
-                        </button>
-                     </li>
-                  ))}
-               </ul>
-            ) : null}
 
             {note ? (
                <p className="text-muted-foreground">
