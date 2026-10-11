@@ -4,9 +4,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import {
+   ContextMenuCheckboxItem,
    ContextMenuContent,
    ContextMenuGroup,
    ContextMenuItem,
+   ContextMenuRadioGroup,
+   ContextMenuRadioItem,
    ContextMenuSeparator,
    ContextMenuShortcut,
    ContextMenuSub,
@@ -44,6 +47,29 @@ interface IssueContextMenuProps {
 /** How many sibling tasks a relation submenu offers before it stops listing. */
 const RELATION_CHOICES = 8;
 
+const NO_ASSIGNEE = 'none';
+const NO_PROJECT = 'none';
+
+/** Which due-date preset matches the stored day, if any. */
+function dueDatePreset(dueDate?: string): 'today' | 'tomorrow' | 'next-week' | 'none' | '' {
+   if (!dueDate) return 'none';
+   const due = new Date(dueDate);
+   const matches = (offset: number) => {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + offset);
+      return (
+         due.getFullYear() === day.getFullYear() &&
+         due.getMonth() === day.getMonth() &&
+         due.getDate() === day.getDate()
+      );
+   };
+   if (matches(0)) return 'today';
+   if (matches(1)) return 'tomorrow';
+   if (matches(7)) return 'next-week';
+   return '';
+}
+
 /**
  * The right-click menu on a row or a card: the fields people change without
  * opening anything, the ways out of the list, the relations, and delete.
@@ -74,14 +100,16 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <CircleCheck className="mr-2 size-4" /> {t('display.status')}
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-48">
-                  {status.map((entry) => {
-                     const Icon = entry.icon;
-                     return (
-                        <ContextMenuItem key={entry.id} onClick={() => actions.setStatus(entry.id)}>
-                           <Icon /> {entry.name}
-                        </ContextMenuItem>
-                     );
-                  })}
+                  <ContextMenuRadioGroup value={issue?.status.id} onValueChange={actions.setStatus}>
+                     {status.map((entry) => {
+                        const Icon = entry.icon;
+                        return (
+                           <ContextMenuRadioItem key={entry.id} value={entry.id}>
+                              <Icon /> {entry.name}
+                           </ContextMenuRadioItem>
+                        );
+                     })}
+                  </ContextMenuRadioGroup>
                </ContextMenuSubContent>
             </ContextMenuSub>
 
@@ -90,29 +118,34 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <User className="mr-2 size-4" /> {t('display.assignee')}
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-48">
-                  <ContextMenuItem onClick={() => actions.setAssignee(null)}>
-                     <User className="size-4" /> {t('filters.noAssignee')}
-                  </ContextMenuItem>
-                  {members.map((user) => (
-                     <ContextMenuItem key={user.id} onClick={() => actions.setAssignee(user.id)}>
-                        <Avatar className="size-4">
-                           <AvatarImage src={user.avatarUrl} alt={user.name} />
-                           <AvatarFallback>{user.name[0]}</AvatarFallback>
-                        </Avatar>
-                        {user.name}
-                     </ContextMenuItem>
-                  ))}
-                  {agentPeople.map((agent) => (
-                     <ContextMenuItem key={agent.id} onClick={() => actions.setAssignee(agent.id)}>
-                        <BerryMark
-                           size="sm"
-                           tone="working"
-                           dotColor={colorForAgent(agent.id)}
-                           label={`${agent.name}, agent`}
-                        />
-                        {agent.name}
-                     </ContextMenuItem>
-                  ))}
+                  <ContextMenuRadioGroup
+                     value={issue?.assignee?.id ?? NO_ASSIGNEE}
+                     onValueChange={(id) => actions.setAssignee(id === NO_ASSIGNEE ? null : id)}
+                  >
+                     <ContextMenuRadioItem value={NO_ASSIGNEE}>
+                        <User className="size-4" /> {t('filters.noAssignee')}
+                     </ContextMenuRadioItem>
+                     {members.map((user) => (
+                        <ContextMenuRadioItem key={user.id} value={user.id}>
+                           <Avatar className="size-4">
+                              <AvatarImage src={user.avatarUrl} alt={user.name} />
+                              <AvatarFallback>{user.name[0]}</AvatarFallback>
+                           </Avatar>
+                           {user.name}
+                        </ContextMenuRadioItem>
+                     ))}
+                     {agentPeople.map((agent) => (
+                        <ContextMenuRadioItem key={agent.id} value={agent.id}>
+                           <BerryMark
+                              size="sm"
+                              tone="working"
+                              dotColor={colorForAgent(agent.id)}
+                              label={`${agent.name}, agent`}
+                           />
+                           {agent.name}
+                        </ContextMenuRadioItem>
+                     ))}
+                  </ContextMenuRadioGroup>
                </ContextMenuSubContent>
             </ContextMenuSub>
 
@@ -121,14 +154,16 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <BarChart3 className="mr-2 size-4" /> {t('display.priority')}
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-48">
-                  {priorities.map((priority) => (
-                     <ContextMenuItem
-                        key={priority.id}
-                        onClick={() => actions.setPriority(priority.id)}
-                     >
-                        <priority.icon className="size-4" /> {priority.name}
-                     </ContextMenuItem>
-                  ))}
+                  <ContextMenuRadioGroup
+                     value={issue?.priority.id}
+                     onValueChange={actions.setPriority}
+                  >
+                     {priorities.map((priority) => (
+                        <ContextMenuRadioItem key={priority.id} value={priority.id}>
+                           <priority.icon className="size-4" /> {priority.name}
+                        </ContextMenuRadioItem>
+                     ))}
+                  </ContextMenuRadioGroup>
                </ContextMenuSubContent>
             </ContextMenuSub>
 
@@ -137,19 +172,24 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <CalendarClock className="mr-2 size-4" /> {t('menu.dueDate')}
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-48">
-                  <ContextMenuItem onClick={actions.setDueDateToday}>
-                     {t('menu.today')}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={actions.setDueDateTomorrow}>
-                     {t('menu.tomorrow')}
-                  </ContextMenuItem>
-                  <ContextMenuItem onClick={actions.setDueDateNextWeek}>
-                     {t('menu.nextWeek')}
-                  </ContextMenuItem>
-                  <ContextMenuSeparator />
-                  <ContextMenuItem onClick={actions.clearDueDate}>
-                     {t('menu.clearDate')}
-                  </ContextMenuItem>
+                  <ContextMenuRadioGroup
+                     value={dueDatePreset(issue?.dueDate)}
+                     onValueChange={(preset) => {
+                        if (preset === 'today') actions.setDueDateToday();
+                        else if (preset === 'tomorrow') actions.setDueDateTomorrow();
+                        else if (preset === 'next-week') actions.setDueDateNextWeek();
+                        else if (preset === 'none') actions.clearDueDate();
+                     }}
+                  >
+                     <ContextMenuRadioItem value="today">{t('menu.today')}</ContextMenuRadioItem>
+                     <ContextMenuRadioItem value="tomorrow">
+                        {t('menu.tomorrow')}
+                     </ContextMenuRadioItem>
+                     <ContextMenuRadioItem value="next-week">
+                        {t('menu.nextWeek')}
+                     </ContextMenuRadioItem>
+                     <ContextMenuRadioItem value="none">{t('menu.clearDate')}</ContextMenuRadioItem>
+                  </ContextMenuRadioGroup>
                </ContextMenuSubContent>
             </ContextMenuSub>
 
@@ -159,14 +199,18 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-48">
                   {labels.map((label) => (
-                     <ContextMenuItem key={label.id} onClick={() => actions.toggleLabel(label.id)}>
+                     <ContextMenuCheckboxItem
+                        key={label.id}
+                        checked={issue?.labels.some((current) => current.id === label.id) ?? false}
+                        onCheckedChange={() => actions.toggleLabel(label.id)}
+                     >
                         <span
                            className="inline-block size-3 rounded-full"
                            style={{ backgroundColor: label.color }}
                            aria-hidden="true"
                         />
                         {label.name}
-                     </ContextMenuItem>
+                     </ContextMenuCheckboxItem>
                   ))}
                </ContextMenuSubContent>
             </ContextMenuSub>
@@ -176,17 +220,19 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <Folder className="mr-2 size-4" /> {t('display.project')}
                </ContextMenuSubTrigger>
                <ContextMenuSubContent className="w-64">
-                  <ContextMenuItem onClick={() => actions.setProject(null)}>
-                     <Folder className="size-4" /> {t('filters.noProject')}
-                  </ContextMenuItem>
-                  {projects.slice(0, 8).map((project) => (
-                     <ContextMenuItem
-                        key={project.id}
-                        onClick={() => actions.setProject(project.id)}
-                     >
-                        <project.icon className="size-4" /> {project.name}
-                     </ContextMenuItem>
-                  ))}
+                  <ContextMenuRadioGroup
+                     value={issue?.project?.id ?? NO_PROJECT}
+                     onValueChange={(id) => actions.setProject(id === NO_PROJECT ? null : id)}
+                  >
+                     <ContextMenuRadioItem value={NO_PROJECT}>
+                        <Folder className="size-4" /> {t('filters.noProject')}
+                     </ContextMenuRadioItem>
+                     {projects.slice(0, 8).map((project) => (
+                        <ContextMenuRadioItem key={project.id} value={project.id}>
+                           <project.icon className="size-4" /> {project.name}
+                        </ContextMenuRadioItem>
+                     ))}
+                  </ContextMenuRadioGroup>
                </ContextMenuSubContent>
             </ContextMenuSub>
          </ContextMenuGroup>
@@ -218,15 +264,17 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                <ContextMenuSub>
                   <ContextMenuSubTrigger>{t('menu.setParent')}</ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-64">
-                     {relatives.map((candidate) => (
-                        <ContextMenuItem
-                           key={candidate.id}
-                           onClick={() => actions.setParentIssue(candidate.id)}
-                        >
-                           <span className="text-muted-foreground">{candidate.identifier}</span>
-                           <span className="truncate">{candidate.title}</span>
-                        </ContextMenuItem>
-                     ))}
+                     <ContextMenuRadioGroup
+                        value={issue?.parentId ?? ''}
+                        onValueChange={actions.setParentIssue}
+                     >
+                        {relatives.map((candidate) => (
+                           <ContextMenuRadioItem key={candidate.id} value={candidate.id}>
+                              <span className="text-muted-foreground">{candidate.identifier}</span>
+                              <span className="truncate">{candidate.title}</span>
+                           </ContextMenuRadioItem>
+                        ))}
+                     </ContextMenuRadioGroup>
                   </ContextMenuSubContent>
                </ContextMenuSub>
                <ContextMenuItem disabled={!issue?.parentId} onClick={() => actions.removeParent()}>
@@ -236,13 +284,14 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
                   <ContextMenuSubTrigger>{t('menu.addExisting')}</ContextMenuSubTrigger>
                   <ContextMenuSubContent className="w-64">
                      {relatives.map((candidate) => (
-                        <ContextMenuItem
+                        <ContextMenuCheckboxItem
                            key={candidate.id}
-                           onClick={() => actions.addExistingSubIssue(candidate.id)}
+                           checked={candidate.parentId === issue?.id}
+                           onCheckedChange={() => actions.addExistingSubIssue(candidate.id)}
                         >
                            <span className="text-muted-foreground">{candidate.identifier}</span>
                            <span className="truncate">{candidate.title}</span>
-                        </ContextMenuItem>
+                        </ContextMenuCheckboxItem>
                      ))}
                   </ContextMenuSubContent>
                </ContextMenuSub>

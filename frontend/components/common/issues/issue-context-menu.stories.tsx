@@ -67,12 +67,54 @@ export const SetPriorityFromSubmenu: Story = {
       // A synthetic pointer click on a Radix submenu item closes the menu
       // without selecting (the submenu's pointer-grace logic has no real
       // coordinates to work with), so the item is chosen the keyboard way.
-      (await body.findByRole('menuitem', { name: /^Low/ })).focus();
+      (await body.findByRole('menuitemradio', { name: /^Low/ })).focus();
       await userEvent.keyboard('{Enter}');
       await waitFor(() =>
          expect(useIssuesStore.getState().getIssueById(sharedFilter.id)?.priority.id).toBe('low')
       );
       await expect(await body.findByText('Priority updated to Low')).toBeVisible();
+   },
+};
+
+export const CurrentValuesChecked: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.pointer({
+         keys: '[MouseRight]',
+         target: canvas.getByText(sharedFilter.title),
+      });
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(await body.findByRole('menuitem', { name: /Status/ }));
+      await expect(await body.findByRole('menuitemradio', { name: /Todo/ })).toHaveAttribute(
+         'aria-checked',
+         'true'
+      );
+      await userEvent.click(await body.findByRole('menuitem', { name: /Assignee/ }));
+      await expect(
+         await body.findByRole('menuitemradio', { name: /Andrea Lunelio/ })
+      ).toHaveAttribute('aria-checked', 'true');
+      await userEvent.click(await body.findByRole('menuitem', { name: /Priority/ }));
+      await expect(await body.findByRole('menuitemradio', { name: /Urgent/ })).toHaveAttribute(
+         'aria-checked',
+         'true'
+      );
+      await userEvent.click(await body.findByRole('menuitem', { name: /Labels/ }));
+      await expect(await body.findByRole('menuitemcheckbox', { name: /Frontend/ })).toHaveAttribute(
+         'aria-checked',
+         'true'
+      );
+      await expect(body.getByRole('menuitemcheckbox', { name: /^Bug$/ })).toHaveAttribute(
+         'aria-checked',
+         'true'
+      );
+      await expect(body.getByRole('menuitemcheckbox', { name: /Backend/ })).toHaveAttribute(
+         'aria-checked',
+         'false'
+      );
+      await userEvent.click(await body.findByRole('menuitem', { name: /Project/ }));
+      await expect(await body.findByRole('menuitemradio', { name: /No project/ })).toHaveAttribute(
+         'aria-checked',
+         'true'
+      );
    },
 };
 
