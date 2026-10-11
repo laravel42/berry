@@ -297,6 +297,16 @@ export function IssueArtifacts({
       () => buildArtifactTree(visibleArtifacts, visibleFolders),
       [visibleArtifacts, visibleFolders]
    );
+   // Folders start closed. Seeding during render, once, so the first paint is
+   // not a tree that then snaps shut.
+   const [foldersSeeded, setFoldersSeeded] = useState(false);
+   if (!foldersSeeded) {
+      const paths = folderPaths(tree);
+      if (paths.length > 0) {
+         setFoldersSeeded(true);
+         setCollapsed(new Set(paths));
+      }
+   }
    // The files in the order the tree shows them, so the viewer's arrows walk
    // the tree rather than the order the server happened to send.
    const ordered = useMemo(() => flatten(tree), [tree]);
@@ -421,15 +431,7 @@ export function IssueArtifacts({
    };
 
    const collapseAll = () => {
-      const paths: string[] = [];
-      const walk = (nodes: ArtifactTreeNode[]) => {
-         for (const node of nodes) {
-            if (node.file) continue;
-            paths.push(node.path);
-            walk(node.children);
-         }
-      };
-      walk(tree);
+      const paths = folderPaths(tree);
       setCollapsed((previous) => new Set(previous.has(ROOT) ? [ROOT, ...paths] : paths));
    };
 
@@ -1346,6 +1348,19 @@ function blankFile(path: string, runId: string | undefined): RunArtifact {
       downloadUrl: '',
       createdAt: '',
    };
+}
+
+function folderPaths(nodes: ArtifactTreeNode[]): string[] {
+   const paths: string[] = [];
+   const walk = (items: ArtifactTreeNode[]) => {
+      for (const node of items) {
+         if (node.file) continue;
+         paths.push(node.path);
+         walk(node.children);
+      }
+   };
+   walk(nodes);
+   return paths;
 }
 
 function parentOf(path: string): string {
