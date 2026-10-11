@@ -156,7 +156,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -675,7 +675,8 @@ const executor = new RuntimeTaskExecutor({
                  runtimeId === 'cursor' ||
                  runtimeId === 'kimi' ||
                  runtimeId === 'kiro' ||
-                 runtimeId === 'grok'
+                 runtimeId === 'grok' ||
+                 runtimeId === 'qoder'
               ) {
                  return {
                     type: 'oauth',
@@ -690,7 +691,9 @@ const executor = new RuntimeTaskExecutor({
                                 ? KIRO_CLI_LOGIN
                                 : runtimeId === 'grok'
                                   ? GROK_CLI_LOGIN
-                                  : CLAUDE_CLI_LOGIN,
+                                  : runtimeId === 'qoder'
+                                    ? QODER_CLI_LOGIN
+                                    : CLAUDE_CLI_LOGIN,
                     accountId: connection.external_account_id,
                     accountName: connection.external_account_name,
                  };
@@ -1127,7 +1130,8 @@ registry.registerAll(
             request.runtimeId === 'codex' ||
             request.runtimeId === 'cursor' ||
             request.runtimeId === 'kimi' ||
-            request.runtimeId === 'grok'
+            request.runtimeId === 'grok' ||
+            request.runtimeId === 'qoder'
          ) {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
@@ -1241,7 +1245,7 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor'] as const }),
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor', 'qoder'] as const }),
       // A title is a completion on the compute host. Without one it would sit
       // queued ahead of the next reply and nothing would claim it.
       complete: defaultTarget ? complete : null,
@@ -1435,7 +1439,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok', 'qoder'] }),
 });
 dispatcher.start();
 

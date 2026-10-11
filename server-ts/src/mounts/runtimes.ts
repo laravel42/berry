@@ -10,7 +10,7 @@ import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
 import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN } from '../runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
    AiRuntimeConnectionNotFound,
@@ -48,6 +48,7 @@ const WORKSTATION_CLI_LOGINS = {
    kimi: { label: 'Kimi', token: KIMI_CLI_LOGIN, authMethod: 'kimi_cli', defaultAccountName: 'Kimi Code' },
    kiro: { label: 'Kiro', token: KIRO_CLI_LOGIN, authMethod: 'kiro_cli', defaultAccountName: 'Kiro' },
    grok: { label: 'Grok', token: GROK_CLI_LOGIN, authMethod: 'grok_cli', defaultAccountName: 'Grok' },
+   qoder: { label: 'Qoder', token: QODER_CLI_LOGIN, authMethod: 'qoder_cli', defaultAccountName: 'Qoder' },
 } as const;
 
 const seconds = z.number().int().min(60).max(28_800);
@@ -320,7 +321,8 @@ export function runtimeMounts(options: {
          runtimeId === 'cursor' ||
          runtimeId === 'kimi' ||
          runtimeId === 'kiro' ||
-         runtimeId === 'grok'
+         runtimeId === 'grok' ||
+         runtimeId === 'qoder'
       ) {
          // Each keeps its login inside the CLI on this workstation. Berry
          // forwards no API key: the oauth token is a non-secret sentinel.
@@ -515,7 +517,8 @@ export function runtimeMounts(options: {
             runtimeId === 'codex' ||
             runtimeId === 'cursor' ||
             runtimeId === 'kimi' ||
-            runtimeId === 'grok')
+            runtimeId === 'grok' ||
+            runtimeId === 'qoder')
       ) {
          const credential = {
             type: 'oauth' as const,

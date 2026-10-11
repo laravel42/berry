@@ -119,7 +119,7 @@ async function* prepend<T>(first: IteratorResult<T>, rest: AsyncIterator<T>): As
 
 const ZERO: Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null };
 
-/** Kiro, Claude, Codex, Kimi, Cursor, and Grok run in a process beside the server, so they need no AgentCore or HTTP host. */
+/** Kiro, Claude, Codex, Kimi, Cursor, Grok, and Qoder run in a process beside the server, so they need no AgentCore or HTTP host. */
 const WORKSTATION_TARGET: RuntimeTarget = {
    id: null,
    driver: 'http',
@@ -136,7 +136,8 @@ function runsOnWorkstation(aiRuntimeId: string | null): boolean {
       aiRuntimeId === 'codex' ||
       aiRuntimeId === 'kimi' ||
       aiRuntimeId === 'cursor' ||
-      aiRuntimeId === 'grok'
+      aiRuntimeId === 'grok' ||
+      aiRuntimeId === 'qoder'
    );
 }
 const STREAM_ENDED: Failure = {

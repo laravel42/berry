@@ -14,7 +14,7 @@ describe('AI runtime catalog', () => {
 
    test('advertises only a fully implemented integration as available', () => {
       const available = AI_RUNTIME_CATALOG.filter((runtime) => runtime.availability === 'available');
-      assert.deepEqual(available.map((runtime) => runtime.id), ['claude', 'codex', 'cursor', 'kimi', 'kiro', 'grok']);
+      assert.deepEqual(available.map((runtime) => runtime.id), ['claude', 'codex', 'cursor', 'kimi', 'kiro', 'qoder', 'grok']);
       assert.equal(available[0]?.executionMode, 'agent_process');
       assert.equal(available[0]?.billing, 'subscription');
       assert.equal(available.find((runtime) => runtime.id === 'kiro')?.unavailableReason, null);
@@ -23,6 +23,7 @@ describe('AI runtime catalog', () => {
       assert.equal(available.find((runtime) => runtime.id === 'cursor')?.unavailableReason, null);
       assert.equal(available.find((runtime) => runtime.id === 'kimi')?.unavailableReason, null);
       assert.equal(available.find((runtime) => runtime.id === 'grok')?.unavailableReason, null);
+      assert.equal(available.find((runtime) => runtime.id === 'qoder')?.unavailableReason, null);
 
       for (const runtime of AI_RUNTIME_CATALOG.filter((entry) => entry.availability === 'blocked')) {
          assert.ok(runtime.unavailableReason && runtime.unavailableReason.length > 20, runtime.id);
