@@ -41,7 +41,7 @@ function nextLine(): Promise<string> {
    });
 }
 
-let incoming = Buffer.alloc(0);
+let incoming: Buffer = Buffer.alloc(0);
 let reading = false;
 
 if (runningAsBridge) {

@@ -1,33 +1,44 @@
 HANDOFF.md
 
-# Handoff from BER-244
+# Handoff from BER-245
 
-Wire the Kimi AI runtime (workstation CLI login)
+Wire the Grok AI runtime (workstation CLI login)
 
-The reviewer's blocking concern is specific: `kimi.ts` reads the Berry MCP tool identity at `_meta.mcpTool.identity`, but the review wants evidence that `kimi acp` actually emits that shape in its `session/request_permission` payload (vs. a Kiro-style nesting). I need to verify the real ACP `session/request_permission` payload shape against official Kimi/ACP docs and make `berryToolName` robust to the actual shape.
+This run is a merge reconciliation ("fix conflicts"). Let me read the merge status first.4 files need manual reconciliation. Let me find all conflict markers.Matches STATUS.md. The pattern (this task adds Grok; main gained a sibling runtime, likely Kimi/Cursor). Let me start with envelope-builder.ts (1 conflict).This conflict is an import list. Ours has `GROK_CLI_LOGIN` and `isKiroApiKey`; main has `KIRO_CLI_LOGIN` (new) and no `isKiroApiKey`. Interesting — main changed Kiro from an API key to a CLI login sentinel. I need the union: keep `GROK_CLI_LOGIN` (ours) and `KIRO_CLI_LOGIN` (main's new), and figure out whether `isKiroApiKey` is still used. Let me check how the file uses these before merging — the Kiro auth-check block may have changed on main. Let me look at the whole envelope-builder auth-check region and how Kiro is validated now.Key finding: line 553 (settled region, from main) now validates Kiro with `KIRO_CLI_LOGIN` and `credential.type !== 'oauth'` — main migrated Kiro away from the API key to a CLI login sentinel. So `isKiroApiKey` is **no longer used** in this file, and `KIRO_CLI_LOGIN` **is** used. The grok block (line 532, ours) uses `GROK_CLI_LOGIN`.
 
-Let me first find the checkout and look at the current `kimi.ts` permission code.Now let me verify the real ACP `session/request_permission` payload shape from the official Agent Client Protocol spec, since both Kiro and Kimi speak ACP and the standard shape is what matters. Let me check the ACP spec for the permission request structure and how tool calls (including MCP tool calls) are identified.Let me use the remote web search tool to find the ACP permission request schema and how the tool call / MCP tool is represented in `session/request_permission`.Key finding: the standard ACP `session/request_permission` payload carries a `toolCall` object (with `toolCallId`, `title`, `kind`, `rawInput`, etc.) and `options`. There is **no standard `_meta.mcpTool.identity` field** — that nesting is Kiro-specific (`_meta.kiro.mcpTool.identity`). The standard ACP shape identifies the tool by `toolCall` fields, and importantly `rawInput` can be empty when the permission request arrives before `tool_call_update` (per the OpenCode issues).
+So the correct merged import is the union of what's actually used: `CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN` and NOT `isKiroApiKey` (since the Kiro check no longer uses it). Let me verify `isKiroApiKey` isn't used elsewhere in the file (only line 15 import).
 
-Let me read the authoritative ACP schema to see exactly what `session/request_permission` contains and how an MCP tool call surfaces its name/server.Let me use the search tool to get the schema fields for the permission request and tool call, since direct fetch is being declined.This is decisive and surfaces a real security concern beyond the review's. The findings:
+The grep shows `isKiroApiKey` only on line 15 (the import). So drop it. Let me resolve.envelope-builder.ts resolved (grok and kiro both validated via CLI-login sentinels, no `isKiroApiKey`). The Kiro-migration-to-CLI-login on main is significant — it affects index.ts and mounts/runtimes.ts too. Let me verify `isKiroApiKey` and `KIRO_CLI_LOGIN` exist in envelope.ts (the cleanly-merged file).Confirmed: envelope.ts (cleanly merged) now defines `KIRO_CLI_LOGIN` and `GROK_CLI_LOGIN` (plus Kimi, Cursor). `isKiroApiKey` is gone — main migrated Kiro to a CLI login. Good, my envelope-builder resolution matches. Now index.ts (3 conflicts).This is the key semantic change: main migrated Kiro from a sealed API key (`type: 'api_key'`, DB-stored `credential_sealed`) to the CLI-login sentinel (`KIRO_CLI_LOGIN`, `type: 'oauth'`). Conflict 3 shows ours still has the entire old Kiro-api-key block, while main replaced it with the sentinel in the token ternary. 
 
-1. **Standard ACP v1 `session/request_permission` carries a `toolCall` field** (a `ToolCallUpdate` with `toolCallId`, optional `title`, optional `name`, optional `rawInput`). There is **no standard `_meta.mcpTool.identity`** — that's Kiro's custom extension (`_meta.kiro.mcpTool.identity`). So `kimi.ts` reading `_meta.mcpTool.identity` is reading a field that standard ACP agents (including Kimi Code CLI, which is a standard ACP server) **do not emit** → **every Berry tool call would be denied and runs would stall**. The reviewer's blocking concern is correct and the current code is wrong.
+I must adopt **main's** approach (Kiro is now a CLI login like the others) AND add Grok to the ternary. Let me see the full ternary structure before this conflict to merge correctly. Let me read the credential-resolution block.Now I understand the full structure. Main collapsed Kiro into the single `oauth`-sentinel branch and removed the sealed-API-key block entirely. The merged result must:
+- Condition: include claude/codex/cursor/kimi/**kiro**/**grok** (union).
+- Token ternary: codex→cursor→kimi→**kiro(KIRO_CLI_LOGIN)**→**grok(GROK_CLI_LOGIN)**→claude, then close the branch (no separate kiro-api-key block).
 
-2. The ACP tool `name`/`title`/`rawInput` are explicitly **"opaque, informational metadata: they do not advertise a capability or grant authorization"**, and there are published advisories (OpenClaw GHSA) about **auto-approval bypass via untrusted tool metadata / name heuristics / rawInput spoofing**. So approving based on a tool name/title alone is a known anti-pattern.
+Let me resolve all three index.ts conflicts together.No markers remain in index.ts. But I removed a block that used `sealerFromKey` / `config.integrationKey` for Kiro — I must check those are still used elsewhere in index.ts (otherwise an unused-import/var could break typecheck). Let me check, and verify the resolved region.index.ts resolved cleanly — the ternary now handles cursor/kimi/kiro/grok, and `sealerFromKey` is still used 9 times elsewhere (no unused-import issue). Now mounts/runtimes.ts (4 conflicts) — the most complex, likely with the Kiro API-key→CLI-login migration too.This is the crux. Main migrated Kiro into the `WORKSTATION_CLI_LOGINS` table (a CLI-login runtime, no more `kiroCredential` sealed-key path). Ours still has the old `kiroCredential(...)` branch for Kiro and treats grok as the only new CLI login.
 
-This changes the correct design. The right approach: **don't rely on a provider-specific `_meta` nesting at all**, and don't trust a free-form title. Kimi Code CLI is a standard ACP server, so the permission payload is the standard shape (`toolCall` with `toolCallId`/`name`/`title` and `options`). 
+For the merge:
+- **Conflict 1 (import):** union — `GROK_CLI_LOGIN` + `KIRO_CLI_LOGIN`, drop `isKiroApiKey` (main removed the sealed-key path, so `isKiroApiKey` and `kiroCredential` are likely gone).
+- **Conflict 2 (table):** keep both `grok` (ours) and `kiro` (main) entries.
+- **Conflict 3 (connect branch condition):** union — claude/codex/cursor/kimi/**kiro**/**grok**.
+- **Conflict 4 (models route):** adopt main's simpler form (all are CLI logins now, so `const credential = { type:'oauth', token: WORKSTATION_CLI_LOGINS[runtimeId].token, ... }` with no `kiroCredential` fallback) and add grok+kiro to the condition.
 
-The question is how to safely approve only Berry MCP tools. In the standard ACP shape, the agent-side `toolCall.name` for an MCP tool is the tool name, but there is no guaranteed server-qualified identity in the permission request. The robust approach used across these adapters: the MCP tool call's `name`/`title` corresponds to the Berry MCP server's tools, and I gate strictly against the known allow-set, choosing the reject option by default. But a native tool titled like a Berry tool must not be approved.
-
-Let me look at how the actual kiro.ts and cursor.ts resolve this, and whether Kimi Code CLI (which the catalog says is TypeScript, repo `MoonshotAI/kimi-code`) prefixes MCP tool names. Let me first read kiro.ts and cursor.ts permission functions in this checkout to mirror the proven pattern precisely.Now I understand the landscape. Cursor doesn't use ACP permission callbacks (it's `--print --output-format stream-json` with a project-level permissions policy file, so no `request_permission` identity issue). Kiro uses its custom `_meta.kiro.mcpTool.identity`. Kimi Code CLI is a **standard ACP server**, so its `session/request_permission` uses the standard shape.
-
-Let me verify precisely how Kimi Code CLI (the actual implementation, `MoonshotAI/kimi-code`, TypeScript) names MCP tools in the permission request. The critical question: for an MCP server named `berry` with tool `read_issue`, what does `toolCall.name`/`title` look like in Kimi's `request_permission`? Let me search the Kimi Code CLI repo and ACP MCP docs.There's an official `kimi acp` reference page. Let me fetch it to see the exact ACP permission/tool-call payload Kimi emits.Web fetch is being declined. I have enough from the authoritative ACP spec results to make the correct engineering decision. Let me reason it through with the systematic-debugging lens, since this is the crux defect.
-
-**Estab
+But I must verify `kiroCredential` and `isKiroApiKey` are truly gone from the file now (main may have removed `kiroCredential` entirely). Let me check their usage.`kiroCredential` and `isKiroApiKey` appear ONLY inside the conflict regions (lines 529 and 14) — both from ours. Main removed them. So after I resolve conflict 4 to main's form (no `kiroCredential` fallback), `kiroCredential` and `isKiroApiKey` are no longer r
 
 ## Files
-- server-ts/src/agents/runtime/adapters/kimi-acp.ts
-- server-ts/src/agents/runtime/adapters/kimi.test.ts
-- server-ts/src/agents/runtime/adapters/kimi.ts
+- .gitignore
+- docs/ai-runtimes.md
+- server-ts/src/agents/runtime/adapters/claude-mcp-bridge.ts
+- server-ts/src/agents/runtime/adapters/grok.test.ts
+- server-ts/src/agents/runtime/adapters/grok.ts
+- server-ts/src/agents/runtime/workstation/host.ts
+- server-ts/src/index.ts
+- server-ts/src/mounts/runtimes.ts
+- server-ts/src/runtime/ai-runtime-catalog.test.ts
+- server-ts/src/runtime/ai-runtime-catalog.ts
+- server-ts/src/runtime/envelope-builder.ts
+- server-ts/src/runtime/envelope.ts
+- server-ts/src/runtime/task-executor.ts
+- server-ts/src/runtime/workstation-kiro.ts
 
 Repository: laravel42/berry
-Branch: software-engineer/ber-244-wire-the-kimi-ai-runtime-workstation
+Branch: software-engineer/ber-245-wire-the-grok-ai-runtime-workstation
