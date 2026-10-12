@@ -162,9 +162,13 @@ visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md
 **The organization gates and routes agent work.** Each role agent has a
 contract (mission, allowed tools, delegation and escalation targets, required
 reviewers) and an autonomy level from 1–5 that ceilings its effective tools
-regardless of what the contract allows. `qa-engineer` review is always
+regardless of what the contract allows. `reviewer` review is always
 blocking; `security-engineer` and `software-architect` reviews are blocking
-when their labels or paths are touched. Agents can `propose_work` and
+when their labels or paths are touched. A run writes its handoff at
+`.handoffs/<identifier> - <slug of the title>` and tells the next dependent
+task to read that file. Before any other tool the agent calls
+`list_run_tools` on the berry MCP server; that reply is the only tool set
+the run may use. Agents can `propose_work` and
 `delegate_to_agent`, and escalate to a role or to a human — but never to
 `done`, and never through a merge tool.
 

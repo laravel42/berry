@@ -916,7 +916,7 @@ Request `{ "note"? }`, `Idempotency-Key` required. The caller must be the addres
 
 ### Organization (route table only)
 
-Every workspace is provisioned with a default organization: a protected Orchestrator agent plus six core role agents; fourteen specialists (product, engineering, quality/security, platform, growth-insight, and leadership departments) are added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (ADR-0018). Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
+Every workspace is provisioned with a default organization: a protected Orchestrator agent plus seven core role agents; fourteen specialists (product, engineering, quality/security, platform, growth-insight, and leadership departments) are added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (ADR-0018). Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
 
 | Route | Purpose |
 |---|---|
@@ -987,6 +987,8 @@ This prefix is how a running agent acts on Berry — the only path it has, since
 | `POST /api/v1/agent-tools/{name}` | Call one tool |
 
 Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_files`, `read_file`, `write_file`, `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
+
+Subscription runtimes receive that same set from the berry MCP server. The task prompt requires `list_run_tools` before any other action. Until that call succeeds, the server and the in-process loop refuse every other tool. The reply names the tools this run may use. A finished run's handoff is the file `.handoffs/<identifier> - <slug of the title>` in the repository. The first line is that path. A task that depends on it is told to read the file. `HANDOFF.md` at the repository root is not a handoff.
 
 ### Stream endpoints
 

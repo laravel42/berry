@@ -230,7 +230,14 @@ them:
    tools (`set_status`, `read_file`, `list_files`, …) never allow an agent to
    set a task to `done` or `cancelled`; organization tools
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
-   separately.
+   separately. Subscription runtimes receive those tools from the berry MCP
+   server (`src/agents/runtime/adapters/kiro-mcp.ts`). The task prompt tells
+   the agent to call `list_run_tools` on that server before anything else;
+   the server and the in-process loop refuse every other tool until that
+   call succeeds (`src/agents/runtime/run-tools.ts`). A finished run writes
+   its handoff at `.handoffs/<identifier> - <slug>` (`src/runs/handoff.ts`).
+   A later task that depends on it is told that path. The root file
+   `HANDOFF.md` is not a handoff.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
    from `src/agents/runtime/` (the native Strands loop and Bedrock/Kilo
    clients) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
@@ -243,7 +250,7 @@ them:
 ## The organization
 
 Every workspace is provisioned with an "organization": a protected
-Orchestrator agent plus six core roles; fourteen more are specialists a
+Orchestrator agent plus seven core roles; fourteen more are specialists a
 person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 `CATALOG_VERSION`). Each role has a mission, a contract, an **autonomy level**
 (1–5), delegation and escalation rules, and required reviewers.
@@ -258,8 +265,9 @@ person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 - **Reviews** (`src/organization/reviews.ts`) — required reviewers are
   selected from the author's contract plus labels, changed paths, impact
   class and workflow, with `blocking` or `advisory` authority (for example,
-  QA is always blocking; security and architecture are blocking on matching
-  labels or paths). `submit_review` (autonomy level 5 only) records a
+  `reviewer` is always blocking for a role that can run commands; security
+  and architecture are blocking on matching labels or paths). QA writes and
+  runs tests. `submit_review` (autonomy level 5 only) records a
   blocking review; approval never releases work by itself.
 - **Provisioning** (`src/organization/provision.ts`) — idempotent per
   `role_key`, runs at boot for every workspace; a person-edited contract

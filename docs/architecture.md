@@ -147,7 +147,7 @@ sequenceDiagram
     B->>G: open pull request
     B->>DB: task → In review
     alt AutoGate on
-        B->>R: required role reviews (QA, Security, …)
+        B->>R: required role reviews (Reviewer, Security, …)
         R-->>B: approve or send back with findings
         B->>G: merge approved pull request
         B->>DB: Done, release dependents → Todo, queue runs
@@ -163,6 +163,6 @@ sequenceDiagram
 
 - **The server never calls a model.** Native model calls happen inside the runtime image. A repository check fails if a model SDK is imported by the server. With the Kilo gateway, the server reads Kilo's model list, usage leaderboard and account balance, and the public Terminal-Bench leaderboards, but only to rank models and reconcile costs. A connected Kiro subscription is a `kiro-cli` process on the workstation; the server starts it and records its events, and it does not call the model itself.
 - **How an agent reaches a model.** By default the runtime calls Amazon Bedrock directly, on the agent's model or the server's default. With `BERRY_MODEL_PROVIDER=kilo` it calls the Kilo AI gateway ([ADR-0017](adr/0017-kilo-gateway-model-tiers.md)), and an agent runs on a Berry tier rather than a fixed model: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow. BerryFree and BerryAuto were removed. Berry fills those tiers from the leaderboards, so their models change over time; each task keeps one of its tier's models so its prompt cache stays warm, with a fallback model if that one fails. Paid calls must be served by the deployment's own Bedrock key added to Kilo, and a run costs exactly what Kilo reports. With Kiro connected, agent runs use Kiro instead, and the same tiers hold models placed from Kiro. The same model may sit on more than one tier. Kiro does not give Berry a container per model.
-- **One narrow door for agents.** An agent reaches Berry only through the agent tools API, with a token minted for its run. The token names the workspace and the task; the model can't choose them. Each tool call is checked against the agent's autonomy level.
+- **One narrow door for agents.** An agent reaches Berry only through the agent tools API, with a token minted for its run. The token names the workspace and the task; the model can't choose them. Each tool call is checked against the agent's autonomy level. Subscription runtimes see those tools on the berry MCP server. The agent calls `list_run_tools` there before anything else, and every other tool call is refused until that reply comes back.
 - **A person releases the work.** No agent tool can set *Done* or *Cancelled*, no autonomy level includes a merge tool, and a reviewer agent's approval leaves the task in review.
 - **Everything is a record.** Runs are append-only event logs, task changes write outbox events in the same transaction, and live pages replay from that table.

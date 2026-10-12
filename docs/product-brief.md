@@ -57,8 +57,8 @@ Berry's core loop mirrors how a team already works, extended to agents:
 2. **Assign to an agent.** Berry queues a run and dispatches it to the agent
    runtime with the approved context. Steps, events, usage, and cost are
    correlated back to that run and issue.
-3. **Work happens on the issue.** The agent posts progress and results as issue comments; status transitions happen as the work moves, up to *in review* but never past it. A human can interject in the thread, redirect, or take over.
-4. **Review gate.** When the agent delivers, the issue moves to *in review*. Nothing ships without a human accepting it. Review is a first-class state with the run's evidence (diff, logs, cost, audit hash) attached — not a comment saying "LGTM". Peer role agents (for example QA, security, or architecture) may add their own blocking or advisory review first; none of them can release the work.
+3. **Work happens on the issue.** The agent posts progress and results as issue comments; status transitions happen as the work moves, up to *in review* but never past it. Before any other tool it calls `list_run_tools` on the berry MCP server, and that reply is the only tool set the run may use. It writes a handoff at `.handoffs/<identifier> - <slug of the title>` for the next task that waits on this one. A human can interject in the thread, redirect, or take over.
+4. **Review gate.** When the agent delivers, the issue moves to *in review*. Nothing ships without a human accepting it. Review is a first-class state with the run's evidence (diff, logs, cost, audit hash) attached — not a comment saying "LGTM". A role that writes code is always blocking-reviewed by the Reviewer. Security and architecture add a blocking review when their labels or paths are touched. QA writes and runs tests. None of them can release the work.
 5. **Done & audit.** Human acceptance and Berry workflow history are durable
    product records. Run artifacts are linked as execution evidence; they do not
    replace Berry's run ledger.
@@ -67,8 +67,8 @@ The inner loop (issue → agent run → in review) is autonomous up to staging, 
 
 ## The organization
 
-Every workspace is provisioned with an Orchestrator and six core roles
-(Product Lead, Product Designer, Web Designer, Software Engineer, QA Engineer, DevOps
+Every workspace is provisioned with an Orchestrator and seven core roles
+(Product Lead, Product Designer, Web Designer, Software Engineer, QA Engineer, Reviewer, DevOps
 Engineer); fourteen specialists across the same departments are added by an
 admin when the work calls for them (ADR-0018). Each role carries a contract (mission, allowed tools, delegation
 targets, escalation path, review domains) and an autonomy level from 1 to 5
