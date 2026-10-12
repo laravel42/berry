@@ -195,8 +195,9 @@ function reportingContract(identifier: string, title: string): string {
       'The first line of that file is the same path. It is the account the next ' +
       'task reads, so name each file that matters and what it is for, how to ' +
       'verify the work, and what to leave alone. Do not paste file contents into ' +
-      'it, and do not write HANDOFF.md or a handoff anywhere else. Berry stores ' +
-      'the same note at that path for whoever is blocked by this task.\n' +
+      'it, and do not write HANDOFF.md or a handoff anywhere else. Do not delete ' +
+      'any file under .handoffs/. Leave every other file in that directory as it is. ' +
+      'Berry stores the same note at that path for whoever is blocked by this task.\n' +
       'A file you save with write_file is written into the workspace at that path, so the ' +
       'next command can use it. A file a command produces (a merged clip, a built ' +
       'archive) is saved on the task with collect_file — the workspace is ' +

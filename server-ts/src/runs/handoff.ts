@@ -78,15 +78,22 @@ export function handoffCandidate(document: string): { path: string; mode: '10064
 /**
  * Puts this task's handoff among the files the run will commit.
  *
- * A root HANDOFF.md, or a copy already at this path, is replaced. A
- * candidate that is already at the delivery limit stays as it is.
+ * A root HANDOFF.md, or a copy already at this path, is replaced. A deletion
+ * of any other file under `.handoffs/` is left out, so that directory stays.
+ * A candidate that is already at the delivery limit stays as it is.
  */
 export function withHandoffFile<T extends { path: string }>(
    files: T[],
    document: string
 ): Array<T | NonNullable<ReturnType<typeof handoffCandidate>>> {
    const candidate = handoffCandidate(document);
-   const rest = files.filter((file) => file.path !== 'HANDOFF.md' && file.path !== candidate?.path);
+   const rest = files.filter((file) => file.path !== 'HANDOFF.md' && file.path !== candidate?.path && !isHandoffDeletion(file));
    if (candidate === null || rest.length >= 2000) return rest.length === files.length ? files : rest;
    return [...rest, candidate];
+}
+
+/** A removed `.handoffs` file. The delivery must not publish that removal. */
+function isHandoffDeletion(file: { path: string }): boolean {
+   if (!file.path.startsWith('.handoffs/')) return false;
+   return 'content' in file && (file as { content: unknown }).content === null;
 }

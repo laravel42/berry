@@ -31,6 +31,7 @@ test('a task that waits on another is told to read its handoff and not to scan i
    assert.match(instruction, /read_file path \.handoffs\/BER-216 - gitlab-oauth2-integration/);
    assert.match(instruction, /Do not scan, list, or search the other files/);
    assert.match(message, /write_file at \.handoffs\/L42-7 - decide-the-cache-ttl/);
+   assert.match(message, /Do not delete any file under \.handoffs\//);
    assert.doesNotMatch(buildMessage(base), /Handoffs from the tasks/);
 });
 

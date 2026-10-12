@@ -38,3 +38,15 @@ test('the handoff is one of the files the run commits', () => {
    assert.equal(handoff?.path, '.handoffs/BER-12 - add-the-clock');
    assert.equal(Buffer.from(handoff && 'content' in handoff ? handoff.content : '', 'base64').toString('utf8'), document);
 });
+
+test('a deletion under .handoffs is left out of the commit', () => {
+   const document = '.handoffs/BER-12 - add-the-clock\n\n# Handoff from BER-12\n';
+   const files = withHandoffFile(
+      [
+         { path: 'src/clock.ts', mode: '100644' as const, content: 'eA==' },
+         { path: '.handoffs/BER-9 - older-note', mode: '100644' as const, content: null },
+      ],
+      document
+   );
+   assert.deepEqual(files.map((file) => file.path), ['src/clock.ts', '.handoffs/BER-12 - add-the-clock']);
+});
