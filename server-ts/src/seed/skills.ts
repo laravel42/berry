@@ -43,4 +43,12 @@ export async function upsertPackedSkills(
             updated_at = EXCLUDED.updated_at
       `;
    }
+   const labels = [...new Set(skills.flatMap((skill) => skill.labels))];
+   if (labels.length === 0) return;
+   await tx`
+      INSERT INTO skill_labels (workspace_id, name, color, created_by)
+      SELECT ${workspaceId}, label, berry_skill_label_color(label), ${createdBy}
+        FROM unnest(${labels}::text[]) AS label
+      ON CONFLICT (workspace_id, lower(name)) WHERE archived_at IS NULL DO NOTHING
+   `;
 }

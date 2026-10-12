@@ -11,6 +11,7 @@ const meta = {
       onOpenChange: fn(),
       onCreated: fn(),
       existingNames: skills.map((skill) => skill.name),
+      labelOptions: [...new Set(skills.flatMap((skill) => skill.labels))].sort(),
    },
    beforeEach: ({ msw }) => {
       msw.use(...storyHandlers);
@@ -42,9 +43,17 @@ export const Create: Story = {
          dialog.getByRole('textbox', { name: 'Description' }),
          'Summarize an incident timeline for the postmortem.'
       );
+      await userEvent.click(dialog.getByRole('button', { name: 'Add label' }));
+      await userEvent.click(
+         await within(canvasElement.ownerDocument.body).findByRole('button', { name: 'frontend' })
+      );
       await userEvent.click(dialog.getByRole('button', { name: 'Create skill' }));
-      // POST /api/v1/skills answers from MSW.
-      await waitFor(() => expect(args.onCreated).toHaveBeenCalled());
+      // POST /api/v1/skills answers from MSW, including the labels chosen above.
+      await waitFor(() =>
+         expect(args.onCreated).toHaveBeenCalledWith(
+            expect.objectContaining({ labels: ['frontend'] })
+         )
+      );
       await expect(args.onOpenChange).toHaveBeenCalledWith(false);
    },
 };

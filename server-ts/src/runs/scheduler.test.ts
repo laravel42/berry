@@ -63,7 +63,7 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
          {
             name: `Scheduled ${randomUUID().slice(0, 6)}`, description: null,
             assigneeType: 'agent', assigneeId: fixture.agentId, promptTemplate: 'Tick.',
-            executionMode: 'create_issue', boardId: fixture.boardId, issueId: null,
+            executionMode: 'create_issue', boardId: fixture.boardId, projectId: null, issueId: null,
             quotaPeriod: 'none', quotaMax: null,
          },
          fixture.userId
@@ -76,6 +76,18 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
           WHERE id = ${trigger.id}`;
       return { autopilotId: autopilot.id, triggerId: trigger.id };
    }
+
+   test('a disconnected workspace keeps its schedule due without creating work', async () => {
+      fired = [];
+      const { triggerId } = await dueAutopilot();
+      const [before] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      const scheduler = new AutopilotScheduler({ sql, logger: createLogger('scheduler-test'), canFire: async () => false, fire: async () => { throw new Error('must not fire'); } });
+      await scheduler.tick();
+      const [after] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      assert.equal(String(after?.next_fire_at), String(before?.next_fire_at));
+      const claims = await sql`SELECT id FROM sys_cron_executions WHERE trigger_id = ${triggerId}`;
+      assert.equal(claims.length, 0);
+   });
 
    test('two schedulers reaching for one due slot fire it exactly once', async () => {
       fired = [];

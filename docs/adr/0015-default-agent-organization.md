@@ -15,7 +15,7 @@
 ## Current state (2026-10-11)
 
 The roster and who reviews code are [ADR-0018](0018-core-roles-and-specialists.md)'s
-Current state: seven core roles besides the Orchestrator, and `reviewer` is
+Current state: six core roles besides the Orchestrator, and `reviewer` is
 the always-blocking reviewer of code. QA is not that reviewer. Autonomy
 ceilings, the ban on merge and on `done`/`cancelled`, and delegation checks
 from this record still hold. What a passing set of blocking reviews does is

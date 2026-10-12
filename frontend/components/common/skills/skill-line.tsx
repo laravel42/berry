@@ -1,6 +1,5 @@
 'use client';
 
-import { colorForSkillLabel } from '@/lib/skill-labels';
 import { Lock, MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -26,7 +25,6 @@ import type { SkillColumn } from './skills-filters';
 
 /** The widths every cell shares with its header, so the two line up. */
 export const COLUMN_WIDTH: Record<SkillColumn, string> = {
-   labels: 'w-52',
    agents: 'w-20',
    creator: 'w-28',
    updated: 'w-24',
@@ -35,7 +33,6 @@ export const COLUMN_WIDTH: Record<SkillColumn, string> = {
 
 /** Columns that drop out before the row starts crowding the name. */
 export const COLUMN_BREAKPOINT: Partial<Record<SkillColumn, string>> = {
-   labels: 'hidden md:flex',
    agents: 'hidden sm:flex',
    creator: 'hidden lg:flex',
    updated: 'hidden lg:flex',
@@ -160,26 +157,6 @@ export default function SkillLine({
                ) : null}
             </div>
          </button>
-
-         <Cell column="labels" columns={columns} className="min-w-0 flex-wrap overflow-hidden">
-            {skill.labels.map((label) => {
-               const color = colorForSkillLabel(label);
-               return (
-                  <span
-                     key={label}
-                     title={label}
-                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
-                     style={{
-                        backgroundColor: `${color}26`,
-                        borderColor: color,
-                        color,
-                     }}
-                  >
-                     <span className="max-w-[140px] truncate">{label}</span>
-                  </span>
-               );
-            })}
-         </Cell>
 
          <Cell column="agents" columns={columns}>
             <span className="truncate">

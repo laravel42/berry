@@ -123,11 +123,15 @@ export function checkUrl(raw: string, limits: Pick<FetchLimits, 'trustedHosts'>)
       throw new FetchRefused('URL_NOT_ALLOWED', 'A URL with credentials in it cannot be fetched.');
    }
    const host = url.hostname.replace(/^\[|\]$/g, '');
+   // A final DNS root dot does not turn localhost or a private suffix into
+   // a public host. Keep the trusted-host exemption exact; normalize only
+   // the name classified by the private-host rule.
+   const classifiedHost = host.toLowerCase().replace(/\.+$/, '');
    if (!limits.trustedHosts?.includes(host)) {
       if (isIP(host) && isBlockedAddress(host)) {
          throw new FetchRefused('ADDRESS_NOT_ALLOWED', 'That address is not on the public internet.');
       }
-      if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local')) {
+      if (classifiedHost === 'localhost' || classifiedHost.endsWith('.localhost') || classifiedHost.endsWith('.internal') || classifiedHost.endsWith('.local')) {
          throw new FetchRefused('ADDRESS_NOT_ALLOWED', 'That host is not on the public internet.');
       }
    }
@@ -140,6 +144,13 @@ type LookupCallback = (
    family?: number
 ) => void;
 
+/** Validate every resolved address; a public/private mixed answer is refused. */
+export function checkResolvedAddresses(hostname: string, addresses: readonly LookupAddress[], trustedHosts: readonly string[]): void {
+   if (!trustedHosts.includes(hostname) && addresses.some((entry) => isBlockedAddress(entry.address))) {
+      throw new FetchRefused('ADDRESS_NOT_ALLOWED', `${hostname} resolves to an address that is not on the public internet.`);
+   }
+}
+
 /** A DNS lookup that refuses a name resolving to any blocked address, at connect time. */
 function guardedLookup(trustedHosts: readonly string[]) {
    return (hostname: string, options: { all?: boolean; family?: number }, callback: LookupCallback) => {
@@ -147,8 +158,9 @@ function guardedLookup(trustedHosts: readonly string[]) {
          if (error) return callback(error, []);
          const list = addresses as LookupAddress[];
          if (list.length === 0) return callback(new Error(`${hostname} did not resolve`), []);
-         if (!trustedHosts.includes(hostname) && list.some((entry) => isBlockedAddress(entry.address))) {
-            const refused = new FetchRefused('ADDRESS_NOT_ALLOWED', `${hostname} resolves to an address that is not on the public internet.`);
+         try {
+            checkResolvedAddresses(hostname, list, trustedHosts);
+         } catch (refused) {
             return callback(refused as NodeJS.ErrnoException, []);
          }
          if (options.all) return callback(null, list);

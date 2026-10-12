@@ -129,6 +129,7 @@ export class SkillRepository {
             INSERT INTO skills (id, workspace_id, name, description, content, labels, created_by)
             VALUES (${id}, ${workspaceId}, ${input.name}, ${input.description}, ${input.content},
                     ${input.labels}, ${userId})`.catch(classify);
+         await ensureSkillLabels(tx, workspaceId, input.labels, userId);
          await writeFiles(tx, workspaceId, id, input.files);
       });
       return this.get(workspaceId, id);
@@ -146,6 +147,7 @@ export class SkillRepository {
                updated_at = now()
              WHERE id = ${id} AND workspace_id = ${workspaceId}`.catch(classify);
          if (updated.count !== 1) throw new NotFound();
+         if (patch.labels) await ensureSkillLabels(tx, workspaceId, patch.labels, null);
          if (patch.files) {
             await tx`DELETE FROM skill_files WHERE skill_id = ${id}`;
             await writeFiles(tx, workspaceId, id, patch.files);
@@ -177,6 +179,7 @@ export class SkillRepository {
                VALUES (${target}, ${workspaceId}, ${imported.name}, ${imported.description},
                        ${imported.content}, ${imported.labels}, ${imported.sourceKind},
                        ${imported.sourceUrl}, ${imported.sourceRef}, now(), ${userId})`.catch(classify);
+            await ensureSkillLabels(tx, workspaceId, imported.labels, userId);
          } else {
             const updated = await tx`
                UPDATE skills SET description = ${imported.description}, content = ${imported.content},
@@ -246,6 +249,26 @@ async function writeFiles(tx: Sql, workspaceId: string, skillId: string, files: 
          INSERT INTO skill_files (skill_id, workspace_id, path, content)
          VALUES (${skillId}, ${workspaceId}, ${file.path}, ${file.content})`.catch(classify);
    }
+}
+
+/**
+ * A name written onto a skill joins the workspace vocabulary if it is not
+ * already there. An existing colour is left alone: Settings is where a person
+ * chooses one.
+ */
+async function ensureSkillLabels(
+   tx: Sql,
+   workspaceId: string,
+   labels: string[],
+   userId: string | null
+): Promise<void> {
+   if (labels.length === 0) return;
+   await tx`
+      INSERT INTO skill_labels (workspace_id, name, color, created_by)
+      SELECT ${workspaceId}, label, berry_skill_label_color(label), ${userId}
+        FROM unnest(${labels}::text[]) AS label
+      ON CONFLICT (workspace_id, lower(name)) WHERE archived_at IS NULL DO NOTHING
+   `.catch(classify);
 }
 
 function toSkill(row: Record<string, unknown>): Skill {

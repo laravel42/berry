@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import { ActiveRunExists } from './repository.ts';
+import { taskExecutionAllowed } from './execution-policy.ts';
 import {
+   AiRuntimeSelectionError,
    resolveAiRuntimeSelection,
    resolveCompletionRuntime,
    retainAiRuntimeSelection,
@@ -156,6 +158,10 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
                    overrideAgentId,
                    berryAgentId: input.agentId,
                 });
+
+      if (!taskExecutionAllowed(aiRuntime.runtimeId)) {
+         throw new AiRuntimeSelectionError('AI_RUNTIME_NOT_CONNECTED', 'No executable runtime is selected. Connect a supported subscription runtime and place its model on the agent tier, or configure a native compute host.');
+      }
 
       await tx`
          INSERT INTO runs (id, workspace_id, issue_id, board_id, agent_id, kind, source, prompt,

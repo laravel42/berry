@@ -23,6 +23,7 @@ export const autopilotSchema = z.object({
    promptTemplate: z.string(),
    executionMode: z.enum(EXECUTION_MODES),
    boardId: z.string().nullable(),
+   projectId: z.string().nullable().default(null),
    issueId: z.string().nullable(),
    status: z.enum(['active', 'paused', 'archived']),
    version: z.number(),
@@ -120,6 +121,7 @@ export interface AutopilotDraft {
    promptTemplate: string;
    executionMode: (typeof EXECUTION_MODES)[number];
    boardId: string | null;
+   projectId: string | null;
    issueId: string | null;
    quotaPeriod: (typeof QUOTA_PERIODS)[number];
    quotaMax: number | null;

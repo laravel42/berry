@@ -38,6 +38,18 @@ const meta = {
          http.get('*/api/v1/github/:ws/settings', () => HttpResponse.json(githubSettingsState)),
          http.get('*/api/v1/github/:ws/accounts', () =>
             HttpResponse.json({ accounts: githubAccounts, installPending: false })
+         ),
+         http.get('*/api/v1/gitlab/:ws/settings', () =>
+            HttpResponse.json({
+               settings: {
+                  enabled: true,
+                  showLinkedMergeRequests: true,
+                  coAuthorTrailer: true,
+                  autoLinkMergeRequests: true,
+                  updatedAt: '2026-10-11T10:00:00Z',
+               },
+               canManage: true,
+            })
          )
       );
    },
@@ -78,6 +90,23 @@ export const GitHubOAuthDrawer: Story = {
       await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
       await expect(within(drawer).getByText('Pull requests on tasks')).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
+   },
+};
+
+/** Clicking GitLab opens the same drawer shape as GitHub. */
+export const GitLabSettingsDrawer: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      const gitlab = await canvas.findByRole('region', { name: 'GitLab' });
+      await expect(canvas.queryByText('Use GitLab in this workspace')).not.toBeInTheDocument();
+      await userEvent.click(
+         within(gitlab).getByRole('button', { name: /Connect a GitLab account/ })
+      );
+      const body = within(canvasElement.ownerDocument.body);
+      const drawer = await body.findByRole('dialog');
+      await expect(within(drawer).getByText('Use GitLab in this workspace')).toBeVisible();
+      await expect(within(drawer).getByText('Merge requests on tasks')).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Disconnect' })).toBeVisible();
    },
 };
 

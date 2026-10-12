@@ -38,6 +38,8 @@ export interface AutopilotDraft {
    promptTemplate: string;
    executionMode: ExecutionMode;
    boardId: string | null;
+   /** create_issue: the project each run's task is filed under, or none. */
+   projectId: string | null;
    issueId: string | null;
    quotaPeriod: QuotaPeriod;
    quotaMax: number | null;
@@ -70,6 +72,7 @@ export interface AutopilotPatch {
    promptTemplate?: string | undefined;
    executionMode?: ExecutionMode | undefined;
    boardId?: string | null | undefined;
+   projectId?: string | null | undefined;
    issueId?: string | null | undefined;
    quotaPeriod?: QuotaPeriod | undefined;
    quotaMax?: number | null | undefined;
@@ -203,12 +206,12 @@ export class AutopilotRepository {
          const [row] = await tx`
             INSERT INTO autopilots (
                workspace_id, name, description, assignee_type, assignee_id, prompt_template,
-               execution_mode, board_id, issue_id, quota_period, quota_max, created_by,
+               execution_mode, board_id, project_id, issue_id, quota_period, quota_max, created_by,
                created_at, updated_at
             ) VALUES (
                ${workspaceId}, ${draft.name}, ${draft.description}, ${draft.assigneeType},
                ${draft.assigneeId}, ${draft.promptTemplate}, ${draft.executionMode},
-               ${draft.boardId}, ${draft.issueId}, ${draft.quotaPeriod}, ${draft.quotaMax},
+               ${draft.boardId}, ${draft.projectId}, ${draft.issueId}, ${draft.quotaPeriod}, ${draft.quotaMax},
                ${actorId}, ${now}, ${now}
             ) RETURNING *`;
          if (!row) throw new Error('autopilot insert returned no row');
@@ -256,6 +259,7 @@ export class AutopilotRepository {
             promptTemplate: patch.promptTemplate ?? before.promptTemplate,
             executionMode: patch.executionMode ?? before.executionMode,
             boardId: patch.boardId === undefined ? before.boardId : patch.boardId,
+            projectId: patch.projectId === undefined ? before.projectId : patch.projectId,
             issueId: patch.issueId === undefined ? before.issueId : patch.issueId,
             quotaPeriod: patch.quotaPeriod ?? before.quotaPeriod,
             quotaMax: patch.quotaMax === undefined ? before.quotaMax : patch.quotaMax,
@@ -270,7 +274,7 @@ export class AutopilotRepository {
                SET name = ${next.name}, description = ${next.description},
                    assignee_type = ${next.assigneeType}, assignee_id = ${next.assigneeId},
                    prompt_template = ${next.promptTemplate}, execution_mode = ${next.executionMode},
-                   board_id = ${next.boardId}, issue_id = ${next.issueId},
+                   board_id = ${next.boardId}, project_id = ${next.projectId}, issue_id = ${next.issueId},
                    quota_period = ${next.quotaPeriod}, quota_max = ${next.quotaMax},
                    status = ${status}, version = ${version}, updated_at = ${now}
              WHERE id = ${autopilotId}
@@ -633,11 +637,25 @@ async function validateDraft(tx: Sql, workspaceId: string, draft: AutopilotDraft
       const [board] = await tx`
          SELECT 1 FROM boards WHERE id = ${draft.boardId} AND workspace_id = ${workspaceId}`;
       if (!board) throw new InvalidAutopilot('/boardId', 'That board is not in this workspace.');
+      if (draft.projectId) {
+         const [project] = await tx`
+            SELECT 1 FROM projects
+             WHERE id = ${draft.projectId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`;
+         if (!project) {
+            throw new InvalidAutopilot('/projectId', 'That project is not in this workspace.');
+         }
+      }
    } else {
       if (!draft.issueId || draft.boardId) {
          throw new InvalidAutopilot(
             '/issueId',
             'An autopilot that works on one task needs that task, and no board.'
+         );
+      }
+      if (draft.projectId) {
+         throw new InvalidAutopilot(
+            '/projectId',
+            'An autopilot that works on one task takes that task\u2019s project, not its own.'
          );
       }
       const [issue] = await tx`
@@ -680,6 +698,7 @@ function draftOf(autopilot: Autopilot): AutopilotDraft {
       promptTemplate: autopilot.promptTemplate,
       executionMode: autopilot.executionMode,
       boardId: autopilot.boardId,
+      projectId: autopilot.projectId,
       issueId: autopilot.issueId,
       quotaPeriod: autopilot.quotaPeriod,
       quotaMax: autopilot.quotaMax,
@@ -707,6 +726,7 @@ function toAutopilot(row: Row): Autopilot {
       promptTemplate: row.prompt_template as string,
       executionMode: row.execution_mode as ExecutionMode,
       boardId: (row.board_id as string | null) ?? null,
+      projectId: (row.project_id as string | null) ?? null,
       issueId: (row.issue_id as string | null) ?? null,
       status: row.status as AutopilotStatus,
       version: row.version as number,

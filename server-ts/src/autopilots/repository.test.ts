@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, test } from 'node:test';
+import { IssueRepository } from '../core/issues.ts';
+import { ProjectRepository } from '../core/projects.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { InvalidSchedule } from './cron.ts';
 import { AutopilotRepository, InvalidAutopilot, type AutopilotDraft } from './repository.ts';
@@ -36,6 +38,7 @@ describe('autopilot repository', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          promptTemplate: 'Triage what came in overnight.',
          executionMode: 'create_issue',
          boardId: mine.boardId,
+         projectId: null,
          issueId: null,
          quotaPeriod: 'none',
          quotaMax: null,
@@ -142,5 +145,94 @@ describe('autopilot repository', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          repo.setMembers(mine.workspaceId, created.id, [{ userId: randomUUID(), role: 'collaborator' }]),
          InvalidAutopilot
       );
+   });
+
+   async function projectIn(workspaceId: string, userId: string, name: string): Promise<string> {
+      const created = await new ProjectRepository(sql).create({
+         workspaceId,
+         name,
+         description: null,
+         status: 'active',
+         priority: 'none',
+         startDate: null,
+         targetDate: null,
+         githubRepoId: null,
+         githubRepoFullName: null,
+         createdBy: userId,
+      });
+      return created.id;
+   }
+
+   test('a create_issue autopilot keeps an in-workspace project, and deletion clears it', async () => {
+      const projectId = await projectIn(mine.workspaceId, mine.userId, 'Billing');
+      const created = await repo.create(mine.workspaceId, draft({ projectId }), mine.userId);
+      assert.equal(created.projectId, projectId);
+
+      const [index] = await sql`
+         SELECT indexdef FROM pg_indexes WHERE indexname = 'autopilots_project_id_idx'`;
+      assert.match(String(index?.indexdef ?? ''), /\(project_id\)/);
+
+      await sql`DELETE FROM projects WHERE id = ${projectId}`;
+      const [row] = await sql`SELECT project_id FROM autopilots WHERE id = ${created.id}`;
+      assert.equal(row?.project_id, null);
+   });
+
+   test('a project from another workspace is refused', async () => {
+      const projectId = await projectIn(theirs.workspaceId, theirs.userId, 'Theirs');
+      await assert.rejects(
+         repo.create(mine.workspaceId, draft({ projectId }), mine.userId),
+         (error: unknown) => error instanceof InvalidAutopilot && error.field === '/projectId'
+      );
+   });
+
+   test('an autopilot on one task cannot carry its own project', async () => {
+      const { issue } = await new IssueRepository(sql).create({
+         boardId: mine.boardId,
+         title: 'Standing task',
+         description: null,
+         status: 'todo',
+         priority: 'none',
+         sortOrder: 0,
+         dueDate: null,
+         assignee: null,
+         project: null,
+         createdBy: mine.userId,
+      });
+      const projectId = await projectIn(mine.workspaceId, mine.userId, 'Not for a fixed task');
+      await assert.rejects(
+         repo.create(
+            mine.workspaceId,
+            draft({ executionMode: 'fixed_issue', boardId: null, issueId: issue.id, projectId }),
+            mine.userId
+         ),
+         (error: unknown) => error instanceof InvalidAutopilot && error.field === '/projectId'
+      );
+   });
+
+   test('switching to one task clears the project', async () => {
+      const projectId = await projectIn(mine.workspaceId, mine.userId, 'Cleared on switch');
+      const created = await repo.create(mine.workspaceId, draft({ projectId }), mine.userId);
+      const { issue } = await new IssueRepository(sql).create({
+         boardId: mine.boardId,
+         title: 'The one task',
+         description: null,
+         status: 'todo',
+         priority: 'none',
+         sortOrder: 0,
+         dueDate: null,
+         assignee: null,
+         project: null,
+         createdBy: mine.userId,
+      });
+      const updated = await repo.update(
+         mine.workspaceId,
+         created.id,
+         { executionMode: 'fixed_issue', boardId: null, issueId: issue.id, projectId: null },
+         mine.userId
+      );
+      assert.equal(updated.executionMode, 'fixed_issue');
+      assert.equal(updated.projectId, null);
+      const [row] = await sql`SELECT project_id FROM autopilots WHERE id = ${created.id}`;
+      assert.equal(row?.project_id, null);
    });
 });

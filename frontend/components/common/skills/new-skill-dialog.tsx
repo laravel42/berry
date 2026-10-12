@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -17,21 +18,34 @@ interface Props {
    onCreated: (skill: Skill) => void;
    /** The catalogue's names, so a clash is caught before the request. */
    existingNames: string[];
+   /** Labels already used in the catalogue, offered in the selector. */
+   labelOptions: string[];
+   /** Stored colours for those labels. */
+   labelColors?: Record<string, string>;
 }
 
 const NAME_SHAPE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
-/** Writing a skill here: a name, a description, and the instructions agents read. */
-export default function NewSkillDialog({ open, onOpenChange, onCreated, existingNames }: Props) {
+/** Writing a skill here: a name, a description, labels, and the instructions agents read. */
+export default function NewSkillDialog({
+   open,
+   onOpenChange,
+   onCreated,
+   existingNames,
+   labelOptions,
+   labelColors,
+}: Props) {
    const t = useTranslations('areas.skills');
    const [name, setName] = useState('');
    const [description, setDescription] = useState('');
+   const [labels, setLabels] = useState<string[]>([]);
    const [content, setContent] = useState('');
    const [busy, setBusy] = useState(false);
 
    const reset = () => {
       setName('');
       setDescription('');
+      setLabels([]);
       setContent('');
    };
 
@@ -53,7 +67,7 @@ export default function NewSkillDialog({ open, onOpenChange, onCreated, existing
             name: name.trim(),
             description: description.trim(),
             content,
-            labels: [],
+            labels,
             files: [],
          });
          toast.success(t('create.created', { name: skill.name }));
@@ -98,6 +112,12 @@ export default function NewSkillDialog({ open, onOpenChange, onCreated, existing
                      onChange={(event) => setDescription(event.target.value)}
                   />
                </label>
+               <SkillLabelMultiselect
+                  value={labels}
+                  options={labelOptions}
+                  colors={labelColors}
+                  onChange={setLabels}
+               />
                <div className="flex flex-col gap-1.5">
                   <span className="text-muted-foreground">{t('create.instructions')}</span>
                   <div className="border-input bg-background focus-within:border-input max-h-80 min-h-48 overflow-y-auto rounded-md border px-3 py-2 shadow-xs">

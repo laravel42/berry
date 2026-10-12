@@ -305,3 +305,20 @@ test('an empty repository and a missing branch both have no head; other failures
    const refused = stub(() => json({ message: 'Bad credentials' }, 401));
    await assert.rejects(refused.client.branchHead('berry', 'frontend', 'main'), GitHubError);
 });
+
+test('a merge is conditional on the commit that was reviewed', async () => {
+   const reviewed = 'a'.repeat(40);
+   const { client, calls } = stub((call) => {
+      assert.deepEqual(call.body, { merge_method: 'squash', sha: reviewed });
+      return json({ message: 'Head branch was modified. Review and try the merge again.' }, 409);
+   });
+   const result = await client.mergePullRequest({ owner: 'acme', name: 'repo', number: 7, expectedHeadSha: reviewed });
+   assert.equal(result.merged, false);
+   assert.equal(calls.length, 1);
+});
+
+test('pull request state retains the head commit for review identity', async () => {
+   const sha = 'b'.repeat(40);
+   const { client } = stub(() => json({ state: 'open', head: { ref: 'task', sha } }));
+   assert.equal((await client.pullRequestState('acme', 'repo', 7)).headSha, sha);
+});

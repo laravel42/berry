@@ -1,0 +1,248 @@
+'use client';
+
+import {
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+   archiveSkillLabel,
+   colorForSkillLabel,
+   createSkillLabel,
+   loadSkillLabels,
+   updateSkillLabel,
+   type SkillCatalogueLabel,
+} from '@/lib/skill-labels';
+import { useSessionStore } from '@/store/session-store';
+import { Loader2, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { LABEL_PALETTE } from './label-palette';
+import { useSettingsResource } from './use-settings-resource';
+
+/**
+ * Workspace skill labels: the vocabulary a skill can be tagged with.
+ *
+ * Same shape as task labels. Removing one archives it. Skills that already
+ * carry the name keep it, and the name stops being offered for a new skill.
+ */
+
+const PALETTE = LABEL_PALETTE;
+
+export default function SkillLabelsSettings() {
+   const t = useTranslations('workspaceAdmin.skillLabels');
+   const workspace = useSessionStore((state) => state.workspace);
+   const workspaceId = workspace?.id ?? '';
+
+   const labels = useSettingsResource<SkillCatalogueLabel[]>(
+      () =>
+         workspaceId
+            ? loadSkillLabels(workspaceId)
+            : Promise.reject(new Error('No workspace is selected.')),
+      [workspaceId]
+   );
+
+   const [query, setQuery] = useState('');
+   const [name, setName] = useState('');
+   const [creating, setCreating] = useState(false);
+   const [removing, setRemoving] = useState<SkillCatalogueLabel | null>(null);
+
+   const rows = useMemo(() => {
+      const needle = query.trim().toLowerCase();
+      return (labels.value ?? [])
+         .filter((label) => label.name.toLowerCase().includes(needle))
+         .sort((a, b) => a.name.localeCompare(b.name));
+   }, [labels.value, query]);
+
+   const create = async () => {
+      const trimmed = name.trim();
+      if (trimmed === '') return;
+      setCreating(true);
+      try {
+         const saved = await createSkillLabel(workspaceId, {
+            name: trimmed,
+            color: colorForSkillLabel(trimmed),
+         });
+         labels.set([...(labels.value ?? []), saved]);
+         setName('');
+      } catch (cause) {
+         toast.error(cause instanceof Error ? cause.message : t('createFailed'));
+      } finally {
+         setCreating(false);
+      }
+   };
+
+   const recolour = (label: SkillCatalogueLabel, next: string) => {
+      if (!/^#[0-9a-f]{6}$/.test(next) || next === label.color) return;
+      void labels.mutate(
+         (labels.value ?? []).map((entry) =>
+            entry.id === label.id ? { ...entry, color: next } : entry
+         ),
+         () => updateSkillLabel(workspaceId, label.id, { color: next }).then(() => undefined)
+      );
+   };
+
+   const rename = (label: SkillCatalogueLabel, next: string) => {
+      const trimmed = next.trim();
+      if (trimmed === '' || trimmed === label.name) return;
+      void labels.mutate(
+         (labels.value ?? []).map((entry) =>
+            entry.id === label.id ? { ...entry, name: trimmed } : entry
+         ),
+         () => updateSkillLabel(workspaceId, label.id, { name: trimmed }).then(() => undefined)
+      );
+   };
+
+   const archive = (label: SkillCatalogueLabel) => {
+      setRemoving(null);
+      void labels.mutate(
+         (labels.value ?? []).filter((entry) => entry.id !== label.id),
+         () => archiveSkillLabel(workspaceId, label.id)
+      );
+   };
+
+   return (
+      <div className="h-full w-full overflow-y-auto">
+         <div className="mx-auto max-w-5xl px-6 py-10 pb-20">
+            <h1 className="mb-1 font-medium">{t('title')}</h1>
+            <p className="mb-6 text-muted-foreground">{t('lead')}</p>
+
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+               <Input
+                  placeholder={t('filter')}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className="h-8 w-64"
+               />
+               <div className="flex items-center gap-2">
+                  <Input
+                     placeholder={t('newLabel')}
+                     value={name}
+                     disabled={!workspaceId}
+                     className="h-8 w-48"
+                     onChange={(event) => setName(event.target.value)}
+                     onKeyDown={(event) => {
+                        if (event.key === 'Enter') void create();
+                     }}
+                  />
+                  <Button
+                     size="xs"
+                     disabled={creating || name.trim() === ''}
+                     onClick={() => void create()}
+                  >
+                     {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('create')}
+                  </Button>
+               </div>
+            </div>
+
+            {labels.error ? <p className="py-6 text-status-danger">{labels.error}</p> : null}
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+               {rows.map((label) => (
+                  <div
+                     key={label.id}
+                     className="flex min-w-0 items-center gap-2 rounded-md border bg-container px-2.5 py-1.5"
+                  >
+                     <Popover>
+                        <PopoverTrigger
+                           aria-label={t('changeColour', { name: label.name })}
+                           className="size-3.5 shrink-0 rounded-full"
+                           style={{ backgroundColor: label.color }}
+                        />
+                        <PopoverContent align="start" className="w-auto p-3">
+                           <div className="grid grid-cols-4 gap-2">
+                              {PALETTE.map((colour) => (
+                                 <button
+                                    key={colour}
+                                    type="button"
+                                    aria-label={colour}
+                                    className="size-6 rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring"
+                                    style={{ backgroundColor: colour }}
+                                    onClick={() => recolour(label, colour)}
+                                 />
+                              ))}
+                           </div>
+                           <label className="mt-3 flex items-center gap-2">
+                              <input
+                                 type="color"
+                                 value={label.color}
+                                 aria-label={t('customColour')}
+                                 className="size-7 cursor-pointer rounded border bg-transparent"
+                                 onChange={(event) =>
+                                    recolour(label, event.target.value.toLowerCase())
+                                 }
+                              />
+                              <span className="text-muted-foreground">{t('customColour')}</span>
+                           </label>
+                        </PopoverContent>
+                     </Popover>
+                     <Input
+                        defaultValue={label.name}
+                        className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1 hover:border-border"
+                        onBlur={(event) => rename(label, event.target.value)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Enter') event.currentTarget.blur();
+                           if (event.key === 'Escape') {
+                              event.currentTarget.value = label.name;
+                              event.currentTarget.blur();
+                           }
+                        }}
+                     />
+                     <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {label.usageCount === undefined
+                           ? '—'
+                           : t('usageCount', { count: label.usageCount })}
+                     </span>
+                     <Button
+                        size="xs"
+                        variant="ghost"
+                        className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
+                        disabled={labels.saving}
+                        aria-label={t('remove')}
+                        onClick={() => setRemoving(label)}
+                     >
+                        <Trash2 className="size-3.5" aria-hidden />
+                     </Button>
+                  </div>
+               ))}
+            </div>
+
+            {!labels.loading && rows.length === 0 && !labels.error ? (
+               <p className="py-6 text-muted-foreground">
+                  {query.trim() === '' ? t('empty') : t('noMatch')}
+               </p>
+            ) : null}
+         </div>
+
+         <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
+            <AlertDialogContent>
+               <AlertDialogHeader>
+                  <AlertDialogTitle>
+                     {t('removeTitle', { name: removing?.name ?? '' })}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                     {removing?.usageCount === undefined
+                        ? t('removeBodyUnknown')
+                        : t('removeBody', { count: removing.usageCount })}
+                  </AlertDialogDescription>
+               </AlertDialogHeader>
+               <AlertDialogFooter>
+                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => removing && archive(removing)}>
+                     {t('remove')}
+                  </AlertDialogAction>
+               </AlertDialogFooter>
+            </AlertDialogContent>
+         </AlertDialog>
+      </div>
+   );
+}
