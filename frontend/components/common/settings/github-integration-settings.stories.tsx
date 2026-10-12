@@ -13,7 +13,7 @@ import {
 const meta = {
    component: GitHubIntegrationSettings,
    tags: ['ai-generated', 'needs-work'],
-   args: { source: 'app' },
+   args: {},
    decorators: [
       (Story) => (
          <div className="max-w-2xl">

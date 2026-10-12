@@ -32,17 +32,16 @@ import {
    type ProviderTool,
    type ToolGrant,
 } from '@/lib/integrations';
-import { signInWithGitHub } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { INTEGRATION_LOGOS } from './integration-logos';
-import { SettingsShell } from './shared';
+import { SettingsCard, SettingsRow, SettingsShell } from './shared';
 
 function ProviderIcon({ provider }: { provider: Provider }) {
    if (provider.id === BUILT_IN_PROVIDER) {
@@ -63,7 +62,7 @@ function ProviderIcon({ provider }: { provider: Provider }) {
          </span>
       );
    }
-   const initials = provider.name
+   const initials = visibleProviderName(provider)
       .replace(/[^a-zA-Z0-9 ]/g, '')
       .split(' ')
       .filter(Boolean)
@@ -88,6 +87,28 @@ function whenText(iso: string | null | undefined): string {
    } catch {
       return iso;
    }
+}
+
+/** The workspace GitHub connection. The catalogue id stays internal. */
+const GITHUB_NAME = 'GitHub';
+
+function visibleProviderName(provider: { id: string; name: string }): string {
+   return provider.id === 'github' ? GITHUB_NAME : provider.name;
+}
+
+function visibleProviderDescription(provider: { description: string }): string {
+   return provider.description;
+}
+
+/** Drops a status line that would name the connection broker. */
+function publicDetail(detail: string | null | undefined): string | null {
+   if (!detail || /nango/i.test(detail)) return null;
+   return detail;
+}
+
+function visibleFailure(failure: unknown): string {
+   const message = describeIntegrationFailure(failure);
+   return /nango/i.test(message) ? 'The integration request failed.' : message;
 }
 
 function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGrant[] }) {
@@ -213,11 +234,10 @@ function ProviderCard({
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
    const scopes = connection?.scopes?.length ? connection.scopes : (provider.scopes ?? []);
-   const showGitHubConnect =
-      provider.id === 'github' &&
-      (!provider.connected || provider.status === 'reconnect' || provider.status === 'expired');
+   // GitHub disconnects from its drawer. The row has no second column
+   // once that account is connected.
    const showDisconnect = !builtIn && provider.id !== 'github' && provider.connected;
-   const showConnect = !builtIn && provider.id !== 'github' && !provider.connected;
+   const showConnect = !builtIn && !provider.connected;
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
    // dates, so a provider with neither does not repeat the word.
@@ -227,9 +247,13 @@ function ProviderCard({
          : accountName
            ? `as ${accountName}`
            : null,
-      connection?.createdAt ? `since ${whenText(connection.createdAt)}` : null,
+      provider.id === 'github'
+         ? null
+         : connection?.createdAt
+           ? `since ${whenText(connection.createdAt)}`
+           : null,
       connection?.expiresAt ? `token expires ${whenText(connection.expiresAt)}` : null,
-      connection?.statusDetail ?? null,
+      publicDetail(connection?.statusDetail),
    ]
       .filter(Boolean)
       .join(' · ');
@@ -238,17 +262,19 @@ function ProviderCard({
          <ProviderIcon provider={provider} />
          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-               <h3 className="font-medium">{provider.name}</h3>
+               <h3 className="font-medium">{visibleProviderName(provider)}</h3>
                <StatusBadge
                   look={{
-                     label: state.label,
+                     label: /nango/i.test(state.label) ? 'Needs attention' : state.label,
                      tone: state.tone,
                      state: state.tone === 'complete' ? 'solid' : 'hollow',
                   }}
                />
             </div>
-            {provider.description && (
-               <p className="mt-0.5 text-muted-foreground">{provider.description}</p>
+            {visibleProviderDescription(provider) && (
+               <p className="mt-0.5 text-muted-foreground">
+                  {visibleProviderDescription(provider)}
+               </p>
             )}
             {provider.connected && connectionLine ? (
                <p className="mt-1 text-muted-foreground">{connectionLine}</p>
@@ -256,16 +282,19 @@ function ProviderCard({
             {/* A connection that lapsed is not a connection that was never
                    made, and the reason is the whole difference between "press
                    Connect" and "this was never set up". */}
-            {provider.id !== 'github' && !provider.connected && connection?.statusDetail && (
-               <p className="mt-1 text-muted-foreground">
-                  {connection.statusDetail}
-                  {connection.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-               </p>
-            )}
+            {provider.id !== 'github' &&
+               !provider.connected &&
+               publicDetail(connection?.statusDetail) && (
+                  <p className="mt-1 text-muted-foreground">
+                     {publicDetail(connection?.statusDetail)}
+                     {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
+                  </p>
+               )}
             {!builtIn && !provider.configured && (
                <p className="mt-1 text-muted-foreground">
-                  Not configured on this deployment: set the {provider.name} OAuth credentials to
-                  enable Connect.
+                  {provider.include === 'nango'
+                     ? 'Not configured on this deployment, so Connect is unavailable.'
+                     : `Not configured on this deployment: set the ${visibleProviderName(provider)} credentials to enable Connect.`}
                </p>
             )}
             {provider.id === 'github' &&
@@ -279,13 +308,16 @@ function ProviderCard({
                )}
             {provider.id === 'github' && provider.status === 'reconnect' && (
                <p className="mt-1 text-muted-foreground">
-                  GitHub refused the sign-in agents were using, so tasks that need a repository
-                  fail. Sign in with GitHub again to reconnect.
+                  The GitHub connection needs to be renewed before agents can use a repository.
                </p>
             )}
-            {provider.id === 'github' && provider.status === 'expired' && provider.statusDetail && (
-               <p className="mt-1 text-muted-foreground">{provider.statusDetail}</p>
-            )}
+            {provider.id === 'github' &&
+               provider.status === 'expired' &&
+               publicDetail(provider.statusDetail) && (
+                  <p className="mt-1 text-muted-foreground">
+                     {publicDetail(provider.statusDetail)}
+                  </p>
+               )}
             {scopes.length > 0 && (
                <ul className="mt-1.5 flex flex-wrap gap-1">
                   {scopes.map((scope) => (
@@ -309,7 +341,7 @@ function ProviderCard({
             'min-w-0 overflow-hidden rounded-lg border bg-container transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
-         aria-label={provider.name}
+         aria-label={visibleProviderName(provider)}
       >
          <div className="flex items-start">
             {onOpen ? (
@@ -323,30 +355,8 @@ function ProviderCard({
             ) : (
                <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">{identity}</div>
             )}
-            {showGitHubConnect || showDisconnect || showConnect ? (
+            {showDisconnect || showConnect ? (
                <div className="flex shrink-0 items-center gap-2 px-4 py-3">
-                  {showGitHubConnect ? (
-                     <Button
-                        size="xs"
-                        onClick={() => {
-                           if (provider.renewalUrl) {
-                              window.location.assign(provider.renewalUrl);
-                              return;
-                           }
-                           void signInWithGitHub().catch((failure: unknown) =>
-                              toast.error(
-                                 failure instanceof Error
-                                    ? failure.message
-                                    : 'GitHub sign-in could not start'
-                              )
-                           );
-                        }}
-                     >
-                        {provider.status === 'reconnect' || provider.status === 'expired'
-                           ? 'Reconnect GitHub'
-                           : 'Connect GitHub'}
-                     </Button>
-                  ) : null}
                   {showDisconnect ? (
                      <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
                         {busy ? 'Working…' : 'Disconnect'}
@@ -358,8 +368,8 @@ function ProviderCard({
                         disabled={busy || !provider.configured}
                         title={
                            provider.configured
-                              ? `Sign in to ${provider.name}`
-                              : `${provider.name} is not configured on this deployment`
+                              ? `Sign in to ${visibleProviderName(provider)}`
+                              : `${visibleProviderName(provider)} is not configured on this deployment`
                         }
                         onClick={onConnect}
                      >
@@ -393,6 +403,97 @@ function ProviderCard({
    );
 }
 
+/**
+ * Waits until Berry has recorded the Nango connection, or the window closes.
+ *
+ * Each catalogue read asks Nango for a connection tagged to this workspace.
+ * The provider token never comes back with that list.
+ */
+async function watchNangoConnect(
+   providerId: string,
+   popup: Window,
+   load: () => Promise<Provider[]>
+): Promise<boolean> {
+   const deadline = Date.now() + 3 * 60 * 1000;
+   while (Date.now() < deadline) {
+      const providers = await load().catch(() => [] as Provider[]);
+      if (providers.some((item) => item.id === providerId && item.connected)) return true;
+      if (popup.closed) return false;
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+   }
+   return false;
+}
+
+/**
+ * Connect and disconnect for the workspace GitHub account.
+ *
+ * The provider token stays with the connection. This panel only starts
+ * consent and ends it.
+ */
+function GitHubConnectionPanel({
+   provider,
+   connection,
+   busy,
+   onConnect,
+   onDisconnect,
+}: {
+   provider: Provider | undefined;
+   connection: ProviderConnection | undefined;
+   busy: boolean;
+   onConnect: () => void;
+   onDisconnect: () => void;
+}) {
+   if (!provider) {
+      return (
+         <p role="status" className="text-muted-foreground">
+            Loading {GITHUB_NAME}…
+         </p>
+      );
+   }
+   const accountName = connection?.accountName ?? provider.accountName;
+   const renewing = provider.status === 'reconnect' || provider.status === 'expired';
+   const connectedLine = [
+      accountName ? `Connected as ${accountName}` : 'Connected',
+      connection?.createdAt ? `since ${whenText(connection.createdAt)}` : null,
+      connection?.expiresAt ? `token expires ${whenText(connection.expiresAt)}` : null,
+      publicDetail(connection?.statusDetail) ?? publicDetail(provider.statusDetail),
+   ]
+      .filter(Boolean)
+      .join(' · ');
+   const description = !provider.configured
+      ? 'Connect is unavailable until GitHub is configured for this deployment.'
+      : provider.connected
+        ? connectedLine
+        : renewing
+          ? (publicDetail(provider.statusDetail) ??
+            publicDetail(connection?.statusDetail) ??
+            'This connection needs to be renewed before agents can use it.')
+          : visibleProviderDescription(provider);
+
+   return (
+      <section aria-label={GITHUB_NAME} className="flex flex-col gap-3">
+         <SettingsCard>
+            <SettingsRow
+               title={GITHUB_NAME}
+               description={description}
+               trailing={
+                  provider.connected && !renewing ? (
+                     <Button size="xs" variant="destructive" disabled={busy} onClick={onDisconnect}>
+                        <Trash2 aria-hidden />
+                        {busy ? 'Working…' : 'Disconnect'}
+                     </Button>
+                  ) : (
+                     <Button size="xs" disabled={busy || !provider.configured} onClick={onConnect}>
+                        {busy ? 'Opening…' : renewing ? 'Reconnect' : 'Connect'}
+                     </Button>
+                  )
+               }
+            />
+         </SettingsCard>
+      </section>
+   );
+}
+
 function IntegrationsDirectory() {
    const status = useSessionStore((state) => state.status);
    const workspace = useSessionStore((state) => state.workspace);
@@ -410,8 +511,8 @@ function IntegrationsDirectory() {
    const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
    const [githubOpen, setGithubOpen] = useState(false);
 
-   const load = useCallback(async () => {
-      if (!workspace) return;
+   const load = useCallback(async (): Promise<Provider[]> => {
+      if (!workspace) return [];
       try {
          const [providerList, connectionList, grantList] = await Promise.all([
             listProviders(workspace.id),
@@ -423,8 +524,10 @@ function IntegrationsDirectory() {
          setGrants(grantList);
          hydrateProviders(providerList);
          setError(null);
+         return providerList;
       } catch (failure) {
-         setError(describeIntegrationFailure(failure));
+         setError(visibleFailure(failure));
+         return [];
       } finally {
          setLoaded(true);
       }
@@ -445,9 +548,12 @@ function IntegrationsDirectory() {
       const key = `${callbackProvider}:${callbackStatus}`;
       if (announced.current === key) return;
       announced.current = key;
-      const name =
-         providers.find((provider) => provider.id === callbackProvider)?.name ??
-         callbackProvider.charAt(0).toUpperCase() + callbackProvider.slice(1);
+      const matched = providers.find((provider) => provider.id === callbackProvider);
+      const name = matched
+         ? visibleProviderName(matched)
+         : callbackProvider === 'github'
+           ? GITHUB_NAME
+           : callbackProvider.charAt(0).toUpperCase() + callbackProvider.slice(1);
       const outcome = describeConnectionResult(callbackStatus, name);
       if (outcome.ok) toast.success(outcome.message);
       else toast.error(outcome.message);
@@ -470,12 +576,38 @@ function IntegrationsDirectory() {
 
    const connect = async (provider: Provider) => {
       setBusy(provider.id);
+      // Open before the await. A popup after the request returns is blocked,
+      // and the settings page has to stay here to notice the consent.
+      const popup =
+         provider.include === 'nango'
+            ? window.open('about:blank', 'berry-nango-connect', 'popup,width=520,height=760')
+            : null;
       try {
          const url = await startAuthorize(provider.id);
+         if (provider.include === 'nango') {
+            const current = await load();
+            const already = current.some((item) => item.id === provider.id && item.connected);
+            if (already) {
+               popup?.close();
+               toast.success(`${visibleProviderName(provider)} connected`);
+               return;
+            }
+            if (popup && !popup.closed) {
+               popup.location.href = url;
+               const connected = await watchNangoConnect(provider.id, popup, load);
+               if (!popup.closed) popup.close();
+               if (connected) toast.success(`${visibleProviderName(provider)} connected`);
+               return;
+            }
+            popup?.close();
+         }
          window.location.assign(url);
       } catch (failure) {
-         toast.error(describeIntegrationFailure(failure));
+         popup?.close();
+         toast.error(visibleFailure(failure));
          setBusy(null);
+      } finally {
+         if (provider.include === 'nango') setBusy(null);
       }
    };
 
@@ -483,10 +615,10 @@ function IntegrationsDirectory() {
       setBusy(provider.id);
       try {
          await disconnectProvider(provider.id);
-         toast.success(`${provider.name} disconnected`);
+         toast.success(`${visibleProviderName(provider)} disconnected`);
          await load();
       } catch (failure) {
-         toast.error(describeIntegrationFailure(failure));
+         toast.error(visibleFailure(failure));
       } finally {
          setBusy(null);
       }
@@ -519,7 +651,11 @@ function IntegrationsDirectory() {
                   busy={busy === provider.id}
                   onConnect={() => void connect(provider)}
                   onDisconnect={() => setDisconnecting(provider)}
-                  onOpen={provider.id === 'github' ? () => setGithubOpen(true) : undefined}
+                  onOpen={
+                     provider.id === 'github' && provider.connected
+                        ? () => setGithubOpen(true)
+                        : undefined
+                  }
                />
             ))}
          </div>
@@ -530,10 +666,13 @@ function IntegrationsDirectory() {
          >
             <AlertDialogContent>
                <AlertDialogHeader>
-                  <AlertDialogTitle>Disconnect {disconnecting?.name}?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                     Disconnect {disconnecting ? visibleProviderName(disconnecting) : ''}?
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
                      Every grant on this connection goes with it. An agent that reaches for{' '}
-                     {disconnecting?.name ?? 'it'} will be refused until it is connected again.
+                     {disconnecting ? visibleProviderName(disconnecting) : 'it'} will be refused
+                     until it is connected again.
                   </AlertDialogDescription>
                </AlertDialogHeader>
                <AlertDialogFooter>
@@ -565,15 +704,25 @@ function IntegrationsDirectory() {
                      Integrations
                   </button>
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="truncate font-medium">GitHub</span>
+                  <span className="truncate font-medium">{GITHUB_NAME}</span>
                </div>
             }
          >
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-               <GitHubIntegrationSettings
-                  source={providers.find((provider) => provider.id === 'github')?.source ?? null}
-                  heading={false}
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
+               <GitHubConnectionPanel
+                  provider={providers.find((provider) => provider.id === 'github')}
+                  connection={connections.find((entry) => entry.provider === 'github')}
+                  busy={busy === 'github'}
+                  onConnect={() => {
+                     const provider = providers.find((entry) => entry.id === 'github');
+                     if (provider) void connect(provider);
+                  }}
+                  onDisconnect={() => {
+                     const provider = providers.find((entry) => entry.id === 'github');
+                     if (provider) setDisconnecting(provider);
+                  }}
                />
+               <GitHubIntegrationSettings heading={false} />
             </div>
          </DetailDrawerShell>
       </SettingsShell>

@@ -19,12 +19,7 @@ import {
    type GrantedRepositories,
    type WorkspaceRepository,
 } from '@/lib/github';
-import {
-   listProviders,
-   loadGitHubApp,
-   startGitHubInstall,
-   type GitHubAppState,
-} from '@/lib/integrations';
+import { listProviders } from '@/lib/integrations';
 import { useSessionStore } from '@/store/session-store';
 import { Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -95,8 +90,6 @@ function RepositoriesDirectory() {
     * first login. They have an account and this page; what they do not have is
     * repository access, and this is where that is said and offered again.
     */
-   const [access, setAccess] = useState<GitHubAppState | null>(null);
-   const [installing, setInstalling] = useState(false);
    /**
     * What GitHub granted, as Berry recorded it — the access the list below runs
     * on. Read from Berry rather than GitHub: the only credential that can ask
@@ -125,10 +118,9 @@ function RepositoriesDirectory() {
    const load = useCallback(async () => {
       if (!workspaceId) return;
       try {
-         const [repositories, state, appState, grantState, providers] = await Promise.all([
+         const [repositories, state, grantState, providers] = await Promise.all([
             listWorkspaceRepositories(workspaceId),
             loadGitHubSettings(workspaceId),
-            loadGitHubApp().catch(() => null),
             // Its own failure, because an unreadable grant must not empty the
             // list of repositories somebody is editing.
             loadGrantedRepositories(workspaceId).catch(() => null),
@@ -151,9 +143,8 @@ function RepositoriesDirectory() {
          setCanManage(state.canManage);
          setInstalled(state.connection.installed && state.settings.enabled);
          setSignInConnected(
-            providers.find((provider) => provider.id === 'github')?.source === 'sign-in'
+            providers.some((provider) => provider.id === 'github' && provider.connected)
          );
-         setAccess(appState);
          setGranted(grantState);
          setError(null);
       } catch (failure) {
@@ -380,35 +371,21 @@ function RepositoriesDirectory() {
                      <p className="text-muted-foreground">
                         {signInConnected
                            ? t('signInConnected')
-                           : access?.installReason
-                             ? access.installReason
-                             : granted?.installPending
-                               ? t('installPending')
-                               : t('noAccess')}
+                           : granted?.installPending
+                             ? t('installPending')
+                             : t('noAccess')}
                      </p>
-                     {canManage && !access?.installReason && !granted?.installPending && (
+                     {canManage && !signInConnected && !granted?.installPending && (
                         <Button
                            size="xs"
-                           variant={signInConnected ? 'secondary' : 'default'}
                            className="mt-2"
-                           disabled={installing}
                            onClick={() => {
-                              setInstalling(true);
-                              void startGitHubInstall()
-                                 .then((url) => {
-                                    window.location.href = url;
-                                 })
-                                 .catch((failure: unknown) => {
-                                    toast.error(describeGitHubFailure(failure));
-                                    setInstalling(false);
-                                 });
+                              router.push(
+                                 `${pathname.replace(/\/settings\/repositories$/, '/settings/integrations')}?provider=github`
+                              );
                            }}
                         >
-                           {installing
-                              ? t('installing')
-                              : signInConnected
-                                ? t('installOptional')
-                                : t('install')}
+                           {t('install')}
                         </Button>
                      )}
                   </div>

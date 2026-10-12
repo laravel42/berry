@@ -1,30 +1,16 @@
 'use client';
 
-import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { GitHubAccountsList } from '@/components/common/settings/github-accounts';
-import { Button, buttonVariants } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import {
    GITHUB_EVENTS,
    describeGitHubFailure,
-   disconnectGitHub,
    loadGitHubSettings,
    updateGitHubSettings,
    type GitHubSettingsPatch,
    type GitHubSettingsState,
 } from '@/lib/github';
 import { useSessionStore } from '@/store/session-store';
-import { format, parseISO } from 'date-fns';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { SettingsCard, SettingsRow } from './shared';
@@ -54,39 +40,18 @@ const FEATURES: Array<{ key: Exclude<ToggleKey, 'enabled'>; title: string; descr
       },
    ];
 
-function when(iso: string | null | undefined): string {
-   if (!iso) return '';
-   try {
-      return format(parseISO(iso), 'd MMM yyyy');
-   } catch {
-      return iso;
-   }
-}
-
 /**
- * The workspace's GitHub switches: the master switch, connected App accounts
- * when one exists, and the three feature toggles.
+ * The workspace's GitHub switches: the master switch and the feature toggles.
  *
  * Only admins can change anything. Everyone else sees the same page with
  * every control disabled and a line saying why, rather than a page that
  * pretends the settings do not exist.
  */
-export function GitHubIntegrationSettings({
-   source = null,
-   heading = true,
-}: {
-   /** Which credential GitHub is connected through, from the provider catalogue. */
-   source?: 'app' | 'sign-in' | null;
-   /** The drawer that hosts this section already names it. */
-   heading?: boolean;
-}) {
+export function GitHubIntegrationSettings({ heading = true }: { heading?: boolean }) {
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const [state, setState] = useState<GitHubSettingsState | null>(null);
    const [error, setError] = useState<string | null>(null);
-   const [busy, setBusy] = useState<ToggleKey | 'connection' | null>(null);
-   const [confirming, setConfirming] = useState(false);
-   /** Bumped so the accounts list reloads when an install or uninstall lands. */
-   const [accountsKey, setAccountsKey] = useState(0);
+   const [busy, setBusy] = useState<ToggleKey | null>(null);
 
    const load = useCallback(async () => {
       if (!workspaceId) return;
@@ -109,9 +74,6 @@ export function GitHubIntegrationSettings({
             if (event.workspaceId && event.workspaceId !== workspaceId) return;
             if (event.type === GITHUB_EVENTS.settings || event.type === GITHUB_EVENTS.connection) {
                void load();
-               if (event.type === GITHUB_EVENTS.connection) {
-                  setAccountsKey((current) => current + 1);
-               }
             }
          }),
       [workspaceId, load]
@@ -133,20 +95,6 @@ export function GitHubIntegrationSettings({
       }
    };
 
-   const disconnect = async () => {
-      if (!workspaceId) return;
-      setBusy('connection');
-      try {
-         await disconnectGitHub(workspaceId);
-         toast.success('GitHub disconnected from this workspace');
-         await load();
-      } catch (failure) {
-         toast.error(describeGitHubFailure(failure));
-      } finally {
-         setBusy(null);
-      }
-   };
-
    if (error) {
       return (
          <p role="alert" className="text-status-danger">
@@ -162,23 +110,8 @@ export function GitHubIntegrationSettings({
       );
    }
 
-   const { settings, canManage, connection } = state;
+   const { settings, canManage } = state;
    const locked = !canManage || busy !== null;
-   // Agents already reach GitHub through a member's sign-in, so an App is an
-   // extra rather than a missing step.
-   const viaSignIn = source === 'sign-in' && !connection.installed;
-   // A workspace reaches several accounts at once, so what this row says is how
-   // many — the accounts themselves are listed below it, each with its own
-   // Disconnect. `installedAt` is the first of them, which is when GitHub
-   // access began here.
-   const connectedBy = [
-      connection.accounts.length === 1
-         ? `Connected to ${connection.accounts[0]?.accountLogin ?? 'one account'}`
-         : `Connected to ${connection.accounts.length} accounts`,
-      connection.installedAt ? `since ${when(connection.installedAt)}` : null,
-   ]
-      .filter(Boolean)
-      .join(' ');
 
    return (
       <section
@@ -214,40 +147,6 @@ export function GitHubIntegrationSettings({
                   />
                }
             />
-            {connection.appConfigured ? (
-               <>
-                  {viaSignIn ? null : (
-                     <SettingsRow
-                        title={connection.appName ?? 'GitHub App'}
-                        description={
-                           connection.installed
-                              ? connectedBy
-                              : 'No GitHub account yet. Adding one is where you choose which repositories Berry can reach — a personal account and any organisation can each be added.'
-                        }
-                        trailing={
-                           canManage && connection.installed ? (
-                              <Button
-                                 size="xs"
-                                 variant="secondary"
-                                 disabled={busy !== null}
-                                 onClick={() => setConfirming(true)}
-                              >
-                                 {busy === 'connection' ? 'Working…' : 'Disconnect all'}
-                              </Button>
-                           ) : undefined
-                        }
-                     />
-                  )}
-                  {canManage && workspaceId ? (
-                     <GitHubAccountsList
-                        workspaceId={workspaceId}
-                        canManage={canManage}
-                        reloadKey={accountsKey}
-                        optional={viaSignIn}
-                     />
-                  ) : null}
-               </>
-            ) : null}
             {FEATURES.map((feature) => (
                <SettingsRow
                   key={feature.key}
@@ -265,32 +164,6 @@ export function GitHubIntegrationSettings({
                />
             ))}
          </SettingsCard>
-
-         <AlertDialog open={confirming} onOpenChange={setConfirming}>
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>Disconnect every GitHub account?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                     All {connection.accounts.length} connected{' '}
-                     {connection.accounts.length === 1 ? 'account goes' : 'accounts go'}. Agents
-                     here stop getting repository access, and GitHub events stop updating tasks. The
-                     App stays installed on GitHub; remove it there if you want it gone.
-                  </AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>Keep connected</AlertDialogCancel>
-                  <AlertDialogAction
-                     className={buttonVariants({ variant: 'destructive' })}
-                     onClick={() => {
-                        setConfirming(false);
-                        void disconnect();
-                     }}
-                  >
-                     Disconnect all
-                  </AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
       </section>
    );
 }

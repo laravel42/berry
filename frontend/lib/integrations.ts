@@ -25,6 +25,8 @@ export const providerToolSchema = z.object({
 
 export const providerSchema = z.object({
    id: z.string(),
+   /** How this deployment includes the integration. Absent on an older server. */
+   include: z.string().nullish(),
    name: z.string(),
    description: z.string().nullish(),
    configured: z.boolean().default(false),

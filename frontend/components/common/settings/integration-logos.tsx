@@ -975,6 +975,7 @@ function GoogleCalendarLogo({ className }: LogoProps) {
 /** Provider id -> logo component; providers without one show their initials. */
 export const INTEGRATION_LOGOS: Record<string, (props: LogoProps) => React.ReactNode> = {
    'github': GithubLogo,
+   'github': GithubLogo,
    'slack': SlackLogo,
    'gitlab': GitlabLogo,
    'figma': FigmaLogo,

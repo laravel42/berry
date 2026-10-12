@@ -39,7 +39,7 @@ import { RiGithubFill } from '@remixicon/react';
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 
-/** True once this workspace has a usable GitHub App or sign-in. Stays false while that is unknown, so the picker does not flash in for a workspace that has neither. */
+/** True once this workspace's GitHub connection is usable. Stays false while that is unknown, so the picker does not flash in. */
 function useGitHubConnected(): boolean {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const [connected, setConnected] = useState(false);
@@ -267,7 +267,10 @@ export function RepositoryPicker({
                    app is installed the list speaks for itself. A list from the
                    person's GitHub sign-in is not that case: sign-in asks for
                    `repo`, so it already includes their private repositories. */}
-                  {access && !access.installed && access.source !== 'sign-in' ? (
+                  {access &&
+                  !access.installed &&
+                  access.source !== 'sign-in' &&
+                  access.source !== 'connection' ? (
                      <div className="border-t px-3 py-2 text-muted-foreground">
                         Only public repositories are visible.
                         {access.installUrl ? (

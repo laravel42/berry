@@ -60,7 +60,7 @@ export const LinkRepository: Story = {
    },
 };
 
-/** Without the GitHub App only public repositories show, and the footer says so. */
+/** A connection listing does not offer an App install. */
 export const PublicOnly: Story = {
    beforeEach: ({ msw }) => {
       msw.use(
@@ -80,8 +80,10 @@ export const PublicOnly: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(await canvas.findByRole('button', { name: /Link a repository/ }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByText(/Only public repositories are visible/)).toBeVisible();
-      await expect(body.getByRole('link', { name: 'Install the app' })).toBeVisible();
+      await expect(
+         body.queryByText(/Only public repositories are visible/)
+      ).not.toBeInTheDocument();
+      await expect(body.queryByRole('link', { name: 'Install the app' })).not.toBeInTheDocument();
    },
 };
 
