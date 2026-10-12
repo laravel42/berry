@@ -41,7 +41,8 @@ delegation rules and required reviewers — see
 
 ## Repository shape
 
-One Git repo, six pnpm workspace packages. They do **not** share a formatter, lint
+One Git repo, five pnpm workspace packages: `frontend`, `server-ts`,
+`packages/plugin-sdk`, `apps/mobile`, and `apps/desktop`. They do **not** share a formatter, lint
 config, or validation workflow. Know which workspace you are in before you
 write code. Never run one workspace's tools over another.
 

@@ -6,10 +6,11 @@ sync. See [AGENTS.md](../AGENTS.md) for the short authoritative overview and
 [ADR-0014](adr/0014-agentcore-runtime-control-plane.md) for how agent execution actually
 works today.
 
-## Repository shape: one repo, six workspace packages, no shared toolchain
+## Repository shape: one repo, five workspace packages (`frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, `apps/desktop`), no shared toolchain
 
-Berry is a single pnpm workspace containing three independently tooled
-packages. They do **not** share a formatter, lint config, or language target.
+Berry is a single pnpm workspace containing five independently tooled
+packages: `frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, and
+`apps/desktop`. They do **not** share a formatter, lint config, or language target.
 Know which workspace you are in before you write code.
 
 | | `server-ts/` | `frontend/` | `packages/plugin-sdk/` |
