@@ -36,6 +36,7 @@ describe('autopilot repository', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          promptTemplate: 'Triage what came in overnight.',
          executionMode: 'create_issue',
          boardId: mine.boardId,
+         projectId: null,
          issueId: null,
          quotaPeriod: 'none',
          quotaMax: null,

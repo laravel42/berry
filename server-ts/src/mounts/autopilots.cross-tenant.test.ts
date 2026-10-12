@@ -54,7 +54,7 @@ describe('autopilots: cross-tenant leakage', { skip: url ? false : 'BERRY_TEST_D
       const draft = (fixture: Fixture) => ({
          name: `Pilot ${fixture.workspaceId.slice(0, 4)}`, description: null, assigneeType: 'agent' as const,
          assigneeId: fixture.agentId, promptTemplate: 'Go.', executionMode: 'create_issue' as const,
-         boardId: fixture.boardId, issueId: null, quotaPeriod: 'none' as const, quotaMax: null,
+         boardId: fixture.boardId, projectId: null, issueId: null, quotaPeriod: 'none' as const, quotaMax: null,
       });
       w1AutopilotId = (await repo.create(w1.workspaceId, draft(w1), w1.userId)).id;
       w2AutopilotId = (await repo.create(w2.workspaceId, draft(w2), w2.userId)).id;

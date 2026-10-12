@@ -63,7 +63,7 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
          {
             name: `Scheduled ${randomUUID().slice(0, 6)}`, description: null,
             assigneeType: 'agent', assigneeId: fixture.agentId, promptTemplate: 'Tick.',
-            executionMode: 'create_issue', boardId: fixture.boardId, issueId: null,
+            executionMode: 'create_issue', boardId: fixture.boardId, projectId: null, issueId: null,
             quotaPeriod: 'none', quotaMax: null,
          },
          fixture.userId

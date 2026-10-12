@@ -50,6 +50,7 @@ describe('firing an autopilot', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
          promptTemplate: 'Report on {{payload.topic}} from {{trigger.source}}.',
          executionMode: 'create_issue',
          boardId: fixture.boardId,
+         projectId: null,
          issueId: null,
          quotaPeriod: 'none',
          quotaMax: null,
