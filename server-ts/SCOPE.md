@@ -25,6 +25,7 @@ Every prefix `src/index.ts` registers today:
 /api/v1/attachments   /api/v1/auth          /api/v1/autopilots    /api/v1/boards
 /api/v1/catalogs      /api/v1/comments      /api/v1/config        /api/v1/conversations
 /api/v1/dashboard     /api/v1/editor        /api/v1/events        /api/v1/github
+/api/v1/gitlab
 /api/v1/goals         /api/v1/inbox         /api/v1/integrations  /api/v1/invitations
 /api/v1/issues        /api/v1/join-links    /api/v1/logs          /api/v1/mcp-servers
 /api/v1/me

@@ -50,6 +50,8 @@ import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { localTimezone } from '@/lib/cron-schedule';
 import { loadWorkspaceMembers } from '@/lib/members';
+import { loadWorkspaceProjects } from '@/lib/projects';
+import type { Project } from '@/data/projects';
 import { agentHasRuntime, getAgentCoverage, type AgentCoverage } from '@/lib/runtimes';
 import { useAgentsStore } from '@/store/agents-store';
 import { useIssuesStore } from '@/store/issues-store';
@@ -79,6 +81,7 @@ function initialDraft(autopilot?: Autopilot, template?: { name: string; prompt: 
          promptTemplate,
          executionMode,
          boardId: autopilot.boardId,
+         projectId: autopilot.projectId,
          issueId: autopilot.issueId,
          quotaPeriod: autopilot.quotaPeriod,
          quotaMax: autopilot.quotaMax,
@@ -92,6 +95,7 @@ function initialDraft(autopilot?: Autopilot, template?: { name: string; prompt: 
       promptTemplate: template?.prompt ?? '',
       executionMode: 'create_issue',
       boardId: null,
+      projectId: null,
       issueId: null,
       quotaPeriod: 'none',
       quotaMax: null,
@@ -121,6 +125,7 @@ export default function AutopilotDialog({
    const issues = useIssuesStore((state) => state.getAllIssues());
 
    const [boards, setBoards] = useState<BoardSummary[]>([]);
+   const [projects, setProjects] = useState<Project[]>([]);
    const [people, setPeople] = useState<User[]>([]);
    const [coverage, setCoverage] = useState<AgentCoverage | null>(null);
    const [draft, setDraft] = useState<AutopilotDraft>(() => initialDraft(autopilot, template));
@@ -150,6 +155,13 @@ export default function AutopilotDialog({
          // Only this workspace's: the list spans every workspace.
          .then((found) => setBoards(boardsIn(found, workspaceId)))
          .catch(() => setBoards([]));
+      if (workspaceId) {
+         void loadWorkspaceProjects(workspaceId)
+            .then(setProjects)
+            .catch(() => setProjects([]));
+      } else {
+         setProjects([]);
+      }
       void getAgentCoverage()
          .then(setCoverage)
          .catch(() => setCoverage(null));
@@ -324,6 +336,7 @@ export default function AutopilotDialog({
                            ...current,
                            executionMode: value === 'fixed_issue' ? 'fixed_issue' : 'create_issue',
                            boardId: null,
+                           projectId: null,
                            issueId: null,
                         }))
                      }
@@ -339,24 +352,48 @@ export default function AutopilotDialog({
                </div>
 
                {draft.executionMode === 'create_issue' ? (
-                  <div className="grid gap-2">
-                     <Label>{t('project')}</Label>
-                     <Select
-                        value={draft.boardId ?? ''}
-                        onValueChange={(value) => set('boardId', value)}
-                     >
-                        <SelectTrigger>
-                           <SelectValue placeholder={t('chooseProject')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {boards.map((board) => (
-                              <SelectItem key={board.id} value={board.id}>
-                                 {board.name}
-                              </SelectItem>
-                           ))}
-                        </SelectContent>
-                     </Select>
-                  </div>
+                  <>
+                     <div className="grid gap-2">
+                        <Label>{t('board')}</Label>
+                        <Select
+                           value={draft.boardId ?? ''}
+                           onValueChange={(value) => set('boardId', value)}
+                        >
+                           <SelectTrigger>
+                              <SelectValue placeholder={t('chooseBoard')} />
+                           </SelectTrigger>
+                           <SelectContent>
+                              {boards.map((board) => (
+                                 <SelectItem key={board.id} value={board.id}>
+                                    {board.name}
+                                 </SelectItem>
+                              ))}
+                           </SelectContent>
+                        </Select>
+                     </div>
+                     <div className="grid gap-2">
+                        <Label>{t('project')}</Label>
+                        <Select
+                           value={draft.projectId ?? 'none'}
+                           onValueChange={(value) =>
+                              set('projectId', value === 'none' ? null : value)
+                           }
+                        >
+                           <SelectTrigger>
+                              <SelectValue placeholder={t('chooseProject')} />
+                           </SelectTrigger>
+                           <SelectContent>
+                              <SelectItem value="none">{t('projectNone')}</SelectItem>
+                              {projects.map((project) => (
+                                 <SelectItem key={project.id} value={project.id}>
+                                    {project.name}
+                                 </SelectItem>
+                              ))}
+                           </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground">{t('projectHint')}</p>
+                     </div>
+                  </>
                ) : (
                   <div className="grid gap-2">
                      <Label>{t('task')}</Label>

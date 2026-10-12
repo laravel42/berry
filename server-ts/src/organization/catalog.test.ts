@@ -10,15 +10,15 @@ import { PROMPT_SECTIONS } from './prompt.ts';
 const keys = new Set(CATALOG.map((role) => role.id));
 
 describe('the Berry organization catalog', () => {
-   test('has the Orchestrator, seven core roles and fourteen specialists, each a valid contract', () => {
-      assert.equal(CATALOG.length, 22);
-      assert.equal(keys.size, 22);
+   test('has the Orchestrator, six core roles and fourteen specialists, each a valid contract', () => {
+      assert.equal(CATALOG.length, 21);
+      assert.equal(keys.size, 21);
       for (const role of CATALOG) {
          const parsed = roleContractSchema.safeParse(role);
          assert.ok(parsed.success, `${role.id}: ${parsed.success ? '' : parsed.error.message}`);
       }
       for (const key of [
-         'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'web-designer', 'software-engineer',
+         'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'software-engineer',
          'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer',
          'integration-engineer', 'qa-engineer', 'reviewer', 'security-engineer', 'devops-engineer', 'sre',
          'data-analytics-engineer', 'technical-writer', 'growth-engineer', 'engineering-manager', 'cto',
@@ -28,7 +28,7 @@ describe('the Berry organization catalog', () => {
       // ADR-0018: what every workspace is given.
       assert.deepEqual(
          [...CORE_ROLES],
-         ['orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
+         ['orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
       );
    });
 
@@ -36,7 +36,7 @@ describe('the Berry organization catalog', () => {
       const core = new Set(CORE_ROLES);
       for (const key of CORE_ROLES) assert.ok(keys.has(key), `core ${key} is not in the catalog`);
       // Build work reaches the one core role that can push, from every role that plans or reviews it.
-      for (const from of ['orchestrator', 'product-lead', 'product-designer', 'web-designer', 'qa-engineer', 'devops-engineer']) {
+      for (const from of ['orchestrator', 'product-lead', 'product-designer', 'qa-engineer', 'devops-engineer']) {
          assert.ok(catalogRole(from)!.can_delegate_to.includes('software-engineer'), `${from} cannot reach the engineer`);
       }
       assert.ok(catalogRole('software-engineer')!.allowed_tools.includes('run_command'));

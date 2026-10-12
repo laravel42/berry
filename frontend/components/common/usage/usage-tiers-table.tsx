@@ -63,8 +63,13 @@ export function UsageTiersTable({ rows }: { rows: TierUsageRow[] }) {
                         {formatCost(row.costMicros)}
                         {row.unpricedRecords > 0 ? '*' : ''}
                      </td>
-                     <td className="py-1.5 pr-4 text-right tabular-nums">
-                        {row.runs > 0 ? formatCost(Math.round(row.costMicros / row.runs)) : '—'}
+                     <td
+                        className="py-1.5 pr-4 text-right tabular-nums"
+                        title={row.unpricedRecords > 0 ? t('perRunUnpriced') : undefined}
+                     >
+                        {row.unpricedRecords > 0 || row.runs === 0
+                           ? '—'
+                           : formatCost(Math.round(row.costMicros / row.runs))}
                      </td>
                      <td className={cn('py-1.5 text-right tabular-nums', showUnpriced && 'pr-4')}>
                         {rate(row.fellBackRuns, row.runs)}

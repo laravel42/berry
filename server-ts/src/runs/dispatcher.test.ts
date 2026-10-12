@@ -169,6 +169,25 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       }
    });
 
+   test('two dispatchers cannot jointly exceed one agent slot', async () => {
+      const held: Array<() => void> = [];
+      await sql`UPDATE agents SET max_concurrency = 1 WHERE id = ${fixture.agentId!}`;
+      const executor = { execute: () => new Promise<unknown>((resolve) => held.push(() => resolve({}))) };
+      const first = build(sql, executor, { concurrency: 4 });
+      const second = build(sql, executor, { concurrency: 4 });
+      try {
+         for (let index = 0; index < 3; index += 1) await admit(runs, fixture, await createIssue(sql, fixture));
+         await Promise.all([first.tick(), second.tick()]);
+         assert.equal(first.inflight + second.inflight, 1);
+         await Promise.all([first.tick(), second.tick()]);
+         assert.equal(first.inflight + second.inflight, 1, 'committed leases reserve the shared capacity');
+      } finally {
+         for (const release of held.splice(0)) release();
+         await Promise.all([first.stop(), second.stop()]);
+         await sql`UPDATE agents SET max_concurrency = NULL WHERE id = ${fixture.agentId!}`;
+      }
+   });
+
    test('a claim is oldest first, because a queue that is not is not one', async () => {
       const older = await admit(runs, fixture, issueId);
       const newer = await admit(runs, fixture, await createIssue(sql, fixture));

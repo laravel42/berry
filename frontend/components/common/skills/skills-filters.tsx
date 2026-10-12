@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { Agent } from '@/lib/agents';
 import { isSkillInUse, type Skill } from '@/lib/skills';
 
-export const SKILL_COLUMNS = ['labels', 'agents', 'files', 'creator', 'updated'] as const;
+export const SKILL_COLUMNS = ['agents', 'files', 'creator', 'updated'] as const;
 export type SkillColumn = (typeof SKILL_COLUMNS)[number];
 
 export const SKILL_SORTS = ['name', 'labels', 'updated', 'usage'] as const;
@@ -36,7 +36,7 @@ export interface SkillCriteria {
 
 export const DEFAULT_CRITERIA: SkillCriteria = {
    sort: 'name',
-   columns: ['labels', 'agents', 'files'],
+   columns: ['agents', 'files'],
 };
 
 /**

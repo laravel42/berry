@@ -134,7 +134,7 @@ test('a pull request GitHub knows to conflict says so, and an unknown mergeabili
    const dirty = await answering({ state: 'open', merged: false, mergeable: false, mergeable_state: 'dirty', base: { ref: 'main' } }).pullRequestState('berry', 'app', 5);
    assert.deepEqual(dirty, {
       merged: false, open: true, conflicts: true, base: 'main',
-      githubId: null, repoId: null, title: '', url: '', headRef: '',
+      githubId: null, repoId: null, title: '', url: '', headRef: '', headSha: null,
    });
    const identified = await answering({
       id: 42, state: 'open', merged: true, title: 'Ship it', html_url: 'https://github.com/berry/app/pull/5',

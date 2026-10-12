@@ -84,6 +84,7 @@ interface Admitted {
    promptTemplate: string;
    executionMode: string;
    boardId: string | null;
+   projectId: string | null;
    issueId: string | null;
    createdBy: string | null;
    skipped: Reason | null;
@@ -116,7 +117,7 @@ export async function retryPendingAutopilot(deps: FireDeps, autopilotRunId: stri
    const [row] = await deps.sql<Array<Record<string, unknown>>>`
       SELECT a.status, a.issue_id, a.run_id, a.source, a.requested_by,
              p.id AS autopilot_id, p.workspace_id, p.name, p.assignee_type, p.assignee_id,
-             p.prompt_template, p.execution_mode, p.board_id, p.issue_id AS target_issue_id, p.created_by
+             p.prompt_template, p.execution_mode, p.board_id, p.project_id, p.issue_id AS target_issue_id, p.created_by
         FROM autopilot_runs a
         JOIN autopilots p ON p.id = a.autopilot_id
        WHERE a.id = ${autopilotRunId}`;
@@ -140,6 +141,7 @@ export async function retryPendingAutopilot(deps: FireDeps, autopilotRunId: stri
       promptTemplate: row.prompt_template as string,
       executionMode: row.execution_mode as string,
       boardId: (row.board_id as string | null) ?? null,
+      projectId: (row.project_id as string | null) ?? null,
       issueId: (row.target_issue_id as string | null) ?? null,
       createdBy: (row.created_by as string | null) ?? null,
       skipped: null,
@@ -216,7 +218,7 @@ async function continueAdmitted(
             sortOrder: 0,
             dueDate: null,
             assignee: { type: 'agent', id: agentId },
-            project: null,
+            project: admitted.projectId,
             createdBy: owner,
          });
          issueId = created.issue.id;
@@ -292,6 +294,7 @@ async function admit(sql: Sql, input: FireInput, autopilotRunId: string, firedAt
          promptTemplate: row.prompt_template as string,
          executionMode: row.execution_mode as string,
          boardId: (row.board_id as string | null) ?? null,
+         projectId: (row.project_id as string | null) ?? null,
          issueId: (row.issue_id as string | null) ?? null,
          createdBy: (row.created_by as string | null) ?? null,
          skipped,

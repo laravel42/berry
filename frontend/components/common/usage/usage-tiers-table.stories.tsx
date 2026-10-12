@@ -38,3 +38,15 @@ export const AllPriced: Story = {
 };
 
 export const Empty: Story = { args: { rows: [] } };
+
+/** Unpriced subscription usage must not make the average look cheaper. */
+export const PartialPricing: Story = {
+   args: { rows: [{ ...tierUsage.tiers[0]!, runs: 2, costMicros: 10_000_000, unpricedRecords: 1 }] },
+   play: async ({ canvas }) => {
+      const row = canvas.getAllByRole('row')[1];
+      await expect(row).toBeDefined();
+      const average = within(row!).getAllByRole('cell')[3];
+      await expect(average).toHaveTextContent('—');
+      await expect(average).toHaveAttribute('title', 'Average unavailable because some usage has no price. Subscription usage is not zero-cost API usage.');
+   },
+};

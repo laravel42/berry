@@ -534,6 +534,7 @@ export class GitHubClient {
       title: string;
       url: string;
       headRef: string;
+      headSha: string | null;
    }> {
       const pull = await this.#json<{
          id?: unknown;
@@ -543,7 +544,7 @@ export class GitHubClient {
          html_url?: unknown;
          mergeable?: boolean | null;
          mergeable_state?: string;
-         head?: { ref?: unknown };
+         head?: { ref?: unknown; sha?: unknown };
          base?: { ref?: unknown; repo?: { id?: unknown } };
       }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
       const numeric = (value: unknown): number | null =>
@@ -558,6 +559,7 @@ export class GitHubClient {
          title: typeof pull.title === 'string' ? pull.title : '',
          url: typeof pull.html_url === 'string' ? pull.html_url : '',
          headRef: typeof pull.head?.ref === 'string' ? pull.head.ref : '',
+         headSha: typeof pull.head?.sha === 'string' ? pull.head.sha : null,
       };
    }
 
@@ -725,6 +727,8 @@ export class GitHubClient {
       /** The commit title. GitHub composes one when this is absent. */
       title?: string;
       method?: 'merge' | 'squash' | 'rebase';
+      /** Refuse to merge a branch that changed since its review. */
+      expectedHeadSha?: string;
    }): Promise<{ merged: boolean; sha: string | null; reason: string | null; conflict: boolean }> {
       try {
          const result = await this.#json<{ merged?: boolean; sha?: string; message?: string }>(
@@ -732,6 +736,7 @@ export class GitHubClient {
             `/repos/${encode(input.owner)}/${encode(input.name)}/pulls/${input.number}/merge`,
             {
                merge_method: input.method ?? 'squash',
+               ...(input.expectedHeadSha ? { sha: input.expectedHeadSha } : {}),
                ...(input.title ? { commit_title: input.title } : {}),
             }
          );

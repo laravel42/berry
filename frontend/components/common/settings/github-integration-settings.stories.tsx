@@ -54,7 +54,6 @@ export const ConnectedViaApp: Story = {
 };
 
 export const ViaSignInOnly: Story = {
-   args: { source: 'sign-in' },
    beforeEach: ({ msw }) => {
       msw.use(
          http.get('*/api/v1/github/:ws/settings', () =>

@@ -216,7 +216,7 @@ describe('/api/v1/autopilots', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is
          const viewerToken = await issueTestToken(sql, viewerId);
          const theirs = await repo.create(other.workspaceId, {
             name: 'Theirs', description: null, assigneeType: 'agent', assigneeId: other.agentId,
-            promptTemplate: 'x', executionMode: 'create_issue', boardId: other.boardId, issueId: null,
+            promptTemplate: 'x', executionMode: 'create_issue', boardId: other.boardId, projectId: null, issueId: null,
             quotaPeriod: 'none', quotaMax: null,
          }, other.userId);
          const theirTrigger = await repo.addCronTrigger(other.workspaceId, theirs.id, {

@@ -8,21 +8,26 @@ import { renderMetrics, type MetricsSource } from '../observability/metrics.ts';
  * Process health and the browser-safe capability list.
  *
  * The first mount to move, because it is the least coupled thing the server
- * answers: no authentication, no workspace scoping, and one dependency it can
- * probe directly. If the strangler works at all it works here first.
+ * answers: no authentication, and one dependency it can probe directly.
+ * Execution capabilities are the exception: they are read for the workspace
+ * the request names, not for every workspace this process can see.
+ * If the strangler works at all it works here first.
  */
 
 /** A named readiness probe. Throwing means not ready. */
 export type Checker = () => Promise<void>;
 
 /** Only booleans, and only ones safe to hand a browser. */
+/** A capability that has to be asked on each read, for the request that asked. */
+type CapabilityProbe = boolean | ((request: Request) => Promise<boolean>);
+
 export interface Capabilities {
-   agentExecution: boolean;
+   agentExecution: CapabilityProbe;
    metrics: boolean;
    realtime: boolean;
    storage: boolean;
    valkey: boolean;
-   planner: boolean;
+   planner: CapabilityProbe;
    /** Model calls go through a gateway with Berry tiers (ADR-0017): the UI shows tiers, not a model picker. */
    modelGateway?: boolean;
    /**
@@ -150,27 +155,32 @@ function metricsRoute(source: MetricsSource | null): Hono {
    return route;
 }
 
+async function readProbe(value: CapabilityProbe, request: Request): Promise<boolean> {
+   return typeof value === 'function' ? value(request) : value;
+}
+
 function configRoute(
    capabilities: Capabilities,
    version?: string,
    signInOrigin?: string | null
 ): Hono {
    const route = new Hono();
-   route.get('/', async () =>
+   route.get('/', async (context) => {
+      const request = context.req.raw;
       // Declaration order, not sorted: the Go server marshalled this as a
       // struct and `planner` was declared after `valkey`. `version` is
       // appended rather than inserted for the same reason: a client reading
       // the old shape keeps reading it unchanged.
-      json({
+      return json({
          version: version ?? null,
          signInOrigin: signInOrigin ?? null,
          capabilities: {
-            agentExecution: capabilities.agentExecution,
+            agentExecution: await readProbe(capabilities.agentExecution, request),
             metrics: capabilities.metrics,
             realtime: capabilities.realtime,
             storage: capabilities.storage,
             valkey: capabilities.valkey,
-            planner: capabilities.planner,
+            planner: await readProbe(capabilities.planner, request),
             modelGateway: capabilities.modelGateway ?? false,
             githubSignIn:
                typeof capabilities.githubSignIn === 'function'
@@ -180,8 +190,8 @@ function configRoute(
             emailRegistration: capabilities.emailRegistration ?? false,
             nango: capabilities.nango ?? false,
          },
-      })
-   );
+      });
+   });
    return route;
 }
 
