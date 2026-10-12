@@ -21,14 +21,14 @@
       },
       {
          "name": "gitlab.open_merge_request",
-         "description": "Permission to open a merge request, if this connection grants it later.",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
          "effect": "external_side_effect",
          "requiresApproval": false,
          "enabledByDefault": true
       },
       {
          "name": "gitlab.merge_merge_request",
-         "description": "Permission to merge a merge request, if this connection grants it later.",
+         "description": "Permission to integrate proposed changes without a review, if this connection grants it later.",
          "effect": "destructive",
          "requiresApproval": true,
          "enabledByDefault": false

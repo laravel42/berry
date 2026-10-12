@@ -59,9 +59,14 @@ test('a finished Nango consent is recorded without a provider token', async () =
       },
    });
 
-   // Every Nango provider in the catalogue is listed; only GitHub has a held
-   // connection, so only GitHub is recorded.
-   assert.ok(listed.includes('github'));
+   // Every Nango provider in the catalogue is queried, GitLab among them, so a
+   // provider that is never asked for would fail here rather than pass.
+   const nangoProviderIds = PROVIDERS.filter((provider) => provider.include === 'nango').map(
+      (provider) => provider.id
+   );
+   assert.ok(nangoProviderIds.includes('gitlab'), 'the catalogue carries a gitlab provider');
+   assert.deepEqual([...listed].sort(), [...nangoProviderIds].sort());
+   // GitLab was queried and returned nothing, so only GitHub is recorded.
    assert.equal(recorded.length, 1);
    assert.equal(recorded[0]?.provider, 'github');
    assert.equal(recorded[0]?.externalAccountId, 'aaf7511c-7ef8-4464-ac97-f73bd8265775');
