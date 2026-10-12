@@ -7,28 +7,28 @@
    "tools": [
       {
          "name": "gitlab.read_repository",
-         "description": "Clone the repository and read its files.",
+         "description": "Permission to read repository contents, if this connection grants it later.",
          "effect": "read",
          "requiresApproval": false,
          "enabledByDefault": true
       },
       {
          "name": "gitlab.create_branch",
-         "description": "Push a branch named for the task the agent is working.",
+         "description": "Permission to create a branch, if this connection grants it later.",
          "effect": "write",
          "requiresApproval": false,
          "enabledByDefault": true
       },
       {
          "name": "gitlab.open_merge_request",
-         "description": "Open a merge request for a person to review.",
+         "description": "Permission to open a merge request, if this connection grants it later.",
          "effect": "external_side_effect",
          "requiresApproval": false,
          "enabledByDefault": true
       },
       {
          "name": "gitlab.merge_merge_request",
-         "description": "Merge without waiting for a human review.",
+         "description": "Permission to merge a merge request, if this connection grants it later.",
          "effect": "destructive",
          "requiresApproval": true,
          "enabledByDefault": false
