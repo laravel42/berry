@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { PlanGenerator, PlannerUnavailable, repairPrompt } from './generator.ts';
+import { z } from 'zod';
+import { PlanGenerator, PLAN_SHAPE, PlannerUnavailable, repairPrompt } from './generator.ts';
 import type { Plan } from './schema.ts';
 import type { Sql } from '../db/pool.ts';
 import { CompletionFailed, CompletionInvalid, type RuntimeCompletion } from '../runtime/completion.ts';
@@ -383,11 +384,25 @@ function bare(tempId: string): Plan['issues'][number] {
    };
 }
 
+test('the planner answer shape asks for changesRepository on every task', () => {
+   const schema = z.toJSONSchema(PLAN_SHAPE) as {
+      properties?: {
+         issues?: { items?: { properties?: Record<string, { description?: string }> } };
+      };
+   };
+   const field = schema.properties?.issues?.items?.properties?.changesRepository;
+   assert.ok(field, 'changesRepository is a field the model is asked to fill');
+   assert.match(field.description ?? '', /true/);
+   assert.match(field.description ?? '', /false/);
+});
+
 test('the repair role is shown the whole plan format, dependencies included', async () => {
    const { planner, script } = generator([BROKEN, GOOD, ACCEPT]);
    await planner.generate({ workspaceId: 'w', prompt: 'ship it' });
    assert.match(script.prompts[1]!.system, /"dependsOn"/);
    assert.match(script.prompts[1]!.system, /target\.tempId/);
+   assert.match(script.prompts[1]!.system, /changesRepository/);
+   assert.match(script.prompts[1]!.system, /Do not leave it out/);
 });
 
 test('a repair the gateway never answers keeps the draft rather than losing it', async () => {
