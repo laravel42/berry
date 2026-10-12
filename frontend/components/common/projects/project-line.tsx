@@ -5,25 +5,17 @@ import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Issue } from '@/data/issues';
 import { Project } from '@/data/projects';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useMembersStore } from '@/store/members-store';
-import { MoreHorizontal, User as UserIcon } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo } from 'react';
 import { format } from 'date-fns';
-import { DeleteProjectDialog, useProjectDeletion } from './delete-project';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import {
    PROJECT_ACTIONS_SLOT,
@@ -49,7 +41,6 @@ const countIssues = (issues: Issue[], projectId: string) =>
    issues.filter((issue) => issue.project?.id === projectId).length;
 
 export default function ProjectLine({ project, selected, onToggleSelected }: ProjectLineProps) {
-   const t = useTranslations('issueLists');
    const { orgId } = useParams<{ orgId: string }>();
    const { issues } = useIssuesStore();
    const members = useMembersStore((state) => state.members);
@@ -60,7 +51,6 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
       updateProjectLead,
    } = useProjectsStore();
    const { displayProperties } = useProjectsDisplayStore();
-   const deletion = useProjectDeletion();
    const issueCount = useMemo(() => countIssues(issues, project.id), [issues, project.id]);
 
    return (
@@ -200,9 +190,6 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                </div>
             )}
 
-            {/* The row's own actions. Pinning is one click because it is the one
-             people do from a list; anything destructive stays behind a menu
-             and a confirmation. */}
             <div
                className={cn(
                   PROJECT_ACTIONS_SLOT,
@@ -210,33 +197,8 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                )}
             >
                <PinToggle targetType="project" targetId={project.id} />
-               <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                     <Button
-                        size="icon"
-                        variant="ghost"
-                        className="size-8"
-                        aria-label={`${project.name} menu`}
-                     >
-                        <MoreHorizontal className="size-4" />
-                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                     <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={(event) => {
-                           event.preventDefault();
-                           deletion.request(project);
-                        }}
-                     >
-                        {t('projects.delete')}
-                     </DropdownMenuItem>
-                  </DropdownMenuContent>
-               </DropdownMenu>
             </div>
          </div>
-
-         <DeleteProjectDialog deletion={deletion} />
       </div>
    );
 }
