@@ -15,7 +15,12 @@ const VERSION = (process.env.BERRY_VERSION ?? '').trim() || '0.1.0-dev';
  */
 const PLUGIN_MCP_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
-import { configureTaskExecution, WORKSTATION_RUNTIME_KEYS } from './runs/execution-policy.ts';
+import {
+   agentExecutionAvailable,
+   configureTaskExecution,
+   requestedExecutionWorkspaceId,
+   WORKSTATION_RUNTIME_KEYS,
+} from './runs/execution-policy.ts';
 import { loadConfig } from './config/config.ts';
 import { isEmbeddedDatabase, openFromUrl } from './db/embedded.ts';
 import { checkDatabase } from './db/pool.ts';
@@ -111,6 +116,7 @@ import { usageMounts } from './mounts/usage.ts';
 import { PriceBook } from './agents/pricing.ts';
 import { configureUsagePricing, recordTaskUsage } from './usage/record.ts';
 import { eventMounts } from './mounts/events.ts';
+import { resolveWorkspaceContext } from './identity/workspace-context.ts';
 import { IdentityRepository } from './identity/repository.ts';
 import { WorkspaceRepository } from './identity/workspaces.ts';
 import { SecretsRepository } from './identity/secrets.ts';
@@ -558,15 +564,37 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
      : null;
 
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
-const hasAgentExecution = async (workspaceId?: string): Promise<boolean> => {
+const hasAgentExecution = (workspaceId: string): Promise<boolean> =>
+   agentExecutionAvailable(sql, {
+      nativeExecution: defaultTarget !== null,
+      workspaceId,
+      runtimeKeys: WORKSTATION_RUNTIME_KEYS,
+   });
+/**
+ * Config is read without a path workspace. Scope it to the requested
+ * workspace, or the signed-in person's selected one. Another workspace's
+ * subscription does not make execution true here, and an anonymous read
+ * with no native host stays false.
+ */
+const executionForRequest = async (request: Request): Promise<boolean> => {
    if (defaultTarget) return true;
-   const [row] = await sql`SELECT EXISTS (
-      SELECT 1 FROM ai_runtime_connections c JOIN workspace_memberships m
-        ON m.workspace_id = c.workspace_id AND m.user_id = c.user_id
-       WHERE c.status = 'connected' AND c.runtime_key = ANY(${sql.array([...WORKSTATION_RUNTIME_KEYS])}::text[])
-         AND (${workspaceId ?? null}::uuid IS NULL OR c.workspace_id = ${workspaceId ?? null}::uuid)
-   ) AS available`;
-   return row?.available === true;
+   let fallback: string | null = null;
+   let userId: string | null = null;
+   try {
+      const user = await sessions.resolveRequest(request);
+      userId = user.id;
+      fallback = user.currentWorkspaceId;
+   } catch {
+      userId = null;
+   }
+   const workspaceId = requestedExecutionWorkspaceId(request, userId ? fallback : null);
+   if (!workspaceId || !userId) return false;
+   try {
+      await resolveWorkspaceContext(sql, userId, workspaceId, 'workspace.read');
+   } catch {
+      return false;
+   }
+   return hasAgentExecution(workspaceId);
 };
 
 /**
@@ -1424,9 +1452,10 @@ registry.registerAll(
          // Reported by whichever server answers, so they have to agree. Only
          // what this process can actually do is true; the rest arrive with the
          // mounts that provide them.
-         // Native compute or a live connected workstation subscription. The
-         // value is refreshed per read so connecting a runtime takes effect.
-         agentExecution: hasAgentExecution,
+         // Native compute, or a live subscription in the workspace this read
+         // is about. Refreshed per read so connecting a runtime takes effect.
+         // Another workspace's connection does not count.
+         agentExecution: executionForRequest,
          metrics: true,
          // The event streams are served here now. The relay is not wired, so
          // a fact published by another process arrives on the next poll
@@ -1435,8 +1464,9 @@ registry.registerAll(
          realtime: true,
          storage: storage !== null,
          valkey: false,
-         // Planning is a completion task, including subscription-backed ones.
-         planner: hasAgentExecution,
+         // Planning is a completion task, including subscription-backed ones,
+         // for the same workspace this read is about.
+         planner: executionForRequest,
          modelGateway: modelGateway !== null,
          // What the sign-in page believes: true when the GitHub OAuth App
          // can complete a round trip and Better Auth can hold the session.
@@ -1512,7 +1542,8 @@ const followupWorker = reviewGate
 followupWorker?.start();
 
 // Schedules use the shared admission policy, including subscriptions.
-// Unavailable execution is recorded as a firing failure, never queued forever.
+// A workspace with no execution connection keeps its slot due: the firing
+// is skipped, not recorded as a failure, so a later reconnect can still run it.
 // Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
 const autopilotScheduler = new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger, canFire: hasAgentExecution });
