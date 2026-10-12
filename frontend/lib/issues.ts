@@ -2,7 +2,6 @@ import type { Issue, IssueDependencyRef } from '@/data/issues';
 import { health, type Project } from '@/data/projects';
 import { priorities } from '@/data/priorities';
 import { status } from '@/data/status';
-import { currentUser } from '@/data/users';
 import { useProjectsStore } from '@/store/projects-store';
 import { Box } from 'lucide-react';
 import { z } from 'zod';
@@ -398,7 +397,7 @@ function placeholderProject(id: string, name: string): Project {
       icon: Box,
       percentComplete: 0,
       startDate: '',
-      lead: currentUser,
+      lead: null,
       priority: priorities.find((candidate) => candidate.id === 'no-priority') ?? priorities[0],
       health: health.find((candidate) => candidate.id === 'no-update') ?? health[0],
       teamId: '',

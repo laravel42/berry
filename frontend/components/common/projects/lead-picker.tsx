@@ -11,14 +11,14 @@ import type { ComponentProps, ReactElement } from 'react';
  * (both `role: 'Application'`) are not offered. With no roster loaded yet the
  * current lead is the only candidate, so the menu is never empty for a person.
  */
-export function leadCandidates(members: readonly User[], lead: User | undefined): User[] {
+export function leadCandidates(members: readonly User[], lead: User | null | undefined): User[] {
    const roster = members.length > 0 ? members : lead ? [lead] : [];
    return roster.filter((member) => !isAgentUser(member));
 }
 
 interface LeadPickerProps {
-   /** Undefined until someone is chosen; the trigger shows the empty state. */
-   lead: User | undefined;
+   /** Absent until someone is chosen; the trigger shows the empty state. */
+   lead: User | null | undefined;
    /** The people on offer, usually `leadCandidates(members, lead)`. */
    candidates: readonly User[];
    onChange: (lead: User) => void;

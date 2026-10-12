@@ -2,7 +2,7 @@
 
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Calendar, UserPlus } from 'lucide-react';
+import { ArrowRight, Calendar, User as UserIcon, UserPlus } from 'lucide-react';
 import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -155,10 +155,21 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                            variant="ghost"
                            size="sm"
                            className="w-full min-w-0 justify-start gap-2 px-1.5"
-                           aria-label={`Lead: ${project.lead.name}`}
+                           aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
                         >
-                           <ActorAvatar user={project.lead} />
-                           <span className="truncate">{project.lead.name}</span>
+                           {project.lead ? (
+                              <>
+                                 <ActorAvatar user={project.lead} />
+                                 <span className="truncate">{project.lead.name}</span>
+                              </>
+                           ) : (
+                              <>
+                                 <UserIcon className="size-3.5 text-muted-foreground" />
+                                 <span className="truncate text-muted-foreground">
+                                    Project lead
+                                 </span>
+                              </>
+                           )}
                         </Button>
                      </LeadPicker>
                   </div>
@@ -313,11 +324,17 @@ export function ProjectPropertiesPanel({
                   <RepositorySelector project={project} />
                </PropertyRow>
                <PropertyRow label="Lead">
-                  <Avatar className="size-5">
-                     <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
-                     <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
-                  </Avatar>
-                  <span className="truncate max-w-36">{project.lead.name}</span>
+                  {project.lead ? (
+                     <>
+                        <Avatar className="size-5">
+                           <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
+                           <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
+                        </Avatar>
+                        <span className="truncate max-w-36">{project.lead.name}</span>
+                     </>
+                  ) : (
+                     <span className="text-muted-foreground">No lead</span>
+                  )}
                </PropertyRow>
                <PropertyRow label="Members">
                   {members.length > 0 ? (

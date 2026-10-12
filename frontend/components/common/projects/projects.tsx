@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { health as HEALTH, Project } from '@/data/projects';
+import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
 import { priorities as PRIORITIES } from '@/data/priorities';
 import { pinTarget } from '@/lib/pins';
@@ -210,16 +211,32 @@ export default function Projects() {
          match: (project: Project) => project.health.id === entry.id,
       }));
       // Leads are whoever leads a project here, alphabetical; no fixed vocabulary.
-      const leads = new Map<string, Project['lead']>();
-      for (const project of scoped) leads.set(project.lead.id, project.lead);
+      // Projects with nobody leading them share one group at the end.
+      const leads = new Map<string, User>();
+      let unassigned = false;
+      for (const project of scoped) {
+         if (!project.lead) {
+            unassigned = true;
+            continue;
+         }
+         leads.set(project.lead.id, project.lead);
+      }
       const byLead: ProjectGroupSpec[] = [...leads.values()]
          .sort((a, b) => a.name.localeCompare(b.name))
          .map((lead) => ({
             id: lead.id,
             name: lead.name,
             icon: <Box className="size-4 text-muted-foreground" />,
-            match: (project: Project) => project.lead.id === lead.id,
+            match: (project: Project) => project.lead?.id === lead.id,
          }));
+      if (unassigned) {
+         byLead.push({
+            id: 'no-lead',
+            name: 'No lead',
+            icon: <Box className="size-4 text-muted-foreground" />,
+            match: (project: Project) => project.lead == null,
+         });
+      }
       const descriptors =
          grouping === 'status'
             ? byStatus

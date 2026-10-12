@@ -100,7 +100,7 @@ export default function ProjectsInsightsPanel({ projects }: ProjectsInsightsPane
                      <AvatarFallback>{user.name[0]}</AvatarFallback>
                   </Avatar>
                ),
-               count: projects.filter((project) => project.lead.id === user.id).length,
+               count: projects.filter((project) => project.lead?.id === user.id).length,
             }))
             .filter((row) => row.count > 0)
             .sort((a, b) => b.count - a.count),

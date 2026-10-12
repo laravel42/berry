@@ -51,7 +51,7 @@ interface ProjectFormState {
    description: string;
    status: Status;
    priority: (typeof priorities)[number];
-   /** Undefined until chosen — who leads is a required decision. */
+   /** Absent until someone is chosen. */
    lead?: User;
    startDate?: Date;
    targetDate?: Date;
@@ -140,11 +140,6 @@ export function CreateProjectDialog() {
          toast.error('Workspace is not ready');
          return;
       }
-      const lead = form.lead;
-      if (!lead) {
-         toast.error('Choose who leads this project');
-         return;
-      }
       if (form.startDate && form.targetDate && form.targetDate < form.startDate) {
          toast.error('Target date must be on or after the start date');
          return;
@@ -160,9 +155,14 @@ export function CreateProjectDialog() {
             startDate: toIsoDate(form.startDate),
             targetDate: toIsoDate(form.targetDate),
             githubRepo: form.githubRepo,
-            lead,
+            lead: form.lead ?? null,
          });
-         addProject({ ...project, lead, status: form.status, priority: form.priority });
+         addProject({
+            ...project,
+            lead: form.lead ?? null,
+            status: form.status,
+            priority: form.priority,
+         });
          toast.success('Project created');
          closeModal();
       } catch (error) {
@@ -258,7 +258,7 @@ export function CreateProjectDialog() {
                            priority={form.priority}
                            onChange={(priority) => setForm({ ...form, priority })}
                         />
-                        {/* Nothing is preselected: who leads is a decision, not a default. */}
+                        {/* Nothing is preselected. Leaving it empty is a project with no lead. */}
                         <LeadPicker
                            lead={form.lead}
                            candidates={leadCandidates(members, undefined)}
@@ -325,7 +325,7 @@ export function CreateProjectDialog() {
                         type="submit"
                         size="xs"
                         className="h-9"
-                        disabled={pending || !form.name.trim() || !form.lead}
+                        disabled={pending || !form.name.trim()}
                      >
                         {pending ? 'Creating…' : 'Create project'}
                      </Button>

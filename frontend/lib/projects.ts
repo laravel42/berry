@@ -47,14 +47,7 @@ export type ProjectPatchBody = {
    lead?: ApiProjectLead | null;
 };
 
-/**
- * One project as the UI holds it.
- *
- * `viewer` is a fallback for the lead, not the lead: the stored one wins, and
- * the viewer stands in only for a project that recorded none. Passing the
- * current user as *the* lead is what used to make every project read as
- * "assigned to me", including the ones handed to the AI workflow.
- */
+/** One project as the UI holds it. A missing lead stays missing. */
 const HEALTH_BY_API: Record<string, Health['id']> = {
    noUpdate: 'no-update',
    onTrack: 'on-track',
@@ -78,7 +71,7 @@ function uiHealthFromApi(value: string | null | undefined): Health | undefined {
    return health.find((entry) => entry.id === id);
 }
 
-export function toUiProject(apiProject: ApiProject, viewer: User): Project | undefined {
+export function toUiProject(apiProject: ApiProject): Project | undefined {
    const status = uiStatusFromProjectApi(apiProject.status);
    const priority = uiPriorityFromApi(apiProject.priority);
    const projectHealth = uiHealthFromApi(apiProject.health);
@@ -91,7 +84,7 @@ export function toUiProject(apiProject: ApiProject, viewer: User): Project | und
       icon: FolderKanban,
       percentComplete: 0,
       startDate: apiProject.startDate ?? apiProject.createdAt.slice(0, 10),
-      lead: leadFromApi(apiProject.lead, viewer),
+      lead: leadFromApi(apiProject.lead),
       priority,
       health: projectHealth,
       teamId: apiProject.workspaceId,
@@ -113,7 +106,6 @@ export function toUiProject(apiProject: ApiProject, viewer: User): Project | und
 
 async function fetchProjectPage(
    workspaceId: string,
-   viewer: User,
    after?: string
 ): Promise<{ projects: Project[]; nextCursor?: string }> {
    const params = new URLSearchParams({
@@ -128,7 +120,7 @@ async function fetchProjectPage(
 
    const projects: Project[] = [];
    for (const node of parsed.data.nodes) {
-      const mapped = toUiProject(node, viewer);
+      const mapped = toUiProject(node);
       if (mapped) projects.push(mapped);
    }
 
@@ -139,13 +131,13 @@ async function fetchProjectPage(
    };
 }
 
-export async function loadWorkspaceProjects(workspaceId: string, viewer: User): Promise<Project[]> {
+export async function loadWorkspaceProjects(workspaceId: string): Promise<Project[]> {
    if (!workspaceId) return [];
    const collected: Project[] = [];
    try {
       let after: string | undefined;
       for (let page = 0; page < 20; page += 1) {
-         const batch = await fetchProjectPage(workspaceId, viewer, after);
+         const batch = await fetchProjectPage(workspaceId, after);
          collected.push(...batch.projects);
          if (!batch.nextCursor) break;
          after = batch.nextCursor;
@@ -164,7 +156,8 @@ export async function createWorkspaceProject(input: {
    priorityId?: string;
    startDate?: string;
    targetDate?: string;
-   lead: User;
+   /** Omitted or null when the project has no lead yet. */
+   lead?: User | null;
    githubRepo?: string;
 }): Promise<Project> {
    const body: Record<string, unknown> = {
@@ -172,9 +165,8 @@ export async function createWorkspaceProject(input: {
       name: input.name,
       status: apiProjectStatusFromUi(input.statusId ?? 'to-do'),
       priority: apiPriorityFromUi(input.priorityId ?? 'no-priority'),
-      // The lead is sent, not kept. It decides whether Berry plans the project,
-      // so a choice held only in the browser is a decision with no record.
-      lead: leadToApi(input.lead),
+      // The lead is sent, not kept. Null is a project with nobody leading it.
+      lead: input.lead ? leadToApi(input.lead) : null,
    };
    if (input.description) body.description = input.description;
    if (input.startDate) body.startDate = input.startDate;
@@ -190,22 +182,19 @@ export async function createWorkspaceProject(input: {
    if (!parsed.success) {
       throw new Error('Create project response was not recognized');
    }
-   const project = toUiProject(parsed.data, input.lead);
+   const project = toUiProject(parsed.data);
    if (!project) {
       throw new Error('Created project could not be displayed');
    }
    return project;
 }
 
-export async function getWorkspaceProject(
-   projectId: string,
-   viewer: User
-): Promise<Project | undefined> {
+export async function getWorkspaceProject(projectId: string): Promise<Project | undefined> {
    try {
       const json: unknown = await apiFetch(`/api/v1/projects/${projectId}`);
       const parsed = projectSchema.safeParse(json);
       if (!parsed.success) return undefined;
-      return toUiProject(parsed.data, viewer);
+      return toUiProject(parsed.data);
    } catch {
       return undefined;
    }
@@ -213,8 +202,7 @@ export async function getWorkspaceProject(
 
 export async function patchWorkspaceProject(
    projectId: string,
-   patch: ProjectPatchBody,
-   viewer: User
+   patch: ProjectPatchBody
 ): Promise<Project | undefined> {
    try {
       const json: unknown = await apiFetch(`/api/v1/projects/${projectId}`, {
@@ -223,7 +211,7 @@ export async function patchWorkspaceProject(
       });
       const parsed = projectSchema.safeParse(json);
       if (!parsed.success) return undefined;
-      return toUiProject(parsed.data, viewer);
+      return toUiProject(parsed.data);
    } catch {
       return undefined;
    }

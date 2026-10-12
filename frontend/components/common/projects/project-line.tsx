@@ -17,7 +17,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useMembersStore } from '@/store/members-store';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, User as UserIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -135,12 +135,23 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                         size="sm"
                         variant="ghost"
                         role="combobox"
-                        aria-label={`Lead: ${project.lead.name}`}
+                        aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
                      >
-                        <ActorAvatar user={project.lead} size="sm" className="mr-1" />
-                        <span className="hidden min-w-0 truncate md:inline">
-                           {project.lead.name}
-                        </span>
+                        {project.lead ? (
+                           <>
+                              <ActorAvatar user={project.lead} size="sm" className="mr-1" />
+                              <span className="hidden min-w-0 truncate md:inline">
+                                 {project.lead.name}
+                              </span>
+                           </>
+                        ) : (
+                           <>
+                              <UserIcon className="size-3.5 text-muted-foreground" />
+                              <span className="hidden min-w-0 truncate text-muted-foreground md:inline">
+                                 Project lead
+                              </span>
+                           </>
+                        )}
                      </Button>
                   </LeadPicker>
                </div>
