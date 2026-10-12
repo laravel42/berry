@@ -449,6 +449,7 @@
          "runs": "Runs",
          "cost": "Cost",
          "perRun": "Cost/run",
+         "perRunUnpriced": "Average unavailable because some usage has no price. Subscription usage is not zero-cost API usage.",
          "fallbackRate": "Fallback rate",
          "unpriced": "Unpriced",
          "empty": "No tier runs in this window.",
