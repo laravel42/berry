@@ -6,3 +6,6 @@
 ALTER TABLE autopilots
    ADD COLUMN IF NOT EXISTS project_id uuid
       REFERENCES projects(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS autopilots_project_id_idx
+   ON autopilots (project_id);

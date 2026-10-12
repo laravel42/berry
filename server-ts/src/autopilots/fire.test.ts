@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { after, before, beforeEach, describe, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { IssueRepository } from '../core/issues.ts';
+import { ProjectRepository } from '../core/projects.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { fireAutopilot, type AutopilotTaskInput, type FireDeps } from './fire.ts';
 import { AutopilotRepository, type AutopilotDraft } from './repository.ts';
@@ -150,5 +151,35 @@ describe('firing an autopilot', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       const [record] = await sql`SELECT reason_message, issue_id FROM autopilot_runs WHERE id = ${outcome.autopilotRunId}`;
       assert.equal(record?.reason_message, 'the task already has a run');
       assert.ok(record?.issue_id, 'the task that was opened is still linked');
+   });
+
+   test('a firing files the new task under the autopilot project', async () => {
+      const projects = new ProjectRepository(sql);
+      const fields = {
+         description: null,
+         status: 'active',
+         priority: 'none',
+         startDate: null,
+         targetDate: null,
+         githubRepoId: null,
+         githubRepoFullName: null,
+         createdBy: fixture.userId,
+      };
+      const target = await projects.create({ ...fields, workspaceId: fixture.workspaceId, name: 'Target' });
+      await projects.create({ ...fields, workspaceId: fixture.workspaceId, name: 'Other' });
+      const autopilot = await repo.create(
+         fixture.workspaceId,
+         draft({ projectId: target.id }),
+         fixture.userId
+      );
+      const outcome = await fireAutopilot(deps, {
+         autopilotId: autopilot.id,
+         source: 'manual',
+         requestedBy: fixture.userId,
+      });
+      assert.equal(outcome.status, 'enqueued');
+      const [link] = await sql`
+         SELECT project_id FROM issue_project_links WHERE issue_id = ${outcome.issueId}`;
+      assert.equal(link?.project_id, target.id);
    });
 });
