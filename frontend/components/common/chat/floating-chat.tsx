@@ -15,9 +15,11 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { BerryApiError } from '@/lib/api';
 import { colorForAgent } from '@/lib/agent-color';
 import { isOrchestrator, loadWorkspaceAgents, useAgentAvatarSrc, type Agent } from '@/lib/agents';
 import {
+   cancelSessionTask,
    listMessages,
    listSessionTasks,
    listThreads,
@@ -33,6 +35,7 @@ import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
+import { toast } from 'sonner';
 import { ChatComposer } from './chat-composer';
 import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatThread as ThreadView } from './chat-thread';
@@ -329,6 +332,17 @@ export function FloatingChat() {
       }
    };
 
+   const stopReply = async (runId: string) => {
+      if (!activeId) return;
+      try {
+         await cancelSessionTask(activeId, runId);
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : chat('rowFailed'));
+         return;
+      }
+      await refresh(activeId);
+   };
+
    const onResize = (event: React.PointerEvent<HTMLButtonElement>) => {
       resizing.current = { x: event.clientX, y: event.clientY, ...size };
       const move = (moveEvent: PointerEvent) => {
@@ -528,7 +542,7 @@ export function FloatingChat() {
                   value={composer}
                   onChange={setComposer}
                   onSend={() => void send()}
-                  onStop={null}
+                  onStop={replyRun ? () => void stopReply(replyRun) : null}
                   queueing={tasks.length > 0}
                   disabled={sending}
                   workspaceId={workspaceId}

@@ -135,9 +135,9 @@ export function ChatComposer({
                   className="max-h-48 min-h-8 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
-               {/* Mode, model and repository sit under the text, and Send
-                   stays at the end of that row. Stop stands where Send was
-                   while a reply runs; a send then queues, so both stay reachable. */}
+               {/* Mode, model and repository sit under the text. While a reply
+                   is being written, Stop takes Send's place. A follow-up
+                   typed during that reply queues, so both stay reachable. */}
                <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1">
                      <ChatModeSelect disabled={!chatOpen || answering} />
@@ -163,21 +163,23 @@ export function ChatComposer({
                            title={t('stopReply')}
                            className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
                         >
-                           <Square className="size-3" aria-hidden />
+                           <Square className="size-3 fill-current" aria-hidden />
                         </button>
                      ) : null}
-                     <button
-                        type="submit"
-                        disabled={!canSend}
-                        aria-label={sendLabel}
-                        title={sendLabel}
-                        className={[
-                           'flex size-8 flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
-                           SEND_VARIANT[sendVariant],
-                        ].join(' ')}
-                     >
-                        <ArrowUp className="size-4" aria-hidden />
-                     </button>
+                     {onStop && !canSend ? null : (
+                        <button
+                           type="submit"
+                           disabled={!canSend}
+                           aria-label={sendLabel}
+                           title={sendLabel}
+                           className={[
+                              'flex size-8 flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
+                              SEND_VARIANT[sendVariant],
+                           ].join(' ')}
+                        >
+                           <ArrowUp className="size-4" aria-hidden />
+                        </button>
+                     )}
                   </div>
                </div>
             </div>

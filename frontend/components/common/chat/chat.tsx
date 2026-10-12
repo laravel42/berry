@@ -542,6 +542,19 @@ export function Chat() {
       setStopping(thread);
    };
 
+   /** Stops the reply being written, without a confirmation. */
+   const stopReply = async (runId: string) => {
+      if (!activeId) return;
+      try {
+         await cancelSessionTask(activeId, runId);
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
+         return;
+      }
+      await refreshThreads().catch(() => undefined);
+      await refreshSession(activeId).catch(() => undefined);
+   };
+
    /** Runs once the stop is confirmed; a failure keeps the dialog open. */
    const confirmStop = async () => {
       const thread = stopping;
@@ -808,7 +821,7 @@ export function Chat() {
                   value={composer}
                   onChange={changeComposer}
                   onSend={() => void send()}
-                  onStop={active?.activeRunId ? () => stop(active) : null}
+                  onStop={active && replyRun ? () => void stopReply(replyRun) : null}
                   queueing={ownTasks.length > 0}
                   disabled={!activeId || sending}
                   workspaceId={workspaceId}
