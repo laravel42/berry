@@ -1,7 +1,7 @@
 import { withinTx, type Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import { InvalidSchedule, nextFireAfter } from '../autopilots/cron.ts';
-import type { FireFn } from '../autopilots/fire.ts';
+import type { FireFn, FireOutcome, RetryPendingFn } from '../autopilots/fire.ts';
 import { writeAutopilotEvent } from '../autopilots/events.ts';
 
 /**
@@ -14,10 +14,13 @@ import { writeAutopilotEvent } from '../autopilots/events.ts';
  * `(trigger_id, slot)` lets exactly one insert win per slot. The winner
  * fires; everybody else moves on.
  *
- * Slot completion and schedule advancement commit together. A short shared
- * lock prevents concurrent firings while the firing function writes its own
- * durable run. After a crash, that run is reconciled rather than fired twice.
- * A firing that failed before writing a run leaves the slot due for retry.
+ * Slot completion and schedule advancement commit together, after the firing
+ * returns. The shared lock is not held across that firing: one slow slot
+ * must not keep every other schedule from running. A per-slot lock, taken
+ * only for the slot being fired and released when the firing returns, stops
+ * a second firing of that same slot. A crash releases it with the connection.
+ * A pending run that never got an agent run is retried. A firing that failed
+ * before writing a run leaves the slot due.
  *
  * Missed slots (the server was down) collapse into one firing: the next slot
  * is computed from now, not from the last one. An autopilot that wakes up to
@@ -34,6 +37,13 @@ export interface SchedulerOptions {
    pollMs?: number;
    batch?: number;
    clock?: () => Date;
+   /** Leave a workspace's slot due until its selected execution is available. */
+   canFire?: (workspaceId: string) => Promise<boolean>;
+   /**
+    * Continue a pending autopilot run that has no agent run. Without it, that
+    * slot stays due rather than being marked failed.
+    */
+   retryPending?: RetryPendingFn;
 }
 
 export class AutopilotScheduler {
@@ -43,6 +53,8 @@ export class AutopilotScheduler {
    readonly #pollMs: number;
    readonly #batch: number;
    readonly #clock: () => Date;
+   readonly #canFire: (workspaceId: string) => Promise<boolean>;
+   readonly #retryPending: RetryPendingFn | null;
 
    #running = false;
    #loop: Promise<void> | null = null;
@@ -55,6 +67,8 @@ export class AutopilotScheduler {
       this.#pollMs = options.pollMs ?? POLL_MS;
       this.#batch = options.batch ?? BATCH;
       this.#clock = options.clock ?? (() => new Date());
+      this.#canFire = options.canFire ?? (async () => true);
+      this.#retryPending = options.retryPending ?? null;
    }
 
    start(): void {
@@ -108,6 +122,7 @@ export class AutopilotScheduler {
       for (const row of due) {
          const triggerId = row.id as string;
          try {
+            if (!(await this.#canFire(row.workspace_id as string))) continue;
             if (await this.#claimAndFire(row, now)) firedCount += 1;
          } catch (error) {
             this.#logger.error('autopilot slot failed', { triggerId, error: message(error) });
@@ -118,7 +133,8 @@ export class AutopilotScheduler {
 
    async #claimAndFire(row: Record<string, unknown>, now: Date): Promise<boolean> {
       const triggerId = row.id as string;
-      const slot = new Date(String(row.next_fire_at));
+      const slotAt = String(row.next_fire_at);
+      const slot = new Date(slotAt);
 
       let next: Date | null;
       try {
@@ -132,71 +148,135 @@ export class AutopilotScheduler {
          return false;
       }
 
-      return withinTx(this.#sql, async (tx) => {
-         // Read after acquiring the lock: another scheduler may have advanced
-         // this slot since the due list was collected. The firing uses the
-         // normal pool, so it must not share this transaction's connection.
-         const [lock] = await tx`SELECT pg_try_advisory_xact_lock(hashtextextended('berry:autopilots:schedule-firing', 0)) AS acquired`;
-         if (lock?.acquired !== true) return false;
-         const [current] = await tx`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId} AND enabled`;
+      const slotKey = `berry:autopilot-slot:${triggerId}:${slotAt}`;
+      const conn = await this.#sql.reserve();
+      let locked = false;
+      try {
+         // Per slot, not process-wide. Held only while this slot fires, on
+         // this connection, so a slow firing does not stall every schedule
+         // and a second worker cannot fire the same slot.
+         const [lock] = await conn`SELECT pg_try_advisory_lock(hashtextextended(${slotKey}, 0)) AS acquired`;
+         locked = lock?.acquired === true;
+         if (!locked) return false;
+
+         const [current] = await this.#sql`
+            SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId} AND enabled`;
          if (!current?.next_fire_at || Date.parse(String(current.next_fire_at)) !== slot.getTime()) return false;
 
-         await tx`
-            INSERT INTO sys_cron_executions (workspace_id, trigger_id, slot)
-            VALUES (${row.workspace_id as string}, ${triggerId}, ${slot.toISOString()})
-            ON CONFLICT (trigger_id, slot) DO NOTHING`;
-
-         // A crash can occur after fire persisted its run but before this
-         // transaction committed. Recover that exact slot; never create a
-         // second issue or charge another agent run for the same firing.
-         const [existing] = await tx`
-            SELECT a.id, a.status, a.reason_code, a.run_id, a.issue_id,
-                   r.id AS queued_run_id, r.issue_id AS queued_issue_id
-              FROM autopilot_runs a
-              LEFT JOIN runs r ON r.autopilot_run_id = a.id
-             WHERE a.trigger_id = ${triggerId} AND a.slot = ${slot.toISOString()}
-             ORDER BY a.created_at DESC LIMIT 1`;
-         let autopilotRunId: string;
-         let status: string;
-         if (existing) {
-            autopilotRunId = existing.id as string;
-            status = existing.status as string;
-            if (status === 'pending') {
-               // If enqueue committed, retain it. Otherwise the interrupted
-               // attempt is explicitly failed, not silently lost or replayed.
-               const runId = (existing.queued_run_id as string | null) ?? null;
-               const issueId = (existing.queued_issue_id as string | null) ?? (existing.issue_id as string | null) ?? null;
-               status = runId ? 'enqueued' : 'failed';
-               const reasonCode = runId ? null : 'SCHEDULE_INTERRUPTED';
-               await tx`
-                  UPDATE autopilot_runs SET status = ${status}, run_id = ${runId}, issue_id = ${issueId},
-                         reason_code = ${reasonCode},
-                         reason_message = ${runId ? null : 'The scheduled firing was interrupted before its agent run was recorded. Run it again manually.'}
-                   WHERE id = ${autopilotRunId}`;
-               await writeAutopilotEvent(tx, {
-                  workspaceId: row.workspace_id as string,
-                  topic: 'autopilot.run.created', autopilotId: row.autopilot_id as string,
-                  payload: { autopilotRunId, status, reasonCode, runId, issueId }, occurredAt: now.toISOString(),
-               });
-            }
-         } else {
-            const outcome = await this.#fire({
-               autopilotId: row.autopilot_id as string, source: 'cron', triggerId, slot,
-            });
-            autopilotRunId = outcome.autopilotRunId;
-            status = outcome.status;
+         const existing = await this.#existingRun(triggerId, slotAt);
+         if (existing && existing.status === 'pending' && (existing.queuedRunId || existing.runId)) {
+            await this.#reconcileQueued(row, existing, now);
+            await this.#advance(row, triggerId, slot, slotAt, next, existing.id, 'enqueued');
+            return true;
+         }
+         if (existing && existing.status !== 'pending') {
+            await this.#advance(row, triggerId, slot, slotAt, next, existing.id, existing.status);
+            return true;
          }
 
+         let outcome: FireOutcome;
+         if (existing) {
+            if (!this.#retryPending) {
+               throw new Error('A pending scheduled run has no agent run, and no retry is configured.');
+            }
+            outcome = await this.#retryPending({ autopilotRunId: existing.id });
+         } else {
+            outcome = await this.#fire({
+               autopilotId: row.autopilot_id as string,
+               source: 'cron',
+               triggerId,
+               slot,
+            });
+         }
+         await this.#advance(row, triggerId, slot, slotAt, next, outcome.autopilotRunId, outcome.status);
+         return true;
+      } finally {
+         if (locked) {
+            await conn`SELECT pg_advisory_unlock(hashtextextended(${slotKey}, 0))`.catch(() => undefined);
+         }
+         await conn.release();
+      }
+   }
+
+   async #existingRun(triggerId: string, slotAt: string): Promise<{
+      id: string;
+      status: string;
+      runId: string | null;
+      queuedRunId: string | null;
+      issueId: string | null;
+      queuedIssueId: string | null;
+   } | null> {
+      const [existing] = await this.#sql`
+         SELECT a.id, a.status, a.run_id, a.issue_id,
+                r.id AS queued_run_id, r.issue_id AS queued_issue_id
+           FROM autopilot_runs a
+           LEFT JOIN runs r ON r.autopilot_run_id = a.id
+          WHERE a.trigger_id = ${triggerId} AND a.slot = ${slotAt}::timestamptz
+          ORDER BY a.created_at DESC
+          LIMIT 1`;
+      if (!existing) return null;
+      return {
+         id: existing.id as string,
+         status: existing.status as string,
+         runId: (existing.run_id as string | null) ?? null,
+         queuedRunId: (existing.queued_run_id as string | null) ?? null,
+         issueId: (existing.issue_id as string | null) ?? null,
+         queuedIssueId: (existing.queued_issue_id as string | null) ?? null,
+      };
+   }
+
+   /** A pending row whose enqueue already committed keeps that agent run. */
+   async #reconcileQueued(
+      row: Record<string, unknown>,
+      existing: { id: string; runId: string | null; queuedRunId: string | null; issueId: string | null; queuedIssueId: string | null },
+      now: Date
+   ): Promise<void> {
+      const runId = existing.queuedRunId ?? existing.runId;
+      const issueId = existing.queuedIssueId ?? existing.issueId;
+      await withinTx(this.#sql, async (tx) => {
+         await tx`
+            UPDATE autopilot_runs
+               SET status = 'enqueued', run_id = ${runId}, issue_id = ${issueId},
+                   reason_code = NULL, reason_message = NULL
+             WHERE id = ${existing.id} AND status = 'pending'`;
+         await writeAutopilotEvent(tx, {
+            workspaceId: row.workspace_id as string,
+            topic: 'autopilot.run.created',
+            autopilotId: row.autopilot_id as string,
+            payload: { autopilotRunId: existing.id, status: 'enqueued', reasonCode: null, runId, issueId },
+            occurredAt: now.toISOString(),
+         });
+      });
+   }
+
+   async #advance(
+      row: Record<string, unknown>,
+      triggerId: string,
+      slot: Date,
+      slotAt: string,
+      next: Date | null,
+      autopilotRunId: string,
+      status: string
+   ): Promise<void> {
+      let recorded = false;
+      await withinTx(this.#sql, async (tx) => {
+         const [advanced] = await tx`
+            UPDATE autopilot_triggers
+               SET next_fire_at = ${next ? next.toISOString() : null},
+                   last_fired_at = ${slot.toISOString()}
+             WHERE id = ${triggerId} AND next_fire_at = ${slotAt}::timestamptz
+            RETURNING id`;
+         if (!advanced) return;
+         recorded = true;
+         await tx`
+            INSERT INTO sys_cron_executions (workspace_id, trigger_id, slot)
+            VALUES (${row.workspace_id as string}, ${triggerId}, ${slotAt}::timestamptz)
+            ON CONFLICT (trigger_id, slot) DO NOTHING`;
          await tx`
             UPDATE sys_cron_executions SET autopilot_run_id = ${autopilotRunId}
-             WHERE trigger_id = ${triggerId} AND slot = ${slot.toISOString()}`;
-         await tx`
-            UPDATE autopilot_triggers
-               SET next_fire_at = ${next ? next.toISOString() : null}, last_fired_at = ${slot.toISOString()}
-             WHERE id = ${triggerId} AND next_fire_at = ${slot.toISOString()}`;
-         this.#logger.info('autopilot slot recorded', { triggerId, slot: slot.toISOString(), status });
-         return true;
+             WHERE trigger_id = ${triggerId} AND slot = ${slotAt}::timestamptz`;
       });
+      if (recorded) this.#logger.info('autopilot slot recorded', { triggerId, slot: slot.toISOString(), status });
    }
 
    #sleep(ms: number): Promise<void> {

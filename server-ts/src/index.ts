@@ -97,7 +97,7 @@ import {
    registerOrganizationToolsFor,
 } from './runtime/wiring.ts';
 import { AutopilotRepository } from './autopilots/repository.ts';
-import { fireAutopilot, type FireInput } from './autopilots/fire.ts';
+import { fireAutopilot, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
 import { autopilotMounts } from './mounts/autopilots.ts';
 import { autopilotWebhookMounts } from './mounts/autopilot-webhooks.ts';
 import { AutopilotScheduler } from './runs/scheduler.ts';
@@ -1520,7 +1520,13 @@ followupWorker?.start();
 // dispatcher would queue work nothing takes. Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
 const autopilotScheduler = defaultTarget
-   ? new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger })
+   ? new AutopilotScheduler({
+        sql,
+        fire: fireAutopilotNow,
+        retryPending: (input) =>
+           retryPendingAutopilot({ sql, issues, enqueue: autopilotEnqueue }, input.autopilotRunId),
+        logger,
+     })
    : null;
 autopilotScheduler?.start();
 
