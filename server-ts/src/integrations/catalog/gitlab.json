@@ -1,9 +1,9 @@
 {
    "id": "gitlab",
    "name": "GitLab",
-   "description": "The repositories your agents check out, branch and open merge requests. Connect to grant repository access so agents can clone, push and open merge requests.",
+   "description": "Connect a GitLab account for this workspace.",
    "include": "nango",
-   "scopes": ["read_repository", "write_repository", "api"],
+   "scopes": ["read_repository", "write_repository"],
    "tools": [
       {
          "name": "gitlab.read_repository",

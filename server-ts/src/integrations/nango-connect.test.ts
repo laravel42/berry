@@ -98,9 +98,10 @@ test('a finished GitLab consent is recorded with the GitLab scopes and no token'
 
    const gitlab = recorded.find((entry) => entry.provider === 'gitlab');
    assert.ok(gitlab, 'the GitLab connection was recorded');
-   assert.equal(gitlab!.externalAccountId, '6f0b1e3a-2d44-4c9a-9b2e-1f0a7c5d8e21');
-   assert.equal(gitlab!.connectedByUserId, userId);
-   assert.deepEqual(gitlab!.scopes, ['read_repository', 'write_repository', 'api']);
+   // assert.ok narrows gitlab to NangoConnectionRecord, so no non-null below.
+   assert.equal(gitlab.externalAccountId, '6f0b1e3a-2d44-4c9a-9b2e-1f0a7c5d8e21');
+   assert.equal(gitlab.connectedByUserId, userId);
+   assert.deepEqual(gitlab.scopes, ['read_repository', 'write_repository']);
    assert.equal(JSON.stringify(recorded).includes('accessToken'), false);
 });
 

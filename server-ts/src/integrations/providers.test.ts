@@ -33,13 +33,17 @@ test('GitLab is a Nango integration with repository scopes and gitlab-prefixed t
    const gitlab = findProvider('gitlab');
    assert.equal(gitlab?.include, 'nango');
    assert.equal(gitlab?.name, 'GitLab');
-   assert.deepEqual(gitlab?.scopes, ['read_repository', 'write_repository', 'api']);
+   assert.deepEqual(gitlab?.scopes, ['read_repository', 'write_repository']);
    assert.equal(needsConnection('gitlab'), true);
    assert.ok(gitlab?.tools.every((tool) => tool.name.startsWith('gitlab.')));
-   assert.equal(
-      gitlab?.tools.find((tool) => tool.name === 'gitlab.merge_merge_request')?.requiresApproval,
-      true
-   );
-   // The connection broker is never named to a reader.
-   assert.equal(/nango/i.test(gitlab?.description ?? ''), false);
+   // Only the merge tool asks for approval, and only it is off by default.
+   const approval = gitlab?.tools.filter((tool) => tool.requiresApproval).map((tool) => tool.name);
+   assert.deepEqual(approval, ['gitlab.merge_merge_request']);
+   const offByDefault = gitlab?.tools
+      .filter((tool) => !tool.enabledByDefault)
+      .map((tool) => tool.name);
+   assert.deepEqual(offByDefault, ['gitlab.merge_merge_request']);
+   // The description is a plain connect line: no connection broker, and no
+   // claim of clone, push or merge-request access, which stay GitHub-only.
+   assert.equal(gitlab?.description, 'Connect a GitLab account for this workspace.');
 });
