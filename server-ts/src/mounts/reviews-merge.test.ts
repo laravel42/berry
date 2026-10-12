@@ -78,7 +78,7 @@ function app(
             pullRequestState: async () => ({
                merged: github.merged === true, open: github.open !== false, conflicts: github.conflicts === true, base: 'main',
                githubId: github.githubId ?? null, repoId: github.repoId ?? null,
-               title: 'Ship it', url: 'https://github.com/laravel42/berry-repo-test/pull/13', headRef: 'agent/ber-1',
+               title: 'Ship it', url: 'https://github.com/laravel42/berry-repo-test/pull/13', headSha: 'abc', headRef: 'agent/ber-1',
             }),
             mergePullRequest: async (input) => {
                calls.push(`merge:${input.number}`);

@@ -45,7 +45,10 @@ const PLAN_FORMAT = `The shape of the answer is:
   ],
   "issues": [
     { "tempId": "t1", "title": "...", "description": "...", "milestone": "m1",
-      "requiredCapabilities": ["typescript"], "changesRepository": true, "dependsOn": ["t2"],
+      "requiredCapabilities": ["typescript"], "changesRepository": false, "dependsOn": [],
+      "requiresReview": false, "requiresApproval": false, "priority": "medium" },
+    { "tempId": "t2", "title": "...", "description": "...", "milestone": "m1",
+      "requiredCapabilities": ["typescript"], "changesRepository": true, "dependsOn": ["t1"],
       "requiresReview": false, "requiresApproval": false, "priority": "medium" }
   ],
   "approvals": [
@@ -84,12 +87,14 @@ Rules:
   shared stylesheet or config) collide when the second is merged and cost a
   run to reconcile: chain them with \`dependsOn\`, or make them one task.
   Tasks that each add their own files can run side by side.
-- Every task sets \`changesRepository\`: true when finishing it means changing
-  files in the repository — code, styles, markup, tests, configuration, a
-  README; false when it produces a spec, research, a design decision or other
-  writing that is not committed. Only engineers who can push are given a task
-  marked true, so a build step marked false is given to someone who cannot
-  build it. Specify and build in separate tasks when both are needed.
+- Every task sets \`changesRepository\` to a boolean. The field is required:
+  leaving it out, or leaving it null, makes the plan invalid and nothing
+  starts. true when finishing the task means changing files in the repository
+  — code, styles, markup, tests, configuration, a README. false when it
+  produces a spec, research, a design decision or other writing that is not
+  committed. Only engineers who can push are given a task marked true, so a
+  build step marked false is given to someone who cannot build it. Specify
+  and build in separate tasks when both are needed.
 - Set \`requiresApproval\` only where starting the task is a commitment a
   person should make deliberately: deleting data, spending money, or touching
   something outside the repository.
@@ -120,6 +125,12 @@ between what they asked for and what you produced.
 
 The problems name each task by its tempId and say what to change. Return the
 corrected plan, not the problem list.
+
+When a problem asks whether a task changes the repository, set
+\`changesRepository\` to true or false on every task it names. true means the
+task changes files in the repository; false means it is a spec, research or a
+decision. The field is required on every task you return. Do not leave it out
+and do not leave it null.
 
 ${PLAN_FORMAT}
 Keep every field a task already has — its \`milestone\`, \`dependsOn\`,
@@ -181,6 +192,9 @@ export const PLAN_SHAPE = z.looseObject({
             milestone: TEXT,
             dependsOn: LIST.describe('tempIds of the tasks in this plan that must finish before this one starts'),
             requiredCapabilities: LIST,
+            changesRepository: FLAG.describe(
+               'Required boolean on every task. true when finishing it changes files in the repository (code, styles, markup, tests, configuration, a README). false when it is a spec, research, or a decision that is not committed. Never omit this field.'
+            ),
             requiresReview: FLAG,
             requiresApproval: FLAG,
             priority: TEXT,

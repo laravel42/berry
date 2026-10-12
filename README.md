@@ -20,8 +20,8 @@ human decision. See [PRODUCT.md](PRODUCT.md) for the product-level description.
 | `packages/plugin-sdk` | SDK for building Berry plugins |
 | `docs` | Product brief, ADRs, API contract, design system, and [AI runtime matrix](docs/ai-runtimes.md) |
 
-The three packages are a pnpm workspace and do not share a toolchain (different
-formatters, linters and even Zod major versions) — see [AGENTS.md](AGENTS.md) for the
+The server, frontend, plugin SDK, desktop and mobile packages form a pnpm workspace
+and do not share a validation workflow (different formatters and linters) — see [AGENTS.md](AGENTS.md) for the
 per-package rules.
 
 ## What the server serves
@@ -38,7 +38,14 @@ unserved.
 
 ## What Berry needs
 
-Berry runs on the host; there is no container stack in this repository.
+Berry connects supported AI subscriptions so teams can coordinate agents using
+accounts they already pay for. Subscription access and limits remain with the
+provider. Native/API execution is a separate option; a disconnected subscription
+does not silently fall back to API billing. See [AI runtimes](docs/ai-runtimes.md).
+
+Berry can run directly on the host. Optional Docker development and Dokploy
+deployment stacks are documented in [deploy/local](deploy/local/README.md) and
+[deploy/dokploy](deploy/dokploy/README.md).
 
 | Dependency | Purpose |
 | --- | --- |
@@ -46,14 +53,14 @@ Berry runs on the host; there is no container stack in this repository.
 | AWS S3 (or an S3-compatible store) | Artifact storage, through the `S3_*` variables |
 | AWS Bedrock AgentCore Runtime | Where agents run ([ADR-0014](docs/adr/0014-agentcore-runtime-control-plane.md)) |
 | Kilo AI gateway (optional) | Native model calls in Berry's model tiers instead of straight to Bedrock ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)) |
-| User AI subscription (optional) | Kiro on the workstation that runs Berry ([matrix and setup](docs/ai-runtimes.md)) |
+| User AI subscription | Supported official CLIs on the workstation that runs Berry ([matrix and setup](docs/ai-runtimes.md)); connected subscription runs do not require model API billing |
 
 Provider keys and object-store credentials are server-side only, never under a
 `NEXT_PUBLIC_*` name.
 
 ## Quick start
 
-Prerequisites: Node 22 (with `--experimental-strip-types`), pnpm 10 (via corepack), a
+Prerequisites: Node 22 (with `--experimental-strip-types`), pnpm 12.5.1 (the version pinned in package.json), a
 PostgreSQL 16 instance you run yourself, and Python 3 for repository checks.
 
 ```sh
@@ -62,8 +69,8 @@ pnpm install
 ```
 
 ```sh
-pnpm migrate:server   # forward-only, under an advisory lock; reads DATABASE_URL
-pnpm seed:server      # idempotent development dataset
+pnpm db:migrate   # forward-only, under an advisory lock; reads DATABASE_URL
+pnpm db:seed      # idempotent development dataset
 pnpm dev:server       # http://127.0.0.1:4000
 ```
 
@@ -109,7 +116,7 @@ streams lifecycle events (`task.started`, `task.message`, `task.usage`, `task.co
 Berry exclusively through `/api/v1/agent-tools/*` with a short-lived, task-scoped token —
 never through the database directly.
 
-To run agents yourself, you need:
+For native/API agent execution, you need:
 
 - AWS credentials for Bedrock and AgentCore — either a `BERRY_BEDROCK_*` /
   `BERRY_AGENTCORE_*` key pair, or the default AWS credential chain, plus a region.

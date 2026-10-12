@@ -63,6 +63,13 @@ export interface FireOutcome {
 
 export type FireFn = (input: FireInput) => Promise<FireOutcome>;
 
+/** Continue one autopilot run that was admitted and then interrupted. */
+export interface RetryPendingInput {
+   autopilotRunId: string;
+}
+
+export type RetryPendingFn = (input: RetryPendingInput) => Promise<FireOutcome>;
+
 interface Reason {
    code: string;
    message: string;
@@ -77,6 +84,7 @@ interface Admitted {
    promptTemplate: string;
    executionMode: string;
    boardId: string | null;
+   projectId: string | null;
    issueId: string | null;
    createdBy: string | null;
    skipped: Reason | null;
@@ -97,7 +105,82 @@ export async function fireAutopilot(deps: FireDeps, input: FireInput): Promise<F
       };
    }
 
-   let issueId: string | null = admitted.executionMode === 'fixed_issue' ? admitted.issueId : null;
+   return continueAdmitted(deps, admitted, autopilotRunId, firedAt, input, null);
+}
+
+/**
+ * A crash after the pending row was written, and before an agent run existed,
+ * leaves that row to be continued. Replaying `fireAutopilot` would admit a
+ * second run. This finishes the one that is already there.
+ */
+export async function retryPendingAutopilot(deps: FireDeps, autopilotRunId: string): Promise<FireOutcome> {
+   const [row] = await deps.sql<Array<Record<string, unknown>>>`
+      SELECT a.status, a.issue_id, a.run_id, a.source, a.requested_by,
+             p.id AS autopilot_id, p.workspace_id, p.name, p.assignee_type, p.assignee_id,
+             p.prompt_template, p.execution_mode, p.board_id, p.project_id, p.issue_id AS target_issue_id, p.created_by
+        FROM autopilot_runs a
+        JOIN autopilots p ON p.id = a.autopilot_id
+       WHERE a.id = ${autopilotRunId}`;
+   if (!row) throw new NotFound();
+   const status = row.status as string;
+   if (status === 'enqueued' || status === 'failed' || status === 'skipped') {
+      return {
+         autopilotRunId,
+         status,
+         reasonCode: null,
+         runId: (row.run_id as string | null) ?? null,
+         issueId: (row.issue_id as string | null) ?? null,
+      };
+   }
+   const admitted: Admitted = {
+      id: row.autopilot_id as string,
+      workspaceId: row.workspace_id as string,
+      name: row.name as string,
+      assigneeType: row.assignee_type as string,
+      assigneeId: row.assignee_id as string,
+      promptTemplate: row.prompt_template as string,
+      executionMode: row.execution_mode as string,
+      boardId: (row.board_id as string | null) ?? null,
+      projectId: (row.project_id as string | null) ?? null,
+      issueId: (row.target_issue_id as string | null) ?? null,
+      createdBy: (row.created_by as string | null) ?? null,
+      skipped: null,
+   };
+   const [queued] = await deps.sql<Array<{ id: string; issue_id: string | null }>>`
+      SELECT id, issue_id FROM runs WHERE autopilot_run_id = ${autopilotRunId} ORDER BY created_at LIMIT 1`;
+   const firedAt = (deps.clock ?? (() => new Date()))().toISOString();
+   if (queued) {
+      return settle(deps.sql, admitted, autopilotRunId, firedAt, {
+         status: 'enqueued',
+         reason: null,
+         runId: queued.id,
+         issueId: queued.issue_id ?? (row.issue_id as string | null),
+      });
+   }
+   return continueAdmitted(
+      deps,
+      admitted,
+      autopilotRunId,
+      firedAt,
+      {
+         autopilotId: admitted.id,
+         source: row.source as FireInput['source'],
+         requestedBy: (row.requested_by as string | null) ?? null,
+      },
+      (row.issue_id as string | null) ?? null
+   );
+}
+
+async function continueAdmitted(
+   deps: FireDeps,
+   admitted: Admitted,
+   autopilotRunId: string,
+   firedAt: string,
+   input: FireInput,
+   existingIssueId: string | null
+): Promise<FireOutcome> {
+   let issueId: string | null =
+      existingIssueId ?? (admitted.executionMode === 'fixed_issue' ? admitted.issueId : null);
    const fail = (reason: Reason) =>
       settle(deps.sql, admitted, autopilotRunId, firedAt, { status: 'failed', reason, runId: null, issueId });
 
@@ -118,7 +201,7 @@ export async function fireAutopilot(deps: FireDeps, input: FireInput): Promise<F
          payload: input.payload ?? null,
       });
 
-      if (admitted.executionMode === 'create_issue') {
+      if (!issueId && admitted.executionMode === 'create_issue') {
          const owner = input.requestedBy ?? admitted.createdBy;
          if (!owner || !admitted.boardId) {
             return await fail({
@@ -135,10 +218,15 @@ export async function fireAutopilot(deps: FireDeps, input: FireInput): Promise<F
             sortOrder: 0,
             dueDate: null,
             assignee: { type: 'agent', id: agentId },
-            project: null,
+            project: admitted.projectId,
             createdBy: owner,
          });
          issueId = created.issue.id;
+         // Remember the task before the enqueue. A crash in between retries
+         // this same run instead of opening a second task.
+         await deps.sql`
+            UPDATE autopilot_runs SET issue_id = ${issueId}
+             WHERE id = ${autopilotRunId} AND status = 'pending'`;
       } else if (!issueId) {
          return await fail({
             code: 'TARGET_MISSING',
@@ -206,6 +294,7 @@ async function admit(sql: Sql, input: FireInput, autopilotRunId: string, firedAt
          promptTemplate: row.prompt_template as string,
          executionMode: row.execution_mode as string,
          boardId: (row.board_id as string | null) ?? null,
+         projectId: (row.project_id as string | null) ?? null,
          issueId: (row.issue_id as string | null) ?? null,
          createdBy: (row.created_by as string | null) ?? null,
          skipped,

@@ -1,0 +1,67 @@
+name: Verify
+
+on:
+   push:
+      branches: [main]
+   pull_request:
+
+permissions:
+   contents: read
+
+concurrency:
+   group: verify-${{ github.workflow }}-${{ github.ref }}
+   cancel-in-progress: true
+
+jobs:
+   server:
+      runs-on: ubuntu-latest
+      timeout-minutes: 20
+      services:
+         postgres:
+            image: postgres:16
+            env:
+               POSTGRES_USER: berry
+               POSTGRES_PASSWORD: berry_ci_only
+               POSTGRES_DB: berry_test
+               POSTGRES_INITDB_ARGS: --locale=C --encoding=UTF8
+            ports:
+               - 5432:5432
+            options: >-
+               --health-cmd "pg_isready -U berry -d berry_test"
+               --health-interval 5s
+               --health-timeout 5s
+               --health-retries 10
+      env:
+         APP_ENV: test
+         DATABASE_URL: postgres://berry:berry_ci_only@127.0.0.1:5432/berry_test
+         BERRY_TEST_DATABASE_URL: postgres://berry:berry_ci_only@127.0.0.1:5432/berry_test
+      steps:
+         - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+         - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+           with:
+              node-version: 22
+         - run: npm install --global pnpm@12.5.1
+         - run: pnpm install --frozen-lockfile --ignore-scripts
+         - run: pnpm db:migrate
+         - run: pnpm typecheck:server
+         - run: pnpm test:server
+         - run: pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+         - run: pnpm check:models
+         - run: python3 scripts/check-locale-catalogues.py
+
+   frontend:
+      runs-on: ubuntu-latest
+      timeout-minutes: 20
+      env:
+         NEXT_TELEMETRY_DISABLED: 1
+      steps:
+         - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+         - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+           with:
+              node-version: 22
+         - run: npm install --global pnpm@12.5.1
+         - run: pnpm install --frozen-lockfile --ignore-scripts
+         - run: pnpm lint
+           working-directory: frontend
+         - run: pnpm build:check
+           working-directory: frontend

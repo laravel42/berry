@@ -53,13 +53,13 @@ export const AddColumn: Story = {
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('option', { name: 'Creator' }));
       await expect(canvas.getByTestId('criteria')).toHaveTextContent(
-         'name · labels, agents, files, creator'
+         'name · agents, files, creator'
       );
    },
 };
 
 export const AllColumns: Story = {
    args: {
-      initial: { sort: 'usage', columns: ['labels', 'agents', 'files', 'creator', 'updated'] },
+      initial: { sort: 'usage', columns: ['agents', 'files', 'creator', 'updated'] },
    },
 };

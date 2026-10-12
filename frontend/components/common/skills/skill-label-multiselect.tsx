@@ -19,6 +19,8 @@ interface SkillLabelMultiselectProps {
    disabled?: boolean;
    /** Labels already used in the catalogue, offered when adding. */
    options?: string[];
+   /** Stored colours from the catalogue. A name without one keeps the hash colour. */
+   colors?: Record<string, string>;
 }
 
 /**
@@ -30,6 +32,7 @@ export function SkillLabelMultiselect({
    onChange,
    disabled = false,
    options = [],
+   colors,
 }: SkillLabelMultiselectProps) {
    const t = useTranslations('areas.skills');
    const [query, setQuery] = useState('');
@@ -51,31 +54,27 @@ export function SkillLabelMultiselect({
       <div className="flex shrink-0 flex-col gap-1.5">
          <span className="text-muted-foreground">{t('detail.labels')}</span>
          <div className="flex flex-wrap items-center gap-1">
-            {value.length === 0 ? (
-               <p className="text-muted-foreground">{t('detail.noLabels')}</p>
-            ) : (
-               value.map((label) => {
-                  const color = colorForSkillLabel(label);
-                  return (
-                     <button
-                        key={label}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => remove(label)}
-                        title={label}
-                        className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 disabled:opacity-60"
-                        style={{
-                           backgroundColor: `${color}26`,
-                           borderColor: color,
-                           color,
-                        }}
-                     >
-                        <span className="max-w-[140px] truncate">{label}</span>
-                        {disabled ? null : <X className="size-3 shrink-0" aria-hidden />}
-                     </button>
-                  );
-               })
-            )}
+            {value.map((label) => {
+               const color = colors?.[label] ?? colorForSkillLabel(label);
+               return (
+                  <button
+                     key={label}
+                     type="button"
+                     disabled={disabled}
+                     onClick={() => remove(label)}
+                     title={label}
+                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5 disabled:opacity-60"
+                     style={{
+                        backgroundColor: `${color}26`,
+                        borderColor: color,
+                        color,
+                     }}
+                  >
+                     <span className="max-w-[140px] truncate">{label}</span>
+                     {disabled ? null : <X className="size-3 shrink-0" aria-hidden />}
+                  </button>
+               );
+            })}
             {disabled ? null : (
                <AddLabel
                   value={value}

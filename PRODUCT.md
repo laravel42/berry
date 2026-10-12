@@ -305,7 +305,7 @@ You can copy an agent's instructions and skills into a new agent. The copy doesn
 
 ### The Orchestrator and the built-in organization
 
-Every workspace starts with a protected Orchestrator agent and seven core role agents, each with a defined job and limits; specialists can be added. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
+Every workspace starts with a protected Orchestrator agent and six core role agents, each with a defined job and limits; specialists can be added. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
 
 ### Chat with an agent
 
@@ -426,14 +426,13 @@ Most AI tools give you a pile of bots. Berry gives every workspace an **organiza
 
 ### Who's in it
 
-Each new workspace gets eight agents: a protected Orchestrator and seven core roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
+Each new workspace gets seven agents: a protected Orchestrator and six core roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
 
 | Role | Does | Autonomy level | Tier |
 |---|---|---|---|
 | Orchestrator | Sorts incoming work and sends it on | 2 | BerryMid |
 | Product Lead | Specs, research, acceptance criteria; reads the repository | 5 | BerryMid |
-| Product Designer | UI and UX; commits design assets and styles | 3 | BerryMid |
-| Web Designer | Public pages and marketing sites; commits the layout | 3 | BerryMid |
+| Product Designer | UI and UX, including public pages; commits design assets and styles | 3 | BerryMid |
 | Software Engineer | Full stack: code, database, integrations, docs | 4 | BerryMid |
 | QA Engineer | Writes and runs tests, including checks for authentication, authorization, secrets and dependencies | 5 | BerryMid |
 | Reviewer | Reviews delivered work and decides whether it meets the task | 5 | BerryMid |
