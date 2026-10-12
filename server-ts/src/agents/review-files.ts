@@ -38,11 +38,14 @@ const MAX_ROUND_BYTES = 128 * 1024;
 type Client = Pick<GitHubClient, 'pullRequestHead' | 'repository' | 'branchHead' | 'treeEntries' | 'blob'>;
 
 /** Null when the repository has no commit to read from. Throws when GitHub cannot be read. */
-export async function openReviewFiles(client: Client, repository: string, pullRequest: number | null): Promise<ReviewFiles | null> {
+export async function openReviewFiles(client: Client, repository: string, pullRequest: number | null, deliveredCommit?: string): Promise<ReviewFiles | null> {
    const { owner, name } = parseRepository(repository);
    let commit: string;
    let ref: string;
-   if (pullRequest !== null) {
+   if (pullRequest !== null && deliveredCommit) {
+      commit = deliveredCommit;
+      ref = `pull request #${pullRequest} (delivered commit)`;
+   } else if (pullRequest !== null) {
       const head = await client.pullRequestHead(owner, name, pullRequest);
       commit = head.commit;
       ref = `pull request #${pullRequest}${head.branch ? ` (${head.branch})` : ''}`;
