@@ -17,6 +17,7 @@
       "modelTiers": "Model tiers",
       "organization": "Organization",
       "labels": "Task labels",
+      "skillLabels": "Skill labels",
       "properties": "Task fields",
       "quickActions": "Quick actions",
       "repositories": "Repositories",
@@ -336,6 +337,24 @@
       "removeBodyUnknown": "Tasks that carry this label keep it, and it stops being offered for anything new.",
       "cancel": "Cancel",
       "empty": "No labels yet.",
+      "noMatch": "Nothing matches your filter."
+   },
+   "skillLabels": {
+      "title": "Skill labels",
+      "lead": "The vocabulary a skill can be tagged with.",
+      "filter": "Filter by name…",
+      "newLabel": "New label",
+      "create": "Create",
+      "createFailed": "That label could not be created.",
+      "usageCount": "{count} skills",
+      "changeColour": "Change the colour of {name}",
+      "customColour": "Any colour",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "{count} skills carry this label. They keep it, and it stops being offered for anything new.",
+      "removeBodyUnknown": "Skills that carry this label keep it, and it stops being offered for anything new.",
+      "cancel": "Cancel",
+      "empty": "No skill labels yet.",
       "noMatch": "Nothing matches your filter."
    },
    "properties": {
