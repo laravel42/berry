@@ -11,6 +11,7 @@ nango/
 .tmp-pr/
 .impeccable/
 .berry/
+.kiro/
 .DS_Store
 # agent worktrees (large, machine-local) and per-tool mirrors of .agents/skills
 .claude/worktrees/
