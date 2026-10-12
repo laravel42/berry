@@ -250,7 +250,7 @@ them:
 ## The organization
 
 Every workspace is provisioned with an "organization": a protected
-Orchestrator agent plus seven core roles; fourteen more are specialists a
+Orchestrator agent plus six core roles; fourteen more are specialists a
 person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 `CATALOG_VERSION`). Each role has a mission, a contract, an **autonomy level**
 (1–5), delegation and escalation rules, and required reviewers.

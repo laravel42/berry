@@ -7,11 +7,12 @@
   (contracts, autonomy ceilings, review selection and delegation checks all stand)
 - **Related:** [ADR-0017](0017-kilo-gateway-model-tiers.md) (roles run on tiers)
 
-## Current state (2026-10-11)
+## Current state (2026-10-12)
 
-The default roster is the Orchestrator plus seven core roles: Product Lead,
-Product Designer, Web Designer, Software Engineer, QA Engineer, Reviewer and
-DevOps Engineer. Fourteen specialists stay in the catalogue. A role that can
+The default roster is the Orchestrator plus six core roles: Product Lead,
+Product Designer, Software Engineer, QA Engineer, Reviewer and DevOps
+Engineer. Web Designer is no longer in the catalogue; public pages stay with
+the Product Designer. Fourteen specialists stay in the catalogue. A role that can
 run commands is always blocking-reviewed by `reviewer`. QA writes and runs
 tests. Security and architecture stay blocking when their labels or paths
 are touched. See `server-ts/src/organization/catalog.ts` and
