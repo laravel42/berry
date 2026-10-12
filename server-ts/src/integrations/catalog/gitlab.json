@@ -1,0 +1,37 @@
+{
+   "id": "gitlab",
+   "name": "GitLab",
+   "description": "The repositories your agents check out, branch and open merge requests. Connect to grant repository access so agents can clone, push and open merge requests.",
+   "include": "nango",
+   "scopes": ["read_repository", "write_repository", "api"],
+   "tools": [
+      {
+         "name": "gitlab.read_repository",
+         "description": "Clone the repository and read its files.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.create_branch",
+         "description": "Push a branch named for the task the agent is working.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.open_merge_request",
+         "description": "Open a merge request for a person to review.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.merge_merge_request",
+         "description": "Merge without waiting for a human review.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

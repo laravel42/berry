@@ -12,7 +12,7 @@ import {
 test('each integration file is included with the same shape', () => {
    assert.deepEqual(
       PROVIDERS.map((provider) => provider.id),
-      ['berry', 'github']
+      ['berry', 'github', 'gitlab']
    );
    const berry = findProvider(BUILT_IN_PROVIDER);
    const github = findProvider('github');
@@ -27,4 +27,19 @@ test('each integration file is included with the same shape', () => {
       true
    );
    assert.deepEqual(INCLUSION_METHODS, ['built-in', 'nango']);
+});
+
+test('GitLab is a Nango integration with repository scopes and gitlab-prefixed tools', () => {
+   const gitlab = findProvider('gitlab');
+   assert.equal(gitlab?.include, 'nango');
+   assert.equal(gitlab?.name, 'GitLab');
+   assert.deepEqual(gitlab?.scopes, ['read_repository', 'write_repository', 'api']);
+   assert.equal(needsConnection('gitlab'), true);
+   assert.ok(gitlab?.tools.every((tool) => tool.name.startsWith('gitlab.')));
+   assert.equal(
+      gitlab?.tools.find((tool) => tool.name === 'gitlab.merge_merge_request')?.requiresApproval,
+      true
+   );
+   // The connection broker is never named to a reader.
+   assert.equal(/nango/i.test(gitlab?.description ?? ''), false);
 });
