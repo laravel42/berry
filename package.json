@@ -6,7 +6,7 @@
    "description": "A self-hosted issue tracker whose assignees can be people or coding agents.",
    "repository": {
       "type": "git",
-      "url": "git+https://github.com/laravel42/berry-circle.git"
+      "url": "git+https://github.com/laravel42/berry.git"
    },
    "packageManager": "pnpm@12.5.1",
    "scripts": {

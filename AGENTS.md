@@ -41,7 +41,8 @@ delegation rules and required reviewers — see
 
 ## Repository shape
 
-One Git repo, three pnpm workspaces. They do **not** share a formatter, lint
+One Git repo, five pnpm workspace packages: `frontend`, `server-ts`,
+`packages/plugin-sdk`, `apps/mobile`, and `apps/desktop`. They do **not** share a formatter, lint
 config, or validation workflow. Know which workspace you are in before you
 write code. Never run one workspace's tools over another.
 
@@ -61,9 +62,9 @@ artifacts under `<userData>/artifacts`, and serves the web app on `127.0.0.1:417
 existing server instead. Navigation stays on that origin plus GitHub sign-in.
 `pnpm dev:desktop`.
 
-Also in the repo: `docs/` and `scripts/` (Python repository checks). There is
-no container stack: Berry runs on the host against its own PostgreSQL 16, AWS
-S3 (or an S3-compatible store) and AgentCore Runtime.
+Also in the repo: `docs/` and `scripts/` (Python repository checks). Berry can run on the host against PostgreSQL 16 and object storage, with
+subscription CLIs or a native compute host. Optional Docker development and
+Dokploy stacks live in `deploy/local/` and `deploy/dokploy/`.
 
 The server runs its `.ts` sources directly under `--experimental-strip-types`.
 There is no build step, so nothing that emits code — enums, namespaces,
@@ -194,9 +195,10 @@ Do not reintroduce demo/mock datasets. `NEXT_PUBLIC_BERRY_API_URL` empty means
 same-origin through the Next.js rewrites, which is the normal case.
 
 **Removed, do not re-add:** squads/Crew (a team module with a client-side
-roster); the Google ADK in-process runtime; OpenRouter; Docker Compose. Their
+roster); the Google ADK in-process runtime; OpenRouter; the old production Docker Compose stack. Their
 replacements are, respectively, the organization above, ADR-0014's AgentCore
-Runtime, Bedrock, and host-run PostgreSQL/S3/AgentCore. The one gateway allowed
+Runtime, Bedrock, and host-run PostgreSQL/S3/AgentCore. The optional local development stack is
+current and must not be confused with the removed production stack. The one gateway allowed
 in front of Bedrock is Kilo, under ADR-0017's rules (paid calls on the Bedrock
 key only, cost from Kilo's reports).
 
@@ -234,8 +236,8 @@ python3 scripts/check-locale-catalogues.py
 # Server
 pnpm typecheck:server
 pnpm test:server
-pnpm migrate:server         # needs DATABASE_URL
-pnpm seed:server            # development dataset; idempotent
+pnpm db:migrate         # needs DATABASE_URL
+pnpm db:seed            # development dataset; idempotent
 pnpm dev:server
 
 # Plugin SDK
