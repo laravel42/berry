@@ -206,7 +206,8 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       maxAttempts = 2,
       validate = false,
       refuse: string | null = null,
-      repository: Record<string, string> | null = null
+      repository: Record<string, string> | null = null,
+      headSha = 'abc'
    ) {
       const used = new Set<number>();
       const asked: string[] = [];
@@ -243,13 +244,15 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          // merged, unless the test says what GitHub refused it with.
          github: async () => ({
             pullRequestDiff: async () => '--- a\n+++ b\n+handler\n',
-            mergePullRequest: async () =>
-               refuse
+            mergePullRequest: async (input: { expectedHeadSha: string }) => {
+               assert.equal(input.expectedHeadSha, 'abc');
+               return refuse
                   ? { merged: false, sha: null, reason: refuse, conflict: isMergeConflict(refuse) }
-                  : { merged: true, sha: 'f00dfeed', reason: null, conflict: false },
+                  : { merged: true, sha: 'f00dfeed', reason: null, conflict: false };
+            },
             pullRequestState: async () => ({
                merged: false, open: true, conflicts: refuse !== null, base: 'main',
-               githubId: nextPullRequestId++, repoId: 1, title: '', url: '', headRef: 'coder/gt-1',
+               githubId: nextPullRequestId++, repoId: 1, title: '', url: '', headRef: 'coder/gt-1', headSha,
             }),
             updatePullRequestBranch: async (_owner: string, _name: string, number: number) => {
                updated.push(number);
@@ -298,6 +301,16 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       const [comment] = await sql`SELECT author_id, body FROM comments WHERE issue_id = ${issueId}`;
       assert.equal(comment!.author_id, reviewer);
       assert.match(comment!.body as string, /approved/);
+   });
+
+   test('a changed delivery is not shown to the reviewer or released', async () => {
+      const task = await delivered('Changed after delivery');
+      const { gate: g, calls } = gate([], 2, false, null, null, 'changed');
+      const outcome = await g.review(task.runId);
+      assert.equal(outcome.kind, 'skipped');
+      assert.equal(calls.length, 0);
+      const [issue] = await sql`SELECT status FROM issues WHERE id = ${task.issueId}`;
+      assert.equal(issue?.status, 'todo');
    });
 
    test('an approved pull request that conflicts goes back to its author with the merge to make', async () => {

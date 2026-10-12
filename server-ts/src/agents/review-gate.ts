@@ -120,7 +120,7 @@ export interface ReviewArtifact {
 
 export interface ReviewMaterial {
    issue: { id: string; identifier: string; title: string; description: string | null };
-   run: { id: string; summary: string | null; agentId: string; requestedBy: string | null };
+   run: { id: string; summary: string | null; agentId: string; requestedBy: string | null; headCommit?: string | null };
    delivered: { pullRequest: number | null; branch: string | null; files: string[] } | null;
    /** What the run saved on the task, newest version of each path. */
    artifacts: ReviewArtifact[];
@@ -896,11 +896,13 @@ export class ReviewGate {
       try {
          const { owner, name } = parseRepository(material.repository!);
          client = await this.#github(material.workspaceId, owner);
+         if (!material.run.headCommit) throw new Error('The delivered commit is missing; this pull request must be reviewed again.');
          outcome = await client.mergePullRequest({
             owner,
             name,
             number,
             title: `${material.issue.identifier}: ${material.issue.title}`,
+            expectedHeadSha: material.run.headCommit,
          });
          // Only to name the branch in what the author is told; the merge's
          // answer stands without it.
@@ -1130,7 +1132,7 @@ export class ReviewGate {
 
    async #material(runId: string): Promise<ReviewMaterial> {
       const [row] = await this.#sql`
-         SELECT run.id, run.summary, run.agent_id, run.requested_by, run.pull_request_number, run.branch,
+         SELECT run.id, run.summary, run.agent_id, run.requested_by, run.pull_request_number, run.branch, run.head_commit,
                 issue.id AS issue_id, issue.title, issue.description, issue.auto_gate, issue.board_id,
                 issue.metadata->>'berry.workflow' AS workflow, author.role_key, author.role_contract,
                 board.workspace_id, berry_issue_identifier(board.workspace_id, issue.number) AS identifier
@@ -1149,7 +1151,7 @@ export class ReviewGate {
           WHERE run_id = ${runId} AND event_type IN ('run.delivered', 'run.verified')
           ORDER BY occurred_at DESC`;
       const delivered = events.find((event) => event.event_type === 'run.delivered')?.payload as
-         | { pullRequest?: { number?: number } | null; branch?: string | null; files?: string[] }
+         | { pullRequest?: { number?: number } | null; branch?: string | null; files?: string[]; commit?: string | null }
          | undefined;
       const verified = events.find((event) => event.event_type === 'run.verified')?.payload as
          | ReviewMaterial['verified']
@@ -1169,6 +1171,7 @@ export class ReviewGate {
             summary: (row.summary as string | null) ?? null,
             agentId: row.agent_id as string,
             requestedBy: (row.requested_by as string | null) ?? null,
+            headCommit: (row.head_commit as string | null) ?? delivered?.commit ?? null,
          },
          delivered: delivered
             ? {
@@ -1284,7 +1287,14 @@ export class ReviewGate {
    async #diff(material: ReviewMaterial): Promise<string> {
       const { owner, name } = parseRepository(material.repository!);
       const client = await this.#github(material.workspaceId, owner);
-      const diff = await client.pullRequestDiff(owner, name, material.delivered!.pullRequest!);
+      const number = material.delivered!.pullRequest!;
+      const expected = material.run.headCommit;
+      if (!expected) throw new Error('The delivered commit is missing; refusing to review an unbound diff.');
+      const before = await client.pullRequestState(owner, name, number);
+      if (before.headSha !== expected) throw new Error('The pull request changed after delivery; deliver the new commit before review.');
+      const diff = await client.pullRequestDiff(owner, name, number);
+      const after = await client.pullRequestState(owner, name, number);
+      if (after.headSha !== expected) throw new Error('The pull request changed while its diff was being read.');
       return boundedTail(diff, this.#maxDiffBytes);
    }
 }
