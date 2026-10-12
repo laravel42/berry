@@ -611,7 +611,7 @@ A project can be linked to exactly one existing GitHub repository, chosen by nam
 
 ### Delivery: branch, commit and pull request
 
-Before a run finishes, the agent writes a handoff at `.handoffs/<task key> - <slug of the title>` in the repository (for example `.handoffs/BER-12 - add-the-clock`). The first line of that file is the same path. Berry commits it with the run. A later task that waits on this one is told to read that file, and not to inventory the other files the run produced. The root file `HANDOFF.md` is not a handoff.
+Before a run finishes, the agent writes a handoff at `.handoffs/<task key> - <slug of the title>` in the repository (for example `.handoffs/BER-12 - add-the-clock`). The first line of that file is the same path. Berry commits it with the run. A later task that waits on this one is told to read that file, and not to inventory the other files the run produced. A run does not delete any other file under `.handoffs/`. The root file `HANDOFF.md` is not a handoff.
 
 When an agent's run ends with a committed change, **the runtime's own delivery step pushes the branch, not the agent's model.** The push is a safe one that won't overwrite someone else's newer changes. Berry then opens the pull request with the workspace's GitHub access, titled with the task key and title. The description contains the agent's summary and a verification report: which checks ran, whether they passed, and whether the checks ran out of time. A run that changed nothing is recorded as such, and no empty pull request is opened. You don't have to do anything: the task moves to *In review*, and the pull request shows on the Reviews page. If the pull request can't be opened, the run is marked as failed instead.
 
