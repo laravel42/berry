@@ -1,4 +1,4 @@
-import type { Sql } from '../db/pool.ts';
+import { withinTx, type Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import { retryAfterFault } from './continuation.ts';
 
@@ -278,10 +278,9 @@ export class Dispatcher {
       // runtime's candidates in claim order, so one tick can never hand a
       // limit-1 runtime two runs (a plain `busy < limit` filter is evaluated
       // once for every candidate and would). The window lives in a CTE because
-      // Postgres refuses FOR UPDATE beside a window function. Two dispatchers
-      // claiming in the same instant can each read the same `busy`; that
-      // overshoot is bounded by the number of dispatchers and ends at the
-      // next tick.
+      // Postgres refuses FOR UPDATE beside a window function. Concurrent
+      // claims share a short transaction-level lock: capacity is read only
+      // after the lock is held, so another process sees committed reservations.
       //
       // The lock is taken in a MATERIALIZED CTE, not `WHERE id IN (SELECT …
       // LIMIT … FOR UPDATE)`: the planner may re-run that subquery per row,
@@ -299,77 +298,84 @@ export class Dispatcher {
       // A pending run with no live lease is not busy, including the
       // candidates themselves, so the aggregates do not count the rows this
       // statement is about to claim.
-      const rows = await this.#sql`
-         WITH runtime_busy AS (
-            SELECT runtime_id, count(*)::int AS busy_count
-              FROM runs
-             WHERE status IN ('queued', 'running')
-               AND runtime_id IS NOT NULL
-               AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
-             GROUP BY runtime_id
-         ),
-         agent_busy AS (
-            SELECT agent_id, count(*)::int AS busy_count
-              FROM runs
-             WHERE kind = 'agent'
-               AND status IN ('queued', 'running')
-               AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
-             GROUP BY agent_id
-         ),
-         candidate AS (
-            SELECT ranked.id, ranked.priority, ranked.created_at FROM (
-               SELECT r.id, r.priority, r.created_at, rt.concurrency_limit,
-                      row_number() OVER (PARTITION BY r.runtime_id
-                                         ORDER BY r.priority DESC, r.created_at ASC) AS slot,
-                      COALESCE(runtime_busy.busy_count, 0) AS busy_count,
-                      agent.max_concurrency AS agent_limit,
-                      row_number() OVER (PARTITION BY r.agent_id, r.kind
-                                         ORDER BY r.priority DESC, r.created_at ASC) AS agent_slot,
-                      r.kind,
-                      COALESCE(agent_busy.busy_count, 0) AS agent_busy
-                 FROM runs AS r
-                 LEFT JOIN agent_runtimes AS rt ON rt.id = r.runtime_id
-                 LEFT JOIN agents AS agent ON agent.id = r.agent_id
-                 LEFT JOIN runtime_busy ON runtime_busy.runtime_id = r.runtime_id
-                 LEFT JOIN agent_busy ON agent_busy.agent_id = r.agent_id
+      return withinTx(this.#sql, async (tx) => {
+         // Nonblocking and shared across all dispatcher processes. The claim
+         // query is a separate statement so READ COMMITTED sees the previous
+         // owner's committed leases rather than a snapshot from before locking.
+         const [lock] = await tx`SELECT pg_try_advisory_xact_lock(hashtextextended('berry:runs:dispatch-capacity', 0)) AS acquired`;
+         if (lock?.acquired !== true) return [];
+         const rows = await tx`
+            WITH runtime_busy AS (
+               SELECT runtime_id, count(*)::int AS busy_count
+                 FROM runs
+                WHERE status IN ('queued', 'running')
+                  AND runtime_id IS NOT NULL
+                  AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
+                GROUP BY runtime_id
+            ),
+            agent_busy AS (
+               SELECT agent_id, count(*)::int AS busy_count
+                 FROM runs
+                WHERE kind = 'agent'
+                  AND status IN ('queued', 'running')
+                  AND (dispatch_state <> 'pending' OR dispatch_lease_until > now())
+                GROUP BY agent_id
+            ),
+            candidate AS (
+               SELECT ranked.id, ranked.priority, ranked.created_at FROM (
+                  SELECT r.id, r.priority, r.created_at, rt.concurrency_limit,
+                         row_number() OVER (PARTITION BY r.runtime_id
+                                            ORDER BY r.priority DESC, r.created_at ASC) AS slot,
+                         COALESCE(runtime_busy.busy_count, 0) AS busy_count,
+                         agent.max_concurrency AS agent_limit,
+                         row_number() OVER (PARTITION BY r.agent_id, r.kind
+                                            ORDER BY r.priority DESC, r.created_at ASC) AS agent_slot,
+                         r.kind,
+                         COALESCE(agent_busy.busy_count, 0) AS agent_busy
+                    FROM runs AS r
+                    LEFT JOIN agent_runtimes AS rt ON rt.id = r.runtime_id
+                    LEFT JOIN agents AS agent ON agent.id = r.agent_id
+                    LEFT JOIN runtime_busy ON runtime_busy.runtime_id = r.runtime_id
+                    LEFT JOIN agent_busy ON agent_busy.agent_id = r.agent_id
+                   WHERE r.status = 'queued'
+                     AND r.dispatch_state = 'pending'
+                     AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
+                     AND (rt.id IS NULL OR rt.status <> 'disabled')
+                     ${this.#scope('r')}
+                     ${this.#aiRuntimes('r')}
+                     -- One task per chat session at a time (spec 2.2a): a
+                     -- session's run waits while another of its runs is running
+                     -- or is ahead of it in claim order.
+                     AND (r.chat_session_id IS NULL OR NOT EXISTS (
+                            SELECT 1 FROM runs AS o
+                             WHERE o.chat_session_id = r.chat_session_id AND o.id <> r.id
+                               AND (o.status = 'running'
+                                    OR (o.status = 'queued'
+                                        AND (o.priority > r.priority
+                                             OR (o.priority = r.priority
+                                                 AND (o.created_at, o.id) < (r.created_at, r.id)))))))
+               ) AS ranked
+               WHERE (ranked.concurrency_limit IS NULL
+                      OR ranked.busy_count + ranked.slot <= ranked.concurrency_limit)
+                 AND (ranked.agent_limit IS NULL OR ranked.kind <> 'agent'
+                      OR ranked.agent_busy + ranked.agent_slot <= ranked.agent_limit)
+            ),
+            picked AS MATERIALIZED (
+               SELECT r.id FROM runs AS r JOIN candidate AS c ON c.id = r.id
                 WHERE r.status = 'queued'
                   AND r.dispatch_state = 'pending'
                   AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
-                  AND (rt.id IS NULL OR rt.status <> 'disabled')
-                  ${this.#scope('r')}
-                  ${this.#aiRuntimes('r')}
-                  -- One task per chat session at a time (spec 2.2a): a
-                  -- session's run waits while another of its runs is running
-                  -- or is ahead of it in claim order.
-                  AND (r.chat_session_id IS NULL OR NOT EXISTS (
-                         SELECT 1 FROM runs AS o
-                          WHERE o.chat_session_id = r.chat_session_id AND o.id <> r.id
-                            AND (o.status = 'running'
-                                 OR (o.status = 'queued'
-                                     AND (o.priority > r.priority
-                                          OR (o.priority = r.priority
-                                              AND (o.created_at, o.id) < (r.created_at, r.id)))))))
-            ) AS ranked
-            WHERE (ranked.concurrency_limit IS NULL
-                   OR ranked.busy_count + ranked.slot <= ranked.concurrency_limit)
-              AND (ranked.agent_limit IS NULL OR ranked.kind <> 'agent'
-                   OR ranked.agent_busy + ranked.agent_slot <= ranked.agent_limit)
-         ),
-         picked AS MATERIALIZED (
-            SELECT r.id FROM runs AS r JOIN candidate AS c ON c.id = r.id
-             WHERE r.status = 'queued'
-               AND r.dispatch_state = 'pending'
-               AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
-             ORDER BY c.priority DESC, c.created_at ASC
-             LIMIT ${limit}
-             FOR UPDATE OF r SKIP LOCKED
-         )
-         UPDATE runs
-            SET dispatch_lease_until = now() + ${`${this.#leaseMs} milliseconds`}::interval
-           FROM picked
-          WHERE runs.id = picked.id
-          RETURNING runs.id`;
-      return rows.map((row) => row.id as string);
+                ORDER BY c.priority DESC, c.created_at ASC
+                LIMIT ${limit}
+                FOR UPDATE OF r SKIP LOCKED
+            )
+            UPDATE runs
+               SET dispatch_lease_until = now() + ${`${this.#leaseMs} milliseconds`}::interval
+              FROM picked
+             WHERE runs.id = picked.id
+             RETURNING runs.id`;
+         return rows.map((row) => row.id as string);
+      });
    }
 
    /**
