@@ -750,7 +750,7 @@ export class ReviewGate {
       try {
          const { owner } = parseRepository(material.repository);
          const client = await this.#github(material.workspaceId, owner);
-         return await openReviewFiles(client, material.repository, material.delivered?.pullRequest ?? null);
+         return await openReviewFiles(client, material.repository, material.delivered?.pullRequest ?? null, material.run.headCommit ?? undefined);
       } catch (error) {
          // Reviewed on the diff alone, as before, rather than not at all.
          this.#onError('opening the repository for the reviewers failed', error);
