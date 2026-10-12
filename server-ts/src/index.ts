@@ -15,6 +15,7 @@ const VERSION = (process.env.BERRY_VERSION ?? '').trim() || '0.1.0-dev';
  */
 const PLUGIN_MCP_TOKEN_TTL_MS = 8 * 60 * 60 * 1000;
 
+import { configureTaskExecution, WORKSTATION_RUNTIME_KEYS } from './runs/execution-policy.ts';
 import { loadConfig } from './config/config.ts';
 import { isEmbeddedDatabase, openFromUrl } from './db/embedded.ts';
 import { checkDatabase } from './db/pool.ts';
@@ -556,6 +557,17 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
        }
      : null;
 
+configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
+const hasAgentExecution = async (): Promise<boolean> => {
+   if (defaultTarget) return true;
+   const [row] = await sql`SELECT EXISTS (
+      SELECT 1 FROM ai_runtime_connections c JOIN workspace_memberships m
+        ON m.workspace_id = c.workspace_id AND m.user_id = c.user_id
+       WHERE c.status = 'connected' AND c.runtime_key = ANY(${sql.array([...WORKSTATION_RUNTIME_KEYS])}::text[])
+   ) AS available`;
+   return row?.available === true;
+};
+
 /**
  * AutoGate: a peer agent reviews what a run delivered, for tasks whose plan
  * opted in — and on request for any task with a pull request. Its decision is
@@ -578,8 +590,7 @@ const releaseTask = (issueId: string) =>
       issueId
    );
 
-const reviewGate = defaultTarget
-   ? new ReviewGate({
+const reviewGate = new ReviewGate({
         release: releaseTask,
         sql,
         issues,
@@ -594,8 +605,7 @@ const reviewGate = defaultTarget
         ...(storage ? { openArtifact: (key: string) => storage.open(key) } : {}),
         onError: (message, error) =>
            logger.error(message, { error: error instanceof Error ? error.message : String(error) }),
-     })
-   : null;
+     });
 
 /**
  * Token usage the runtime reports on `task.usage`, stored and priced by
@@ -887,7 +897,7 @@ registry.registerAll(
 );
 // Work tracking: subscriptions and inbox rows after writes, and the stage
 // barrier on sub-issues. Dispatch only where runs can execute, as below.
-const workDispatch = defaultTarget ? runOptions.runs : undefined;
+const workDispatch = runOptions.runs;
 const workHooks = workTrackingHooks({ sql, issues, dispatch: workDispatch, release: releaseTask });
 const commentOptions = {
    sessions,
@@ -926,7 +936,7 @@ registry.registerAll(
       runs: issueRunRoutes(runOptions),
       // A task handed to an agent starts on its own. Only where runs can
       // execute: without an executor a queued run would sit forever.
-      ...(defaultTarget ? { dispatch: runOptions.runs } : {}),
+      dispatch: runOptions.runs,
       stages: stageGate(sql),
       hooks: workHooks,
       // Quick actions queue through the runtime's task queue.
@@ -1074,29 +1084,24 @@ const planOptions: PlanOptions = {
    sessions,
    plans: new PlanRepository(sql),
    answers: new PlanAnswerRepository(sql),
-   // Reading a plan works without a model credential; only generating one
-   // needs it, and a null generator answers PLANNER_UNAVAILABLE rather
-   // than opening a plan nothing will ever fill in.
+   // Completion admission selects a connected subscription model or refuses
+   // immediately when this deployment has no native compute host.
    generator:
-      defaultTarget
-      ? new PlanGenerator({
+      new PlanGenerator({
            sql,
            completion,
            defaultModel: config.runtime.defaultModel,
            maxRepairs: config.agents?.maxRepairs ?? 2,
            maxCriticRounds: config.agents?.maxCriticRounds ?? 1,
-        })
-      : null,
+        }),
    // Routing needs the same credential planning does: it is the
    // orchestrator reading the roster and deciding, not a lookup table.
    triage:
-      defaultTarget
-      ? new PlanTriage({
+      new PlanTriage({
            sql,
            completion,
            defaultModel: config.runtime.defaultModel,
-        })
-      : null,
+        }),
    // Its own repository rather than the request path's: a routed task is
    // admitted outside any request, after the response has gone.
    runs: new RunRepository(sql),
@@ -1259,10 +1264,10 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor', 'qoder'] as const }),
-      // A title is a completion on the compute host. Without one it would sit
-      // queued ahead of the next reply and nothing would claim it.
-      complete: defaultTarget ? complete : null,
+      ...(defaultTarget ? {} : { workstationRuntimes: WORKSTATION_RUNTIME_KEYS }),
+      // Titles use the same subscription completion path as the planner;
+      // unexecutable selections are refused before queue admission.
+      complete,
       ledger: runOptions.ledger,
       runs: runOptions.runs,
       logger,
@@ -1281,21 +1286,17 @@ registry.registerAll(
    editorMounts({
       sessions,
       assist:
-         defaultTarget
-         ? new EditorAssist({
+         new EditorAssist({
               completion,
               defaultModel: config.runtime.defaultModel,
-           })
-         : null,
+           }),
       // The new-project assistant is a completion too, so it is offered
       // exactly where the editor's rewrite is.
       projectDraft:
-         defaultTarget
-         ? new ProjectDraftAssist({
+         new ProjectDraftAssist({
               completion,
               defaultModel: config.runtime.defaultModel,
-           })
-         : null,
+           }),
    })
 );
 registry.registerAll(
@@ -1425,12 +1426,9 @@ registry.registerAll(
          // True only when a model credential and object storage are both
          // present: this is what the browser uses to decide whether running
          // an agent is offered at all.
-         // A model credential and object storage, which is what an agent
-         // needs to run at all. Not the dispatcher: a deployment could split
-         // serving from dispatching, and this is reported by whichever server
-         // answers — so it has to be a property of the build and its
-         // configuration rather than of which process was asked.
-         agentExecution: defaultTarget !== null,
+         // Native compute or a live connected workstation subscription. The
+         // value is refreshed per read so connecting a runtime takes effect.
+         agentExecution: hasAgentExecution,
          metrics: true,
          // The event streams are served here now. The relay is not wired, so
          // a fact published by another process arrives on the next poll
@@ -1439,9 +1437,8 @@ registry.registerAll(
          realtime: true,
          storage: storage !== null,
          valkey: false,
-         // The planner runs when there is a model credential to run it with.
-         // Planning is a completion task, so it runs wherever tasks do.
-         planner: defaultTarget !== null,
+         // Planning is a completion task, including subscription-backed ones.
+         planner: hasAgentExecution,
          modelGateway: modelGateway !== null,
          // What the sign-in page believes: true when the GitHub OAuth App
          // can complete a round trip and Better Auth can hold the session.
@@ -1467,7 +1464,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok', 'qoder'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: [...WORKSTATION_RUNTIME_KEYS] }),
 });
 dispatcher.start();
 
@@ -1516,12 +1513,11 @@ const followupWorker = reviewGate
    : null;
 followupWorker?.start();
 
-// Schedules fire only where tasks can run: a schedule on a server with no
-// dispatcher would queue work nothing takes. Several servers may run this;
+// Schedules use the shared admission policy, including subscriptions.
+// Unavailable execution is recorded as a firing failure, never queued forever.
+// Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
-const autopilotScheduler = defaultTarget
-   ? new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger })
-   : null;
+const autopilotScheduler = new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger });
 autopilotScheduler?.start();
 
 const app = createApp(registry);

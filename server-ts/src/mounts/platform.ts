@@ -17,12 +17,12 @@ export type Checker = () => Promise<void>;
 
 /** Only booleans, and only ones safe to hand a browser. */
 export interface Capabilities {
-   agentExecution: boolean;
+   agentExecution: boolean | (() => Promise<boolean>);
    metrics: boolean;
    realtime: boolean;
    storage: boolean;
    valkey: boolean;
-   planner: boolean;
+   planner: boolean | (() => Promise<boolean>);
    /** Model calls go through a gateway with Berry tiers (ADR-0017): the UI shows tiers, not a model picker. */
    modelGateway?: boolean;
    /**
@@ -165,12 +165,12 @@ function configRoute(
          version: version ?? null,
          signInOrigin: signInOrigin ?? null,
          capabilities: {
-            agentExecution: capabilities.agentExecution,
+            agentExecution: typeof capabilities.agentExecution === 'function' ? await capabilities.agentExecution() : capabilities.agentExecution,
             metrics: capabilities.metrics,
             realtime: capabilities.realtime,
             storage: capabilities.storage,
             valkey: capabilities.valkey,
-            planner: capabilities.planner,
+            planner: typeof capabilities.planner === 'function' ? await capabilities.planner() : capabilities.planner,
             modelGateway: capabilities.modelGateway ?? false,
             githubSignIn:
                typeof capabilities.githubSignIn === 'function'
