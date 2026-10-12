@@ -12,6 +12,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { GitHubIntegrationSettings } from '@/components/common/settings/github-integration-settings';
+import { GitLabIntegrationSettings } from '@/components/common/settings/gitlab-integration-settings';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import { StatusBadge } from '@/components/common/status-badge';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -89,11 +90,18 @@ function whenText(iso: string | null | undefined): string {
    }
 }
 
-/** The workspace GitHub connection. The catalogue id stays internal. */
-const GITHUB_NAME = 'GitHub';
+/** Providers whose account and switches live in the integrations drawer. */
+const DRAWER_NAMES = { github: 'GitHub', gitlab: 'GitLab' } as const;
+
+type DrawerProviderId = keyof typeof DRAWER_NAMES;
+
+function drawerProviderId(id: string): DrawerProviderId | null {
+   return id === 'github' || id === 'gitlab' ? id : null;
+}
 
 function visibleProviderName(provider: { id: string; name: string }): string {
-   return provider.id === 'github' ? GITHUB_NAME : provider.name;
+   const drawer = drawerProviderId(provider.id);
+   return drawer ? DRAWER_NAMES[drawer] : provider.name;
 }
 
 function visibleProviderDescription(provider: { description: string }): string {
@@ -234,9 +242,10 @@ function ProviderCard({
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
    const scopes = connection?.scopes?.length ? connection.scopes : (provider.scopes ?? []);
-   // GitHub disconnects from its drawer. The row has no second column
-   // once that account is connected.
-   const showDisconnect = !builtIn && provider.id !== 'github' && provider.connected;
+   // GitHub and GitLab disconnect from their drawers. The row has no
+   // second column once that account is connected.
+   const inDrawer = drawerProviderId(provider.id) !== null;
+   const showDisconnect = !builtIn && !inDrawer && provider.connected;
    const showConnect = !builtIn && !provider.connected;
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
@@ -247,11 +256,7 @@ function ProviderCard({
          : accountName
            ? `as ${accountName}`
            : null,
-      provider.id === 'github'
-         ? null
-         : connection?.createdAt
-           ? `since ${whenText(connection.createdAt)}`
-           : null,
+      inDrawer ? null : connection?.createdAt ? `since ${whenText(connection.createdAt)}` : null,
       connection?.expiresAt ? `token expires ${whenText(connection.expiresAt)}` : null,
       publicDetail(connection?.statusDetail),
    ]
@@ -282,14 +287,12 @@ function ProviderCard({
             {/* A connection that lapsed is not a connection that was never
                    made, and the reason is the whole difference between "press
                    Connect" and "this was never set up". */}
-            {provider.id !== 'github' &&
-               !provider.connected &&
-               publicDetail(connection?.statusDetail) && (
-                  <p className="mt-1 text-muted-foreground">
-                     {publicDetail(connection?.statusDetail)}
-                     {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-                  </p>
-               )}
+            {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
+               <p className="mt-1 text-muted-foreground">
+                  {publicDetail(connection?.statusDetail)}
+                  {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
+               </p>
+            )}
             {!builtIn && !provider.configured && (
                <p className="mt-1 text-muted-foreground">
                   {provider.include === 'nango'
@@ -306,18 +309,15 @@ function ProviderCard({
                      agents can clone, push and open pull requests.
                   </p>
                )}
-            {provider.id === 'github' && provider.status === 'reconnect' && (
+            {inDrawer && provider.status === 'reconnect' && (
                <p className="mt-1 text-muted-foreground">
-                  The GitHub connection needs to be renewed before agents can use a repository.
+                  The {visibleProviderName(provider)} connection needs to be renewed before agents
+                  can use a repository.
                </p>
             )}
-            {provider.id === 'github' &&
-               provider.status === 'expired' &&
-               publicDetail(provider.statusDetail) && (
-                  <p className="mt-1 text-muted-foreground">
-                     {publicDetail(provider.statusDetail)}
-                  </p>
-               )}
+            {inDrawer && provider.status === 'expired' && publicDetail(provider.statusDetail) && (
+               <p className="mt-1 text-muted-foreground">{publicDetail(provider.statusDetail)}</p>
+            )}
             {scopes.length > 0 && (
                <ul className="mt-1.5 flex flex-wrap gap-1">
                   {scopes.map((scope) => (
@@ -425,18 +425,20 @@ async function watchNangoConnect(
 }
 
 /**
- * Connect and disconnect for the workspace GitHub account.
+ * Connect and disconnect for a workspace account that lives in the drawer.
  *
  * The provider token stays with the connection. This panel only starts
  * consent and ends it.
  */
-function GitHubConnectionPanel({
+function ProviderConnectionPanel({
+   name,
    provider,
    connection,
    busy,
    onConnect,
    onDisconnect,
 }: {
+   name: string;
    provider: Provider | undefined;
    connection: ProviderConnection | undefined;
    busy: boolean;
@@ -446,7 +448,7 @@ function GitHubConnectionPanel({
    if (!provider) {
       return (
          <p role="status" className="text-muted-foreground">
-            Loading {GITHUB_NAME}…
+            Loading {name}…
          </p>
       );
    }
@@ -461,7 +463,7 @@ function GitHubConnectionPanel({
       .filter(Boolean)
       .join(' · ');
    const description = !provider.configured
-      ? 'Connect is unavailable until GitHub is configured for this deployment.'
+      ? `Connect is unavailable until ${name} is configured for this deployment.`
       : provider.connected
         ? connectedLine
         : renewing
@@ -471,10 +473,10 @@ function GitHubConnectionPanel({
           : visibleProviderDescription(provider);
 
    return (
-      <section aria-label={GITHUB_NAME} className="flex flex-col gap-3">
+      <section aria-label={name} className="flex flex-col gap-3">
          <SettingsCard>
             <SettingsRow
-               title={GITHUB_NAME}
+               title={name}
                description={description}
                trailing={
                   provider.connected && !renewing ? (
@@ -509,7 +511,7 @@ function IntegrationsDirectory() {
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
-   const [githubOpen, setGithubOpen] = useState(false);
+   const [drawer, setDrawer] = useState<DrawerProviderId | null>(null);
 
    const load = useCallback(async (): Promise<Provider[]> => {
       if (!workspace) return [];
@@ -552,8 +554,10 @@ function IntegrationsDirectory() {
       const name = matched
          ? visibleProviderName(matched)
          : callbackProvider === 'github'
-           ? GITHUB_NAME
-           : callbackProvider.charAt(0).toUpperCase() + callbackProvider.slice(1);
+           ? DRAWER_NAMES.github
+           : callbackProvider === 'gitlab'
+             ? DRAWER_NAMES.gitlab
+             : callbackProvider.charAt(0).toUpperCase() + callbackProvider.slice(1);
       const outcome = describeConnectionResult(callbackStatus, name);
       if (outcome.ok) toast.success(outcome.message);
       else toast.error(outcome.message);
@@ -652,8 +656,11 @@ function IntegrationsDirectory() {
                   onConnect={() => void connect(provider)}
                   onDisconnect={() => setDisconnecting(provider)}
                   onOpen={
-                     provider.id === 'github' && provider.connected
-                        ? () => setGithubOpen(true)
+                     provider.connected && drawerProviderId(provider.id)
+                        ? () => {
+                             const id = drawerProviderId(provider.id);
+                             if (id) setDrawer(id);
+                          }
                         : undefined
                   }
                />
@@ -692,38 +699,42 @@ function IntegrationsDirectory() {
          </AlertDialog>
 
          <DetailDrawerShell
-            open={githubOpen}
-            onClose={() => setGithubOpen(false)}
+            open={drawer !== null}
+            onClose={() => setDrawer(null)}
             header={
                <div className="flex h-10 w-full items-center gap-1 border-b px-6">
                   <button
                      type="button"
-                     onClick={() => setGithubOpen(false)}
+                     onClick={() => setDrawer(null)}
                      className="text-muted-foreground transition-colors hover:text-foreground"
                   >
                      Integrations
                   </button>
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="truncate font-medium">{GITHUB_NAME}</span>
+                  <span className="truncate font-medium">{drawer ? DRAWER_NAMES[drawer] : ''}</span>
                </div>
             }
          >
-            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
-               <GitHubConnectionPanel
-                  provider={providers.find((provider) => provider.id === 'github')}
-                  connection={connections.find((entry) => entry.provider === 'github')}
-                  busy={busy === 'github'}
-                  onConnect={() => {
-                     const provider = providers.find((entry) => entry.id === 'github');
-                     if (provider) void connect(provider);
-                  }}
-                  onDisconnect={() => {
-                     const provider = providers.find((entry) => entry.id === 'github');
-                     if (provider) setDisconnecting(provider);
-                  }}
-               />
-               <GitHubIntegrationSettings heading={false} />
-            </div>
+            {drawer ? (
+               <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-6">
+                  <ProviderConnectionPanel
+                     name={DRAWER_NAMES[drawer]}
+                     provider={providers.find((provider) => provider.id === drawer)}
+                     connection={connections.find((entry) => entry.provider === drawer)}
+                     busy={busy === drawer}
+                     onConnect={() => {
+                        const provider = providers.find((entry) => entry.id === drawer);
+                        if (provider) void connect(provider);
+                     }}
+                     onDisconnect={() => {
+                        const provider = providers.find((entry) => entry.id === drawer);
+                        if (provider) setDisconnecting(provider);
+                     }}
+                  />
+                  {drawer === 'github' ? <GitHubIntegrationSettings heading={false} /> : null}
+                  {drawer === 'gitlab' ? <GitLabIntegrationSettings heading={false} /> : null}
+               </div>
+            ) : null}
          </DetailDrawerShell>
       </SettingsShell>
    );

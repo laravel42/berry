@@ -184,6 +184,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    'github_installations',
    'github_workspace_settings',
    'github_apps',
+   'gitlab_workspace_settings',
    'workspace_repositories',
    'scm_links',
    'plugin_event_cursor',
