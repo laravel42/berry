@@ -96,8 +96,8 @@ function visibleProviderName(provider: { id: string; name: string }): string {
    return provider.id === 'github' ? GITHUB_NAME : provider.name;
 }
 
-function visibleProviderDescription(provider: { description: string }): string {
-   return provider.description;
+function visibleProviderDescription(provider: { description?: string | null }): string {
+   return provider.description ?? '';
 }
 
 /** Drops a status line that would name the connection broker. */
