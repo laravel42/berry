@@ -42,7 +42,7 @@ describe('autopilot webhook ingress', { skip: url ? false : 'BERRY_TEST_DATABASE
       const autopilot = await repo.create(fixture.workspaceId, {
          name: 'On deploy', description: null, assigneeType: 'agent', assigneeId: fixture.agentId,
          promptTemplate: 'Check build {{payload.build}}.', executionMode: 'create_issue',
-         boardId: fixture.boardId, issueId: null, quotaPeriod: 'none', quotaMax: null,
+         boardId: fixture.boardId, projectId: null, issueId: null, quotaPeriod: 'none', quotaMax: null,
       }, fixture.userId);
       autopilotId = autopilot.id;
       const made = await repo.addWebhookTrigger(fixture.workspaceId, autopilotId, { eventFilters: ['deploy'], enabled: true });
