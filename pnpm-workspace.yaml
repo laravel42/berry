@@ -49,3 +49,7 @@ peerDependencyRules:
       'eslint-plugin-jsx-a11y>eslint': '10'
       'eslint-plugin-react>eslint': '10'
       '@tobilu/qmd>typescript': '7'
+
+# All workspaces and UI dependencies must share React's nominal key/ref types.
+overrides:
+   '@types/react': '19.3.0'
