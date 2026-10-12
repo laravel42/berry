@@ -64,6 +64,21 @@ export const Directory: Story = {
    },
 };
 
+/** Clicking GitHub opens its workspace settings in the drawer, not on the page. */
+export const GitHubSettingsDrawer: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      const github = await canvas.findByRole('region', { name: 'GitHub' });
+      await expect(canvas.queryByText('Use GitHub in this workspace')).not.toBeInTheDocument();
+      await userEvent.click(
+         within(github).getByRole('button', { name: /Repositories, branches and pull requests/ })
+      );
+      const body = within(canvasElement.ownerDocument.body);
+      const drawer = await body.findByRole('dialog');
+      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
+   },
+};
+
 export const DisconnectConfirm: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       const slack = await canvas.findByRole('region', { name: 'Slack' });

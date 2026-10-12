@@ -12,6 +12,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { GitHubIntegrationSettings } from '@/components/common/settings/github-integration-settings';
+import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import { StatusBadge } from '@/components/common/status-badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
@@ -36,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -99,19 +100,20 @@ function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGran
       );
       return match ? match.maxEffect : null;
    };
+   const external = provider.id !== BUILT_IN_PROVIDER;
    return (
-      <div className="overflow-x-auto">
-         <table className="w-full min-w-[36rem] border-t border-border/60">
+      <div className="min-w-0">
+         <table className="w-full table-fixed border-t border-border/60">
             <thead>
                <tr className="text-left text-muted-foreground">
-                  <th className="px-4 py-1.5 font-medium">Tool</th>
-                  <th className="px-2 py-1.5 font-medium">Effect</th>
-                  <th className="px-2 py-1.5 font-medium">Approval</th>
-                  <th className="px-2 py-1.5 font-medium">Default</th>
-                  {provider.id !== BUILT_IN_PROVIDER && (
+                  <th className="w-[40%] px-3 py-1.5 font-medium">Tool</th>
+                  <th className="px-1.5 py-1.5 font-medium break-words">Effect</th>
+                  <th className="px-1.5 py-1.5 font-medium break-words">Approval</th>
+                  <th className="px-1.5 py-1.5 font-medium break-words">Default</th>
+                  {external && (
                      <>
-                        <th className="px-2 py-1.5 font-medium">Granted</th>
-                        <th className="px-2 py-1.5 pr-4 font-medium">Allowed</th>
+                        <th className="px-1.5 py-1.5 font-medium break-words">Granted</th>
+                        <th className="px-1.5 py-1.5 pr-3 font-medium break-words">Allowed</th>
                      </>
                   )}
                </tr>
@@ -121,17 +123,17 @@ function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGran
                   const grant = granted(tool);
                   return (
                      <tr key={tool.name} className="border-t border-border/40 align-top">
-                        <td className="px-4 py-1.5">
-                           <span className="font-mono">{toolOperation(tool.name)}</span>
+                        <td className="px-3 py-1.5">
+                           <span className="font-mono break-all">{toolOperation(tool.name)}</span>
                            {tool.description && (
-                              <span className="block max-w-xs text-muted-foreground">
+                              <span className="block text-muted-foreground break-words">
                                  {tool.description}
                               </span>
                            )}
                         </td>
                         <td
                            className={cn(
-                              'px-2 py-1.5',
+                              'px-1.5 py-1.5 break-words',
                               tool.effect === 'destructive'
                                  ? 'text-status-danger'
                                  : tool.effect === 'external_side_effect'
@@ -141,23 +143,30 @@ function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGran
                         >
                            {describeToolEffect(tool.effect)}
                         </td>
-                        <td className="px-2 py-1.5">
+                        <td className="px-1.5 py-1.5 break-words">
                            {tool.requiresApproval ? (
                               <span className="text-status-warning">required</span>
                            ) : (
                               <span className="text-muted-foreground">—</span>
                            )}
                         </td>
-                        <td className="px-2 py-1.5 text-muted-foreground">
+                        <td className="px-1.5 py-1.5 break-words text-muted-foreground">
                            {tool.enabledByDefault === false ? 'opt-in' : 'on'}
                         </td>
-                        {provider.id !== BUILT_IN_PROVIDER && (
+                        {external && (
                            <>
-                              <td className="px-2 py-1.5 text-muted-foreground">
-                                 {grant ? `every agent · ${describeToolEffect(grant)}` : '—'}
+                              <td className="px-1.5 py-1.5 break-words text-muted-foreground">
+                                 {grant ? (
+                                    <>
+                                       <span className="block">every agent</span>
+                                       <span className="block">{describeToolEffect(grant)}</span>
+                                    </>
+                                 ) : (
+                                    '—'
+                                 )}
                               </td>
                               {/* Connected and granted: what an agent can reach right now. */}
-                              <td className="px-2 py-1.5 pr-4">
+                              <td className="px-1.5 py-1.5 pr-3 break-words">
                                  {tool.allowed === true ? (
                                     <span className="text-status-success">allowed</span>
                                  ) : tool.allowed === false ? (
@@ -185,6 +194,7 @@ function ProviderCard({
    busy,
    onConnect,
    onDisconnect,
+   onOpen,
 }: {
    provider: Provider;
    connection: ProviderConnection | undefined;
@@ -193,6 +203,8 @@ function ProviderCard({
    busy: boolean;
    onConnect: () => void;
    onDisconnect: () => void;
+   /** Opens this provider's settings. The tools row and connect actions stay their own controls. */
+   onOpen?: () => void;
 }) {
    const [toolsOpen, setToolsOpen] = useState(false);
    const state = describeProviderState(provider);
@@ -201,101 +213,119 @@ function ProviderCard({
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
    const scopes = connection?.scopes?.length ? connection.scopes : (provider.scopes ?? []);
+   const showGitHubConnect =
+      provider.id === 'github' &&
+      (!provider.connected || provider.status === 'reconnect' || provider.status === 'expired');
+   const showDisconnect = !builtIn && provider.id !== 'github' && provider.connected;
+   const showConnect = !builtIn && provider.id !== 'github' && !provider.connected;
+   const accountName = connection?.accountName ?? provider.accountName;
+   // The badge already says connected. This line is only the account and the
+   // dates, so a provider with neither does not repeat the word.
+   const connectionLine = [
+      provider.source === 'sign-in' && !accountName
+         ? null
+         : accountName
+           ? `as ${accountName}`
+           : null,
+      connection?.createdAt ? `since ${whenText(connection.createdAt)}` : null,
+      connection?.expiresAt ? `token expires ${whenText(connection.expiresAt)}` : null,
+      connection?.statusDetail ?? null,
+   ]
+      .filter(Boolean)
+      .join(' · ');
+   const identity = (
+      <>
+         <ProviderIcon provider={provider} />
+         <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+               <h3 className="font-medium">{provider.name}</h3>
+               <StatusBadge
+                  look={{
+                     label: state.label,
+                     tone: state.tone,
+                     state: state.tone === 'complete' ? 'solid' : 'hollow',
+                  }}
+               />
+            </div>
+            {provider.description && (
+               <p className="mt-0.5 text-muted-foreground">{provider.description}</p>
+            )}
+            {provider.connected && connectionLine ? (
+               <p className="mt-1 text-muted-foreground">{connectionLine}</p>
+            ) : null}
+            {/* A connection that lapsed is not a connection that was never
+                   made, and the reason is the whole difference between "press
+                   Connect" and "this was never set up". */}
+            {provider.id !== 'github' && !provider.connected && connection?.statusDetail && (
+               <p className="mt-1 text-muted-foreground">
+                  {connection.statusDetail}
+                  {connection.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
+               </p>
+            )}
+            {!builtIn && !provider.configured && (
+               <p className="mt-1 text-muted-foreground">
+                  Not configured on this deployment: set the {provider.name} OAuth credentials to
+                  enable Connect.
+               </p>
+            )}
+            {provider.id === 'github' &&
+               !provider.connected &&
+               provider.status !== 'reconnect' &&
+               provider.status !== 'expired' && (
+                  <p className="mt-1 text-muted-foreground">
+                     Signing in with GitHub is your identity. Connect to grant repository access so
+                     agents can clone, push and open pull requests.
+                  </p>
+               )}
+            {provider.id === 'github' && provider.status === 'reconnect' && (
+               <p className="mt-1 text-muted-foreground">
+                  GitHub refused the sign-in agents were using, so tasks that need a repository
+                  fail. Sign in with GitHub again to reconnect.
+               </p>
+            )}
+            {provider.id === 'github' && provider.status === 'expired' && provider.statusDetail && (
+               <p className="mt-1 text-muted-foreground">{provider.statusDetail}</p>
+            )}
+            {scopes.length > 0 && (
+               <ul className="mt-1.5 flex flex-wrap gap-1">
+                  {scopes.map((scope) => (
+                     <li
+                        key={scope}
+                        className="rounded border border-border/60 bg-muted/40 px-1.5 font-mono leading-5 text-muted-foreground"
+                     >
+                        {scope}
+                     </li>
+                  ))}
+               </ul>
+            )}
+         </div>
+      </>
+   );
+
    return (
       <section
          id={`provider-${provider.id}`}
          className={cn(
-            'rounded-lg border bg-container transition-shadow',
+            'min-w-0 overflow-hidden rounded-lg border bg-container transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
          aria-label={provider.name}
       >
-         <div className="flex items-start gap-3 px-4 py-3">
-            <ProviderIcon provider={provider} />
-            <div className="min-w-0 flex-1">
-               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <h3 className="font-medium">{provider.name}</h3>
-                  <StatusBadge
-                     look={{
-                        label: state.label,
-                        tone: state.tone,
-                        state: state.tone === 'complete' ? 'solid' : 'hollow',
-                     }}
-                  />
-               </div>
-               {provider.description && (
-                  <p className="mt-0.5 text-muted-foreground">{provider.description}</p>
-               )}
-               {provider.connected && (
-                  <p className="mt-1 text-muted-foreground">
-                     {provider.source === 'sign-in' && !connection?.accountName
-                        ? "Connected through your team's GitHub sign-in"
-                        : connection?.accountName || provider.accountName
-                          ? `as ${connection?.accountName ?? provider.accountName}`
-                          : 'connected'}
-                     {connection?.createdAt && ` · since ${whenText(connection.createdAt)}`}
-                     {connection?.expiresAt && ` · token expires ${whenText(connection.expiresAt)}`}
-                     {connection?.statusDetail && ` · ${connection.statusDetail}`}
-                  </p>
-               )}
-               {/* A connection that lapsed is not a connection that was never
-                   made, and the reason is the whole difference between "press
-                   Connect" and "this was never set up". */}
-               {provider.id !== 'github' && !provider.connected && connection?.statusDetail && (
-                  <p className="mt-1 text-muted-foreground">
-                     {connection.statusDetail}
-                     {connection.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-                  </p>
-               )}
-               {!builtIn && !provider.configured && (
-                  <p className="mt-1 text-muted-foreground">
-                     Not configured on this deployment: set the {provider.name} OAuth credentials to
-                     enable Connect.
-                  </p>
-               )}
-               {provider.id === 'github' &&
-                  !provider.connected &&
-                  provider.status !== 'reconnect' &&
-                  provider.status !== 'expired' && (
-                     <p className="mt-1 text-muted-foreground">
-                        Signing in with GitHub is your identity. Connect to grant repository access
-                        so agents can clone, push and open pull requests.
-                     </p>
-                  )}
-               {provider.id === 'github' && provider.status === 'reconnect' && (
-                  <p className="mt-1 text-muted-foreground">
-                     GitHub refused the sign-in agents were using, so tasks that need a repository
-                     fail. Sign in with GitHub again to reconnect.
-                  </p>
-               )}
-               {provider.id === 'github' &&
-                  provider.status === 'expired' &&
-                  provider.statusDetail && (
-                     <p className="mt-1 text-muted-foreground">{provider.statusDetail}</p>
-                  )}
-               {builtIn && (
-                  <p className="mt-1 text-muted-foreground">
-                     Runs inside Berry; agents use these tools with nothing to connect.
-                  </p>
-               )}
-               {scopes.length > 0 && (
-                  <ul className="mt-1.5 flex flex-wrap gap-1">
-                     {scopes.map((scope) => (
-                        <li
-                           key={scope}
-                           className="rounded border border-border/60 bg-muted/40 px-1.5 font-mono leading-5 text-muted-foreground"
-                        >
-                           {scope}
-                        </li>
-                     ))}
-                  </ul>
-               )}
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-               {provider.id === 'github' &&
-                  (!provider.connected ||
-                     provider.status === 'reconnect' ||
-                     provider.status === 'expired') && (
+         <div className="flex items-start">
+            {onOpen ? (
+               <button
+                  type="button"
+                  onClick={onOpen}
+                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+               >
+                  {identity}
+               </button>
+            ) : (
+               <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">{identity}</div>
+            )}
+            {showGitHubConnect || showDisconnect || showConnect ? (
+               <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+                  {showGitHubConnect ? (
                      <Button
                         size="xs"
                         onClick={() => {
@@ -316,31 +346,32 @@ function ProviderCard({
                            ? 'Reconnect GitHub'
                            : 'Connect GitHub'}
                      </Button>
-                  )}
-               {!builtIn && provider.id !== 'github' && provider.connected && (
-                  <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
-                     {busy ? 'Working…' : 'Disconnect'}
-                  </Button>
-               )}
-               {!builtIn && provider.id !== 'github' && !provider.connected && (
-                  <Button
-                     size="xs"
-                     disabled={busy || !provider.configured}
-                     title={
-                        provider.configured
-                           ? `Sign in to ${provider.name}`
-                           : `${provider.name} is not configured on this deployment`
-                     }
-                     onClick={onConnect}
-                  >
-                     {busy ? 'Opening…' : 'Connect'}
-                  </Button>
-               )}
-            </div>
+                  ) : null}
+                  {showDisconnect ? (
+                     <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
+                        {busy ? 'Working…' : 'Disconnect'}
+                     </Button>
+                  ) : null}
+                  {showConnect ? (
+                     <Button
+                        size="xs"
+                        disabled={busy || !provider.configured}
+                        title={
+                           provider.configured
+                              ? `Sign in to ${provider.name}`
+                              : `${provider.name} is not configured on this deployment`
+                        }
+                        onClick={onConnect}
+                     >
+                        {busy ? 'Opening…' : 'Connect'}
+                     </Button>
+                  ) : null}
+               </div>
+            ) : null}
          </div>
          <button
             type="button"
-            className="flex w-full items-center gap-1.5 border-t border-border/60 px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-accent/40"
+            className="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 border-t border-border/60 px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-accent/40"
             aria-expanded={toolsOpen}
             onClick={() => setToolsOpen((open) => !open)}
          >
@@ -377,6 +408,7 @@ function IntegrationsDirectory() {
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
+   const [githubOpen, setGithubOpen] = useState(false);
 
    const load = useCallback(async () => {
       if (!workspace) return;
@@ -465,10 +497,6 @@ function IntegrationsDirectory() {
          title="Integrations"
          description="Connect the tools your agents may reach. Berry's own tools need no connection; an agent cannot reach another provider until it is connected."
       >
-         <GitHubIntegrationSettings
-            source={providers.find((provider) => provider.id === 'github')?.source ?? null}
-         />
-
          {error && (
             <p role="alert" className="text-status-danger">
                {error}
@@ -491,6 +519,7 @@ function IntegrationsDirectory() {
                   busy={busy === provider.id}
                   onConnect={() => void connect(provider)}
                   onDisconnect={() => setDisconnecting(provider)}
+                  onOpen={provider.id === 'github' ? () => setGithubOpen(true) : undefined}
                />
             ))}
          </div>
@@ -522,6 +551,31 @@ function IntegrationsDirectory() {
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
+
+         <DetailDrawerShell
+            open={githubOpen}
+            onClose={() => setGithubOpen(false)}
+            header={
+               <div className="flex h-10 w-full items-center gap-1 border-b px-6">
+                  <button
+                     type="button"
+                     onClick={() => setGithubOpen(false)}
+                     className="text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                     Integrations
+                  </button>
+                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="truncate font-medium">GitHub</span>
+               </div>
+            }
+         >
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+               <GitHubIntegrationSettings
+                  source={providers.find((provider) => provider.id === 'github')?.source ?? null}
+                  heading={false}
+               />
+            </div>
+         </DetailDrawerShell>
       </SettingsShell>
    );
 }

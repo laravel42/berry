@@ -73,9 +73,12 @@ function when(iso: string | null | undefined): string {
  */
 export function GitHubIntegrationSettings({
    source = null,
+   heading = true,
 }: {
    /** Which credential GitHub is connected through, from the provider catalogue. */
    source?: 'app' | 'sign-in' | null;
+   /** The drawer that hosts this section already names it. */
+   heading?: boolean;
 }) {
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const [state, setState] = useState<GitHubSettingsState | null>(null);
@@ -178,17 +181,25 @@ export function GitHubIntegrationSettings({
       .join(' ');
 
    return (
-      <section aria-labelledby="github-settings-heading" className="flex flex-col gap-3">
-         <div>
-            <h2 id="github-settings-heading" className="font-medium">
-               GitHub
-            </h2>
-            {!canManage && (
-               <p className="mt-0.5 text-muted-foreground">
-                  Only workspace admins can change these settings.
-               </p>
-            )}
-         </div>
+      <section
+         aria-labelledby={heading ? 'github-settings-heading' : undefined}
+         aria-label={heading ? undefined : 'GitHub'}
+         className="flex flex-col gap-3"
+      >
+         {heading || !canManage ? (
+            <div>
+               {heading ? (
+                  <h2 id="github-settings-heading" className="font-medium">
+                     GitHub
+                  </h2>
+               ) : null}
+               {!canManage && (
+                  <p className="mt-0.5 text-muted-foreground">
+                     Only workspace admins can change these settings.
+                  </p>
+               )}
+            </div>
+         ) : null}
 
          <SettingsCard>
             <SettingsRow
@@ -203,12 +214,6 @@ export function GitHubIntegrationSettings({
                   />
                }
             />
-            {viaSignIn ? (
-               <SettingsRow
-                  title="Connected"
-                  description="Connected through your team's GitHub sign-in. Agents clone, push and open pull requests with a workspace member's GitHub account, so no GitHub App is needed."
-               />
-            ) : null}
             {connection.appConfigured ? (
                <>
                   {viaSignIn ? null : (
