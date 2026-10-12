@@ -13,6 +13,7 @@ import {
    Server,
    Settings,
    Tag,
+   Tags,
    Users,
    UsersRound,
    Zap,
@@ -40,6 +41,7 @@ export type SettingsNavKey =
    | 'runtimes'
    | 'modelTiers'
    | 'labels'
+   | 'skillLabels'
    | 'properties'
    | 'quickActions'
    | 'integrations'
@@ -91,6 +93,7 @@ export const settingsNav: SettingsNavGroup[] = [
          { labelKey: 'runtimes', url: '/settings/runtimes', icon: Server },
          { labelKey: 'modelTiers', url: '/settings/model-tiers', icon: Layers },
          { labelKey: 'labels', url: '/settings/issue-labels', icon: Tag },
+         { labelKey: 'skillLabels', url: '/settings/skill-labels', icon: Tags },
          { labelKey: 'properties', url: '/settings/issue-properties', icon: ListChecks },
          { labelKey: 'quickActions', url: '/settings/quick-actions', icon: Zap },
       ],

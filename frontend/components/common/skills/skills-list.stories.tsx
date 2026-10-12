@@ -36,26 +36,44 @@ type Story = StoryObj<typeof meta>;
 
 export const Catalogue: Story = {
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: /^sql-review/ }));
+      // Labels are accordions. sql-review sits under backend and database.
+      await expect(canvas.getByRole('button', { name: /backend\s*1/ })).toBeVisible();
+      await userEvent.click(canvas.getAllByRole('button', { name: /^sql-review/ })[0]!);
       await expect(args.onOpen).toHaveBeenCalledWith('skill-sql-review');
-      // The rows it shows become the order the detail header steps through.
-      await expect(useSkillsCatalogueStore.getState().orderedIds[0]).toBe(
-         'skill-conventional-commits'
+      // First group is backend, so the detail header starts on that skill.
+      await expect(useSkillsCatalogueStore.getState().orderedIds).toEqual([
+         'skill-sql-review',
+         'skill-design-tokens',
+         'skill-release-notes',
+         'skill-conventional-commits',
+      ]);
+   },
+};
+
+/** Closing a label hides its rows and leaves the header, the way a task group does. */
+export const LabelAccordion: Story = {
+   play: async ({ canvas, userEvent }) => {
+      await expect(canvas.getAllByRole('button', { name: /^conventional-commits/ })).toHaveLength(
+         1
       );
+      await userEvent.click(canvas.getByRole('button', { name: /git\s*1/ }));
+      await expect(canvas.queryByRole('button', { name: /^conventional-commits/ })).toBeNull();
+      await expect(canvas.getByRole('button', { name: /git\s*1/ })).toBeVisible();
    },
 };
 
 /** Every column on, sorted by how many agents carry each skill, one row open. */
 export const AllColumns: Story = {
    args: {
-      criteria: { sort: 'usage', columns: ['labels', 'agents', 'files', 'creator', 'updated'] },
+      criteria: { sort: 'usage', columns: ['agents', 'files', 'creator', 'updated'] },
       openId: 'skill-design-tokens',
    },
 };
 
 export const Selection: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('checkbox', { name: 'Select design-tokens' }));
+      // design-tokens is listed under both of its labels; either checkbox selects it once.
+      await userEvent.click(canvas.getAllByRole('checkbox', { name: 'Select design-tokens' })[0]!);
       await userEvent.click(canvas.getByRole('checkbox', { name: 'Select release-notes' }));
       // The bulk bar appears with the selection.
       await expect(canvas.getByText('2 selected')).toBeVisible();
@@ -64,8 +82,10 @@ export const Selection: Story = {
 
 export const RowMenu: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      const [firstMenu] = canvas.getAllByRole('button', { name: 'Skill actions' });
-      await userEvent.click(firstMenu!);
+      const name = canvas.getByRole('button', { name: /^conventional-commits/ });
+      const row = name.parentElement;
+      if (!row) throw new Error('missing skill row');
+      await userEvent.click(within(row).getByRole('button', { name: 'Skill actions' }));
       const body = within(canvasElement.ownerDocument.body);
       // Only a GitHub import can be updated from its source; the first row is one.
       await expect(
@@ -79,8 +99,9 @@ export const ReadOnly: Story = {
    args: { canEdit: false },
    play: async ({ canvas }) => {
       await expect(canvas.queryByRole('checkbox')).toBeNull();
+      // Four skills, two of them listed under a second label.
       await expect(canvas.getAllByLabelText('Your role cannot change the catalogue')).toHaveLength(
-         4
+         6
       );
    },
 };

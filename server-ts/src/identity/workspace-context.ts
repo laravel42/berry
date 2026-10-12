@@ -170,6 +170,7 @@ const OWNED_TABLES: ReadonlySet<string> = new Set<string>([
    'goals',
    'saved_issue_views',
    'issue_labels',
+   'skill_labels',
    'issue_status_definitions',
    'issue_property_definitions',
    'quick_action_definitions',

@@ -160,6 +160,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    // Catalogues a person made while trying things out. Starter labels are
    // put back afterwards.
    'issue_labels',
+   'skill_labels',
    'issue_status_definitions',
    'issue_property_definitions',
    'saved_issue_views',

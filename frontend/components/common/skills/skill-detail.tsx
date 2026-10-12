@@ -13,7 +13,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { readFrontmatter, writeFrontmatter } from '@/lib/skill-files';
-import { getSkill, listSkills, updateSkill, type Skill } from '@/lib/skills';
+import { loadSkillLabels } from '@/lib/skill-labels';
+import { getSkill, updateSkill, type Skill } from '@/lib/skills';
+import { useSessionStore } from '@/store/session-store';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
 interface Draft {
@@ -73,6 +75,8 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
    const [busy, setBusy] = useState(false);
    const [conflict, setConflict] = useState<Skill | null>(null);
    const [labelOptions, setLabelOptions] = useState<string[]>([]);
+   const [labelColors, setLabelColors] = useState<Record<string, string>>({});
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const skipLabelSync = useRef(true);
 
    const take = useCallback((skill: Skill) => {
@@ -104,23 +108,28 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
    }, [skillId, take, t]);
 
    useEffect(() => {
+      if (!workspaceId) return;
       let cancelled = false;
-      void listSkills()
-         .then((skills) => {
+      void loadSkillLabels(workspaceId)
+         .then((labels) => {
             if (cancelled) return;
-            const names = new Set<string>();
-            for (const skill of skills) {
-               for (const label of skill.labels) names.add(label);
-            }
-            setLabelOptions([...names].sort((left, right) => left.localeCompare(right)));
+            const colors: Record<string, string> = {};
+            for (const label of labels) colors[label.name] = label.color;
+            setLabelColors(colors);
+            setLabelOptions(
+               labels.map((label) => label.name).sort((left, right) => left.localeCompare(right))
+            );
          })
          .catch(() => {
-            if (!cancelled) setLabelOptions([]);
+            if (!cancelled) {
+               setLabelOptions([]);
+               setLabelColors({});
+            }
          });
       return () => {
          cancelled = true;
       };
-   }, [revision]);
+   }, [revision, workspaceId]);
 
    /** Header label toggles bump the catalogue; pull labels without wiping other edits. */
    useEffect(() => {
@@ -262,6 +271,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                value={draft.labels}
                disabled={!canEdit}
                options={labelOptions}
+               colors={labelColors}
                onChange={editLabels}
             />
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
