@@ -110,6 +110,7 @@ test('keepalives keep a quiet stream alive', async () => {
 });
 
 test('control uses the authenticated invoke seam and validates the runtime response', async () => {
+   const controlTarget = { ...target, endpointUrl: 'https://agent-runtime:8080/' };
    const seen: Array<{ url: string; init: RequestInit | undefined }> = [];
    const fakeFetch = (async (url: string, init?: RequestInit) => {
       seen.push({ url, init });
@@ -121,13 +122,13 @@ test('control uses the authenticated invoke seam and validates the runtime respo
    const transport = httpTransport({
       fetch: fakeFetch,
       token: 't'.repeat(32),
-      endpointUrl: target.endpointUrl,
+      endpointUrl: controlTarget.endpointUrl,
    });
    const control = transport.control;
    assert.ok(control);
    const runtimeSessionId = `berry-${'d'.repeat(64)}`;
    const result = await control({
-      target,
+      target: controlTarget,
       request: {
          runtimeSessionId,
          operation: 'models',
@@ -136,7 +137,7 @@ test('control uses the authenticated invoke seam and validates the runtime respo
       },
       signal: new AbortController().signal,
    });
-   assert.equal(seen[0]?.url, 'http://agent-runtime:8080/invocations');
+   assert.equal(seen[0]?.url, 'https://agent-runtime:8080/invocations');
    const headers = new Headers(seen[0]?.init?.headers);
    assert.equal(headers.get('authorization'), `Bearer ${'t'.repeat(32)}`);
    assert.equal(headers.get('x-amzn-bedrock-agentcore-runtime-session-id'), runtimeSessionId);
