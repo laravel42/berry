@@ -48,12 +48,14 @@ export async function ensureOrganizationAgents(
 
    // The full roster used to be given to every workspace. Those specialists
    // are not the reduced catalog: archive them once. A later add or restore
-   // writes SPECIALISTS_KEPT_FROM or newer and is left in place.
+   // writes SPECIALISTS_KEPT_FROM or newer and is left in place. A role that
+   // has left the catalog entirely, such as Web Designer, is archived too.
+   const catalogIds = new Set(CATALOG.map((role) => role.id));
    let retired = 0;
    for (const row of existing) {
       if (!row.role_key || row.protected) continue;
       if (isCoreRole(row.role_key as RoleKey)) continue;
-      if ((row.contract_version ?? 0) >= SPECIALISTS_KEPT_FROM) continue;
+      if (catalogIds.has(row.role_key) && (row.contract_version ?? 0) >= SPECIALISTS_KEPT_FROM) continue;
       await retireSpecialist(q, row.id);
       byRole.delete(row.role_key);
       removed.add(row.role_key);
