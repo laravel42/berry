@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { isChatMode, type ChatMode } from '@/data/chat-mode';
+import { isChatRepository } from '@/data/chat-repository';
+
 /**
  * The fields the task composer can offer beside the title and description.
  *
@@ -21,9 +24,15 @@ interface UiPrefsState {
    floatingChat: boolean;
    /** Which selectors the task composer shows. */
    createFields: Record<CreateField, boolean>;
+   /** How the chat composer asks an agent to work. */
+   chatMode: ChatMode;
+   /** The repository the next chat message is about. Null means none was chosen. */
+   chatRepository: string | null;
    setStickyCommentBar: (sticky: boolean) => void;
    setFloatingChat: (floating: boolean) => void;
    setCreateField: (field: CreateField, shown: boolean) => void;
+   setChatMode: (mode: ChatMode) => void;
+   setChatRepository: (repository: string | null) => void;
 }
 
 /**
@@ -44,10 +53,14 @@ export const useUiPrefsStore = create<UiPrefsState>()(
          stickyCommentBar: true,
          floatingChat: true,
          createFields: { status: true, priority: true, assignee: true, project: true },
+         chatMode: 'agent',
+         chatRepository: null,
          setStickyCommentBar: (stickyCommentBar) => set({ stickyCommentBar }),
          setFloatingChat: (floatingChat) => set({ floatingChat }),
          setCreateField: (field, shown) =>
             set((state) => ({ createFields: { ...state.createFields, [field]: shown } })),
+         setChatMode: (chatMode) => set({ chatMode }),
+         setChatRepository: (chatRepository) => set({ chatRepository }),
       }),
       {
          name: 'berry-ui-prefs',
@@ -61,6 +74,10 @@ export const useUiPrefsStore = create<UiPrefsState>()(
                ...current,
                ...stored,
                createFields: { ...current.createFields, ...stored?.createFields },
+               chatMode: isChatMode(stored?.chatMode) ? stored.chatMode : current.chatMode,
+               chatRepository: isChatRepository(stored?.chatRepository)
+                  ? stored.chatRepository
+                  : null,
             };
          },
       }

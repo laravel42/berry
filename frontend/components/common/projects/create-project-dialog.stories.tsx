@@ -85,6 +85,49 @@ export const CreateProject: Story = {
    },
 };
 
+/** A name is enough. The created project is stored with no lead. */
+export const CreateWithoutLead: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.post('*/api/v1/projects', async ({ request }) => {
+            const body = (await request.json()) as { name: string; lead: unknown };
+            if (body.lead !== null) {
+               return HttpResponse.json(
+                  { error: { code: 'VALIDATION_ERROR', message: 'Lead was not empty.' } },
+                  { status: 400 }
+               );
+            }
+            return HttpResponse.json(
+               apiProject(
+                  makeProject({
+                     id: 'proj-new',
+                     name: body.name,
+                     status: projectStatus('to-do'),
+                     lead: null,
+                  })
+               ),
+               { status: 201 }
+            );
+         })
+      );
+   },
+   play: async ({ canvasElement, userEvent }) => {
+      const body = within(canvasElement.ownerDocument.body);
+      const dialog = await body.findByRole('dialog');
+      await userEvent.type(within(dialog).getByPlaceholderText('Project name'), 'Unowned');
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Create project' }));
+
+      await expect(await body.findByText('Project created')).toBeVisible();
+      await waitFor(() =>
+         expect(useProjectsStore.getState().projects[0]).toMatchObject({
+            name: 'Unowned',
+            lead: null,
+         })
+      );
+      await expect(useCreateProjectStore.getState().isOpen).toBe(false);
+   },
+};
+
 /** The server refused: the dialog stays open and says why. */
 export const CreateFails: Story = {
    beforeEach: ({ msw }) => {

@@ -6,7 +6,6 @@ import type { User } from '@/data/users';
 import { apiPriorityFromUi, apiProjectStatusFromUi } from '@/lib/catalog';
 import { leadToApi } from '@/lib/project-lead';
 import { apiHealthFromUi, patchWorkspaceProject, type ProjectPatchBody } from '@/lib/projects';
-import { useSessionStore } from '@/store/session-store';
 
 interface ProjectsState {
    projects: Project[];
@@ -25,31 +24,13 @@ interface ProjectsState {
    getProjectById: (id: string) => Project | undefined;
 }
 
-/** Who is looking — the fallback for a project that recorded no lead. */
-function viewerFromSession(): User {
-   const user = useSessionStore.getState().user;
-   return (
-      user ?? {
-         id: 'me',
-         name: 'You',
-         avatarUrl: '',
-         email: '',
-         status: 'online',
-         role: 'Member',
-         joinedDate: '',
-         teamIds: [],
-         timezone: 'UTC',
-      }
-   );
-}
-
 function persistPatch(
    projectId: string,
    body: ProjectPatchBody,
    optimistic: Partial<Project>
 ): void {
    useProjectsStore.getState().updateProject(projectId, optimistic);
-   void patchWorkspaceProject(projectId, body, viewerFromSession()).then((updated) => {
+   void patchWorkspaceProject(projectId, body).then((updated) => {
       if (updated) {
          useProjectsStore.getState().updateProject(projectId, updated);
       }
@@ -114,7 +95,7 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
    updateProjectName: (id, name) => {
       const previous = get().projects.find((project) => project.id === id)?.name;
       get().updateProject(id, { name });
-      return patchWorkspaceProject(id, { name }, viewerFromSession()).then((updated) => {
+      return patchWorkspaceProject(id, { name }).then((updated) => {
          if (updated) {
             get().updateProject(id, updated);
             return true;

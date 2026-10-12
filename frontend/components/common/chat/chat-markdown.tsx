@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, type ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 
 /**
  * The small subset of Markdown an agent actually writes back.
@@ -189,7 +190,7 @@ export function ChatMarkdown({
    const tones = TONE[tone];
 
    return (
-      <div className={['flex flex-col gap-2', className ?? ''].join(' ').trim()}>
+      <div className={cn('flex flex-col gap-2', className)}>
          {blocks.map((block, index) => {
             const key = `block-${index}`;
             if (block.kind === 'code') {

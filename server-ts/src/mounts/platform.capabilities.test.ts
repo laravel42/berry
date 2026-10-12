@@ -51,7 +51,13 @@ test('a boolean capability is reported as it always was', async () => {
       modelGateway: false,
       passwordlessLogin: false,
       emailRegistration: false,
+      nango: false,
    });
+});
+
+test('nango is reported only when the caller says this process can call it', async () => {
+   assert.equal((await capabilitiesOf({ ...base, nango: true })()).nango, true);
+   assert.equal((await capabilitiesOf(base)()).nango, false);
 });
 
 test('passwordlessLogin reports the development email sign-in', async () => {
@@ -63,6 +69,22 @@ test('passwordlessLogin reports the development email sign-in', async () => {
 
 test('modelGateway says whether models are called through a gateway with tiers', async () => {
    assert.equal((await capabilitiesOf({ ...base, modelGateway: true })()).modelGateway, true);
+});
+
+test('signInOrigin is the browser origin GitHub sign-in must start on', async () => {
+   const registry = new Registry();
+   registry.registerAll(
+      platformMounts({
+         database: async () => undefined,
+         capabilities: base,
+         version: 'test',
+         signInOrigin: 'http://localhost:3000',
+      })
+   );
+   const body = (await (await createApp(registry).request('/api/v1/config')).json()) as {
+      signInOrigin: string | null;
+   };
+   assert.equal(body.signInOrigin, 'http://localhost:3000');
 });
 
 test('githubSignIn is answered at the time of asking, and flips with the App', async () => {

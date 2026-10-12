@@ -2,7 +2,7 @@
    "name": "berry-circle",
    "version": "0.9.4",
    "private": false,
-   "license": "MIT",
+   "license": "AGPL-3.0-only",
    "description": "A self-hosted issue tracker whose assignees can be people or coding agents.",
    "repository": {
       "type": "git",

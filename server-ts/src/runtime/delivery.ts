@@ -58,6 +58,12 @@ export async function recordDelivery(deps: {
             body: pullRequestBody(deps.summary, report, deps.runId, plan.reference, { mergeRequiresApproval: plan.mergeRequiresApproval }),
          });
          pullRequest = { number: opened.number, url: opened.url, created: opened.created };
+         // Merge the default branch into this one before the run is marked
+         // succeeded, which is what moves the task to review. A clean branch
+         // then already contains it. A conflict is left untouched for the
+         // follow-up that sends the author back to reconcile it, and a GitHub
+         // error here must not fail a delivery that already landed.
+         await deps.github.updatePullRequestBranch(owner, name, opened.number).catch(() => undefined);
       } catch (error) {
          // Earlier work already merged leaves nothing between the branch and
          // its base, which GitHub refuses with 422: no pull request, and no

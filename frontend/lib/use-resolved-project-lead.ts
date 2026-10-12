@@ -6,8 +6,9 @@ import { useMembersStore } from '@/store/members-store';
 import { useSessionStore } from '@/store/session-store';
 
 /** Live lead for a card or picker: roster first, then the signed-in account. */
-export function useResolvedProjectLead(lead: User): User {
+export function useResolvedProjectLead(lead: User | null | undefined): User | null {
    const members = useMembersStore((state) => state.members);
    const viewer = useSessionStore((state) => state.user);
+   if (!lead) return null;
    return resolveProjectLead(lead, members, viewer);
 }

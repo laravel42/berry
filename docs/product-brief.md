@@ -57,8 +57,8 @@ Berry's core loop mirrors how a team already works, extended to agents:
 2. **Assign to an agent.** Berry queues a run and dispatches it to the agent
    runtime with the approved context. Steps, events, usage, and cost are
    correlated back to that run and issue.
-3. **Work happens on the issue.** The agent posts progress and results as issue comments; status transitions happen as the work moves, up to *in review* but never past it. A human can interject in the thread, redirect, or take over.
-4. **Review gate.** When the agent delivers, the issue moves to *in review*. Nothing ships without a human accepting it. Review is a first-class state with the run's evidence (diff, logs, cost, audit hash) attached — not a comment saying "LGTM". Peer role agents (for example QA, security, or architecture) may add their own blocking or advisory review first; none of them can release the work.
+3. **Work happens on the issue.** The agent posts progress and results as issue comments; status transitions happen as the work moves, up to *in review* but never past it. Before any other tool it calls `list_run_tools` on the berry MCP server, and that reply is the only tool set the run may use. It writes a handoff at `.handoffs/<identifier> - <slug of the title>` for the next task that waits on this one. A human can interject in the thread, redirect, or take over.
+4. **Review gate.** When the agent delivers, the issue moves to *in review*. Nothing ships without a human accepting it. Review is a first-class state with the run's evidence (diff, logs, cost, audit hash) attached — not a comment saying "LGTM". A role that writes code is always blocking-reviewed by the Reviewer. Security and architecture add a blocking review when their labels or paths are touched. QA writes and runs tests. None of them can release the work.
 5. **Done & audit.** Human acceptance and Berry workflow history are durable
    product records. Run artifacts are linked as execution evidence; they do not
    replace Berry's run ledger.
@@ -67,9 +67,9 @@ The inner loop (issue → agent run → in review) is autonomous up to staging, 
 
 ## The organization
 
-Every workspace is provisioned with an Orchestrator and five core roles
-(Product Lead, Product Designer, Software Engineer, QA Engineer, DevOps
-Engineer); thirteen specialists across the same departments are added by an
+Every workspace is provisioned with an Orchestrator and seven core roles
+(Product Lead, Product Designer, Web Designer, Software Engineer, QA Engineer, Reviewer, DevOps
+Engineer); fourteen specialists across the same departments are added by an
 admin when the work calls for them (ADR-0018). Each role carries a contract (mission, allowed tools, delegation
 targets, escalation path, review domains) and an autonomy level from 1 to 5
 that ceilings its effective tools no matter what the contract grants. Roles
@@ -101,15 +101,15 @@ embed a model or a credential store. Berry ships no user-machine CLI,
 daemon, credential-store scraper, or local launcher.
 Kiro's `kiro-cli` runs on the workstation that runs Berry, not inside that
 container, and Kiro does not supply a container per model. With Kiro
-connected, the workspace places Kiro's models on BerryMax, BerryMid and
-BerryLow; the same model may sit on more than one tier. A product whose
+connected, the workspace places Kiro's models on BerryMax, BerryXHigh,
+BerryHigh, BerryMid and BerryLow; the same model may sit on more than one tier. A product whose
 official subscription login exists only on a
 person's laptop stays unavailable until it exposes a safe delegated boundary.
 Filesystem execution for the hosted runtime remains inside the agent runtime.
 
 ## Licensing posture
 
-- **Berry's own code** is developed against permissive licenses only. Every dependency must be MIT / Apache-2.0 (or equivalently permissive); no copyleft in the shipped product.
+- **Berry's own code** is licensed under the GNU Affero General Public License v3 (`AGPL-3.0-only`). Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL.
 - **The agent runtime** runs the native Strands Agents SDK against Amazon Bedrock or Kilo, and may run an approved provider-owned agent process. Kiro uses the official `kiro-cli` binary on the user workstation, which Berry does not bundle and does not start inside the container. Provider dependencies and their notices remain in the runtime image.
 - **Circle** (frontend template origin) is MIT; its notice is retained in the frontend.
 - Berry's API uses conventional resource-oriented JSON and pagination. No

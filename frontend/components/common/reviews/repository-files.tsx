@@ -4,7 +4,9 @@ import { IssueArtifacts } from '@/components/common/issues/details/issue-artifac
 import type { RunArtifact } from '@/lib/attachments';
 import {
    commitReviewFile,
+   deleteReviewFile,
    forgetRepositoryTree,
+   loadRepositoryFile,
    loadRepositoryTree,
    type FileChange,
 } from '@/lib/reviews';
@@ -29,6 +31,8 @@ export function RepositoryFiles({ issueRef, runId }: { issueRef: string; runId: 
    // Files made here. GitHub lists a pull request's changes a moment after the
    // push, so until it does the new file is marked from what this page knows.
    const [created, setCreated] = useState<readonly string[]>([]);
+   /** Paths just written back after a deletion, until GitHub drops the deleted mark. */
+   const [restored, setRestored] = useState<readonly string[]>([]);
    // Bumped by a commit: the file has a new blob and the pull request a new change, so the tree is read again.
    const [version, setVersion] = useState(0);
 
@@ -104,13 +108,46 @@ export function RepositoryFiles({ issueRef, runId }: { issueRef: string; runId: 
       setVersion((current) => current + 1);
    }, [runId]);
 
+   const readFile = useCallback(
+      async (_path: string, sha: string) => loadRepositoryFile(runId, sha),
+      [runId]
+   );
+
+   const writeFile = useCallback(
+      async (path: string, content: string, message: string) => {
+         await commitReviewFile(runId, { path, content, sha: null, message });
+         setCreated((held) => (held.includes(path) ? held : [...held, path]));
+         if (changes.get(path) === 'deleted') {
+            setRestored((held) => (held.includes(path) ? held : [...held, path]));
+         }
+      },
+      [runId, changes]
+   );
+
+   const removeFile = useCallback(
+      async (path: string, sha: string, message: string) => {
+         await deleteReviewFile(runId, { path, sha, message });
+         setCreated((held) => held.filter((item) => item !== path));
+      },
+      [runId]
+   );
+
+   useEffect(() => {
+      setRestored((held) => {
+         const next = held.filter((path) => changes.get(path) === 'deleted');
+         return next.length === held.length ? held : next;
+      });
+   }, [changes]);
+
    const marked = useMemo(() => {
-      const missing = created.filter((path) => !changes.has(path));
-      if (missing.length === 0) return changes;
       const next = new Map(changes);
+      for (const path of restored) {
+         if (next.get(path) === 'deleted') next.delete(path);
+      }
+      const missing = created.filter((path) => !next.has(path));
       for (const path of missing) next.set(path, 'added');
       return next;
-   }, [changes, created]);
+   }, [changes, created, restored]);
 
    if (error) {
       return (
@@ -131,6 +168,9 @@ export function RepositoryFiles({ issueRef, runId }: { issueRef: string; runId: 
          commit={commit}
          create={create}
          onRefresh={refresh}
+         readFile={readFile}
+         writeFile={writeFile}
+         removeFile={removeFile}
       />
    );
 }

@@ -11,7 +11,7 @@ import { Forbidden, NotFound, toApiError } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import type { ScopedDb, WorkspaceContext } from '../identity/workspace-context.ts';
 import { ConnectionUnavailable, type ConnectionRepository } from '../integrations/connections.ts';
-import { GitHubAppUnavailable, type GitHubAppRepository } from '../integrations/github-app.ts';
+import { type GitHubAppRepository } from '../integrations/github-app.ts';
 import { GitHubError, type GitHubClient, type RepositoryChoice } from '../integrations/github.ts';
 import {
    listRepositoriesAcrossAccounts,
@@ -54,6 +54,8 @@ export interface GitHubMountOptions {
    pullRequests: Pick<PullRequestStore, 'listForIssue'>;
    githubApp: GitHubAppRepository | null;
    connections: ConnectionRepository | null;
+   /** Opens the workspace GitHub token. Null when no connection is configured. */
+   githubToken?: ((workspaceId: string) => Promise<string>) | null;
    /**
     * What a signed-in person granted, read with their own token.
     *
@@ -614,19 +616,18 @@ async function listForPicker(
          ? (await options.userAccess.granted(workspaceId)).map(asPickerChoice)
          : [];
 
-   if (!options.githubApp && !options.connections) {
+   if (!options.githubToken) {
       const fallback = await recorded();
       if (fallback.length > 0) return fallback;
       throw new ApiError(
          503,
          'INTEGRATIONS_NOT_CONFIGURED',
-         'This deployment has no encryption key, so it cannot hold a credential.'
+         'This deployment cannot list GitHub repositories.'
       );
    }
    try {
       const listing = await listRepositoriesAcrossAccounts(workspaceId, {
-         githubApp: options.githubApp,
-         connections: options.connections,
+         token: options.githubToken,
          ...(options.client ? { client: options.client } : {}),
          maxPages: PICKER_GITHUB_PAGES,
       });
@@ -735,15 +736,6 @@ function asPickerChoice(repository: GrantedRepository): AttributedRepository {
 
 /** The one wording for every way a listing can fail to happen. */
 function asPickerFailure(error: unknown): unknown {
-   if (error instanceof GitHubAppUnavailable) {
-      return new ApiError(
-         409,
-         error.reason === 'not_installed' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
-         error.reason === 'not_installed'
-            ? 'The GitHub App is not installed for this workspace.'
-            : `The GitHub App needs attention: ${error.message}.`
-      );
-   }
    if (error instanceof ConnectionUnavailable) {
       return new ApiError(
          409,

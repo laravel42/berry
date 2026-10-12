@@ -146,6 +146,70 @@ export class ConnectionRepository {
    }
 
    /**
+    * Records a connection whose credential stays in Nango.
+    *
+    * The row carries the Nango connection id and `connected`. It does not
+    * carry a provider token: Nango holds that, and sealing one here would
+    * put a second copy in Berry. Reconnecting replaces the live row, the
+    * same way `save` does.
+    */
+   async recordNango(input: {
+      workspaceId: string;
+      provider: string;
+      connectedByUserId: string;
+      externalAccountId: string;
+      externalAccountName?: string | null;
+      scopes?: string[];
+   }): Promise<Connection> {
+      const now = this.#clock().toISOString();
+      const accountId = input.externalAccountId.trim();
+      if (!accountId) throw new Error('A Nango connection id is required.');
+      return this.#sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         await tx`
+            UPDATE integration_connections
+               SET status = 'disconnected', status_detail = 'replaced by a new connection',
+                   access_token_encrypted = NULL, refresh_token_encrypted = NULL,
+                   updated_at = ${now}
+             WHERE workspace_id = ${input.workspaceId}
+               AND provider = ${input.provider}
+               AND status <> 'disconnected'`;
+
+         const [row] = await tx<ConnectionRow[]>`
+            INSERT INTO integration_connections
+               (workspace_id, provider, connected_by_user_id, external_account_id,
+                external_account_name, access_token_encrypted, refresh_token_encrypted,
+                expires_at, scopes, status, connection_type, created_at, updated_at)
+            VALUES (${input.workspaceId}, ${input.provider}, ${input.connectedByUserId},
+                    ${accountId}, ${input.externalAccountName ?? null},
+                    ${null}, ${null}, ${null}, ${input.scopes ?? []}, 'connected', 'nango',
+                    ${now}, ${now})
+            RETURNING ${tx.unsafe(COLUMNS)}`;
+         return toConnection(row!);
+      }) as Promise<Connection>;
+   }
+
+   /**
+    * The Nango connection id on the newest disconnected row.
+    *
+    * Disconnect leaves the id in place. Adopting that same id again would
+    * undo the disconnect the moment settings is opened.
+    */
+   async lastDisconnectedAccountId(workspaceId: string, provider: string): Promise<string | null> {
+      const [row] = await this.#sql<Array<{ external_account_id: string | null }>>`
+         SELECT external_account_id
+           FROM integration_connections
+          WHERE workspace_id = ${workspaceId}
+            AND provider = ${provider}
+            AND status = 'disconnected'
+            AND external_account_id IS NOT NULL
+          ORDER BY updated_at DESC
+          LIMIT 1`;
+      const accountId = row?.external_account_id?.trim() ?? '';
+      return accountId.length > 0 ? accountId : null;
+   }
+
+   /**
     * Ends a connection, and every grant that rode on it.
     *
     * The credential is cleared rather than kept beside a `disconnected`

@@ -47,7 +47,13 @@ interface TiersData {
    candidates: TierCandidates;
 }
 
-const EMPTY: TierPlacement = { berry_max: [], berry_mid: [], berry_low: [] };
+const EMPTY: TierPlacement = {
+   berry_max: [],
+   berry_xhigh: [],
+   berry_high: [],
+   berry_mid: [],
+   berry_low: [],
+};
 
 /** "Anthropic: Claude Opus 5 ($$$$)" → "Claude Opus 5". */
 function modelName(name: string): string {

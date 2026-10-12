@@ -107,6 +107,12 @@ export interface GitHubClientOptions {
 
 const DEFAULT_BASE_URL = 'https://api.github.com';
 const DEFAULT_TIMEOUT_MS = 15_000;
+/**
+ * The tree sha of a commit with no files. Git stores it by hash alone and
+ * never writes the object, so `GET /git/trees/{sha}` answers 404 even when
+ * the commit that names it is real.
+ */
+const EMPTY_TREE_SHA = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
 
 export class GitHubClient {
    readonly #token: string;
@@ -140,6 +146,96 @@ export class GitHubClient {
          // "cannot", because guessing yes is what produces the failure above.
          canPush: body.permissions?.push === true,
       };
+   }
+
+   /**
+    * The first commit on a repository that has none, on `branch`.
+    *
+    * The Git database answers 409 "Git Repository is empty" until something
+    * has been committed, including while GitHub is still provisioning a
+    * repository it just created. The contents API is the call that creates
+    * that first commit and the branch. The file is removed in the commit
+    * after, so the branch tip has nothing a later branch can conflict with.
+    * The commit sha comes back from those writes: reading the ref can still
+    * say the repository is empty for a moment after the branch exists.
+    */
+   async seedEmptyBranch(input: { owner: string; name: string; branch: string }): Promise<string> {
+      const present = await this.#branchCommit(input.owner, input.name, input.branch);
+      if (present) return present;
+      const root = `/repos/${encode(input.owner)}/${encode(input.name)}`;
+      const path = 'README.md';
+      const message = `Initial commit on ${input.branch}`;
+      try {
+         const created = await this.#whileEmpty(() =>
+            this.#json<{ commit?: { sha?: unknown }; content?: { sha?: unknown } }>(
+               'PUT',
+               `${root}/contents/${path}`,
+               {
+                  message,
+                  content: Buffer.from('\n', 'utf8').toString('base64'),
+                  branch: input.branch,
+               }
+            )
+         );
+         const commit = created.commit?.sha;
+         const blob = created.content?.sha;
+         if (typeof commit !== 'string' || typeof blob !== 'string') {
+            throw new GitHubError('GitHub did not confirm the initial commit', 0);
+         }
+         try {
+            const removed = await this.#whileEmpty(() =>
+               this.#json<{ commit?: { sha?: unknown } }>('DELETE', `${root}/contents/${path}`, {
+                  message,
+                  sha: blob,
+                  branch: input.branch,
+               })
+            );
+            if (typeof removed.commit?.sha === 'string') return removed.commit.sha;
+         } catch (error) {
+            // The branch exists either way. Leaving the placeholder is still a
+            // repository a run can check out.
+            if (!(error instanceof GitHubError)) throw error;
+         }
+         return commit;
+      } catch (error) {
+         const head = await this.#branchCommit(input.owner, input.name, input.branch);
+         if (head) return head;
+         throw error;
+      }
+   }
+
+   /** The branch tip, or null when the repository has no commits yet. */
+   async #branchCommit(owner: string, name: string, branch: string): Promise<string | null> {
+      const ref = await this.branchHead(owner, name, branch);
+      if (ref) return ref;
+      // The git-ref read answers 409 for an empty repository and, briefly,
+      // for one whose first commit just landed. The branches API is the
+      // other way to see the tip.
+      try {
+         const found = await this.#json<{ commit?: { sha?: unknown } }>(
+            'GET',
+            `/repos/${encode(owner)}/${encode(name)}/branches/${encode(branch)}`
+         );
+         return typeof found.commit?.sha === 'string' ? found.commit.sha : null;
+      } catch (error) {
+         if (error instanceof GitHubError && (error.status === 404 || error.status === 409)) return null;
+         throw error;
+      }
+   }
+
+   /** Retries while GitHub is still provisioning an empty repository. */
+   async #whileEmpty<T>(call: () => Promise<T>): Promise<T> {
+      let last: GitHubError | null = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+         try {
+            return await call();
+         } catch (error) {
+            if (!(error instanceof GitHubError) || error.status !== 409) throw error;
+            last = error;
+            await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+         }
+      }
+      throw last ?? new GitHubError('GitHub is still preparing the repository', 409);
    }
 
    async branchHead(owner: string, name: string, branch: string): Promise<string | null> {
@@ -208,7 +304,12 @@ export class GitHubClient {
          );
          tree.push(...wave);
       }
-      const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, { base_tree: parent.tree.sha, tree });
+      // An empty parent is not an object GitHub will accept as `base_tree`.
+      // The new files are the whole tree.
+      const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, {
+         ...(parent.tree.sha === EMPTY_TREE_SHA ? {} : { base_tree: parent.tree.sha }),
+         tree,
+      });
       const commit = await this.#json<{ sha: string }>('POST', `${root}/git/commits`, {
          message: input.message, tree: nextTree.sha,
          parents: input.mergeParent ? [input.baseCommit, input.mergeParent] : [input.baseCommit],
@@ -217,7 +318,7 @@ export class GitHubClient {
       });
       // Complete policy paths are derived from provider trees, never the runtime's display summary.
       const entries = async (sha: string) => {
-         const value = await this.#json<{ truncated: boolean; tree: Array<{ path: string; sha: string; mode: string; type: string }> }>('GET', `${root}/git/trees/${encode(sha)}?recursive=1`);
+         const value = await this.#tree(root, sha);
          if (value.truncated) throw new GitHubError('Repository tree exceeds the complete review manifest limit', 0);
          return new Map(value.tree.filter((entry) => entry.type !== 'tree').map((entry) => [entry.path, `${entry.mode}:${entry.sha}`]));
       };
@@ -526,6 +627,23 @@ export class GitHubClient {
       return { commit: value.commit.sha, blob: value.content.sha };
    }
 
+   /**
+    * Removes one file from a branch as a commit of its own.
+    *
+    * `sha` is the blob being removed, so a file that moved on the branch is
+    * left where it is.
+    */
+   async deleteFile(input: { owner: string; name: string; branch: string; path: string; message: string; sha: string }): Promise<{ commit: string }> {
+      const path = input.path.split('/').map(encode).join('/');
+      const value = await this.#json<{ commit?: { sha?: unknown } }>(
+         'DELETE',
+         `/repos/${encode(input.owner)}/${encode(input.name)}/contents/${path}`,
+         { message: input.message, sha: input.sha, branch: input.branch }
+      );
+      if (typeof value.commit?.sha !== 'string') throw new GitHubError('GitHub did not confirm the commit', 0);
+      return { commit: value.commit.sha };
+   }
+
    /** Where a pull request's branch stands: the commit a reviewer is looking at, and its name. */
    async pullRequestHead(owner: string, name: string, number: number): Promise<{ commit: string; branch: string | null }> {
       const pull = await this.#json<{ head?: { sha?: unknown; ref?: unknown } }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
@@ -559,16 +677,35 @@ export class GitHubClient {
    async treeEntries(owner: string, name: string, commit: string): Promise<Map<string, TreeEntry>> {
       const root = `/repos/${encode(owner)}/${encode(name)}`;
       const parent = await this.#json<{ tree: { sha: string } }>('GET', `${root}/git/commits/${encode(commit)}`);
-      const value = await this.#json<{
-         truncated: boolean;
-         tree: Array<{ path: string; sha: string; mode: string; type: string; size?: number }>;
-      }>('GET', `${root}/git/trees/${encode(parent.tree.sha)}?recursive=1`);
+      const value = await this.#tree(root, parent.tree.sha);
       if (value.truncated) throw new GitHubError('Repository tree exceeds the complete listing limit', 0);
       return new Map(
          value.tree
             .filter((entry) => entry.type !== 'tree')
             .map((entry) => [entry.path, { sha: entry.sha, mode: entry.mode, type: entry.type, size: entry.size ?? 0 }])
       );
+   }
+
+   /**
+    * One tree, recursive. The empty tree is no files: GitHub has no object
+    * for that sha and answers 404, which is otherwise how a missing
+    * repository is reported.
+    */
+   async #tree(
+      root: string,
+      sha: string
+   ): Promise<{
+      truncated: boolean;
+      tree: Array<{ path: string; sha: string; mode: string; type: string; size?: number }>;
+   }> {
+      try {
+         return await this.#json('GET', `${root}/git/trees/${encode(sha)}?recursive=1`);
+      } catch (error) {
+         if (error instanceof GitHubError && error.status === 404 && sha === EMPTY_TREE_SHA) {
+            return { truncated: false, tree: [] };
+         }
+         throw error;
+      }
    }
 
    /** One blob's bytes. */

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { usePathname, useParams } from 'next/navigation';
-import { ChevronDown, Maximize2, Minus, Minimize2, X } from 'lucide-react';
+import { ChevronDown, Maximize2, Minus, Minimize2, Pin, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
+import { BerryMark } from '@/components/brand/berry-mark';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -14,8 +15,11 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
+import { BerryApiError } from '@/lib/api';
+import { colorForAgent } from '@/lib/agent-color';
+import { isOrchestrator, loadWorkspaceAgents, useAgentAvatarSrc, type Agent } from '@/lib/agents';
 import {
+   cancelSessionTask,
    listMessages,
    listSessionTasks,
    listThreads,
@@ -31,13 +35,70 @@ import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
+import { toast } from 'sonner';
 import { ChatComposer } from './chat-composer';
+import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatThread as ThreadView } from './chat-thread';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 
 const SIZE_KEY = 'berry.floating-chat.size';
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 320;
+const MAX_RECENT = 6;
+
+/**
+ * One agent to start a conversation with: who it is, what it is for, and the
+ * action. The whole row is the button, so on a phone the target is the row.
+ */
+function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) => void }) {
+   const t = useTranslations('agentsChat.floating');
+   const avatarSrc = useAgentAvatarSrc(agent.avatarUrl);
+   const description = agent.description?.trim() || null;
+
+   return (
+      <li>
+         <button
+            type="button"
+            onClick={() => onPick(agent)}
+            aria-label={t('startChatWith', { name: agent.name })}
+            className="group flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus-visible:bg-[var(--shell-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+         >
+            <span className="flex size-8 flex-none items-center justify-center overflow-hidden rounded-md bg-[var(--shell-surface)]">
+               {avatarSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
+                  <img src={avatarSrc} alt="" className="size-full object-cover" />
+               ) : (
+                  <BerryMark
+                     size="sm"
+                     tone="working"
+                     dotColor={colorForAgent(agent.id)}
+                     bracketClassName="text-[var(--shell-text)]"
+                  />
+               )}
+            </span>
+            <span className="min-w-0 flex-1">
+               <span className="block truncate font-medium text-[var(--shell-text)]">
+                  {agent.name}
+               </span>
+               {description ? (
+                  <span
+                     className="block truncate text-[var(--shell-text-muted)]"
+                     title={description}
+                  >
+                     {description}
+                  </span>
+               ) : null}
+            </span>
+            <span
+               aria-hidden
+               className="flex-none rounded-md bg-[var(--shell-line)] px-2 py-1 text-[var(--shell-text-muted)] transition-colors group-hover:bg-[var(--shell-line-strong)] group-hover:text-[var(--shell-text)] group-focus-visible:bg-[var(--shell-line-strong)] group-focus-visible:text-[var(--shell-text)]"
+            >
+               {t('startChat')}
+            </span>
+         </button>
+      </li>
+   );
+}
 
 /** The header's controls: small beside the title, a full tap target on a phone. */
 const headerControl =
@@ -58,8 +119,8 @@ const headerControl =
  * launcher sits over a page's own controls.
  *
  * Until a conversation is open there is no one to type to, so the window
- * opens on the question it has to answer first — who — and shows the
- * composer only once that is settled.
+ * opens on every agent in the workspace and shows the composer only once
+ * one of them is chosen.
  */
 export function FloatingChat() {
    const t = useTranslations('agentsChat.floating');
@@ -169,15 +230,34 @@ export function FloatingChat() {
       }
    };
 
-   // Every conversation starts with the Orchestrator, which brings in the
-   // right role itself; the window opens on its thread rather than on a list
-   // of agents to choose from.
-   const orchestrator = useMemo(() => agents.find(isOrchestrator) ?? null, [agents]);
-   const startFresh = () => {
-      if (orchestrator) void withAgent(orchestrator);
-   };
+   // Whoever was talked to most recently, then the rest of the roster with
+   // the Orchestrator at the top. Together that is every agent.
+   const picker = useMemo(() => {
+      const byId = new Map(agents.map((agent) => [agent.id, agent]));
+      const taken = new Set<string>();
+      const recent: Agent[] = [];
+      for (const thread of threads
+         .slice()
+         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))) {
+         const agent = thread.agentId ? byId.get(thread.agentId) : undefined;
+         if (!agent || taken.has(agent.id) || recent.length >= MAX_RECENT) continue;
+         taken.add(agent.id);
+         recent.push(agent);
+      }
+      const rest = agents
+         .filter((agent) => !taken.has(agent.id))
+         .sort(
+            (left, right) =>
+               Number(isOrchestrator(right)) - Number(isOrchestrator(left)) ||
+               left.name.localeCompare(right.name)
+         );
+      return { recent, rest };
+   }, [agents, threads]);
 
    const activeId = active?.id ?? null;
+   const activeAgent = active?.agentId
+      ? agents.find((agent) => agent.id === active.agentId)
+      : undefined;
 
    const refresh = useCallback(async (id: string) => {
       const [page, queue] = await Promise.all([
@@ -237,7 +317,8 @@ export function FloatingChat() {
       setSending(true);
       setComposer('');
       try {
-         const queued = await sendMessage(activeId, text);
+         const prefs = useUiPrefsStore.getState();
+         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch {
          /* The reply that never comes is the report. */
@@ -249,6 +330,17 @@ export function FloatingChat() {
          await refresh(activeId);
          setSending(false);
       }
+   };
+
+   const stopReply = async (runId: string) => {
+      if (!activeId) return;
+      try {
+         await cancelSessionTask(activeId, runId);
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : chat('rowFailed'));
+         return;
+      }
+      await refresh(activeId);
    };
 
    const onResize = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -291,6 +383,28 @@ export function FloatingChat() {
       '--chat-h': `min(${size.height}px, calc(100dvh - var(--shell-strip) - 5rem))`,
    } as CSSProperties;
 
+   const group = (label: string, list: Agent[]) =>
+      list.length === 0 ? null : (
+         <li>
+            <p
+               data-heading="label"
+               className="px-3 pt-3 pb-1 text-[var(--shell-text-dim)]"
+               aria-hidden
+            >
+               {label}
+            </p>
+            <ul aria-label={label}>
+               {list.map((agent) => (
+                  <AgentPickRow
+                     key={agent.id}
+                     agent={agent}
+                     onPick={(pick) => void withAgent(pick)}
+                  />
+               ))}
+            </ul>
+         </li>
+      );
+
    return (
       <div
          // Below `sm` the window fills the screen under the strip: a 380px
@@ -315,6 +429,12 @@ export function FloatingChat() {
                      type="button"
                      className="flex min-h-11 min-w-0 flex-1 items-center gap-1 truncate rounded text-left text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] sm:min-h-0"
                   >
+                     {active?.pinned ? (
+                        <Pin
+                           className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"
+                           aria-label={chat('pin')}
+                        />
+                     ) : null}
                      <span className="truncate">{active ? active.topic : t('title')}</span>
                      <ChevronDown className="size-3.5 flex-none text-[var(--shell-text-dim)]" />
                   </button>
@@ -322,7 +442,9 @@ export function FloatingChat() {
                <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
                   {active ? (
                      <>
-                        <DropdownMenuItem onSelect={startFresh}>{t('newChat')}</DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setActive(null)}>
+                           {t('newChat')}
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                      </>
                   ) : null}
@@ -332,7 +454,20 @@ export function FloatingChat() {
                   ) : (
                      threads.slice(0, 8).map((thread) => (
                         <DropdownMenuItem key={thread.id} onSelect={() => void openThread(thread)}>
-                           <span className="truncate">{thread.topic}</span>
+                           <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
+                           {thread.pinned ? (
+                              <Pin className="size-3 flex-none fill-current" aria-hidden />
+                           ) : null}
+                        </DropdownMenuItem>
+                     ))
+                  )}
+                  <DropdownMenuLabel>{t('pickAgent')}</DropdownMenuLabel>
+                  {agents.length === 0 ? (
+                     <DropdownMenuItem disabled>{t('pickEmpty')}</DropdownMenuItem>
+                  ) : (
+                     agents.map((agent) => (
+                        <DropdownMenuItem key={agent.id} onSelect={() => void withAgent(agent)}>
+                           <span className="truncate">{agent.name}</span>
                         </DropdownMenuItem>
                      ))
                   )}
@@ -407,16 +542,14 @@ export function FloatingChat() {
                   value={composer}
                   onChange={setComposer}
                   onSend={() => void send()}
-                  onStop={null}
+                  onStop={replyRun ? () => void stopReply(replyRun) : null}
                   queueing={tasks.length > 0}
                   disabled={sending}
-                  placeholder={
-                     active.agentName
-                        ? chat('composerPlaceholder', { name: active.agentName })
-                        : chat('composerIdle')
-                  }
                   workspaceId={workspaceId}
                   sendVariant="secondary"
+                  conversationId={active.id}
+                  {...(activeAgent ? { agent: activeAgent } : {})}
+                  answering={stage !== null}
                />
             </>
          ) : (
@@ -424,24 +557,20 @@ export function FloatingChat() {
                className="min-h-0 flex-1 overflow-y-auto"
                aria-busy={opening !== null || !agentsLoaded}
             >
-               <div className="flex flex-col items-start gap-3 px-3 pt-3">
+               <div className="px-3 pt-3">
                   <h2 className="text-[var(--shell-text)]">{t('pickTitle')}</h2>
-                  <p className="text-[var(--shell-text-muted)]">{t('pickHint')}</p>
-                  {!agentsLoaded ? (
-                     <p className="text-[var(--shell-text-dim)]">{common('loading')}</p>
-                  ) : orchestrator ? (
-                     <button
-                        type="button"
-                        onClick={startFresh}
-                        disabled={opening !== null}
-                        className="rounded-md bg-[var(--shell-line)] px-3 py-1.5 text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line-strong)] disabled:opacity-50"
-                     >
-                        {t('startChat')}
-                     </button>
-                  ) : (
-                     <p className="text-[var(--shell-text-muted)]">{t('pickEmpty')}</p>
-                  )}
+                  <p className="mt-0.5 text-[var(--shell-text-muted)]">{t('pickHint')}</p>
                </div>
+               {!agentsLoaded ? (
+                  <p className="px-3 py-4 text-[var(--shell-text-dim)]">{common('loading')}</p>
+               ) : agents.length === 0 ? (
+                  <p className="px-3 py-4 text-[var(--shell-text-muted)]">{t('pickEmpty')}</p>
+               ) : (
+                  <ul className="pb-2">
+                     {group(t('recentGroup'), picker.recent)}
+                     {group(t('allGroup'), picker.rest)}
+                  </ul>
+               )}
             </div>
          )}
       </div>

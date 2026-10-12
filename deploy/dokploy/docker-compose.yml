@@ -85,6 +85,8 @@ services:
          BERRY_KILO_EXCLUDE: ${BERRY_KILO_EXCLUDE:-}
          BERRY_KILO_PREFER: ${BERRY_KILO_PREFER:-}
          BERRY_KILO_MAX: ${BERRY_KILO_MAX:-}
+         BERRY_KILO_XHIGH: ${BERRY_KILO_XHIGH:-}
+         BERRY_KILO_HIGH: ${BERRY_KILO_HIGH:-}
          BERRY_KILO_MID: ${BERRY_KILO_MID:-}
          BERRY_KILO_LOW: ${BERRY_KILO_LOW:-}
          # Optional: cross-run recall (AgentCore Memory) and where Nova Reel renders video.

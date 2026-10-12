@@ -18,12 +18,102 @@ export class ChatNotAnswerable extends Error {
    override readonly name = 'ChatNotAnswerable';
 }
 
+export class ChatRepositoryUnknown extends Error {
+   override readonly name = 'ChatRepositoryUnknown';
+}
+
+/** `owner/name`, the shape a checkout accepts. */
+export const CHAT_REPOSITORY_NAME = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
+
+/** How a chat message asks the agent to work. Agent is the ordinary run. */
+export const CHAT_MODES = ['agent', 'plan', 'debug', 'multitask', 'ask'] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
+
+const MODE_LEAD: Record<Exclude<ChatMode, 'agent'>, string> = {
+   plan: 'Plan mode. Create a detailed plan for accomplishing the task. Do not change the codebase. The reply is the plan.',
+   debug: 'Debug mode. Systematically diagnose and fix bugs using runtime traces.',
+   multitask: 'Multitask mode. Split the request into independent pieces, run them in parallel, and coordinate the results into one reply.',
+   ask: 'Ask mode. Answer questions about the codebase. Explain what is there. Do not change it.',
+};
+
+/**
+ * The task prompt for a chat message.
+ *
+ * The stored message stays the text the person typed. A mode other than Agent,
+ * and a chosen repository, are instructions in front of that text, so the run
+ * follows them while the conversation still shows only what was typed.
+ */
+export function chatModePrompt(mode: ChatMode | undefined, body: string, repository?: string): string {
+   const parts: string[] = [];
+   if (mode && mode !== 'agent') parts.push(MODE_LEAD[mode]);
+   if (repository) {
+      parts.push(
+         `Repository: ${repository}. This repository is the codebase for this answer. Read it and keep the work inside it.`
+      );
+   }
+   if (parts.length === 0) return body;
+   return `${parts.join('\n\n')}\n\n${body}`;
+}
+
+/**
+ * True when this workspace can reach the repository.
+ *
+ * A recorded grant, a project link, or a repository the workspace lists is
+ * enough on its own. The grant table stays empty until somebody refreshes it,
+ * so the caller can also pass the live GitHub listing the picker itself uses.
+ */
+export async function chatRepositoryAllowed(
+   sql: Sql,
+   workspaceId: string,
+   fullName: string,
+   list?: () => Promise<ReadonlyArray<{ fullName: string }>>
+): Promise<boolean> {
+   const https = `https://github.com/${fullName.toLowerCase()}`;
+   const http = `http://github.com/${fullName.toLowerCase()}`;
+   const [row] = await sql`
+      SELECT 1 AS ok FROM (
+         SELECT 1 FROM github_granted_repositories
+          WHERE workspace_id = ${workspaceId} AND full_name = ${fullName}
+         UNION ALL
+         SELECT 1 FROM projects
+          WHERE workspace_id = ${workspaceId}
+            AND github_repo_full_name = ${fullName}
+            AND deleted_at IS NULL
+         UNION ALL
+         SELECT 1 FROM workspace_repositories
+          WHERE workspace_id = ${workspaceId}
+            AND regexp_replace(regexp_replace(lower(url), '\\.git$', ''), '/+$', '')
+                IN (${https}, ${http})
+      ) AS found
+       LIMIT 1`;
+   if (row !== undefined) return true;
+   if (!list) return false;
+   try {
+      const repositories = await list();
+      return repositories.some((repository) => repository.fullName === fullName);
+   } catch {
+      return false;
+   }
+}
+
 export async function sendChatMessage(
-   deps: { sql: Sql; conversations: ConversationRepository; enqueue: EnqueueTask },
-   input: { conversation: ConversationContext; userId: string; body: string }
+   deps: {
+      sql: Sql;
+      conversations: ConversationRepository;
+      enqueue: EnqueueTask;
+      /** The live GitHub listing, used when the grant table has not been refreshed. */
+      listRepositories?: () => Promise<ReadonlyArray<{ fullName: string }>>;
+   },
+   input: { conversation: ConversationContext; userId: string; body: string; mode?: ChatMode; repository?: string }
 ): Promise<{ messageId: string; runId: string }> {
    const agentId = input.conversation.agentId;
    if (!agentId) throw new ChatNotAnswerable('this conversation has no agent');
+   if (
+      input.repository &&
+      !(await chatRepositoryAllowed(deps.sql, input.conversation.workspaceId, input.repository, deps.listRepositories))
+   ) {
+      throw new ChatRepositoryUnknown(`${input.repository} is not a repository this workspace can reach`);
+   }
    const messageId = await deps.conversations.append({
       conversationId: input.conversation.id,
       authorType: 'user',
@@ -36,7 +126,8 @@ export async function sendChatMessage(
       kind: 'agent',
       source: 'chat',
       chatSessionId: input.conversation.id,
-      prompt: input.body,
+      prompt: chatModePrompt(input.mode, input.body, input.repository),
+      ...(input.repository ? { origin: { repository: input.repository } } : {}),
       // The sender asked for this run, so anything the agent files in it is
       // filed in their name rather than in nobody's.
       requestedBy: input.userId,

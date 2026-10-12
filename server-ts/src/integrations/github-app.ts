@@ -688,16 +688,20 @@ export function buildManifest(input: {
    // Sign-in is not on this App: it is its own GitHub OAuth App, configured
    // from BERRY_AUTH_GITHUB_*, so no Better Auth callback is registered here.
    const callbackPath = '/api/v1/integrations/callback/github';
+   // The app origin is first. With "OAuth during installation" GitHub sends
+   // the browser to the first callback URL and ignores the setup URL, so that
+   // first URL has to be the site the person is using.
    const callbacks = [...new Set([
-      new URL(callbackPath, input.apiOrigin).toString(),
       new URL(callbackPath, input.appOrigin).toString(),
+      new URL(callbackPath, input.apiOrigin).toString(),
    ])];
+   const app = (path: string) => new URL(path, input.appOrigin).toString();
    return {
       name: input.name,
       url: input.appOrigin,
       redirect_url: api('/api/v1/integrations/github/app/callback'),
       callback_urls: callbacks,
-      setup_url: api('/api/v1/integrations/github/installation/callback'),
+      setup_url: app('/api/v1/integrations/github/installation/callback'),
       setup_on_update: true,
       // Active, and at the route that serves it: the linked pull requests on
       // an issue, their checks and a merge closing the issue all arrive here.

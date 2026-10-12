@@ -46,6 +46,7 @@ import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
+import { createNangoClient } from './integrations/nango.ts';
 import { integrationMounts } from './mounts/integrations.ts';
 import { PlanTriage } from './plans/triage.ts';
 import { createScm } from './scm/provider-factory.ts';
@@ -156,7 +157,7 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -172,6 +173,8 @@ import { agentCoreRuntimeDriver } from './execution/agentcore-runtime.ts';
 import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { ConnectionRepository } from './integrations/connections.ts';
 import { GitHubAppRepository } from './integrations/github-app.ts';
+import { githubConnectionToken } from './integrations/github-oauth.ts';
+import { listRepositoriesAcrossAccounts } from './integrations/github-repositories.ts';
 import { GitHubUserAccess } from './integrations/github-user.ts';
 import { sealerFromKey, unavailableSealer } from './integrations/sealing.ts';
 import { agentAccessGuard } from './agents/access.ts';
@@ -248,15 +251,22 @@ const githubUserAccess = config.auth.secret
    : null;
 
 /**
- * Sign-in: Better Auth's GitHub provider on a GitHub OAuth App, from
- * `BERRY_AUTH_GITHUB_CLIENT_ID` / `_SECRET`, built once at boot.
+ * Nango, when this process holds an environment API key.
  *
- * The OAuth App is separate from the repository GitHub App. It asks for the
- * `repo` scope (repositories and their issues, read and write) and `workflow`
- * (so a delivery can write `.github/workflows/`) on top of the profile scopes,
- * and its callback is Better Auth's own,
- * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes a
- * restart, like any other environment setting.
+ * The key stays on this client. `/api/v1/config` reports only whether the
+ * client exists, so a browser can show the settings entry without the secret.
+ */
+const nango = config.nango ? createNangoClient(config.nango) : null;
+
+/**
+ * Sign-in: Better Auth sessions, built once at boot.
+ *
+ * GitHub is Better Auth's GitHub provider on `BERRY_AUTH_GITHUB_CLIENT_ID` /
+ * `_SECRET`. The OAuth App is separate from the repository GitHub App. It
+ * asks for the `repo` scope and `workflow` on top of the profile scopes, and
+ * its callback is Better Auth's own,
+ * `<BERRY_APP_URL>/api/auth/callback/github`. Changing the credentials takes
+ * a restart.
  */
 const auth =
    authPool && config.auth.secret && config.auth.baseUrl
@@ -432,12 +442,16 @@ const pluginNetwork = createPluginNetwork({ allowPrivate: config.pluginsAllowPri
  *
  * The provider is chosen and the SCM services assembled by `createScm` (see
  * scm/provider-factory): `agentcore` reaches GitHub through the gateway's
- * tools, the App path uses Berry's own client and a per-workspace installation
+ * tools, the connection path uses Berry's own client and the workspace GitHub
  * token, and both satisfy `ScmProvider` so nothing in the domain can tell. All
  * pieces are null when nothing is configured — a working deployment that just
  * cannot reach a git host. Awaited because gateway tool discovery runs at boot.
  */
-const scm = await createScm({ sql, config, logger, githubApp, userAccess: githubUserAccess });
+const githubToken =
+   connections && nango
+      ? (workspaceId: string) => githubConnectionToken(workspaceId, { connections, nango })
+      : null;
+const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
 const scmSync = scm.sync;
 /**
@@ -637,8 +651,8 @@ const kiroOnWorkstation = workstationKiro({
    callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
 });
 
-// Built even when no AgentCore or HTTP host is configured. Kiro, Claude, and
-// Codex run in a process beside this server; native tasks still need `defaultTarget`.
+// Built even when no AgentCore or HTTP host is configured. Kiro, Claude,
+// Codex, and Cursor run in a process beside this server; native tasks still need `defaultTarget`.
 const executor = new RuntimeTaskExecutor({
         workstation: kiroOnWorkstation,
         sql,
@@ -670,29 +684,31 @@ const executor = new RuntimeTaskExecutor({
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
               }
-              if (runtimeId === 'claude' || runtimeId === 'codex') {
+              if (
+                 runtimeId === 'claude' ||
+                 runtimeId === 'codex' ||
+                 runtimeId === 'cursor' ||
+                 runtimeId === 'kimi' ||
+                 runtimeId === 'kiro' ||
+                 runtimeId === 'grok' ||
+                 runtimeId === 'qoder'
+              ) {
                  return {
                     type: 'oauth',
-                    token: runtimeId === 'codex' ? CODEX_CLI_LOGIN : CLAUDE_CLI_LOGIN,
-                    accountId: connection.external_account_id,
-                    accountName: connection.external_account_name,
-                 };
-              }
-              if (runtimeId === 'kiro') {
-                 const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
-                 if (!sealer) throw new Error('this deployment cannot open a sealed Kiro API key');
-                 const [secret] = await sql<Array<{ credential_sealed: Buffer | null }>>`
-                    SELECT credential_sealed
-                      FROM ai_runtime_connections
-                     WHERE id = ${connectionId}
-                       AND workspace_id = ${workspaceId}
-                       AND user_id = ${userId}
-                       AND runtime_key = ${runtimeId}
-                       AND status = 'connected'`;
-                 if (!secret?.credential_sealed) throw new Error('the Kiro API key is no longer stored');
-                 return {
-                    type: 'api_key',
-                    token: sealer.open(Buffer.from(secret.credential_sealed)),
+                    token:
+                       runtimeId === 'codex'
+                          ? CODEX_CLI_LOGIN
+                          : runtimeId === 'cursor'
+                            ? CURSOR_CLI_LOGIN
+                            : runtimeId === 'kimi'
+                              ? KIMI_CLI_LOGIN
+                              : runtimeId === 'kiro'
+                                ? KIRO_CLI_LOGIN
+                                : runtimeId === 'grok'
+                                  ? GROK_CLI_LOGIN
+                                  : runtimeId === 'qoder'
+                                    ? QODER_CLI_LOGIN
+                                    : CLAUDE_CLI_LOGIN,
                     accountId: connection.external_account_id,
                     accountName: connection.external_account_name,
                  };
@@ -1048,8 +1064,7 @@ registry.registerAll(
       scm: scm.provisioning,
       scmWorkspaces,
       connections,
-      githubApp,
-      userAccess: githubUserAccess,
+      githubToken,
       logger,
       sql,
    })
@@ -1100,7 +1115,7 @@ registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    repositories: connections
       ? {
            resolve: (workspaceId, fullName, requesterId) =>
-              resolveRepository({ connections, githubApp, userAccess: githubUserAccess }, workspaceId, fullName, requesterId),
+              resolveRepository({ githubToken }, workspaceId, fullName, requesterId),
            link: async (workspaceId, projectId, repository) => {
               await projects.update(workspaceId, projectId, {
                  descriptionSet: false,
@@ -1123,7 +1138,15 @@ registry.registerAll(
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
       runtimeControl: (request: RuntimeControlRequest) => {
-         if (request.runtimeId === 'kiro' || request.runtimeId === 'claude' || request.runtimeId === 'codex') {
+         if (
+            request.runtimeId === 'kiro' ||
+            request.runtimeId === 'claude' ||
+            request.runtimeId === 'codex' ||
+            request.runtimeId === 'cursor' ||
+            request.runtimeId === 'kimi' ||
+            request.runtimeId === 'grok' ||
+            request.runtimeId === 'qoder'
+         ) {
             return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
@@ -1236,13 +1259,22 @@ registry.registerAll(
       },
       // No compute host: a reply is admitted only when it will run on the
       // workstation. Anything else would sit queued with nobody to claim it.
-      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude'] as const }),
+      ...(defaultTarget ? {} : { workstationRuntimes: ['kiro', 'claude', 'cursor', 'qoder'] as const }),
       // A title is a completion on the compute host. Without one it would sit
       // queued ahead of the next reply and nothing would claim it.
       complete: defaultTarget ? complete : null,
       ledger: runOptions.ledger,
       runs: runOptions.runs,
       logger,
+      listRepositories: (workspaceId) =>
+         listRepositoriesAcrossAccounts(workspaceId, {
+            token: (id) =>
+               githubToken
+                  ? githubToken(id)
+                  : Promise.reject(new Error('GitHub is not connected to this workspace')),
+         }).then(
+            (listing) => listing.repositories
+         ),
    })
 );
 registry.registerAll(
@@ -1294,7 +1326,9 @@ registry.registerAll(
       // handshake either, so the two travel together.
       states: connections ? new OAuthStateStore({ sql }) : null,
       github: config.integrations.github,
+      nango,
       githubApp,
+      githubToken,
       // Not a secret, and not stored: the App's public name, so an install can
       // be offered on a deployment that signs people in with an App it did not
       // create. A stored App's slug wins.
@@ -1303,7 +1337,8 @@ registry.registerAll(
       completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
       agentCoreAttention: scm.agentCoreAttention,
       publicUrl: config.integrations.publicUrl,
-      appUrl: config.integrations.appUrl,
+      appUrl: config.integrations.appUrl ?? config.auth.baseUrl,
+      returnOrigins: config.auth.trustedOrigins,
       // Settings pages live under the workspace, so a callback needs its slug
       // to send the browser back to a page that exists.
       workspaceSlug: async (workspaceId: string) => {
@@ -1351,6 +1386,7 @@ registry.registerAll(
       pullRequests,
       githubApp,
       connections,
+      githubToken,
       userAccess: githubUserAccess,
    })
 );
@@ -1407,12 +1443,14 @@ registry.registerAll(
          // Planning is a completion task, so it runs wherever tasks do.
          planner: defaultTarget !== null,
          modelGateway: modelGateway !== null,
-         // What the sign-in page believes: true only when the OAuth App is
-         // configured and Better Auth is serving it.
+         // What the sign-in page believes: true when the GitHub OAuth App
+         // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
+         nango: nango !== null,
       },
+      signInOrigin: config.auth.baseUrl,
    })
 );
 
@@ -1429,7 +1467,7 @@ const dispatcher = new Dispatcher({
    logger,
    concurrency: config.runtime.concurrency,
    // Without a compute host this process can only run the workstation CLIs.
-   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex'] }),
+   ...(defaultTarget ? {} : { onlyAiRuntimeKeys: ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok', 'qoder'] }),
 });
 dispatcher.start();
 
@@ -1524,7 +1562,11 @@ logger.info('Berry server listening', {
       : 'no encryption key',
    // Named at boot so a missing BERRY_AUTH_GITHUB_* is visible before anyone
    // meets a disabled button.
-   signIn: auth ? (config.auth.github ? 'github (OAuth App)' : 'no BERRY_AUTH_GITHUB_* credentials') : 'off',
+   signIn: auth
+      ? config.auth.github
+         ? 'github'
+         : 'no GitHub sign-in credentials'
+      : 'off',
    mounts: registry.prefixes,
 });
 

@@ -128,16 +128,16 @@ By default the runtime calls Bedrock itself, on the agent's model or
 gateway instead ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)), set
 `BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` on both the server and the runtime
 (`deploy.sh` passes them to AgentCore). Agents then run on a Berry tier rather than a
-fixed model: BerryMax, BerryMid or BerryLow, three models each. Each role has a
+fixed model: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow, three models each. Each role has a
 default tier, and an agent can be moved to another tier on its page. Berry refills the
 tiers hourly from Terminal-Bench ratings and Kilo's prices, so which models a tier holds
-changes over time; `BERRY_KILO_MAX`, `_MID` and `_LOW` fix a tier's models instead. The
+changes over time; `BERRY_KILO_MAX`, `_XHIGH`, `_HIGH`, `_MID` and `_LOW` fix a tier's models instead. The
 tiers use the models your own provider key added to the Kilo account serves, such as
 your Bedrock key, unless `BERRY_KILO_ANY_PROVIDER=true` — and a run's cost is exactly
 what Kilo reports for it. The
 `BERRY_BEDROCK_*` settings stay in use for speech and video either way.
 When a Kiro subscription is connected, agent runs use that instead, and
-Settings → Model tiers places Kiro's models on the same three tiers. The
+Settings → Model tiers places Kiro's models on the same tiers. The
 same model may sit on more than one tier. Kiro runs as `kiro-cli` on this
 workstation; it does not run in the runtime image and it does not give Berry
 a container per model.
@@ -161,6 +161,7 @@ normally.
 
 ## Licensing
 
-Berry is MIT licensed — see [LICENSE](LICENSE). Its web interface began as the
-MIT-licensed Circle template, and every dependency it resolves is permissively licensed.
-Both are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Berry is licensed under the GNU Affero General Public License v3. See [LICENSE](LICENSE).
+Berry's own code stays AGPL-3.0-only.
+The web interface began as the MIT-licensed Circle template; that notice stays in `frontend/LICENSE.md`.
+Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL.

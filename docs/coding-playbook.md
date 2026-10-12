@@ -180,7 +180,12 @@ ceiling. No autonomy level grants a tool that sets an issue to `done` or
 `cancelled`, and none includes a merge tool. The release is a person's decision;
 they may delegate *when* they make it by turning AutoGate on for a plan, which
 lets the review gate — Berry's code, not a tool — close a task its blocking
-reviewers passed (ADR-0016). No agent gains a tool either way.
+reviewers passed (ADR-0016). No agent gains a tool either way. A run's
+prompt tells the agent to call `list_run_tools` on the berry MCP server
+before any other tool; that call is the declaration of the tools this run
+may use (`server-ts/src/agents/runtime/run-tools.ts`). A finished run's
+handoff is `.handoffs/<identifier> - <slug of the title>`
+(`server-ts/src/runs/handoff.ts`), not a root `HANDOFF.md`.
 
 **A frontend page.** Add a route under `app/[orgId]/…`. Read data through
 `lib/<domain>.ts` (one-shot calls) or a Zustand store in `store/` (shared

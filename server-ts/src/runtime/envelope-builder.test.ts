@@ -24,6 +24,12 @@ test('a task that waits on others is told their unmerged work is not in its chec
    assert.doesNotMatch(note, /BER-140/);
    assert.match(note, /do not wait or poll/);
    assert.equal(dependencyNote([{ identifier: 'BER-140', title: 'x', status: 'todo', direction: 'blocks' }]), null);
+   const withHandoff = dependencyNote(
+      [{ identifier: 'BER-134', title: 'Login screen', status: 'done', direction: 'depends_on' }],
+      [{ identifier: 'BER-134', title: 'Login screen', body: 'HANDOFF.md\n\nThe form is in src/Login.tsx.' }]
+   );
+   assert.match(withHandoff ?? '', /Context for BER-134 \(Login screen\) is in \.handoffs\/BER-134 - login-screen/);
+   assert.match(withHandoff ?? '', /src\/Login\.tsx/);
 });
 
 describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
@@ -140,7 +146,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       });
 
       test("a run takes its tier's model from its own workspace's placement", async () => {
-         placed = { berry_max: [], berry_mid: [], berry_low: ['minimax/minimax-m3'] };
+         placed = { berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: [], berry_low: ['minimax/minimax-m3'] };
          try {
             assert.equal(await modelOf(), 'minimax/minimax-m3');
          } finally {
@@ -307,6 +313,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          const asked: string[] = [];
          const mintedFor: Array<string | null | undefined> = [];
          const written: Array<{ path: string; branch: string; sha: string | null }> = [];
+         const seeded: string[] = [];
          // An empty repository has no main until something is committed to it.
          let mainExists = options.empty !== true;
          const client = {
@@ -315,10 +322,14 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
                branch === 'main' ? (mainExists ? MAIN_HEAD : null) : options.branchExists === false ? null : BRANCH_HEAD,
             putFile: async (input: { path: string; branch: string; sha: string | null }) => {
                written.push({ path: input.path, branch: input.branch, sha: input.sha });
+               return { commit: MAIN_HEAD, blob: 'readme-blob' };
+            },
+            seedEmptyBranch: async (input: { branch: string }) => {
+               seeded.push(input.branch);
                mainExists = true;
                // Another run's first commit landed first.
-               if (options.raced) throw new GitHubError('GitHub PUT README.md failed: 409 reference already exists', 409);
-               return { commit: MAIN_HEAD, blob: 'readme-blob' };
+               if (options.raced) throw new GitHubError('GitHub POST /git/refs failed: 422 Reference already exists', 422);
+               return MAIN_HEAD;
             },
             mergeBase: async () => {
                asked.push('mergeBase');
@@ -339,6 +350,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             }),
             mintedFor,
             written,
+            seeded,
          };
       }
 
@@ -415,10 +427,11 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
       });
 
       test('an empty repository gets a first commit on its default branch instead of failing every run', async () => {
-         const { builder: withRepository, written } = repositoryBuilder({}, { empty: true, branchExists: false });
+         const { builder: withRepository, seeded, written } = repositoryBuilder({}, { empty: true, branchExists: false });
          const task = await queued('First task on an empty repository');
          const { envelope } = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
-         assert.deepEqual(written, [{ path: 'README.md', branch: 'main', sha: null }]);
+         assert.deepEqual(seeded, ['main']);
+         assert.deepEqual(written, []);
          assert.equal(envelope.repo?.snapshotCommit, MAIN_HEAD);
       });
 

@@ -4,13 +4,22 @@
   [ADR-0016](0016-autogate-delegated-release.md)** — the roles, contracts,
   autonomy ceilings and review selection all stand; what a passing set of
   blocking reviews *does* no longer always end at a person — and by
-  [ADR-0018](0018-core-roles-and-specialists.md), which provisions five core
-  roles by default and keeps the rest as specialists a workspace adds.
+  [ADR-0018](0018-core-roles-and-specialists.md), which sets the default
+  roster. Its Current state is the roster that runs today.
 - **Date:** 2026-09-14
 - **Deciders:** Berry platform
 - **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md) (agent
   loop runs in AgentCore Runtime; this ADR constrains what that loop may do),
   `docs/superpowers/specs/2026-09-14-berry-organization-design.md`
+
+## Current state (2026-10-11)
+
+The roster and who reviews code are [ADR-0018](0018-core-roles-and-specialists.md)'s
+Current state: seven core roles besides the Orchestrator, and `reviewer` is
+the always-blocking reviewer of code. QA is not that reviewer. Autonomy
+ceilings, the ban on merge and on `done`/`cancelled`, and delegation checks
+from this record still hold. What a passing set of blocking reviews does is
+[ADR-0016](0016-autogate-delegated-release.md).
 
 ## Context
 

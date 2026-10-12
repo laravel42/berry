@@ -65,11 +65,9 @@ export function budgetContract(maxTurns: number | undefined): string {
    if (!maxTurns) return '';
    return (
       '\n\nYour step budget\n' +
-      `This run ends after ${maxTurns} steps. A step is one reply from you, however ` +
-      'many tools it calls, so calls that do not depend on each other belong in ' +
-      'the same reply: save all the files you have ready at once, not one per ' +
-      'reply. Read several files with one command (cat a b c, or grep) rather ' +
-      'than one command each, and chain commands that belong together with &&. ' +
+      `This run ends after ${maxTurns} steps. A step is one reply from you. ` +
+      'Run one command at a time and wait for its result before the next. ' +
+      'Do not send several commands in one reply. ' +
       `When about ${wrapUpAt(maxTurns)} steps are left you will be told to call summarize. ` +
       `In the last ${SUMMARIZE_ONLY_AT} steps every other tool call is refused. ` +
       'That ends this run. The next one starts fresh from the summary, without this ' +

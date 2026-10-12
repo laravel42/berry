@@ -5,10 +5,22 @@ import { dirname, resolve, sep } from 'node:path';
  * Enabled skills, laid out in the task workspace.
  *
  * Runs inside the container, so it imports nothing from outside
- * `agents/runtime/`. One directory per skill under `.claude/skills/`, with a
- * SKILL.md whose frontmatter names it, so tools that discover skills by that
- * convention find them, and the agent's instructions can point there.
+ * `agents/runtime/`. Files go under `.berry/skills/` for `read_skill` and
+ * for a shell that opens them. They must not sit in a directory a host CLI
+ * scans — Claude (`.claude/skills`), Codex (`.codex/skills`, `.agents/skills`)
+ * or Kiro (`.kiro/skills`) — because those attach a listing, and often the
+ * bodies, to every model turn. Bedrock and Kilo never scan the disk; they
+ * only see what `read_skill` returns.
  */
+
+/** Workspace root no current runtime provider treats as a skill catalogue. */
+export const BERRY_SKILL_ROOT = '.berry/skills';
+
+/**
+ * Directories a host CLI discovers on its own. Berry never writes a skill
+ * here, for any provider.
+ */
+export const HOST_SKILL_ROOTS = ['.claude/skills', '.codex/skills', '.agents/skills', '.kiro/skills'] as const;
 
 /** Structurally A's `SkillRef`: the server already rendered SKILL.md into `files`. */
 export interface EnvelopeSkillLike {
@@ -28,7 +40,7 @@ export function skillFileTree(skills: EnvelopeSkillLike[]): { path: string; cont
       if (!skill.files.some((file) => file.path === 'SKILL.md')) {
          throw new Error(`skill ${JSON.stringify(skill.name)} has no SKILL.md`);
       }
-      const base = `.claude/skills/${skill.name}`;
+      const base = `${BERRY_SKILL_ROOT}/${skill.name}`;
       for (const file of skill.files) {
          const segments = file.path.split('/');
          if (!PATH.test(file.path) || segments.includes('..') || segments.includes('.')) {

@@ -1,6 +1,6 @@
 node_modules/
 dist/
-
+nango/
 # environment
 .env
 .env.*
@@ -20,3 +20,6 @@ dist/
 .qwen/
 .pnpm-store/
 .db/
+
+# The old root handoff. Per-task notes live in .handoffs and are committed.
+HANDOFF.md

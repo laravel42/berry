@@ -135,6 +135,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    'planner_events',
    'approvals',
    'work_proposals',
+   'plan_subscribers',
    'plans',
    'goal_issues',
    'goals',

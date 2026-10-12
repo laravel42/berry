@@ -201,6 +201,25 @@ function payloadOf(event: RunEvent): Record<string, unknown> {
 }
 
 /**
+ * The row id for a tool call.
+ *
+ * A later call that reuses the same id gets the event id appended. Two rows
+ * with one key drop one of them.
+ */
+function toolStepId(steps: TranscriptStep[], callId: string, eventId: string): string {
+   const base = `tool:${callId}`;
+   const taken = steps.some((step) => step.id === base || step.id.startsWith(`${base}:`));
+   return taken ? `${base}:${eventId}` : base;
+}
+
+/** The open row for this call, or the earlier one when it has already finished. */
+function openToolStep(steps: TranscriptStep[], callId: string): TranscriptStep | undefined {
+   const base = `tool:${callId}`;
+   const matches = (step: TranscriptStep) => step.id === base || step.id.startsWith(`${base}:`);
+   return steps.findLast((step) => matches(step) && step.ok === null) ?? steps.findLast(matches);
+}
+
+/**
  * Fold one event into the step list.
  *
  * Exported because it is the part worth testing and the part another surface
@@ -292,7 +311,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const callId = typeof payload.toolCallId === 'string' ? payload.toolCallId : event.id;
          if (isOpenPassage(last)) next[next.length - 1] = closeThinking(last, event.occurredAt);
          next.push({
-            id: `tool:${callId}`,
+            id: toolStepId(next, callId, event.id),
             kind: toolKind(name),
             title: name,
             // The ledger deliberately never records a tool's arguments, so
@@ -309,7 +328,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
       case 'run.tool.completed': {
          const callId = typeof payload.toolCallId === 'string' ? payload.toolCallId : '';
          const target =
-            next.findLast((step) => step.id === `tool:${callId}`) ??
+            (callId ? openToolStep(next, callId) : undefined) ??
             next.findLast((step) => step.ok === null);
          if (!target) return steps;
          next[next.indexOf(target)] = {

@@ -44,12 +44,18 @@ function app(options: { canWrite?: boolean; activeRun?: boolean; open?: boolean;
                   written.push(input);
                   return { commit: 'd'.repeat(40), blob: 'e'.repeat(40) };
                },
+               deleteFile: async (input: Record<string, unknown>) => {
+                  if (options.conflict) throw new GitHubError('GitHub DELETE … failed: 409', 409);
+                  written.push(input);
+                  return { commit: 'd'.repeat(40) };
+               },
             }) as never,
       })
    );
    const server = createApp(registry);
    const commit = (body: unknown) => server.request(`/api/v1/reviews/${RUN}/commit`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-   return { commit, written };
+   const remove = (body: unknown) => server.request(`/api/v1/reviews/${RUN}/delete`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+   return { commit, remove, written };
 }
 
 const edit = { path: 'server/src/app.ts', content: 'export const fixed = true;\n', sha: SHA, message: 'Fix the route order' };
@@ -110,4 +116,26 @@ test('no blob id is a new file, and a path that already has one is refused rathe
    const taken = await app({ exists: true }).commit({ path: 'docs/notes.md', content: '', sha: null });
    assert.equal(taken.status, 409);
    assert.equal(((await taken.json()) as { error: { code: string } }).error.code, 'FILE_EXISTS');
+});
+
+test('a deletion is one commit on the pull request’s branch, conditional on the blob shown', async () => {
+   const { remove, written } = app();
+   const response = await remove({ path: 'server/src/app.ts', sha: SHA, message: 'Remove the unused route' });
+   assert.equal(response.status, 201);
+   assert.deepEqual(await response.json(), { commit: 'd'.repeat(40), branch: 'agent/l42-448', path: 'server/src/app.ts' });
+   assert.equal(written.length, 1);
+   assert.equal(written[0]!.sha, SHA);
+   assert.equal(written[0]!.path, 'server/src/app.ts');
+   assert.match(String(written[0]!.message), /^Remove the unused route\n\nCo-authored-by: Ada Lovelace <ada@example.test>/);
+});
+
+test('a deletion is refused the same way an edit is, and a missing blob is not a path', async () => {
+   const gone = await app({ conflict: true }).remove({ path: 'server/src/app.ts', sha: SHA });
+   assert.equal(gone.status, 409);
+   assert.equal(((await gone.json()) as { error: { code: string } }).error.code, 'FILE_CHANGED');
+
+   const { remove, written } = app();
+   assert.equal((await remove({ path: '../outside.txt', sha: SHA })).status, 400);
+   assert.equal((await remove({ path: 'server/src/app.ts' })).status, 400);
+   assert.equal(written.length, 0);
 });

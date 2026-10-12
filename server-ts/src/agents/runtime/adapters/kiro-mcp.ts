@@ -3,6 +3,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { createInterface } from 'node:readline';
 import type { Tool, ToolContext } from '@strands-agents/sdk';
 import { WORKDIR_KEY } from '../command-tool.ts';
+import { LIST_RUN_TOOLS, RunToolDeclaration } from '../run-tools.ts';
 
 /**
  * The only tools Kiro may call. Native shell and filesystem stay denied in
@@ -15,12 +16,14 @@ export class BerryMcpHost {
    readonly #workingDirectory: string;
    readonly #signal: AbortSignal;
    readonly #socketPath: string;
+   readonly #declaration: RunToolDeclaration;
 
    constructor(socketPath: string, tools: Tool[], workingDirectory: string, signal: AbortSignal) {
       this.#socketPath = socketPath;
       this.#tools = tools;
       this.#workingDirectory = workingDirectory;
       this.#signal = signal;
+      this.#declaration = new RunToolDeclaration(tools.some((entry) => entry.name === LIST_RUN_TOOLS));
       this.#server = createServer((socket) => {
          void this.#serve(socket);
       });
@@ -73,7 +76,7 @@ export class BerryMcpHost {
    async #respond(message: {
       id?: number;
       method?: string;
-      params?: { name?: string; arguments?: unknown };
+      params?: { name?: string; arguments?: unknown; protocolVersion?: unknown };
    }): Promise<unknown | null> {
       if (message.id === undefined) return null;
       if (message.method === 'ping' || message.method === 'initialize') {
@@ -84,7 +87,7 @@ export class BerryMcpHost {
                message.method === 'ping'
                   ? {}
                   : {
-                       protocolVersion: '2024-11-05',
+                       protocolVersion: negotiatedProtocol(message.params?.protocolVersion),
                        capabilities: { tools: {} },
                        serverInfo: { name: 'berry', version: '1' },
                     },
@@ -105,6 +108,14 @@ export class BerryMcpHost {
       }
       if (message.method === 'tools/call') {
          const name = message.params?.name ?? '';
+         const refusal = this.#declaration.admit(name);
+         if (refusal) {
+            return {
+               jsonrpc: '2.0',
+               id: message.id,
+               result: { content: [{ type: 'text', text: refusal }], isError: true },
+            };
+         }
          const tool = this.#tools.find((candidate) => candidate.name === name);
          if (!tool) {
             return {
@@ -115,6 +126,7 @@ export class BerryMcpHost {
          }
          try {
             const value = await invokeStrandsTool(tool, message.params?.arguments ?? {}, this.#workingDirectory, this.#signal);
+            this.#declaration.note(name);
             return {
                jsonrpc: '2.0',
                id: message.id,
@@ -133,7 +145,12 @@ export class BerryMcpHost {
    }
 }
 
-async function invokeStrandsTool(
+/** The client's requested revision, when it is a protocol date. */
+function negotiatedProtocol(requested: unknown): string {
+   return typeof requested === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : '2024-11-05';
+}
+
+export async function invokeStrandsTool(
    tool: Tool,
    input: unknown,
    workingDirectory: string,
@@ -153,7 +170,7 @@ async function invokeStrandsTool(
    return next.value;
 }
 
-function stringifyToolResult(value: unknown): string {
+export function stringifyToolResult(value: unknown): string {
    if (typeof value === 'string') return value;
    try {
       return JSON.stringify(value) ?? '';

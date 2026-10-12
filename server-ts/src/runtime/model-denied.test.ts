@@ -19,9 +19,11 @@ function ranked(id: string): RankedModel {
 
 function pools(low: string[], mid: string[], max: string[]): TierPools {
    return {
-      berry_low: low.map(ranked),
-      berry_mid: mid.map(ranked),
       berry_max: max.map(ranked),
+      berry_xhigh: [],
+      berry_high: [],
+      berry_mid: mid.map(ranked),
+      berry_low: low.map(ranked),
    };
 }
 

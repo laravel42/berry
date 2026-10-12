@@ -15,7 +15,7 @@ const meta = {
       children: <LeadAvatarButton lead={andrea} />,
    },
    render: function Render(args) {
-      const [lead, setLead] = useState<User | undefined>(args.lead);
+      const [lead, setLead] = useState<User | null | undefined>(args.lead);
       return (
          <LeadPicker
             {...args}

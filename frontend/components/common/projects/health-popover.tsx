@@ -21,6 +21,8 @@ interface HealthPopoverProps {
    compact?: boolean;
    /** When false, the ghost button is icon-only (sidebar shows the name beside it). */
    showLabel?: boolean;
+   /** Icon and name across the whole row, matching the repository control. */
+   row?: boolean;
 }
 
 function HealthIcon({ healthId, className }: { healthId: string; className?: string }) {
@@ -38,7 +40,12 @@ function HealthIcon({ healthId, className }: { healthId: string; className?: str
    }
 }
 
-export function HealthPopover({ project, compact = false, showLabel = true }: HealthPopoverProps) {
+export function HealthPopover({
+   project,
+   compact = false,
+   showLabel = true,
+   row = false,
+}: HealthPopoverProps) {
    const id = useId();
    const [open, setOpen] = useState(false);
    const [value, setValue] = useState(project.health.id);
@@ -76,6 +83,21 @@ export function HealthPopover({ project, compact = false, showLabel = true }: He
                   />
                   {selected.name}
                </button>
+            ) : row ? (
+               <Button
+                  id={id}
+                  type="button"
+                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+                  size="sm"
+                  variant="ghost"
+                  role="combobox"
+                  aria-expanded={open}
+                  aria-label={`Health: ${selected.name}`}
+                  title={selected.name}
+               >
+                  <HealthIcon healthId={selected.id} />
+                  <span className="truncate">{selected.name}</span>
+               </Button>
             ) : (
                <Button
                   id={id}

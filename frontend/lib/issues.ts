@@ -2,7 +2,6 @@ import type { Issue, IssueDependencyRef } from '@/data/issues';
 import { health, type Project } from '@/data/projects';
 import { priorities } from '@/data/priorities';
 import { status } from '@/data/status';
-import { currentUser } from '@/data/users';
 import { useProjectsStore } from '@/store/projects-store';
 import { Box } from 'lucide-react';
 import { z } from 'zod';
@@ -127,9 +126,19 @@ export type IssuePatchBody = {
    description?: string | null;
    assignee?: { type: 'user' | 'agent'; id: string } | null;
    goalId?: string | null;
-   /** An ISO date, or null to clear it. */
+   /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
    dueDate?: string | null;
 };
+
+/**
+ * The create dialog stores a calendar day. The server accepts only RFC 3339,
+ * so a bare day is noon UTC — the same instant the issue page already sends.
+ */
+function apiDueDate(value: string): string {
+   return /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? new Date(`${value}T12:00:00.000Z`).toISOString()
+      : value;
+}
 
 /**
  * Rejects on failure so an optimistic update can be reverted. It used to
@@ -137,9 +146,11 @@ export type IssuePatchBody = {
  * (a 409 on an illegal transition) until the next refresh.
  */
 export async function patchBoardIssue(issueId: string, patch: IssuePatchBody): Promise<void> {
+   const body =
+      typeof patch.dueDate === 'string' ? { ...patch, dueDate: apiDueDate(patch.dueDate) } : patch;
    await apiFetch(`/api/v1/issues/${issueId}`, {
       method: 'PATCH',
-      body: JSON.stringify(patch),
+      body: JSON.stringify(body),
    });
 }
 
@@ -162,6 +173,11 @@ export function describePatchFailure(error: unknown): string {
       }
       if (error.code === 'GOAL_NOT_FOUND') {
          return 'That goal is not in this workspace.';
+      }
+      if (error.code === 'VALIDATION_FAILED') {
+         const details = error.details as { fields?: { message?: string }[] } | null;
+         const first = details?.fields?.[0]?.message;
+         if (first) return first;
       }
       return error.message;
    }
@@ -323,7 +339,7 @@ export async function createBoardIssue(input: {
       priority: apiPriorityFromUi(input.priorityId),
    };
    if (input.dueDate) {
-      body.dueDate = input.dueDate;
+      body.dueDate = apiDueDate(input.dueDate);
    }
    if (input.description) {
       body.description = input.description;
@@ -381,7 +397,7 @@ function placeholderProject(id: string, name: string): Project {
       icon: Box,
       percentComplete: 0,
       startDate: '',
-      lead: currentUser,
+      lead: null,
       priority: priorities.find((candidate) => candidate.id === 'no-priority') ?? priorities[0],
       health: health.find((candidate) => candidate.id === 'no-update') ?? health[0],
       teamId: '',

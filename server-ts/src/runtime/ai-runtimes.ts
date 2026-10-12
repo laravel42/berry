@@ -11,13 +11,13 @@ import {
 
 export const NATIVE_AI_RUNTIME = 'berry-native';
 
-/** The three Berry tiers a subscription agent can be placed in. */
-export const RUNTIME_AGENT_TIERS = ['berry_max', 'berry_mid', 'berry_low'] as const;
+/** The Berry tiers a subscription agent can be placed in. */
+export const RUNTIME_AGENT_TIERS = ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'] as const;
 export type RuntimeAgentTier = (typeof RUNTIME_AGENT_TIERS)[number];
 export type RuntimeAgentTierPlacement = Record<RuntimeAgentTier, string[]>;
 
 export function emptyAgentTiers(): RuntimeAgentTierPlacement {
-   return { berry_max: [], berry_mid: [], berry_low: [] };
+   return { berry_max: [], berry_xhigh: [], berry_high: [], berry_mid: [], berry_low: [] };
 }
 
 export type AiRuntimeConnectionStatus = 'connected' | 'expired' | 'error' | 'disconnected';
@@ -190,24 +190,16 @@ export class AiRuntimeRepository {
                VALUES (${workspaceId}, ${row.agent}, ${row.tier}, ${userId}, now())`;
          }
       });
-      return {
-         berry_max: [...placement.berry_max],
-         berry_mid: [...placement.berry_mid],
-         berry_low: [...placement.berry_low],
-      };
+      return copyTierPlacement(placement);
    }
 
    /** Models placed in the workspace's tiers. Each entry is `runtime/model`. */
    async tierModels(workspaceId: string): Promise<RuntimeAgentTierPlacement | null> {
       const [row] = await this.#sql<Array<Record<string, string[]>>>`
-         SELECT berry_max, berry_mid, berry_low FROM workspace_tier_models
+         SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low FROM workspace_tier_models
           WHERE workspace_id = ${workspaceId}`;
       if (!row) return null;
-      return {
-         berry_max: stringList(row.berry_max),
-         berry_mid: stringList(row.berry_mid),
-         berry_low: stringList(row.berry_low),
-      };
+      return tierRow(row);
    }
 
    async saveTierModels(
@@ -221,17 +213,16 @@ export class AiRuntimeRepository {
       }
       await this.#sql`
          INSERT INTO workspace_tier_models
-            (workspace_id, berry_max, berry_mid, berry_low, updated_by, updated_at)
-         VALUES (${workspaceId}, ${placement.berry_max}, ${placement.berry_mid}, ${placement.berry_low},
-                 ${userId}, now())
+            (workspace_id, berry_max, berry_xhigh, berry_high, berry_mid, berry_low, updated_by, updated_at)
+         VALUES (
+            ${workspaceId}, ${placement.berry_max}, ${placement.berry_xhigh}, ${placement.berry_high},
+            ${placement.berry_mid}, ${placement.berry_low}, ${userId}, now()
+         )
          ON CONFLICT (workspace_id) DO UPDATE
-            SET berry_max = EXCLUDED.berry_max, berry_mid = EXCLUDED.berry_mid, berry_low = EXCLUDED.berry_low,
+            SET berry_max = EXCLUDED.berry_max, berry_xhigh = EXCLUDED.berry_xhigh, berry_high = EXCLUDED.berry_high,
+                berry_mid = EXCLUDED.berry_mid, berry_low = EXCLUDED.berry_low,
                 updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`;
-      return {
-         berry_max: [...placement.berry_max],
-         berry_mid: [...placement.berry_mid],
-         berry_low: [...placement.berry_low],
-      };
+      return copyTierPlacement(placement);
    }
 
    /** Merges agent names onto a connection so the assignee list can show them. */
@@ -620,6 +611,40 @@ async function agentForTier(
    return agentName(row?.agent_key ?? null);
 }
 
+/**
+ * The first model on this agent's tier whose runtime this run can actually
+ * use. The tier's order is the order; a newer connection of another runtime
+ * does not jump the queue.
+ */
+async function connectedTierPlacement(
+   sql: Sql,
+   workspaceId: string,
+   userId: string | null,
+   berryAgentId: string
+): Promise<{ runtimeId: AiRuntimeId; modelId: string } | null> {
+   const tier = await berryAgentTier(sql, workspaceId, berryAgentId);
+   const [row] = await sql<Array<Record<string, string[]>>>`
+      SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low FROM workspace_tier_models
+       WHERE workspace_id = ${workspaceId}`;
+   if (!row) return null;
+   const connected = await connectedRuntimeIds(sql, workspaceId, userId);
+   return firstConnectedPlacement(stringList(row[tier]), connected);
+}
+
+/** Runtimes this run may start: the person's own when they authorized it, otherwise the workspace's. */
+async function connectedRuntimeIds(sql: Sql, workspaceId: string, userId: string | null): Promise<Set<string>> {
+   const rows = await sql<Array<{ runtime_key: string }>>`
+      SELECT DISTINCT connection.runtime_key
+        FROM ai_runtime_connections AS connection
+        JOIN workspace_memberships AS membership
+          ON membership.workspace_id = connection.workspace_id
+         AND membership.user_id = connection.user_id
+       WHERE connection.workspace_id = ${workspaceId}
+         AND connection.status = 'connected'
+         AND (${userId}::uuid IS NULL OR connection.user_id = ${userId}::uuid)`;
+   return new Set(rows.map((row) => row.runtime_key));
+}
+
 /** The first model this runtime has in the Berry agent's tier. `runtime/model` in storage. */
 async function modelForTier(
    sql: Sql,
@@ -630,7 +655,7 @@ async function modelForTier(
    if (!berryAgentId) return null;
    const tier = await berryAgentTier(sql, workspaceId, berryAgentId);
    const [row] = await sql<Array<Record<string, string[]>>>`
-      SELECT berry_max, berry_mid, berry_low FROM workspace_tier_models
+      SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low FROM workspace_tier_models
        WHERE workspace_id = ${workspaceId}`;
    if (!row) return null;
    const prefix = `${runtimeId}/`;
@@ -645,6 +670,26 @@ async function modelForTier(
 
 function stringList(value: string[] | undefined): string[] {
    return Array.isArray(value) ? value.filter((item) => typeof item === 'string' && item.length > 0) : [];
+}
+
+function copyTierPlacement(placement: RuntimeAgentTierPlacement): RuntimeAgentTierPlacement {
+   return {
+      berry_max: [...placement.berry_max],
+      berry_xhigh: [...placement.berry_xhigh],
+      berry_high: [...placement.berry_high],
+      berry_mid: [...placement.berry_mid],
+      berry_low: [...placement.berry_low],
+   };
+}
+
+function tierRow(row: Record<string, string[]>): RuntimeAgentTierPlacement {
+   return {
+      berry_max: stringList(row.berry_max),
+      berry_xhigh: stringList(row.berry_xhigh),
+      berry_high: stringList(row.berry_high),
+      berry_mid: stringList(row.berry_mid),
+      berry_low: stringList(row.berry_low),
+   };
 }
 
 /** `runtime/model` as stored on a tier. The model id may itself contain slashes. */
@@ -680,7 +725,7 @@ export async function resolveCompletionRuntime(
 ): Promise<ResolvedAiRuntimeSelection> {
    const tier = await berryAgentTier(sql, input.workspaceId, input.berryAgentId);
    const [row] = await sql<Array<Record<string, string[]>>>`
-      SELECT berry_max, berry_mid, berry_low FROM workspace_tier_models
+      SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low FROM workspace_tier_models
        WHERE workspace_id = ${input.workspaceId}`;
    if (!row) return emptySelection();
    for (const entry of stringList(row[tier])) {
@@ -791,11 +836,11 @@ export const SUBSCRIPTION_DEFAULT_MODEL = 'default';
  *
  * `berry-native` opts this one task back onto Bedrock or Kilo. Otherwise a
  * connected subscription wins: the task override, then the project's
- * runtime, then that person's preference, then their newest connection,
- * then any connected runtime in the workspace. Agent work therefore stays
- * off the deployment's API bill once someone has connected a runtime. A
- * missing connection still does not fall through to Kilo after a
- * subscription was selected.
+ * runtime, then that person's preference, then the first connected model
+ * on the agent's tier, then their newest connection, then any connected
+ * runtime in the workspace. Agent work therefore stays off the deployment's
+ * API bill once someone has connected a runtime. A missing connection still
+ * does not fall through to Kilo after a subscription was selected.
  */
 export async function resolveAiRuntimeSelection(
    sql: Sql,
@@ -828,6 +873,16 @@ export async function resolveAiRuntimeSelection(
       runtimeId = preference?.runtime_key ?? null;
       modelId = preference?.model_id ?? null;
       agentId = null;
+   }
+   // Nobody named a runtime. The models placed on this agent's tier are the
+   // choice, including which subscription they run on. Otherwise the newest
+   // connection wins and a tier that names a different runtime never starts.
+   if (runtimeId === null && modelId === null && input.berryAgentId) {
+      const placed = await connectedTierPlacement(sql, input.workspaceId, input.userId, input.berryAgentId);
+      if (placed) {
+         runtimeId = placed.runtimeId;
+         modelId = placed.modelId;
+      }
    }
    if (runtimeId === NATIVE_AI_RUNTIME) {
       return emptySelection();

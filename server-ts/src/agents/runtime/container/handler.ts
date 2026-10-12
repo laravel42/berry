@@ -20,6 +20,7 @@ import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
 import { RepetitionPlugin } from '../plugins/repetition.ts';
 import { StepBudgetPlugin, budgetContract, summarizeTool, type Handoff } from '../plugins/step-budget.ts';
+import { LIST_RUN_TOOLS, RunToolsPlugin, listRunToolsTool } from '../run-tools.ts';
 import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
 import { truncateUtf8 } from '../utf8.ts';
@@ -239,8 +240,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          });
          return;
       }
-      // The agent's skills, laid out where skill-aware tools look, and its
-      // MCP servers as Strands clients beside Berry's own tools.
+      // The agent's skills, under `.berry/skills/` so Claude, Codex and
+      // Kiro do not attach every file to the model prompt. Bedrock and
+      // Kilo read a skill only through `read_skill`. MCP servers become
+      // Strands clients beside Berry's own tools.
       await writeSkills(join(deps.workRoot, key), envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
       // Injected loaders keep their single-arg shape; the production loader
       // bounds each connect and reports a server it had to drop.
@@ -292,6 +295,15 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          warn
       );
       const table = toolTable(envelope.agent.mcpServers, mcp.listed, remote.map((t) => t.name));
+      const visible = [...tools, ...mcp.tools];
+      const declaration = listRunToolsTool(visible.map((entry) => ({ name: entry.name, description: entry.description })));
+      const offered = [declaration, ...visible];
+      const exempt = new Set([
+         'summarize',
+         LIST_RUN_TOOLS,
+         ...remote.map((entry) => entry.name),
+         ...mcp.tools.map((entry) => entry.name),
+      ]);
 
       const directory = deps.repository
          ? await deps.repository.prepare({ envelope, session: workspace, warm, emit, signal })
@@ -336,12 +348,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             credential: envelope.runtime.credential,
             workingDirectory: directory ?? workspace.root,
             stateDirectory: join(workspace.root, '.runtime-state', envelope.runtime.id),
-            tools: authorizedAgentTools(
-               [...tools, ...mcp.tools],
-               envelope,
-               table,
-               new Set(['summarize', ...remote.map((tool) => tool.name), ...mcp.tools.map((tool) => tool.name)])
-            ),
+            tools: authorizedAgentTools(offered, envelope, table, exempt),
             emit,
             signal,
          });
@@ -400,15 +407,16 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             // The runtime's execution role; there is no key in the envelope.
             credentials: null,
             systemPrompt: envelope.agent.instructions,
-            tools: [...tools, ...mcp.tools],
+            tools: offered,
             plugins: [
                ledger,
                accounting,
+               new RunToolsPlugin(),
                new PermissionPlugin({
                   permissions: permissionsOf(envelope.agent.permissions, envelope.agent.name),
                   table,
                   allowed: envelope.agent.tools ? new Set(envelope.agent.tools) : null,
-                  exempt: new Set(['summarize', ...remote.map((t) => t.name), ...mcp.tools.map((t) => t.name)]),
+                  exempt,
                }),
                outcome,
                // After the ledger and the outcome, which read the tool's own

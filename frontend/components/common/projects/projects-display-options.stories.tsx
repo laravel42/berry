@@ -58,6 +58,30 @@ export const ToggleProperty: Story = {
    },
 };
 
+/** Board (cards) is a toolbar layout, not a Display change. */
+export const CardsLayoutIsClean: Story = {
+   beforeEach: () => {
+      useProjectsDisplayStore.getState().resetDisplaySettings();
+      useProjectsDisplayStore.setState({ viewType: 'board' });
+   },
+   play: async ({ canvas }) => {
+      const trigger = canvas.getByRole('button', { name: 'Display' });
+      await expect(trigger.querySelector('.bg-status-warning')).toBeNull();
+   },
+};
+
+/** A card-property toggle inside the popover is what marks Display. */
+export const CardPropertyMarksDisplay: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(await body.findByRole('button', { name: 'Priority' }));
+      await expect(
+         canvas.getByRole('button', { name: 'Display' }).querySelector('.bg-status-warning')
+      ).not.toBeNull();
+   },
+};
+
 /** The board wording: columns, not groups. */
 export const BoardView: Story = {
    beforeEach: () => {

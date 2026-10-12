@@ -60,7 +60,7 @@ export const NotConnected: Story = {
    play: async ({ canvasElement }) => {
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByRole('alert')).toHaveTextContent(
-         'Install the GitHub App for this workspace first.'
+         'Connect GitHub for this workspace first.'
       );
    },
 };

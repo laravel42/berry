@@ -396,6 +396,7 @@ describe(
          );
          const location = new URL(response.headers.get('location') ?? '');
          const [slug] = await sql`SELECT slug FROM workspaces WHERE id = ${w1Id}`;
+         assert.equal(location.origin, 'http://localhost:3000');
          assert.equal(location.pathname, `/${slug!.slug as string}/settings/integrations`);
       });
 

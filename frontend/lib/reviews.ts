@@ -389,3 +389,20 @@ export async function commitReviewFile(
    diffs.delete(runId);
    return committed;
 }
+
+/**
+ * Removes one file from the review's branch. `sha` is the blob the tree
+ * showed: if the file on the branch is no longer that one, the server refuses.
+ */
+export async function deleteReviewFile(
+   runId: string,
+   input: { path: string; sha: string; message: string }
+): Promise<{ commit: string; branch: string }> {
+   const removed = await apiFetch<{ commit: string; branch: string }>(
+      `/api/v1/reviews/${encodeURIComponent(runId)}/delete`,
+      { method: 'POST', body: JSON.stringify(input) }
+   );
+   trees.delete(runId);
+   diffs.delete(runId);
+   return removed;
+}

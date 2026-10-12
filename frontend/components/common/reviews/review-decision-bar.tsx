@@ -30,6 +30,7 @@ import {
    type ReviewItem,
    type ReviewPullRequestState,
 } from '@/lib/reviews';
+import { cn } from '@/lib/utils';
 import { Check, GitMerge, Loader2, TriangleAlert, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -227,11 +228,25 @@ export function ReviewDecisionBar({
    );
 
    return (
-      <div className={className} onKeyDown={onKeyDown}>
+      <div className={cn('contents', className)} onKeyDown={onKeyDown}>
+         <div className="flex shrink-0 items-center gap-2">
+            {primary === 'approve' ? (
+               <>
+                  {approve}
+                  {sendBack}
+               </>
+            ) : (
+               <>
+                  {sendBack}
+                  {approve}
+               </>
+            )}
+            {aside && <span className="ml-auto">{aside}</span>}
+         </div>
          {failure && (
             <div
                role="alert"
-               className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-status-danger"
+               className="flex w-full basis-full flex-wrap items-center gap-x-3 gap-y-1 text-status-danger"
             >
                <span>{t('decision.failed', { reason: failure.reason })}</span>
                <Button
@@ -248,30 +263,16 @@ export function ReviewDecisionBar({
             </div>
          )}
          {pullRequest?.conflicts && pullRequest.state === 'open' ? (
-            <p className="mb-2 flex items-start gap-1.5 text-status-warning">
+            <p className="flex w-full basis-full items-start gap-1.5 text-status-warning">
                <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                <span>{t('decision.conflicts', { base, agent })}</span>
             </p>
          ) : pullRequest?.state === 'merged' ? (
-            <p className="mb-2 flex items-start gap-1.5 text-status-success">
+            <p className="flex w-full basis-full items-start gap-1.5 text-status-success">
                <GitMerge className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                <span>{t('decision.mergedOnGitHub')}</span>
             </p>
          ) : null}
-         <div className="flex flex-wrap items-center gap-2">
-            {primary === 'approve' ? (
-               <>
-                  {approve}
-                  {sendBack}
-               </>
-            ) : (
-               <>
-                  {sendBack}
-                  {approve}
-               </>
-            )}
-            {aside && <span className="ml-auto">{aside}</span>}
-         </div>
 
          <Dialog
             open={noting}

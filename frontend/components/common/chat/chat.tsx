@@ -1,9 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
@@ -19,13 +18,7 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import {
-   isOrchestrator,
-   loadAgentRoster,
-   loadWorkspaceAgents,
-   type Agent,
-   type AgentRoster,
-} from '@/lib/agents';
+import { loadAgentRoster, loadWorkspaceAgents, type Agent, type AgentRoster } from '@/lib/agents';
 import {
    cancelSessionTask,
    createSession,
@@ -49,13 +42,29 @@ import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
+import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
+import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatSidebar } from './chat-sidebar';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
-import { RuntimeSelectionControl } from '@/components/common/runtimes/runtime-selection';
 
 const PAGE = 50;
+
+/** A rename the screen already shows, until the server agrees or a newer one replaces it. */
+type PendingRename = { topic: string; baseline: string };
+
+/** Keeps a title that is still being saved when a list refresh returns the old one. */
+function withPendingTopics(
+   threads: ChatThread[],
+   pending: Map<string, PendingRename>
+): ChatThread[] {
+   if (pending.size === 0) return threads;
+   return threads.map((thread) => {
+      const next = pending.get(thread.id);
+      return next === undefined ? thread : { ...thread, topic: next.topic };
+   });
+}
 
 /**
  * Conversations with an agent, and the tasks they become.
@@ -75,6 +84,7 @@ export function Chat() {
    const pathname = usePathname();
    const searchParams = useSearchParams();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const sessionUserId = useSessionStore((state) => state.user?.id);
 
    const [agents, setAgents] = useState<Agent[]>([]);
    const [roster, setRoster] = useState<Map<string, AgentRoster>>(new Map());
@@ -104,18 +114,84 @@ export function Chat() {
    const [deleting, setDeleting] = useState(false);
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   const pendingRenames = useRef(new Map<string, PendingRename>());
+   // A list response that started earlier must not paint over a newer one.
+   const threadsEpoch = useRef(0);
+   const archivedEpoch = useRef(0);
    const activeId = active?.id ?? null;
    const activeAgent = active?.agentId ? agents.find((a) => a.id === active.agentId) : undefined;
 
    const refreshThreads = useCallback(async () => {
-      const found = await listThreads();
-      setThreads(found);
+      const epoch = ++threadsEpoch.current;
+      const found = withPendingTopics(await listThreads(), pendingRenames.current);
+      if (epoch === threadsEpoch.current) setThreads(found);
       return found;
    }, []);
 
    const refreshArchived = useCallback(async () => {
-      setArchived(await listThreads({ archived: true }).catch(() => []));
+      const epoch = ++archivedEpoch.current;
+      const found = withPendingTopics(
+         await listThreads({ archived: true }).catch(() => []),
+         pendingRenames.current
+      );
+      if (epoch === archivedEpoch.current) setArchived(found);
    }, []);
+
+   /** Writes one conversation's title into the open pane and both lists. */
+   const writeTopic = useCallback((id: string, topic: string) => {
+      const withTopic = (list: ChatThread[]) =>
+         list.map((thread) => (thread.id === id ? { ...thread, topic } : thread));
+      setThreads(withTopic);
+      setArchived((current) => (current === null ? current : withTopic(current)));
+      setActive((current) => (current?.id === id ? { ...current, topic } : current));
+   }, []);
+
+   /**
+    * Shows the new title at once and puts the previous one back if the server
+    * refuses it. A second rename of the same conversation replaces the first;
+    * a refresh while either is in flight keeps the title on screen.
+    */
+   const commitRename = useCallback(
+      (id: string, raw: string) => {
+         const topic = raw.trim();
+         if (!topic) return;
+         const pending = pendingRenames.current.get(id);
+         const shown =
+            pending?.topic ??
+            (active?.id === id ? active.topic : undefined) ??
+            threads.find((thread) => thread.id === id)?.topic ??
+            archived?.find((thread) => thread.id === id)?.topic;
+         if (shown === undefined || shown === topic) return;
+         pendingRenames.current.set(id, { topic, baseline: pending?.baseline ?? shown });
+         writeTopic(id, topic);
+         void renameSession(id, topic).then(
+            () => {
+               const current = pendingRenames.current.get(id);
+               if (!current) return;
+               if (current.topic !== topic) {
+                  pendingRenames.current.set(id, { topic: current.topic, baseline: topic });
+                  return;
+               }
+               // Drop the pending title only after this refresh has been applied,
+               // so an older response still in flight cannot restore the old name.
+               const settle = () => {
+                  const still = pendingRenames.current.get(id);
+                  if (still?.topic === topic) pendingRenames.current.delete(id);
+               };
+               void refreshThreads().then(settle, settle);
+               if (archived !== null) void refreshArchived().then(settle, settle);
+            },
+            (cause: unknown) => {
+               const current = pendingRenames.current.get(id);
+               if (!current || current.topic !== topic) return;
+               pendingRenames.current.delete(id);
+               writeTopic(id, current.baseline);
+               toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
+            }
+         );
+      },
+      [active, archived, refreshArchived, refreshThreads, t, threads, writeTopic]
+   );
 
    /** Re-reads the open conversation's newest page and its queue. */
    const refreshSession = useCallback(async (id: string) => {
@@ -244,7 +320,7 @@ export function Chat() {
             ]);
             if (cancelled) return;
             setAgents(loadedAgents.filter((agent) => !agent.archivedAt));
-            setThreads(loadedThreads);
+            setThreads(withPendingTopics(loadedThreads, pendingRenames.current));
             setRoster(entries);
          } catch (cause) {
             if (!cancelled) setError(cause instanceof Error ? cause.message : t('rowFailed'));
@@ -405,17 +481,9 @@ export function Chat() {
       }, 600);
    };
 
-   // Every conversation starts with the Orchestrator: it reads the request
-   // and hands the work to the right role, so nobody picks an agent first.
-   const orchestrator = agents.find(isOrchestrator) ?? null;
-
-   const newChat = async () => {
-      if (!orchestrator) {
-         setError(t('bannerNoOrchestrator'));
-         return;
-      }
+   const newChat = async (agent: Agent) => {
       try {
-         const id = await createSession(orchestrator.id);
+         const id = await createSession(agent.id);
          const found = await refreshThreads();
          const thread = found.find((entry) => entry.id === id);
          if (thread) {
@@ -447,7 +515,8 @@ export function Chat() {
       setError(null);
       setComposer('');
       try {
-         const queued = await sendMessage(activeId, text);
+         const prefs = useUiPrefsStore.getState();
+         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch (cause) {
          if (cause instanceof BerryApiError && cause.status === 403) setForbidden(true);
@@ -471,6 +540,19 @@ export function Chat() {
    const stop = (thread: ChatThread) => {
       if (!thread.activeRunId) return;
       setStopping(thread);
+   };
+
+   /** Stops the reply being written, without a confirmation. */
+   const stopReply = async (runId: string) => {
+      if (!activeId) return;
+      try {
+         await cancelSessionTask(activeId, runId);
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
+         return;
+      }
+      await refreshThreads().catch(() => undefined);
+      await refreshSession(activeId).catch(() => undefined);
    };
 
    /** Runs once the stop is confirmed; a failure keeps the dialog open. */
@@ -534,6 +616,9 @@ export function Chat() {
          <div className="flex min-h-0 flex-1">
             <ChatSidebar
                className={cn('max-md:w-full', active && 'max-md:hidden')}
+               agents={agents}
+               roster={roster}
+               sessionUserId={sessionUserId}
                threads={threads}
                archived={archived}
                showArchived={showArchived}
@@ -543,7 +628,7 @@ export function Chat() {
                   if (next) void refreshArchived();
                }}
                activeId={activeId}
-               onNewChat={() => void newChat()}
+               onNewChat={(agent) => void newChat(agent)}
                onSelect={(thread) => {
                   void select(thread);
                   show(thread);
@@ -552,6 +637,7 @@ export function Chat() {
                   void refreshThreads().catch(() => undefined);
                   if (showArchived) void refreshArchived();
                }}
+               onRename={commitRename}
                onStop={stop}
             />
 
@@ -574,9 +660,17 @@ export function Chat() {
                      >
                         <ArrowLeft className="size-4" aria-hidden />
                      </button>
-                     <h2 className="min-w-0 flex-none truncate text-[var(--shell-text)]">
-                        {agentName ?? active.topic}
-                     </h2>
+                     <div className="flex min-w-0 flex-none items-center gap-1.5">
+                        <h2 className="min-w-0 truncate text-[var(--shell-text)]">
+                           {agentName ?? active.topic}
+                        </h2>
+                        {active.pinned ? (
+                           <Pin
+                              className="size-3.5 flex-none fill-current text-[var(--shell-text-dim)]"
+                              aria-label={t('pin')}
+                           />
+                        ) : null}
+                     </div>
 
                      {renaming ? (
                         <input
@@ -592,15 +686,7 @@ export function Chat() {
                               }
                               if (event.key === 'Enter' && title.trim()) {
                                  setRenaming(false);
-                                 void renameSession(active.id, title.trim())
-                                    .then(() => refreshThreads())
-                                    .catch((cause: unknown) =>
-                                       toast.error(
-                                          cause instanceof BerryApiError
-                                             ? cause.message
-                                             : t('rowFailed')
-                                       )
-                                    );
+                                 commitRename(active.id, title);
                               }
                            }}
                            className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
@@ -623,11 +709,6 @@ export function Chat() {
                         <span className="min-w-0 flex-1" aria-hidden />
                      )}
 
-                     <RuntimeSelectionControl
-                        target={{ kind: 'conversation', id: active.id }}
-                        disabled={sending || active.activeRunId !== null}
-                     />
-
                      <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                            <button
@@ -639,13 +720,6 @@ export function Chat() {
                            </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                           {active.agentId ? (
-                              <DropdownMenuItem asChild>
-                                 <Link href={`../agents/${active.agentId}`}>
-                                    {t('headerOpenAgent')}
-                                 </Link>
-                              </DropdownMenuItem>
-                           ) : null}
                            <DropdownMenuItem
                               onSelect={() => {
                                  setTitle(active.topic);
@@ -668,7 +742,10 @@ export function Chat() {
                               {active.archived ? t('unarchive') : t('archive')}
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
-                           <DropdownMenuItem onSelect={() => setDeleting(true)}>
+                           <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setDeleting(true)}
+                           >
                               {t('delete')}
                            </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -744,13 +821,14 @@ export function Chat() {
                   value={composer}
                   onChange={changeComposer}
                   onSend={() => void send()}
-                  onStop={active?.activeRunId ? () => stop(active) : null}
+                  onStop={active && replyRun ? () => void stopReply(replyRun) : null}
                   queueing={ownTasks.length > 0}
                   disabled={!activeId || sending}
-                  placeholder={
-                     agentName ? t('composerPlaceholder', { name: agentName }) : t('composerIdle')
-                  }
                   workspaceId={workspaceId}
+                  chatOpen={Boolean(activeId)}
+                  {...(activeId ? { conversationId: activeId } : {})}
+                  {...(activeAgent ? { agent: activeAgent } : {})}
+                  answering={stage !== null}
                />
             </section>
          </div>

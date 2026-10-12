@@ -2,7 +2,6 @@ import type { Sql } from '../db/pool.ts';
 import type { Dispatch, RunLedger } from '../runs/ledger.ts';
 import type { ExecutionSession } from '../execution/driver.ts';
 import type { ConnectionRepository } from '../integrations/connections.ts';
-import type { GitHubAppRepository } from '../integrations/github-app.ts';
 import { GitHubError, type GitHubClient, type PullRequest } from '../integrations/github.ts';
 import { branchName, checkout, parseRepository, type Checkout } from './checkout.ts';
 import { commitAndPush } from './delivery.ts';
@@ -42,13 +41,11 @@ export interface RepositoryRunDeps {
    /** Absent means a run never gets a repository, even when its project names one. */
    connections: ConnectionRepository | undefined;
    /**
-    * Preferred over `connections` when the deployment has an App.
+    * The workspace GitHub token, when the run is not given `gitCredential`.
     *
-    * An installation token is minted per run and cannot expire between one and
-    * the next, which is the difference that matters for work nobody is
-    * watching.
+    * Opened for the clone and the push, then dropped.
     */
-   githubApp?: GitHubAppRepository | undefined;
+   githubToken?: ((workspaceId: string) => Promise<string>) | undefined;
    github: (token: string) => GitHubClient;
    /**
     * The credential a run clones and pushes with.
@@ -106,7 +103,7 @@ export async function prepareRepository(
       session: (() => Promise<ExecutionSession>) | null;
    }
 ): Promise<PreparedRepository | null> {
-   if (!input.session || !(deps.githubApp ?? deps.connections)) return null;
+   if (!input.session || !(deps.gitCredential ?? deps.githubToken ?? deps.connections)) return null;
 
    const repository = await repositoryForIssue(deps.sql, input.dispatch.issueId);
    if (!repository) return null;
@@ -374,10 +371,10 @@ export function pullRequestBody(
 }
 
 /**
- * The credential this run clones and pushes with, App first.
+ * The credential this run clones and pushes with.
  *
- * The App is asked only when one exists, so a deployment that has not created
- * one keeps working exactly as before.
+ * `gitCredential` is the one the composition root wired. Otherwise the
+ * workspace GitHub connection is opened for this call.
  */
 async function runCredential(
    deps: RepositoryRunDeps,
@@ -391,9 +388,8 @@ async function runCredential(
       const minted = await deps.gitCredential(workspaceId, owner);
       return { token: minted.password, canPush: minted.canPush ?? null };
    }
-   if (deps.githubApp && (await deps.githubApp.app())) {
-      const access = await deps.githubApp.access(workspaceId, owner);
-      return { token: access.token, canPush: access.canPush };
+   if (deps.githubToken) {
+      return { token: await deps.githubToken(workspaceId), canPush: null };
    }
    if (!deps.connections) {
       throw new GitHubError('no GitHub credential is configured for this deployment', 503, 'reconnect');

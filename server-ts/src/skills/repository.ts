@@ -214,6 +214,22 @@ export class SkillRepository {
           WHERE agent_id = ${fromAgentId}`;
    }
 
+   /** Skills in this workspace with these names, in the order asked for. */
+   async byNames(workspaceId: string, names: string[]): Promise<SkillWithFiles[]> {
+      const wanted = [...new Set(names)];
+      if (wanted.length === 0) return [];
+      const rows = await this.#sql`
+         SELECT id, name FROM skills
+          WHERE workspace_id = ${workspaceId} AND name IN ${this.#sql(wanted)}`;
+      const ids = new Map(rows.map((row) => [row.name as string, row.id as string]));
+      const found: SkillWithFiles[] = [];
+      for (const name of wanted) {
+         const id = ids.get(name);
+         if (id) found.push(await this.get(workspaceId, id));
+      }
+      return found;
+   }
+
    async enabledForAgent(workspaceId: string, agentId: string): Promise<SkillWithFiles[]> {
       const rows = await this.#sql`
          SELECT s.id FROM skills s

@@ -18,12 +18,6 @@ import type { Pool } from 'pg';
 
 export const AUTH_BASE_PATH = '/api/auth';
 export const SESSION_COOKIE_PREFIX = 'berry';
-/**
- * OAuth scopes GitHub sign-in asks for beyond the profile ones.
- * `workflow` lets a sign-in token publish `.github/workflows/`; GitHub answers
- * 404 for that tree write when the token does not have it.
- */
-export const GITHUB_SIGN_IN_SCOPES = ['repo', 'workflow'] as const;
 
 export interface BerryAuthOptions {
    pool: Pool;
@@ -104,13 +98,8 @@ export function createBerryAuth(options: BerryAuthOptions) {
               github: {
                  clientId: options.github.clientId,
                  clientSecret: options.github.clientSecret,
-                 // Added to Better Auth's defaults (read:user, user:email).
-                 // `repo` is GitHub's OAuth scope for repositories and their
-                 // issues, read and write, private ones included — an OAuth App
-                 // has no narrower repo-read or issues-only scope. `workflow`
-                 // is separate: a tree that contains `.github/workflows/` is
-                 // a 404 without it.
-                 scope: [...GITHUB_SIGN_IN_SCOPES],
+                 // Profile only. Repository access is the workspace GitHub
+                 // connection, not this login: a sign-in token must not clone or push.
                  mapProfileToUser: githubProfileToUser,
               },
            }

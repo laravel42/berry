@@ -67,34 +67,27 @@ export function ProjectDateSelector({
    if (layout === 'row') {
       return (
          <Popover open={open} onOpenChange={setOpen}>
-            <div className="flex items-center gap-2">
-               <PopoverTrigger asChild>
-                  <button
-                     id={id}
-                     type="button"
-                     className="flex size-7 shrink-0 items-center justify-center rounded-sm outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                     aria-expanded={open}
-                     aria-label={ariaLabel}
-                  >
-                     <CalendarClock className="size-4 text-status-info" aria-hidden />
-                  </button>
-               </PopoverTrigger>
-               <PopoverTrigger asChild>
-                  <button
-                     type="button"
+            <PopoverTrigger asChild>
+               <Button
+                  id={id}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+                  aria-expanded={open}
+                  aria-label={ariaLabel}
+               >
+                  <CalendarClock className="size-4 text-status-info" aria-hidden />
+                  <span
                      className={cn(
-                        'outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                        formattedLong
-                           ? 'h-7 tabular-nums hover:bg-accent/40'
-                           : 'border-b border-dashed border-muted-foreground/50 pb-px text-muted-foreground'
+                        'truncate',
+                        formattedLong ? 'tabular-nums' : 'text-muted-foreground'
                      )}
-                     aria-expanded={open}
-                     aria-label={ariaLabel}
                   >
                      {formattedLong ?? emptyLabel}
-                  </button>
-               </PopoverTrigger>
-            </div>
+                  </span>
+               </Button>
+            </PopoverTrigger>
             {popover}
          </Popover>
       );

@@ -135,7 +135,7 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       return id;
    }
 
-   test('GitHub sign-in asks for the profile scopes and repository read/write', async () => {
+   test('GitHub sign-in asks only for the profile, not repository access', async () => {
       const start = await auth.handler(
          new Request(`${BASE}/api/auth/sign-in/social`, {
             method: 'POST',
@@ -146,10 +146,7 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       assert.equal(start.status, 200, await start.clone().text());
       const { url: authorize } = (await start.json()) as { url: string };
       const scopes = (new URL(authorize).searchParams.get('scope') ?? '').split(/[\s,]+/).filter(Boolean);
-      // `repo` is GitHub's OAuth scope for repositories and their issues, read
-      // and write; OAuth Apps have no narrower read-only or issues-only scope.
-      // `workflow` is required to publish `.github/workflows/`.
-      assert.deepEqual([...new Set(scopes)].sort(), ['read:user', 'repo', 'user:email', 'workflow']);
+      assert.deepEqual([...new Set(scopes)].sort(), ['read:user', 'user:email']);
       assert.equal(scopes.length, new Set(scopes).size, 'no scope is requested twice');
    });
 

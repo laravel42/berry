@@ -3,7 +3,7 @@
 import { priorities, type Priority } from '@/data/priorities';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
-import { OptionPicker, PickerChipButton, PickerIconButton } from './option-picker';
+import { OptionPicker, PickerChipButton, PickerIconButton, PickerRowButton } from './option-picker';
 
 interface PriorityPickerProps {
    priority: Priority;
@@ -11,9 +11,10 @@ interface PriorityPickerProps {
    /**
     * `icon`: the tier glyph alone on a 28px ghost square, for rows, cards and
     * property panels. `chip`: glyph and name on a secondary chip, for the
-    * property row of a create dialog.
+    * property row of a create dialog. `row`: glyph and name across the whole
+    * row, for the project sidebar.
     */
-   variant: 'icon' | 'chip';
+   variant: 'icon' | 'chip' | 'row';
    /** How many tasks sit at a priority, shown after each option. Omit for no counts. */
    countFor?: (priorityId: string) => number;
 }
@@ -47,6 +48,11 @@ export function PriorityPicker({ priority, onChange, variant, countFor }: Priori
             <PickerIconButton aria-label={label} title={label}>
                <priority.icon className="size-4" />
             </PickerIconButton>
+         ) : variant === 'row' ? (
+            <PickerRowButton aria-label={label} title={label}>
+               <priority.icon className="size-4" />
+               <span className="truncate">{priority.name}</span>
+            </PickerRowButton>
          ) : (
             <PickerChipButton
                className={cn(priority.id === 'no-priority' && 'text-muted-foreground')}

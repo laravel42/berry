@@ -1,13 +1,16 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
 import { expect, fn } from 'storybook/test';
-import { chatThreads } from './chat-fixtures';
+import { chatAgents, chatRoster, chatThreads, chatUser } from './chat-fixtures';
 import { ChatSidebar } from './chat-sidebar';
 
 const meta = {
    component: ChatSidebar,
    tags: ['ai-generated', 'needs-work'],
    args: {
+      agents: chatAgents,
+      roster: chatRoster,
+      sessionUserId: chatUser.id,
       threads: chatThreads,
       archived: null,
       showArchived: false,
@@ -16,6 +19,7 @@ const meta = {
       onNewChat: fn(),
       onSelect: fn(),
       onChanged: fn(),
+      onRename: fn(),
       onStop: fn(),
    },
    beforeEach: ({ msw }) => {
@@ -39,14 +43,15 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
-/** New chat is one click: there is no agent to choose, the Orchestrator answers. */
+/** New chat opens the roster; choosing an agent starts that conversation. */
 export const NewChat: Story = {
    play: async ({ args, canvas, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'New chat' }));
+      await userEvent.click(await canvas.findByRole('menuitem', { name: 'Backend Engineer' }));
       await expect(args.onNewChat).toHaveBeenCalled();
    },
 };
 
 export const NoAgents: Story = {
-   args: { threads: [], activeId: null },
+   args: { agents: [], threads: [], activeId: null },
 };

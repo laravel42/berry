@@ -106,8 +106,7 @@ parameter properties — is allowed; `erasableSyntaxOnly` enforces it.
   blocking
   ([ADR-0016](docs/adr/0016-autogate-delegated-release.md)). The consent is the
   person's either way; AutoGate only moves it from per task to per plan.
-- **Licenses.** Shipped dependencies must be MIT / Apache-2.0 (or equivalently
-  permissive). Retain Circle MIT notices. Do not copy another product's schema,
+- **Licenses.** Berry's own code is AGPL-3.0-only. Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL. Retain Circle MIT notices. Do not copy another product's schema,
   brand, or marks. Do not use "Linear" as Berry product branding or in new code
   identifiers. Existing Circle comments that say "Linear-style" are legacy — do
   not spread that into new APIs.
@@ -136,8 +135,8 @@ task-scoped token. There is no other external worker.
 (`BERRY_MODEL_PROVIDER=bedrock`) the runtime calls Bedrock directly, on the
 agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
 and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
-the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryMid,
-BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
+the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryXHigh,
+BerryHigh, BerryMid, BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
 the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so
 do not name a tier's current models in code or docs. The server only reads
 Kilo's model list, leaderboard and account; it never calls a model.
@@ -155,7 +154,7 @@ the Orchestrator and uses the first connected model on that agent's selected
 tier; with none placed, it stays on Bedrock or Kilo. Kiro, Claude Code, and Codex are the connectable runtimes,
 each a CLI on the workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or
 `codex`), not a container Berry runs. With Kiro connected, Settings → Model tiers places
-Kiro models on BerryMax, BerryMid and BerryLow; the same model may sit on
+Kiro models on BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit on
 more than one tier, and a run with no explicit model uses the first model on
 the agent's tier that Kiro offers. Every other requested product stays
 visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
@@ -163,9 +162,14 @@ visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md
 **The organization gates and routes agent work.** Each role agent has a
 contract (mission, allowed tools, delegation and escalation targets, required
 reviewers) and an autonomy level from 1–5 that ceilings its effective tools
-regardless of what the contract allows. `qa-engineer` review is always
+regardless of what the contract allows. `reviewer` review is always
 blocking; `security-engineer` and `software-architect` reviews are blocking
-when their labels or paths are touched. Agents can `propose_work` and
+when their labels or paths are touched. A run writes its handoff at
+`.handoffs/<identifier> - <slug of the title>` and tells the next dependent
+task to read that file. A delivery does not delete any other file in that
+directory. Before any other tool the agent calls
+`list_run_tools` on the berry MCP server; that reply is the only tool set
+the run may use. Agents can `propose_work` and
 `delegate_to_agent`, and escalate to a role or to a human — but never to
 `done`, and never through a merge tool.
 

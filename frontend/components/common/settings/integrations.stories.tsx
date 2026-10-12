@@ -21,6 +21,7 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedSession();
       msw.use(
+         http.get('*/api/v1/config', () => HttpResponse.json({ capabilities: { nango: false } })),
          http.get('*/api/v1/integrations/providers', () =>
             HttpResponse.json({ providers: integrationProviders })
          ),
@@ -61,6 +62,37 @@ export const Directory: Story = {
       await expect(
          within(notion).getByText(/The refresh token was revoked in Notion/)
       ).toBeVisible();
+   },
+};
+
+/** Clicking GitHub opens the workspace switches in the drawer. */
+export const GitHubOAuthDrawer: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      const github = await canvas.findByRole('region', { name: 'GitHub' });
+      await expect(canvas.queryByText('Use GitHub in this workspace')).not.toBeInTheDocument();
+      await userEvent.click(
+         within(github).getByRole('button', { name: /The repositories your agents check out/ })
+      );
+      const body = within(canvasElement.ownerDocument.body);
+      const drawer = await body.findByRole('dialog');
+      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(within(drawer).getByText('Pull requests on tasks')).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
+   },
+};
+
+/** Clicking GitHub opens its workspace settings in the drawer, not on the page. */
+export const GitHubSettingsDrawer: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      const github = await canvas.findByRole('region', { name: 'GitHub' });
+      await expect(canvas.queryByText('Use GitHub in this workspace')).not.toBeInTheDocument();
+      await userEvent.click(
+         within(github).getByRole('button', { name: /The repositories your agents check out/ })
+      );
+      const body = within(canvasElement.ownerDocument.body);
+      const drawer = await body.findByRole('dialog');
+      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
    },
 };
 

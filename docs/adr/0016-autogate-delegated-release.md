@@ -138,6 +138,10 @@ AGENTS.md, the coding playbook, the product brief and the steering rules.
 
 ## Current state
 
+Updated 2026-10-11. The always-blocking reviewer of code is `reviewer`, not
+QA. QA writes and runs tests. Security and architecture stay blocking on
+their labels and paths. See [ADR-0018](0018-core-roles-and-specialists.md).
+
 Updated 2026-09-28. The loop is no longer unbounded. Three blocking
 rejections in a row (`autoGateRounds`, counted since the task's last run that
 every blocking reviewer passed) hand the task to a person: it goes to `todo`,

@@ -37,7 +37,7 @@ export interface ReviewMountOptions {
       token: string
    ) => Pick<GitHubClient, 'pullRequestDiff' | 'pullRequestState' | 'mergePullRequest' | 'updatePullRequestBranch'> &
       // What a reviewer's commit needs. Optional, so a fake written for merging is still one.
-      Partial<Pick<GitHubClient, 'pullRequestHead' | 'putFile' | 'branchHead'>>;
+      Partial<Pick<GitHubClient, 'pullRequestHead' | 'putFile' | 'deleteFile' | 'branchHead'>>;
    /** What returns a conflicting pull request's task to its author. Absent: the conflict is only reported. */
    sendBack?: Pick<SendBackDeps, 'issues' | 'runs'> | null;
    /** After a merge, what brings the other open pull requests up to date and sends a conflicting one back (`agents/conflicts.ts`). */
@@ -245,6 +245,54 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          if (error instanceof GitHubError) {
             if (sha === null && error.status === 422) throw new ApiError(409, 'FILE_EXISTS', `${path} already exists on the branch. Open it to change it.`);
             if (error.status === 409) throw new ApiError(409, 'FILE_CHANGED', 'This file changed on the branch since you opened it. Reload the file, and make your edit again.');
+            throw new ApiError(502, 'GITHUB_UNAVAILABLE', `GitHub did not accept the commit: ${error.detail || error.message}`);
+         }
+         throw error;
+      }
+   });
+
+   /**
+    * Removes one file from the branch under review, as a commit in the
+    * reviewer's name. The same refusals as an edit: an agent at work, a closed
+    * pull request, or a blob that is no longer the one the tree showed.
+    */
+   route.post('/:runId/delete', async (context) => {
+      const runId = context.req.param('runId');
+      if (!UUID.test(runId)) throw ApiError.notFound('Run');
+      const target = await options.queue.pullRequestOf(runId);
+      if (!target) throw ApiError.notFound('Pull request');
+      const user = context.get('user');
+      await authorize(options, user.id, target.workspaceId, 'product.write');
+      if (!options.gitCredential) throw new ApiError(412, 'GITHUB_UNAVAILABLE', 'This deployment has no GitHub credential to commit with.');
+
+      const body = (await context.req.json().catch(() => null)) as { path?: unknown; sha?: unknown; message?: unknown } | null;
+      const path = typeof body?.path === 'string' ? insideDirectory(body.path) : null;
+      const sha = body?.sha;
+      if (!body || path === null || typeof sha !== 'string' || !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(sha)) {
+         throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository and the file\'s current blob id are required.');
+      }
+      if (await options.queue.hasActiveRun(target.issueId)) {
+         throw new ApiError(409, 'RUN_ACTIVE', 'An agent is working on this task, and its branch is that run\'s to change. Commit when the run has finished.');
+      }
+
+      const subject = (typeof body.message === 'string' ? body.message : '').replace(/\r/g, '').trim().slice(0, 2000) || `Delete ${path}`;
+      const trailer = coAuthorTrailer({ enabled: true, coAuthorTrailer: true }, { name: user.name, email: user.email });
+      const { owner, name } = parseRepository(target.repository);
+      const client = clientFor(options, (await options.gitCredential(target.workspaceId)).password);
+      try {
+         const state = await client.pullRequestState(owner, name, target.number);
+         if (state.merged || !state.open) throw new ApiError(409, 'PULL_REQUEST_CLOSED', `Pull request #${target.number} is no longer open, so there is no branch under review to commit to.`);
+         const { pullRequestHead, deleteFile } = client;
+         if (!pullRequestHead || !deleteFile) throw new ApiError(412, 'GITHUB_UNAVAILABLE', 'This deployment cannot commit to the repository.');
+         const head = await pullRequestHead.call(client, owner, name, target.number);
+         if (!head.branch) throw new ApiError(409, 'PULL_REQUEST_CLOSED', 'The pull request has no branch to commit to.');
+         const written = await deleteFile.call(client, { owner, name, branch: head.branch, path, message: withTrailers(subject, trailer ? [trailer] : []), sha });
+         return json({ commit: written.commit, branch: head.branch, path }, 201);
+      } catch (error) {
+         if (error instanceof GitHubError) {
+            if (error.status === 409 || error.status === 404 || error.status === 422) {
+               throw new ApiError(409, 'FILE_CHANGED', 'This file changed on the branch. Refresh the tree and try again.');
+            }
             throw new ApiError(502, 'GITHUB_UNAVAILABLE', `GitHub did not accept the commit: ${error.detail || error.message}`);
          }
          throw error;

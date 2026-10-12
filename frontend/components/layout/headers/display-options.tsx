@@ -21,6 +21,7 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
    DISPLAY_PROPERTIES,
+   type DisplayPropertyKey,
    GroupingKey,
    OrderingKey,
    useDisplaySettingsStore,
@@ -35,6 +36,23 @@ import { useTranslations } from 'next-intl';
 
 /** A control in the popover is at least 44px tall where a finger taps it. */
 const touchRow = 'max-lg:min-h-11';
+
+const DEFAULT_CARD_PROPERTIES: Record<DisplayPropertyKey, boolean> = {
+   id: true,
+   status: true,
+   priority: true,
+   assignee: true,
+   labels: true,
+   created: true,
+};
+
+function cardPropertiesMatchDefault(
+   displayProperties: Record<DisplayPropertyKey, boolean>
+): boolean {
+   return (Object.keys(DEFAULT_CARD_PROPERTIES) as DisplayPropertyKey[]).every(
+      (key) => displayProperties[key] === DEFAULT_CARD_PROPERTIES[key]
+   );
+}
 
 /**
  * The Display popover of a task list.
@@ -61,20 +79,21 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       resetDisplaySettings,
    } = useDisplaySettingsStore();
 
+   // Layout lives on the toolbar, not in this popover. The warning dot and
+   // Reset only follow grouping, ordering, visibility and card properties.
    const isDefault =
-      view.mode === 'list' &&
       view.grouping === 'status' &&
       view.ordering === 'priority' &&
       view.direction === 'asc' &&
       !orderCompletedByRecency &&
       completedIssues === 'all' &&
       showSubIssues &&
-      !showEmptyGroups;
+      !showEmptyGroups &&
+      cardPropertiesMatchDefault(displayProperties);
 
-   // The URL carries layout, grouping and ordering per link, so those go
-   // back through the view (which clears the URL too); the rest is the store's.
+   // Grouping and ordering go through the view so a URL override is cleared
+   // with them; the rest is the store's. Layout is left where it is.
    const reset = () => {
-      view.setMode('list');
       view.setGrouping('status');
       view.setOrdering('priority');
       view.setDirection('asc');

@@ -1107,7 +1107,13 @@ async function parseFallbackModel(value: unknown, catalog: ModelSource | null, l
 
 const placedSchema = z.array(z.string().trim().min(1).max(300)).max(TIER_SIZE);
 const placementSchema = z.strictObject({
-   placement: z.strictObject({ berry_max: placedSchema, berry_mid: placedSchema, berry_low: placedSchema }).nullable(),
+   placement: z.strictObject({
+      berry_max: placedSchema,
+      berry_xhigh: placedSchema.default([]),
+      berry_high: placedSchema.default([]),
+      berry_mid: placedSchema,
+      berry_low: placedSchema,
+   }).nullable(),
 });
 
 /** Each tier's models for this workspace, and whose placement put them there. */

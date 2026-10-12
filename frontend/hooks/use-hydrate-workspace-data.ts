@@ -96,8 +96,6 @@ export function useHydrateWorkspaceData(): void {
    useEffect(() => {
       if (status !== 'ready' || !workspaceId) return;
       let cancelled = false;
-      // Passed as the viewer, not as the lead: a project's own lead comes back
-      // with it, and this only stands in for one that recorded none.
       const viewer = user ?? currentUser;
       // A person lead is resolved from the member store while each project is
       // mapped. Load the roster first: running both requests in parallel meant a
@@ -106,7 +104,7 @@ export function useHydrateWorkspaceData(): void {
       void loadWorkspaceMembers(workspaceId).then(async (members) => {
          if (cancelled) return;
          hydrateMembers(members);
-         const projects = await loadWorkspaceProjects(workspaceId, viewer);
+         const projects = await loadWorkspaceProjects(workspaceId);
          if (!cancelled) hydrateProjects(projects);
       });
       void loadWorkspaceInbox(workspaceId, viewer).then((items) => {

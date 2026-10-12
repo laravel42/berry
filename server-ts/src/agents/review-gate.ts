@@ -17,6 +17,7 @@ import { repositoryForIssue } from './repository-context.ts';
 import { readyDependents } from '../work/ready-dependents.ts';
 import { filesText, listingText, MAX_READ_ROUNDS, openReviewFiles, type ReviewFiles } from './review-files.ts';
 import type { TranscriptMessage } from '../runtime/envelope.ts';
+import { INCOMPLETE_REVIEW } from './prompt.ts';
 
 /**
  * AutoGate: a peer agent reviews what a run delivered.
@@ -28,7 +29,9 @@ import type { TranscriptMessage } from '../runtime/envelope.ts';
  * the work is done (`review-files.ts`). Rejected sends it back to todo with
  * the reason, and the author is given another run — a bounded number of
  * times, because a reviewer that keeps rejecting is telling a person
- * something: under AutoGate, three in a row hand the task to one.
+ * something: under AutoGate, three in a row hand the task to one. A review
+ * that cannot be completed is not a rejection: the task still returns to
+ * todo, and no new run starts.
  *
  * The verdict is a row in `issue_auto_reviews`, which the task page already
  * reads, and a comment on the task in the reviewer's name. The rejection
@@ -340,12 +343,19 @@ export class ReviewGate {
          // A reviewer that could not read is not a rejection. The row is
          // closed as undecided-in-error so the next attempt is not counted
          // against the author, and the reason says what happened.
+         const said = error instanceof Error ? error.message : String(error);
          await this.#decide(reviewId, {
             approved: false,
-            reason: `The review could not be completed: ${error instanceof Error ? error.message : String(error)}`,
+            reason: `${INCOMPLETE_REVIEW}: ${said}`,
             findings: [],
          });
          this.#onError('peer review failed', error);
+         await this.#comment(
+            material.issue.id,
+            reviewer.id,
+            `**Peer review could not be completed.** Sent back to todo.\n\n${INCOMPLETE_REVIEW}: ${said}`
+         );
+         await this.#returnToTodo(material, reviewer.id);
          return { kind: 'skipped', because: 'no_reviewer' };
       }
 
@@ -623,7 +633,19 @@ export class ReviewGate {
                : 'Required reviews passed — waiting for a person.',
          };
       }
-      await this.#comment(issueId, decision.speakerId, pendingComment(decision.missing, material));
+      const incomplete = decision.missing.some((entry) => entry.why === 'the review could not be completed');
+      await this.#comment(
+         issueId,
+         decision.speakerId,
+         incomplete ? incompleteReviewComment(decision.missing, material) : pendingComment(decision.missing, material)
+      );
+      // A reviewer that could not answer is not a rejection of the work, and
+      // starting the author again would only deliver the same work back to a
+      // review that just failed. The task returns to todo and waits.
+      if (incomplete) {
+         await this.#closeIncomplete(material.run.id);
+         await this.#returnToTodo(material, decision.speakerId);
+      }
       return { kind: 'skipped', because: 'no_reviewer' };
    }
 
@@ -643,7 +665,7 @@ export class ReviewGate {
          const agent = await roleAgent(this.#sql, material.workspaceId, role);
          if (!agent) {
             // A specialist the workspace does not have is not owed a review
-            // (ADR-0018): QA is always required, and a person still releases
+            // (ADR-0018): the Reviewer is always required, and a person still releases
             // the work. Waiting on a role nobody holds only parked the task.
             // A core role a person archived is still owed, and says so.
             if (!isCoreRole(role)) continue;
@@ -773,7 +795,8 @@ export class ReviewGate {
    async #attemptOf(q: Sql, issueId: string, runId: string): Promise<number> {
       const [row] = await q`
          SELECT count(DISTINCT run_id)::int AS attempts FROM issue_auto_reviews
-          WHERE issue_id = ${issueId} AND run_id <> ${runId} AND approved = false AND authority = 'blocking'`;
+          WHERE issue_id = ${issueId} AND run_id <> ${runId} AND approved = false AND authority = 'blocking'
+            AND reason NOT LIKE ${INCOMPLETE_REVIEW + '%'}`;
       return Number(row?.attempts ?? 0) + 1;
    }
 
@@ -1051,6 +1074,37 @@ export class ReviewGate {
    }
 
    /**
+    * Back to todo, with no new run.
+    *
+    * Used when a review could not be completed. A rejection uses
+    * {@link #sendBack}, which also gives the author another run.
+    */
+   async #returnToTodo(material: ReviewMaterial, actorId: string): Promise<void> {
+      await sendBack(
+         { issues: this.#issues, runs: this.#runs, onError: this.#onError },
+         {
+            issueId: material.issue.id,
+            boardId: material.boardId,
+            workspaceId: material.workspaceId,
+            agentId: material.run.agentId,
+            actor: { id: actorId, type: 'agent' },
+            requestedBy: material.run.requestedBy,
+            again: false,
+            instructions: null,
+            rejected: false,
+         }
+      );
+   }
+
+   /** Closes reviews that never reached a verdict, so they are not still "reading". */
+   async #closeIncomplete(runId: string): Promise<void> {
+      await this.#sql`
+         UPDATE issue_auto_reviews
+            SET approved = false, reason = ${INCOMPLETE_REVIEW}, decided_at = ${this.#clock().toISOString()}
+          WHERE run_id = ${runId} AND decided_at IS NULL`;
+   }
+
+   /**
     * Rejected runs since the task's last run every blocking reviewer passed.
     *
     * Rounds, not rows, as `#attemptOf` counts them. A run QA passed and
@@ -1062,12 +1116,14 @@ export class ReviewGate {
          SELECT count(DISTINCT review.run_id)::int AS n
            FROM issue_auto_reviews AS review
           WHERE review.issue_id = ${issueId} AND review.approved = false AND review.authority = 'blocking'
+            AND review.reason NOT LIKE ${INCOMPLETE_REVIEW + '%'}
             AND review.decided_at > COALESCE((
                SELECT max(passed.decided_at) FROM issue_auto_reviews AS passed
                 WHERE passed.issue_id = ${issueId} AND passed.approved AND passed.authority = 'blocking'
                   AND NOT EXISTS (
                      SELECT 1 FROM issue_auto_reviews AS other
-                      WHERE other.run_id = passed.run_id AND other.approved = false AND other.authority = 'blocking')
+                      WHERE other.run_id = passed.run_id AND other.approved = false AND other.authority = 'blocking'
+                        AND other.reason NOT LIKE ${INCOMPLETE_REVIEW + '%'})
             ), '-infinity'::timestamptz)`;
       return Number(row?.n ?? 0);
    }
@@ -1142,7 +1198,8 @@ export class ReviewGate {
    async #attempts(issueId: string): Promise<number> {
       const [row] = await this.#sql`
          SELECT count(DISTINCT run_id)::int AS attempts FROM issue_auto_reviews
-          WHERE issue_id = ${issueId} AND approved = false AND authority = 'blocking'`;
+          WHERE issue_id = ${issueId} AND approved = false AND authority = 'blocking'
+            AND reason NOT LIKE ${INCOMPLETE_REVIEW + '%'}`;
       return Number(row?.attempts ?? 0);
    }
 
@@ -1399,6 +1456,11 @@ function mergeUnreachableComment(number: number, error: unknown): string {
 function pendingComment(missing: Array<{ role: string; why: string }>, material: ReviewMaterial): string {
    const lines = missing.map((entry) => `- **${entry.role}**: ${entry.why}`);
    return [`**Required reviews not complete** — the task stays in review.${pullRequestNote(material)}`, lines.join('\n')].join('\n\n');
+}
+
+function incompleteReviewComment(missing: Array<{ role: string; why: string }>, material: ReviewMaterial): string {
+   const lines = missing.map((entry) => `- **${entry.role}**: ${entry.why}`);
+   return [`**Required reviews not complete** — sent back to todo.${pullRequestNote(material)}`, lines.join('\n')].join('\n\n');
 }
 
 function handOffComment(rejections: number, assigned: boolean, rounds: number): string {

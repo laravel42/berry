@@ -221,13 +221,13 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
          const [before] = await sql`SELECT status::text AS status FROM issues WHERE id = ${issueId}`;
          assert.equal(before?.status, 'in_review');
 
-         const result = await tool('submit_review').run(contextFor('qa-engineer', issueId), rejection);
+         const result = await tool('submit_review').run(contextFor('reviewer', issueId), rejection);
 
          assert.equal(result.ok, true);
          const [row] = await sql`
             SELECT reviewer_id, reviewer_role, authority, approved, reason FROM issue_auto_reviews WHERE run_id = ${runId}`;
-         assert.equal(row?.reviewer_id, agentIdFor('qa-engineer'));
-         assert.equal(row?.reviewer_role, 'qa-engineer');
+         assert.equal(row?.reviewer_id, agentIdFor('reviewer'));
+         assert.equal(row?.reviewer_role, 'reviewer');
          assert.equal(row?.authority, 'blocking');
          assert.equal(row?.approved, false);
          const [after] = await sql`SELECT status::text AS status FROM issues WHERE id = ${issueId}`;
@@ -258,12 +258,12 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
 
       test('a reviewer cannot take back or repeat a recorded verdict', async () => {
          const { issueId, runId } = await deliveredByBackend('Review once');
-         await tool('submit_review').run(contextFor('qa-engineer', issueId), rejection);
+         await tool('submit_review').run(contextFor('reviewer', issueId), rejection);
          assert.equal(await statusOf(issueId), 'todo');
          const [before] = await reviewRows(runId);
 
          await assert.rejects(
-            tool('submit_review').run(contextFor('qa-engineer', issueId), { approved: true, reason: 'Actually fine.' }),
+            tool('submit_review').run(contextFor('reviewer', issueId), { approved: true, reason: 'Actually fine.' }),
             refusedWith(409, 'ALREADY_REVIEWED')
          );
 
@@ -279,7 +279,7 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
       test('a task without AutoGate takes no agent verdict: a person reviews it', async () => {
          const { issueId, runId } = await deliveredByBackend('Manual review only', ['src/a.ts'], false);
          await assert.rejects(
-            tool('submit_review').run(contextFor('qa-engineer', issueId), rejection),
+            tool('submit_review').run(contextFor('reviewer', issueId), rejection),
             refusedWith(409, 'NOT_GATED')
          );
          assert.equal((await reviewRows(runId)).length, 0);
@@ -343,7 +343,7 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
 
       test('the last required approval says the reviews passed and AutoGate closes the task', async () => {
          const { issueId } = await deliveredByBackend('Auth approved', ['server-ts/src/auth/x.ts']);
-         await tool('submit_review').run(contextFor('qa-engineer', issueId), { approved: true, reason: 'Tested.' });
+         await tool('submit_review').run(contextFor('reviewer', issueId), { approved: true, reason: 'Tested.' });
          let bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
          assert.ok(!bodies.some((comment) => /Required reviews passed/.test(comment.body as string)), 'Security has not reviewed yet');
 
@@ -363,12 +363,12 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
 
       test('the delivered run is reviewed even when the reviewer\'s own run on the task is newer', async () => {
          const { issueId, runId } = await deliveredByBackend('Mentioned before its review');
-         // The QA engineer was mentioned on the task, and its own (comment-only)
+         // The Reviewer was mentioned on the task, and its own (comment-only)
          // run succeeded after the backend engineer's delivery.
          const ledger = new RunLedger({ sql });
          const qaRun = await new RunRepository(sql).admit({
             issueId, boardId: fixture.boardId, workspaceId: fixture.workspaceId,
-            agentId: agentIdFor('qa-engineer'), requestedBy: fixture.userId, instructions: null,
+            agentId: agentIdFor('reviewer'), requestedBy: fixture.userId, instructions: null,
          });
          await ledger.claimDispatch(qaRun.id);
          await ledger.markRunning(qaRun.id);
@@ -378,13 +378,13 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
          });
          assert.equal(await statusOf(issueId), 'in_review');
 
-         const result = await tool('submit_review').run(contextFor('qa-engineer', issueId), { approved: true, reason: 'Tested.' });
+         const result = await tool('submit_review').run(contextFor('reviewer', issueId), { approved: true, reason: 'Tested.' });
 
          assert.equal(result.ok, true);
          const found = await sql`SELECT run_id, reviewer_role, approved FROM issue_auto_reviews WHERE issue_id = ${issueId}`;
          assert.equal(found.length, 1);
          assert.equal(found[0]!.run_id, runId, 'the verdict is on the delivered run');
-         assert.equal(found[0]!.reviewer_role, 'qa-engineer');
+         assert.equal(found[0]!.reviewer_role, 'reviewer');
          assert.equal(found[0]!.approved, true);
       });
 

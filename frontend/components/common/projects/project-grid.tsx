@@ -17,6 +17,7 @@ import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
 import type { Status } from '@/data/status';
 import { format, parseISO } from 'date-fns';
+import { User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -36,7 +37,11 @@ function ProjectDragPreview({ project }: { project: Project }) {
       <div className="w-full overflow-hidden rounded-lg bg-void px-3.5 py-2 text-chalk shadow-lg">
          <div className="mb-1.5 flex items-center justify-between gap-2">
             <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
-            <ActorAvatar user={lead} size="sm" className="size-4" />
+            {lead ? (
+               <ActorAvatar user={lead} size="sm" className="size-4" />
+            ) : (
+               <UserIcon className="size-3.5 text-muted-foreground" />
+            )}
          </div>
          <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
             {project.name}
@@ -166,7 +171,17 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                                  candidates={leadCandidates(members, lead)}
                                  onChange={(member) => updateProjectLead(project.id, member)}
                               >
-                                 <LeadAvatarButton lead={lead} size="sm" />
+                                 {lead ? (
+                                    <LeadAvatarButton lead={lead} size="sm" />
+                                 ) : (
+                                    <button
+                                       type="button"
+                                       aria-label="Project lead"
+                                       className="flex size-4 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                    >
+                                       <UserIcon className="size-3.5" />
+                                    </button>
+                                 )}
                               </LeadPicker>
                            </span>
                         ) : null}

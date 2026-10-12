@@ -355,12 +355,14 @@ export const integrationProviders = [
    },
    {
       id: 'github',
+      include: 'nango',
       name: 'GitHub',
-      description: 'Repositories, branches and pull requests.',
+      description:
+         'The repositories your agents check out, branch and open pull requests. Connect to grant repository access so agents can clone, push and open pull requests.',
       configured: true,
       connected: true,
       status: 'connected',
-      source: 'app',
+      source: null,
       accountName: 'elian-labs',
       tools: [
          { name: 'github.read_file', effect: 'read', allowed: true },

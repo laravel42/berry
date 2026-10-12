@@ -232,14 +232,10 @@ export const resumeRequestSchema = z
 export type ResumeRequest = z.infer<typeof resumeRequestSchema>['resume'];
 
 /**
- * A Kiro subscription API key, the official headless credential.
- * `ksk_` is the prefix Kiro shows when a paid plan creates a key.
+ * Marks a Kiro run whose login stays inside the Kiro CLI.
+ * Berry does not store or read that credential. The value is not a secret.
  */
-export const KIRO_API_KEY_PATTERN = /^ksk_[A-Za-z0-9_-]{8,256}$/;
-
-export function isKiroApiKey(value: string): boolean {
-   return KIRO_API_KEY_PATTERN.test(value);
-}
+export const KIRO_CLI_LOGIN = 'kiro-cli';
 
 /**
  * Marks a Claude run whose login stays inside the Claude Code CLI.
@@ -252,6 +248,31 @@ export const CLAUDE_CLI_LOGIN = 'claude-cli';
  * Berry does not store or read that credential. The value is not a secret.
  */
 export const CODEX_CLI_LOGIN = 'codex-cli';
+
+/**
+ * Marks a Grok run whose login stays inside the Grok Build CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const GROK_CLI_LOGIN = 'grok-cli';
+
+/**
+ * Marks a Kimi run whose login stays inside the Kimi Code CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const KIMI_CLI_LOGIN = 'kimi-cli';
+
+/**
+ * Marks a Cursor run whose login stays inside the Cursor Agent CLI.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const CURSOR_CLI_LOGIN = 'cursor-cli';
+
+/**
+ * Marks a Qoder run whose login stays inside the Qoder CLI. The CLI signs in
+ * with a browser PKCE flow and keeps the account token in its own local store.
+ * Berry does not store or read that credential. The value is not a secret.
+ */
+export const QODER_CLI_LOGIN = 'qoder-cli';
 
 const REDACTED = '[redacted]';
 

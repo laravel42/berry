@@ -386,6 +386,30 @@
          "added": "New file in this pull request",
          "modified": "Modified in this pull request",
          "deleted": "Deleted in this pull request"
+      },
+      "menu": {
+         "cut": "Cut",
+         "copy": "Copy",
+         "paste": "Paste",
+         "copyPath": "Copy Path",
+         "rename": "Rename",
+         "delete": "Delete",
+         "undoDelete": "Undo Delete",
+         "renamePath": "New name",
+         "deleteTitle": "Delete {path}?",
+         "deleteFile": "This commits a deletion of {path} on the branch under review.",
+         "deleteFolder": "This commits a deletion of every file in {path} on the branch under review.",
+         "deleteEmpty": "This removes the empty folder {path}. Git keeps a folder once it holds a file.",
+         "cancel": "Cancel",
+         "copyFailed": "Could not copy to the clipboard.",
+         "actionFailed": "{path} could not be changed.",
+         "nameInvalid": "Use a name without slashes.",
+         "moveIntoSelf": "A folder cannot be moved into itself.",
+         "commitDelete": "Delete {path}",
+         "commitRestore": "Restore {path}",
+         "commitRename": "Rename {from} to {to}",
+         "commitCopy": "Copy {from} to {to}",
+         "commitMove": "Move {from} to {to}"
       }
    },
    "reviews": {

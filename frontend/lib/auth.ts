@@ -39,12 +39,15 @@ const bootstrapSchema = z.object({
 });
 
 const configSchema = z.object({
+   signInOrigin: z.string().url().nullish(),
    capabilities: z.looseObject({
       githubSignIn: z.boolean().optional(),
       passwordlessLogin: z.boolean().optional(),
       emailRegistration: z.boolean().optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
+      /** This process can call a Nango environment. The key is not in the payload. */
+      nango: z.boolean().optional(),
    }),
 });
 
@@ -53,12 +56,22 @@ export type BootstrapWorkspace = z.infer<typeof workspaceSchema>;
 export type BootstrapPayload = z.infer<typeof bootstrapSchema>;
 
 /**
- * Starts GitHub sign-in. The browser leaves for GitHub and comes back through
- * the server's callback, which sets the session cookie and lands on `/`; a
- * refusal lands on `/sign-in?error=<code>` instead.
+ * Starts GitHub sign-in. It identifies the person. Repository access is the
+ * GitHub App, started from Settings, not from here.
+ *
+ * The browser must start on the server's sign-in origin so the state cookie
+ * and the GitHub callback stay on the same host.
  */
 export async function signInWithGitHub(): Promise<void> {
-   const origin = window.location.origin;
+   const available = await fetchSignInOptions();
+   const signInOrigin = (available.signInOrigin ?? '').replace(/\/$/, '');
+   if (signInOrigin && window.location.origin !== signInOrigin) {
+      const next = new URL('/sign-in', signInOrigin);
+      next.searchParams.set('github', '1');
+      window.location.assign(next.toString());
+      return;
+   }
+   const origin = signInOrigin || window.location.origin;
    const { error } = await authClient().signIn.social({
       provider: 'github',
       callbackURL: `${origin}/`,
@@ -94,17 +107,18 @@ export async function fetchBootstrap(): Promise<BootstrapPayload> {
    return parsed.data;
 }
 
-/** Whether this server can sign anyone in with GitHub (an OAuth App is configured). */
+/** Whether this server can sign anyone in with GitHub. */
 export async function fetchGitHubSignInAvailable(): Promise<boolean> {
    const options = await fetchSignInOptions();
    return options.github;
 }
 
-/** GitHub stays off the page while development email sign-in is enabled. */
+/** What the sign-in page can offer. GitHub is shown whenever it is configured. */
 export async function fetchSignInOptions(): Promise<{
    github: boolean;
    passwordless: boolean;
    emailRegistration: boolean;
+   signInOrigin: string | null;
 }> {
    const json: unknown = await apiFetch('/api/v1/config');
    const parsed = configSchema.safeParse(json);
@@ -113,6 +127,7 @@ export async function fetchSignInOptions(): Promise<{
       github: capabilities.githubSignIn === true,
       passwordless: capabilities.passwordlessLogin === true,
       emailRegistration: capabilities.emailRegistration === true,
+      signInOrigin: parsed.success ? (parsed.data.signInOrigin ?? null) : null,
    };
 }
 
@@ -152,6 +167,20 @@ export async function fetchModelGatewayAvailable(): Promise<boolean> {
       const json: unknown = await apiFetch('/api/v1/config');
       const parsed = configSchema.safeParse(json);
       return parsed.success && parsed.data.capabilities.modelGateway === true;
+   } catch {
+      return false;
+   }
+}
+
+/**
+ * Whether this process can call a Nango environment. False when the server
+ * does not say so, or cannot be asked: the settings entry stays unconfigured.
+ */
+export async function fetchNangoAvailable(): Promise<boolean> {
+   try {
+      const json: unknown = await apiFetch('/api/v1/config');
+      const parsed = configSchema.safeParse(json);
+      return parsed.success && parsed.data.capabilities.nango === true;
    } catch {
       return false;
    }

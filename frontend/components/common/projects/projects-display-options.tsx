@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import {
    PROJECT_DISPLAY_PROPERTIES,
+   type ProjectDisplayPropertyKey,
    ProjectsGrouping,
    ProjectsOrdering,
    useProjectsDisplayStore,
@@ -46,6 +47,23 @@ const ORDERINGS: { value: ProjectsOrdering; label: string }[] = [
 /** A control in the popover is at least 44px tall where a finger taps it. */
 const touchRow = 'max-lg:min-h-11';
 
+const DEFAULT_CARD_PROPERTIES: Record<ProjectDisplayPropertyKey, boolean> = {
+   priority: true,
+   status: true,
+   health: true,
+   lead: true,
+   targetDate: true,
+   issues: true,
+};
+
+function cardPropertiesMatchDefault(
+   displayProperties: Record<ProjectDisplayPropertyKey, boolean>
+): boolean {
+   return (Object.keys(DEFAULT_CARD_PROPERTIES) as ProjectDisplayPropertyKey[]).every(
+      (key) => displayProperties[key] === DEFAULT_CARD_PROPERTIES[key]
+   );
+}
+
 /** Display popover for the Projects page, laid out as a task list's. */
 export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
    const {
@@ -62,16 +80,24 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
       setClosedProjects,
       setShowEmptyGroups,
       toggleDisplayProperty,
+      setViewType,
       resetDisplaySettings,
    } = useProjectsDisplayStore();
 
+   // Layout lives on the toolbar, not in this popover. The warning dot and
+   // Reset only follow grouping, ordering, visibility and card properties.
    const isDefault =
-      viewType === 'list' &&
       grouping === 'status' &&
       ordering === 'title' &&
       direction === 'asc' &&
       closedProjects === 'all' &&
-      !showEmptyGroups;
+      !showEmptyGroups &&
+      cardPropertiesMatchDefault(displayProperties);
+
+   const reset = () => {
+      resetDisplaySettings();
+      setViewType(viewType);
+   };
 
    const directionLabel = direction === 'asc' ? 'Ascending' : 'Descending';
 
@@ -225,12 +251,7 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
 
             {!isDefault ? (
                <div className="flex justify-end border-t px-2 py-1.5">
-                  <Button
-                     variant="ghost"
-                     size="xs"
-                     onClick={resetDisplaySettings}
-                     className={touchRow}
-                  >
+                  <Button variant="ghost" size="xs" onClick={reset} className={touchRow}>
                      Reset
                   </Button>
                </div>

@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
-import { expect, fn, waitFor } from 'storybook/test';
+import { expect, fn, waitFor, within } from 'storybook/test';
+import { useSessionStore } from '@/store/session-store';
+import { useUiPrefsStore } from '@/store/ui-prefs-store';
+import { chatAgents, chatSession } from './chat-fixtures';
 import { ChatComposer } from './chat-composer';
 
 type ComposerProps = Parameters<typeof ChatComposer>[0];
@@ -24,6 +27,9 @@ function Controlled(props: ComposerProps) {
 const meta = {
    component: ChatComposer,
    tags: ['ai-generated', 'needs-work'],
+   beforeEach: () => {
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
    args: {
       value: '',
       onChange: fn(),
@@ -31,7 +37,6 @@ const meta = {
       onStop: null,
       queueing: false,
       disabled: false,
-      placeholder: 'Message Backend Engineer…',
       workspaceId: 'ws-1',
    },
    render: (args) => <Controlled {...args} />,
@@ -47,13 +52,77 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The mode menu sits under the text. Agent is the ordinary choice. */
+export const PickAMode: Story = {
+   beforeEach: () => {
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Chat mode: Agent' }));
+      const menu = within(canvasElement.ownerDocument.body);
+      await expect(await menu.findByRole('menuitemradio', { name: /recommended/ })).toBeVisible();
+      await userEvent.click(menu.getByRole('menuitemradio', { name: /Create detailed plans/ }));
+      await expect(canvas.getByRole('button', { name: 'Chat mode: Plan' })).toBeVisible();
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
+};
+
+/** The project repository picker: search, then the choice stays on the button. */
+export const PickARepository: Story = {
+   beforeEach: ({ msw }) => {
+      useUiPrefsStore.setState({ chatRepository: null });
+      useSessionStore.setState(chatSession);
+      msw.use(
+         http.get('*/api/v1/integrations/providers', () =>
+            HttpResponse.json({
+               providers: [{ id: 'github', name: 'GitHub', connected: true, configured: true }],
+            })
+         ),
+         http.get('*/api/v1/github/:workspaceId/settings', () =>
+            HttpResponse.json({
+               settings: {
+                  enabled: true,
+                  showLinkedPullRequests: true,
+                  coAuthorTrailer: false,
+                  autoLinkPullRequests: false,
+               },
+               canManage: false,
+               connection: { appConfigured: true, installed: true, accounts: [] },
+            })
+         ),
+         http.get('*/api/v1/integrations/github/repositories', () =>
+            HttpResponse.json({
+               repositories: [
+                  {
+                     id: 1,
+                     fullName: 'acme/api',
+                     name: 'api',
+                     private: false,
+                     defaultBranch: 'main',
+                  },
+               ],
+               access: { selectedOnly: false, installed: true },
+            })
+         )
+      );
+   },
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'Repository' }));
+      const menu = within(canvasElement.ownerDocument.body);
+      await expect(await menu.findByPlaceholderText('Search repositories…')).toBeVisible();
+      await userEvent.click(await menu.findByRole('option', { name: 'acme/api' }));
+      await expect(canvas.getByRole('button', { name: 'acme/api' })).toBeVisible();
+      useUiPrefsStore.setState({ chatRepository: null });
+   },
+};
+
 /** Enter sends; Shift+Enter would break the line instead. */
 export const TypeAndSend: Story = {
    play: async ({ args, canvas, userEvent }) => {
       const send = canvas.getByRole('button', { name: 'Send' });
       await expect(send).toBeDisabled();
       await userEvent.type(
-         canvas.getByRole('textbox', { name: 'Message Backend Engineer…' }),
+         canvas.getByRole('textbox', { name: 'Plan, search, build anything' }),
          'Draft the migration{Enter}'
       );
       await expect(args.onSend).toHaveBeenCalledTimes(1);
@@ -70,49 +139,98 @@ export const QueueingBehindReply: Story = {
 };
 
 export const Disabled: Story = {
-   args: { disabled: true, placeholder: 'Message an agent…' },
+   args: { disabled: true },
 };
 
-/** Typing `@` searches issues and projects; Enter inserts the identifier. */
-export const MentionAnIssue: Story = {
+const page = { pageInfo: { hasNextPage: false, endCursor: null } };
+
+/** Typing `@` lists people and agents; Enter tags the highlighted one. */
+export const MentionSomeone: Story = {
    beforeEach: ({ msw }) => {
       msw.use(
-         http.get('*/api/v1/search', () =>
+         http.get('*/api/v1/workspaces/:workspaceId/members', () =>
             HttpResponse.json({
                nodes: [
                   {
-                     type: 'issue',
-                     id: 'issue-42',
-                     title: 'Persist project health',
-                     subtitle: null,
-                     identifier: 'BERR-42',
-                     boardId: 'board-1',
-                     agentId: null,
-                     status: 'in_progress',
-                  },
-                  {
-                     type: 'project',
-                     id: 'project-berry',
-                     title: 'Berry core',
-                     subtitle: null,
-                     identifier: null,
-                     boardId: null,
-                     agentId: null,
-                     status: null,
+                     userId: 'user-andrea',
+                     workspaceId: 'ws-1',
+                     role: 'admin',
+                     email: 'andrea@example.com',
+                     name: 'Andrea Lunelio',
+                     avatarUrl: null,
+                     joinedAt: '2026-01-04T00:00:00Z',
+                     updatedAt: '2026-01-04T00:00:00Z',
                   },
                ],
-               pageInfo: { hasNextPage: false, endCursor: null },
+               ...page,
+            })
+         ),
+         http.get('*/api/v1/agents', () => HttpResponse.json({ nodes: chatAgents, ...page }))
+      );
+   },
+   play: async ({ args, canvas, userEvent }) => {
+      const input = canvas.getByRole('textbox', { name: 'Plan, search, build anything' });
+      await userEvent.type(input, 'Ask @');
+      await expect(await canvas.findByRole('option', { name: 'Andrea Lunelio' })).toBeVisible();
+      await expect(canvas.getByRole('option', { name: 'Orchestrator' })).toBeVisible();
+      await userEvent.keyboard('{Enter}');
+      await waitFor(() => expect(input).toHaveValue('Ask @Andrea Lunelio '));
+      // Enter tagged the person; it did not send the message.
+      await expect(args.onSend).not.toHaveBeenCalled();
+   },
+};
+
+/** Typing `/` lists skills and commands; Enter writes the highlighted one. */
+export const SlashSkillOrCommand: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.get('*/api/v1/skills', () =>
+            HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'skill-release',
+                     name: 'release-notes',
+                     description: 'Turn merged work into a changelog entry.',
+                     content: 'Write the notes.',
+                     labels: [],
+                     source: { kind: 'manual', url: null, ref: null, importedAt: null },
+                     files: [],
+                     createdBy: null,
+                     creatorName: null,
+                     agents: [],
+                     createdAt: '2026-08-01T09:00:00Z',
+                     updatedAt: '2026-09-10T09:00:00Z',
+                  },
+               ],
+            })
+         ),
+         http.get('*/api/v1/catalogs/:workspaceId/quick-actions', () =>
+            HttpResponse.json({
+               nodes: [
+                  {
+                     id: 'action-summarise',
+                     workspaceId: 'ws-1',
+                     name: 'Summarise',
+                     description: 'A short recap of the conversation.',
+                     targetAgentId: 'agent-backend',
+                     prompt: 'Summarise this conversation.',
+                     visibility: 'workspace',
+                     createdBy: 'user-andrea',
+                     createdAt: '2026-08-01T09:00:00Z',
+                     updatedAt: '2026-09-10T09:00:00Z',
+                  },
+               ],
             })
          )
       );
    },
    play: async ({ args, canvas, userEvent }) => {
-      const input = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
-      await userEvent.type(input, 'Look at @pers');
-      await expect(await canvas.findByRole('button', { name: /BERR-42/ })).toBeVisible();
+      const input = canvas.getByRole('textbox', { name: 'Plan, search, build anything' });
+      await userEvent.type(input, '/');
+      await expect(await canvas.findByRole('option', { name: /release-notes/ })).toBeVisible();
+      await expect(canvas.getByRole('option', { name: /Summarise/ })).toBeVisible();
       await userEvent.keyboard('{Enter}');
-      await waitFor(() => expect(input).toHaveValue('Look at BERR-42 '));
-      // Enter picked the mention; it did not send the message.
+      await waitFor(() => expect(input).toHaveValue('/release-notes '));
       await expect(args.onSend).not.toHaveBeenCalled();
    },
 };

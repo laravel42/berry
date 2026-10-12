@@ -1,5 +1,6 @@
 'use client';
 
+import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { PeerVerdictChip, shownPeerApproval } from '@/components/common/reviews/review-shared';
 import { type AutoReview, loadAutoReviews } from '@/lib/runs';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,9 @@ import { useEffect, useState } from 'react';
  * task is still in review, a rejection stays "Peer reviewing". With AutoGate
  * off that rejection is the verdict it already was. The reason is on the
  * page either way.
+ *
+ * A review that has not answered yet is not drawn here. The sidebar already
+ * names the reviewer and says they are reading, and this box only repeated that.
  */
 export function IssueReviews({
    issueRef,
@@ -31,7 +35,13 @@ export function IssueReviews({
    autoGate?: boolean;
 }) {
    const t = useTranslations('issueDetail.reviews');
+   const tActivity = useTranslations('issueDetail.activity');
    const tPeer = useTranslations('reviews.peer');
+   const clamp = {
+      lines: 6,
+      moreLabel: tActivity('readRest'),
+      lessLabel: tActivity('showLess'),
+   };
    const [reviews, setReviews] = useState<AutoReview[]>([]);
 
    useEffect(() => {
@@ -52,7 +62,8 @@ export function IssueReviews({
       };
    }, [issueRef]);
 
-   if (reviews.length === 0) return null;
+   const settled = reviews.filter((review) => !review.inProgress && review.approved !== null);
+   if (settled.length === 0) return null;
 
    return (
       <div>
@@ -63,21 +74,20 @@ export function IssueReviews({
             <ShieldCheck className="size-3.5" aria-hidden />
             {t('title')}
          </h2>
-         <div className="flex flex-col gap-2">
-            {reviews.map((review) => {
-               const decided = review.inProgress ? null : review.approved;
-               const approved = shownPeerApproval(decided, inReview, autoGate);
+         <div className="flex flex-col gap-1">
+            {settled.map((review) => {
+               const approved = shownPeerApproval(review.approved, inReview, autoGate);
                return (
                   <div
                      key={review.id}
                      className={cn(
-                        'rounded-md border p-3',
+                        'rounded-md border p-2',
                         approved === null && 'border-border bg-muted/20',
                         approved === true && 'border-review-approved/30 bg-review-approved/5',
                         approved === false && 'border-review-changes/30 bg-review-changes/5'
                      )}
                   >
-                     <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                     <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                         {approved === null ? (
                            <Loader2
                               className="size-4 shrink-0 animate-spin text-review-pending"
@@ -100,13 +110,14 @@ export function IssueReviews({
                               : ''}
                         </span>
                      </div>
-                     {decided === null ? (
-                        <p className="text-muted-foreground">
-                           {tPeer('reading', { reviewer: review.reviewer, author: review.author })}
-                        </p>
-                     ) : (
-                        <p className="whitespace-pre-wrap text-muted-foreground">{review.reason}</p>
-                     )}
+                     {review.reason ? (
+                        <AgentMarkdown
+                           body={review.reason}
+                           compact
+                           clamp={clamp}
+                           className="max-w-none font-thin text-muted-foreground [&_*]:font-thin"
+                        />
+                     ) : null}
                      {approved === false && !inReview ? (
                         <p className="mt-2 text-muted-foreground">{tPeer('returned')}</p>
                      ) : null}

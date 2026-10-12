@@ -15,7 +15,7 @@ export interface Config {
    metricsEnabled: boolean;
    sessionTtlMs: number;
    allowPasswordlessLogin: boolean;
-   /** Better Auth: GitHub-only sign-in. See AuthConfig. */
+   /** Better Auth sessions; GitHub via a GitHub OAuth App. See AuthConfig. */
    auth: AuthConfig;
    /** Per-subscriber realtime event buffer, before a slow client is dropped. */
    realtimeBuffer: number;
@@ -77,6 +77,13 @@ export interface Config {
     * button that leads to a redirect loop.
     */
    integrations: IntegrationsConfig;
+   /**
+    * Nango, when this process holds an environment API key.
+    *
+    * Null leaves it off. A host or a webhook signing key without that key
+    * cannot open Connect or call the proxy, so it does not count as configured.
+    */
+   nango: NangoConfig | null;
    /**
     * Berry's own git server, when the deployment runs one.
     *
@@ -216,6 +223,21 @@ export interface StorageConfig {
    directory: string | null;
 }
 
+/**
+ * A Nango environment this process can call.
+ *
+ * `secretKey` is the environment API key (`NANGO_SECRET_KEY` or
+ * `NANGO_API_KEY`). It is not a provider credential and it never goes to the
+ * browser. `webhookSigningKey` verifies webhooks Nango sends; it is a
+ * different secret from the API key.
+ */
+export interface NangoConfig {
+   secretKey: string;
+   /** API origin. Nango Cloud when `NANGO_HOST` is unset. */
+   host: string;
+   webhookSigningKey: string | null;
+}
+
 /** OAuth credentials, and the origins a provider redirects between. */
 export interface IntegrationsConfig {
    github: { clientId: string; clientSecret: string } | null;
@@ -230,7 +252,7 @@ export interface IntegrationsConfig {
    appUrl: string | null;
 }
 
-/** Sign-in: Better Auth with GitHub as the only provider. */
+/** Sign-in: Better Auth sessions, GitHub via a GitHub OAuth App. */
 export interface AuthConfig {
    /** >= 32 chars. Null disables cookie sessions (bearer tokens still work). */
    secret: string | null;
@@ -414,6 +436,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const executionConfig = execution(env, problems);
    const appEnv = (env.APP_ENV ?? 'development').trim();
    const authConfig = auth(env, appEnv, problems);
+   const nangoConfig = nango(env, problems);
 
    if (problems.length > 0) throw new ConfigError(problems);
 
@@ -448,6 +471,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       integrationKey: (env.INTEGRATION_ENCRYPTION_KEY ?? '').trim() || null,
       pluginsAllowPrivateNetwork: (env.BERRY_PLUGINS_ALLOW_PRIVATE_NETWORK ?? '').trim() === '1',
       integrations: integrations(env),
+      nango: nangoConfig,
       git: git(env),
    };
 }
@@ -587,8 +611,8 @@ export interface ModelGatewayConfig {
    prefer: string[];
    /** Paid tiers also take models billed to Kilo credits (`BERRY_KILO_ANY_PROVIDER=true`); off, only the deployment's own keys'. */
    anyProvider: boolean;
-   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_MID`, `_LOW`). */
-   place: { berry_max: string[]; berry_mid: string[]; berry_low: string[] };
+   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_XHIGH`, `_HIGH`, `_MID`, `_LOW`). */
+   place: { berry_max: string[]; berry_xhigh: string[]; berry_high: string[]; berry_mid: string[]; berry_low: string[] };
 }
 
 /**
@@ -619,6 +643,8 @@ function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
       anyProvider: (env.BERRY_KILO_ANY_PROVIDER ?? '').trim().toLowerCase() === 'true',
       place: {
          berry_max: idList(env.BERRY_KILO_MAX),
+         berry_xhigh: idList(env.BERRY_KILO_XHIGH),
+         berry_high: idList(env.BERRY_KILO_HIGH),
          berry_mid: idList(env.BERRY_KILO_MID),
          berry_low: idList(env.BERRY_KILO_LOW),
       },
@@ -746,6 +772,51 @@ function agentCoreGateway(env: NodeJS.ProcessEnv): AgentCoreGatewayConfig | null
    };
 }
 
+const NANGO_CLOUD_HOST = 'https://api.nango.dev';
+
+/**
+ * The Nango environment, or nothing.
+ *
+ * The environment API key is what makes a call possible. `NANGO_SECRET_KEY`
+ * is the name the CLI uses; `NANGO_API_KEY` is the same key under the name
+ * the current HTTP docs use. Setting both to different values is a mistake
+ * worth refusing at boot. A host with embedded credentials is refused too:
+ * the key belongs in `NANGO_SECRET_KEY`, not in the URL.
+ */
+function nango(env: NodeJS.ProcessEnv, problems: string[]): NangoConfig | null {
+   const secret = (env.NANGO_SECRET_KEY ?? '').trim();
+   const apiKey = (env.NANGO_API_KEY ?? '').trim();
+   if (secret && apiKey && secret !== apiKey) {
+      problems.push('NANGO_SECRET_KEY and NANGO_API_KEY are both set and do not match');
+      return null;
+   }
+   const secretKey = secret || apiKey;
+   const hostRaw = (env.NANGO_HOST ?? '').trim();
+   const webhookSigningKey = (env.NANGO_WEBHOOK_SIGNING_KEY ?? '').trim() || null;
+   if (!secretKey) return null;
+
+   let host = NANGO_CLOUD_HOST;
+   if (hostRaw) {
+      let url: URL;
+      try {
+         url = new URL(hostRaw);
+      } catch {
+         problems.push('NANGO_HOST must be an http or https URL');
+         return null;
+      }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+         problems.push('NANGO_HOST must be an http or https URL');
+         return null;
+      }
+      if (url.username || url.password) {
+         problems.push('NANGO_HOST must not include credentials');
+         return null;
+      }
+      host = url.origin;
+   }
+   return { secretKey, host, webhookSigningKey };
+}
+
 function integrations(env: NodeJS.ProcessEnv): IntegrationsConfig {
    const clientId = (env.GITHUB_CLIENT_ID ?? '').trim();
    const clientSecret = (env.GITHUB_CLIENT_SECRET ?? '').trim();
@@ -768,11 +839,11 @@ function integrations(env: NodeJS.ProcessEnv): IntegrationsConfig {
 const DEVELOPMENT_AUTH_SECRET = 'berry-development-only-auth-secret-do-not-deploy';
 
 /**
- * Sign-in, which is Better Auth with GitHub and nothing else.
+ * Sign-in: Better Auth sessions, GitHub through a GitHub OAuth App.
  *
- * Its GitHub credential has its own names on purpose: GITHUB_CLIENT_ID belongs
- * to the older repository connection, with its own callback. Sign-in's OAuth
- * App asks for `repo` and `workflow` itself (see GITHUB_SIGN_IN_SCOPES in auth/better-auth.ts).
+ * The GitHub OAuth App credential has its own names on purpose: GITHUB_CLIENT_ID
+ * belongs to the older repository connection, with its own callback. Sign-in
+ * asks only for the profile. Repository access is the workspace GitHub connection.
  */
 function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): AuthConfig {
    // Explicit APP_ENV only. `appEnv` defaults to 'development' when unset, and
@@ -797,6 +868,7 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       problems.push('BERRY_AUTH_GITHUB_CLIENT_ID is required with BERRY_AUTH_GITHUB_CLIENT_SECRET');
    }
    const github = clientId && clientSecret ? { clientId, clientSecret } : null;
+
    if (github && !explicit && !development) {
       problems.push('BERRY_AUTH_SECRET is required when GitHub sign-in is configured');
    }

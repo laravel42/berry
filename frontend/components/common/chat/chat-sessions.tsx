@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
@@ -14,13 +14,7 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import {
-   deleteSession,
-   renameSession,
-   setSessionArchived,
-   setSessionPinned,
-   type ChatThread,
-} from '@/lib/chat';
+import { deleteSession, setSessionArchived, setSessionPinned, type ChatThread } from '@/lib/chat';
 
 const failed = (error: unknown, fallback: string) =>
    toast.error(error instanceof BerryApiError ? error.message : fallback);
@@ -35,6 +29,8 @@ interface ChatSessionsProps {
    onSelect: (thread: ChatThread) => void;
    /** Re-read the lists after a change made here. */
    onChanged: () => void;
+   /** Shows the new title at once; the parent saves it and rolls it back on failure. */
+   onRename: (id: string, title: string) => void;
    /** Stop whatever the agent is doing in this conversation. */
    onStop: (thread: ChatThread) => void;
 }
@@ -55,12 +51,14 @@ function SessionRow({
    active,
    onSelect,
    onChanged,
+   onRename,
    onStop,
 }: {
    thread: ChatThread;
    active: boolean;
    onSelect: () => void;
    onChanged: () => void;
+   onRename: (title: string) => void;
    onStop: () => void;
 }) {
    const t = useTranslations('agentsChat.chat');
@@ -96,7 +94,7 @@ function SessionRow({
                   if (event.key === 'Escape') setRenaming(false);
                   if (event.key === 'Enter' && title.trim()) {
                      setRenaming(false);
-                     act(renameSession(thread.id, title.trim()));
+                     onRename(title.trim());
                   }
                }}
                className="w-full rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none"
@@ -128,6 +126,12 @@ function SessionRow({
                   />
                ) : null}
                <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
+               {thread.pinned ? (
+                  <Pin
+                     className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"
+                     aria-label={t('pin')}
+                  />
+               ) : null}
                {thread.unread > 0 ? (
                   <span className="flex-none rounded-sm bg-[var(--shell-line)] px-1.5 tabular-nums text-[var(--shell-text)]">
                      {thread.unread}
@@ -150,7 +154,14 @@ function SessionRow({
                </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-               <DropdownMenuItem onSelect={() => setRenaming(true)}>{t('rename')}</DropdownMenuItem>
+               <DropdownMenuItem
+                  onSelect={() => {
+                     setTitle(thread.topic);
+                     setRenaming(true);
+                  }}
+               >
+                  {t('rename')}
+               </DropdownMenuItem>
                <DropdownMenuItem onSelect={() => act(setSessionPinned(thread.id, !thread.pinned))}>
                   {thread.pinned ? t('unpin') : t('pin')}
                </DropdownMenuItem>
@@ -163,7 +174,12 @@ function SessionRow({
                   <DropdownMenuItem onSelect={onStop}>{t('stop')}</DropdownMenuItem>
                ) : null}
                <DropdownMenuSeparator />
-               <DropdownMenuItem onSelect={() => setDeleting(true)}>{t('delete')}</DropdownMenuItem>
+               <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setDeleting(true)}
+               >
+                  {t('delete')}
+               </DropdownMenuItem>
             </DropdownMenuContent>
          </DropdownMenu>
 
@@ -190,6 +206,7 @@ export function ChatSessions({
    activeId,
    onSelect,
    onChanged,
+   onRename,
    onStop,
 }: ChatSessionsProps) {
    const t = useTranslations('agentsChat.chat');
@@ -207,6 +224,7 @@ export function ChatSessions({
                   active={thread.id === activeId}
                   onSelect={() => onSelect(thread)}
                   onChanged={onChanged}
+                  onRename={(title) => onRename(thread.id, title)}
                   onStop={() => onStop(thread)}
                />
             ))}
@@ -234,6 +252,7 @@ export function ChatSessions({
                      active={thread.id === activeId}
                      onSelect={() => onSelect(thread)}
                      onChanged={onChanged}
+                     onRename={(title) => onRename(thread.id, title)}
                      onStop={() => onStop(thread)}
                   />
                ))}

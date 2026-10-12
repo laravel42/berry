@@ -80,7 +80,7 @@ export default function Header({
 
    return (
       <>
-         <div className="flex w-full items-center justify-between border-b px-6">
+         <div className="flex w-full items-center justify-between border-b px-6 py-0.5">
             <div className="flex min-w-0 items-center gap-1.5">
                <Link
                   href={`/${orgId}/projects`}

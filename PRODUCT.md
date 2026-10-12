@@ -20,7 +20,7 @@ Your team runs Berry on its own infrastructure. The agents run in a separate, is
 - **Review gate.** The point where delivered work stops and waits for a person to approve it or send it back.
 - **Approval.** A yes-or-no decision a person must make before something goes ahead, such as starting a risky task.
 - **Pull request.** A proposed code change on GitHub, which a person can read and merge.
-- **Tier.** On a deployment that reaches models through the Kilo gateway, a named class of models an agent runs on: BerryMax, BerryMid or BerryLow. Berry fills each tier from public benchmark leaderboards, so the models behind a tier change as the leaderboards do.
+- **Tier.** On a deployment that reaches models through the Kilo gateway, a named class of models an agent runs on: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow. Berry fills each tier from public benchmark leaderboards, so the models behind a tier change as the leaderboards do.
 
 ## How to read the status notes
 
@@ -43,9 +43,9 @@ Maya leads a small product team. This morning she wants a CSV export on the invo
 
 **9:40. The work is delivered.** The run finishes. The runtime pushes the branch, and Berry opens a pull request titled with the task key. The pull request description holds the agent's summary and a report of which project checks ran and whether they passed. The task moves to *In review*. The agent's final message also appears as a comment on the task, so Maya doesn't have to go looking for it.
 
-**9:45. Peer agents review first.** The Backend Engineer's role contract requires a QA review, so the QA Engineer agent reads the diff and the checks and approves. The approval doesn't close the task. It stays in review, waiting for a person.
+**9:45. Peer agents review first.** The Backend Engineer's role writes code, so the Reviewer agent reads the diff and the checks and approves. The approval doesn't close the task. It stays in review, waiting for a person.
 
-**10:15. Maya decides.** Maya opens *Reviews*. The pull request, the agent's summary, the checks, the QA verdict and the diff all sit on one screen. The frontend change looks right, so she clicks *Approve* and the task moves to *Done*. On the endpoint she notices the currency is missing. She clicks *Send back* with the note "include the currency column", and the task returns to *Todo*. The agent reads her note on its next run and delivers again, and this time she approves.
+**10:15. Maya decides.** Maya opens *Reviews*. The pull request, the agent's summary, the checks, the Reviewer's verdict and the diff all sit on one screen. The frontend change looks right, so she clicks *Approve* and the task moves to *Done*. On the endpoint she notices the currency is missing. She clicks *Send back* with the note "include the currency column", and the task returns to *Todo*. The agent reads her note on its next run and delivers again, and this time she approves.
 
 **Friday.** The Security Engineer agent runs its weekly discovery and files a proposal: a route is missing an authorization check, and here is the file that shows it. Because the proposal has security impact, Berry doesn't act on it alone. The proposal waits in *Proposals* until an admin accepts it.
 
@@ -305,7 +305,7 @@ You can copy an agent's instructions and skills into a new agent. The copy doesn
 
 ### The Orchestrator and the built-in organization
 
-Every workspace starts with a protected Orchestrator agent and five core role agents, each with a defined job and limits; specialists can be added. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
+Every workspace starts with a protected Orchestrator agent and seven core role agents, each with a defined job and limits; specialists can be added. This is a whole topic of its own; see [section 4](#4-the-agent-organization).
 
 ### Chat with an agent
 
@@ -396,10 +396,12 @@ A deployment can reach models through the Kilo AI gateway instead of calling Ama
 | Tier | What it's for |
 |---|---|
 | BerryMax | Best results: the three best-rated models. |
-| BerryMid | Balanced: the best-rated models that cost less than any BerryMax model. |
+| BerryXHigh | Stronger results: the best-rated models that cost less than any BerryMax model. |
+| BerryHigh | Strong results: the best-rated models that cost less than any BerryXHigh model. |
+| BerryMid | Balanced: the best-rated models that cost less than any BerryHigh model. |
 | BerryLow | Lowest cost: the best-rated models among the cheapest third, preferring those no cheaper model rates better. |
 
-Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier choice shows three large buttons, each with the tier's name and the models it runs today, best first. Ratings, shares and prices choose and spread the work but aren't shown.
+Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier choice is one row of five buttons, each named for its tier. Ratings, shares and prices choose and spread the work but aren't shown on the card.
 
 - **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. A converted rating is an estimate, ranked a little behind a measured rating of the same value. A new version that no leaderboard rates yet, such as Claude Opus 5.5, borrows the rating of the version before it, if it costs no more, until it's measured. Berry reads the leaderboards every hour.
 - **Only rated models** go in the paid tiers, three in each, from the models the organization's own provider keys serve, such as its Amazon Bedrock key. A setting opens them to every provider Kilo serves, billed to the Kilo credit balance. A model that costs as much as a BerryMax model but rates lower is in no tier: that BerryMax model is the better choice.
@@ -424,18 +426,20 @@ Most AI tools give you a pile of bots. Berry gives every workspace an **organiza
 
 ### Who's in it
 
-Each new workspace gets six agents: a protected Orchestrator and five core roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
+Each new workspace gets eight agents: a protected Orchestrator and seven core roles. Every role has a written mission, responsibilities, inputs and outputs, and a model tier. Each role also records suggested turn and token limits for a run, but runs don't enforce them yet.
 
 | Role | Does | Autonomy level | Tier |
 |---|---|---|---|
 | Orchestrator | Sorts incoming work and sends it on | 2 | BerryMid |
 | Product Lead | Specs, research, acceptance criteria; reads the repository | 5 | BerryMid |
 | Product Designer | UI and UX; commits design assets and styles | 3 | BerryMid |
+| Web Designer | Public pages and marketing sites; commits the layout | 3 | BerryMid |
 | Software Engineer | Full stack: code, database, integrations, docs | 4 | BerryMid |
-| QA Engineer | Tests and reviews delivered work, security included | 5 | BerryMid |
+| QA Engineer | Writes and runs tests, including checks for authentication, authorization, secrets and dependencies | 5 | BerryMid |
+| Reviewer | Reviews delivered work and decides whether it meets the task | 5 | BerryMid |
 | DevOps Engineer | Deploys, infrastructure, incidents | 3 | BerryMid |
 
-Thirteen **specialists** stay in the catalogue for when a workspace has deep work in their field: Business Analyst, UX Researcher, Software Architect, Engineering Manager, Backend, Frontend, Database and Integration Engineers, Security Engineer, Site Reliability Engineer, Data & Analytics Engineer, Technical Writer, Growth Engineer and CTO. An owner or admin adds one from the Organization settings page. Until then the core roles cover the work: a review that would call in a specialist the workspace doesn't have goes ahead without it, and a question for a missing CTO goes to a person. Workspaces made before this keep every agent they had (ADR-0018).
+Fourteen **specialists** stay in the catalogue for when a workspace has deep work in their field: Business Analyst, UX Researcher, Software Architect, Engineering Manager, Backend, Frontend, Database and Integration Engineers, Security Engineer, Site Reliability Engineer, Data & Analytics Engineer, Technical Writer, Growth Engineer and CTO. An owner or admin adds one from the Organization settings page. Until then the core roles cover the work: a review that would call in a specialist the workspace doesn't have goes ahead without it, and a question for a missing CTO goes to a person. Workspaces made before this keep every agent they had (ADR-0018).
 
 BerryMax is for the hardest work, BerryMid for most of it and BerryLow for lighter analytical and writing work (see [Models and tiers](#models-and-tiers)). Because a role comes with a tier, picking the right agent for a job also picks a sensible model, and you can still move any agent to another tier. On a deployment that calls Bedrock directly, tiers don't apply: agents use their own model or the workspace default. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
 
@@ -455,7 +459,7 @@ Each role has an **autonomy level**, a hard limit on which tools it can ever use
 | 4 | Autonomous | The same tools as Level 3, but trusted more: only Level 4 and 5 roles can have proposed work accepted without a person deciding (and only routine, low-risk work). |
 | 5 | Authority | Everything in Level 3, plus submit a review verdict. Whether it blocks or only advises is set by the reviewed agent's contract. |
 
-Each agent's Role and Permissions tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused.
+Each agent's Role and Permissions tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused. Before any other tool, the agent calls `list_run_tools` on the berry MCP server. That reply is the only set of tools the run may use, and every other call is refused until it comes back.
 
 ### No agent merges or closes work
 
@@ -475,14 +479,14 @@ Any role can stop and ask for a decision it doesn't own, marking it as a product
 
 Berry works out every role's reviewers itself; they can't be edited. Every role that writes code (any role that can run commands) is given:
 
-- **QA Engineer:** a blocking reviewer on everything.
+- **Reviewer:** a blocking reviewer on everything. It does not review its own runs, and it does not implement the change.
 - **Security Engineer:** blocking when the *security* label is set or security-sensitive areas change, such as sign-in, integrations, secrets, container definitions or cloud permissions.
 - **Software Architect:** blocking on the *architecture* label or on core structural areas such as database migrations and the server's HTTP and runtime layers.
 - **Database Engineer** (database changes) and **Product Designer** (interface changes): advisory reviewers who comment but don't block.
 
 On top of that, some reviewers depend on how a task came in. The Product Lead blocks any task routed into the full-delivery workflow, and any task from an accepted proposal with product impact. The Security Engineer blocks tasks from accepted proposals with security impact, the Software Architect those with architectural impact, and the CTO those whose architectural impact is critical. A task a person wrote carries no impact kinds, so these impact rules apply only to proposed work.
 
-Only the Level 5 roles (Product Lead, Software Architect, QA Engineer, Security Engineer and CTO) can submit a review verdict, and only in their own areas. A reviewer can never approve its own run. A rejection must cite findings with evidence. The Security Engineer's findings must also state how the issue could be exploited, its impact and how to fix it. The verdicts appear on the task and in the Reviews page.
+Only the Level 5 roles (Product Lead, Software Architect, QA Engineer, Reviewer, Security Engineer and CTO) can submit a review verdict, and only in their own areas. A reviewer can never approve its own run. A rejection must cite findings with evidence. The Security Engineer's findings must also state how the issue could be exploited, its impact and how to fix it. The verdicts appear on the task and in the Reviews page.
 
 > **Needs setup:** each required review is a model call made through the agent runtime, and it happens only when the delivered work includes a pull request. Without a runtime, no required reviews run and the task simply waits in review for a person.
 
@@ -606,6 +610,8 @@ A project can be linked to exactly one existing GitHub repository, chosen by nam
 > **Needs setup:** looking up a repository by name needs working GitHub access.
 
 ### Delivery: branch, commit and pull request
+
+Before a run finishes, the agent writes a handoff at `.handoffs/<task key> - <slug of the title>` in the repository (for example `.handoffs/BER-12 - add-the-clock`). The first line of that file is the same path. Berry commits it with the run. A later task that waits on this one is told to read that file, and not to inventory the other files the run produced. A run does not delete any other file under `.handoffs/`. The root file `HANDOFF.md` is not a handoff.
 
 When an agent's run ends with a committed change, **the runtime's own delivery step pushes the branch, not the agent's model.** The push is a safe one that won't overwrite someone else's newer changes. Berry then opens the pull request with the workspace's GitHub access, titled with the task key and title. The description contains the agent's summary and a verification report: which checks ran, whether they passed, and whether the checks ran out of time. A run that changed nothing is recorded as such, and no empty pull request is opened. You don't have to do anything: the task moves to *In review*, and the pull request shows on the Reviews page. If the pull request can't be opened, the run is marked as failed instead.
 

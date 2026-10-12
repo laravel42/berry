@@ -15,6 +15,7 @@ import { health, type Health, type Project } from '@/data/projects';
 import { status as issueStatuses, type Status } from '@/data/status';
 import type { User } from '@/data/users';
 import type { Goal } from '@/lib/goals';
+import { leadToApi } from '@/lib/project-lead';
 import { useApprovalsStore } from '@/store/approvals-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useGoalsStore } from '@/store/goals-store';
@@ -276,7 +277,7 @@ export function apiProject(project: Project) {
       startDate: project.startDate,
       targetDate: project.targetDate ?? null,
       githubRepo: project.githubRepo ?? null,
-      lead: { type: 'user', id: project.lead.id },
+      lead: project.lead ? leadToApi(project.lead) : null,
       createdBy: project.createdById ? { type: 'user', id: project.createdById } : null,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,

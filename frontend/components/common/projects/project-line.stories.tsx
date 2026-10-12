@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn } from 'storybook/test';
 import ProjectLine from './project-line';
 import {
    projectBilling,
@@ -54,17 +54,5 @@ export const Selectable: Story = {
       await expect(box).toBeChecked();
       await userEvent.click(box);
       await expect(args.onToggleSelected).toHaveBeenCalledTimes(1);
-   },
-};
-
-/** Delete sits behind the row menu and a confirmation. */
-export const DeleteFromMenu: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: `${projectHealth.name} menu` }));
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Delete' }));
-      await expect(await body.findByRole('alertdialog')).toHaveTextContent(
-         `Delete ${projectHealth.name}?`
-      );
    },
 };

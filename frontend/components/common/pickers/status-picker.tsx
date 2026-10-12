@@ -1,7 +1,7 @@
 'use client';
 
 import { status as issueStatuses, type Status } from '@/data/status';
-import { OptionPicker, PickerChipButton, PickerIconButton } from './option-picker';
+import { OptionPicker, PickerChipButton, PickerIconButton, PickerRowButton } from './option-picker';
 
 /** A status and the word this surface uses for it (a project says "Planned" for Todo). */
 export interface StatusOption {
@@ -23,9 +23,10 @@ interface StatusPickerProps {
    /**
     * `icon`: the status mark alone on a 28px ghost square, for rows and
     * property panels. `chip`: mark and label on a secondary chip, for the
-    * property row of a create dialog.
+    * property row of a create dialog. `row`: mark and label across the whole
+    * row, for the project sidebar.
     */
-   variant: 'icon' | 'chip';
+   variant: 'icon' | 'chip' | 'row';
    /** How many tasks are in a status, shown after each option. Omit for no counts. */
    countFor?: (statusId: string) => number;
 }
@@ -57,6 +58,11 @@ export function StatusPicker({ status, options, onChange, variant, countFor }: S
             <PickerIconButton aria-label={`Change status, current ${status.name}`}>
                <status.icon />
             </PickerIconButton>
+         ) : variant === 'row' ? (
+            <PickerRowButton aria-label={`Change status, current ${status.name}`}>
+               <status.icon />
+               <span className="truncate">{chipLabel}</span>
+            </PickerRowButton>
          ) : (
             <PickerChipButton>
                <status.icon />

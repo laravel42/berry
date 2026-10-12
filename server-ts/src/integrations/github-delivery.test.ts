@@ -49,6 +49,48 @@ test('blob uploads run in bounded parallel waves', async () => {
    assert.equal(run.maxActiveBlobs(), 8, 'the provider sees at most one eight-file wave');
 });
 
+test('delivery onto the empty tree lists no parent files when GitHub has no object for it', async () => {
+   const empty = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
+   const writes: Array<{ path: string; body: Record<string, unknown> }> = [];
+   const client = new GitHubClient({
+      token: 'delivery-secret',
+      fetch: (async (url, init) => {
+         const path = new URL(String(url)).pathname;
+         const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+         if (init?.method !== 'GET') writes.push({ path, body });
+         if (path.includes('/git/commits/') && init?.method === 'GET') {
+            return new Response(JSON.stringify({ tree: { sha: empty } }));
+         }
+         if (path.endsWith(`/git/trees/${empty}`)) {
+            return new Response(JSON.stringify({ message: 'Not Found' }), { status: 404 });
+         }
+         if (path.endsWith('/git/blobs')) return new Response(JSON.stringify({ sha: 'blob' }));
+         if (path.endsWith('/git/trees')) return new Response(JSON.stringify({ sha: 'new-tree' }));
+         if (path.endsWith('/git/commits')) return new Response(JSON.stringify({ sha: 'new-commit' }));
+         if (path.includes('/git/trees/new-tree')) {
+            return new Response(JSON.stringify({
+               truncated: false,
+               tree: [{ path: 'src/game.ts', type: 'blob', mode: '100644', sha: 'blob' }],
+            }));
+         }
+         if (path.endsWith('/git/refs') || path.includes('/git/ref/heads/')) {
+            return new Response(JSON.stringify({ object: { sha: 'new-commit' } }));
+         }
+         return new Response(JSON.stringify({ message: 'unexpected' }), { status: 500 });
+      }) as typeof fetch,
+   });
+   const result = await client.publishCandidate({
+      ...input,
+      baseCommit: 'a'.repeat(40),
+      defaultCommit: 'a'.repeat(40),
+      expectedHead: null,
+      files: [{ path: 'src/game.ts', mode: '100644', content: Buffer.from('play').toString('base64') }],
+   });
+   assert.deepEqual(result.files, ['src/game.ts']);
+   const tree = writes.find((entry) => entry.path.endsWith('/git/trees'));
+   assert.equal(tree?.body.base_tree, undefined);
+});
+
 test('a changed remote branch is never overwritten', async () => {
    const { client, writes } = harness('human-change');
    await assert.rejects(client.publishCandidate(input), /branch changed/);

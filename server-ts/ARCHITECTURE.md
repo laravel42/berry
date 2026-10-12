@@ -69,7 +69,7 @@ what a folder is allowed to do.
 | `core/` | The tracker itself: `boards`, `issues`, `comments`, `dependencies`, `reviews`, `goals`, `projects`, `attachments`. | domain |
 | `organization/` | The role catalog, autonomy ceilings, provisioning, discovery and work proposals. See [below](#the-organization). | domain |
 | `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
-| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryMid and BerryLow (BerryFree and BerryAuto were removed on 2026-09-27), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
+| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow (BerryFree and BerryAuto were removed on 2026-09-27), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
 | `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
 | `agents/runtime/` | Code that runs *inside* the runtime image, never imported as a model SDK by the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes. Kiro is the one that runs: the product server starts `kiro-cli acp --agent-engine=v3` on the workstation (`runtime/workstation-kiro.ts`), and the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; Kiro does not) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
@@ -230,7 +230,14 @@ them:
    tools (`set_status`, `read_file`, `list_files`, …) never allow an agent to
    set a task to `done` or `cancelled`; organization tools
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
-   separately.
+   separately. Subscription runtimes receive those tools from the berry MCP
+   server (`src/agents/runtime/adapters/kiro-mcp.ts`). The task prompt tells
+   the agent to call `list_run_tools` on that server before anything else;
+   the server and the in-process loop refuse every other tool until that
+   call succeeds (`src/agents/runtime/run-tools.ts`). A finished run writes
+   its handoff at `.handoffs/<identifier> - <slug>` (`src/runs/handoff.ts`).
+   A later task that depends on it is told that path. The root file
+   `HANDOFF.md` is not a handoff.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
    from `src/agents/runtime/` (the native Strands loop and Bedrock/Kilo
    clients) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
@@ -243,7 +250,7 @@ them:
 ## The organization
 
 Every workspace is provisioned with an "organization": a protected
-Orchestrator agent plus five core roles; thirteen more are specialists a
+Orchestrator agent plus seven core roles; fourteen more are specialists a
 person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 `CATALOG_VERSION`). Each role has a mission, a contract, an **autonomy level**
 (1–5), delegation and escalation rules, and required reviewers.
@@ -258,8 +265,9 @@ person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 - **Reviews** (`src/organization/reviews.ts`) — required reviewers are
   selected from the author's contract plus labels, changed paths, impact
   class and workflow, with `blocking` or `advisory` authority (for example,
-  QA is always blocking; security and architecture are blocking on matching
-  labels or paths). `submit_review` (autonomy level 5 only) records a
+  `reviewer` is always blocking for a role that can run commands; security
+  and architecture are blocking on matching labels or paths). QA writes and
+  runs tests. `submit_review` (autonomy level 5 only) records a
   blocking review; approval never releases work by itself.
 - **Provisioning** (`src/organization/provision.ts`) — idempotent per
   `role_key`, runs at boot for every workspace; a person-edited contract

@@ -18,6 +18,8 @@
  * empty.
  *
  * - BerryMax: the three best rated, at any price.
+ * - BerryXHigh: the best rated of what remains, priced below Max's cheapest.
+ * - BerryHigh: the best rated of what remains, priced below xHigh's cheapest.
  * - BerryLow: the best among the cheap, the cheapest third of rated models
  *   by price (`LOW_PRICE_SHARE`). Models that earn their place come first:
  *   not outclassed (no other eligible model rates at least as well for less —
@@ -25,7 +27,8 @@
  *   higher at a ninth of its price), and at least a quarter of the best
  *   rating (`LOW_FLOOR`). Fewer than three of those, and the best rated of
  *   the rest fill it, so no role is left on one model.
- * - BerryMid: the best rated of the rest priced below Max's cheapest.
+ * - BerryMid: the best rated of the rest priced below High's cheapest.
+ *   A model below a quarter of the best rating stays out of xHigh, High and Mid.
  *
  *   A model priced at or above Max's cheapest, and not in Max, is in no tier:
  *   a Max model is rated higher for no more money. Only when no model is
@@ -37,7 +40,7 @@
 
 import { TIERS, type Tier } from '../model-tiers.ts';
 
-export { TIERS, TIER_NAMES, type RoleTier, type Tier } from '../model-tiers.ts';
+export { TIERS, TIER_NAMES, isTier, type RoleTier, type Tier } from '../model-tiers.ts';
 
 /**
  * A deployment's own say over the tiers (`BERRY_KILO_EXCLUDE`, `BERRY_KILO_PREFER`),
@@ -59,11 +62,11 @@ export interface TierPolicy {
     */
    anyProvider?: boolean;
    /**
-    * Models a person placed in a paid tier (`BERRY_KILO_MAX|MID|LOW`): each
-    * takes one of the tier's three places whatever its rating, and the rule
-    * fills the rest. Placed models are in no other tier.
+    * Models a person placed in a paid tier (`BERRY_KILO_MAX|XHIGH|HIGH|MID|LOW`):
+    * each takes one of the tier's three places whatever its rating, and the
+    * rule fills the rest. Placed models are in no other tier.
     */
-   place?: Partial<Record<'berry_max' | 'berry_mid' | 'berry_low', readonly string[]>>;
+   place?: Partial<Record<Tier, readonly string[]>>;
 }
 
 /** The models placed in each tier, its first choices in order; an empty list leaves the tier to the leaderboard. */
@@ -276,6 +279,8 @@ export function rankTiers(
          .slice(0, TIER_SIZE);
    const placed = {
       berry_max: placedIn(policy.place?.berry_max),
+      berry_xhigh: placedIn(policy.place?.berry_xhigh),
+      berry_high: placedIn(policy.place?.berry_high),
       berry_mid: placedIn(policy.place?.berry_mid),
       berry_low: placedIn(policy.place?.berry_low),
    };
@@ -310,8 +315,17 @@ export function rankTiers(
       (model) => blendedPrice(model) <= cheap,
       (a, b) => Number(earns.has(b.id)) - Number(earns.has(a.id)) || byRating(a, b)
    );
-   const maxCheapest = max.length > 0 ? Math.min(...max.map(blendedPrice)) : Number.POSITIVE_INFINITY;
-   const mid = pick('berry_mid', (model) => blendedPrice(model) < maxCheapest, byRating);
+   const cheapestOf = (models: GatewayModel[], fallback: number) =>
+      models.length > 0 ? Math.min(...models.map(blendedPrice)) : fallback;
+   const maxCheapest = cheapestOf(max, Number.POSITIVE_INFINITY);
+   // A model below a quarter of the best rating stays in no tier. One a
+   // cheaper model outrates can still fill a place, the same way Mid did.
+   const floor = best * LOW_FLOOR;
+   const below = (ceiling: number) => (model: GatewayModel) =>
+      rankingRating(model) >= floor && blendedPrice(model) < ceiling;
+   const xhigh = pick('berry_xhigh', below(maxCheapest), byRating);
+   const high = pick('berry_high', below(cheapestOf(xhigh, maxCheapest)), byRating);
+   const mid = pick('berry_mid', below(cheapestOf(high, cheapestOf(xhigh, maxCheapest))), byRating);
 
    // Only when no model is rated at all does Low rank the unrated by real
    // usage per dollar: every paid tier would otherwise be empty, and every
@@ -325,6 +339,8 @@ export function rankTiers(
 
    return {
       berry_max: compose('berry_max', max).map((model) => ranked(model, usage)),
+      berry_xhigh: compose('berry_xhigh', xhigh).map((model) => ranked(model, usage)),
+      berry_high: compose('berry_high', high).map((model) => ranked(model, usage)),
       berry_mid: compose('berry_mid', mid).map((model) => ranked(model, usage)),
       berry_low: compose('berry_low', low).slice(0, TIER_SIZE).map((model) => ranked(model, usage)),
    };
@@ -343,9 +359,11 @@ export function tierOf(pools: TierPools, modelId: string): Tier | null {
  * price first, so an empty BerryLow falls to Mid rather than to Max.
  */
 export const TIER_FALLBACK: Record<Tier, Tier[]> = {
-   berry_max: ['berry_max', 'berry_mid', 'berry_low'],
-   berry_mid: ['berry_mid', 'berry_low', 'berry_max'],
-   berry_low: ['berry_low', 'berry_mid', 'berry_max'],
+   berry_max: ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'],
+   berry_xhigh: ['berry_xhigh', 'berry_high', 'berry_mid', 'berry_low', 'berry_max'],
+   berry_high: ['berry_high', 'berry_mid', 'berry_low', 'berry_xhigh', 'berry_max'],
+   berry_mid: ['berry_mid', 'berry_low', 'berry_high', 'berry_xhigh', 'berry_max'],
+   berry_low: ['berry_low', 'berry_mid', 'berry_high', 'berry_xhigh', 'berry_max'],
 };
 
 /** Today's first choice for a tier, falling back as `TIER_FALLBACK` says; null only when every fallback is empty. */
@@ -371,7 +389,9 @@ export function isGatewayModelId(id: string): boolean {
  * below it, so it falls back within itself, then up.
  */
 export const FALLBACK_SOURCE: Record<Tier, Tier[]> = {
-   berry_max: ['berry_mid', 'berry_low'],
+   berry_max: ['berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'],
+   berry_xhigh: ['berry_high', 'berry_mid', 'berry_low', 'berry_xhigh'],
+   berry_high: ['berry_mid', 'berry_low', 'berry_high'],
    berry_mid: ['berry_low', 'berry_mid'],
    berry_low: ['berry_low', 'berry_mid'],
 };

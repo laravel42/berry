@@ -117,7 +117,7 @@ export default function MemberProfile({ member }: { member: User }) {
    );
 
    const memberProjects = useMemo(() => {
-      const led = workspaceProjects.filter((project) => project.lead.id === member.id);
+      const led = workspaceProjects.filter((project) => project.lead?.id === member.id);
       const fromIssues = displayedIssues
          .map((issue) => issue.project)
          .filter((project): project is NonNullable<typeof project> => Boolean(project));

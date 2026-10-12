@@ -5,8 +5,8 @@ import { useMembersStore } from '@/store/members-store';
  * Who leads a project, on the wire.
  *
  * Two shapes because the two answers are not alike: a person has an id, and the
- * AI workflow is not a row anywhere. `null` from the server means nobody has
- * decided — true of every project created before the lead was stored at all.
+ * AI workflow is not a row anywhere. `null` from the server means nobody leads
+ * the project.
  *
  * Read loosely on purpose: `type` is a plain string here rather than a literal
  * union, so a value this build does not know degrades to the fallback instead of
@@ -47,22 +47,17 @@ export function leadToApi(lead: User): ApiProjectLead {
 }
 
 /**
- * The stored lead as a `User` the UI can render.
+ * The stored lead as a `User` the UI can render, or null when nobody leads it.
  *
- * `viewer` is the last resort, not the answer: it stands in only for a project
- * that recorded no lead, which is what every project created before the columns
- * existed looks like. Filling that gap with whoever is looking is exactly the
- * bug this API field fixes, so it must not be reached for a project that does
- * carry a lead — a person Berry cannot name is shown as an unnamed member with
- * their real id, not as you.
+ * A person Berry cannot name is shown as an unnamed member with their real id.
  */
-export function leadFromApi(lead: ApiProjectLead | null | undefined, viewer: User): User {
-   if (!lead) return viewer;
+export function leadFromApi(lead: ApiProjectLead | null | undefined): User | null {
+   if (!lead) return null;
    if (lead.type === 'aiWorkflow') return AI_WORKFLOW_LEAD;
    if (lead.type === 'user' && lead.id) {
       return useMembersStore.getState().getMemberById(lead.id) ?? unknownMember(lead.id);
    }
-   return viewer;
+   return null;
 }
 
 /**

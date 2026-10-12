@@ -57,7 +57,7 @@ function byAccount(repositories: PickerRepository[]): Array<[string, PickerRepos
 }
 
 /**
- * Choose repositories the GitHub App can reach and add them to the workspace.
+ * Choose repositories the GitHub connection can reach and add them to the workspace.
  *
  * Every connected account is listed, grouped by account, and the search box
  * crosses all of them — the account selector narrows rather than being the only
@@ -194,8 +194,8 @@ export function GitHubImportPicker({
             <DialogHeader>
                <DialogTitle>Import from GitHub</DialogTitle>
                <DialogDescription>
-                  Repositories the Berry GitHub App can reach, across every account it is installed
-                  on. Pick the ones this workspace works in.
+                  Repositories this GitHub connection can reach. Pick the ones this workspace works
+                  in.
                </DialogDescription>
             </DialogHeader>
 

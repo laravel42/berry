@@ -291,7 +291,7 @@ export class KiloCatalog {
       return this.#policy;
    }
 
-   /** The models the deployment placed in each tier (`BERRY_KILO_MAX|MID|LOW`): a workspace's own placement replaces them. */
+   /** The models the deployment placed in each tier (`BERRY_KILO_MAX|XHIGH|HIGH|MID|LOW`): a workspace's own placement replaces them. */
    get deploymentPlacement(): TierPlacement {
       const place = this.#policy.place ?? {};
       return Object.fromEntries(TIERS.map((tier) => [tier, [...(place[tier] ?? [])]])) as TierPlacement;

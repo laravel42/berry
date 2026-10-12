@@ -95,12 +95,27 @@ export const RejectedWhileInReview: Story = {
 
 export const StillReading: Story = {
    beforeEach: ({ msw }) => {
-      msw.use(answer([review({ approved: null, inProgress: true, decidedAt: null, reason: '' })]));
+      msw.use(
+         answer([
+            review({
+               id: 'review-live',
+               approved: null,
+               inProgress: true,
+               decidedAt: null,
+               reason: '',
+            }),
+            review(),
+         ])
+      );
    },
    play: async ({ canvas }) => {
+      // The sidebar owns the live "reading" state. A written verdict still shows.
       await expect(
-         await canvas.findByText('QA Engineer is reading what Frontend Engineer produced.')
+         await canvas.findByText(/old page redirects with the query kept/)
       ).toBeInTheDocument();
+      await expect(
+         canvas.queryByText('QA Engineer is reading what Frontend Engineer produced.')
+      ).not.toBeInTheDocument();
    },
 };
 

@@ -13,7 +13,8 @@ export interface Project {
    startDate: string;
    /** Planned completion date (Linear "Target date"). */
    targetDate?: string;
-   lead: User;
+   /** Absent when nobody has been chosen to lead the project. */
+   lead: User | null;
    priority: Priority;
    health: Health;
    /** Owning team (see data/teams.ts). */

@@ -26,7 +26,7 @@ export function writesCode(contract: Pick<RoleContract, 'allowed_tools'>): boole
 
 /**
  * Who reviews a role's work, and with what authority. A role that writes code
- * is always reviewed by QA, and by a specialist when its change touches that
+ * is always reviewed by the Reviewer, and by a specialist when its change touches that
  * specialist's paths or labels; any role's proposals are reviewed by the
  * owner of their impact. A role never reviews itself.
  */
@@ -38,7 +38,7 @@ export function deriveReviewRequirements(
       if (rule.reviewer !== contract.id) rules.push(rule);
    };
    if (writesCode(contract)) {
-      add({ reviewer: 'qa-engineer', authority: 'blocking', when: { always: true } });
+      add({ reviewer: 'reviewer', authority: 'blocking', when: { always: true } });
       add({ reviewer: 'security-engineer', authority: 'blocking', when: { labels_any: ['security'], paths_any: CODE_PATHS.security } });
       add({ reviewer: 'software-architect', authority: 'blocking', when: { labels_any: ['architecture'], paths_any: CODE_PATHS.architecture } });
       add({ reviewer: 'database-engineer', authority: 'advisory', when: { paths_any: CODE_PATHS.database } });

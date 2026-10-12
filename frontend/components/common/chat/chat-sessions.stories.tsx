@@ -15,6 +15,7 @@ const meta = {
       activeId: 'conv-1',
       onSelect: fn(),
       onChanged: fn(),
+      onRename: fn(),
       onStop: fn(),
    },
    decorators: [
@@ -36,6 +37,7 @@ export const Sessions: Story = {
       await expect(canvas.getByRole('button', { current: true })).toHaveTextContent(
          'Project health migration'
       );
+      await expect(canvas.getByLabelText('Pin')).toBeVisible();
       await expect(canvas.getByText('No messages yet')).toBeVisible();
    },
 };

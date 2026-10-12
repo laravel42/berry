@@ -384,7 +384,7 @@ export function describeGitHubFailure(error: unknown): string {
          case 'FORBIDDEN':
             return 'Only a workspace admin can change GitHub settings.';
          case 'NOT_CONNECTED':
-            return 'Install the GitHub App for this workspace first.';
+            return 'Connect GitHub for this workspace first.';
          case 'NOT_FOUND':
             return 'That account is not connected to this workspace.';
          case 'GITHUB_SIGN_IN_AGAIN':
@@ -392,7 +392,7 @@ export function describeGitHubFailure(error: unknown): string {
          case 'GITHUB_NOT_LINKED':
             return 'This account has no GitHub sign-in linked, so Berry cannot ask GitHub what it was granted.';
          case 'CONNECTION_UNUSABLE':
-            return 'The GitHub App needs attention before it can list repositories.';
+            return 'GitHub needs attention before it can list repositories.';
          case 'INTEGRATIONS_NOT_CONFIGURED':
             return 'This deployment cannot hold a GitHub credential.';
          case 'PROVIDER_ERROR':

@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
-import { access, chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Tool } from '@strands-agents/sdk';
-import { isKiroApiKey } from '../../../runtime/envelope.ts';
+import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
@@ -54,11 +54,11 @@ interface NormalizationState {
 /**
  * Kiro CLI V3 as a process on the user's workstation.
  *
- * Each run gets an empty home directory, so another person's `kiro-cli login`
- * cannot win authentication precedence. The subscription API key is passed
- * only as `KIRO_API_KEY` and as the answer to `_kiro/auth/getAccessToken`.
- * Native shell and file tools are denied. Berry tools are the MCP server Kiro
- * is allowed to call.
+ * The login stays in the CLI. Berry starts `acp --agent-engine=v3` with
+ * `--auth-method cli` and the workstation home, and does not read or store
+ * that credential. Native shell and file tools are denied. Berry tools are
+ * the MCP server Kiro is allowed to call. Berry skills live under
+ * `.berry/skills/`.
  */
 export class KiroAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -94,12 +94,11 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       if (this.#principalIsolation === 'shared_process') return this.#isolatedAvailability();
       const home = await mkdtemp(join(tmpdir(), 'berry-kiro-'));
       await chmod(home, 0o700);
-      await exposeKiroChat(home);
       const child = this.#launch({
          command: this.#command,
          args: ['--version'],
          cwd: home,
-         env: childEnvironment(home, null),
+         env: childEnvironment(join(home, 'kiro.log')),
       });
       let version = '';
       const read = (async () => {
@@ -124,45 +123,38 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
    }
 
    async connectionStatus(credential: RuntimeCredential | null): Promise<RuntimeConnectionStatus> {
-      if (!credential) {
-         return { status: 'missing', accountId: null, accountName: null, detail: 'Paste a Kiro API key first.' };
-      }
-      if (!usableKey(credential)) {
-         return {
-            status: 'error',
-            accountId: credential.accountId,
-            accountName: credential.accountName,
-            detail: 'Kiro needs a subscription API key.',
-         };
-      }
+      this.#assertLogin(credential);
       try {
-         await this.discoverModels(credential);
-         return {
-            status: 'connected',
-            accountId: credential.accountId,
-            accountName: credential.accountName ?? 'Kiro subscription',
-            detail: null,
-         };
-      } catch (cause) {
-         if (
-            cause instanceof RuntimeAdapterError &&
-            (cause.code === 'RUNTIME_NOT_INSTALLED' || cause.code === 'RUNTIME_ISOLATION_REQUIRED')
-         ) {
-            throw cause;
-         }
-         if (cause instanceof RuntimeAdapterError && (cause.code === 'AUTH_EXPIRED' || cause.code === 'AUTH_REQUIRED')) {
+         const status = await this.#loginStatus();
+         if (!status.loggedIn) {
             return {
-               status: 'expired',
-               accountId: credential.accountId,
-               accountName: credential.accountName,
-               detail: cause.message,
+               status: 'missing',
+               accountId: null,
+               accountName: null,
+               detail: 'Run `kiro login` on this workstation, then connect again.',
+            };
+         }
+         if (status.apiKey) {
+            return {
+               status: 'error',
+               accountId: status.accountId,
+               accountName: status.accountName,
+               detail: 'Kiro CLI is signed in with an API key. Run `kiro login` with the subscription account.',
             };
          }
          return {
+            status: 'connected',
+            accountId: status.accountId,
+            accountName: status.accountName ?? 'Kiro',
+            detail: null,
+         };
+      } catch (cause) {
+         if (cause instanceof RuntimeAdapterError && cause.code === 'RUNTIME_NOT_INSTALLED') throw cause;
+         return {
             status: 'error',
-            accountId: credential.accountId,
-            accountName: credential.accountName,
-            detail: cause instanceof Error ? cause.message : 'Kiro could not verify this key.',
+            accountId: credential?.accountId ?? null,
+            accountName: credential?.accountName ?? null,
+            detail: cause instanceof Error ? cause.message : 'Kiro CLI could not report its login.',
          };
       }
    }
@@ -172,12 +164,23 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
    }
 
    async discoverModels(credential: RuntimeCredential): Promise<RuntimeModel[]> {
-      this.#assertKey(credential);
+      this.#assertLogin(credential);
       this.#assertIsolated();
+      const status = await this.#loginStatus();
+      if (!status.loggedIn) {
+         throw new RuntimeAdapterError('AUTH_REQUIRED', 'Run `kiro login` on this workstation, then connect again.', false);
+      }
+      if (status.apiKey) {
+         throw new RuntimeAdapterError(
+            'AUTH_REQUIRED',
+            'Kiro CLI is signed in with an API key. Run `kiro login` with the subscription account.',
+            false
+         );
+      }
       const home = await mkdtemp(join(tmpdir(), 'berry-kiro-'));
       await chmod(home, 0o700);
       try {
-         return await this.#withClient(credential, home, async (client) => {
+         return await this.#withClient(home, async (client) => {
             await client.request('initialize', initializeParams(), HANDSHAKE_MS);
             const created = await client.request(
                'session/new',
@@ -212,11 +215,10 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          throw new RuntimeAdapterError('RUNTIME_PROTOCOL', 'The Kiro task envelope is incomplete.', false);
       }
       const model = runtime.model;
-      this.#assertKey(input.credential);
+      this.#assertLogin(input.credential);
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
-      await writePermissions(input.stateDirectory);
       const allowed = new Set(input.tools.map((tool) => tool.name));
       const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
       let pendingUsage: LifecycleEvent | null = null;
@@ -231,7 +233,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       const socketPath = kiroMcpSocketPath();
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
-      const client = await this.#open(input.credential, input.stateDirectory, handlers);
+      const client = await this.#open(input.stateDirectory, handlers);
       let sessionId = '';
       let timedOut = false;
       const abort = () => {
@@ -327,7 +329,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
             );
          }
          if (cause instanceof RuntimeAdapterError) throw cause;
-         const text = redactSecret(cause instanceof Error ? cause.message : 'Kiro CLI failed.', input.credential.token);
+         const text = redactSecret(cause instanceof Error ? cause.message : 'Kiro CLI failed.', '');
          throw classifyKiroText(text);
       } finally {
          if (deadline) clearTimeout(deadline);
@@ -338,12 +340,8 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       }
    }
 
-   async #withClient<T>(
-      credential: RuntimeCredential,
-      home: string,
-      operation: (client: KiroAcpClient) => Promise<T>
-   ): Promise<T> {
-      const client = await this.#open(credential, home);
+   async #withClient<T>(home: string, operation: (client: KiroAcpClient) => Promise<T>): Promise<T> {
+      const client = await this.#open(home);
       try {
          return await operation(client);
       } finally {
@@ -352,35 +350,72 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
    }
 
    async #open(
-      credential: RuntimeCredential,
       home: string,
       handlers: { onUpdate: (params: unknown) => void; onPermission: (params: unknown) => unknown } = {
          onUpdate: () => undefined,
          onPermission: (params) => selectKiroPermission(params, new Set()),
       }
    ): Promise<KiroAcpClient> {
-      await exposeKiroChat(home);
-      // v3 rejects `--agent`. The CLI's own default agent is the one that runs.
-      const args = ['acp', '--agent-engine=v3'];
+      // v3 rejects `--agent`. `cli` reads the workstation login and does not
+      // ask this process for an access token.
+      const args = ['acp', '--agent-engine=v3', '--auth-method', 'cli'];
       const child = this.#launch({
          command: this.#command,
          args,
          cwd: home,
-         env: childEnvironment(home, credential.token),
+         env: childEnvironment(join(home, 'kiro.log')),
       });
-      const client = new KiroAcpClient(child, credential.token, handlers);
+      const client = new KiroAcpClient(child, '', handlers);
       client.start();
       return client;
    }
 
-   #assertKey(credential: RuntimeCredential): void {
-      if (!usableKey(credential)) {
+   #assertLogin(credential: RuntimeCredential | null): asserts credential is RuntimeCredential {
+      if (!credential || credential.type !== 'oauth' || credential.token !== KIRO_CLI_LOGIN) {
          throw new RuntimeAdapterError(
             'AUTH_REQUIRED',
-            'Kiro needs the subscription API key from a Pro, Pro+, Pro Max, or Power plan. Reconnect it in AI Runtimes settings.',
+            'Run `kiro login` on this workstation, then connect again.',
             false
          );
       }
+   }
+
+   async #loginStatus(): Promise<{
+      loggedIn: boolean;
+      accountId: string | null;
+      accountName: string | null;
+      apiKey: boolean;
+   }> {
+      this.#assertIsolated();
+      const home = homedir();
+      const child = this.#launch({
+         command: this.#command,
+         args: ['whoami', '--format', 'json'],
+         cwd: home,
+         env: childEnvironment(join(home, 'kiro-whoami.log')),
+      });
+      let stdout = '';
+      try {
+         for await (const line of child.lines()) stdout += `${line}\n`;
+      } catch (cause) {
+         const error = cause as NodeJS.ErrnoException;
+         if (error.code === 'ENOENT') throw new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'kiro-cli is not installed on this workstation.', false);
+         throw cause;
+      }
+      const exit = await child.exited;
+      if (exit.error && (exit.error as NodeJS.ErrnoException).code === 'ENOENT') {
+         throw new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'kiro-cli is not installed on this workstation.', false);
+      }
+      const account = readWhoami(stdout);
+      if (!account || exit.code !== 0) {
+         return { loggedIn: false, accountId: null, accountName: null, apiKey: false };
+      }
+      return {
+         loggedIn: true,
+         accountId: account.accountType,
+         accountName: accountLabel(account.accountType),
+         apiKey: /api/i.test(account.accountType) && /key/i.test(account.accountType),
+      };
    }
 
    #assertIsolated(): void {
@@ -414,26 +449,6 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
    }
 }
 
-function usableKey(credential: RuntimeCredential): boolean {
-   return credential.type === 'api_key' && isKiroApiKey(credential.token);
-}
-
-/**
- * `kiro-cli acp` launches `kiro-cli-chat` from `$HOME/.local/bin`. The run's
- * home is empty so another login cannot win, so the chat binary is linked in.
- */
-async function exposeKiroChat(home: string): Promise<void> {
-   const source = join(homedir(), '.local', 'bin', 'kiro-cli-chat');
-   try {
-      await access(source);
-   } catch {
-      return;
-   }
-   const directory = join(home, '.local', 'bin');
-   await mkdir(directory, { recursive: true, mode: 0o700 });
-   await symlink(source, join(directory, 'kiro-cli-chat')).catch(() => undefined);
-}
-
 function initializeParams(): unknown {
    return {
       protocolVersion: 1,
@@ -451,46 +466,51 @@ function berryMcpServer(socketPath: string): unknown {
    };
 }
 
-function childEnvironment(home: string, token: string | null): Record<string, string> {
-   const allowed = ['PATH', 'LANG', 'LC_ALL', 'SSL_CERT_FILE', 'SSL_CERT_DIR'] as const;
+const INHERITED = [
+   'PATH',
+   'HOME',
+   'USER',
+   'LOGNAME',
+   'SHELL',
+   'LANG',
+   'LC_ALL',
+   'LC_CTYPE',
+   'TMPDIR',
+   'SSL_CERT_FILE',
+   'SSL_CERT_DIR',
+] as const;
+
+/** The workstation login. `KIRO_API_KEY` is left out so it cannot replace that login. */
+function childEnvironment(logFile: string): Record<string, string> {
    const env: Record<string, string> = {
-      HOME: home,
-      TMPDIR: home,
-      XDG_CONFIG_HOME: home,
-      XDG_CACHE_HOME: home,
-      XDG_DATA_HOME: home,
       KIRO_LOG_LEVEL: 'error',
-      KIRO_CHAT_LOG_FILE: join(home, 'kiro.log'),
+      KIRO_CHAT_LOG_FILE: logFile,
    };
-   if (token) env.KIRO_API_KEY = token;
-   for (const name of allowed) {
+   for (const name of INHERITED) {
       const value = process.env[name];
       if (value) env[name] = value;
    }
+   if (!env.HOME) env.HOME = homedir();
    return env;
 }
 
-async function writePermissions(home: string): Promise<void> {
-   const directory = join(home, '.kiro', 'settings');
-   await mkdir(directory, { recursive: true, mode: 0o700 });
-   // Native capabilities stay denied. Berry tools arrive through the MCP server.
-   await writeFile(
-      join(directory, 'permissions.yaml'),
-      [
-         'rules:',
-         '  - capability: shell',
-         '    effect: deny',
-         '  - capability: fs_read',
-         '    effect: deny',
-         '  - capability: fs_write',
-         '    effect: deny',
-         '  - capability: mcp',
-         '    match: ["berry/*"]',
-         '    effect: allow',
-         '',
-      ].join('\n'),
-      { mode: 0o600 }
-   );
+function readWhoami(text: string): { accountType: string } | null {
+   const start = text.indexOf('{');
+   const end = text.indexOf('}', start);
+   if (start < 0 || end < start) return null;
+   try {
+      const parsed = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+      const accountType = typeof parsed.accountType === 'string' ? parsed.accountType : '';
+      return accountType === '' ? null : { accountType };
+   } catch {
+      return null;
+   }
+}
+
+function accountLabel(accountType: string): string {
+   if (accountType === 'IamIdentityCenter') return 'IAM Identity Center';
+   if (accountType === 'BuilderId') return 'Builder ID';
+   return accountType;
 }
 
 async function readSessionId(directory: string): Promise<string | null> {
