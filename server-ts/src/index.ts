@@ -54,8 +54,10 @@ import { ScmInbound } from './scm/inbound.ts';
 import { WebhookDeliveries } from './scm/webhook.ts';
 import { webhookMounts } from './mounts/webhooks.ts';
 import { githubMounts } from './mounts/github.ts';
+import { gitlabMounts } from './mounts/gitlab.ts';
 import { GitHubEvents } from './scm/github-events.ts';
 import { GitHubSettingsRepository, writeWorkspaceEvent } from './scm/github-settings.ts';
+import { GitLabSettingsRepository } from './scm/gitlab-settings.ts';
 import { PullRequestStore } from './scm/pull-requests.ts';
 import { approvalMounts } from './mounts/approvals.ts';
 import { inboxMounts } from './mounts/inbox.ts';
@@ -460,6 +462,7 @@ const scmSync = scm.sync;
  * routed to the workspace that claimed its installation, and to no other.
  */
 const githubSettings = new GitHubSettingsRepository(sql);
+const gitlabSettings = new GitLabSettingsRepository(sql);
 const pullRequests = new PullRequestStore({ sql, issues });
 const workspaceForInstallation = async (installationId: number): Promise<string | null> =>
    githubApp ? githubApp.claimedBy(installationId) : null;
@@ -1390,6 +1393,7 @@ registry.registerAll(
       userAccess: githubUserAccess,
    })
 );
+registry.registerAll(gitlabMounts({ sessions, sql, settings: gitlabSettings }));
 registry.registerAll(usageMounts({ sessions, sql }));
 registry.registerAll(logsMounts({ sessions, sql }));
 registry.registerAll(
