@@ -83,3 +83,11 @@ test('the reviewer is told what it can read and how, and the files come back fen
    assert.match(text, /cannot read more files/);
    assert.match(filesText([], 2), /2 rounds left/);
 });
+
+
+test('review reads stay on the delivered commit even when the live PR head changes', async () => {
+   const { fake, calls } = client({ 'src/a.ts': 'reviewed' });
+   const files = await openReviewFiles(fake, 'berry/site', 7, 'reviewed-commit');
+   assert.equal(files?.commit, 'reviewed-commit');
+   assert.deepEqual(calls, ['tree reviewed-commit'], 'never resolve the mutable PR head for pinned review reads');
+});

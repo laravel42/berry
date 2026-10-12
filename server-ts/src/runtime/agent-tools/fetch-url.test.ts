@@ -5,6 +5,7 @@ import {
    DEFAULT_FETCH_LIMITS,
    FetchRefused,
    checkUrl,
+   checkResolvedAddresses,
    fetchPublicUrl,
    isBlockedAddress,
    readableHtml,
@@ -52,12 +53,26 @@ test('a URL is refused for its scheme, its credentials or a private literal host
    refused('not a url', 'URL_NOT_ALLOWED');
    refused('http://169.254.169.254/latest/meta-data/', 'ADDRESS_NOT_ALLOWED');
    refused('http://localhost:4000/', 'ADDRESS_NOT_ALLOWED');
+   for (const host of ['localhost.', 'api.localhost.', 'db.internal.', 'service.local.', 'LOCALHOST.']) {
+      refused(`http://${host}/`, 'ADDRESS_NOT_ALLOWED');
+   }
    refused('http://db.internal/', 'ADDRESS_NOT_ALLOWED');
    // The URL parser normalises these to 127.0.0.1 before the check sees them.
    refused('http://2130706433/', 'ADDRESS_NOT_ALLOWED');
    refused('http://0x7f000001/', 'ADDRESS_NOT_ALLOWED');
    refused('http://[::ffff:127.0.0.1]/', 'ADDRESS_NOT_ALLOWED');
    assert.equal(checkUrl('https://emailbuilder.online/', {}).hostname, 'emailbuilder.online');
+});
+
+test('DNS validation rejects private and mixed answers independent of network configuration', () => {
+   const refused = (addresses: Array<{ address: string; family: number }>) => assert.throws(
+      () => checkResolvedAddresses('example.test', addresses, []),
+      (error: unknown) => error instanceof FetchRefused && error.code === 'ADDRESS_NOT_ALLOWED'
+   );
+   refused([{ address: '127.0.0.1', family: 4 }]);
+   refused([{ address: '1.1.1.1', family: 4 }, { address: '::1', family: 6 }]);
+   assert.doesNotThrow(() => checkResolvedAddresses('example.test', [{ address: '1.1.1.1', family: 4 }], []));
+   assert.doesNotThrow(() => checkResolvedAddresses('trusted.test', [{ address: '127.0.0.1', family: 4 }], ['trusted.test']));
 });
 
 describe('fetching', () => {
@@ -106,9 +121,9 @@ describe('fetching', () => {
          error instanceof FetchRefused && error.code === 'ADDRESS_NOT_ALLOWED');
    });
 
-   test('a name that resolves to loopback is refused at connect time, not by its spelling', async () => {
+   test('a trailing-dot loopback hostname is refused before the request', async () => {
       const port = new URL(origin).port;
-      // `localhost.` slips past the name check; the guarded lookup catches the address.
+      // Do not depend on platform-specific DNS or HTTP-agent resolution.
       await assert.rejects(fetchPublicUrl(`http://localhost.:${port}/page`), (error: unknown) =>
          error instanceof FetchRefused && error.code === 'ADDRESS_NOT_ALLOWED');
    });
