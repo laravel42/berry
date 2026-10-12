@@ -1,4 +1,5 @@
 import type { Sql } from '../db/pool.ts';
+import { handoffPath } from '../runs/handoff.ts';
 import type { Dispatch } from '../runs/ledger.ts';
 import { truncateUtf8 } from './runtime/utf8.ts';
 
@@ -39,10 +40,10 @@ export interface PromptContext extends Dispatch {
     */
    related?: string;
    /**
-    * This task waits on others. Berry then says, outside the fence, to read
-    * each blocker's HANDOFF.md and not to inventory the files it produced.
+    * Tasks this one waits on. Berry then says, outside the fence, to read
+    * each one's file in `.handoffs` and not to inventory the files it produced.
     */
-   readBlockerHandoff?: boolean;
+   blockerHandoffs?: Array<{ identifier: string; title: string }>;
    /**
     * The merge this run has to make, when its branch conflicts with the default
     * branch (see `runtime/merge-plan.ts`). Berry's own words, not task data, so
@@ -92,8 +93,8 @@ export function buildMessage(dispatch: PromptContext): string {
    if (dispatch.related) {
       message += `\n\nThe tasks around this one, for context. They are not yours to do:\n${fenced('related_tasks', dispatch.related)}`;
    }
-   if (dispatch.readBlockerHandoff) {
-      message += `\n\n${blockerHandoffContract()}`;
+   if (dispatch.blockerHandoffs && dispatch.blockerHandoffs.length > 0) {
+      message += `\n\n${blockerHandoffContract(dispatch.blockerHandoffs)}`;
    }
    if (dispatch.instructions) {
       message += `\n\nRun instructions:\n${fenced('run_instructions', dispatch.instructions)}`;
@@ -131,7 +132,8 @@ export function buildMessage(dispatch: PromptContext): string {
    // the cap cuts from the tail, so a long description would silently drop
    // them first. They get their room reserved; the description gives way.
    const contracts =
-      reportingContract() +
+      runToolsContract() +
+      reportingContract(dispatch.issueIdentifier, dispatch.issueTitle) +
       (dispatch.repository
          ? dispatch.repositoryEmpty
             ? emptyRepositoryContract()
@@ -151,7 +153,26 @@ export function buildMessage(dispatch: PromptContext): string {
  * task. A promise in that position is an empty report, and the real findings
  * end up only where nobody looks.
  */
-function reportingContract(): string {
+/**
+ * The tools this run may use.
+ *
+ * They are not listed here. The berry MCP server declares them for this run,
+ * and a tool named from memory is how an agent calls something its contract
+ * does not allow. The call is refused until that declaration has come back.
+ */
+function runToolsContract(): string {
+   return (
+      '\n\nTools for this run\n' +
+      'Before any other action, call list_run_tools on the berry MCP server. ' +
+      'That server declares the tools for this run, and its reply is the complete set. ' +
+      'A tool the reply does not name is not available, including one you used on another task. ' +
+      'Do not call another tool, edit a file, or run a command until that reply has come back. ' +
+      'Every other tool call is refused until it has.\n'
+   );
+}
+
+function reportingContract(identifier: string, title: string): string {
+   const path = handoffPath(identifier, title);
    return (
       '\n\nReporting your result\n' +
       'Your final message is recorded as the result of this run and posted on ' +
@@ -170,11 +191,12 @@ function reportingContract(): string {
       'another agent wrote is theirs to build on, not to guess at. A spec or ' +
       'design saved on the parent task, or on a task this one depends on, is ' +
       'read the same way: give list_files and read_file that task\'s key.\n' +
-      'Berry attaches your final message to this task as HANDOFF.md, on every ' +
-      'task, for whoever is blocked by it. Write that message so the next ' +
-      'task can continue without scanning the files you produced: name each ' +
-      'file that matters and what it is for, how to verify the work, and what ' +
-      'to leave alone. Do not paste file contents into it.\n' +
+      `Before you finish, write this task's handoff with write_file at ${path}. ` +
+      'The first line of that file is the same path. It is the account the next ' +
+      'task reads, so name each file that matters and what it is for, how to ' +
+      'verify the work, and what to leave alone. Do not paste file contents into ' +
+      'it, and do not write HANDOFF.md or a handoff anywhere else. Berry stores ' +
+      'the same note at that path for whoever is blocked by this task.\n' +
       'A file you save with write_file is written into the workspace at that path, so the ' +
       'next command can use it. A file a command produces (a merged clip, a built ' +
       'archive) is saved on the task with collect_file — the workspace is ' +
@@ -214,15 +236,19 @@ function skillsContract(skills: Array<{ name: string; description: string }>): s
  * Said outside the fence: the handoff text itself is task data, and this is
  * Berry telling the agent what to do with it.
  */
-function blockerHandoffContract(): string {
+function blockerHandoffContract(blockers: Array<{ identifier: string; title: string }>): string {
+   const lines = blockers.map(
+      (blocker) => `- ${blocker.identifier}: read_file path ${handoffPath(blocker.identifier, blocker.title)}`
+   );
    return (
       'Handoffs from the tasks this one depends on\n' +
-      'Each of those tasks has HANDOFF.md attached to it. When that handoff is ' +
-      'included above, it is already the account of what the task produced. ' +
-      'When it is not, read it with read_file, path HANDOFF.md, on that task\'s ' +
-      'key. Do not scan, list, or search the files that task produced, and do ' +
-      'not call list_files on it. Open one path the handoff names only when ' +
-      'this task has to change that file.\n'
+      'Get the context for each task from its file in .handoffs at the repository ' +
+      'root. When that handoff is included above, it is already the account of ' +
+      'what the task produced. When it is not, read the file below. Do not read ' +
+      'HANDOFF.md. Do not scan, list, or search the other files that task ' +
+      'produced, and do not call list_files on it. Open one path the handoff ' +
+      'names only when this task has to change that file.\n' +
+      `${lines.join('\n')}\n`
    );
 }
 
