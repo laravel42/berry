@@ -1,0 +1,37 @@
+{
+   "id": "gitlab",
+   "name": "GitLab",
+   "description": "Connect a GitLab account for this workspace.",
+   "include": "nango",
+   "scopes": ["read_repository", "write_repository"],
+   "tools": [
+      {
+         "name": "gitlab.read_repository",
+         "description": "Permission to read repository contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.open_merge_request",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitlab.merge_merge_request",
+         "description": "Permission to integrate proposed changes without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}
