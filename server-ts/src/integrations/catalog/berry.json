@@ -1,0 +1,37 @@
+{
+   "id": "berry",
+   "name": "Berry",
+   "description": "The workspace itself: tasks, comments and the run ledger.",
+   "include": "built-in",
+   "scopes": [],
+   "tools": [
+      {
+         "name": "berry.read_issue",
+         "description": "Read a task, its description and its comments.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "berry.comment",
+         "description": "Post a comment on the task being worked.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "berry.run_command",
+         "description": "Run a shell command in the run's isolated workspace.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "berry.write_artifact",
+         "description": "Record a file as evidence on the run.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      }
+   ]
+}

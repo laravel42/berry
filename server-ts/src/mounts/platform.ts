@@ -40,6 +40,11 @@ export interface Capabilities {
     * when Better Auth is serving, including a PGlite desktop database.
     */
    emailRegistration?: boolean;
+   /**
+    * Whether this process can call a Nango environment. True only when an
+    * environment API key is configured. The key itself is not in this payload.
+    */
+   nango?: boolean;
 }
 
 export interface PlatformOptions {
@@ -173,6 +178,7 @@ function configRoute(
                   : capabilities.githubSignIn,
             passwordlessLogin: capabilities.passwordlessLogin ?? false,
             emailRegistration: capabilities.emailRegistration ?? false,
+            nango: capabilities.nango ?? false,
          },
       })
    );

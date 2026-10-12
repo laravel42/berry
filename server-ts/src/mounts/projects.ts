@@ -25,11 +25,8 @@ import type {
 import type { ScmProvisioning } from '../scm/provisioning.ts';
 import type { ScmLink } from '../scm/links.ts';
 import type { ScmWorkspaces } from '../scm/workspaces.ts';
-import { GitHubAppUnavailable, type GitHubAppRepository } from '../integrations/github-app.ts';
 import { ConnectionUnavailable, type ConnectionRepository } from '../integrations/connections.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
-import { GitHubUserUnavailable, type GitHubUserAccess } from '../integrations/github-user.ts';
-import { githubCredential } from './integrations.ts';
 import type { Logger } from '../observability/log.ts';
 import type { Mount } from '../http/registry.ts';
 import type { Sql } from '../db/pool.ts';
@@ -100,20 +97,14 @@ export interface ProjectOptions {
    /** Resolves the organization a workspace's repositories belong under. */
    scmWorkspaces: ScmWorkspaces | null;
    /**
-    * The workspace's GitHub credential, shared with the integrations mount.
+    * The workspace's GitHub connection store.
     *
-    * Linking a repository resolves its id through the same credential the
-    * picker lists repositories with — App installation token when one exists,
-    * otherwise the OAuth connection — so what a person can pick is exactly what
-    * they can link. Null without an encryption key: nothing can be sealed.
+    * Linking a repository resolves its id through the same token the picker
+    * lists with, so what a person can pick is what they can link.
     */
    connections: ConnectionRepository | null;
-   githubApp: GitHubAppRepository | null;
-   /**
-    * The signed-in person's GitHub token, for a workspace with neither an App
-    * nor a connection — the same fallback the picker lists with.
-    */
-   userAccess?: GitHubUserAccess | null;
+   /** Opens that token. Null when this deployment has no GitHub connection. */
+   githubToken: ((workspaceId: string) => Promise<string>) | null;
    logger: Logger;
    sql: Sql;
 }
@@ -916,18 +907,13 @@ function assertValid(fields: FieldError[]): void {
  *   - A transient provider failure → 502 PROVIDER_ERROR, worth retrying.
  */
 export async function resolveRepository(
-   options: Pick<ProjectOptions, 'connections' | 'githubApp' | 'userAccess'>,
+   options: Pick<ProjectOptions, 'githubToken'>,
    workspaceId: string,
    fullName: string,
-   /**
-    * Whose own GitHub sign-in to fall back to when the workspace has neither an
-    * App nor a connection. Null for an agent run nobody asked for: there is then
-    * no one's sign-in to borrow.
-    */
-   userId: string | null
+   /** Kept for callers. Resolution uses the workspace GitHub connection. */
+   _userId: string | null
 ): Promise<{ githubRepoId: string; githubRepoFullName: string }> {
-   // No encryption key means no credential can be sealed, so none can be held.
-   if (!options.connections) {
+   if (!options.githubToken) {
       throw new ApiError(
          412,
          'INTEGRATIONS_NOT_CONFIGURED',
@@ -939,29 +925,10 @@ export async function resolveRepository(
    const owner = fullName.slice(0, slash);
    const name = fullName.slice(slash + 1);
 
-   // The same credential the picker lists with: App token first, else the
-   // OAuth connection. Resolving through it means what a person can link is
-   // exactly what they were shown — and against the installation that holds
-   // this repository's account, since a workspace can reach several and only
-   // one of them can see it.
    let token: string;
    try {
-      token = (await githubCredential(workspaceId, options, owner)).token;
+      token = await options.githubToken(workspaceId);
    } catch (error) {
-      if (error instanceof GitHubAppUnavailable) {
-         throw new ApiError(
-            409,
-            error.reason === 'not_installed' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
-            error.reason === 'not_installed'
-               ? 'The GitHub App is not installed for this workspace.'
-               : `The GitHub App needs attention: ${error.message}.`
-         );
-      }
-      // No App and no connection: resolve through the person's own sign-in,
-      // which is what listed the repository in the picker.
-      if (error instanceof ConnectionUnavailable && error.reason === 'missing' && options.userAccess && userId) {
-         return resolveWithSignIn(options.userAccess, userId, owner, name);
-      }
       if (error instanceof ConnectionUnavailable) {
          throw new ApiError(
             409,
@@ -1001,42 +968,6 @@ export async function resolveRepository(
       throw error;
    }
    // The id is GitHub's own numeric id, stored as text beside the name.
-   return { githubRepoId: String(repository.id), githubRepoFullName: repository.fullName };
-}
-
-/** `resolveRepository` through the signed-in person's GitHub token. Writes no half-link on failure. */
-async function resolveWithSignIn(
-   userAccess: GitHubUserAccess,
-   userId: string,
-   owner: string,
-   name: string
-): Promise<{ githubRepoId: string; githubRepoFullName: string }> {
-   let repository;
-   try {
-      repository = await userAccess.resolveRepository(userId, owner, name);
-   } catch (error) {
-      if (error instanceof GitHubUserUnavailable) {
-         if (error.reason === 'github_error') {
-            throw new ApiError(502, 'PROVIDER_ERROR', `GitHub refused the request: ${error.message}`);
-         }
-         throw new ApiError(
-            409,
-            'NOT_CONNECTED',
-            error.reason === 'not_linked'
-               ? 'GitHub is not connected: sign in with GitHub to link a repository.'
-               : 'Sign in with GitHub again to link a repository.'
-         );
-      }
-      throw error;
-   }
-   if (!repository) {
-      // 404 for both "missing" and "unseen", so neither is told apart.
-      throw new ApiError(
-         422,
-         'REPOSITORY_UNAVAILABLE',
-         'That repository could not be resolved: it does not exist, or your GitHub sign-in cannot see it.'
-      );
-   }
    return { githubRepoId: String(repository.id), githubRepoFullName: repository.fullName };
 }
 

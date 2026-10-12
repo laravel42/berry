@@ -46,6 +46,7 @@ import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
+import { createNangoClient } from './integrations/nango.ts';
 import { integrationMounts } from './mounts/integrations.ts';
 import { PlanTriage } from './plans/triage.ts';
 import { createScm } from './scm/provider-factory.ts';
@@ -172,6 +173,7 @@ import { agentCoreRuntimeDriver } from './execution/agentcore-runtime.ts';
 import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { ConnectionRepository } from './integrations/connections.ts';
 import { GitHubAppRepository } from './integrations/github-app.ts';
+import { githubConnectionToken } from './integrations/github-oauth.ts';
 import { listRepositoriesAcrossAccounts } from './integrations/github-repositories.ts';
 import { GitHubUserAccess } from './integrations/github-user.ts';
 import { sealerFromKey, unavailableSealer } from './integrations/sealing.ts';
@@ -247,6 +249,14 @@ const githubApp = config.integrationKey
 const githubUserAccess = config.auth.secret
    ? new GitHubUserAccess({ sql, authSecret: config.auth.secret })
    : null;
+
+/**
+ * Nango, when this process holds an environment API key.
+ *
+ * The key stays on this client. `/api/v1/config` reports only whether the
+ * client exists, so a browser can show the settings entry without the secret.
+ */
+const nango = config.nango ? createNangoClient(config.nango) : null;
 
 /**
  * Sign-in: Better Auth sessions, built once at boot.
@@ -432,12 +442,16 @@ const pluginNetwork = createPluginNetwork({ allowPrivate: config.pluginsAllowPri
  *
  * The provider is chosen and the SCM services assembled by `createScm` (see
  * scm/provider-factory): `agentcore` reaches GitHub through the gateway's
- * tools, the App path uses Berry's own client and a per-workspace installation
+ * tools, the connection path uses Berry's own client and the workspace GitHub
  * token, and both satisfy `ScmProvider` so nothing in the domain can tell. All
  * pieces are null when nothing is configured — a working deployment that just
  * cannot reach a git host. Awaited because gateway tool discovery runs at boot.
  */
-const scm = await createScm({ sql, config, logger, githubApp, userAccess: githubUserAccess });
+const githubToken =
+   connections && nango
+      ? (workspaceId: string) => githubConnectionToken(workspaceId, { connections, nango })
+      : null;
+const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
 const scmSync = scm.sync;
 /**
@@ -1050,8 +1064,7 @@ registry.registerAll(
       scm: scm.provisioning,
       scmWorkspaces,
       connections,
-      githubApp,
-      userAccess: githubUserAccess,
+      githubToken,
       logger,
       sql,
    })
@@ -1102,7 +1115,7 @@ registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    repositories: connections
       ? {
            resolve: (workspaceId, fullName, requesterId) =>
-              resolveRepository({ connections, githubApp, userAccess: githubUserAccess }, workspaceId, fullName, requesterId),
+              resolveRepository({ githubToken }, workspaceId, fullName, requesterId),
            link: async (workspaceId, projectId, repository) => {
               await projects.update(workspaceId, projectId, {
                  descriptionSet: false,
@@ -1254,7 +1267,12 @@ registry.registerAll(
       runs: runOptions.runs,
       logger,
       listRepositories: (workspaceId) =>
-         listRepositoriesAcrossAccounts(workspaceId, { githubApp, connections }).then(
+         listRepositoriesAcrossAccounts(workspaceId, {
+            token: (id) =>
+               githubToken
+                  ? githubToken(id)
+                  : Promise.reject(new Error('GitHub is not connected to this workspace')),
+         }).then(
             (listing) => listing.repositories
          ),
    })
@@ -1308,7 +1326,9 @@ registry.registerAll(
       // handshake either, so the two travel together.
       states: connections ? new OAuthStateStore({ sql }) : null,
       github: config.integrations.github,
+      nango,
       githubApp,
+      githubToken,
       // Not a secret, and not stored: the App's public name, so an install can
       // be offered on a deployment that signs people in with an App it did not
       // create. A stored App's slug wins.
@@ -1317,7 +1337,8 @@ registry.registerAll(
       completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
       agentCoreAttention: scm.agentCoreAttention,
       publicUrl: config.integrations.publicUrl,
-      appUrl: config.integrations.appUrl,
+      appUrl: config.integrations.appUrl ?? config.auth.baseUrl,
+      returnOrigins: config.auth.trustedOrigins,
       // Settings pages live under the workspace, so a callback needs its slug
       // to send the browser back to a page that exists.
       workspaceSlug: async (workspaceId: string) => {
@@ -1365,6 +1386,7 @@ registry.registerAll(
       pullRequests,
       githubApp,
       connections,
+      githubToken,
       userAccess: githubUserAccess,
    })
 );
@@ -1426,6 +1448,7 @@ registry.registerAll(
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
+         nango: nango !== null,
       },
       signInOrigin: config.auth.baseUrl,
    })

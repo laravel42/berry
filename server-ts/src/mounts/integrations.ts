@@ -17,6 +17,7 @@ import {
    githubAuthorizeUrl,
    type GitHubOAuthOptions,
    type OAuthStateStore,
+   type ResolvedAuthorization,
 } from '../integrations/oauth.ts';
 import {
    BUILT_IN_PROVIDER,
@@ -33,6 +34,8 @@ import {
    type GitHubAppRepository,
    type StoredApp,
 } from '../integrations/github-app.ts';
+import { adoptNangoConnections } from '../integrations/nango-connect.ts';
+import type { NangoClient } from '../integrations/nango.ts';
 
 /**
  * `/api/v1/integrations`.
@@ -180,6 +183,94 @@ function redirectTo(location: string): Response {
    return new Response(null, { status: 302, headers: { location } });
 }
 
+/** An absolute http(s) origin, or null. A path on the same value is dropped. */
+function httpOrigin(value: string | undefined): string | null {
+   const trimmed = (value ?? '').trim();
+   if (!trimmed) return null;
+   try {
+      const url = new URL(trimmed);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+      return url.origin;
+   } catch {
+      return null;
+   }
+}
+
+/**
+ * Whether `candidate` is an origin this deployment will send a browser back to.
+ *
+ * A pattern may be an exact origin or one hostname label (`https://*.example.com`).
+ */
+export function returnOriginAllowed(candidate: string, patterns: readonly string[]): boolean {
+   for (const pattern of patterns) {
+      if (pattern === candidate) return true;
+      const wild = /^(https?:\/\/)\*\.([a-z0-9.-]+)$/.exec(pattern);
+      if (!wild) continue;
+      let url: URL;
+      try {
+         url = new URL(candidate);
+      } catch {
+         continue;
+      }
+      const suffix = `.${wild[2]}`;
+      if (
+         `${url.protocol}//` === wild[1] &&
+         url.hostname.endsWith(suffix) &&
+         url.hostname.length > suffix.length
+      ) {
+         return true;
+      }
+   }
+   return false;
+}
+
+function allowedReturnOrigins(
+   options: Pick<IntegrationsOptions, 'appUrl' | 'publicUrl' | 'returnOrigins'>
+): string[] {
+   return [options.appUrl, options.publicUrl, ...(options.returnOrigins ?? [])].filter(
+      (value): value is string => Boolean(value)
+   );
+}
+
+/**
+ * The site the install was started from, when that site is one Berry trusts.
+ *
+ * GitHub returns the browser to a callback on the API. The page after that has
+ * to be the site the person was on — localhost, or a tunnel in front of it —
+ * rather than the API's own origin.
+ */
+export function browserReturnOrigin(
+   presented: { origin: string | undefined; referer: string | undefined },
+   options: Pick<IntegrationsOptions, 'appUrl' | 'publicUrl' | 'returnOrigins'>,
+   fallback: string
+): string {
+   const allowed = allowedReturnOrigins(options);
+   for (const raw of [presented.origin, presented.referer]) {
+      const candidate = httpOrigin(raw);
+      if (candidate && returnOriginAllowed(candidate, allowed)) return candidate;
+   }
+   return options.appUrl || options.publicUrl || fallback;
+}
+
+/**
+ * The origin stored with an install state, when it is a site we will return to.
+ *
+ * Older states stored GitHub's install page here. That is not a return address.
+ */
+export function storedReturnOrigin(
+   redirectUri: string,
+   options: Pick<IntegrationsOptions, 'appUrl' | 'publicUrl' | 'returnOrigins'>
+): string | null {
+   const candidate = httpOrigin(redirectUri);
+   if (!candidate) return null;
+   try {
+      if (new URL(candidate).hostname === 'github.com') return null;
+   } catch {
+      return null;
+   }
+   return returnOriginAllowed(candidate, allowedReturnOrigins(options)) ? candidate : null;
+}
+
 export interface IntegrationsOptions {
    sessions: SessionService;
    boards: BoardRepository;
@@ -189,6 +280,13 @@ export interface IntegrationsOptions {
    /** OAuth credentials per provider. Absent means "Connect cannot work here". */
    github: GitHubOAuthOptions | null;
    /**
+    * Nango, when this process holds an environment API key.
+    *
+    * Catalogue files with `include: "nango"` open Connect through it. The
+    * environment key stays on this client and is not returned to the browser.
+    */
+   nango?: NangoClient | null;
+   /**
     * The App this deployment created for itself, when it has one.
     *
     * Preferred over `github` above: an App's credentials are stored rather than
@@ -196,6 +294,13 @@ export interface IntegrationsOptions {
     * unattended run.
     */
    githubApp: GitHubAppRepository | null;
+   /**
+    * Opens the workspace GitHub token from the recorded connection.
+    *
+    * Null when this process has no connection store. Repository listing and
+    * repository resolution use it; the browser never receives the token.
+    */
+   githubToken?: ((workspaceId: string) => Promise<string>) | null;
    /**
     * The App's slug from configuration, for a deployment that signs people in
     * with an App whose credentials it was handed rather than one it created.
@@ -217,6 +322,12 @@ export interface IntegrationsOptions {
    publicUrl: string | null;
    /** Where to send the browser after the callback. Defaults to the API's own origin. */
    appUrl?: string | null;
+   /**
+    * Browser origins an install may return to, including a leading `*` for one
+    * hostname label (`https://*.trycloudflare.com`). The install remembers the
+    * origin it was started from when that origin is in this list.
+    */
+   returnOrigins?: string[];
    /** A workspace's slug, for the settings page a callback returns to. */
    workspaceSlug?: (workspaceId: string) => Promise<string | null>;
    /**
@@ -339,40 +450,32 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
     */
    route.get('/providers', async (context) => {
       const workspaceId = await requireWorkspace(context, options, 'product.read');
+      // A free self-hosted Nango does not send auth webhooks. The consent is
+      // already stored there; an admin opening this catalogue is when Berry
+      // records the connection id. A member's read does not write one.
+      if (options.connections && options.nango) {
+         const userId = context.get('user').id;
+         const canRecord = await options.boards
+            .authorizeWorkspace(userId, workspaceId, 'settings.write')
+            .then(() => true)
+            .catch((error: unknown) => {
+               if (error instanceof Forbidden || error instanceof NotFound) return false;
+               throw error;
+            });
+         if (canRecord) {
+            await adoptNangoConnections({
+               providers: PROVIDERS,
+               connections: options.connections,
+               nango: options.nango,
+               workspaceId,
+               userId,
+            });
+         }
+      }
       const connections = options.connections
          ? await options.connections.list(workspaceId)
          : [];
       const byProvider = new Map(connections.map((connection) => [connection.provider, connection]));
-
-      // GitHub's state is read from where agents actually get a GitHub
-      // credential, in the order `createScm` tries them: an App installation
-      // covering the workspace, then a member's GitHub sign-in. A leftover user
-      // connection must not colour the card — reporting a credential as
-      // expired next to no way to renew it describes a product that does not
-      // exist.
-      const app = options.githubApp ? await options.githubApp.app() : null;
-      const installation = app ? await options.githubApp!.installation(workspaceId) : null;
-
-      // Any member's sign-in counts, not only the viewer's: runs use whichever
-      // one opens. A database read, never a GitHub call, and failure-safe — an
-      // error here reads as "not connected" rather than failing the route
-      // every settings page depends on. The token never leaves `userAccess`.
-      const userAccess = options.userAccess ?? null;
-      const signIn =
-         installation === null && userAccess
-            ? await userAccess.workspaceSignIn(workspaceId).catch(() => null)
-            : null;
-      // No member's token opens, and one was cleared because GitHub refused
-      // it: that is a connection to renew, not one that was never made — and
-      // the runs that relied on it are failing, so the card must say so.
-      const signInRefused =
-         installation === null && signIn === null && userAccess
-            ? await userAccess.workspaceSignInRefused(workspaceId).catch(() => false)
-            : false;
-      const signInScopes =
-         signIn && userAccess
-            ? await userAccess.scopes(signIn.userId).catch((): string[] => [])
-            : [];
 
       const grants = options.connections ? await listGrants(options, workspaceId) : [];
       const attention = options.agentCoreAttention?.() ?? null;
@@ -380,54 +483,23 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
       return json({
          providers: PROVIDERS.map((provider) => {
             const connection = byProvider.get(provider.id);
-            const source: 'app' | 'sign-in' | null =
-               provider.id !== 'github'
-                  ? null
-                  : installation !== null
-                    ? 'app'
-                    : signIn !== null
-                      ? 'sign-in'
-                      : null;
-            // GitHub through the App or a sign-in, rather than an OAuth
-            // connection of its own.
-            const viaAgentCredential =
-               provider.id === 'github' &&
-               (options.githubApp !== null || source !== null || signInRefused);
-            const connected = viaAgentCredential
-               ? source !== null
-               : !needsConnection(provider.id) || connection?.status === 'connected';
+            const connected =
+               !needsConnection(provider.id) || connection?.status === 'connected';
+            const renew = provider.id === 'github' ? attention : null;
             return {
                id: provider.id,
+               include: provider.include,
                name: provider.name,
                description: provider.description,
-               // Berry's own is always available; the rest need both a
-               // credential on the deployment and a key to seal it with.
-               configured:
-                  viaAgentCredential ||
-                  !needsConnection(provider.id) ||
-                  configuredFor(provider.id, options),
+               // Berry's own is always available; the rest need a way to connect.
+               configured: !needsConnection(provider.id) || configuredFor(provider.id, options),
                connected,
-               // No App yet is not a broken connection, it is a setup nobody
-               // has done: null, so the card says "Not connected" and the
-               // panel below it says what to press. A usable sign-in reads as
-               // connected with no App at all.
-               status: viaAgentCredential
-                  ? attention
-                     ? 'expired'
-                     : connected
-                       ? 'connected'
-                       : signInRefused
-                         ? 'reconnect'
-                         : app === null
-                           ? null
-                           : 'not_installed'
-                  : (connection?.status ?? null),
-               statusDetail: provider.id === 'github' ? (attention?.message ?? null) : null,
-               renewalUrl: provider.id === 'github' ? (attention?.url ?? null) : null,
-               source,
+               status: renew ? 'expired' : (connection?.status ?? null),
+               statusDetail: renew?.message ?? null,
+               renewalUrl: renew?.url ?? null,
+               source: null,
                accountName: connection?.externalAccountName ?? null,
-               scopes:
-                  source === 'sign-in' ? signInScopes : (connection?.scopes ?? provider.scopes),
+               scopes: connection?.scopes ?? provider.scopes,
                tools: provider.tools.map((tool) => ({
                   name: tool.name,
                   description: tool.description,
@@ -537,6 +609,14 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
             workspaceId,
             userId: context.get('user').id,
             provider: INSTALL_PROVIDER,
+            returnOrigin: browserReturnOrigin(
+               {
+                  origin: context.req.header('origin'),
+                  referer: context.req.header('referer'),
+               },
+               options,
+               new URL(context.req.url).origin
+            ),
          }),
       });
    });
@@ -591,6 +671,14 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
             workspaceId,
             userId,
             provider: SIGN_IN_INSTALL_PROVIDER,
+            returnOrigin: browserReturnOrigin(
+               {
+                  origin: context.req.header('origin'),
+                  referer: context.req.header('referer'),
+               },
+               options,
+               new URL(context.req.url).origin
+            ),
          }),
       });
    });
@@ -634,6 +722,27 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
 
       if (!needsConnection(provider.id)) {
          throw new ApiError(409, 'CONFLICT', 'Berry needs no connection to itself.');
+      }
+      if (provider.include === 'nango') {
+         if (!options.nango) {
+            throw new ApiError(
+               503,
+               'PROVIDER_NOT_CONFIGURED',
+               'This deployment has no Nango environment key.'
+            );
+         }
+         const user = context.get('user');
+         const tags: Record<string, string> = {
+            end_user_id: user.id,
+            organization_id: workspaceId,
+         };
+         const email = user.email.trim();
+         if (email) tags.end_user_email = email;
+         const session = await options.nango.createConnectSession({
+            tags,
+            allowedIntegrations: [provider.id],
+         });
+         return json({ authorizeUrl: session.connectLink });
       }
       if (!options.connections || !options.states) {
          throw new ApiError(
@@ -779,38 +888,20 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
 
    route.get('/github/repositories', async (context) => {
       const workspaceId = await requireWorkspace(context, options, 'product.read');
-      if (!options.connections) {
+      if (!options.githubToken) {
          throw new ApiError(
             503,
             'INTEGRATIONS_NOT_CONFIGURED',
-            'This deployment has no encryption key, so it cannot hold a credential.'
+            'This deployment cannot list GitHub repositories.'
          );
       }
 
-      // Merged across the workspace's accounts: a personal account and an
-      // organisation are both ordinary, and a listing that used one token would
-      // show whichever account happened to be first and hide the rest.
       let listing: Awaited<ReturnType<typeof listRepositoriesAcrossAccounts>>;
       try {
          listing = await listRepositoriesAcrossAccounts(workspaceId, {
-            githubApp: options.githubApp,
-            connections: options.connections,
+            token: options.githubToken,
          });
       } catch (error) {
-         // No App and no workspace connection: the person's own GitHub sign-in
-         // asks for `repo` and `workflow`, so their token can fill the picker.
-         if (error instanceof ConnectionUnavailable && error.reason === 'missing' && options.userAccess) {
-            return json(await signInRepositories(options, options.userAccess, context.get('user').id));
-         }
-         if (error instanceof GitHubAppUnavailable) {
-            throw new ApiError(
-               409,
-               error.reason === 'not_installed' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
-               error.reason === 'not_installed'
-                  ? 'The GitHub App is not installed for this workspace.'
-                  : `The GitHub App needs attention: ${error.message}.`
-            );
-         }
          if (error instanceof ConnectionUnavailable) {
             throw new ApiError(
                409,
@@ -830,105 +921,19 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
       const accounts = [...new Set(listing.accounts.map((account) => account.accountLogin))].filter(
          (login) => login !== ''
       );
-      const viaApp = listing.kind === 'installation';
-      // A run clones, commits and pushes, so `contents: write` is the grant
-      // that decides whether linking a repository leads anywhere. It is asked
-      // of the installation because the per-repository `permissions` object is
-      // not meaningful for an installation token. Reported so the UI can say a
-      // read-only App is read-only, instead of accepting the link and failing
-      // at the push after the work is already done.
-      const granted = viaApp ? await options.githubApp?.grantedPermissions(workspaceId) : null;
-      // The install link the picker's footer offers, on the same slug the
-      // settings page uses: the stored App's, or the configured one.
-      const slug = viaApp
-         ? null
-         : installSlug((await options.githubApp?.app()) ?? null, options.appSlug);
       return json({
          repositories,
          access: repositoryAccess({
-            viaApp,
-            canPush: viaApp ? granted?.contents === 'write' : true,
+            viaApp: false,
+            canPush: true,
             accounts,
-            slug,
+            slug: null,
+            source: 'connection',
          }),
       });
    });
 
    return [{ prefix: '/api/v1/integrations', handler: route }];
-}
-
-/**
- * The signed-in person's usable GitHub access, read the one way: their
- * sign-in token, asked for the repositories it reaches.
- *
- * Used by `/github/repositories`. A repository listing is the only thing that
- * actually exercises the token, so it doubles as the usability check.
- * `/providers` does not come here: it asks whether any member's sign-in opens
- * (`GitHubUserAccess.workspaceSignIn`), which is what runs use, without a
- * GitHub call on every settings load.
- */
-async function signInGitHubAccess(
-   userAccess: GitHubUserAccess,
-   userId: string
-): Promise<
-   | { ok: true; repositories: RepositoryChoice[]; scopes: string[] }
-   | { ok: false; error: GitHubUserUnavailable }
-> {
-   try {
-      const repositories = await userAccess.listRepositories(userId);
-      const scopes = await userAccess.scopes(userId);
-      return { ok: true, repositories, scopes };
-   } catch (error) {
-      if (error instanceof GitHubUserUnavailable) return { ok: false, error };
-      throw error;
-   }
-}
-
-/**
- * The picker's answer from the signed-in person's GitHub token.
- *
- * Only reached when the workspace has neither an App nor a connection. A token
- * that is missing or refused is "sign in with GitHub again", not an empty list:
- * the fix is different, and an empty picker would hide it.
- */
-async function signInRepositories(
-   options: IntegrationsOptions,
-   userAccess: GitHubUserAccess,
-   userId: string
-): Promise<{ repositories: unknown[]; access: ReturnType<typeof repositoryAccess> }> {
-   const access = await signInGitHubAccess(userAccess, userId);
-   if (!access.ok) {
-      const error = access.error;
-      if (error.reason === 'github_error') {
-         throw new ApiError(502, 'PROVIDER_ERROR', `GitHub refused the request: ${error.message}`);
-      }
-      throw new ApiError(
-         409,
-         'NOT_CONNECTED',
-         error.reason === 'not_linked'
-            ? 'GitHub is not connected: sign in with GitHub to list your repositories.'
-            : 'Sign in with GitHub again to list your repositories.'
-      );
-   }
-   const repositories = access.repositories.map((repository) => ({
-      ...repository,
-      installationId: null,
-      accountLogin: repository.owner ?? repository.fullName.split('/')[0] ?? '',
-   }));
-   const accounts = [...new Set(repositories.map((repository) => repository.accountLogin))].filter(
-      (login) => login !== ''
-   );
-   return {
-      repositories,
-      access: repositoryAccess({
-         viaApp: false,
-         // Listed only when GitHub says this person can push.
-         canPush: true,
-         accounts,
-         slug: installSlug((await options.githubApp?.app()) ?? null, options.appSlug),
-         source: 'sign-in',
-      }),
-   };
 }
 
 // ------------------------------------------------------------------ callback
@@ -975,7 +980,7 @@ async function handleCallback(
    const code = url.searchParams.get('code') ?? '';
    const state = url.searchParams.get('state') ?? '';
    if (code === '' || state === '') return back('invalid_response');
-   if (!options.connections || !options.states) return back('exchange_failed');
+   if (!options.states) return back('exchange_failed');
 
    let pending: Awaited<ReturnType<OAuthStateStore['consume']>>;
    try {
@@ -986,6 +991,13 @@ async function handleCallback(
       if (error instanceof AuthorizationNotPending) return back('invalid_state');
       throw error;
    }
+   // An App install with "OAuth during installation" lands here, on the
+   // callback URL, rather than on the setup URL. The state says which, and
+   // the installation is what has to be recorded — not a user token.
+   if (pending.provider === INSTALL_PROVIDER || pending.provider === SIGN_IN_INSTALL_PROVIDER) {
+      return completeInstallation(url, options, pending);
+   }
+   if (!options.connections) return back('exchange_failed');
    if (pending.provider !== providerId) return back('invalid_state');
    // A connection belongs to a workspace and records who made it. Only the
    // first-run App setup starts a state without either, and it is not this flow.
@@ -1022,6 +1034,7 @@ async function handleCallback(
 // ------------------------------------------------------------------- helpers
 
 function configuredFor(providerId: string, options: IntegrationsOptions): boolean {
+   if (findProvider(providerId)?.include === 'nango') return options.nango != null;
    return credentialsFor(providerId, options) !== null && options.connections !== null;
 }
 
@@ -1053,14 +1066,22 @@ function requireProvider(id: string | undefined) {
  */
 async function startInstall(
    options: IntegrationsOptions,
-   input: { slug: string; workspaceId: string; userId: string; provider: string }
+   input: {
+      slug: string;
+      workspaceId: string;
+      userId: string;
+      provider: string;
+      returnOrigin: string;
+   }
 ): Promise<string> {
    const installPath = `https://github.com/apps/${encodeURIComponent(input.slug)}/installations/new`;
    const pending = await options.states!.start({
       workspaceId: input.workspaceId,
       userId: input.userId,
       provider: input.provider,
-      redirectUri: installPath,
+      // Where the browser is sent after GitHub, not GitHub's own page. The
+      // install page is built below and does not need to be stored.
+      redirectUri: input.returnOrigin,
       scopes: [],
    });
    await options.githubApp!.offerInstall(input.workspaceId, input.userId);
@@ -1247,7 +1268,6 @@ async function handleInstallationCallback(
       );
 
    const requested = url.searchParams.get('setup_action') === 'request';
-   const installationId = Number(url.searchParams.get('installation_id') ?? '');
    const state = url.searchParams.get('state') ?? '';
    if (!options.githubApp || !options.states) return back('exchange_failed');
    // Without a state there is nobody to record anything against — not the
@@ -1264,8 +1284,41 @@ async function handleInstallationCallback(
    if (pending.provider !== INSTALL_PROVIDER && pending.provider !== SIGN_IN_INSTALL_PROVIDER) {
       return back('invalid_state');
    }
+   return completeInstallation(url, options, pending);
+}
+
+/**
+ * Records the installation the state names and sends the browser back.
+ *
+ * Shared by the setup URL and the OAuth callback. With "OAuth during
+ * installation" GitHub never calls the setup URL: it calls the callback, and
+ * the same installation still has to be recorded. The return address is the
+ * site the install was started from, when that site was remembered.
+ */
+async function completeInstallation(
+   url: URL,
+   options: IntegrationsOptions,
+   pending: ResolvedAuthorization
+): Promise<Response> {
+   let landing = SETTINGS_PATH;
    if (pending.provider === SIGN_IN_INSTALL_PROVIDER) landing = SIGN_IN_PATH;
    else if (pending.workspaceId !== null) landing = settingsPath(await slugOf(options, pending.workspaceId));
+   const base =
+      storedReturnOrigin(pending.redirectUri, options) ||
+      options.appUrl ||
+      options.publicUrl ||
+      url.origin;
+   const back = (status: string): Response =>
+      redirectTo(
+         new URL(
+            `${landing}?integration=github&status=${encodeURIComponent(status)}`,
+            base
+         ).toString()
+      );
+
+   const requested = url.searchParams.get('setup_action') === 'request';
+   const installationId = Number(url.searchParams.get('installation_id') ?? '');
+   if (!options.githubApp) return back('exchange_failed');
    // An installation is recorded against a workspace and a person, so a state
    // naming neither cannot be the one that installed it.
    if (pending.workspaceId === null || pending.userId === null) return back('invalid_state');
@@ -1338,36 +1391,27 @@ async function handleInstallationCallback(
  * all, so a half-finished App setup does not silently send work through
  * somebody's personal token.
  */
+/**
+ * The credential GitHub work runs on.
+ *
+ * The token is the one Nango holds for this workspace's GitHub connection.
+ * It is opened for the call and not written into a product row.
+ */
 export async function githubCredential(
    workspaceId: string,
-   options: Pick<IntegrationsOptions, 'connections' | 'githubApp'>,
-   /**
-    * The account holding the repository this credential is for, when the caller
-    * knows it. A workspace reaches several accounts at once and each
-    * installation sees only its own, so without it the first account's token is
-    * minted — which cannot see an organisation's repository at all.
-    */
-   owner?: string | null
-): Promise<{ token: string; kind: 'installation' | 'user' }> {
-   if (options.githubApp && (await options.githubApp.app())) {
-      return { token: await options.githubApp.token(workspaceId, owner), kind: 'installation' };
+   options: Pick<IntegrationsOptions, 'githubToken'>,
+   _owner?: string | null
+): Promise<{ token: string; kind: 'user' }> {
+   if (!options.githubToken) {
+      throw new ConnectionUnavailable('GitHub is not connected to this workspace', 'missing');
    }
-   if (!options.connections) {
-      throw new GitHubAppUnavailable('this deployment has no GitHub App', 'no_app');
-   }
-   return { token: await options.connections.token(workspaceId, 'github'), kind: 'user' };
+   return { token: await options.githubToken(workspaceId), kind: 'user' };
 }
 
 export async function githubToken(
    workspaceId: string,
-   options: Pick<IntegrationsOptions, 'connections' | 'githubApp'>,
+   options: Pick<IntegrationsOptions, 'githubToken'>,
    owner?: string | null
 ): Promise<string> {
-   if (options.githubApp && (await options.githubApp.app())) {
-      return options.githubApp.token(workspaceId, owner);
-   }
-   if (!options.connections) {
-      throw new GitHubAppUnavailable('this deployment has no GitHub App', 'no_app');
-   }
-   return options.connections.token(workspaceId, 'github');
+   return (await githubCredential(workspaceId, options, owner)).token;
 }

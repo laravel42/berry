@@ -51,7 +51,13 @@ test('a boolean capability is reported as it always was', async () => {
       modelGateway: false,
       passwordlessLogin: false,
       emailRegistration: false,
+      nango: false,
    });
+});
+
+test('nango is reported only when the caller says this process can call it', async () => {
+   assert.equal((await capabilitiesOf({ ...base, nango: true })()).nango, true);
+   assert.equal((await capabilitiesOf(base)()).nango, false);
 });
 
 test('passwordlessLogin reports the development email sign-in', async () => {

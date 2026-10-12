@@ -1,8 +1,6 @@
 import type { Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import type { Config } from '../config/config.ts';
-import type { GitHubAppRepository } from '../integrations/github-app.ts';
-import type { GitHubUserAccess } from '../integrations/github-user.ts';
 import { startGateway } from '../agentcore/bootstrap.ts';
 import { AgentCoreIdentity } from '../agentcore/identity.ts';
 import { GitHubProvider } from './github-provider.ts';
@@ -14,9 +12,8 @@ import { ScmSync } from './sync.ts';
 /**
  * A git credential minted per workspace, for cloning and pushing.
  *
- * `canPush` is set when the minter knows what it granted — the GitHub App
- * does, from the token exchange. Absent means "ask the repository", which is
- * what the older credential paths can do.
+ * `canPush` is set when the minter knows what it granted. Absent means
+ * "ask the repository".
  */
 export type GitCredential = (
    workspaceId: string,
@@ -67,22 +64,24 @@ export function identityNeedsRenewal(message: string): boolean {
  *
  * There are two providers and they are interchangeable to the domain because
  * both satisfy `ScmProvider`: `agentcore` reaches GitHub through the gateway's
- * tools, while the App path uses Berry's own client and a GitHub App
- * installation token minted per workspace. Discovery for the gateway runs at
- * boot, so a gateway missing a required tool is found while someone is
- * watching. Extracted from the composition root because choosing a provider is
- * logic, not wiring.
+ * tools, while the connection path uses Berry's own client and the workspace
+ * GitHub token. Discovery for the gateway runs at boot, so a gateway missing
+ * a required tool is found while someone is watching. Extracted from the
+ * composition root because choosing a provider is logic, not wiring.
  */
 export async function createScm(options: {
    sql: Sql;
    config: Config;
    logger: Logger;
-   githubApp: GitHubAppRepository | null;
-   /** Members' GitHub sign-ins: the credential when no App installation covers a workspace. */
-   userAccess?: GitHubUserAccess | null;
+   /**
+    * The workspace GitHub token, when a connection can be opened.
+    *
+    * Null when this process has nowhere to ask. The token is used for the
+    * call and not stored here.
+    */
+   githubToken: ((workspaceId: string) => Promise<string>) | null;
 }): Promise<Scm> {
-   const { sql, config, logger, githubApp } = options;
-   const userAccess = options.userAccess ?? null;
+   const { sql, config, logger, githubToken } = options;
    const links = new ScmLinkRepository(sql);
 
    // Refuses until a provider replaces it: a call site that reaches for a
@@ -99,7 +98,7 @@ export async function createScm(options: {
     * the lifecycle and Berry asks per run. Tried rather than trusted, though —
     * a `USER_FEDERATION` provider answers with an authorization URL until
     * somebody has consented once, and a deployment mid-setup should keep
-    * cloning with the App or the sign-in token instead of losing repository
+    * cloning with the App instead of losing repository
     * access to a half-finished migration.
     */
    const identityCredential = config.agentCoreGitCredential
@@ -153,8 +152,8 @@ export async function createScm(options: {
             if (renew) {
                attention = {
                   message: /consent/i.test(text)
-                     ? 'GitHub is not authorised for AgentCore yet. Finish the consent flow so agents stop using the fallback sign-in token.'
-                     : 'The GitHub token AgentCore holds has expired. Sign in again so repository writes use a current grant. Until then Berry uses the workspace sign-in token.',
+                     ? 'GitHub is not authorised for AgentCore yet. Finish the consent flow so agents can use GitHub.'
+                     : 'The GitHub token AgentCore holds has expired. Renew it so repository writes use a current grant.',
                   url: identityCredential.renewalUrl(),
                   at: now,
                };
@@ -191,59 +190,24 @@ export async function createScm(options: {
             agentCoreAttention,
          };
       }
-   } else if (githubApp || userAccess) {
-      const app = githubApp;
-      // An App installation when one covers the workspace; otherwise a member's
-      // GitHub sign-in, which asks for `repo` and `workflow` and so can clone,
-      // push, and publish workflow files. The App
-      // is optional: a deployment that only signs people in with GitHub still
-      // runs agents against their repositories.
-      const access = async (
-         workspaceId: string,
-         owner?: string | null
-      ): Promise<{ token: string; canPush?: boolean }> => {
-         let refusal: unknown = new Error('no GitHub credential is configured');
-         if (app) {
-            try {
-               return await app.access(workspaceId, owner);
-            } catch (error) {
-               refusal = error;
-            }
-         }
-         if (userAccess) {
-            try {
-               return { token: await userAccess.workspaceToken(workspaceId) };
-            } catch (error) {
-               // With an App, its reason is the one worth reporting.
-               if (!app) refusal = error;
-            }
-         }
-         throw refusal;
-      };
+   } else if (githubToken) {
+      const mint = githubToken;
+      const access = async (workspaceId: string): Promise<{ token: string }> => ({
+         token: await mint(workspaceId),
+      });
       const provisioning = new ScmProvisioning({
          provider: (workspaceId: string) =>
             new GitHubProvider({
-               token: (owner) => access(workspaceId, owner).then((granted) => granted.token),
-               // A member's sign-in token GitHub has refused (revoked, or the
-               // OAuth App's grant removed) is cleared, so settings stop saying
-               // "Connected" and ask for a reconnect. An App token is minted
-               // fresh each time and is left to the App.
-               ...(userAccess
-                  ? {
-                       unauthorized: (token: string) =>
-                          userAccess.refuseWorkspaceToken(workspaceId, token),
-                    }
-                  : {}),
+               token: () => access(workspaceId).then((granted) => granted.token),
             }),
          providerId: 'github',
          links,
          logger,
       });
-      gitCredential = preferIdentity((workspaceId: string, owner?: string | null) =>
-         access(workspaceId, owner).then((granted) => ({
+      gitCredential = preferIdentity((workspaceId: string) =>
+         access(workspaceId).then((granted) => ({
             username: 'x-access-token',
             password: granted.token,
-            ...(granted.canPush === undefined ? {} : { canPush: granted.canPush }),
          }))
       );
       return {
