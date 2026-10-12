@@ -38,7 +38,7 @@ format one with another.
   envelope must keep decoding for clients that already hold them.
 - Agents cannot set a task to done or cancelled, and there is no merge tool.
   A person always decides release.
-- MIT / Apache-2.0 dependencies only. No Linear product branding or copied
+- Berry's own code is AGPL-3.0-only. Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL. No Linear product branding or copied
   schema. No new `Linear*` identifiers.
 - `strict` on, no `any` except vendored `frontend/components/data-table-filter/**`.
 - English-only i18n. Repo-wide gates, not per-package lint:

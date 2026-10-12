@@ -9,7 +9,11 @@
   anywhere; realtime is poll-based from `outbox_events`. ADR-0008 (in-process
   Google ADK) is superseded by ADR-0013 (SDK) and ADR-0014 (loop location);
   ADR-0013's SDK and plugin choice still stands. ADR-0010 is now Implemented;
-  ADR-0011 is partially superseded for GitHub.
+  ADR-0011 is partially superseded for GitHub. Shipped dependencies may be
+  MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not
+  be offered as a managed service, may not have its notices or license-key
+  checks stripped, and is not relicensed to AGPL. Berry's own code stays
+  AGPL-3.0-only.
 - 2026-08-22 — Licensing: MIT/Apache-2.0 only; retain Circle notices; no
   third-party product branding (`docs/product-brief.md`).
 - 2026-09-01 — ADR-0010 (goals as derived groups) and ADR-0011 (refresh

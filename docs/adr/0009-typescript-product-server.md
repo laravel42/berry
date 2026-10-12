@@ -22,6 +22,11 @@
 - The agent runtime named here (ADK) is gone; see ADR-0008, ADR-0013 and
   ADR-0014 for what replaced it and runs today.
 - `server-ts/SCOPE.md` still records what is intentionally unserved.
+- The dependency-license sentence in "What this costs" is historical. Shipped
+  dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License
+  2.0 code may not be offered as a managed service, may not have its notices or
+  license-key checks stripped, and is not relicensed to AGPL. Berry's own code
+  stays AGPL-3.0-only.
 
 ## Context
 
@@ -133,8 +138,8 @@ behaviour the document does not.
 
 New dependencies where Go used the standard library: an HTTP framework, a
 Postgres driver, a validation library, a logger. `@google/adk` alone pulls 17
-dependencies including `@mikro-orm/core`; it is Apache-2.0, which satisfies
-Berry's MIT/Apache-2.0-only rule.
+dependencies including `@mikro-orm/core`; it is Apache-2.0, which satisfied
+the MIT/Apache-2.0 dependency rule in force when this ADR was accepted.
 
 ### What this buys
 

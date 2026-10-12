@@ -162,5 +162,6 @@ normally.
 ## Licensing
 
 Berry is licensed under the GNU Affero General Public License v3. See [LICENSE](LICENSE).
+Berry's own code stays AGPL-3.0-only.
 The web interface began as the MIT-licensed Circle template; that notice stays in `frontend/LICENSE.md`.
-Dependencies keep their own permissive licenses.
+Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL.

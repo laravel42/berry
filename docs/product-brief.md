@@ -109,7 +109,7 @@ Filesystem execution for the hosted runtime remains inside the agent runtime.
 
 ## Licensing posture
 
-- **Berry's own code** is licensed under the GNU Affero General Public License v3 (`AGPL-3.0-only`). Every dependency must be MIT / Apache-2.0 (or equivalently permissive).
+- **Berry's own code** is licensed under the GNU Affero General Public License v3 (`AGPL-3.0-only`). Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL.
 - **The agent runtime** runs the native Strands Agents SDK against Amazon Bedrock or Kilo, and may run an approved provider-owned agent process. Kiro uses the official `kiro-cli` binary on the user workstation, which Berry does not bundle and does not start inside the container. Provider dependencies and their notices remain in the runtime image.
 - **Circle** (frontend template origin) is MIT; its notice is retained in the frontend.
 - Berry's API uses conventional resource-oriented JSON and pagination. No

@@ -106,8 +106,7 @@ parameter properties — is allowed; `erasableSyntaxOnly` enforces it.
   blocking
   ([ADR-0016](docs/adr/0016-autogate-delegated-release.md)). The consent is the
   person's either way; AutoGate only moves it from per task to per plan.
-- **Licenses.** Berry's own code is AGPL-3.0-only. Shipped dependencies must be MIT / Apache-2.0 (or equivalently
-  permissive). Retain Circle MIT notices. Do not copy another product's schema,
+- **Licenses.** Berry's own code is AGPL-3.0-only. Shipped dependencies may be MIT, Apache-2.0, or Elastic License 2.0. Elastic License 2.0 code may not be offered as a managed service, may not have its notices or license-key checks stripped, and is not relicensed to AGPL. Retain Circle MIT notices. Do not copy another product's schema,
   brand, or marks. Do not use "Linear" as Berry product branding or in new code
   identifiers. Existing Circle comments that say "Linear-style" are legacy — do
   not spread that into new APIs.
