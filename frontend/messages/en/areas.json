@@ -23,6 +23,9 @@
          "creator": "Creator",
          "updated": "Updated"
       },
+      "groups": {
+         "unlabeled": "No labels"
+      },
       "filters": {
          "button": "Filter",
          "usage": "Usage",
@@ -84,6 +87,7 @@
       },
       "create": {
          "title": "New skill",
+         "button": "+ New skill",
          "name": "Name",
          "nameHint": "Lowercase letters, digits and dashes.",
          "nameInvalid": "Use lowercase letters, digits and dashes.",

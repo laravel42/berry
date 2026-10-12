@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronDown, CircleDashed } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,8 +14,10 @@ import {
    EmptyStateTitle,
 } from '@/components/common/empty-state';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
+import { colorForSkillLabel } from '@/lib/skill-labels';
 import { deleteSkill, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
@@ -37,6 +40,8 @@ interface Props {
    narrowed: boolean;
    /** Updates sort when a sortable column heading is clicked. */
    onCriteriaChange?: (criteria: SkillCriteria) => void;
+   /** Catalogue colours, keyed by label name. A missing name keeps the hash colour. */
+   labelColors?: Record<string, string>;
 }
 
 /** Each sort's natural order: names and labels A→Z, the newest and the most used first. */
@@ -73,17 +78,163 @@ function sortSkills(skills: Skill[], sort: SkillCriteria['sort'], descending = f
 /** Which column heading sorts by what; the rest stay as text. */
 const SORT_FOR_COLUMN: Partial<Record<SkillColumn | 'skill', SkillCriteria['sort']>> = {
    skill: 'name',
-   labels: 'labels',
    updated: 'updated',
    agents: 'usage',
 };
 
+interface LabelGroup {
+   id: string;
+   /** Empty when the skills in the group carry no label. */
+   label: string;
+   skills: Skill[];
+}
+
 /**
- * The workspace's skills.
+ * One accordion per label, in name order, with unlabeled skills last.
  *
- * Same table shape as Agents: sticky header, checkbox, name, optional cells,
- * hover menu. Rows are acted on one at a time through the menu, or several at
- * once through the bar that appears with a selection.
+ * A skill with several labels is listed under each of them. The order inside
+ * a group is the order the catalogue was already sorted into.
+ */
+function groupByLabel(skills: Skill[]): LabelGroup[] {
+   const buckets = new Map<string, Skill[]>();
+   for (const skill of skills) {
+      const labels = skill.labels.length > 0 ? skill.labels : [''];
+      for (const label of labels) {
+         const current = buckets.get(label);
+         if (current) current.push(skill);
+         else buckets.set(label, [skill]);
+      }
+   }
+   return [...buckets.entries()]
+      .sort(([left], [right]) => {
+         if (left === '') return 1;
+         if (right === '') return -1;
+         return left.localeCompare(right, undefined, { sensitivity: 'base' });
+      })
+      .map(([label, grouped]) => ({
+         id: label === '' ? 'unlabeled' : `label:${label}`,
+         label,
+         skills: grouped,
+      }));
+}
+
+/** First time each skill appears, top to bottom, so the detail drawer steps through the groups. */
+function firstSeenIds(groups: LabelGroup[]): string[] {
+   const ids: string[] = [];
+   const seen = new Set<string>();
+   for (const group of groups) {
+      for (const skill of group.skills) {
+         if (seen.has(skill.id)) continue;
+         seen.add(skill.id);
+         ids.push(skill.id);
+      }
+   }
+   return ids;
+}
+
+interface SkillLabelGroupProps {
+   group: LabelGroup;
+   columns: SkillColumn[];
+   agents: Agent[];
+   canEdit: boolean;
+   openId: string | null;
+   selection: string[];
+   refreshingId: string | null;
+   onToggleSelected: (id: string) => void;
+   onOpen: (id: string) => void;
+   onChanged: () => void;
+   onRefreshing: (id: string | null) => void;
+   onConfirmDelete: (skill: Skill) => void;
+   labelColors?: Record<string, string>;
+}
+
+/** One label, opened and closed the same way a task-list group is. */
+function SkillLabelGroup({
+   group,
+   columns,
+   agents,
+   canEdit,
+   openId,
+   selection,
+   refreshingId,
+   onToggleSelected,
+   onOpen,
+   onChanged,
+   onRefreshing,
+   onConfirmDelete,
+   labelColors,
+}: SkillLabelGroupProps) {
+   const t = useTranslations('areas.skills');
+   const unlabeled = group.label === '';
+   const name = unlabeled ? t('groups.unlabeled') : group.label;
+
+   return (
+      <Collapsible defaultOpen className="group/skill-group bg-container">
+         <div className="sticky top-0 z-10 h-10 w-full bg-container">
+            <div
+               data-column-tint="neutral"
+               className="flex h-full w-full items-center bg-group-tint-neutral px-6"
+            >
+               <CollapsibleTrigger asChild>
+                  <button
+                     type="button"
+                     className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                     <ChevronDown
+                        aria-hidden
+                        className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/skill-group:-rotate-90"
+                     />
+                     {unlabeled ? (
+                        <CircleDashed
+                           aria-hidden
+                           className="size-4 shrink-0 text-muted-foreground"
+                        />
+                     ) : (
+                        <span
+                           aria-hidden
+                           className="size-2.5 shrink-0 rounded-full"
+                           style={{
+                              backgroundColor:
+                                 labelColors?.[group.label] ?? colorForSkillLabel(group.label),
+                           }}
+                        />
+                     )}
+                     <span className="truncate font-medium">{name}</span>
+                     <span className="text-muted-foreground">{group.skills.length}</span>
+                  </button>
+               </CollapsibleTrigger>
+            </div>
+         </div>
+         <CollapsibleContent>
+            {group.skills.map((skill) => (
+               <SkillLine
+                  key={skill.id}
+                  skill={skill}
+                  columns={columns}
+                  agents={agents}
+                  canEdit={canEdit}
+                  selected={selection.includes(skill.id)}
+                  open={openId === skill.id}
+                  onToggleSelected={onToggleSelected}
+                  onOpen={onOpen}
+                  onChanged={onChanged}
+                  refreshing={refreshingId === skill.id}
+                  onRefreshing={onRefreshing}
+                  onConfirmDelete={onConfirmDelete}
+               />
+            ))}
+         </CollapsibleContent>
+      </Collapsible>
+   );
+}
+
+/**
+ * The workspace's skills, grouped by label.
+ *
+ * The groups use the same accordion as the task list: a tinted header with a
+ * chevron and a count, and a gap between groups. Rows are acted on one at a
+ * time through the menu, or several at once through the bar that appears with
+ * a selection.
  */
 export default function SkillsList({
    skills,
@@ -96,6 +247,7 @@ export default function SkillsList({
    onChanged,
    narrowed,
    onCriteriaChange,
+   labelColors,
 }: Props) {
    const t = useTranslations('areas.skills');
    const setOrderedIds = useSkillsCatalogueStore((state) => state.setOrderedIds);
@@ -107,12 +259,14 @@ export default function SkillsList({
       () => sortSkills(skills ?? [], criteria.sort, criteria.descending),
       [skills, criteria.sort, criteria.descending]
    );
+   const groups = useMemo(() => groupByLabel(rows), [rows]);
+   const orderedIds = useMemo(() => firstSeenIds(groups), [groups]);
    const selected = rows.filter((skill) => selection.includes(skill.id));
    const allSelected = rows.length > 0 && selection.length === rows.length;
 
    useEffect(() => {
-      setOrderedIds(rows.map((skill) => skill.id));
-   }, [rows, setOrderedIds]);
+      setOrderedIds(orderedIds);
+   }, [orderedIds, setOrderedIds]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (skills === null) return <EmptyStateLoading label={t('loading')} />;
@@ -198,56 +352,55 @@ export default function SkillsList({
 
    return (
       <div className="flex h-full min-h-0 w-full flex-col">
-         <div className="min-h-0 flex-1 overflow-y-auto">
-            <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
-               {canEdit ? (
-                  <Checkbox
-                     className="shrink-0"
-                     aria-label={t('bulk.selectAll')}
-                     checked={allSelected}
-                     onCheckedChange={() =>
-                        setSelection(allSelected ? [] : rows.map((skill) => skill.id))
-                     }
-                  />
-               ) : null}
-               {onCriteriaChange ? (
-                  <button
-                     type="button"
-                     onClick={() => sortBy('name')}
-                     className={cn(
-                        'min-w-0 flex-1 text-left uppercase hover:text-foreground',
-                        criteria.sort === 'name' && 'text-foreground'
-                     )}
-                  >
-                     {t('columns.skill')}
-                     {arrow('name')}
-                  </button>
-               ) : (
-                  <div className="min-w-0 flex-1">{t('columns.skill')}</div>
-               )}
-               {header('labels', t('columns.labels'))}
-               {header('agents', t('columns.agents'))}
-               {header('creator', t('columns.creator'))}
-               {header('updated', t('columns.updated'))}
-               {header('files', t('columns.files'), 'justify-end')}
-               <span className="size-6 shrink-0" aria-hidden />
-            </div>
-
-            {rows.map((skill) => (
-               <SkillLine
-                  key={skill.id}
-                  skill={skill}
+         <div className="flex shrink-0 items-center gap-3 border-b bg-container px-6 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
+            {canEdit ? (
+               <Checkbox
+                  className="shrink-0"
+                  aria-label={t('bulk.selectAll')}
+                  checked={allSelected}
+                  onCheckedChange={() =>
+                     setSelection(allSelected ? [] : rows.map((skill) => skill.id))
+                  }
+               />
+            ) : null}
+            {onCriteriaChange ? (
+               <button
+                  type="button"
+                  onClick={() => sortBy('name')}
+                  className={cn(
+                     'min-w-0 flex-1 text-left uppercase hover:text-foreground',
+                     criteria.sort === 'name' && 'text-foreground'
+                  )}
+               >
+                  {t('columns.skill')}
+                  {arrow('name')}
+               </button>
+            ) : (
+               <div className="min-w-0 flex-1">{t('columns.skill')}</div>
+            )}
+            {header('agents', t('columns.agents'))}
+            {header('creator', t('columns.creator'))}
+            {header('updated', t('columns.updated'))}
+            {header('files', t('columns.files'), 'justify-end')}
+            <span className="size-6 shrink-0" aria-hidden />
+         </div>
+         <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background">
+            {groups.map((group) => (
+               <SkillLabelGroup
+                  key={group.id}
+                  group={group}
                   columns={criteria.columns}
                   agents={agents}
                   canEdit={canEdit}
-                  selected={selection.includes(skill.id)}
-                  open={openId === skill.id}
+                  openId={openId}
+                  selection={selection}
+                  refreshingId={refreshingId}
                   onToggleSelected={toggle}
                   onOpen={onOpen}
                   onChanged={onChanged}
-                  refreshing={refreshingId === skill.id}
                   onRefreshing={setRefreshingId}
                   onConfirmDelete={setConfirming}
+                  labelColors={labelColors}
                />
             ))}
          </div>
