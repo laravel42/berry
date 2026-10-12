@@ -5,7 +5,7 @@ import { deriveReviewRequirements } from './derived.ts';
 import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
- * Berry's organization: the Orchestrator, six core roles every workspace is
+ * Berry's organization: the Orchestrator, seven core roles every workspace is
  * given, and specialists a workspace adds when it has that kind of work
  * (ADR-0018). The source for new agent rows and for upgrades of untouched
  * ones; a workspace's agents may diverge from it. Bump CATALOG_VERSION
@@ -25,7 +25,8 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 20: a workspace drops specialists the old full roster left behind. A
 // specialist a person adds from this version on stays.
 // 21: a Web Designer for public pages and marketing sites, given to every workspace.
-export const CATALOG_VERSION = 21;
+// 22: a Reviewer owns task review. Code is reviewed by that role.
+export const CATALOG_VERSION = 22;
 
 /**
  * Specialists written before this version were given to every workspace.
@@ -40,7 +41,7 @@ export const SPECIALISTS_KEPT_FROM = 20;
  * a review or an escalation when the workspace does not have it.
  */
 export const CORE_ROLES: readonly RoleKey[] = [
-   'orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+   'orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
 ];
 
 export function isCoreRole(key: RoleKey): boolean {
@@ -148,7 +149,7 @@ const SPECS: RoleSpec[] = [
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
       outputs: ['Assignments', 'Selected workflow per task', 'Routing notes'],
       delegates: [
-         'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+         'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
          'business-analyst', 'ux-researcher', 'software-architect', 'web-designer',
          'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer',
          'security-engineer', 'sre', 'data-analytics-engineer', 'technical-writer',
@@ -488,8 +489,8 @@ const SPECS: RoleSpec[] = [
          'Identify edge cases.',
          'Reproduce bugs.',
          'Validate fixes.',
-         'Review releases.',
-         'Check authentication, authorization, secrets and dependencies in what you review.',
+         'Report defects with the steps that reproduce them.',
+         'Check authentication, authorization, secrets and dependencies in what you test.',
       ],
       capabilities: ['qa', 'testing', 'regression', 'automation', 'security'],
       inputs: ['Acceptance criteria', 'Pull requests', 'Bug reports', 'Check results'],
@@ -504,6 +505,39 @@ const SPECS: RoleSpec[] = [
       expertise: 'Derive test cases from the acceptance criteria before reading the implementation, run the checks yourself, and try the edge cases the author did not mention. Trace untrusted input to where it is used, and check that secrets stay out of code and logs.',
       discovery: { focus: ['Critical user flows without automated tests', 'Flaky or skipped tests'], evidence_sources: ['Test suite', 'Run failures', 'Repository code'] },
       code: true,
+   },
+   {
+      id: 'reviewer',
+      name: 'Reviewer',
+      role: 'Reviewer',
+      department: 'quality-security',
+      tier: 'berry_mid',
+      level: 5,
+      mission: 'Review delivered work and decide whether it meets the task.',
+      responsibilities: [
+         'Read the task, the diff and the checks before deciding.',
+         'Accept work that meets the task.',
+         'Send back work that does not, with findings the author can act on.',
+         'Leave implementation and testing to the roles that own them.',
+      ],
+      capabilities: ['review'],
+      inputs: ['Delivered runs', 'Pull requests', 'Check results', 'Acceptance criteria'],
+      outputs: ['Review verdicts', 'Findings that send work back'],
+      delegates: ['software-engineer', 'qa-engineer'],
+      escalation: [{ when: 'The task cannot be judged because its acceptance criteria are missing', to: 'product-lead', decision: 'product' }],
+      reviewDomains: [
+         'Whether the change does what the task asked',
+         'Regressions and missing checks',
+         'Findings a later run can act on',
+      ],
+      never: [
+         'Implement the change you are reviewing.',
+         'Approve work you did not read.',
+         'Review a run you authored.',
+      ],
+      expertise: 'Read the task and the diff before the author\'s summary. Decide only on what the task asked. A rejection names the file and what is wrong, so the author can fix that and nothing else.',
+      discovery: { focus: ['Delivered work sitting without a verdict', 'Reviews that send the same finding back unchanged'], evidence_sources: ['Pull requests', 'Review comments', 'Check results'] },
+      code: false,
    },
    {
       id: 'security-engineer',

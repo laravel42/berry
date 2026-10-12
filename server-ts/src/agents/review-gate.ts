@@ -665,7 +665,7 @@ export class ReviewGate {
          const agent = await roleAgent(this.#sql, material.workspaceId, role);
          if (!agent) {
             // A specialist the workspace does not have is not owed a review
-            // (ADR-0018): QA is always required, and a person still releases
+            // (ADR-0018): the Reviewer is always required, and a person still releases
             // the work. Waiting on a role nobody holds only parked the task.
             // A core role a person archived is still owed, and says so.
             if (!isCoreRole(role)) continue;

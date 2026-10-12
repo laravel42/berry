@@ -559,6 +559,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
    describe('an organization author', () => {
       let backend = '';
       let qa = '';
+      let reviewerId = '';
       let security = '';
       let cto = '';
 
@@ -574,6 +575,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          };
          backend = await insertRole('backend-engineer', 'author-model');
          qa = await insertRole('qa-engineer', 'qa-model');
+         reviewerId = await insertRole('reviewer', 'reviewer-model');
          security = await insertRole('security-engineer', 'security-model');
          cto = await insertRole('cto', 'cto-model');
       });
@@ -615,7 +617,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          assert.equal((await issueState(issueId)).status, 'in_review');
       });
 
-      test('ordinary code gets exactly the QA review, and a passing review releases it', async () => {
+      test('ordinary code gets exactly the Reviewer, and a passing review releases it', async () => {
          // Opted into AutoGate: the organization's required reviewers run.
          const { issueId, runId } = await delivered('Org approve', true, { authorId: backend });
          const { gate: g, calls } = gate([{ approved: true, reason: 'Tested.' }]);
@@ -624,13 +626,13 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
          const found = await rows(issueId);
          assert.equal(found.length, 1);
-         assert.equal(found[0]!.reviewer_role, 'qa-engineer');
-         assert.equal(found[0]!.reviewer_id, qa);
+         assert.equal(found[0]!.reviewer_role, 'reviewer');
+         assert.equal(found[0]!.reviewer_id, reviewerId);
          assert.equal(found[0]!.authority, 'blocking');
          assert.equal(found[0]!.approved, true);
-         assert.equal(calls[0]!.model, 'qa-model', 'the reviewer runs on its own model');
-         assert.ok(calls[0]!.system.includes(catalogRole('qa-engineer')!.review_domains[0]!), 'the reviewer is told its domains');
-         assert.ok(calls[0]!.system.includes(catalogRole('qa-engineer')!.never[0]!), 'and what it must never do');
+         assert.equal(calls[0]!.model, 'reviewer-model', 'the reviewer runs on its own model');
+         assert.ok(calls[0]!.system.includes(catalogRole('reviewer')!.review_domains[0]!), 'the reviewer is told its domains');
+         assert.ok(calls[0]!.system.includes(catalogRole('reviewer')!.never[0]!), 'and what it must never do');
          const state = await issueState(issueId);
          assert.equal(state.status, 'done', 'every blocking review approved and AutoGate released it');
          assert.ok((await comments(issueId)).some((body) => /closed by AutoGate/.test(body)));
@@ -640,7 +642,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const { issueId, runId } = await delivered('Org auth', true, { authorId: backend, files: ['server-ts/src/auth/x.ts'] });
          const { gate: g } = gate(
             [
-               { forModel: 'qa-model', approved: true, reason: 'Tested.' },
+               { forModel: 'reviewer-model', approved: true, reason: 'Tested.' },
                {
                   forModel: 'security-model',
                   approved: false,
@@ -658,7 +660,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          await g.review(runId);
 
          const found = await rows(issueId);
-         assert.deepEqual(found.map((row) => `${row.reviewer_role}:${row.approved}`), ['qa-engineer:true', 'security-engineer:false']);
+         assert.deepEqual(found.map((row) => `${row.reviewer_role}:${row.approved}`), ['reviewer:true', 'security-engineer:false']);
          assert.equal(found[1]!.reviewer_id, security);
          const state = await issueState(issueId);
          assert.equal(state.status, 'todo');
@@ -672,7 +674,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const { issueId, runId } = await delivered('Org invalid', true, { authorId: backend, files: ['server-ts/src/auth/x.ts'] });
          const { gate: g, errors } = gate(
             [
-               { forModel: 'qa-model', approved: true, reason: 'Tested.' },
+               { forModel: 'reviewer-model', approved: true, reason: 'Tested.' },
                { forModel: 'security-model', approved: false, reason: 'Bad.', findings: [{ severity: 'high', impact: 'x', remediation: 'y', message: 'z' }] },
             ],
             2,
@@ -724,11 +726,11 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
              WHERE issue_id = ${issueId} AND approved = false AND authority = 'blocking'
                AND reason NOT LIKE 'The review could not be completed%'`;
          assert.equal(count!.n, 0, 'a review that could not finish is not a rejection');
-         const notes = (await comments(issueId)).filter((body) => /qa-engineer/.test(body) && /could not be completed/.test(body) && /sent back to todo/.test(body));
+         const notes = (await comments(issueId)).filter((body) => /\breviewer\b/.test(body) && /could not be completed/.test(body) && /sent back to todo/.test(body));
          assert.equal(notes.length, 1, 'the failing reviewer is named where a person reads the task');
       });
 
-      test('a specialist the workspace does not have is not waited on: QA\'s review is enough', async () => {
+      test('a specialist the workspace does not have is not waited on: the Reviewer is enough', async () => {
          // Migrations call in the Software Architect, a specialist this workspace
          // never added (ADR-0018): the task is not parked waiting for it.
          const { issueId, runId } = await delivered('Org missing specialist', true, { authorId: backend, files: ['server-ts/migrations/187_x.up.sql'] });
@@ -739,7 +741,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const bodies = await comments(issueId);
          assert.ok(bodies.some((body) => /Required reviews passed/.test(body)));
          assert.ok(!bodies.some((body) => /software-architect/.test(body) && /no agent/.test(body)));
-         assert.deepEqual((await rows(issueId)).map((row) => row.reviewer_role), ['qa-engineer']);
+         assert.deepEqual((await rows(issueId)).map((row) => row.reviewer_role), ['reviewer']);
       });
 
       test('a critical architectural proposal on the task requires the Architect and the CTO', async () => {
@@ -775,14 +777,11 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
 
          const found = await rows(issueId);
          assert.ok(!found.some((row) => row.reviewer_role === 'cto'), 'the CTO is not asked');
-         assert.deepEqual(found.map((row) => row.reviewer_role), ['qa-engineer'], 'nor the Architect, which the workspace does not have');
+         assert.deepEqual(found.map((row) => row.reviewer_role), ['reviewer'], 'nor the Architect, which the workspace does not have');
       });
 
       test('work no required reviewer applies to is decided by another agent, never by its author', async () => {
-         // QA's own change: QA cannot review itself, and no other rule applies to
-         // src/a.ts. Under AutoGate the loop still owes this task a decision, and
-         // "no role was obliged to look" is not one — so a peer decides. The one
-         // thing that must never happen is the author reviewing itself.
+         // QA writes code, so the Reviewer decides. The author never reviews itself.
          const { issueId, runId } = await delivered('QA own change', true, { authorId: qa });
          const { gate: g, calls } = gate([{ approved: true, reason: 'Reads correctly.' }]);
 
@@ -852,8 +851,8 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          const feedback = await lastRejection(sql, issueId);
          // The two reviewers run at once, so which fake verdict each drew
          // depends on timing: what is pinned is that both reach the next run.
-         assert.match(feedback, /^(qa|security)-engineer: /m);
-         assert.match(feedback, /qa-engineer: /);
+         assert.match(feedback, /^(reviewer|security-engineer): /m);
+         assert.match(feedback, /reviewer: /);
          assert.match(feedback, /security-engineer: /);
          assert.match(feedback, /No tests for the handler\./);
          assert.match(feedback, /Secrets are logged\./);

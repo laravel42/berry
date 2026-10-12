@@ -26,14 +26,14 @@ test('an architectural proposal needs the Architect; the CTO only when it is als
    assert.deepEqual(analyst, [{ reviewer: 'software-architect', authority: 'blocking' }]);
 });
 
-test('QA always reviews implementation', () => {
-   assert.deepEqual(requiredReviews(backend, subject()), [{ reviewer: 'qa-engineer', authority: 'blocking' }]);
+test('the Reviewer always reviews implementation', () => {
+   assert.deepEqual(requiredReviews(backend, subject()), [{ reviewer: 'reviewer', authority: 'blocking' }]);
 });
 
 test('auth paths bring Security; migrations bring the Architect and the Database Engineer', () => {
    const reviews = requiredReviews(backend, subject({ paths: ['server-ts/src/auth/sessions.ts', 'server-ts/migrations/187_x.up.sql'] }));
    assert.deepEqual(reviews.map((r) => `${r.reviewer}:${r.authority}`).sort(), [
-      'database-engineer:advisory', 'qa-engineer:blocking', 'security-engineer:blocking', 'software-architect:blocking',
+      'database-engineer:advisory', 'reviewer:blocking', 'security-engineer:blocking', 'software-architect:blocking',
    ]);
 });
 

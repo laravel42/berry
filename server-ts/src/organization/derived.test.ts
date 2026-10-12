@@ -16,18 +16,19 @@ test('for every catalogue role, the derived parts equal what the catalogue store
    }
 });
 
-test('a role that runs commands writes code, and code is always reviewed by QA', () => {
+test('a role that runs commands writes code, and code is always reviewed by the Reviewer', () => {
    const engineer = catalogRole('backend-engineer')!;
    assert.equal(writesCode(engineer), true);
-   assert.ok(deriveReviewRequirements(engineer).some((rule) => rule.reviewer === 'qa-engineer' && rule.authority === 'blocking'));
+   assert.ok(deriveReviewRequirements(engineer).some((rule) => rule.reviewer === 'reviewer' && rule.authority === 'blocking'));
    const lead = catalogRole('product-lead')!;
    assert.equal(writesCode(lead), false);
-   assert.ok(!deriveReviewRequirements(lead).some((rule) => rule.reviewer === 'qa-engineer'));
+   assert.ok(!deriveReviewRequirements(lead).some((rule) => rule.reviewer === 'reviewer'));
 });
 
 test('a role never reviews itself', () => {
-   const qa = catalogRole('qa-engineer')!;
-   assert.ok(!deriveReviewRequirements(qa).some((rule) => rule.reviewer === 'qa-engineer'));
+   const reviewer = catalogRole('reviewer')!;
+   assert.equal(writesCode(reviewer), false);
+   assert.ok(!deriveReviewRequirements(reviewer).some((rule) => rule.reviewer === 'reviewer'));
 });
 
 test('who a role receives work from follows who hands work to it, whatever its contract says', () => {

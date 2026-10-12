@@ -10,9 +10,9 @@ import { PROMPT_SECTIONS } from './prompt.ts';
 const keys = new Set(CATALOG.map((role) => role.id));
 
 describe('the Berry organization catalog', () => {
-   test('has the Orchestrator, six core roles and fourteen specialists, each a valid contract', () => {
-      assert.equal(CATALOG.length, 21);
-      assert.equal(keys.size, 21);
+   test('has the Orchestrator, seven core roles and fourteen specialists, each a valid contract', () => {
+      assert.equal(CATALOG.length, 22);
+      assert.equal(keys.size, 22);
       for (const role of CATALOG) {
          const parsed = roleContractSchema.safeParse(role);
          assert.ok(parsed.success, `${role.id}: ${parsed.success ? '' : parsed.error.message}`);
@@ -20,7 +20,7 @@ describe('the Berry organization catalog', () => {
       for (const key of [
          'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'web-designer', 'software-engineer',
          'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer',
-         'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre',
+         'integration-engineer', 'qa-engineer', 'reviewer', 'security-engineer', 'devops-engineer', 'sre',
          'data-analytics-engineer', 'technical-writer', 'growth-engineer', 'engineering-manager', 'cto',
       ]) {
          assert.ok(keys.has(key), `missing ${key}`);
@@ -28,7 +28,7 @@ describe('the Berry organization catalog', () => {
       // ADR-0018: what every workspace is given.
       assert.deepEqual(
          [...CORE_ROLES],
-         ['orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'devops-engineer']
+         ['orchestrator', 'product-lead', 'product-designer', 'web-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
       );
    });
 
@@ -80,16 +80,16 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('five Level 5 roles, each with review domains; no one else reviews', () => {
+   test('six Level 5 roles, each with review domains; no one else reviews', () => {
       const authorities = CATALOG.filter((role) => role.autonomy_level === 5).map((role) => role.id).sort();
-      assert.deepEqual(authorities, ['cto', 'product-lead', 'qa-engineer', 'security-engineer', 'software-architect']);
+      assert.deepEqual(authorities, ['cto', 'product-lead', 'qa-engineer', 'reviewer', 'security-engineer', 'software-architect']);
       for (const role of CATALOG) {
          assert.equal(role.review_domains.length > 0, role.autonomy_level === 5, role.id);
       }
    });
 
    test('roles that must never implement have no code tools', () => {
-      for (const key of ['product-lead', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst']) {
+      for (const key of ['product-lead', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst', 'reviewer']) {
          assert.equal(catalogRole(key)?.allowed_tools.includes('run_command'), false, key);
       }
    });
