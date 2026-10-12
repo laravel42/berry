@@ -172,6 +172,30 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal((await sql`SELECT 1 FROM task_tokens WHERE run_id = ${runId} AND revoked_at IS NULL`).length, 0);
    });
 
+   test('replaying a legacy usage frame after a stale cursor retains its identity', async () => {
+      const { runId } = await issueTask();
+      const controller = new AbortController();
+      const report: LifecycleEvent = { type: 'task.usage', usage: { model: 'm', inputTokens: 3, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0 } };
+      const runtime: RuntimeTransport = {
+         async *invoke() {
+            yield { type: 'task.started' } as LifecycleEvent;
+            yield report;
+            controller.abort(new Detached());
+         },
+         async *resume() {
+            yield report;
+            yield { type: 'task.completed', result: { text: 'done', truncated: false, delivery: null } } as LifecycleEvent;
+         },
+         stop: async () => {},
+      };
+      assert.equal(await executor(runtime).execute(runId, controller.signal), null);
+      await sql`UPDATE runs SET runtime_cursor = 1 WHERE id = ${runId}`;
+      await executor(runtime).resume(runId, new AbortController().signal);
+      assert.equal(usage.length, 2);
+      assert.ok(usage[0]?.eventId);
+      assert.equal(usage[0]?.eventId, usage[1]?.eventId, 'the durable recorder can deduplicate across processes');
+   });
+
    test('a run its runtime no longer holds is not resumed, and nothing is recorded', async () => {
       const { runId } = await issueTask();
       const controller = new AbortController();
