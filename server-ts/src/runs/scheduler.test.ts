@@ -77,6 +77,18 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       return { autopilotId: autopilot.id, triggerId: trigger.id };
    }
 
+   test('a disconnected workspace keeps its schedule due without creating work', async () => {
+      fired = [];
+      const { triggerId } = await dueAutopilot();
+      const [before] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      const scheduler = new AutopilotScheduler({ sql, logger: createLogger('scheduler-test'), canFire: async () => false, fire: async () => { throw new Error('must not fire'); } });
+      await scheduler.tick();
+      const [after] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      assert.equal(String(after?.next_fire_at), String(before?.next_fire_at));
+      const claims = await sql`SELECT id FROM sys_cron_executions WHERE trigger_id = ${triggerId}`;
+      assert.equal(claims.length, 0);
+   });
+
    test('two schedulers reaching for one due slot fire it exactly once', async () => {
       fired = [];
       const { autopilotId, triggerId } = await dueAutopilot();
@@ -93,18 +105,6 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
 
       await build().tick();
       assert.equal(fired.filter((input) => input.autopilotId === autopilotId).length, 1, 'not again');
-   });
-
-   test('a disconnected workspace keeps its schedule due without creating work', async () => {
-      fired = [];
-      const { triggerId } = await dueAutopilot();
-      const [before] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
-      const scheduler = new AutopilotScheduler({ sql, logger: createLogger('scheduler-test'), canFire: async () => false, fire: async () => { throw new Error('must not fire'); } });
-      await scheduler.tick();
-      const [after] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
-      assert.equal(String(after?.next_fire_at), String(before?.next_fire_at));
-      const claims = await sql`SELECT id FROM sys_cron_executions WHERE trigger_id = ${triggerId}`;
-      assert.equal(claims.length, 0);
    });
 
    test('a paused autopilot is not fired by its schedule', async () => {
