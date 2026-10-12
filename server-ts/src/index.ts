@@ -558,12 +558,13 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
      : null;
 
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
-const hasAgentExecution = async (): Promise<boolean> => {
+const hasAgentExecution = async (workspaceId?: string): Promise<boolean> => {
    if (defaultTarget) return true;
    const [row] = await sql`SELECT EXISTS (
       SELECT 1 FROM ai_runtime_connections c JOIN workspace_memberships m
         ON m.workspace_id = c.workspace_id AND m.user_id = c.user_id
        WHERE c.status = 'connected' AND c.runtime_key = ANY(${sql.array([...WORKSTATION_RUNTIME_KEYS])}::text[])
+         AND (${workspaceId ?? null}::uuid IS NULL OR c.workspace_id = ${workspaceId ?? null}::uuid)
    ) AS available`;
    return row?.available === true;
 };
@@ -1423,9 +1424,6 @@ registry.registerAll(
          // Reported by whichever server answers, so they have to agree. Only
          // what this process can actually do is true; the rest arrive with the
          // mounts that provide them.
-         // True only when a model credential and object storage are both
-         // present: this is what the browser uses to decide whether running
-         // an agent is offered at all.
          // Native compute or a live connected workstation subscription. The
          // value is refreshed per read so connecting a runtime takes effect.
          agentExecution: hasAgentExecution,
@@ -1517,7 +1515,7 @@ followupWorker?.start();
 // Unavailable execution is recorded as a firing failure, never queued forever.
 // Several servers may run this;
 // sys_cron_executions lets exactly one fire each slot.
-const autopilotScheduler = new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger });
+const autopilotScheduler = new AutopilotScheduler({ sql, fire: fireAutopilotNow, logger, canFire: hasAgentExecution });
 autopilotScheduler?.start();
 
 const app = createApp(registry);
