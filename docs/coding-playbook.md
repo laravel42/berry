@@ -6,7 +6,7 @@ sync. See [AGENTS.md](../AGENTS.md) for the short authoritative overview and
 [ADR-0014](adr/0014-agentcore-runtime-control-plane.md) for how agent execution actually
 works today.
 
-## Repository shape: one repo, three workspaces, no shared toolchain
+## Repository shape: one repo, six workspace packages, no shared toolchain
 
 Berry is a single pnpm workspace containing three independently tooled
 packages. They do **not** share a formatter, lint config, or language target.
@@ -14,11 +14,11 @@ Know which workspace you are in before you write code.
 
 | | `server-ts/` | `frontend/` | `packages/plugin-sdk/` |
 | --- | --- | --- | --- |
-| What it is | Product server ([ADR-0009](adr/0009-typescript-product-server.md)), migrations, agent runtime sources | Next.js 15 App Router UI | Plugin SDK for `berry-plugin.json` hooks/tools |
+| What it is | Product server ([ADR-0009](adr/0009-typescript-product-server.md)), migrations, agent runtime sources | Next.js App Router UI | Plugin SDK for `berry-plugin.json` hooks/tools |
 | Runtime | Node, `--experimental-strip-types`, no build step | Node-compatible Next runtime | Node, `--experimental-strip-types` |
 | Imports | relative, `.ts` extensions kept, no aliases, no barrels | `@/*` → `frontend/` | relative, `.ts` extensions kept |
 | Format + lint | none configured; match surrounding style (3-space indent, single quotes) | Prettier + ESLint (`.prettierrc`, `eslint.config.mjs`) | match server |
-| Zod | v4 | **v3** | — |
+| Zod | v4 | v4 | — |
 | Tests | `node --test` | none — lint + `build:check` | `node --test` |
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 
@@ -85,7 +85,7 @@ pnpm test:server        # node --test
 
 ```sh
 cd frontend
-pnpm lint       # next lint (ESLint)
+pnpm lint       # ESLint
 pnpm format     # prettier --write .
 ```
 
@@ -96,8 +96,7 @@ formatted automatically.
 
 ## Zod validation pattern
 
-Zod is the validation library across the repo — **v4 on the server, v3 on the
-frontend**; do not assume the two versions' APIs match. The rule: parse
+Zod is the validation library across the repo — **v4 on the server and frontend**; do not assume the two versions' APIs match. The rule: parse
 untrusted input into a typed value at the boundary, then trust the type
 inside. Don't hand-validate with `if` ladders, and don't re-check the same
 data downstream.
@@ -168,7 +167,7 @@ it after commit.
 **A migration.** Add a new numbered `*.up.sql` in `server-ts/migrations/`
 (the runner reads only `.up.sql`). Never edit an applied migration — migrations
 are forward-only and SHA-256 checksummed by `src/migrate`; a checksum or name
-mismatch on an already-applied file makes `pnpm migrate:server` exit non-zero.
+mismatch on an already-applied file makes `pnpm db:migrate` exit non-zero.
 
 **An agent tool.** Add it under `src/runtime/agent-tools/` (core tools) or
 `src/organization/tools.ts` (organization tools like `delegate_to_agent`,
@@ -220,7 +219,8 @@ Conventions drawn from the existing suite:
   pattern above).
 - Name the test after the guarantee, not the function.
 
-**Frontend — no automated test runner.** The gates are `pnpm lint` (ESLint)
+**Frontend.** Storybook browser interaction tests are configured in
+`vitest.config.ts`; lint and `build:check` remain the release gates. The gates are `pnpm lint` (ESLint)
 and `pnpm build:check` (`next build` into a separate `.next-verify` output,
 so it won't corrupt a running `next dev`; do not run plain `build` while dev
 is running). Verify UI changes by running `pnpm dev:frontend` and confirming
