@@ -33,6 +33,8 @@ export interface SchedulerOptions {
    pollMs?: number;
    batch?: number;
    clock?: () => Date;
+   /** Leave a workspace's slot due until its selected execution is available. */
+   canFire?: (workspaceId: string) => Promise<boolean>;
 }
 
 export class AutopilotScheduler {
@@ -42,6 +44,7 @@ export class AutopilotScheduler {
    readonly #pollMs: number;
    readonly #batch: number;
    readonly #clock: () => Date;
+   readonly #canFire: (workspaceId: string) => Promise<boolean>;
 
    #running = false;
    #loop: Promise<void> | null = null;
@@ -54,6 +57,7 @@ export class AutopilotScheduler {
       this.#pollMs = options.pollMs ?? POLL_MS;
       this.#batch = options.batch ?? BATCH;
       this.#clock = options.clock ?? (() => new Date());
+      this.#canFire = options.canFire ?? (async () => true);
    }
 
    start(): void {
@@ -107,6 +111,7 @@ export class AutopilotScheduler {
       for (const row of due) {
          const triggerId = row.id as string;
          try {
+            if (!(await this.#canFire(row.workspace_id as string))) continue;
             if (await this.#claimAndFire(row, now)) firedCount += 1;
          } catch (error) {
             this.#logger.error('autopilot slot failed', { triggerId, error: message(error) });
