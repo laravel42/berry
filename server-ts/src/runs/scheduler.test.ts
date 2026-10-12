@@ -95,6 +95,32 @@ describe('autopilot scheduler', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       assert.equal(fired.filter((input) => input.autopilotId === autopilotId).length, 1, 'not again');
    });
 
+   test('a firing error before admission leaves its slot due for retry', async () => {
+      fired = [];
+      const { autopilotId, triggerId } = await dueAutopilot();
+      const [before] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      const failing = new AutopilotScheduler({ sql, logger: createLogger('scheduler-test'), fire: async () => { throw new Error('transient admission failure'); } });
+      await failing.tick();
+      const [after] = await sql`SELECT next_fire_at, last_fired_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      assert.equal(String(after?.next_fire_at), String(before?.next_fire_at));
+      assert.equal(after?.last_fired_at, null);
+      await build().tick();
+      assert.equal(fired.filter((input) => input.autopilotId === autopilotId).length, 1);
+   });
+
+   test('a run committed before scheduler completion is recovered without a second firing', async () => {
+      fired = [];
+      const { autopilotId, triggerId } = await dueAutopilot();
+      const [trigger] = await sql`SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId}`;
+      const original = await fireAutopilot({ sql, issues: new IssueRepository(sql), enqueue: async () => ({ runId: randomUUID() }) }, {
+         autopilotId, triggerId, source: 'cron', slot: new Date(String(trigger?.next_fire_at)),
+      });
+      await build().tick();
+      assert.equal(fired.filter((input) => input.autopilotId === autopilotId).length, 0);
+      const [claim] = await sql`SELECT autopilot_run_id FROM sys_cron_executions WHERE trigger_id = ${triggerId}`;
+      assert.equal(claim?.autopilot_run_id, original.autopilotRunId);
+   });
+
    test('a paused autopilot is not fired by its schedule', async () => {
       fired = [];
       const { autopilotId } = await dueAutopilot();
