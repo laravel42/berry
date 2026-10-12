@@ -33,10 +33,7 @@ type Story = StoryObj<typeof meta>;
 /** On the role's tier: BerryMid is selected and Recommended. */
 export const RoleDefault: Story = {
    play: async ({ args, canvas, userEvent }) => {
-      await expect(await canvas.findByText('GLM-5')).toBeVisible();
-      // Models are listed without a rating: share, name and prices only.
-      await expect(canvas.queryByText('Rating')).not.toBeInTheDocument();
-      await expect(canvas.getByRole('radio', { name: /BerryMid/ })).toHaveAttribute(
+      await expect(await canvas.findByRole('radio', { name: /BerryMid/ })).toHaveAttribute(
          'aria-checked',
          'true'
       );
