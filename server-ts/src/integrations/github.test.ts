@@ -319,6 +319,16 @@ test('a merge is conditional on the commit that was reviewed', async () => {
 
 test('pull request state retains the head commit for review identity', async () => {
    const sha = 'b'.repeat(40);
-   const { client } = stub(() => json({ state: 'open', head: { ref: 'task', sha } }));
-   assert.equal((await client.pullRequestState('acme', 'repo', 7)).headSha, sha);
+   const base = 'c'.repeat(40);
+   const { client } = stub(() => json({ state: 'open', head: { ref: 'task', sha }, base: { ref: 'main', sha: base } }));
+   const state = await client.pullRequestState('acme', 'repo', 7);
+   assert.equal(state.headSha, sha);
+   assert.equal(state.baseSha, base);
+});
+
+test('a commit reports its parents in order', async () => {
+   const first = 'd'.repeat(40);
+   const second = 'e'.repeat(40);
+   const { client } = stub(() => json({ parents: [{ sha: first }, { sha: second }, { sha: 1 }] }));
+   assert.deepEqual(await client.commitParents('acme', 'repo', 'f'.repeat(40)), [first, second]);
 });

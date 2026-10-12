@@ -712,6 +712,8 @@ export const runs: RunRecord[] = [
       issueId: 'issue-42',
       agentId: frontendAgent.id,
       status: 'running',
+      kind: 'agent',
+      purpose: null,
       sequence: 3,
       summary: 'Adding the empty state to the goals list',
       usage: {
@@ -733,6 +735,8 @@ export const runs: RunRecord[] = [
       issueId: 'issue-40',
       agentId: frontendAgent.id,
       status: 'succeeded',
+      kind: 'agent',
+      purpose: null,
       sequence: 2,
       summary: 'Moved approvals and proposals into the inbox and removed the old tab.',
       usage: {
@@ -754,6 +758,8 @@ export const runs: RunRecord[] = [
       issueId: 'issue-39',
       agentId: orchestratorAgent.id,
       status: 'failed',
+      kind: 'agent',
+      purpose: null,
       sequence: 1,
       summary: null,
       usage: {

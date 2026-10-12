@@ -68,6 +68,8 @@ describe('recording a delivery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
             updated.push(number);
             return { updated: true, reason: null };
          },
+         pullRequestState: async () => ({ headSha: null, baseSha: null }),
+         commitParents: async () => [],
       } as unknown as GitHubClient;
       return { client, opened, updated };
    }

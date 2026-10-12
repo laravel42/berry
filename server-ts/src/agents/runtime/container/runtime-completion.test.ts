@@ -19,12 +19,66 @@ test('the first connected model on a tier wins, in the order it was placed', () 
    assert.equal(firstConnectedPlacement(['claude/haiku'], new Set(['codex'])), null);
 });
 
+const verdictSchema = {
+   type: 'object',
+   required: ['approved', 'reason'],
+   properties: {
+      approved: { type: 'boolean' },
+      reason: { type: 'string' },
+      findings: { type: 'array' },
+      read: { type: 'array' },
+   },
+};
+
 test('a fenced JSON object is the structured answer', () => {
    assert.deepEqual(structuredAnswer('Sure.\n```json\n{"reply":"ok","patch":{"name":"Billing"}}\n```'), {
       reply: 'ok',
       patch: { name: 'Billing' },
    });
    assert.equal(structuredAnswer('no object here'), undefined);
+});
+
+test('thinking that contains TypeScript braces does not hide the verdict after it', () => {
+   const text =
+      'index.ts does `export type { TunnelLink }` which types exports too.\n' +
+      'The working tree is empty.{"approved":true,"reason":"The delivery satisfies the task.","findings":[{"path":"src/game/maze/index.ts","message":"Re-exports collide only if they diverge.","severity":"low"}],"read":[]}';
+   assert.deepEqual(structuredAnswer(text, verdictSchema), {
+      approved: true,
+      reason: 'The delivery satisfies the task.',
+      findings: [
+         {
+            path: 'src/game/maze/index.ts',
+            message: 'Re-exports collide only if they diverge.',
+            severity: 'low',
+         },
+      ],
+      read: [],
+   });
+});
+
+test('an earlier fenced sample does not beat the later verdict', () => {
+   const text =
+      'A rejected example:\n```json\n{"approved":false,"reason":"sample"}\n```\n' +
+      'The delivery is fine.\n{"approved":true,"reason":"The work matches the task.","read":[]}';
+   assert.deepEqual(structuredAnswer(text, verdictSchema), {
+      approved: true,
+      reason: 'The work matches the task.',
+      read: [],
+   });
+});
+
+test('a trailing comma or comment still yields the object', () => {
+   const text = '{"approved":true,"reason":"ok", // ship it\n"read":[],}';
+   assert.deepEqual(structuredAnswer(text, verdictSchema), {
+      approved: true,
+      reason: 'ok',
+      read: [],
+   });
+});
+
+test('a required schema refuses a nested finding that is not the verdict', () => {
+   const text = 'Notes. {"path":"src/a.ts","message":"noise","severity":"low"}';
+   assert.equal(structuredAnswer(text, verdictSchema), undefined);
 });
 
 test('a completion on a connected runtime asks that CLI and not the deployment model', async () => {
@@ -116,4 +170,15 @@ test('a completion on a connected runtime asks that CLI and not the deployment m
    assert.equal(run.tools.length, 0);
    assert.match(completionPrompt(envelope), /a billing project/);
    assert.match(run.envelope.task.prompt, /one JSON object/);
+   assert.equal(completionPrompt(envelope).includes('`read`'), false);
+   assert.match(
+      completionPrompt({
+         ...envelope,
+         completion: {
+            system: 'Review.',
+            jsonSchema: { type: 'object', properties: { read: { type: 'array' }, approved: { type: 'boolean' } } },
+         },
+      }),
+      /list its path in `read`/
+   );
 });

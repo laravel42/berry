@@ -31,7 +31,7 @@ import {
    type TriggerPlan,
 } from '@/lib/comments';
 import { WORKSPACE_SLUG } from '@/lib/config';
-import { type RunRecord } from '@/lib/runs';
+import { type AutoReview, type RunRecord } from '@/lib/runs';
 import { subscribeShellEvent } from '@/lib/shell-events';
 import { cn } from '@/lib/utils';
 import { useComposerPalette } from '@/components/common/composer-palette';
@@ -62,6 +62,7 @@ import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { toast } from 'sonner';
 import { CommentActions } from './comment-actions';
 import { ReactionBar } from './issue-reactions';
+import { IssueReviewCard, reviewTimestamp, useSettledAutoReviews } from './issue-reviews';
 
 /**
  * What has happened to this task, and the place to add to it.
@@ -156,7 +157,7 @@ function CommentBody({
 
 function EventRow({ item }: { item: EventItem }) {
    return (
-      <div className="flex items-center gap-2.5 py-0.5 text-muted-foreground">
+      <div className="flex items-center gap-2.5 py-1.5 text-muted-foreground">
          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent p-0.5">
             {item.actor.role === 'Application' ? (
                <BerryMark
@@ -516,6 +517,9 @@ export function ActivityFeedList({
    onCommentDeleted,
    onCommentPosted,
    onRunChanged,
+   issueId,
+   inReview = false,
+   autoGate = false,
 }: {
    comments: ApiComment[];
    events: Array<EventItem & { at?: string }>;
@@ -526,9 +530,13 @@ export function ActivityFeedList({
    onCommentDeleted: (commentId: string) => void;
    onCommentPosted: (comment: ApiComment) => void;
    onRunChanged: (run: RunRecord) => void;
+   issueId?: string;
+   inReview?: boolean;
+   autoGate?: boolean;
 }) {
    const t = useTranslations('issueDetail.activity');
    const [showResolved, setShowResolved] = useState(false);
+   const reviews = useSettledAutoReviews(issueRef);
 
    const repliesByParent = useMemo(() => {
       const map = new Map<string, ApiComment[]>();
@@ -551,7 +559,8 @@ export function ActivityFeedList({
    const timeline = useMemo(() => {
       type Row =
          | { kind: 'comment'; at: string; comment: ApiComment }
-         | { kind: 'events'; at: string; items: EventItem[] };
+         | { kind: 'events'; at: string; items: EventItem[] }
+         | { kind: 'review'; at: string; review: AutoReview };
       const rows: Row[] = [
          // Runs are not listed here: the task's console shows them, and each
          // run's result comment (its report, or why it stopped) reads as the
@@ -561,6 +570,11 @@ export function ActivityFeedList({
             kind: 'events' as const,
             at: event.at ?? '',
             items: [event],
+         })),
+         ...reviews.map((review) => ({
+            kind: 'review' as const,
+            at: reviewTimestamp(review),
+            review,
          })),
       ].sort((left, right) => left.at.localeCompare(right.at));
 
@@ -576,7 +590,7 @@ export function ActivityFeedList({
          folded.push(row.kind === 'events' ? { ...row, items: [...row.items] } : row);
       }
       return folded;
-   }, [roots, events]);
+   }, [roots, events, reviews]);
 
    const resolvedRoots = roots.filter((comment) => comment.resolvedAt);
 
@@ -612,6 +626,14 @@ export function ActivityFeedList({
             {timeline.map((row, index) =>
                row.kind === 'events' ? (
                   <EventGroup key={`events-${row.items[0]?.id ?? index}`} items={row.items} />
+               ) : row.kind === 'review' ? (
+                  <IssueReviewCard
+                     key={row.review.id}
+                     review={row.review}
+                     issueId={issueId}
+                     inReview={inReview}
+                     autoGate={autoGate}
+                  />
                ) : row.comment.resolvedAt && !showResolved ? null : (
                   <CommentCard
                      key={row.comment.id}

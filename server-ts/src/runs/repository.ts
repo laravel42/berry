@@ -39,6 +39,7 @@ export class NoAgentAssigned extends Error {
 }
 
 const RUN_COLUMNS = `r.id, r.issue_id, r.board_id, COALESCE(r.workspace_id, b.workspace_id) AS workspace_id, r.agent_id, r.status,
+   r.kind, r.completion_spec->>'purpose' AS purpose,
    r.sequence, r.summary, r.input_tokens, r.output_tokens, r.total_tokens, r.cost_micros,
    r.currency, r.failure_code, r.failure_message, r.failure_retryable, r.dispatch_state,
    r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id, r.ai_runtime_agent,
@@ -179,7 +180,7 @@ export class RunRepository {
 
          const [active] = await tx`
             SELECT id FROM runs
-             WHERE issue_id = ${input.issueId} AND status IN ('queued', 'running')
+             WHERE issue_id = ${input.issueId} AND kind = 'agent' AND status IN ('queued', 'running')
              LIMIT 1`;
          if (active) throw new ActiveRunExists(active.id as string);
 
@@ -287,6 +288,8 @@ function toRun(row: Record<string, unknown>): Run {
       workspaceId: row.workspace_id as string,
       agentId: row.agent_id as string,
       status: row.status as Run['status'],
+      kind: row.kind === 'completion' ? 'completion' : 'agent',
+      purpose: (row.purpose as string | null) ?? null,
       sequence: Number(row.sequence),
       summary: (row.summary as string | null) ?? null,
       usage: {

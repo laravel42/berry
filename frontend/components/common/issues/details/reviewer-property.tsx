@@ -2,9 +2,10 @@
 
 import { PeerVerdictChip, shownPeerApproval } from '@/components/common/reviews/review-shared';
 import { type AutoReview, loadAutoReviews } from '@/lib/runs';
-import { CircleCheck, CircleX, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CircleCheck, Loader2, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
+import { ReviewTranscriptButton } from './review-transcript-button';
 
 /**
  * Who is reviewing this task, in the sidebar beside status and assignee.
@@ -19,10 +20,12 @@ import { useEffect, useState } from 'react';
  * cheaper than the machinery to push it.
  */
 export function ReviewerProperty({
+   issueId,
    issueRef,
    inReview = false,
    autoGate = false,
 }: {
+   issueId?: string;
    issueRef: string;
    inReview?: boolean;
    /** Peer review runs only while AutoGate is on. */
@@ -72,18 +75,20 @@ export function ReviewerProperty({
          : `${tPeer('by', { reviewer: review.reviewer })} · ${tPeer('attempt', { attempt: review.attempt })}`;
 
    return (
-      <div className="flex h-8 items-center gap-2 px-1.5" title={title}>
-         <div className="flex size-4 shrink-0 items-center justify-center">
-            {approved === null ? (
-               <Loader2 className="size-4 animate-spin text-review-pending" aria-hidden />
-            ) : approved ? (
-               <CircleCheck className="size-4 text-review-approved" aria-hidden />
-            ) : (
-               <CircleX className="size-4 text-review-changes" aria-hidden />
-            )}
-         </div>
-         <span className="min-w-0 truncate">{review.reviewer}</span>
+      <div
+         className="flex h-8 w-full min-w-0 items-center gap-2 px-1.5 has-[>svg]:px-2.5"
+         title={title}
+      >
+         {approved === null ? (
+            <Loader2 className="size-4 shrink-0 animate-spin text-review-pending" aria-hidden />
+         ) : approved ? (
+            <CircleCheck className="size-4 shrink-0 text-review-approved" aria-hidden />
+         ) : (
+            <AlertTriangle className="size-4 shrink-0 text-status-warning" aria-hidden />
+         )}
+         {approved === false ? null : <span className="min-w-0 truncate">{review.reviewer}</span>}
          <PeerVerdictChip verdict={{ approved, reviewer: review.reviewer }} />
+         {issueId ? <ReviewTranscriptButton issueId={issueId} review={review} compact /> : null}
       </div>
    );
 }

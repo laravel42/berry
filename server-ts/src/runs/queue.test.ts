@@ -91,6 +91,36 @@ describe('task queue', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       assert.equal(events.length, 0);
    });
 
+   test('a review completion sits on the task without claiming it', async () => {
+      const f = fixture!;
+      const issueId = await createIssue(sql, f);
+      const { runId } = await enqueueTask(sql, {
+         workspaceId: f.workspaceId,
+         agentId: f.orchestratorId,
+         issueId,
+         kind: 'completion',
+         source: 'completion',
+         prompt: 'review',
+      });
+      const [run] = await sql`SELECT issue_id, board_id, kind FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.issue_id, issueId);
+      assert.equal(run!.board_id, f.boardId);
+      assert.equal(run!.kind, 'completion');
+      const [issue] = await sql`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(issue!.active_run_id, null);
+      const events = await sql`SELECT event_type FROM run_events WHERE run_id = ${runId}`;
+      assert.deepEqual(events.map((event) => event.event_type), ['run.created']);
+      const agent = await enqueueTask(sql, {
+         workspaceId: f.workspaceId,
+         agentId: f.agentId,
+         issueId,
+         kind: 'agent',
+         source: 'assignment',
+      });
+      const [claimed] = await sql`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(claimed!.active_run_id, agent.runId);
+   });
+
    test('an agent task with no issue and no chat is refused by name', async () => {
       const f = fixture!;
       await assert.rejects(

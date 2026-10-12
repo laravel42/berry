@@ -11,6 +11,8 @@ const runSchema = z.object({
    issueId: z.string(),
    agentId: z.string(),
    status: runStatusSchema,
+   kind: z.enum(['agent', 'completion']).default('agent'),
+   purpose: z.string().nullish(),
    sequence: z.number(),
    summary: z.string().nullable(),
    usage: z.object({
@@ -106,6 +108,8 @@ export function runTriggerKey(source: string): string {
          return 'builder';
       case 'completion':
          return 'completion';
+      case 'review':
+         return 'review';
       case 'merge_fix':
          return 'mergeFix';
       default:
@@ -607,6 +611,34 @@ const autoReviewSchema = z.object({
 });
 
 export type AutoReview = z.infer<typeof autoReviewSchema>;
+
+export function isReviewGateRun(run: Pick<RunRecord, 'kind' | 'purpose'>): boolean {
+   return run.kind === 'completion' && run.purpose === 'review_gate';
+}
+
+/** The completion that produced this AutoGate verdict, when it is on the task. */
+export function reviewGateRunFor(
+   runs: readonly RunRecord[],
+   review: Pick<AutoReview, 'startedAt' | 'decidedAt'>
+): RunRecord | null {
+   const started = Date.parse(review.startedAt);
+   if (Number.isNaN(started)) return null;
+   const ended = review.decidedAt ? Date.parse(review.decidedAt) : Date.now();
+   const latest = Number.isNaN(ended) ? Date.now() : ended;
+   let best: RunRecord | null = null;
+   let bestAt = Number.NEGATIVE_INFINITY;
+   for (const run of runs) {
+      if (!isReviewGateRun(run)) continue;
+      const at = Date.parse(run.createdAt);
+      if (Number.isNaN(at) || at < started - 5_000 || at > latest + 5_000) continue;
+      // The last call in the window is the verdict; earlier ones are read rounds.
+      if (at >= bestAt) {
+         best = run;
+         bestAt = at;
+      }
+   }
+   return best;
+}
 
 /**
  * Peer verdicts on a task, newest first.

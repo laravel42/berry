@@ -2,7 +2,13 @@
 
 import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
 import { readableModelName } from '@/components/common/agents/model-name';
-import { formatRunDuration, isTerminalRunStatus, runTriggerKey, type RunRecord } from '@/lib/runs';
+import {
+   formatRunDuration,
+   isReviewGateRun,
+   isTerminalRunStatus,
+   runTriggerKey,
+   type RunRecord,
+} from '@/lib/runs';
 import { timeAgo } from '@/lib/time-ago';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
@@ -50,8 +56,11 @@ export function RunSummary({ run }: { run: RunRecord }) {
    // Why it ran, when it says something: being assigned is how every run
    // starts unless something else started it, so that one goes unsaid.
    const triggerKey = runTriggerKey(run.source);
-   const trigger =
-      triggerKey === 'assignment' ? null : t(`trigger.${triggerKey}` as 'trigger.mention');
+   const trigger = isReviewGateRun(run)
+      ? t('trigger.review')
+      : triggerKey === 'assignment'
+        ? null
+        : t(`trigger.${triggerKey}` as 'trigger.mention');
    const live = !isTerminalRunStatus(run.status);
    return (
       <>
@@ -96,20 +105,41 @@ export function useRunDuration(run: RunRecord): number {
 }
 
 /**
- * A run as a tab of the task's console: "Run 3" and how long it took, after
- * its mark in the status' colour. The whole line is its tooltip, and the
- * console's bottom bar shows it.
+ * A run as a tab of the task's console: "Run 3" or "Review", and how long it
+ * took, after its mark in the status' colour. The whole line is its tooltip,
+ * and the console's bottom bar shows it.
  */
+export function runConsoleTabLabel(
+   run: RunRecord,
+   siblings: readonly RunRecord[],
+   copy: { run: (n: number) => string; review: string; reviewN: (n: number) => string }
+): string {
+   if (isReviewGateRun(run)) {
+      const reviews = siblings
+         .filter(isReviewGateRun)
+         .slice()
+         .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+      return reviews.length <= 1
+         ? copy.review
+         : copy.reviewN(reviews.findIndex((entry) => entry.id === run.id) + 1);
+   }
+   const authors = siblings
+      .filter((entry) => !isReviewGateRun(entry))
+      .slice()
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+   return copy.run(authors.findIndex((entry) => entry.id === run.id) + 1);
+}
+
 export function RunTab({
    run,
-   ordinal,
+   runs,
    selected,
    panelId,
    onSelect,
 }: {
    run: RunRecord;
-   /** Its place among the task's runs, oldest first: Run 1, Run 2… */
-   ordinal: number;
+   /** The task's runs, so a review tab is numbered among reviews. */
+   runs: readonly RunRecord[];
    selected: boolean;
    panelId: string;
    onSelect: () => void;
@@ -117,14 +147,20 @@ export function RunTab({
    const t = useTranslations('issueDetail.log');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const name = getAgentById(run.agentId)?.name ?? t('agent');
-   // Why it ran, when it says something: being assigned is how every run
-   // starts unless something else started it, so that one goes unsaid.
    const triggerKey = runTriggerKey(run.source);
-   const trigger =
-      triggerKey === 'assignment' ? null : t(`trigger.${triggerKey}` as 'trigger.mention');
+   const trigger = isReviewGateRun(run)
+      ? t('trigger.review')
+      : triggerKey === 'assignment'
+        ? null
+        : t(`trigger.${triggerKey}` as 'trigger.mention');
    const duration = useRunDuration(run);
    const live = !isTerminalRunStatus(run.status);
    const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
+   const title = runConsoleTabLabel(run, runs, {
+      run: (n) => t('tab', { n }),
+      review: t('tabReview'),
+      reviewN: (n) => t('tabReviewN', { n }),
+   });
    return (
       <button
          type="button"
@@ -145,7 +181,7 @@ export function RunTab({
          )}
       >
          <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={run.status} />
-         <span>{t('tab', { n: ordinal })}</span>
+         <span>{title}</span>
          <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
          <span className={cn('tabular-nums', statusTone(run.status))}>
             {formatRunDuration(duration)}

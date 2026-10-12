@@ -17,6 +17,7 @@ import { repositoryForIssue } from './repository-context.ts';
 import { readyDependents } from '../work/ready-dependents.ts';
 import { filesText, listingText, MAX_READ_ROUNDS, openReviewFiles, type ReviewFiles } from './review-files.ts';
 import type { TranscriptMessage } from '../runtime/envelope.ts';
+import { deliveredHead } from './delivered-head.ts';
 import { INCOMPLETE_REVIEW } from './prompt.ts';
 
 /**
@@ -238,9 +239,9 @@ if you would have written it differently; reject work that does something
 else, does part of it, or would leave the repository worse.
 
 Judge the work, not how much of it you were shown. When the diff alone does
-not settle a question and you can read the repository, read the files that
-settle it. "I could not verify" is not a reason to send work back: say what
-the work lacks, or read until you can.
+not settle a question, list the paths that would in \`read\` — this turn has
+no file or shell tools. "I could not verify" is not a reason to send work
+back: say what the work lacks, or read until you can.
 
 Be specific in \`reason\`: it is what the author is told when the task is sent
 back, and what a person reads to understand the verdict. Put each concrete
@@ -460,6 +461,7 @@ export class ReviewGate {
 
       const failed = new Set<string>();
       const fresh: string[] = [];
+      let failedBecause: string | undefined;
       if (pending.length > 0) {
          // A run with a pull request is reviewed against its diff. One without is
          // reviewed against its account of the work — `reviewPrompt` says which
@@ -474,6 +476,7 @@ export class ReviewGate {
             } catch (error) {
                this.#onError('reading the pull request for the required reviews failed', error);
                unreadable = true;
+               failedBecause = error instanceof Error ? error.message : String(error);
                for (const reviewer of pending) failed.add(reviewer.role);
             }
          }
@@ -499,17 +502,29 @@ export class ReviewGate {
                   // undecided, it is not counted against the author, and the
                   // note says so.
                   this.#onError(`${reviewer.role} review failed`, error);
-                  return { reviewer, decided: false, failed: true };
+                  return {
+                     reviewer,
+                     decided: false,
+                     failed: true,
+                     because: error instanceof Error ? error.message : String(error),
+                  };
                }
             })
          );
          for (const result of results) {
-            if (result.failed) failed.add(result.reviewer.role);
+            if (result.failed) {
+               failed.add(result.reviewer.role);
+               if (result.because) failedBecause = result.because;
+            }
             if (result.decided) fresh.push(result.reviewer.id);
          }
       }
 
-      return this.#settleRequired(material.run.id, { failed, fresh });
+      return this.#settleRequired(material.run.id, {
+         failed,
+         fresh,
+         ...(failedBecause === undefined ? {} : { failedBecause }),
+      });
    }
 
    /**
@@ -530,7 +545,7 @@ export class ReviewGate {
     */
    async #settleRequired(
       runId: string,
-      options: { failed?: Set<string>; fresh?: string[] }
+      options: { failed?: Set<string>; fresh?: string[]; failedBecause?: string }
    ): Promise<GateOutcome> {
       const material = await this.#material(runId);
       const contract = material.authorContract;
@@ -643,7 +658,7 @@ export class ReviewGate {
       // starting the author again would only deliver the same work back to a
       // review that just failed. The task returns to todo and waits.
       if (incomplete) {
-         await this.#closeIncomplete(material.run.id);
+         await this.#closeIncomplete(material.run.id, options.failedBecause ?? '');
          await this.#returnToTodo(material, decision.speakerId);
       }
       return { kind: 'skipped', because: 'no_reviewer' };
@@ -730,6 +745,7 @@ export class ReviewGate {
          const result = await this.#completion.structured({
             workspaceId: material.workspaceId,
             purpose: 'review_gate',
+            subject: { issueId: material.issue.id },
             model: call.model,
             system: call.system,
             user: prompt,
@@ -1099,10 +1115,13 @@ export class ReviewGate {
    }
 
    /** Closes reviews that never reached a verdict, so they are not still "reading". */
-   async #closeIncomplete(runId: string): Promise<void> {
+   async #closeIncomplete(runId: string, because?: string): Promise<void> {
+      const reason = because?.trim()
+         ? `${INCOMPLETE_REVIEW}: ${because.trim()}`.slice(0, 4000)
+         : INCOMPLETE_REVIEW;
       await this.#sql`
          UPDATE issue_auto_reviews
-            SET approved = false, reason = ${INCOMPLETE_REVIEW}, decided_at = ${this.#clock().toISOString()}
+            SET approved = false, reason = ${reason}, decided_at = ${this.#clock().toISOString()}
           WHERE run_id = ${runId} AND decided_at IS NULL`;
    }
 
@@ -1288,10 +1307,24 @@ export class ReviewGate {
       const { owner, name } = parseRepository(material.repository!);
       const client = await this.#github(material.workspaceId, owner);
       const number = material.delivered!.pullRequest!;
-      const expected = material.run.headCommit;
-      if (!expected) throw new Error('The delivered commit is missing; refusing to review an unbound diff.');
+      const recorded = material.run.headCommit;
+      if (!recorded) throw new Error('The delivered commit is missing; refusing to review an unbound diff.');
       const before = await client.pullRequestState(owner, name, number);
-      if (before.headSha !== expected) throw new Error('The pull request changed after delivery; deliver the new commit before review.');
+      let expected = recorded;
+      if (before.headSha !== recorded) {
+         // Delivery merges the base into the branch, and that merge often
+         // lands after the run has already stored its own commit. The head is
+         // still this delivery when it is that merge; anything else is a
+         // different commit and is not reviewed as this one.
+         const parents = before.headSha ? await client.commitParents(owner, name, before.headSha) : [];
+         const adopted = deliveredHead(recorded, before.headSha, parents, before.baseSha);
+         if (!adopted) throw new Error('The pull request changed after delivery; deliver the new commit before review.');
+         expected = adopted;
+         material.run.headCommit = adopted;
+         await this.#sql`
+            UPDATE runs SET head_commit = ${adopted}, updated_at = now()
+             WHERE id = ${material.run.id} AND head_commit = ${recorded}`;
+      }
       const diff = await client.pullRequestDiff(owner, name, number);
       const after = await client.pullRequestState(owner, name, number);
       if (after.headSha !== expected) throw new Error('The pull request changed while its diff was being read.');

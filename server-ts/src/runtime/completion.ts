@@ -93,7 +93,7 @@ export async function runCompletionTask(
       model?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
-      subject?: { planId: string };
+      subject?: { planId?: string; issueId?: string };
       /**
        * This call's own budget, overriding the deployment's.
        *
@@ -142,7 +142,7 @@ async function runOnce(
       schema: z.ZodType | null;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
-      subject?: { planId: string };
+      subject?: { planId?: string; issueId?: string };
    },
    agentId: string,
    model: string | null,
@@ -155,7 +155,8 @@ async function runOnce(
       jsonSchema: input.schema ? (z.toJSONSchema(input.schema) as Record<string, unknown>) : null,
       model,
       ...(input.transcript ? { transcript: input.transcript } : {}),
-      ...(input.subject ? { planId: input.subject.planId } : {}),
+      ...(input.subject?.planId ? { planId: input.subject.planId } : {}),
+      ...(input.subject?.issueId ? { issueId: input.subject.issueId } : {}),
    };
    let runId = '';
    await deps.sql.begin(async (transaction) => {
@@ -167,6 +168,7 @@ async function runOnce(
          source: 'completion',
          prompt: input.prompt,
          priority: 10,
+         ...(input.subject?.issueId ? { issueId: input.subject.issueId } : {}),
       }));
       await tx`UPDATE runs SET completion_spec = ${tx.json(spec as never)} WHERE id = ${runId}`;
    });
@@ -228,8 +230,8 @@ async function runOnce(
 
 type Call = {
    workspaceId: string;
-   /** What the call is for, filed on its run so a plan's transcript can find it. */
-   subject?: { planId: string } | undefined;
+   /** What the call is for, filed on its run so a plan or task transcript can find it. */
+   subject?: { planId?: string; issueId?: string } | undefined;
    model: string;
    system: string;
    purpose?: string;

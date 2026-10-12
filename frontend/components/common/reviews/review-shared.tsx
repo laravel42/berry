@@ -121,7 +121,7 @@ export function shownPeerApproval(
 
 const PEER_TONE: Record<PeerOutcome, string> = {
    approved: 'text-review-approved',
-   sentBack: 'text-review-changes',
+   sentBack: 'text-status-warning',
    reviewing: 'text-review-pending',
 };
 

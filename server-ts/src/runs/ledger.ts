@@ -4,7 +4,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
 
 export { RunTerminal };
-import type { ToolDetail } from '../runtime/lifecycle.ts';
+import type { TaskResult, ToolDetail } from '../runtime/lifecycle.ts';
 import { notifyRunTerminal } from './terminal-hooks.ts';
 
 /**
@@ -94,6 +94,10 @@ export interface Run {
    workspaceId: string;
    agentId: string;
    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+   /** `agent` unless this is a one-shot model call (planner, AutoGate review). */
+   kind: 'agent' | 'completion';
+   /** `completion_spec.purpose` when `kind` is `completion`. */
+   purpose: string | null;
    sequence: number;
    summary: string | null;
    usage: Usage;
@@ -502,6 +506,8 @@ export class RunLedger {
       runId: string;
       summary: string | null;
       usage: Usage;
+      /** Completions read this back; agent runs leave it unset. */
+      result?: TaskResult;
    }): Promise<Run> {
       const now = this.clock().toISOString();
       const finished = await this.sql.begin(async (transaction) => {
@@ -514,6 +520,7 @@ export class RunLedger {
             UPDATE runs
                SET status = 'succeeded',
                    summary = ${params.summary},
+                   result = COALESCE(${params.result == null ? null : tx.json(params.result as never)}, result),
                    -- Usage recorded while the run worked (task_usage) is never
                    -- lowered or unpriced by the completion write that follows it.
                    input_tokens = GREATEST(input_tokens, ${params.usage.inputTokens}),
@@ -886,7 +893,8 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
    const [row] = await tx`
       SELECT r.id, r.issue_id, r.board_id,
              COALESCE(r.workspace_id, (SELECT b.workspace_id FROM boards AS b WHERE b.id = r.board_id)) AS workspace_id,
-             r.agent_id, r.status::text AS status, r.sequence, r.summary,
+             r.agent_id, r.status::text AS status, r.kind, r.completion_spec->>'purpose' AS purpose,
+             r.sequence, r.summary,
              r.input_tokens, r.output_tokens, r.total_tokens, r.cost_micros, r.currency,
              r.failure_code, r.failure_message, r.failure_retryable,
              r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id, r.ai_runtime_agent,
@@ -904,6 +912,8 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
       workspaceId: row.workspace_id as string,
       agentId: row.agent_id as string,
       status: row.status as Run['status'],
+      kind: row.kind === 'completion' ? 'completion' : 'agent',
+      purpose: (row.purpose as string | null) ?? null,
       // bigint arrives as text, and a sequence on the wire is a number.
       sequence: Number(row.sequence),
       summary: (row.summary as string | null) ?? null,

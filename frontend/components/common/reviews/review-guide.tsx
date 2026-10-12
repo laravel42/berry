@@ -15,7 +15,6 @@ export function ReviewVerdicts({ item }: { item: ReviewItem }) {
          </div>
       );
    }
-   const clamp = { lines: 6, moreLabel: t('summary.more'), lessLabel: t('summary.less') };
    return (
       <div className="h-full overflow-y-auto">
          <ul className="flex w-full flex-col gap-4 px-6 py-6">
@@ -43,7 +42,6 @@ export function ReviewVerdicts({ item }: { item: ReviewItem }) {
                         body={verdict.reason}
                         compact
                         className="mt-2 max-w-none font-thin [&_*]:font-thin"
-                        clamp={clamp}
                      />
                   )}
                </li>

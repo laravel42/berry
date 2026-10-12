@@ -315,6 +315,8 @@ function run(
       issueId: issue.id,
       agentId,
       status: 'succeeded',
+      kind: 'agent',
+      purpose: null,
       sequence: 1,
       summary: null,
       usage: {

@@ -1,6 +1,7 @@
 import type { Sql } from '../db/pool.ts';
 import { GitHubError, type GitHubClient } from '../integrations/github.ts';
 import { parseRepository } from '../agents/checkout.ts';
+import { deliveredHead } from '../agents/delivered-head.ts';
 import { pullRequestBody } from '../agents/repository-run.ts';
 import type { VerificationReport } from '../agents/verification.ts';
 import type { RunLedger } from '../runs/ledger.ts';
@@ -25,6 +26,7 @@ export async function recordDelivery(deps: {
 }): Promise<void> {
    const { plan, delivery } = deps;
    let pullRequest: { number: number; url: string; created: boolean } | null = null;
+   let headCommit = delivery.commit;
    // A run that committed nothing may still stand on work of its own task: a
    // run stopped at its step limit commits a checkpoint, and the continuation
    // that finds the job done has nothing left to add. The branch then holds
@@ -63,7 +65,23 @@ export async function recordDelivery(deps: {
          // then already contains it. A conflict is left untouched for the
          // follow-up that sends the author back to reconcile it, and a GitHub
          // error here must not fail a delivery that already landed.
-         await deps.github.updatePullRequestBranch(owner, name, opened.number).catch(() => undefined);
+         const update = await deps.github.updatePullRequestBranch(owner, name, opened.number).catch(() => null);
+         // GitHub's merge lands asynchronously. When it is already the head,
+         // record that commit so the review and the merge both name it. When
+         // it has not landed yet, the review adopts the same merge once the
+         // head is that commit.
+         if (update?.updated && headCommit) {
+            try {
+               const state = await deps.github.pullRequestState(owner, name, opened.number);
+               if (state.headSha && state.headSha !== headCommit) {
+                  const parents = await deps.github.commitParents(owner, name, state.headSha);
+                  const adopted = deliveredHead(headCommit, state.headSha, parents, state.baseSha);
+                  if (adopted) headCommit = adopted;
+               }
+            } catch {
+               /* The review reads the head again and accepts this same merge. */
+            }
+         }
       } catch (error) {
          // Earlier work already merged leaves nothing between the branch and
          // its base, which GitHub refuses with 422: no pull request, and no
@@ -72,12 +90,12 @@ export async function recordDelivery(deps: {
       }
    }
    await deps.sql`
-      UPDATE runs SET branch = ${plan.branch}, head_commit = ${delivery.commit ?? (pullRequest ? earlierWork : null)},
+      UPDATE runs SET branch = ${plan.branch}, head_commit = ${headCommit ?? (pullRequest ? earlierWork : null)},
              pull_request_number = ${pullRequest ? pullRequest.number : null}, updated_at = now()
        WHERE id = ${deps.runId}`;
    await deps.ledger.appendDelivered(deps.runId, {
       committed: delivery.committed,
-      commit: delivery.commit,
+      commit: headCommit ?? (pullRequest ? earlierWork : null),
       branch: plan.branch,
       filesChanged: delivery.filesChanged,
       insertions: delivery.insertions,

@@ -216,6 +216,25 @@ describe('runtime task executor', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal(run!.status, 'running');
    });
 
+   test('a completion on a task still stores its result, so the waiter can read it', async () => {
+      const issueId = await createIssue(sql, fixture!);
+      const { runId } = await enqueueTask(sql, {
+         workspaceId: fixture!.workspaceId, agentId: fixture!.orchestratorId, kind: 'completion', source: 'completion',
+         prompt: 'x', issueId,
+      });
+      await sql`UPDATE runs SET completion_spec = ${sql.json({ purpose: 'review_gate', system: 's', jsonSchema: null, model: null } as never)} WHERE id = ${runId}`;
+      const outcome = await executor(
+         scripted([
+            { type: 'task.started' },
+            { type: 'task.completed', result: { text: 'ok', truncated: false, structured: { approved: true }, delivery: null } },
+         ])
+      ).execute(runId);
+      assert.equal(outcome?.status, 'succeeded');
+      const [run] = await sql`SELECT issue_id, result FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.issue_id, issueId);
+      assert.deepEqual((run!.result as { structured: unknown }).structured, { approved: true });
+   });
+
    test('a completion task stores its result and writes no run events', async () => {
       const { runId } = await enqueueTask(sql, {
          workspaceId: fixture!.workspaceId, agentId: fixture!.orchestratorId, kind: 'completion', source: 'completion', prompt: 'x',

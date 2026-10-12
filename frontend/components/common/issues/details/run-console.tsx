@@ -38,7 +38,14 @@ import { useRunConsoleStore } from '@/store/run-console-store';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
-import { markTone, RunSummary, RunTab, statusTone, useRunDuration } from './run-entry';
+import {
+   markTone,
+   runConsoleTabLabel,
+   RunSummary,
+   RunTab,
+   statusTone,
+   useRunDuration,
+} from './run-entry';
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 /** Board states where an idle agent task can be started again. */
@@ -251,7 +258,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   <RunTab
                      key={entry.id}
                      run={entry}
-                     ordinal={ordered.findIndex((candidate) => candidate.id === entry.id) + 1}
+                     runs={ordered}
                      selected={entry.id === run.id}
                      panelId={bodyId}
                      onSelect={() => show(issueId, entry.id)}
@@ -325,13 +332,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                                  value={entry.id}
                                  className="gap-1.5 px-3 data-[state=checked]:bg-accent [&>span:first-child]:hidden"
                               >
-                                 <PastRunChoice
-                                    run={entry}
-                                    ordinal={
-                                       ordered.findIndex((candidate) => candidate.id === entry.id) +
-                                       1
-                                    }
-                                 />
+                                 <PastRunChoice run={entry} runs={ordered} />
                               </DropdownMenuRadioItem>
                            ))}
                         </DropdownMenuRadioGroup>
@@ -428,13 +429,19 @@ export function RunConsole({ issueId }: { issueId: string }) {
 }
 
 /** One past run in the history list: its place, and how long it took. */
-function PastRunChoice({ run, ordinal }: { run: RunRecord; ordinal: number }) {
+function PastRunChoice({ run, runs }: { run: RunRecord; runs: readonly RunRecord[] }) {
    const t = useTranslations('issueDetail.log');
    const duration = useRunDuration(run);
    return (
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
          <BerryMark size="sm" tone={markTone(run.status)} label={run.status} />
-         <span className="shrink-0">{t('tab', { n: ordinal })}</span>
+         <span className="shrink-0">
+            {runConsoleTabLabel(run, runs, {
+               run: (n) => t('tab', { n }),
+               review: t('tabReview'),
+               reviewN: (n) => t('tabReviewN', { n }),
+            })}
+         </span>
          <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
          <span className={cn('shrink-0 tabular-nums', statusTone(run.status))}>
             {formatRunDuration(duration)}

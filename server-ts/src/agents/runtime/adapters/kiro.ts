@@ -7,6 +7,7 @@ import type { Tool } from '@strands-agents/sdk';
 import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
+import { runtimeToolNote, runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
    AgentProcessAdapter,
@@ -296,7 +297,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
             'session/prompt',
             {
                sessionId,
-               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}` }],
+               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${runtimeTurnNote(input.envelope.kind, '@berry/list_run_tools', input.envelope.completion?.jsonSchema)}` }],
             },
             this.#deadlineMs
          );
@@ -455,6 +456,11 @@ function initializeParams(): unknown {
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: 'berry', version: '0.1.0' },
    };
+}
+
+/** Kiro exposes Berry MCP tools as `@berry/<tool>` and rejects `tool_load` / `tool_call`. */
+export function kiroToolNote(): string {
+   return runtimeToolNote('@berry/list_run_tools');
 }
 
 function berryMcpServer(socketPath: string): unknown {

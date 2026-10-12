@@ -43,7 +43,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Approved: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('AutoGate review')).toBeInTheDocument();
+      await expect(await canvas.findByText('Peer approved')).toBeInTheDocument();
       await expect(canvas.getByText(/old page redirects with the query kept/)).toBeInTheDocument();
    },
 };

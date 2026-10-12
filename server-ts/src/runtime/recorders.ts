@@ -72,11 +72,11 @@ export function ledgerRecorder(ledger: RunLedger, runId: string, alreadyRunning 
          })();
          await write.catch(ignoreTerminal);
       },
-      // The issue run's result lives in the ledger (summary, result comment,
-      // delivery events); only an issue-less task stores `result` on the row.
-      async succeeded({ summary, usage }) {
+      // Completions attached to a task still wait on `runs.result`. Dropping
+      // it here made a finished review look like the model never answered.
+      async succeeded({ summary, usage, result }) {
          await ensureRunning();
-         await ledger.completeSuccess({ runId, summary, usage });
+         await ledger.completeSuccess({ runId, summary, usage, result });
       },
       async failed({ failure }) {
          await ledger.fail({ runId, failure }).catch(ignoreTerminal);

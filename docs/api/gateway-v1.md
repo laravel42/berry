@@ -334,6 +334,8 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
 | `issueId` | `Uuid` | yes | Issue that supplied the run context |
 | `agentId` | `Uuid` | yes | Assigned agent |
 | `status` | `RunStatus` | yes | Normalized lifecycle state |
+| `kind` | `agent` or `completion` | yes | `agent` is a loop on the task; `completion` is one model call (planner, AutoGate review) |
+| `purpose` | string or null | yes | `completion_spec.purpose` when `kind` is `completion` (`review_gate`, `planner`, …); null on an agent run |
 | `sequence` | integer | yes | Latest persisted event sequence, starting at 0 |
 | `summary` | string or null | yes | Safe final summary; null before available |
 | `usage` | `RunUsage` | yes | Cumulative normalized usage |
@@ -370,6 +372,8 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
   "issueId": "8138a662-f20f-41aa-bd5a-cf46e35ba952",
   "agentId": "f8957903-6534-4ca3-a218-d95e537a5076",
   "status": "running",
+  "kind": "agent",
+  "purpose": null,
   "sequence": 8,
   "summary": null,
   "usage": {

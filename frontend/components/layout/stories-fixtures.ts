@@ -521,6 +521,8 @@ export const runningRun: RunRecord = {
    issueId: 'issue-42',
    agentId: 'agent-1',
    status: 'running',
+   kind: 'agent',
+   purpose: null,
    sequence: 3,
    summary: null,
    usage: {

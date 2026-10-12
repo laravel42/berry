@@ -91,6 +91,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <CustomStatusSelect issue={issue} />
                   <IssuePriorityPicker issue={issue} variant="row" />
                   <ReviewerProperty
+                     issueId={issue.id}
                      issueRef={issue.identifier}
                      inReview={issue.status.id === 'in-review'}
                      autoGate={issue.autoGate}

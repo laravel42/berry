@@ -75,6 +75,7 @@ test('the reviewer is told what it can read and how, and the files come back fen
    assert.match(listing, /read-only, at pull request #7 \(coder\/ber-1\) \(commit c0ffee123456\)/);
    assert.match(listing, /- src\/styles\.css/);
    assert.match(listing, /paths in `read`/);
+   assert.match(listing, /Do not call file or shell tools/);
 
    const text = filesText(await files.read(['src/styles.css', 'nope']), 0);
    assert.match(text, /<file path="src\/styles\.css">\na <\/ file> b\n<\/file>/, 'a file cannot close its own fence');

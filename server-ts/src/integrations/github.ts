@@ -528,6 +528,8 @@ export class GitHubClient {
       open: boolean;
       conflicts: boolean;
       base: string | null;
+      /** The base branch's tip. A delivery merge names this as its second parent. */
+      baseSha: string | null;
       /** GitHub's pull request id, when the payload names one. */
       githubId: number | null;
       repoId: number | null;
@@ -545,7 +547,7 @@ export class GitHubClient {
          mergeable?: boolean | null;
          mergeable_state?: string;
          head?: { ref?: unknown; sha?: unknown };
-         base?: { ref?: unknown; repo?: { id?: unknown } };
+         base?: { ref?: unknown; sha?: unknown; repo?: { id?: unknown } };
       }>('GET', `/repos/${encode(owner)}/${encode(name)}/pulls/${number}`);
       const numeric = (value: unknown): number | null =>
          typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
@@ -554,6 +556,7 @@ export class GitHubClient {
          open: pull.state === 'open',
          conflicts: pull.mergeable === false && pull.mergeable_state === 'dirty',
          base: typeof pull.base?.ref === 'string' ? pull.base.ref : null,
+         baseSha: typeof pull.base?.sha === 'string' ? pull.base.sha : null,
          githubId: numeric(pull.id),
          repoId: numeric(pull.base?.repo?.id),
          title: typeof pull.title === 'string' ? pull.title : '',
@@ -561,6 +564,15 @@ export class GitHubClient {
          headRef: typeof pull.head?.ref === 'string' ? pull.head.ref : '',
          headSha: typeof pull.head?.sha === 'string' ? pull.head.sha : null,
       };
+   }
+
+   /** Parent commits, oldest first. A merge's first parent is the branch that received it. */
+   async commitParents(owner: string, name: string, sha: string): Promise<string[]> {
+      const commit = await this.#json<{ parents?: Array<{ sha?: unknown }> }>(
+         'GET',
+         `/repos/${encode(owner)}/${encode(name)}/commits/${encode(sha)}`
+      );
+      return (commit.parents ?? []).flatMap((parent) => (typeof parent.sha === 'string' ? [parent.sha] : []));
    }
 
    /**

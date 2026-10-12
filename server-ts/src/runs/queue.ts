@@ -95,22 +95,34 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
       let overrideRuntimeId: string | null = null;
       let overrideModelId: string | null = null;
       let overrideAgentId: string | null = null;
-      const issueId = input.kind === 'agent' ? (input.issueId ?? null) : null;
+      // Completions may sit on a task so their transcript is on that console
+      // (an AutoGate review). They do not claim the task: an agent run is
+      // still the one `active_run_id` names, and another completion may start.
+      const issueId = input.issueId ?? null;
+      const claimsIssue = input.kind === 'agent' && issueId !== null;
       if (issueId) {
-         // Locked first, so two triggers on one issue cannot both see it idle.
-         const [issue] = await tx`
-            SELECT i.id, i.board_id, i.ai_runtime_key, i.ai_model_id, i.ai_runtime_agent
-              FROM issues i JOIN boards b ON b.id = i.board_id
-             WHERE i.id = ${issueId} AND b.workspace_id = ${input.workspaceId} AND i.deleted_at IS NULL
-             FOR UPDATE OF i`;
+         const [issue] = claimsIssue
+            ? await tx`
+               SELECT i.id, i.board_id, i.ai_runtime_key, i.ai_model_id, i.ai_runtime_agent
+                 FROM issues i JOIN boards b ON b.id = i.board_id
+                WHERE i.id = ${issueId} AND b.workspace_id = ${input.workspaceId} AND i.deleted_at IS NULL
+                FOR UPDATE OF i`
+            : await tx`
+               SELECT i.id, i.board_id, i.ai_runtime_key, i.ai_model_id, i.ai_runtime_agent
+                 FROM issues i JOIN boards b ON b.id = i.board_id
+                WHERE i.id = ${issueId} AND b.workspace_id = ${input.workspaceId} AND i.deleted_at IS NULL`;
          if (!issue) throw new NotFound();
          boardId = issue.board_id as string;
          overrideRuntimeId = (issue.ai_runtime_key as string | null) ?? null;
          overrideModelId = (issue.ai_model_id as string | null) ?? null;
          overrideAgentId = (issue.ai_runtime_agent as string | null) ?? null;
-         const [active] = await tx`
-            SELECT id FROM runs WHERE issue_id = ${issueId} AND status IN ('queued', 'running') LIMIT 1`;
-         if (active) throw new ActiveRunExists(active.id as string);
+         if (claimsIssue) {
+            const [active] = await tx`
+               SELECT id FROM runs
+                WHERE issue_id = ${issueId} AND kind = 'agent' AND status IN ('queued', 'running')
+                LIMIT 1`;
+            if (active) throw new ActiveRunExists(active.id as string);
+         }
       }
       // Chat guard (workstream D). A session's tasks are serialized rather
       // than refused, so chat can queue several: the session row is locked so
@@ -185,7 +197,12 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
              WHERE id = ${input.chatSessionId} AND active_run_id IS NULL`;
       }
       if (issueId && boardId) {
-         await tx`UPDATE issues SET active_run_id = ${runId}, updated_at = now() WHERE id = ${issueId}`;
+         if (claimsIssue) {
+            await tx`UPDATE issues SET active_run_id = ${runId}, updated_at = now() WHERE id = ${issueId}`;
+         } else {
+            // So the task console reloads and shows this review while it runs.
+            await tx`UPDATE issues SET updated_at = now() WHERE id = ${issueId}`;
+         }
          await tx`
             INSERT INTO run_events (id, run_id, board_id, issue_id, sequence, event_type, payload, public)
             VALUES (${randomUUID()}, ${runId}, ${boardId}, ${issueId}, 0, 'run.created',

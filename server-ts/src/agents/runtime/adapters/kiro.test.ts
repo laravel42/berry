@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { KIRO_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
 import { redactSecret } from './kiro-acp.ts';
-import { KiroAgentAdapter, kiroMcpSocketPath, kiroUsageEvent, normalizeKiroUpdate, selectKiroPermission, type KiroLauncher } from './kiro.ts';
+import { KiroAgentAdapter, kiroMcpSocketPath, kiroToolNote, kiroUsageEvent, normalizeKiroUpdate, selectKiroPermission, type KiroLauncher } from './kiro.ts';
 import { RuntimeAdapterError, type RuntimeCredential } from './types.ts';
 
 const credential: RuntimeCredential = {
@@ -115,7 +115,7 @@ class ScriptedChild {
    }
 }
 
-function envelope(): TaskEnvelope {
+function envelope(overrides: Record<string, unknown> = {}): TaskEnvelope {
    return taskEnvelopeSchema.parse({
       kind: 'agent',
       runtime: {
@@ -153,6 +153,7 @@ function envelope(): TaskEnvelope {
       completion: null,
       env: {},
       berry: { apiUrl: 'https://berry.example', token: 'task-token' },
+      ...overrides,
    });
 }
 
@@ -209,9 +210,59 @@ describe('Kiro adapter', () => {
          assert.equal(JSON.stringify(replied).includes('ksk_should_not_pass'), false);
          assert.equal(JSON.stringify(replied).includes('accessToken'), false);
          assert.equal(events.some((event) => event.includes('ksk_')), false);
+         const prompt = replied.find((message) => (message as { method?: string }).method === 'session/prompt') as {
+            params?: { prompt?: Array<{ text?: string }> };
+         };
+         assert.match(prompt.params?.prompt?.[0]?.text ?? '', /@berry\/list_run_tools/);
+         assert.match(kiroToolNote(), /Do not call tool_load, tool_call, or a powers interface/);
       } finally {
          if (previous === undefined) delete process.env.KIRO_API_KEY;
          else process.env.KIRO_API_KEY = previous;
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('a completion is told to inspect via read, not list_run_tools', async () => {
+      const children: ScriptedChild[] = [];
+      const adapter = new KiroAgentAdapter({
+         launcher: (spec) => {
+            if (spec.args[0] === '--version') {
+               const child = new ScriptedChild();
+               queueMicrotask(() => {
+                  child.pushLine('kiro-cli 3.1.0');
+                  child.kill();
+               });
+               return child;
+            }
+            const child = new ScriptedChild();
+            children.push(child);
+            return child;
+         },
+      });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-kiro-completion-'));
+      try {
+         await adapter.start({
+            envelope: envelope({
+               kind: 'completion',
+               completion: {
+                  system: 'Review.',
+                  jsonSchema: { type: 'object', properties: { read: { type: 'array' }, approved: { type: 'boolean' } } },
+               },
+            }),
+            credential,
+            workingDirectory: directory,
+            stateDirectory: join(directory, 'state'),
+            tools: [],
+            emit: () => undefined,
+            signal: new AbortController().signal,
+         });
+         const prompt = children.flatMap((child) => child.sent).find((message) => (message as { method?: string }).method === 'session/prompt') as {
+            params?: { prompt?: Array<{ text?: string }> };
+         };
+         const text = prompt.params?.prompt?.[0]?.text ?? '';
+         assert.match(text, /list paths in `read`/);
+         assert.equal(/Call @berry\/list_run_tools first/.test(text), false);
+      } finally {
          await rm(directory, { recursive: true, force: true });
       }
    });

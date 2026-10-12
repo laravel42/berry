@@ -576,9 +576,9 @@ export class RuntimeTaskExecutor implements Executor {
          });
       }
       // Persist before publishing success. The worker only admits succeeded parents.
-      if (task.issueId && this.#o.reviewGate) await scheduleReview(this.#o.sql, task.runId);
+      if (task.kind === 'agent' && task.issueId && this.#o.reviewGate) await scheduleReview(this.#o.sql, task.runId);
       await recorder.succeeded({ summary, usage, result });
-      if (task.issueId) {
+      if (task.kind === 'agent' && task.issueId) {
          if (summary) {
             await this.#memory.record({ agentId: task.agentId, issueId: task.issueId, role: 'ASSISTANT', text: summary, runId: task.runId });
             const occurredAt = (this.#o.clock ?? (() => new Date()))().toISOString();
@@ -714,7 +714,7 @@ export class RuntimeTaskExecutor implements Executor {
          // the summary travels in that run's instructions.
          await this.#o.sql`UPDATE runs SET failure_message = ${continuedMessage(next)} WHERE id = ${task.runId}`.catch(() => null);
       }
-      if (task.issueId && failure.code !== LIMIT_CODE) {
+      if (task.kind === 'agent' && task.issueId && failure.code !== LIMIT_CODE) {
          // A retryable failure used to post nothing, which left a task back in
          // To do with no word of why. It is reported like any other now, with
          // what Berry did about it. A step-limit stop is the exception: it

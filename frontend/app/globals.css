@@ -362,7 +362,8 @@
    }
 
    /* Every title is set in the display face, including the fields that stand
-      in for a heading. Body, controls and labels stay on the interface face. */
+      in for a heading. Body, controls and labels stay on the interface face.
+      Each word of a title is capitalized; section labels stay in tracked caps. */
    h1,
    h2,
    h3,
@@ -375,6 +376,14 @@
    [data-heading='h4'],
    [data-heading='display'] {
       font-family: var(--font-display);
+      text-transform: capitalize;
+   }
+
+   /* The user agent sets text-transform: none on buttons and fields, so a
+      title written as a control would stay in sentence case. Inherit the
+      heading's capitalization instead. */
+   :is(h1, h2, h3, h4, h5, h6) :is(button, input, textarea) {
+      text-transform: inherit;
    }
 
    /* Headings carry one step of weight over the 400 body so a page title, a

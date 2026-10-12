@@ -109,7 +109,7 @@ export function listingText(files: ReviewFiles): string {
       `You can read the repository, read-only, at ${files.ref} (commit ${files.commit.slice(0, 12)}). Its files (${files.paths.length}):`,
       listed.join('\n') || '- (none)',
       [
-         `To read files before you decide, list up to ${MAX_FILES_PER_ROUND} paths in \`read\`. The rest of that answer is ignored`,
+         `To read files before you decide, list up to ${MAX_FILES_PER_ROUND} paths in \`read\`. Do not call file or shell tools; this turn has none. The rest of that answer is ignored`,
          `and the files are sent back to you; you have up to ${MAX_READ_ROUNDS} such rounds. Give your verdict with \`read\` empty.`,
          'Read what the verdict depends on rather than rejecting because the diff does not show it: a file the',
          'change relies on, or work that is already in the repository, is there to be read.',

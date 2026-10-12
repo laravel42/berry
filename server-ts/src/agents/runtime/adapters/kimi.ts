@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { KIMI_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { classifyKimiText, KimiAcpClient, spawnKimiProcess, type KimiChild, type KimiSpawn } from './kimi-acp.ts';
+import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
    RuntimeAdapterError,
@@ -262,7 +263,7 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
          const cold = loaded ? '' : promptContext(input);
          const result = await client.request(
             'session/prompt',
-            { sessionId, prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}` }] },
+            { sessionId, prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${runtimeTurnNote(input.envelope.kind, 'list_run_tools', input.envelope.completion?.jsonSchema)}` }] },
             this.#deadlineMs
          );
          const reported = kimiUsageEvent(result, model) ?? pendingUsage;

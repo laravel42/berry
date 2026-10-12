@@ -25,7 +25,6 @@ import { FindInIssue } from './find-in-issue';
 import { IssueDescription } from './issue-description';
 import { IssuePropertiesPanel } from './issue-properties-panel';
 import { IssueQuickActions } from './issue-quick-actions';
-import { IssueReviews } from './issue-reviews';
 import { IssueTitle } from './issue-title';
 import { RunConsole } from './run-console';
 import { SubIssues } from './sub-issues';
@@ -285,11 +284,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   </div>
 
                   <SubIssues issue={issue} />
-                  <IssueReviews
-                     issueRef={issue.identifier}
-                     inReview={issue.status.id === 'in-review'}
-                     autoGate={issue.autoGate}
-                  />
 
                   <ActivityFeedList
                      comments={activity.comments}
@@ -301,6 +295,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                      onCommentDeleted={activity.removeComment}
                      onCommentPosted={activity.addComment}
                      onRunChanged={activity.upsertRun}
+                     issueId={issue.id}
+                     inReview={issue.status.id === 'in-review'}
+                     autoGate={issue.autoGate}
                   />
 
                   {stickyCommentBar || agentManaged ? null : (

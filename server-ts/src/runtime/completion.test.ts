@@ -10,7 +10,7 @@ import { CompletionFailed, CompletionInvalid, RuntimeCompletion, runCompletion }
 import { EnvelopeBuilder } from './envelope-builder.ts';
 import type { LifecycleEvent } from './lifecycle.ts';
 import { RuntimeTaskExecutor } from './task-executor.ts';
-import { cleanupFixture, seedFixture, type Fixture } from './test-fixture.ts';
+import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import type { RuntimeTransport } from './transport.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -146,5 +146,33 @@ describe('runCompletion', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       const result = await new RuntimeCompletion(deps()).text({ workspaceId: fixture!.workspaceId, model: 'm', system: 's', user: 'u' });
       assert.equal(result.value, 'rewritten');
       assert.equal(result.inputTokens, 7);
+   });
+
+   test('a review completion sits on the task without claiming it', async () => {
+      reply = () => [
+         { type: 'task.started' },
+         { type: 'task.completed', result: { text: '', truncated: false, structured: { ok: true }, delivery: null } },
+      ];
+      const issueId = await createIssue(sql, fixture!);
+      const value = await new RuntimeCompletion(deps()).structured({
+         workspaceId: fixture!.workspaceId,
+         purpose: 'review_gate',
+         subject: { issueId },
+         model: 'm',
+         system: 'Review it',
+         user: 'the diff',
+         schema: z.object({ ok: z.boolean() }),
+      });
+      assert.deepEqual(value.value, { ok: true });
+      const [run] = await sql`
+         SELECT issue_id, kind, completion_spec->>'purpose' AS purpose
+           FROM runs
+          WHERE workspace_id = ${fixture!.workspaceId} AND kind = 'completion'
+          ORDER BY created_at DESC LIMIT 1`;
+      assert.equal(run!.issue_id, issueId);
+      assert.equal(run!.kind, 'completion');
+      assert.equal(run!.purpose, 'review_gate');
+      const [issue] = await sql`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(issue!.active_run_id, null);
    });
 });

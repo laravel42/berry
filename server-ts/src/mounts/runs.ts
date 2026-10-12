@@ -333,6 +333,8 @@ export function serializeRun(run: Run): Record<string, unknown> {
       issueId: run.issueId,
       agentId: run.agentId,
       status: run.status,
+      kind: run.kind,
+      purpose: run.purpose,
       sequence: run.sequence,
       summary: run.summary,
       usage: {

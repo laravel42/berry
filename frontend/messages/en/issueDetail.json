@@ -126,9 +126,12 @@
          "quickAction": "quick action",
          "builder": "agent builder",
          "completion": "follow-up",
+         "review": "AutoGate review",
          "mergeFix": "merge fix"
       },
       "tab": "Run {n}",
+      "tabReview": "Review",
+      "tabReviewN": "Review {n}",
       "agent": "Agent"
    },
    "usage": {
@@ -413,7 +416,8 @@
       }
    },
    "reviews": {
-      "title": "AutoGate review"
+      "title": "AutoGate review",
+      "openTranscript": "Transcript"
    },
    "pullRequests": {
       "title": "Pull requests"

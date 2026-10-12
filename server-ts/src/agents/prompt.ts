@@ -163,8 +163,10 @@ export function buildMessage(dispatch: PromptContext): string {
 function runToolsContract(): string {
    return (
       '\n\nTools for this run\n' +
-      'Before any other action, call list_run_tools on the berry MCP server. ' +
-      'That server declares the tools for this run, and its reply is the complete set. ' +
+      'Before any other action, call list_run_tools. It is already loaded as a direct tool. ' +
+      'Do not call tool_load, tool_call, or a powers interface to load it. ' +
+      "This runtime's own shell and file tools are refused. " +
+      'That reply is the complete set. ' +
       'A tool the reply does not name is not available, including one you used on another task. ' +
       'Do not call another tool, edit a file, or run a command until that reply has come back. ' +
       'Every other tool call is refused until it has.\n'

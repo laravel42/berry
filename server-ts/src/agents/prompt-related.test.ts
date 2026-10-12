@@ -7,7 +7,8 @@ const base = { issueIdentifier: 'L42-7', issueTitle: 'Decide the cache TTL', iss
 test('the agent is told to query the berry MCP server before it works', () => {
    const message = buildMessage(base);
    assert.match(message, /Tools for this run/);
-   assert.match(message, /call list_run_tools on the berry MCP server/);
+   assert.match(message, /call list_run_tools/);
+   assert.match(message, /Do not call tool_load, tool_call, or a powers interface/);
    assert.match(message, /Every other tool call is refused until it has/);
 });
 
