@@ -28,7 +28,7 @@ test('a task that waits on others is told their unmerged work is not in its chec
       [{ identifier: 'BER-134', title: 'Login screen', status: 'done', direction: 'depends_on' }],
       [{ identifier: 'BER-134', title: 'Login screen', body: 'HANDOFF.md\n\nThe form is in src/Login.tsx.' }]
    );
-   assert.match(withHandoff ?? '', /Handoff attached to BER-134/);
+   assert.match(withHandoff ?? '', /Context for BER-134 \(Login screen\) is in \.handoffs\/BER-134 - login-screen/);
    assert.match(withHandoff ?? '', /src\/Login\.tsx/);
 });
 

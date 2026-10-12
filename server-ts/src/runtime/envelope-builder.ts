@@ -28,6 +28,7 @@ import type { Tier } from '../agents/model-tiers.ts';
 import { invokedSkillNames, requiredSkillsContract } from '../skills/invoke.ts';
 import { findAiRuntime, type AiRuntimeId } from './ai-runtime-catalog.ts';
 import type { RuntimeCredential } from '../agents/runtime/adapters/types.ts';
+import { handoffPath } from '../runs/handoff.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
 const RELATED_PARENT_CHARS = 1500;
@@ -66,7 +67,7 @@ export function dependencyNote(
       .map((handoff) => {
          const body = handoff.body.trim();
          const clipped = body.length <= HANDOFF_CHARS ? body : `${body.slice(0, HANDOFF_CHARS).trimEnd()} […]`;
-         return `Handoff attached to ${handoff.identifier} (${handoff.title}), file HANDOFF.md:\n${clipped}`;
+         return `Context for ${handoff.identifier} (${handoff.title}) is in ${handoffPath(handoff.identifier, handoff.title)}:\n${clipped}`;
       })
       .join('\n\n');
    return `${note}\n\n${attached}`;
@@ -407,7 +408,11 @@ export class EnvelopeBuilder {
                   reviewFeedback,
                   ...(relatedText ? { related: relatedText } : {}),
                   ...(dependencies.some((dependency) => dependency.direction === 'depends_on')
-                     ? { readBlockerHandoff: true }
+                     ? {
+                          blockerHandoffs: dependencies
+                             .filter((dependency) => dependency.direction === 'depends_on')
+                             .map((dependency) => ({ identifier: dependency.identifier, title: dependency.title })),
+                       }
                      : {}),
                   ...(priorWork ? { priorWork } : {}),
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
@@ -838,7 +843,7 @@ export class EnvelopeBuilder {
    }
 
    /**
-    * HANDOFF.md posted on each task this one waits for, and on the tasks
+    * The handoff posted on each task this one waits for, and on the tasks
     * those wait for.
     *
     * The comment is the copy the next prompt carries. A file saved only in
@@ -872,7 +877,7 @@ export class EnvelopeBuilder {
                    SELECT body FROM comments
                     WHERE issue_id = blocker.id
                       AND parent_id IS NULL
-                      AND body LIKE 'HANDOFF.md%'
+                      AND (body LIKE '.handoffs/%' OR body LIKE 'HANDOFF.md%')
                     ORDER BY created_at DESC
                     LIMIT 1
                 ) AS handoff ON true

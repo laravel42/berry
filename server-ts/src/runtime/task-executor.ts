@@ -5,7 +5,7 @@ import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
 import { gitWriteInvisible, type GitHubClient } from '../integrations/github.ts';
 import { isDetached, type Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
-import { handoffDocument, withHandoffFile } from '../runs/handoff.ts';
+import { handoffDocument, isHandoffDocument, withHandoffFile } from '../runs/handoff.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { AI_RUNTIME_ADAPTER_PROTOCOL_VERSION, type RuntimeControlResponse } from './envelope.ts';
@@ -517,7 +517,7 @@ export class RuntimeTaskExecutor implements Executor {
                // `result.delivery` back to nullable and loses the narrowing.
                let delivery = result.delivery;
                if (task.kind === 'agent' && summary) {
-                  const document = summary.trimStart().startsWith('HANDOFF.md')
+                  const document = isHandoffDocument(summary)
                      ? summary.endsWith('\n') ? summary : `${summary}\n`
                      : await this.#handoffText(task, summary, plan, delivery, null);
                   if (document && delivery.candidate) {
@@ -592,7 +592,7 @@ export class RuntimeTaskExecutor implements Executor {
    }
 
    /**
-    * Attaches HANDOFF.md to the task this run finished.
+    * Attaches this task's `.handoffs` note to the task this run finished.
     *
     * Every agent task, not one project: the next task that waits on this one
     * reads the comment instead of scanning the files this run produced.
@@ -605,7 +605,7 @@ export class RuntimeTaskExecutor implements Executor {
       pullRequest: number | null,
       occurredAt: string
    ): Promise<void> {
-      if (!task.issueId || summary.trimStart().startsWith('HANDOFF.md')) return;
+      if (!task.issueId || isHandoffDocument(summary)) return;
       const text = await this.#handoffText(task, summary, plan, delivery, pullRequest);
       if (!text) return;
       await postRunResult(this.#o.sql, {
@@ -634,13 +634,13 @@ export class RuntimeTaskExecutor implements Executor {
           WHERE issue.id = ${task.issueId}`;
       if (!issue) return null;
       const written = (delivery?.candidate ?? [])
-         .filter((file) => file.path !== 'HANDOFF.md' && file.content !== null)
+         .filter((file) => file.path !== 'HANDOFF.md' && !file.path.startsWith('.handoffs/') && file.content !== null)
          .map((file) => file.path);
       return handoffDocument({
          identifier: issue.identifier,
          title: issue.title,
          summary,
-         files: written.length > 0 ? written : (delivery?.files ?? []).filter((file) => file !== 'HANDOFF.md'),
+         files: written.length > 0 ? written : (delivery?.files ?? []).filter((file) => file !== 'HANDOFF.md' && !file.startsWith('.handoffs/')),
          repository: plan?.fullName ?? null,
          branch: delivery?.branch ?? plan?.branch ?? null,
          commit: delivery?.commit ?? null,
