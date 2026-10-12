@@ -105,6 +105,8 @@ export interface TaskRow {
    kind: 'agent' | 'completion';
    source: string;
    prompt: string | null;
+   /** A chat run's chosen repository, `owner/name`. Null when none was chosen. */
+   repository: string | null;
    /** A step-limit handover: a new session, and no restored conversation. */
    fresh: boolean;
    completionSpec: CompletionSpec | null;
@@ -209,6 +211,8 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
         FROM runs WHERE id = ${runId}`;
    if (!row) throw new Error(`run ${runId} does not exist`);
    const origin = row.origin;
+   const namedRepository =
+      typeof origin === 'object' && origin !== null ? (origin as { repository?: unknown }).repository : null;
    return {
       runId: row.id as string,
       workspaceId: row.workspace_id as string,
@@ -219,6 +223,7 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       kind: row.kind as TaskRow['kind'],
       source: row.source as string,
       prompt: (row.prompt as string | null) ?? null,
+      repository: typeof namedRepository === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(namedRepository) ? namedRepository : null,
       fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
       completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
       runtimeId: (row.runtime_id as string | null) ?? null,
@@ -343,7 +348,10 @@ export class EnvelopeBuilder {
       if (!task.issueId) {
          // A chat task: the prompt is the message. A skill the message names
          // is carried on this run and the prompt requires the agent to follow it.
+         // A chosen repository is checked out read-only, so the answer is about
+         // that codebase.
          const chat = await this.#chatSkills(task.workspaceId, task.prompt ?? '', extensions?.skills ?? []);
+         const repo = await this.#chatRepository(task, agent);
          return {
             model,
             tier,
@@ -352,9 +360,18 @@ export class EnvelopeBuilder {
                ...base,
                agent: { ...base.agent, skills: chat.skills },
                kind: 'agent',
-               task: { prompt: chat.prompt, issue: null, comments: [], dependencies: [], projectResources: [], priorWork: null },
+               task: {
+                  prompt: chat.prompt,
+                  issue: null,
+                  comments: [],
+                  dependencies: [],
+                  projectResources: task.repository
+                     ? [{ title: task.repository, url: `https://github.com/${task.repository}`, content: null }]
+                     : [],
+                  priorWork: null,
+               },
                transcript,
-               repo: null,
+               repo,
                completion: null,
             },
          };
@@ -881,6 +898,46 @@ export class EnvelopeBuilder {
          url: row.repository ? `https://github.com/${row.repository as string}` : null,
          content: (row.description as string | null) ?? null,
       }));
+   }
+
+   /**
+    * A chat message that names a repository checks that repository out
+    * read-only. The prompt already says to work inside it; the checkout is
+    * the tree the agent reads. A missing credential or an empty repository
+    * leaves the run with the name and no tree, rather than failing the reply.
+    */
+   async #chatRepository(task: TaskRow, agent: AgentConfig): Promise<RepoPlan | null> {
+      const fullName = task.repository;
+      if (!fullName || !this.#deps.gitCredential) return null;
+      const permissions = permissionsOf(agent.permissions, agent.name);
+      if (!permissions.has('read_repository')) return null;
+      try {
+         const { owner, name } = parseRepository(fullName);
+         const credential = await this.#deps.gitCredential(task.workspaceId, owner);
+         const client = this.#deps.github(credential.password);
+         const remote = await client.repository(owner, name);
+         const head = await client.branchHead(owner, name, remote.defaultBranch);
+         if (!head) return null;
+         await this.#deps.sql`INSERT INTO run_repository_snapshots (run_id, repository, branch, base_commit, default_commit, expected_head, read_only, merge_parent, merge_base)
+            VALUES (${task.runId}, ${fullName}, ${remote.defaultBranch}, ${head}, ${head}, ${null}, ${true}, ${null}, ${null})
+            ON CONFLICT (run_id) DO NOTHING`;
+         const [snapshot] = await this.#deps.sql`SELECT base_commit FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
+         const commit = (snapshot?.base_commit as string | undefined) ?? head;
+         return {
+            readOnly: true,
+            snapshotCommit: commit,
+            fullName,
+            branch: remote.defaultBranch,
+            baseBranch: remote.defaultBranch,
+            credential: { username: '', password: '' },
+            verifyCommands: [],
+            issueReference: 'chat',
+            issueTitle: 'Chat',
+         };
+      } catch (error) {
+         this.#deps.onError?.('chat repository checkout was not attached', error);
+         return null;
+      }
    }
 
    async #repository(task: TaskRow, dispatch: Dispatch, agent: AgentConfig): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true }> {

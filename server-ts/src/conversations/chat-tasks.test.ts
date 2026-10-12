@@ -4,10 +4,29 @@ import type { CompleteFn, CompletionRequest, EnqueueInput } from '../agents/seam
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from '../mounts/agent-layer.fixture.ts';
 import type { Run } from '../runs/ledger.ts';
-import { chatReplyBody, chatSuggestions, generateTitle, sendChatMessage, STARTER_SUGGESTIONS } from './chat-tasks.ts';
+import { chatModePrompt, chatReplyBody, chatSuggestions, generateTitle, sendChatMessage, STARTER_SUGGESTIONS } from './chat-tasks.ts';
 import { ConversationRepository } from './repository.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
+
+test('a mode other than agent is an instruction in front of the typed text', () => {
+   assert.equal(chatModePrompt('agent', 'Ship the login'), 'Ship the login');
+   assert.equal(chatModePrompt(undefined, 'Ship the login'), 'Ship the login');
+   const planned = chatModePrompt('plan', 'Ship the login');
+   assert.match(planned, /^Plan mode\./);
+   assert.match(planned, /Ship the login$/);
+   assert.match(chatModePrompt('debug', 'The page is blank'), /runtime traces/);
+   assert.match(chatModePrompt('ask', 'Where is auth?'), /Do not change it/);
+});
+
+test('a chosen repository is named in front of the typed text', () => {
+   const prompted = chatModePrompt('agent', 'Where is login?', 'acme/api');
+   assert.match(prompted, /^Repository: acme\/api\./);
+   assert.match(prompted, /Where is login\?$/);
+   const planned = chatModePrompt('plan', 'Where is login?', 'acme/api');
+   assert.match(planned, /^Plan mode\./);
+   assert.match(planned, /Repository: acme\/api\./);
+});
 
 test('a finished chat task’s reply is its summary, or says what happened', () => {
    const run = (status: Run['status'], message?: string) =>

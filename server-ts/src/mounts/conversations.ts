@@ -5,7 +5,10 @@ import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import type { BoardRepository } from '../core/boards.ts';
 import {
+   CHAT_MODES,
+   CHAT_REPOSITORY_NAME,
    ChatNotAnswerable,
+   ChatRepositoryUnknown,
    chatSuggestions,
    conversationSuggestions,
    generateTitle,
@@ -92,6 +95,12 @@ export interface ConversationOptions {
    ledger: Pick<RunLedger, 'markCancelled'>;
    runs: RunRepository;
    logger?: Logger;
+   /**
+    * Repositories the workspace's GitHub connection can see right now.
+    * The grant table is a snapshot and is often empty; this is the list the
+    * chat picker shows.
+    */
+   listRepositories?: (workspaceId: string) => Promise<ReadonlyArray<{ fullName: string }>>;
 }
 
 const createSchema = z.strictObject({
@@ -106,7 +115,11 @@ const patchSchema = z
    })
    .refine((body) => Object.keys(body).length > 0, 'Provide at least one field.');
 const draftSchema = z.strictObject({ draft: z.string().max(20_000) });
-const messageSchema = z.strictObject({ body: z.string().trim().min(1).max(MAX_BODY) });
+const messageSchema = z.strictObject({
+   body: z.string().trim().min(1).max(MAX_BODY),
+   mode: z.enum(CHAT_MODES).optional(),
+   repository: z.string().regex(CHAT_REPOSITORY_NAME).optional(),
+});
 const runtimeSelectionSchema = z.strictObject({
    runtimeId: z.string().trim().min(1).max(64).nullable(),
    modelId: z.string().trim().min(1).max(300).nullable(),
@@ -268,19 +281,36 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
    route.post('/:conversationId/messages', async (context) => {
       const conversation = await load(context);
       const userId = context.get('user').id;
-      const { body } = await readJson(context, messageSchema);
+      const { body, mode, repository } = await readJson(context, messageSchema);
       if (!options.enqueue || !(await replyCanRun(options, conversation, userId))) {
          // Kept, so what the person typed is not lost; nobody can run it here.
          await conversations.append({ conversationId: conversation.id, authorType: 'user', authorId: userId, body });
          throw new ApiError(503, 'AGENT_TASKS_UNAVAILABLE', 'This server cannot run agent tasks.');
       }
       const first = (await conversations.messages(conversation.id, { limit: 1 })).length === 0;
+      const listRepositories = options.listRepositories;
       const sent = await sendChatMessage(
-         { sql, conversations, enqueue: options.enqueue },
-         { conversation, userId, body }
+         {
+            sql,
+            conversations,
+            enqueue: options.enqueue,
+            ...(listRepositories
+               ? { listRepositories: () => listRepositories(conversation.workspaceId) }
+               : {}),
+         },
+         {
+            conversation,
+            userId,
+            body,
+            ...(mode !== undefined ? { mode } : {}),
+            ...(repository !== undefined ? { repository } : {}),
+         }
       ).catch((error: unknown) => {
          if (error instanceof ChatNotAnswerable) {
             throw new ApiError(409, 'CONVERSATION_HAS_NO_AGENT', 'This conversation has no agent to answer it.');
+         }
+         if (error instanceof ChatRepositoryUnknown) {
+            throw new ApiError(422, 'REPOSITORY_NOT_IN_WORKSPACE', 'That repository is not one this workspace can reach.');
          }
          if (error instanceof AiRuntimeSelectionError) rethrowAiRuntime(error);
          throw error;

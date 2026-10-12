@@ -37,6 +37,11 @@ export interface EnqueueInput {
     * `enqueueTask` accepts it; unlike `requestedBy` it is not inherited.
     */
    runtimeAuthorizedBy?: string;
+   /**
+    * Where the run came from. A chat that names a repository records it here
+    * so the envelope can check that repository out.
+    */
+   origin?: { runId?: string; fresh?: boolean; repository?: string };
 }
 
 export type EnqueueTask = (sql: Sql, input: EnqueueInput) => Promise<{ runId: string }>;

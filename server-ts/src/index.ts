@@ -172,6 +172,7 @@ import { agentCoreRuntimeDriver } from './execution/agentcore-runtime.ts';
 import { BedrockAgentCoreControlClient } from '@aws-sdk/client-bedrock-agentcore-control';
 import { ConnectionRepository } from './integrations/connections.ts';
 import { GitHubAppRepository } from './integrations/github-app.ts';
+import { listRepositoriesAcrossAccounts } from './integrations/github-repositories.ts';
 import { GitHubUserAccess } from './integrations/github-user.ts';
 import { sealerFromKey, unavailableSealer } from './integrations/sealing.ts';
 import { agentAccessGuard } from './agents/access.ts';
@@ -1252,6 +1253,10 @@ registry.registerAll(
       ledger: runOptions.ledger,
       runs: runOptions.runs,
       logger,
+      listRepositories: (workspaceId) =>
+         listRepositoriesAcrossAccounts(workspaceId, { githubApp, connections }).then(
+            (listing) => listing.repositories
+         ),
    })
 );
 registry.registerAll(
