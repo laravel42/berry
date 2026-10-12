@@ -261,6 +261,7 @@ describe('ensureDiscovery', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
                   promptTemplate: 'Inspect.',
                   executionMode: 'fixed_issue',
                   boardId: null,
+                  projectId: null,
                   issueId: issue.id,
                   quotaPeriod: 'week',
                   quotaMax: 1,

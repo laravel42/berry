@@ -136,6 +136,7 @@ export async function ensureDiscovery(
                promptTemplate: discoveryPrompt(contract),
                executionMode: 'fixed_issue',
                boardId: null,
+               projectId: null,
                issueId: issue.id,
                quotaPeriod: 'week',
                quotaMax: 1,

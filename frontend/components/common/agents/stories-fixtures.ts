@@ -899,6 +899,7 @@ const autopilotBase = {
    assigneeType: 'agent',
    executionMode: 'create_issue',
    boardId: 'board-1',
+   projectId: null,
    issueId: null,
    status: 'active',
    version: 1,
