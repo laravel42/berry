@@ -90,7 +90,6 @@ function IssueLineView({
                      {issue.identifier}
                   </span>
                )}
-               {issue.autoGate ? <AutoGateMark className="mr-1" /> : null}
                {displayProperties.status && (
                   <span className={cn('flex items-center', CONTROL)}>
                      <IssueStatusPicker issue={issue} />
@@ -112,6 +111,7 @@ function IssueLineView({
                      <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
                   ) : null}
                   <span className="min-w-0 truncate font-normal">{issue.title}</span>
+                  {issue.autoGate ? <AutoGateMark className="ml-1" /> : null}
                   <span className="sr-only"> {issue.identifier}</span>
                </Link>
                <div className="ml-auto flex shrink-0 items-center justify-end gap-2 sm:w-fit">
