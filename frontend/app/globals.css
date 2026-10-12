@@ -390,6 +390,12 @@
       font-weight: 500;
    }
 
+   /* A secondary line under a menu title, one step below the body. */
+   [data-caption] {
+      font-size: 0.75rem;
+      line-height: 1rem;
+   }
+
    /* Section labels inside a page ("Sub-tasks", "Files", "Activity"): tracked
       caps one step below the body, so they read as labels for a group and
       not as the rail's section headings, which are a shell element. */

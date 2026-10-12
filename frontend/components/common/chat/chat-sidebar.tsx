@@ -32,6 +32,8 @@ interface ChatSidebarProps {
    onNewChat: (agent: Agent) => void;
    onSelect: (thread: ChatThread) => void;
    onChanged: () => void;
+   /** Shows the new title at once; the parent saves it and rolls it back on failure. */
+   onRename: (id: string, title: string) => void;
    onStop: (thread: ChatThread) => void;
    /** The page sets its name and the new-chat action above the split instead. */
    headless?: boolean;
@@ -65,6 +67,7 @@ export function ChatSidebar({
    onNewChat,
    onSelect,
    onChanged,
+   onRename,
    onStop,
    headless = false,
    className,
@@ -193,6 +196,7 @@ export function ChatSidebar({
             activeId={activeId}
             onSelect={onSelect}
             onChanged={onChanged}
+            onRename={onRename}
             onStop={onStop}
          />
       </aside>

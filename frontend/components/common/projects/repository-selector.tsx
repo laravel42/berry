@@ -78,14 +78,18 @@ export function RepositoryPicker({
    value,
    onSelect,
    disabled,
+   pending = false,
    placeholder = 'Link a repository',
    variant = 'ghost',
    size = 'sm',
    className = 'w-full px-1.5',
+   side,
 }: {
    value?: string;
    onSelect: (fullName: string | null) => void;
    disabled?: boolean;
+   /** A save in progress. The trigger shows a spinner instead of the mark. */
+   pending?: boolean;
    placeholder?: string;
    /** Trigger styling. The project view wants a quiet full-width row; a form
     *  row of property buttons wants the same gray, auto-width chip as its
@@ -93,25 +97,27 @@ export function RepositoryPicker({
    variant?: ComponentProps<typeof Button>['variant'];
    size?: ComponentProps<typeof Button>['size'];
    className?: string;
+   /** Where the list opens. The project row opens downward; chat opens up. */
+   side?: 'top' | 'bottom';
 }) {
    const [open, setOpen] = useState(false);
    const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
    const [access, setAccess] = useState<GitHubAccess | null>(null);
    const [loading, setLoading] = useState(false);
+   const [loaded, setLoaded] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
    const githubConnected = useGitHubConnected();
 
-   // The list is loaded once per opening and kept; the reload beside the
-   // search is for the moment somebody creates or is granted a repository on
-   // GitHub while the picker is already open.
+   // The list is loaded once per opening and kept. Reload stays out of the
+   // search row until that request ends, then it is there to fetch again.
    const load = useCallback(async () => {
       setLoading(true);
       setError(null);
       try {
-         const loaded = await loadGitHubRepositories();
-         setRepositories(loaded.repositories);
-         setAccess(loaded.access);
+         const listing = await loadGitHubRepositories();
+         setRepositories(listing.repositories);
+         setAccess(listing.access);
       } catch (cause) {
          // An empty list and a list that failed to load look identical, and
          // the fixes are opposite — so the reason is shown, not hidden.
@@ -120,6 +126,7 @@ export function RepositoryPicker({
          );
       } finally {
          setLoading(false);
+         setLoaded(true);
       }
    }, []);
 
@@ -167,7 +174,7 @@ export function RepositoryPicker({
                )}
                disabled={disabled}
             >
-               {disabled ? (
+               {pending ? (
                   <Loader2
                      className={cn(
                         'shrink-0 animate-spin',
@@ -188,7 +195,7 @@ export function RepositoryPicker({
             </Button>
          </PopoverTrigger>
 
-         <PopoverContent className="w-72 p-0" align="start">
+         <PopoverContent className="w-72 p-0" align="start" side={side}>
             {creating ? (
                <NewRepositoryForm
                   onCreated={created}
@@ -200,18 +207,19 @@ export function RepositoryPicker({
                   <CommandInput
                      placeholder="Search repositories…"
                      trailing={
-                        <Button
-                           type="button"
-                           variant="ghost"
-                           size="icon"
-                           className="size-6 shrink-0 text-muted-foreground"
-                           aria-label="Reload repositories"
-                           title="Reload repositories"
-                           disabled={loading}
-                           onClick={() => void load()}
-                        >
-                           <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
-                        </Button>
+                        loaded && !loading ? (
+                           <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-6 shrink-0 text-muted-foreground"
+                              aria-label="Reload repositories"
+                              title="Reload repositories"
+                              onClick={() => void load()}
+                           >
+                              <RefreshCw className="size-3.5" />
+                           </Button>
+                        ) : null
                      }
                   />
                   <CommandList>
@@ -520,6 +528,7 @@ export function RepositorySelector({ project }: { project: Project }) {
          value={project.githubRepo}
          onSelect={(fullName) => void save(fullName)}
          disabled={saving}
+         pending={saving}
       />
    );
 }

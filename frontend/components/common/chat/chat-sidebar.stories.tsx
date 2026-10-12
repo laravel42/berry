@@ -19,6 +19,7 @@ const meta = {
       onNewChat: fn(),
       onSelect: fn(),
       onChanged: fn(),
+      onRename: fn(),
       onStop: fn(),
    },
    beforeEach: ({ msw }) => {

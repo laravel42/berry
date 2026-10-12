@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
-import { expect, fn, waitFor } from 'storybook/test';
-import { chatAgents } from './chat-fixtures';
+import { expect, fn, waitFor, within } from 'storybook/test';
+import { useSessionStore } from '@/store/session-store';
+import { useUiPrefsStore } from '@/store/ui-prefs-store';
+import { chatAgents, chatSession } from './chat-fixtures';
 import { ChatComposer } from './chat-composer';
 
 type ComposerProps = Parameters<typeof ChatComposer>[0];
@@ -25,6 +27,9 @@ function Controlled(props: ComposerProps) {
 const meta = {
    component: ChatComposer,
    tags: ['ai-generated', 'needs-work'],
+   beforeEach: () => {
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
    args: {
       value: '',
       onChange: fn(),
@@ -32,7 +37,6 @@ const meta = {
       onStop: null,
       queueing: false,
       disabled: false,
-      placeholder: 'Message Backend Engineer…',
       workspaceId: 'ws-1',
    },
    render: (args) => <Controlled {...args} />,
@@ -48,13 +52,77 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The mode menu sits under the text. Agent is the ordinary choice. */
+export const PickAMode: Story = {
+   beforeEach: () => {
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Chat mode: Agent' }));
+      const menu = within(canvasElement.ownerDocument.body);
+      await expect(await menu.findByRole('menuitemradio', { name: /recommended/ })).toBeVisible();
+      await userEvent.click(menu.getByRole('menuitemradio', { name: /Create detailed plans/ }));
+      await expect(canvas.getByRole('button', { name: 'Chat mode: Plan' })).toBeVisible();
+      useUiPrefsStore.setState({ chatMode: 'agent' });
+   },
+};
+
+/** The project repository picker: search, then the choice stays on the button. */
+export const PickARepository: Story = {
+   beforeEach: ({ msw }) => {
+      useUiPrefsStore.setState({ chatRepository: null });
+      useSessionStore.setState(chatSession);
+      msw.use(
+         http.get('*/api/v1/integrations/providers', () =>
+            HttpResponse.json({
+               providers: [{ id: 'github', name: 'GitHub', connected: true, configured: true }],
+            })
+         ),
+         http.get('*/api/v1/github/:workspaceId/settings', () =>
+            HttpResponse.json({
+               settings: {
+                  enabled: true,
+                  showLinkedPullRequests: true,
+                  coAuthorTrailer: false,
+                  autoLinkPullRequests: false,
+               },
+               canManage: false,
+               connection: { appConfigured: true, installed: true, accounts: [] },
+            })
+         ),
+         http.get('*/api/v1/integrations/github/repositories', () =>
+            HttpResponse.json({
+               repositories: [
+                  {
+                     id: 1,
+                     fullName: 'acme/api',
+                     name: 'api',
+                     private: false,
+                     defaultBranch: 'main',
+                  },
+               ],
+               access: { selectedOnly: false, installed: true },
+            })
+         )
+      );
+   },
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'Repository' }));
+      const menu = within(canvasElement.ownerDocument.body);
+      await expect(await menu.findByPlaceholderText('Search repositories…')).toBeVisible();
+      await userEvent.click(await menu.findByRole('option', { name: 'acme/api' }));
+      await expect(canvas.getByRole('button', { name: 'acme/api' })).toBeVisible();
+      useUiPrefsStore.setState({ chatRepository: null });
+   },
+};
+
 /** Enter sends; Shift+Enter would break the line instead. */
 export const TypeAndSend: Story = {
    play: async ({ args, canvas, userEvent }) => {
       const send = canvas.getByRole('button', { name: 'Send' });
       await expect(send).toBeDisabled();
       await userEvent.type(
-         canvas.getByRole('textbox', { name: 'Message Backend Engineer…' }),
+         canvas.getByRole('textbox', { name: 'Plan, search, build anything' }),
          'Draft the migration{Enter}'
       );
       await expect(args.onSend).toHaveBeenCalledTimes(1);
@@ -71,7 +139,7 @@ export const QueueingBehindReply: Story = {
 };
 
 export const Disabled: Story = {
-   args: { disabled: true, placeholder: 'Message an agent…' },
+   args: { disabled: true },
 };
 
 const page = { pageInfo: { hasNextPage: false, endCursor: null } };
@@ -101,7 +169,7 @@ export const MentionSomeone: Story = {
       );
    },
    play: async ({ args, canvas, userEvent }) => {
-      const input = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
+      const input = canvas.getByRole('textbox', { name: 'Plan, search, build anything' });
       await userEvent.type(input, 'Ask @');
       await expect(await canvas.findByRole('option', { name: 'Andrea Lunelio' })).toBeVisible();
       await expect(canvas.getByRole('option', { name: 'Orchestrator' })).toBeVisible();
@@ -157,7 +225,7 @@ export const SlashSkillOrCommand: Story = {
       );
    },
    play: async ({ args, canvas, userEvent }) => {
-      const input = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
+      const input = canvas.getByRole('textbox', { name: 'Plan, search, build anything' });
       await userEvent.type(input, '/');
       await expect(await canvas.findByRole('option', { name: /release-notes/ })).toBeVisible();
       await expect(canvas.getByRole('option', { name: /Summarise/ })).toBeVisible();

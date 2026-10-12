@@ -34,6 +34,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
+import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatThread as ThreadView } from './chat-thread';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 
@@ -251,6 +252,9 @@ export function FloatingChat() {
    }, [agents, threads]);
 
    const activeId = active?.id ?? null;
+   const activeAgent = active?.agentId
+      ? agents.find((agent) => agent.id === active.agentId)
+      : undefined;
 
    const refresh = useCallback(async (id: string) => {
       const [page, queue] = await Promise.all([
@@ -310,7 +314,8 @@ export function FloatingChat() {
       setSending(true);
       setComposer('');
       try {
-         const queued = await sendMessage(activeId, text);
+         const prefs = useUiPrefsStore.getState();
+         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch {
          /* The reply that never comes is the report. */
@@ -526,13 +531,11 @@ export function FloatingChat() {
                   onStop={null}
                   queueing={tasks.length > 0}
                   disabled={sending}
-                  placeholder={
-                     active.agentName
-                        ? chat('composerPlaceholder', { name: active.agentName })
-                        : chat('composerIdle')
-                  }
                   workspaceId={workspaceId}
                   sendVariant="secondary"
+                  conversationId={active.id}
+                  {...(activeAgent ? { agent: activeAgent } : {})}
+                  answering={stage !== null}
                />
             </>
          ) : (

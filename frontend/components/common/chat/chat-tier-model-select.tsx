@@ -62,10 +62,13 @@ export function ChatTierModelSelect({
    conversationId,
    agent,
    disabled,
+   compact = false,
 }: {
    conversationId: string;
    agent: Agent | undefined;
    disabled?: boolean;
+   /** Sits in the composer row, beside the mode, rather than in the header. */
+   compact?: boolean;
 }) {
    const t = useTranslations('agentsChat.chat');
    const tier = agent ? agentTier(agent) : null;
@@ -131,11 +134,15 @@ export function ChatTierModelSelect({
       <Select value={value} onValueChange={choose} disabled={disabled || saving}>
          <SelectTrigger
             aria-label={t('tierModel')}
-            className="h-8 w-[200px] gap-1 border-border/60 bg-container px-2.5 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+            className={
+               compact
+                  ? 'h-7 w-auto max-w-44 gap-1 border-transparent bg-transparent px-1.5 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]'
+                  : 'h-8 w-[200px] gap-1 border-border/60 bg-container px-2.5 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground'
+            }
          >
             <SelectValue />
          </SelectTrigger>
-         <SelectContent align="end">
+         <SelectContent side={compact ? 'top' : 'bottom'} align={compact ? 'start' : 'end'}>
             {options.map((option) => (
                <SelectItem key={option.key} value={option.key}>
                   {option.name}

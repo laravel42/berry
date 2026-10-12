@@ -15,6 +15,7 @@ const meta = {
       activeId: 'conv-1',
       onSelect: fn(),
       onChanged: fn(),
+      onRename: fn(),
       onStop: fn(),
    },
    decorators: [

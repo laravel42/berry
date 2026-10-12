@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ChatMode } from '../data/chat-mode';
 import { apiFetch, apiStream } from './api';
 
 /**
@@ -138,10 +139,15 @@ export async function saveDraft(id: string, draft: string): Promise<void> {
  * at once; a 503 AGENT_TASKS_UNAVAILABLE means the message was kept but no
  * agent can run it here.
  */
-export async function sendMessage(id: string, body: string) {
+export async function sendMessage(
+   id: string,
+   body: string,
+   mode: ChatMode = 'agent',
+   repository: string | null = null
+) {
    const json: unknown = await apiFetch(session(id, '/messages'), {
       method: 'POST',
-      body: JSON.stringify({ body }),
+      body: JSON.stringify(repository ? { body, mode, repository } : { body, mode }),
    });
    return z
       .object({ messageId: z.string(), runId: z.string(), queued: z.literal(true) })
