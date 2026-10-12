@@ -4,10 +4,12 @@ import type { MenuItemConstructorOptions, WebContents } from 'electron/main';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { cliRequestFrom, runCli } from './cli.js';
 import { findRepoRoot, localStack, startLocalStack, type RunningStack } from './stack.js';
 import { externalHttpUrl, inAppNavigation, parseStartUrl, type StartUrl } from './url.js';
 
 const RETRY_CHANNEL = 'berry-desktop:retry';
+const RUN_CLI_CHANNEL = 'berry-desktop:run-cli';
 
 app.setName('Berry');
 
@@ -207,6 +209,20 @@ if (gotLock) {
       const owner = BrowserWindow.fromWebContents(event.sender);
       if (owner === null || owner.isDestroyed() || session.start === null) return;
       void owner.loadURL(session.start.href);
+   });
+
+   ipcMain.handle(RUN_CLI_CHANNEL, (event, payload: unknown) => {
+      const owner = BrowserWindow.fromWebContents(event.sender);
+      let origin = '';
+      try {
+         origin = new URL(event.sender.getURL()).origin;
+      } catch {
+         origin = '';
+      }
+      if (owner === null || owner.isDestroyed() || session.start === null || origin !== session.start.origin) {
+         throw new Error('CLI is only available from the Berry window.');
+      }
+      return runCli(cliRequestFrom(payload));
    });
 
    let quitting = false;
