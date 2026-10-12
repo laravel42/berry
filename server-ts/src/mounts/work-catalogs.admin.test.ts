@@ -143,6 +143,56 @@ describe('workspace catalogues: archiving, counts and bounds', { skip: url ? fal
       assert.equal(await countFor(labelId), 1);
    });
 
+   test('a skill label counts the skills that name it, and renaming rewrites that name', async () => {
+      const suffix = randomUUID().slice(0, 6);
+      const name = `Skill ${suffix}`;
+      const created = await call('POST', catalog('/skill-labels'), 'owner', {
+         name,
+         color: '#6366f1',
+      });
+      assert.equal(created.status, 201);
+      const labelId = created.body?.id as string;
+
+      const countFor = async (id: string) => {
+         const listed = await call('GET', catalog('/skill-labels'), 'owner');
+         const node = (listed.body?.nodes as { id: string; usageCount: number }[]).find(
+            (row) => row.id === id
+         );
+         assert.ok(node, 'the label is listed');
+         return node.usageCount;
+      };
+
+      assert.equal(await countFor(labelId), 0);
+
+      const skillName = `skill-${suffix}`;
+      await sql`
+         INSERT INTO skills (workspace_id, name, labels, created_by)
+         VALUES (${world.workspaceId}, ${skillName}, ${[name]}::text[], ${world.ownerId})`;
+      assert.equal(await countFor(labelId), 1);
+
+      const renamed = `Renamed ${suffix}`;
+      const patched = await call('PATCH', catalog(`/skill-labels/${labelId}`), 'owner', {
+         name: renamed,
+      });
+      assert.equal(patched.status, 200);
+      const stored = await sql<{ labels: string[] }[]>`
+         SELECT labels FROM skills
+          WHERE workspace_id = ${world.workspaceId} AND name = ${skillName}`;
+      assert.deepEqual(stored[0]?.labels, [renamed]);
+
+      assert.equal((await call('DELETE', catalog(`/skill-labels/${labelId}`), 'owner')).status, 204);
+      const listed = await call('GET', catalog('/skill-labels'), 'owner');
+      const archived = (listed.body?.nodes as { id: string; archivedAt: string | null }[]).find(
+         (row) => row.id === labelId
+      );
+      assert.ok(archived);
+      assert.notEqual(archived.archivedAt, null);
+      const kept = await sql<{ labels: string[] }[]>`
+         SELECT labels FROM skills
+          WHERE workspace_id = ${world.workspaceId} AND name = ${skillName}`;
+      assert.deepEqual(kept[0]?.labels, [renamed]);
+   });
+
    test('a workspace is bounded to twenty active properties, and archiving gives a slot back', async () => {
       const make = (label: string) =>
          call('POST', catalog('/issue-properties'), 'owner', { name: `Cap ${label}`, kind: 'text' });

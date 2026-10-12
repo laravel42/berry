@@ -1,6 +1,5 @@
 'use client';
 
-import { Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -27,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
+import { loadSkillLabels, type SkillCatalogueLabel } from '@/lib/skill-labels';
 import { listSkills, type Skill } from '@/lib/skills';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useSessionStore } from '@/store/session-store';
@@ -38,6 +38,7 @@ function SkillsScreen() {
    const params = useSearchParams();
    const view = params.get('view');
    const role = useSessionStore((state) => state.workspace?.role);
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const canEdit = canEditProduct(role);
    const revision = useSkillsCatalogueStore((state) => state.revision);
    const bump = useSkillsCatalogueStore((state) => state.bump);
@@ -52,6 +53,7 @@ function SkillsScreen() {
    const [agents, setAgents] = useState<Agent[]>([]);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
+   const [catalogue, setCatalogue] = useState<SkillCatalogueLabel[] | null>(null);
    const reload = useCallback(() => bump(), [bump]);
 
    useEffect(() => {
@@ -90,6 +92,38 @@ function SkillsScreen() {
          clearTimeout(timer);
       };
    }, [query, revision, t]);
+
+   useEffect(() => {
+      if (!workspaceId) return;
+      let cancelled = false;
+      void loadSkillLabels(workspaceId)
+         .then((labels) => {
+            if (!cancelled) setCatalogue(labels);
+         })
+         .catch(() => {
+            if (!cancelled) setCatalogue(null);
+         });
+      return () => {
+         cancelled = true;
+      };
+   }, [workspaceId, revision]);
+
+   const labelOptions = useMemo(() => {
+      if (catalogue) {
+         return catalogue
+            .map((label) => label.name)
+            .sort((left, right) => left.localeCompare(right));
+      }
+      return [...new Set((skills ?? []).flatMap((skill) => skill.labels))].sort((left, right) =>
+         left.localeCompare(right)
+      );
+   }, [catalogue, skills]);
+
+   const labelColors = useMemo(() => {
+      const colors: Record<string, string> = {};
+      for (const label of catalogue ?? []) colors[label.name] = label.color;
+      return colors;
+   }, [catalogue]);
 
    /** Who has made a skill here, as the catalogue itself reports it. */
    const creators = useMemo(() => {
@@ -136,14 +170,8 @@ function SkillsScreen() {
                   className="h-[34px] w-48 min-w-0"
                />
                {canEdit ? (
-                  <Button
-                     size="icon"
-                     className="size-[34px] shrink-0"
-                     aria-label={t('create.title')}
-                     title={t('create.title')}
-                     onClick={() => setCreating(true)}
-                  >
-                     <Plus className="size-4" aria-hidden />
+                  <Button className="h-[34px] shrink-0 px-3" onClick={() => setCreating(true)}>
+                     {t('create.button')}
                   </Button>
                ) : null}
             </div>
@@ -166,6 +194,7 @@ function SkillsScreen() {
             onChanged={reload}
             narrowed={query.trim() !== '' || filter.filters.length > 0}
             onCriteriaChange={setCriteria}
+            labelColors={labelColors}
          />
          {view ? (
             <DetailDrawerShell
@@ -183,6 +212,8 @@ function SkillsScreen() {
                open(skill.id);
             }}
             existingNames={(skills ?? []).map((skill) => skill.name)}
+            labelOptions={labelOptions}
+            labelColors={labelColors}
          />
       </MainLayout>
    );

@@ -77,6 +77,7 @@ interface Admitted {
    promptTemplate: string;
    executionMode: string;
    boardId: string | null;
+   projectId: string | null;
    issueId: string | null;
    createdBy: string | null;
    skipped: Reason | null;
@@ -135,7 +136,7 @@ export async function fireAutopilot(deps: FireDeps, input: FireInput): Promise<F
             sortOrder: 0,
             dueDate: null,
             assignee: { type: 'agent', id: agentId },
-            project: null,
+            project: admitted.projectId,
             createdBy: owner,
          });
          issueId = created.issue.id;
@@ -206,6 +207,7 @@ async function admit(sql: Sql, input: FireInput, autopilotRunId: string, firedAt
          promptTemplate: row.prompt_template as string,
          executionMode: row.execution_mode as string,
          boardId: (row.board_id as string | null) ?? null,
+         projectId: (row.project_id as string | null) ?? null,
          issueId: (row.issue_id as string | null) ?? null,
          createdBy: (row.created_by as string | null) ?? null,
          skipped,

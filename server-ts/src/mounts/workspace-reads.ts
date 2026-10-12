@@ -354,7 +354,7 @@ function viewsRoute(options: WorkspaceReadOptions): Hono<{ Variables: AuthVariab
 }
 
 /**
- * The workspace's vocabularies. Today: its issue labels.
+ * The workspace's vocabularies. Today: its task labels and its skill labels.
  *
  * Addressed as `/catalogs/{workspaceId}/issue-labels` rather than
  * `/issue-labels?workspaceId=` because that is what the shell calls, and
@@ -488,6 +488,133 @@ function catalogsRoute(options: WorkspaceReadOptions): Hono<{ Variables: ScopedV
              RETURNING id`;
          if (rows.length === 0) throw ApiError.notFound('Label');
       }, { table: 'issue_labels', id: labelId }).catch(rethrowScoped('Label'));
+      return new Response(null, { status: 204 });
+   });
+
+   /**
+    * Labels a skill can carry. Same vocabulary shape as task labels: a row
+    * the workspace owns, counted by how many skills still name it. Renaming
+    * rewrites that name on the skills, because a skill stores the name rather
+    * than a foreign key. Archiving leaves the name on the skills that have it.
+    */
+   route.get('/:workspaceId/skill-labels', async (context) => {
+      const db = context.get('scoped');
+      const url = new URL(context.req.url);
+      const page = parsePageQuery(url);
+      const scope = `catalogs.skill-labels.${db.ctx.workspaceId}`;
+      const after = page.after === '' ? null : decodeTimeCursor(page.after, scope);
+
+      const rows = await db.list((q) => q.sql`
+         SELECT id, workspace_id, name, description, color, created_at, updated_at, archived_at,
+                (SELECT count(*) FROM skills
+                  WHERE skills.workspace_id = skill_labels.workspace_id
+                    AND skill_labels.name = ANY (skills.labels)) AS usage_count
+           FROM skill_labels
+          WHERE ${q.scope}
+            AND (${after === null} OR (created_at, id) <
+                 (${after?.createdAt ?? null}::timestamptz, ${after?.id ?? null}::uuid))
+          ORDER BY created_at DESC, id DESC
+          LIMIT ${page.first + 1}`);
+
+      return json(
+         connection(rows, page.first, scope, (row) => ({
+            id: row.id as string,
+            workspaceId: row.workspace_id as string,
+            name: row.name as string,
+            description: (row.description as string | null) ?? null,
+            color: row.color as string,
+            createdAt: toRFC3339(row.created_at as string)!,
+            updatedAt: toRFC3339(row.updated_at as string)!,
+            archivedAt: toRFC3339((row.archived_at as string | null) ?? null),
+            usageCount: Number(row.usage_count ?? 0),
+         }))
+      );
+   });
+
+   route.post('/:workspaceId/skill-labels', async (context) => {
+      const db = context.get('scoped');
+      const userId = context.get('user').id;
+      const input = await readSkillLabel(context);
+
+      const row = await db.mutate('settings.write', async (tx, ctx) => {
+         const [inserted] = await tx`
+            INSERT INTO skill_labels (workspace_id, name, description, color, created_by)
+            VALUES (${ctx.workspaceId}, ${input.name}, ${input.description}, ${input.color},
+                    ${userId})
+            ON CONFLICT (workspace_id, lower(name)) WHERE archived_at IS NULL
+            DO NOTHING
+            RETURNING id, workspace_id, name, description, color, created_at, updated_at, archived_at`;
+         if (!inserted) {
+            throw new ApiError(409, 'CONFLICT', 'A label with that name already exists.');
+         }
+         return inserted;
+      }).catch(rethrowScoped('Label'));
+      return json({ ...serializeLabel(row), usageCount: 0 }, 201);
+   });
+
+   route.patch('/:workspaceId/skill-labels/:labelId', async (context) => {
+      const db = context.get('scoped');
+      const labelId = pathId(context.req.param('labelId'), 'Label');
+      const input = await readSkillLabel(context, { partial: true });
+
+      const row = await db
+         .mutate(
+            'settings.write',
+            async (tx, ctx) => {
+               const [current] = await tx`
+                  SELECT name FROM skill_labels
+                   WHERE id = ${labelId} AND workspace_id = ${ctx.workspaceId}`;
+               if (!current) throw ApiError.notFound('Label');
+               const previous = current.name as string;
+               if (input.name && input.name !== previous) {
+                  await tx`
+                     UPDATE skills
+                        SET labels = array_replace(labels, ${previous}, ${input.name}),
+                            updated_at = now()
+                      WHERE workspace_id = ${ctx.workspaceId}
+                        AND ${previous} = ANY (labels)`;
+               }
+               try {
+                  const [updated] = await tx`
+                     UPDATE skill_labels
+                        SET name = COALESCE(${input.name}, name),
+                            description = CASE WHEN ${input.describedGiven} THEN ${input.description} ELSE description END,
+                            color = COALESCE(${input.color}, color),
+                            updated_at = now()
+                      WHERE id = ${labelId} AND workspace_id = ${ctx.workspaceId}
+                      RETURNING id, workspace_id, name, description, color, created_at, updated_at, archived_at`;
+                  if (!updated) throw ApiError.notFound('Label');
+                  return updated;
+               } catch (error) {
+                  if ((error as { code?: string }).code === '23505') {
+                     throw new ApiError(409, 'CONFLICT', 'A label with that name already exists.');
+                  }
+                  throw error;
+               }
+            },
+            { table: 'skill_labels', id: labelId }
+         )
+         .catch(rethrowScoped('Label'));
+      return json(serializeLabel(row));
+   });
+
+   route.delete('/:workspaceId/skill-labels/:labelId', async (context) => {
+      const db = context.get('scoped');
+      const labelId = pathId(context.req.param('labelId'), 'Label');
+
+      await db
+         .mutate(
+            'settings.write',
+            async (tx, ctx) => {
+               const rows = await tx`
+                  UPDATE skill_labels SET archived_at = now(), updated_at = now()
+                   WHERE id = ${labelId} AND workspace_id = ${ctx.workspaceId} AND archived_at IS NULL
+                   RETURNING id`;
+               if (rows.length === 0) throw ApiError.notFound('Label');
+            },
+            { table: 'skill_labels', id: labelId }
+         )
+         .catch(rethrowScoped('Label'));
       return new Response(null, { status: 204 });
    });
 
@@ -645,6 +772,18 @@ async function readLabel(
       description: (value.description ?? '').trim() || null,
       describedGiven: 'description' in value,
    };
+}
+
+/** Skill labels are at most 40 characters, the same bound a skill will store. */
+async function readSkillLabel(
+   context: Parameters<typeof decodeBody>[0],
+   options: { partial?: boolean } = {}
+) {
+   const input = await readLabel(context, options);
+   if (input.name !== null && input.name.length > 40) {
+      assertValid([fieldError('/name', 'too_long', 'name is at most 40 characters.')]);
+   }
+   return input;
 }
 
 function connection<T extends { id: string; createdAt: string }>(

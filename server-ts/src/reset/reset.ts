@@ -135,6 +135,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    'planner_events',
    'approvals',
    'work_proposals',
+   'plan_subscribers',
    'plans',
    'goal_issues',
    'goals',
@@ -159,6 +160,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    // Catalogues a person made while trying things out. Starter labels are
    // put back afterwards.
    'issue_labels',
+   'skill_labels',
    'issue_status_definitions',
    'issue_property_definitions',
    'saved_issue_views',
@@ -184,6 +186,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    'github_installations',
    'github_workspace_settings',
    'github_apps',
+   'gitlab_workspace_settings',
    'workspace_repositories',
    'scm_links',
    'plugin_event_cursor',

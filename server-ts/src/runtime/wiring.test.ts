@@ -54,8 +54,9 @@ test('autopilots fire through the runtime task queue, on schedule, webhook and b
    assert.match(root, /fireAutopilot\(\{ sql, issues, enqueue: autopilotEnqueue \}, input\)/);
    assert.match(root, /autopilotMounts\(\{ sessions, sql, autopilots, fire: fireAutopilotNow, idempotency \}\)/);
    assert.match(root, /autopilotWebhookMounts\(\{ autopilots, fire: fireAutopilotNow, logger \}\)/);
-   // Only beside a dispatcher, and stopped with it.
-   assert.match(root, /dispatcher \? new AutopilotScheduler\(\{ sql, fire: fireAutopilotNow, logger \}\) : null/);
+   // Scheduler concurrency and slot delivery are exercised against a real
+   // database in runs/scheduler.test.ts. Do not pin a conditional source
+   // expression here: subscription-only deployments also have a dispatcher.
    assert.match(root, /autopilotScheduler \? autopilotScheduler\.stop\(\)/);
 });
 

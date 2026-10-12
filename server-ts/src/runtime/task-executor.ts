@@ -1,3 +1,4 @@
+import { usageEventIdentity } from './usage-identity.ts';
 import type { Tier } from '../agents/model-tiers.ts';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
@@ -443,9 +444,11 @@ export class RuntimeTaskExecutor implements Executor {
       const runId = task.runId;
       let verified: Extract<TaskMessage, { kind: 'verified' }> | null = null;
       const usageEvents = new Set<string>();
+      let frame = run.cursor;
       for await (const event of events) {
          log?.event(event);
          if (abort.aborted) break;
+         const frameIndex = frame++;
          if (event.type === 'task.started') {
             // A resumed run started long ago; only a fresh one is moved to running.
             if (!run.resumed) await recorder.started();
@@ -453,15 +456,16 @@ export class RuntimeTaskExecutor implements Executor {
             if (event.message.kind === 'verified') verified = event.message;
             await recorder.message(event.message);
          } else if (event.type === 'task.usage') {
-            if (!(event.usage.eventId && usageEvents.has(event.usage.eventId))) {
-               if (event.usage.eventId) usageEvents.add(event.usage.eventId);
+            const eventId = usageEventIdentity(event.usage.eventId, run.session, frameIndex);
+            if (!usageEvents.has(eventId)) {
+               usageEvents.add(eventId);
                usage.inputTokens += event.usage.inputTokens;
                usage.outputTokens += event.usage.outputTokens;
                usage.totalTokens = usage.inputTokens + usage.outputTokens;
                await this.#o
                   .recordUsage(sql, {
                      runId, workspaceId: task.workspaceId, agentId: task.agentId,
-                     ...(event.usage.eventId ? { eventId: event.usage.eventId } : {}),
+                     eventId,
                      ...(target.id ? { runtimeId: target.id } : {}),
                      model: event.usage.model || model,
                      inputTokens: event.usage.inputTokens, outputTokens: event.usage.outputTokens,
