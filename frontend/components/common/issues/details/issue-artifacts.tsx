@@ -872,9 +872,7 @@ export function IssueArtifacts({
                            ) : (
                               <ChevronDown className="size-3.5 shrink-0" aria-hidden />
                            )}
-                           <span data-heading="h4" className="truncate font-bold">
-                              {root}
-                           </span>
+                           <span className="truncate font-bold">{root}</span>
                         </button>
                         {create ? (
                            <>
