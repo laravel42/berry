@@ -67,8 +67,8 @@ The inner loop (issue → agent run → in review) is autonomous up to staging, 
 
 ## The organization
 
-Every workspace is provisioned with an Orchestrator and six core roles
-(Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer, DevOps
+Every workspace is provisioned with an Orchestrator and seven core roles
+(Planner, Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer, DevOps
 Engineer); fourteen specialists across the same departments are added by an
 admin when the work calls for them (ADR-0018). Each role carries a contract (mission, allowed tools, delegation
 targets, escalation path, review domains) and an autonomy level from 1 to 5

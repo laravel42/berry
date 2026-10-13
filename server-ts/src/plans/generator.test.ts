@@ -23,11 +23,11 @@ const NO_ROLES = (() => Promise.resolve([])) as unknown as Sql;
 
 /** Answers each model call in order, and records what it was asked. */
 function scripted(answers: unknown[]) {
-   const prompts: Array<{ system: string; user: string; timeoutMs: number | undefined }> = [];
+   const prompts: Array<{ system: string; user: string; timeoutMs: number | undefined; agentRole: string | undefined }> = [];
    let index = 0;
    const completion = {
-      async structured(input: { system: string; user: string; timeoutMs?: number }) {
-         prompts.push({ system: input.system, user: input.user, timeoutMs: input.timeoutMs });
+      async structured(input: { system: string; user: string; timeoutMs?: number; agentRole?: string }) {
+         prompts.push({ system: input.system, user: input.user, timeoutMs: input.timeoutMs, agentRole: input.agentRole });
          const value = answers[index++] ?? {};
          return { value, text: JSON.stringify(value), inputTokens: 10, outputTokens: 20, durationMs: 1 };
       },
@@ -79,6 +79,7 @@ test('every call gets the planner budget: five minutes unless configured', async
    const configured = generator([GOOD, ACCEPT], { timeoutMs: 30_000 });
    await configured.planner.generate({ workspaceId: 'w', prompt: 'ship it' });
    assert.deepEqual(configured.script.prompts.map((prompt) => prompt.timeoutMs), [30_000, 30_000]);
+   assert.ok(configured.script.prompts.every((prompt) => prompt.agentRole === 'planner'));
 });
 
 test('the plan records the model that answered, not the one asked for', async () => {

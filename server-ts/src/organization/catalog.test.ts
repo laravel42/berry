@@ -10,15 +10,15 @@ import { PROMPT_SECTIONS } from './prompt.ts';
 const keys = new Set(CATALOG.map((role) => role.id));
 
 describe('the Berry organization catalog', () => {
-   test('has the Orchestrator, six core roles and fourteen specialists, each a valid contract', () => {
-      assert.equal(CATALOG.length, 21);
-      assert.equal(keys.size, 21);
+   test('has the Orchestrator, seven core roles and fourteen specialists, each a valid contract', () => {
+      assert.equal(CATALOG.length, 22);
+      assert.equal(keys.size, 22);
       for (const role of CATALOG) {
          const parsed = roleContractSchema.safeParse(role);
          assert.ok(parsed.success, `${role.id}: ${parsed.success ? '' : parsed.error.message}`);
       }
       for (const key of [
-         'orchestrator', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'software-engineer',
+         'orchestrator', 'planner', 'product-lead', 'business-analyst', 'ux-researcher', 'product-designer', 'software-engineer',
          'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer',
          'integration-engineer', 'qa-engineer', 'reviewer', 'security-engineer', 'devops-engineer', 'sre',
          'data-analytics-engineer', 'technical-writer', 'growth-engineer', 'engineering-manager', 'cto',
@@ -28,7 +28,7 @@ describe('the Berry organization catalog', () => {
       // ADR-0018: what every workspace is given.
       assert.deepEqual(
          [...CORE_ROLES],
-         ['orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
+         ['orchestrator', 'planner', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
       );
    });
 
@@ -36,7 +36,7 @@ describe('the Berry organization catalog', () => {
       const core = new Set(CORE_ROLES);
       for (const key of CORE_ROLES) assert.ok(keys.has(key), `core ${key} is not in the catalog`);
       // Build work reaches the one core role that can push, from every role that plans or reviews it.
-      for (const from of ['orchestrator', 'product-lead', 'product-designer', 'qa-engineer', 'devops-engineer']) {
+      for (const from of ['orchestrator', 'planner', 'product-lead', 'product-designer', 'qa-engineer', 'devops-engineer']) {
          assert.ok(catalogRole(from)!.can_delegate_to.includes('software-engineer'), `${from} cannot reach the engineer`);
       }
       assert.ok(catalogRole('software-engineer')!.allowed_tools.includes('run_command'));
@@ -89,14 +89,14 @@ describe('the Berry organization catalog', () => {
    });
 
    test('roles that must never implement have no code tools', () => {
-      for (const key of ['product-lead', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst', 'reviewer']) {
+      for (const key of ['product-lead', 'planner', 'cto', 'engineering-manager', 'orchestrator', 'business-analyst', 'reviewer']) {
          assert.equal(catalogRole(key)?.allowed_tools.includes('run_command'), false, key);
       }
    });
 
-   test('only the orchestrator and the product lead file goals and plans', () => {
+   test('only the orchestrator, the planner and the product lead file goals and plans', () => {
       for (const role of CATALOG) {
-         const planner = role.id === 'orchestrator' || role.id === 'product-lead';
+         const planner = role.id === 'orchestrator' || role.id === 'planner' || role.id === 'product-lead';
          assert.equal(role.allowed_tools.includes('create_goal'), planner, role.id);
          assert.equal(role.allowed_tools.includes('create_plan'), planner, role.id);
       }
@@ -105,6 +105,7 @@ describe('the Berry organization catalog', () => {
    test('roles are on Berry tiers, and name no model or vendor', () => {
       assert.equal(catalogRole('cto')?.tier, 'berry_max');
       assert.equal(catalogRole('software-architect')?.tier, 'berry_max');
+      assert.equal(catalogRole('planner')?.tier, 'berry_high');
       for (const key of ['business-analyst', 'ux-researcher', 'technical-writer', 'data-analytics-engineer', 'growth-engineer']) {
          assert.equal(catalogRole(key)?.tier, 'berry_low', key);
       }
@@ -169,6 +170,8 @@ test('a level set by a person brings every tool it allows; planning stays with t
    assert.ok(!toolsForLevel('business-analyst', 2).includes('run_command'));
    assert.ok(!toolsForLevel('business-analyst', 3).includes('create_plan'));
    assert.ok(toolsForLevel('product-lead', 5).includes('create_plan'));
+   assert.ok(toolsForLevel('planner', 2).includes('create_plan'));
+   assert.equal(toolsForLevel('planner', 2).includes('run_command'), false);
    for (const tool of toolsForLevel('backend-engineer', 4)) assert.ok(toolCeiling(4).includes(tool), tool);
 });
 

@@ -618,8 +618,9 @@ export class EnvelopeBuilder {
     * else the agent's, else its runtime profile's, else the server default.
     * Through the gateway (ADR-0017) an agent that names a gateway model uses
     * it, and otherwise runs on its tier's first model for today. A completion
-    * always runs as the Orchestrator, on the first model of that agent's
-    * selected tier, even when the caller named a model.
+    * runs as the agent the task was filed on. A plan is filed on the Planner
+    * and takes the first model of that agent's selected tier, even when the
+    * caller named a model.
     */
    /** How many times this task's work was rejected at review (migration 214). */
    async #rejections(issueId: string): Promise<number> {
@@ -638,9 +639,9 @@ export class EnvelopeBuilder {
          return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null, fallback: null };
       }
 
-      // A completion is Berry speaking as the Orchestrator. It takes the first
-      // model on that agent's selected tier, not a model the caller named and
-      // not the deployment default.
+      // A completion takes the first model on its agent's selected tier, not a
+      // model the caller named and not the deployment default. A plan's agent
+      // is the Planner.
       const named =
          task.kind === 'completion'
             ? undefined

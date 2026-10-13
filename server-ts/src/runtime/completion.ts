@@ -8,8 +8,9 @@ import { isModelPermissionDenied } from './model-denied.ts';
 /**
  * One model call for the parts of Berry that are not an agent, executed as a
  * `kind: 'completion'` task on the runtime — the only place Bedrock is called
- * from (ADR-0014). It runs as the workspace's protected Orchestrator, so its
- * usage is billed to the workspace like any other task.
+ * from (ADR-0014). It runs as the workspace's protected Orchestrator, unless
+ * the caller names a role: a plan runs as the Planner, on that agent's tier.
+ * Usage is billed to the workspace like any other task.
  */
 
 export interface CompletionDeps {
@@ -65,6 +66,21 @@ export class CompletionInvalid extends Error {
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_MS = 200;
 
+/** The named role when this workspace has one; otherwise the protected Orchestrator. */
+async function agentForCompletion(sql: Sql, workspaceId: string, roleKey: string | undefined): Promise<string | null> {
+   if (roleKey) {
+      const [role] = await sql`
+         SELECT id FROM agents
+          WHERE workspace_id = ${workspaceId} AND role_key = ${roleKey} AND archived_at IS NULL
+          ORDER BY created_at
+          LIMIT 1`;
+      if (role) return role.id as string;
+   }
+   const [orchestrator] = await sql`
+      SELECT id FROM agents WHERE workspace_id = ${workspaceId} AND protected AND archived_at IS NULL`;
+   return orchestrator ? (orchestrator.id as string) : null;
+}
+
 export async function runCompletion<T>(
    deps: CompletionDeps,
    input: {
@@ -74,6 +90,8 @@ export async function runCompletion<T>(
       prompt: string;
       schema: z.ZodType<T>;
       model?: string;
+      /** When set, the call runs as this role's agent. The Orchestrator is the fallback. */
+      agentRole?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
    }
@@ -91,6 +109,8 @@ export async function runCompletionTask(
       prompt: string;
       schema: z.ZodType | null;
       model?: string;
+      /** When set, the call runs as this role's agent. The Orchestrator is the fallback. */
+      agentRole?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
       subject?: { planId?: string; issueId?: string };
@@ -107,15 +127,14 @@ export async function runCompletionTask(
 ): Promise<CompletionResult<unknown>> {
    const started = Date.now();
    const deadline = started + (input.timeoutMs ?? deps.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-   const [orchestrator] = await deps.sql`
-      SELECT id FROM agents WHERE workspace_id = ${input.workspaceId} AND protected AND archived_at IS NULL`;
-   if (!orchestrator) throw new CompletionFailed({ code: 'NO_ORCHESTRATOR', message: 'this workspace has no orchestrator', retryable: false });
+   const agentId = await agentForCompletion(deps.sql, input.workspaceId, input.agentRole);
+   if (!agentId) throw new CompletionFailed({ code: 'NO_ORCHESTRATOR', message: 'this workspace has no orchestrator', retryable: false });
 
    let model = input.model ?? deps.defaultModel ?? null;
    let remaining: string[] | null = null;
    for (;;) {
       try {
-         return await runOnce(deps, input, orchestrator.id as string, model, started, deadline);
+         return await runOnce(deps, input, agentId, model, started, deadline);
       } catch (error) {
          if (!(error instanceof CompletionFailed) || !isModelPermissionDenied(error.message) || !deps.modelsAfterDenial) throw error;
          if (remaining === null) {
@@ -235,6 +254,8 @@ type Call = {
    model: string;
    system: string;
    purpose?: string;
+   /** When set, the call runs as this role's agent. The Orchestrator is the fallback. */
+   agentRole?: string;
    signal?: AbortSignal | undefined;
    /** This call's budget, when the deployment-wide one does not fit it. */
    timeoutMs?: number | undefined;
@@ -286,6 +307,7 @@ export class RuntimeCompletion {
          prompt,
          schema,
          model: input.model,
+         ...(input.agentRole ? { agentRole: input.agentRole } : {}),
          ...(transcript ? { transcript } : {}),
          ...(input.signal ? { signal: input.signal } : {}),
          ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),

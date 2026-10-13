@@ -582,6 +582,7 @@ export class PlanGenerator {
             ...(input.planId ? { subject: { planId: input.planId } } : {}),
             purpose: input.role,
             model: input.model.model,
+            agentRole: 'planner',
             system: input.system,
             user: input.user,
             schema: input.shape,

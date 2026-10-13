@@ -9,9 +9,10 @@
 
 ## Current state (2026-10-12)
 
-The default roster is the Orchestrator plus six core roles: Product Lead,
-Product Designer, Software Engineer, QA Engineer, Reviewer and DevOps
-Engineer. Web Designer is no longer in the catalogue; public pages stay with
+The default roster is the Orchestrator plus seven core roles: Planner,
+Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer and
+DevOps Engineer. Plan generation runs as the Planner, on the first model of
+that agent's tier. Web Designer is no longer in the catalogue; public pages stay with
 the Product Designer. Fourteen specialists stay in the catalogue. A role that can
 run commands is always blocking-reviewed by `reviewer`. QA writes and runs
 tests. Security and architecture stay blocking when their labels or paths

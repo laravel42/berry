@@ -920,7 +920,7 @@ Request `{ "note"? }`, `Idempotency-Key` required. The caller must be the addres
 
 ### Organization (route table only)
 
-Every workspace is provisioned with a default organization: a protected Orchestrator agent plus six core role agents; fourteen specialists (product, engineering, quality/security, platform, growth-insight, and leadership departments) are added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (ADR-0018). Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
+Every workspace is provisioned with a default organization: a protected Orchestrator agent plus seven core role agents, including the Planner; fourteen specialists (product, engineering, quality/security, platform, growth-insight, and leadership departments) are added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (ADR-0018). Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
 
 | Route | Purpose |
 |---|---|

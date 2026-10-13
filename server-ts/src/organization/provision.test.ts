@@ -46,7 +46,7 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       assert.equal(result.inserted.length, CORE_ROLES.length - 1, 'all but the trigger-made Orchestrator are inserted');
       const live = (await rows()).filter((row) => row.archived_at === null);
       const roles = live.filter((row) => row.role_key !== null);
-      // ADR-0018: six core roles and the Orchestrator; specialists are added by a person.
+      // ADR-0018: the core roles and the Orchestrator; specialists are added by a person.
       assert.deepEqual(roles.map((row) => row.role_key).sort(), [...CORE_ROLES].sort());
       const orchestrator = roles.find((row) => row.role_key === 'orchestrator');
       assert.equal(orchestrator?.protected, true);

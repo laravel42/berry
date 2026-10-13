@@ -5,7 +5,7 @@ import { deriveReviewRequirements } from './derived.ts';
 import type { RoleTier } from '../agents/model-tiers.ts';
 
 /**
- * Berry's organization: the Orchestrator, six core roles every workspace is
+ * Berry's organization: the Orchestrator, seven core roles every workspace is
  * given, and specialists a workspace adds when it has that kind of work
  * (ADR-0018). The source for new agent rows and for upgrades of untouched
  * ones; a workspace's agents may diverge from it. Bump CATALOG_VERSION
@@ -27,7 +27,9 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 21: a Web Designer for public pages and marketing sites, given to every workspace.
 // 22: a Reviewer owns task review. Code is reviewed by that role.
 // 23: Web Designer leaves the catalog. Public pages stay with the Product Designer.
-export const CATALOG_VERSION = 23;
+// 24: a Planner writes plans. Plan calls run on that agent's tier.
+// 25: the Planner's instructions speak of goals, not a goal and milestones.
+export const CATALOG_VERSION = 25;
 
 /**
  * Specialists written before this version were given to every workspace.
@@ -42,7 +44,7 @@ export const SPECIALISTS_KEPT_FROM = 20;
  * a review or an escalation when the workspace does not have it.
  */
 export const CORE_ROLES: readonly RoleKey[] = [
-   'orchestrator', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
+   'orchestrator', 'planner', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
 ];
 
 export function isCoreRole(key: RoleKey): boolean {
@@ -115,7 +117,7 @@ interface RoleSpec {
 
 /** The roles that file goals and plans; the tools sit in the level 2 ceiling but belong to planning. */
 const PLANNING_TOOLS = ['create_goal', 'create_plan'];
-const PLANNERS: RoleKey[] = ['orchestrator', 'product-lead'];
+const PLANNERS: RoleKey[] = ['orchestrator', 'planner', 'product-lead'];
 
 /**
  * The tools a role holds at an autonomy level a person set: everything the
@@ -150,7 +152,7 @@ const SPECS: RoleSpec[] = [
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
       outputs: ['Assignments', 'Selected workflow per task', 'Routing notes'],
       delegates: [
-         'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
+         'product-lead', 'planner', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer',
          'business-analyst', 'ux-researcher', 'software-architect',
          'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer',
          'security-engineer', 'sre', 'data-analytics-engineer', 'technical-writer',
@@ -164,6 +166,41 @@ const SPECS: RoleSpec[] = [
       ],
       expertise: 'Classify the work first — bug, incident, feature, change to architecture, security concern, documentation, growth — then give it to the role that does it: code to the Software Engineer, specs to the Product Lead, design to the Product Designer, deployment to DevOps. A specialist the workspace has takes the work in its field. Choose the shortest path that gives the work one clear owner and independent verification.',
       discovery: null,
+      code: false,
+   },
+   {
+      id: 'planner',
+      name: 'Planner',
+      role: 'Planner',
+      department: 'product',
+      tier: 'berry_high',
+      level: 2,
+      mission: 'Turn a request into a plan a team can carry out: goals and tasks with one owner, acceptance criteria, and dependencies.',
+      responsibilities: [
+         'Read the request and every answer already given.',
+         'State the outcome, the constraints, and what is out of scope.',
+         'Break the work into goals that become usable in order.',
+         'Give each task one owner role, acceptance criteria, and the tasks it waits on.',
+         'Record an assumption when the request leaves a fact open and the plan can still be written.',
+         'Ask only when a missing fact would change who does the work or whether it should be done.',
+      ],
+      capabilities: ['planning', 'decomposition', 'sequencing'],
+      inputs: ['The request', 'Answers already given', 'The workspace roles', 'Existing goals and tasks'],
+      outputs: ['A plan with goals and tasks', 'Recorded assumptions', 'Questions only when a missing fact would change the plan'],
+      delegates: ['product-lead', 'product-designer', 'software-engineer'],
+      escalation: [
+         { when: 'The request needs a product decision that would change the outcome', to: 'product-lead', decision: 'product' },
+         { when: 'A technical constraint would change the shape of the plan', to: 'software-architect', decision: 'technical' },
+      ],
+      reviewDomains: [],
+      never: [
+         'Implement, review or test the work.',
+         'File a task with no acceptance criteria or with more than one owner.',
+         'Ask again about a fact that was already answered.',
+         'Add scope the request did not ask for.',
+      ],
+      expertise: 'Read the request and the answers already given, then write the smallest plan that reaches the outcome. Decide what you can and record the assumption. Ask only when a missing fact would change the plan. Do not invent scope the request did not ask for, and do not leave a task that two roles could both claim.',
+      discovery: { focus: ['Plans blocked on an unanswered question', 'Plan tasks with no acceptance criteria', 'Plan tasks with no owner'], evidence_sources: ['Plans', 'Goals', 'Tasks'] },
       code: false,
    },
    {
@@ -193,7 +230,7 @@ const SPECS: RoleSpec[] = [
       inputs: ['Business objectives', 'User feedback', 'Analytics insights', 'Feature requests', 'Proposals'],
       outputs: ['Product briefs', 'PRDs', 'Goals', 'Feature specifications', 'Acceptance criteria', 'Prioritized backlog', 'Roadmap recommendations'],
       delegates: [
-         'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
+         'planner', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
          'business-analyst', 'ux-researcher', 'software-architect', 'engineering-manager', 'growth-engineer', 'data-analytics-engineer', 'technical-writer',
       ],
       escalation: [{ when: 'A decision changes the business commitment, pricing or scope agreed with people', to: 'human', decision: 'product' }],

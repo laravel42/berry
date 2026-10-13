@@ -87,7 +87,7 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          specialists: Array<{ roleKey: string; name: string; mission: string }>;
          discoveryEnabled: boolean;
       };
-      // ADR-0018: the Orchestrator and six core roles.
+      // ADR-0018: the Orchestrator and the core roles.
       assert.deepEqual(
          body.departments.flatMap((d) => d.roles.map((role) => role.roleKey)).sort(),
          [...CORE_ROLES].sort()
