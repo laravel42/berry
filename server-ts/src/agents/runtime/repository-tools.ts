@@ -57,9 +57,13 @@ export function repositoryTools(session: () => Promise<ExecutionSession>): Tool[
          const relative = insideCheckout(path ?? '.');
          if (relative === null) return { error: `${path} is outside the repository` };
          const prune = SKIPPED.map((name) => `-name ${shellQuote(name)}`).join(' -o ');
+         // POSIX find only: `-printf` is GNU's, and the BSD find on a macOS
+         // workstation rejects it while the pipe still exits 0, so every
+         // listing came back empty there.
          const command =
             `test -d ${shellQuote(relative)} && find ${shellQuote(relative)} -mindepth 1 -maxdepth ${depth ?? 2} ` +
-            `\\( ${prune} \\) -prune -o \\( -type f -o -type d \\) -printf '%y %p\\n' | sort -k2 | head -n ${MAX_ENTRIES + 1}`;
+            `\\( ${prune} \\) -prune -o -type d -exec printf 'd %s\\n' {} + -o -type f -exec printf 'f %s\\n' {} + ` +
+            `| sort -k2 | head -n ${MAX_ENTRIES + 1}`;
          const result = await (await session()).exec(command, { cwd: directory });
          if (result.exitCode !== 0) return { error: `${relative} is not a directory in the repository` };
          const lines = result.stdout.split('\n').filter((line) => line !== '');

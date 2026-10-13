@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { StateStore, type ToolContext } from '@strands-agents/sdk';
 import type { ExecutionSession } from '../../execution/driver.ts';
+import { LocalSession } from './container/local-session.ts';
 import { WORKDIR_KEY } from './command-tool.ts';
 import { repositoryTools } from './repository-tools.ts';
 
@@ -60,6 +64,43 @@ test('a listing runs inside the checkout and is typed and bounded', async () => 
       { path: 'README.md', type: 'file' },
    ]);
    assert.equal(result.truncated, false);
+});
+
+test("a listing works with this machine's own find, GNU or BSD", async () => {
+   // A real shell, not a fake: `-printf` is GNU-only, and on macOS it listed
+   // nothing at all while every fake-session test above still passed.
+   const root = await mkdtemp(join(tmpdir(), 'berry-browse-'));
+   try {
+      for (const dir of ['src/deep/deeper', 'node_modules/left-pad', '.git']) await mkdir(join(root, dir), { recursive: true });
+      for (const file of ['README.md', 'src/app.ts', 'src/with space.ts', 'src/deep/deeper/far.ts', 'node_modules/left-pad/index.js', '.git/HEAD']) {
+         await writeFile(join(root, file), 'x');
+      }
+      const session = new LocalSession({ id: 'run-1', root });
+
+      const listed = await call('browse_repository', session, {}, root);
+      assert.deepEqual(listed.entries, [
+         { path: './README.md', type: 'file' },
+         { path: './src', type: 'directory' },
+         { path: './src/app.ts', type: 'file' },
+         { path: './src/deep', type: 'directory' },
+         { path: './src/with space.ts', type: 'file' },
+      ]);
+      assert.equal(listed.truncated, false);
+
+      const deeper = await call('browse_repository', session, { path: 'src', depth: 3 }, root);
+      assert.deepEqual(deeper.entries, [
+         { path: 'src/app.ts', type: 'file' },
+         { path: 'src/deep', type: 'directory' },
+         { path: 'src/deep/deeper', type: 'directory' },
+         { path: 'src/deep/deeper/far.ts', type: 'file' },
+         { path: 'src/with space.ts', type: 'file' },
+      ]);
+
+      const missing = await call('browse_repository', session, { path: 'nope' }, root);
+      assert.match(String(missing.error), /nope is not a directory/);
+   } finally {
+      await rm(root, { recursive: true, force: true });
+   }
 });
 
 test('a path that leaves the checkout is refused before any command runs', async () => {
