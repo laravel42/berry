@@ -79,6 +79,9 @@ export async function fireCommentTriggers(
    }
 ): Promise<string[]> {
    const runs: string[] = [];
+   if (input.plan.targets.length === 0) return runs;
+   const [author] = await sql`SELECT name FROM users WHERE id = ${input.authorId}`;
+   const authorName = (author?.name as string | undefined) ?? 'A person';
    for (const target of input.plan.targets) {
       const [claimed] = await sql`
          INSERT INTO comment_run_triggers (comment_id, agent_id, workspace_id, reason)
@@ -94,10 +97,6 @@ export async function fireCommentTriggers(
              WHERE comment_id = ${input.commentId} AND agent_id = ${target.agentId}`;
          throw error;
       };
-      const intro =
-         target.reason === 'reply_to_assignee'
-            ? 'A person replied on the issue you are assigned:'
-            : 'You were mentioned in a comment on this issue:';
       const { runId } = await enqueue(sql, {
          workspaceId: input.workspaceId,
          agentId: target.agentId,
@@ -108,7 +107,7 @@ export async function fireCommentTriggers(
          // The commenter is knowable here, so a task the agent files while
          // answering is attributed to them rather than to nobody.
          requestedBy: input.authorId,
-         prompt: `${intro}\n\n<comment>\n${input.body.replaceAll('</comment>', '</ comment>')}\n</comment>`,
+         prompt: triggerPrompt({ reason: target.reason, author: authorName, commentId: input.commentId, body: input.body }),
       }).catch(release);
       await sql`
          UPDATE comment_run_triggers SET run_id = ${runId}
@@ -116,6 +115,25 @@ export async function fireCommentTriggers(
       runs.push(runId);
    }
    return runs;
+}
+
+/**
+ * What a run started by a comment is asked to do: what that comment asks, by
+ * whom. A one-line question on a finished task is not a request to build it
+ * again.
+ */
+export function triggerPrompt(input: { reason: TriggerReason; author: string; commentId: string; body: string }): string {
+   const intro =
+      input.reason === 'reply_to_assignee'
+         ? `${input.author} replied on the issue you are assigned, in comment ${input.commentId}:`
+         : `${input.author} mentioned you in comment ${input.commentId} on this issue:`;
+   return (
+      `${intro}\n\n<comment>\n${input.body.replaceAll('</comment>', '</ comment>')}\n</comment>\n\n` +
+      'Do what this comment asks. A question gets an answer, and a requested change gets that change. The ' +
+      'comment does not by itself ask you to redo the whole task: keep the work already done that it does not ' +
+      'touch. When it is unclear what is asked, say in your report what you understood and what you need to ' +
+      `know from ${input.author}.`
+   );
 }
 
 export interface CommentTriggers {

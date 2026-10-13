@@ -18,6 +18,7 @@ const ISSUE = 'issue-uuid';
 interface FakeEvent {
    eventTimestamp?: Date;
    payload?: Array<{ conversational?: { role?: string; content?: { text?: string } } }>;
+   metadata?: Record<string, { stringValue: string }>;
 }
 
 function fake(options: { events?: FakeEvent[]; fails?: boolean } = {}) {
@@ -166,13 +167,20 @@ test('a first run gets no recall prompt, because it has no last time', () => {
    assert.equal(recallPrompt([]), null);
 });
 
-test('a recall prompt lists what happened and says not to repeat it', () => {
+test('a recall prompt keeps when each line happened and who said it, and calls it history to check', () => {
    const prompt = recallPrompt([
-      { at: new Date(), role: 'ASSISTANT', text: 'ran the tests' },
-      { at: new Date(), role: 'ASSISTANT', text: 'fixed one failure' },
+      { at: new Date(Date.UTC(2026, 0, 1, 9)), role: 'ASSISTANT', text: 'ran the tests', runId: 'run-7' },
+      { at: new Date(Date.UTC(2026, 0, 1, 10)), role: 'TOOL', text: 'fixed one failure\nin src/a.ts' },
    ]);
    assert.match(prompt!, /worked on this issue before/);
-   assert.match(prompt!, /- ran the tests/);
-   assert.match(prompt!, /- fixed one failure/);
-   assert.match(prompt!, /Do not repeat work that already succeeded/);
+   assert.match(prompt!, /- 2026-01-01T09:00:00\.000Z, you \(run run-7\): ran the tests/);
+   assert.match(prompt!, /- 2026-01-01T10:00:00\.000Z, a tool: fixed one failure\n  in src\/a\.ts/);
+   assert.match(prompt!, /It is history, not the state of your checkout/);
+   assert.match(prompt!, /do not redo work the checkout shows is done/);
+});
+
+test('recall carries the run an event was recorded with', async () => {
+   const f = fake({ events: [{ ...event('did a thing', 10), metadata: { runId: { stringValue: 'run-7' } } }] });
+   const [recalled] = await memory(f).recall({ agentId: AGENT, issueId: ISSUE });
+   assert.equal(recalled!.runId, 'run-7');
 });

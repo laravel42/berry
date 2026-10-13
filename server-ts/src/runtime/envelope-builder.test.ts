@@ -7,7 +7,7 @@ import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import type { TierPlacement } from '../agents/kilo/tiers.ts';
-import { dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
+import { dependencyHandoffs, dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import { buildTranscript } from './transcript.ts';
@@ -23,13 +23,42 @@ test('a task that waits on others is told their unmerged work is not in its chec
    assert.match(note, /- BER-134 \(in_progress\): Login screen/);
    assert.doesNotMatch(note, /BER-140/);
    assert.match(note, /do not wait or poll/);
+   // A missing input is reported as blocked, not handed to summarize as if the work were done.
+   assert.match(note, /call report_blocked if this run has it, otherwise set_status blocked/);
+   assert.match(note, /the exact file, interface or decision that is missing, and where you looked/);
+   assert.match(note, /Berry starts this task again once that task is done/);
+   assert.match(note, /say which of those tasks' work you used and where you found it/);
+   assert.doesNotMatch(note, /summarize/);
+   assert.match(note, /This run has no checkout of the repository\./);
    assert.equal(dependencyNote([{ identifier: 'BER-140', title: 'x', status: 'todo', direction: 'blocks' }]), null);
-   const withHandoff = dependencyNote(
-      [{ identifier: 'BER-134', title: 'Login screen', status: 'done', direction: 'depends_on' }],
-      [{ identifier: 'BER-134', title: 'Login screen', body: 'HANDOFF.md\n\nThe form is in src/Login.tsx.' }]
+});
+
+test('the dependency note describes the checkout this run actually holds', () => {
+   const deps = [{ identifier: 'BER-134', title: 'Login screen', status: 'done', direction: 'depends_on' as const }];
+   assert.match(
+      dependencyNote(deps, { from: 'default', baseBranch: 'main' }) ?? '',
+      /Your checkout holds the default branch, main, as it was when this run started\./
    );
-   assert.match(withHandoff ?? '', /Context for BER-134 \(Login screen\) is in \.handoffs\/BER-134 - login-screen/);
-   assert.match(withHandoff ?? '', /src\/Login\.tsx/);
+   const branch = dependencyNote(deps, { from: 'task_branch', branch: 'ada/ber-150-qa', baseBranch: 'main' }) ?? '';
+   assert.match(branch, /Your checkout holds this task's branch, ada\/ber-150-qa, as it was when this run started/);
+   assert.match(branch, /nothing newer/);
+   assert.doesNotMatch(branch, /default branch as it is now/);
+   assert.match(
+      dependencyNote(deps, { from: 'merge', branch: 'ada/ber-150-qa', baseBranch: 'main' }) ?? '',
+      /holds main as it was when this run started, with this task's branch, ada\/ber-150-qa, to be merged into it/
+   );
+});
+
+test("the handoffs of a task's dependencies are listed with where each is kept", () => {
+   const text = dependencyHandoffs([
+      { identifier: 'BER-134', title: 'Login screen', body: 'HANDOFF.md\n\nThe form is in src/Login.tsx.' },
+   ]);
+   assert.match(text ?? '', /BER-134 \(Login screen\), \.handoffs\/BER-134 - login-screen:/);
+   assert.match(text ?? '', /src\/Login\.tsx/);
+   assert.equal(dependencyHandoffs([]), null);
+   const long = dependencyHandoffs([{ identifier: 'BER-1', title: 'x', body: 'a'.repeat(5000) }]) ?? '';
+   assert.ok(long.length < 2700);
+   assert.match(long, /\[…\]$/);
 });
 
 describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
@@ -382,7 +411,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          assert.match(envelope.task.prompt, /Merging main into this task/);
          assert.match(envelope.task.prompt, /- server\/README\.md/);
          assert.doesNotMatch(envelope.task.prompt, /- src\/app\.ts/, 'a file only the default branch changed is not the agent\'s to merge');
-         assert.match(envelope.task.prompt, /Remove nothing the other task contributed/);
+         assert.match(envelope.task.prompt, /the behaviour both sides intended survives/);
          // Built again for the same run, it is the same merge.
          const again = await withRepository.build({ task, dispatch: null, token: 'berry_task_x' });
          assert.deepEqual(again.envelope.repo?.merge, { conflicts: ['server/README.md'] });

@@ -43,6 +43,8 @@ export interface RecalledEvent {
    at: Date;
    role: 'ASSISTANT' | 'USER' | 'TOOL' | 'OTHER';
    text: string;
+   /** The run that recorded it, when it was recorded with one. */
+   runId?: string;
 }
 
 export interface RunMemory {
@@ -123,6 +125,7 @@ export class AgentCoreRunMemory implements RunMemory {
          const events = (response.events ?? []).flatMap((event) => {
             const at = event.eventTimestamp;
             if (!at) return [];
+            const runId = event.metadata?.['runId']?.stringValue;
             return (event.payload ?? []).flatMap((entry) => {
                const text = entry.conversational?.content?.text?.trim();
                if (!text) return [];
@@ -132,6 +135,7 @@ export class AgentCoreRunMemory implements RunMemory {
                      at,
                      role: isRole(role) ? role : ('OTHER' as const),
                      text,
+                     ...(runId ? { runId } : {}),
                   },
                ];
             });
@@ -192,16 +196,31 @@ export function nullRunMemory(): RunMemory {
  * Null rather than an empty string on purpose: a heading with no items under it
  * reads as "you did nothing last time", which is a claim, and a first run has
  * no last time to make it about.
+ *
+ * Each line keeps when it happened and who said it: a recalled "the tests
+ * pass" from three runs ago is not a fact about the checkout this run holds.
  */
 export function recallPrompt(events: RecalledEvent[]): string | null {
    if (events.length === 0) return null;
-   const lines = events.map((event) => `- ${event.text}`);
+   const lines = events.map((event) => {
+      const source = `${event.at.toISOString()}, ${ROLE_LABELS[event.role]}${event.runId ? ` (run ${event.runId})` : ''}`;
+      return `- ${source}: ${event.text.replaceAll('\n', '\n  ')}`;
+   });
    return [
-      'You have worked on this issue before. What you did, oldest first:',
+      'You have worked on this issue before. This is the history of those runs, oldest first:',
       ...lines,
-      'Continue from there rather than starting again. Do not repeat work that already succeeded.',
+      'It is history, not the state of your checkout. Check what you rely on against the checkout and the task ' +
+         'before you build on it. Continue from there rather than starting again, and do not redo work the ' +
+         'checkout shows is done.',
    ].join('\n');
 }
+
+const ROLE_LABELS: Record<RecalledEvent['role'], string> = {
+   ASSISTANT: 'you',
+   USER: 'the task',
+   TOOL: 'a tool',
+   OTHER: 'a note',
+};
 
 /**
  * Ids are prefixed because an actor and a session share no namespace with each

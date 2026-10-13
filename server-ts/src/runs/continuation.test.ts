@@ -27,6 +27,19 @@ test('a summary is the handover a fresh run starts from', () => {
    assert.match(text, /The shell is in\. The drawer still needs a close button\./);
 });
 
+test('a continuation checks the handover against the task and people, and does not trust git log', () => {
+   for (const text of [
+      continuationInstructions({ branch: 'b', commit: 'c0ffee0aaaa', attempt: 1, of: 3, summary: 'Half done.' }),
+      recoveryInstructions({ branch: 'b', commit: 'c0ffee0aaaa' }),
+   ]) {
+      assert.match(text, /Do not start over/);
+      assert.match(text, /git log shows only the snapshot this run was unpacked from/);
+      assert.match(text, /Read the task again with read_task, with any comments people left after the previous run/);
+      assert.match(text, /the task and the newest comment win/);
+      assert.doesNotMatch(text, /\(git log, git status, the files\)|\(git status, git log, the files\)/);
+   }
+});
+
 test('the failed run’s comment says what happens next, or why nothing does', () => {
    assert.match(continuationNote({ continued: true, runId: 'r', attempt: 1, of: 3, branch: 'b', commit: 'c' }), /queued a fresh run .*\(1 of 3\)/);
    assert.match(continuationNote({ continued: false, reason: 'cap_reached' }), /limit of automatic continuations/);

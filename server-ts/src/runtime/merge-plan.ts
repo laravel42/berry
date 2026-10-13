@@ -189,9 +189,13 @@ export function mergePrompt(input: { baseBranch: string; branch: string; conflic
          `that needs you holds conflict markers (\`<<<<<<< berry: this task\` … \`=======\` … \`>>>>>>> ${input.baseBranch}\`). ` +
          `This task's whole version of each is under ${MERGE_DIRECTORY}/ours/, the common ancestor under ${MERGE_DIRECTORY}/base/, ` +
          `and ${input.baseBranch}'s version is what the file held before the markers.`,
-      `Reconcile each one so that both sides' intent survives: keep what this task added and keep what ${input.baseBranch} ` +
-         'added. Remove nothing the other task contributed, and do not settle a conflict by discarding one side. Leave no ' +
-         'conflict marker behind — Berry refuses a delivery that still has one — then run the checks.',
+      `Reconcile each one so that the behaviour both sides intended survives: what this task set out to do and what ` +
+         `${input.baseBranch} changed. Compare each side with the common ancestor to see what it meant. A side that ` +
+         'deliberately deleted, renamed or refactored code wins over a copy of the old code, so removing code is right ' +
+         'when that was the intent. Do not settle a conflict by discarding one side unread, and do not keep two ' +
+         'implementations of the same thing. When the two sides want things that cannot both hold, keep what this task ' +
+         'requires, and say in your report which requirement of the other side you could not keep and why. Leave no ' +
+         'conflict marker behind. Berry refuses a delivery that still has one. Then run the checks.',
       `${MERGE_DIRECTORY}/ is working material: it is never delivered, so do not move your work into it.`,
       'Reconcile this merge before you finish. Finishing is what moves the task to review, and the task stays out of review while the default branch is not in your branch.',
    ].join('\n\n');

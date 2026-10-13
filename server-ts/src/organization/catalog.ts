@@ -29,7 +29,8 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 23: Web Designer leaves the catalog. Public pages stay with the Product Designer.
 // 24: a Planner writes plans. Plan calls run on that agent's tier.
 // 25: the Planner's instructions speak of goals, not a goal and milestones.
-export const CATALOG_VERSION = 25;
+// 26: reviews start by themselves only under AutoGate; otherwise a person asks.
+export const CATALOG_VERSION = 26;
 
 /**
  * Specialists written before this version were given to every workspace.

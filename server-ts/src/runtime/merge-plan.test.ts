@@ -88,12 +88,16 @@ test('a branch that is not behind, or shares no history, reads no trees', async 
    assert.deepEqual([plan?.base, plan?.ours, plan?.theirs], ['base', 'ours', 'theirs']);
 });
 
-test('the run is told which files, what to keep, and that nothing may be dropped', () => {
+test('the run is told which files, and to keep the behaviour both sides intended', () => {
    const prompt = mergePrompt({ baseBranch: 'main', branch: 'ada/gif-5-readme', conflicts: ['server/README.md'] });
    assert.match(prompt, /- server\/README\.md/);
    assert.match(prompt, /\.berry-merge\/STATUS\.md/);
-   assert.match(prompt, /keep what this task added and keep what main\s+added/);
-   assert.match(prompt, /Remove nothing the other task contributed/);
+   assert.match(prompt, /the behaviour both sides intended survives/);
+   // A deliberate deletion or refactor is kept, not undone by pasting the old code back.
+   assert.match(prompt, /removing code is right\s+when that was the intent/);
+   assert.match(prompt, /do not keep two\s+implementations of the same thing/);
+   assert.match(prompt, /say in your report which requirement of the other side you could not keep and why/);
+   assert.doesNotMatch(prompt, /Remove nothing the other task contributed/);
    assert.match(prompt, /run the checks/);
    assert.match(prompt, /Reconcile this merge before you finish/);
    assert.match(prompt, /moves the task to review/);

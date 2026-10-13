@@ -35,11 +35,6 @@ const RELATED_PARENT_CHARS = 1500;
 const RELATED_CHILD_CHARS = 600;
 const RELATED_CHILDREN = 12;
 
-/**
- * The tasks this one waits on, and what that means for the checkout. A QA run
- * spent fifteen minutes polling `git status` for the task it depended on,
- * whose commits were on that task's own branch and could never appear.
- */
 /** How much of a blocking task's handoff is carried into the next prompt. */
 const HANDOFF_CHARS = 2500;
 
@@ -49,28 +44,70 @@ export interface BlockerHandoff {
    body: string;
 }
 
+/**
+ * What this run's checkout was unpacked from. A run on a branch that already
+ * exists holds that branch, not the default branch, and a merge run holds both.
+ */
+export type Checkout =
+   | { from: 'default'; baseBranch: string }
+   | { from: 'task_branch'; branch: string; baseBranch: string }
+   | { from: 'merge'; branch: string; baseBranch: string };
+
+/**
+ * The tasks this one waits on, and what that means for the checkout. A QA run
+ * spent fifteen minutes polling `git status` for the task it depended on,
+ * whose commits were on that task's own branch and could never appear.
+ *
+ * Berry's own words, so they are not fenced. The handoffs those tasks wrote
+ * are another agent's, and go through `dependencyHandoffs` instead.
+ */
 export function dependencyNote(
    dependencies: TaskEnvelope['task']['dependencies'],
-   handoffs: BlockerHandoff[] = []
+   checkout: Checkout | null = null
 ): string | null {
    const waitsOn = dependencies.filter((dependency) => dependency.direction === 'depends_on');
    if (waitsOn.length === 0) return null;
-   const note =
+   return (
       'This task depends on:\n' +
       waitsOn.map((dependency) => `- ${dependency.identifier} (${dependency.status}): ${dependency.title}`).join('\n') +
-      '\nYour checkout holds the default branch as it is now. Work on those tasks that is not merged yet ' +
-      'lives on their own branches and never appears in your workspace, so do not wait or poll for it. ' +
-      'Build on what the checkout holds; when the task cannot be done without unmerged work, call ' +
-      'summarize and say which task it needs.';
-   if (handoffs.length === 0) return note;
-   const attached = handoffs
+      `\n${checkoutSentence(checkout)} ` +
+      'Work on those tasks that is not in that commit stays on their own branches and does not appear in your ' +
+      'workspace while this run lasts, so do not wait or poll for it. Build on what the checkout holds. When this ' +
+      'task cannot be done without work that is not there, stop and say so: call report_blocked if this run has ' +
+      'it, otherwise set_status blocked and end the run. Either way, name the task you need, the ' +
+      'exact file, interface or decision that is missing, and where you looked. Berry starts this task again once ' +
+      'that task is done. In your report, say which of those tasks\' work you used and where you found it.'
+   );
+}
+
+function checkoutSentence(checkout: Checkout | null): string {
+   if (!checkout) return 'This run has no checkout of the repository.';
+   switch (checkout.from) {
+      case 'default':
+         return `Your checkout holds the default branch, ${checkout.baseBranch}, as it was when this run started.`;
+      case 'task_branch':
+         return (
+            `Your checkout holds this task's branch, ${checkout.branch}, as it was when this run started. It has ` +
+            `what ${checkout.baseBranch} held when the branch was cut or last brought up to date, and nothing newer.`
+         );
+      case 'merge':
+         return (
+            `Your checkout holds ${checkout.baseBranch} as it was when this run started, with this task's branch, ` +
+            `${checkout.branch}, to be merged into it.`
+         );
+   }
+}
+
+/** The handoffs of the tasks this one waits on, as evidence for the prompt. Null when there are none. */
+export function dependencyHandoffs(handoffs: BlockerHandoff[]): string | null {
+   if (handoffs.length === 0) return null;
+   return handoffs
       .map((handoff) => {
          const body = handoff.body.trim();
          const clipped = body.length <= HANDOFF_CHARS ? body : `${body.slice(0, HANDOFF_CHARS).trimEnd()} […]`;
-         return `Context for ${handoff.identifier} (${handoff.title}) is in ${handoffPath(handoff.identifier, handoff.title)}:\n${clipped}`;
+         return `${handoff.identifier} (${handoff.title}), ${handoffPath(handoff.identifier, handoff.title)}:\n${clipped}`;
       })
       .join('\n\n');
-   return `${note}\n\n${attached}`;
 }
 
 export interface CompletionSpec {
@@ -393,10 +430,14 @@ export class EnvelopeBuilder {
          this.#handoffs(dispatch.issueId),
          this.#projectResources(dispatch.issueId, task.workspaceId),
       ]);
-      const comments = loadedComments.comments;
       const priorWork = recallPrompt(recalled);
-      const relatedText = [related, dependencyNote(dependencies, handoffs)].filter(Boolean).join('\n\n');
-      const { repo, delivery, empty } = await this.#repository(task, dispatch, agent);
+      const { repo, delivery, empty, checkout } = await this.#repository(task, dispatch, agent);
+      const note = dependencyNote(dependencies, checkout ?? null);
+      const handed = dependencyHandoffs(handoffs);
+      // A person's comment written after the last run is already the review
+      // feedback; it is not carried twice.
+      const { comments, people } = loadedComments;
+      const direction = people.filter((comment) => !(reviewFeedback && reviewFeedback.includes(comment.body.trim())));
       return {
          model,
          tier,
@@ -408,7 +449,9 @@ export class EnvelopeBuilder {
                prompt: buildMessage({
                   ...dispatch,
                   reviewFeedback,
-                  ...(relatedText ? { related: relatedText } : {}),
+                  ...(related ? { related } : {}),
+                  ...(note ? { dependencyNote: note } : {}),
+                  ...(handed ? { dependencyHandoffs: handed } : {}),
                   ...(dependencies.some((dependency) => dependency.direction === 'depends_on')
                      ? {
                           blockerHandoffs: dependencies
@@ -423,11 +466,11 @@ export class EnvelopeBuilder {
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
                      : {}),
-                  // An agent's own comments are its reports. Before any of
-                  // those exist, the comments on the task are a person's
-                  // direction and belong in the prompt.
-                  ...(!loadedComments.agentCommented && comments.length > 0
-                     ? { comments: comments.map(({ author, body }) => ({ author, body })) }
+                  // An agent's comments are run reports, and what they did is
+                  // in the checkout and the recalled work. People's comments
+                  // are direction, kept however many reports sit between them.
+                  ...(direction.length > 0
+                     ? { comments: direction.map(({ author, body, createdAt }) => ({ author, body, createdAt })) }
                      : {}),
                }),
                issue: {
@@ -743,14 +786,17 @@ export class EnvelopeBuilder {
    }
 
    /**
-    * The latest comments, oldest first, and whether any agent has commented
-    * on the task at all. The window is the last 30; the flag looks at every
-    * comment, so an older agent report still keeps the thread out of the prompt.
+    * The latest comments, oldest first, for the envelope, and the latest that
+    * people wrote, for the prompt. Each window is the last 30: a run of agent
+    * reports must not push a person's correction out of the prompt's window.
     */
-   async #comments(issueId: string): Promise<{ comments: TaskEnvelope['task']['comments']; agentCommented: boolean }> {
-      const [rows, [flag]] = await Promise.all([
+   async #comments(issueId: string): Promise<{
+      comments: TaskEnvelope['task']['comments'];
+      people: TaskEnvelope['task']['comments'];
+   }> {
+      const [rows, people] = await Promise.all([
          this.#deps.sql`
-            SELECT c.body, c.created_at, c.author_type::text AS author_type,
+            SELECT c.body, c.created_at,
                    COALESCE(u.name, a.name, 'someone') AS author
               FROM comments AS c
               LEFT JOIN users AS u ON c.author_type = 'user' AND u.id = c.author_id
@@ -758,19 +804,18 @@ export class EnvelopeBuilder {
              WHERE c.issue_id = ${issueId}
              ORDER BY c.created_at DESC LIMIT 30`,
          this.#deps.sql`
-            SELECT EXISTS (
-               SELECT 1 FROM comments
-                WHERE issue_id = ${issueId} AND author_type = 'agent'
-            ) AS agent_commented`,
+            SELECT c.body, c.created_at, COALESCE(u.name, 'someone') AS author
+              FROM comments AS c
+              LEFT JOIN users AS u ON u.id = c.author_id
+             WHERE c.issue_id = ${issueId} AND c.author_type = 'user'
+             ORDER BY c.created_at DESC LIMIT 30`,
       ]);
-      return {
-         comments: rows.reverse().map((row) => ({
-            author: row.author as string,
-            body: row.body as string,
-            createdAt: new Date(row.created_at as string).toISOString(),
-         })),
-         agentCommented: flag?.agent_commented === true,
-      };
+      const shape = (row: (typeof rows)[number]) => ({
+         author: row.author as string,
+         body: row.body as string,
+         createdAt: new Date(row.created_at as string).toISOString(),
+      });
+      return { comments: rows.reverse().map(shape), people: people.reverse().map(shape) };
    }
 
    /**
@@ -948,7 +993,11 @@ export class EnvelopeBuilder {
       }
    }
 
-   async #repository(task: TaskRow, dispatch: Dispatch, agent: AgentConfig): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true }> {
+   async #repository(
+      task: TaskRow,
+      dispatch: Dispatch,
+      agent: AgentConfig
+   ): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true; checkout?: Checkout }> {
       if (!this.#deps.gitCredential) return { repo: null, delivery: null };
       const repository = await repositoryForIssue(this.#deps.sql, dispatch.issueId);
       if (!repository) return { repo: null, delivery: null };
@@ -995,7 +1044,7 @@ export class EnvelopeBuilder {
          VALUES (${task.runId}, ${repository.fullName}, ${branch}, ${expectedHead ?? defaultCommit}, ${defaultCommit}, ${expectedHead}, ${readOnly},
                  ${merge ? merge.theirs : null}, ${merge ? merge.base : null})
          ON CONFLICT (run_id) DO NOTHING`;
-      const [snapshot] = await this.#deps.sql`SELECT base_commit, merge_parent, merge_base FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
+      const [snapshot] = await this.#deps.sql`SELECT base_commit, merge_parent, merge_base, expected_head FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
       if (!snapshot) throw new Error('Repository snapshot was not persisted');
       // The row is the truth: an envelope built twice for one run keeps the
       // first snapshot, so the merge is read back from its commits rather than
@@ -1008,7 +1057,13 @@ export class EnvelopeBuilder {
          });
          if (!merge) throw new Error('The merge this run was planned with can no longer be read');
       }
+      const checkout: Checkout = mergeParent
+         ? { from: 'merge', branch, baseBranch: remote.defaultBranch }
+         : snapshot.expected_head
+           ? { from: 'task_branch', branch, baseBranch: remote.defaultBranch }
+           : { from: 'default', baseBranch: remote.defaultBranch };
       return {
+         checkout,
          repo: {
             readOnly,
             // What the workspace is unpacked from: the default branch head on a

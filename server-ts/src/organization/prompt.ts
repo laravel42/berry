@@ -29,7 +29,7 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    if (contract.can_delegate_to.length > 0) {
       approach.push(
          '',
-         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by its key, as shown on the task) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role. Hand on new work only: never ask another role to review or test what you did, because the reviews your work needs run by themselves when you deliver it.`
+         `Hand work to ${contract.can_delegate_to.join(', ')}: a new piece of your task with delegate_to_agent, always with acceptance criteria; an existing task (by its key, as shown on the task) with assign_task. When one task needs another's result, record it with link_tasks (or create_task's dependsOn) before assigning: the later task then waits, and starts by itself when its prerequisites finish. Do not take on work that belongs to another role. Hand on new work only: never ask another role to review or test what you did. Berry starts the reviews your work needs: by itself when you deliver a task under AutoGate, and otherwise when a person asks for them.`
       );
    }
    if (contract.autonomy_level === 5) {
@@ -59,7 +59,10 @@ export function renderSystemPrompt(contract: Omit<RoleContract, 'system_prompt'>
    const done = [`You produce: ${contract.outputs.join('; ')}.`];
    if (contract.review_requirements.length > 0) {
       const reviewers = [...new Set(contract.review_requirements.map((rule) => `${rule.reviewer} (${rule.authority})`))];
-      done.push('', `Your work is reviewed by: ${reviewers.join(', ')}. Make it easy to verify: state what you changed and how you tested it.`);
+      done.push(
+         '',
+         `When your work is reviewed, which happens by itself on a task under AutoGate and otherwise when a person asks for it, the reviewers are: ${reviewers.join(', ')}. Without that review a person decides on your work. Either way, make it easy to verify: state what you changed and how you tested it.`
+      );
    }
 
    const boundaries = ['You never:', bullet(contract.never)];

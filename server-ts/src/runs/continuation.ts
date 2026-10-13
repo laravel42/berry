@@ -159,11 +159,22 @@ export function continuationInstructions(input: {
       handover +
       `This is continuation ${input.attempt} of at most ${input.of}, and it is a fresh run: none of the previous ` +
       `conversation is here. The previous run was stopped at its step limit, not by an error, and ${saved}` +
-      'Do not start over. First see what is already there (git log, git status, the files), in one or two ' +
-      'commands; then do only what is still missing, check that it builds, and write your report. ' +
+      'Do not start over. First see what is already there, in one or two commands: git status and the files ' +
+      `themselves. ${SNAPSHOT_HISTORY} ` +
+      `${RECONCILE} Then do only what is still missing, check that it builds, and write your report. ` +
       'The report covers the whole task, including what the earlier run did.'
    );
 }
+
+/** The workspace is unpacked from one commit into a fresh repository, so its log is one entry long. */
+const SNAPSHOT_HISTORY =
+   'git log shows only the snapshot this run was unpacked from, not the history of the branch, so it tells you ' +
+   'little about what the earlier run did.';
+
+/** A handover is the previous run's account; the task and what people said since are the direction. */
+const RECONCILE =
+   'Read the task again with read_task, with any comments people left after the previous run. Where they ' +
+   'disagree with the handover, the task and the newest comment win.';
 
 /**
  * What a run stopped at its limit says once Berry has continued it: paused,
@@ -364,7 +375,8 @@ export function recoveryInstructions(input: {
    const lead =
       `${leadStart} Do not start over. ` +
       saved +
-      'First see what is already there (git status, git log, the files), one command at a time; then do only what is still missing.';
+      `First see what is already there (git status and the files), one command at a time. ${SNAPSHOT_HISTORY} ` +
+      `${RECONCILE} Then do only what is still missing.`;
    const prior = input.prior?.trim() ?? '';
    if (!prior || prior.startsWith(leadStart)) return lead;
    const room = 20_000 - lead.length - 2;

@@ -137,6 +137,34 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       assert.equal(designer?.mission, 'Edited by a person.');
    });
 
+   test('a prompt the previous catalog wrote is replaced; instructions a person rewrote are kept', async () => {
+      // Exactly what the previous version left: its own prompt, hashed as written.
+      for (const role of ['software-engineer', 'devops-engineer']) {
+         const old = { ...catalogRole(role)!, system_prompt: 'The previous catalog prompt.' };
+         await sql`
+            UPDATE agents
+               SET contract_version = ${CATALOG_VERSION - 1}, instructions = ${old.system_prompt},
+                   role_contract = ${sql.json(old as never)}, contract_hash = ${hashContract(old)}
+             WHERE workspace_id = ${workspaceId} AND role_key = ${role}`;
+      }
+      await sql`
+         UPDATE agents SET instructions = 'Rewritten on the Instructions tab.'
+          WHERE workspace_id = ${workspaceId} AND role_key = 'devops-engineer'`;
+
+      const result = await ensureOrganizationAgents(sql, workspaceId);
+      assert.ok(result.upgraded.includes('software-engineer'));
+      assert.ok(result.customised.includes('devops-engineer'));
+      assert.ok(!result.upgraded.includes('devops-engineer'));
+      const prompts = await sql`
+         SELECT role_key, instructions, contract_version FROM agents
+          WHERE workspace_id = ${workspaceId} AND role_key IN ('software-engineer', 'devops-engineer')`;
+      const byRole = new Map(prompts.map((row) => [row.role_key as string, row]));
+      assert.equal(byRole.get('software-engineer')?.instructions, catalogRole('software-engineer')!.system_prompt);
+      assert.equal(byRole.get('software-engineer')?.contract_version, CATALOG_VERSION);
+      assert.equal(byRole.get('devops-engineer')?.instructions, 'Rewritten on the Instructions tab.');
+      assert.equal(byRole.get('devops-engineer')?.contract_version, CATALOG_VERSION - 1);
+   });
+
    test('a specialist is added by a person, restored from its archive the second time, and kept by provisioning', async () => {
       const first = await addRole(sql, workspaceId, 'security-engineer');
       assert.equal(first.added, true);
