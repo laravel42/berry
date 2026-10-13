@@ -12,11 +12,10 @@
 #     user and a private workspace (BERRY_RUNTIME_ISOLATE_SESSIONS). A command
 #     can then read neither the runtime's environment nor another session's files.
 #
-# With --per-session (`pnpm runtime:sessions`) no single container is started.
-# A small router listens on the same port and starts one such container per
-# session, each seeing only its own folder of the workspace volume, with its
-# own memory, CPU and process ceiling; idle ones are stopped. That is the shape
-# AgentCore gives a session, where it is a microVM and none of this applies.
+# With --per-session (`pnpm runtime:sessions`) no container is started. The
+# runtime runs in this process and gives each session an in-process shell for
+# agent commands. Workspaces live under .runtime-sessions. AgentCore is
+# unchanged: there the microVM is the boundary and none of this applies.
 set -euo pipefail
 
 mode=single

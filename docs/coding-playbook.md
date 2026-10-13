@@ -181,9 +181,9 @@ ceiling. No autonomy level grants a tool that sets an issue to `done` or
 they may delegate *when* they make it by turning AutoGate on for a plan, which
 lets the review gate — Berry's code, not a tool — close a task its blocking
 reviewers passed (ADR-0016). No agent gains a tool either way. A run's
-prompt tells the agent to call `list_run_tools` on the berry MCP server
-before any other tool; that call is the declaration of the tools this run
-may use (`server-ts/src/agents/runtime/run-tools.ts`). A finished run's
+prompt names the sandbox commands, the same set on every runtime
+(`server-ts/src/agents/sandbox-commands.ts`), and the agent runs them with
+`run_command`. A finished run's
 handoff is `.handoffs/<identifier> - <slug of the title>`
 (`server-ts/src/runs/handoff.ts`), not a root `HANDOFF.md`.
 

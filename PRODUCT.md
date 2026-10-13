@@ -459,7 +459,7 @@ Each role has an **autonomy level**, a hard limit on which tools it can ever use
 | 4 | Autonomous | The same tools as Level 3, but trusted more: only Level 4 and 5 roles can have proposed work accepted without a person deciding (and only routine, low-risk work). |
 | 5 | Authority | Everything in Level 3, plus submit a review verdict. Whether it blocks or only advises is set by the reviewed agent's contract. |
 
-Each agent's Role and Permissions tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused. Before any other tool, the agent calls `list_run_tools` on the berry MCP server. That reply is the only set of tools the run may use, and every other call is refused until it comes back.
+Each agent's Role and Permissions tab shows its level with the plain name. The Organization settings page shows only the level number. Berry checks the limit when the agent calls a tool, not just in the agent's instructions, so an agent that tries to go past its level is refused. The task prompt names the sandbox commands, the same set on every runtime, and the agent runs them with `run_command`.
 
 ### No agent merges or closes work
 

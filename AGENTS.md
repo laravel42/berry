@@ -168,9 +168,9 @@ blocking; `security-engineer` and `software-architect` reviews are blocking
 when their labels or paths are touched. A run writes its handoff at
 `.handoffs/<identifier> - <slug of the title>` and tells the next dependent
 task to read that file. A delivery does not delete any other file in that
-directory. Before any other tool the agent calls
-`list_run_tools` on the berry MCP server; that reply is the only tool set
-the run may use. Agents can `propose_work` and
+directory. The sandbox commands a run may use are the same on every runtime
+and are written into the task prompt. The agent runs them with `run_command`
+and does not call `list_run_tools` to learn them. Agents can `propose_work` and
 `delegate_to_agent`, and escalate to a role or to a human — but never to
 `done`, and never through a merge tool.
 
