@@ -18,11 +18,15 @@
  * Shell. This dictionary only records the native names. It does not grant them.
  */
 
+import type { AliasRoute } from './route.ts';
+
 interface CursorAliasEntry {
    /** Every documented name for this native tool. The first is the hook or permission token. */
    names: readonly string[];
    /** Berry tools this native tool may stand for. Empty when none is faithful. */
    admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   route?: AliasRoute;
    description: string;
    source: string;
    notes?: string;
@@ -31,6 +35,7 @@ interface CursorAliasEntry {
 export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    {
       names: ['Shell', 'shell', 'Bash'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Run a shell command. Alias of run_command.',
       source: 'https://cursor.com/docs/cli/reference/permissions',
@@ -39,6 +44,7 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Read', 'read', 'ReadFile'],
+      route: 'read',
       admits: ['read_repository_file', 'read_file'],
       description: 'Read a file. Alias of read_repository_file.',
       source: 'https://cursor.com/docs/cli/reference/permissions',
@@ -47,6 +53,7 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Write', 'write'],
+      route: 'write',
       admits: ['write_file', 'edit_file'],
       description: 'Create or overwrite a file. Alias of write_file. The hook table also maps an edit onto Write.',
       source: 'https://cursor.com/docs/reference/third-party-hooks',
@@ -55,6 +62,7 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Edit', 'edit'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Edit an existing file. Alias of edit_file.',
       source: 'https://cursor.com/docs/sdk/typescript',
@@ -63,14 +71,16 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Delete'],
-      admits: [],
+      route: 'delete',
+      admits: ['delete_file'],
       description: 'Delete a file.',
       source: 'https://cursor.com/docs/hooks',
       notes:
-         'Hooks list Delete as a preToolUse tool type. Berry has no delete tool. run_command can remove a file, but that is Shell, a different native tool. The CLI permissions page does not document a Delete() token; the adapter still denies Delete(**).',
+         'Hooks list Delete as a preToolUse tool type. Alias of delete_file. The CLI permissions page does not document a Delete() token; the adapter still denies Delete(**) for the native tool.',
    },
    {
       names: ['Grep', 'grep'],
+      route: 'grep',
       admits: ['run_command'],
       description: 'Search file contents. Alias of run_command.',
       source: 'https://cursor.com/docs/cli/changelog',
@@ -78,6 +88,7 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Glob', 'glob'],
+      route: 'glob',
       admits: ['browse_repository', 'list_files'],
       description: 'Find files by name. Alias of browse_repository.',
       source: 'https://cursor.com/docs/cli/changelog',
@@ -86,6 +97,7 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['Ls', 'ls', 'ListDir'],
+      route: 'list',
       admits: ['browse_repository', 'list_files'],
       description: 'List a directory. Alias of browse_repository.',
       source: 'https://cursor.com/docs/sdk/typescript',
@@ -102,12 +114,14 @@ export const CURSOR_ALIAS_DICTIONARY: readonly CursorAliasEntry[] = [
    },
    {
       names: ['WebFetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch a URL. Alias of fetch_url.',
       source: 'https://cursor.com/docs/cli/reference/permissions',
    },
    {
       names: ['Fetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch a page.',
       source: 'https://cursor.com/docs/cli/changelog',

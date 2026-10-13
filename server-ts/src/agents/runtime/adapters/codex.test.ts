@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { CODEX_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
-import { CodexAgentAdapter, type CodexChild, type CodexLauncher, type CodexSpawn } from './codex.ts';
+import { CodexAgentAdapter, catalogWithoutApplyPatch, type CodexChild, type CodexLauncher, type CodexSpawn } from './codex.ts';
 import type { RuntimeCredential } from './types.ts';
 
 const credential: RuntimeCredential = {
@@ -103,7 +103,7 @@ function envelope(): TaskEnvelope {
    });
 }
 
-function launcher(seen: CodexSpawn[]): CodexLauncher {
+function launcher(seen: CodexSpawn[], exec: unknown[] = [], catalog?: string): CodexLauncher {
    return (spec) => {
       seen.push(spec);
       const child = new ScriptedChild();
@@ -118,6 +118,11 @@ function launcher(seen: CodexSpawn[]): CodexLauncher {
             return;
          }
          if (spec.args[0] === 'debug') {
+            if (catalog !== undefined) {
+               child.push(catalog);
+               child.finish();
+               return;
+            }
             child.push(JSON.stringify({
                models: [
                   { slug: 'gpt-5.4', display_name: 'GPT-5.4', visibility: 'list', supported_reasoning_levels: ['low'] },
@@ -128,6 +133,7 @@ function launcher(seen: CodexSpawn[]): CodexLauncher {
             return;
          }
          child.push(JSON.stringify({ type: 'thread.started', thread_id: 'thread-1' }));
+         for (const line of exec) child.push(JSON.stringify(line));
          child.push(JSON.stringify({ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }));
          child.push(JSON.stringify({ type: 'turn.completed', usage: { input_tokens: 4, output_tokens: 2, cached_input_tokens: 1 } }));
          child.finish();
@@ -177,9 +183,87 @@ describe('Codex adapter', () => {
          assert.ok(run.args.includes('cloud.skills.enabled=false'));
          assert.ok(run.args.includes('mcp_servers.berry.default_tools_approval_mode="approve"'));
          assert.equal(run.args.some((arg) => arg.includes('sk-')), false);
+         const disable = run.args.indexOf('--disable');
+         assert.equal(run.args[disable + 1], 'shell_tool');
+         const catalogArg = run.args.find((arg) => arg.startsWith('model_catalog_json='));
+         assert.ok(catalogArg);
+         const catalogPath = JSON.parse(catalogArg.slice('model_catalog_json='.length)) as string;
+         assert.equal(catalogPath, join(directory, 'model-catalog.json'));
+         const written = JSON.parse(await readFile(catalogPath, 'utf8')) as { models: Array<Record<string, unknown>> };
+         assert.deepEqual(written.models.map((model) => model.slug), ['gpt-5.4', 'hidden']);
+         for (const model of written.models) {
+            assert.equal(model.apply_patch_tool_type, null);
+            assert.deepEqual(model.experimental_supported_tools, []);
+         }
       } finally {
          if (previous === undefined) delete process.env.OPENAI_API_KEY;
          else process.env.OPENAI_API_KEY = previous;
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('does not start Codex when its own apply_patch cannot be turned off', async () => {
+      const seen: CodexSpawn[] = [];
+      const adapter = new CodexAgentAdapter({ launcher: launcher(seen, [], 'not json') });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-codex-closed-'));
+      try {
+         await assert.rejects(
+            adapter.start({
+               envelope: envelope(),
+               credential,
+               workingDirectory: directory,
+               stateDirectory: directory,
+               tools: [],
+               emit: () => undefined,
+               signal: AbortSignal.timeout(5_000),
+            }),
+            /could not turn off its apply_patch/
+         );
+         assert.equal(seen.some((spec) => spec.args[0] === 'exec'), false);
+      } finally {
+         await rm(directory, { recursive: true, force: true });
+      }
+      assert.throws(() => catalogWithoutApplyPatch(JSON.stringify({ models: [] })), /could not turn off/);
+      assert.throws(() => catalogWithoutApplyPatch(JSON.stringify({ models: ['gpt-5.4'] })), /could not turn off/);
+   });
+
+   test('records routed calls under the Berry tool names', async () => {
+      const seen: CodexSpawn[] = [];
+      const call = (id: string, server: string, tool: string, args: unknown) => [
+         { type: 'item.started', item: { type: 'mcp_tool_call', id, server, tool, arguments: args } },
+         { type: 'item.completed', item: { type: 'mcp_tool_call', id, server, tool, arguments: args } },
+      ];
+      const patch = [
+         '*** Begin Patch',
+         '*** Add File: src/new.ts',
+         '+export {};',
+         '*** Delete File: src/old.ts',
+         '*** End Patch',
+      ].join('\n');
+      const adapter = new CodexAgentAdapter({
+         launcher: launcher(seen, [
+            ...call('1', 'berry', 'exec_command', { cmd: 'git status' }),
+            ...call('2', 'berry', 'apply_patch', { input: patch }),
+            ...call('3', 'berry', 'read_issue', {}),
+            ...call('4', 'docs', 'search', {}),
+         ]),
+      });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-codex-ledger-'));
+      const started: string[] = [];
+      try {
+         await adapter.start({
+            envelope: envelope(),
+            credential,
+            workingDirectory: directory,
+            stateDirectory: directory,
+            tools: [],
+            emit: (event) => {
+               if (event.type === 'task.message' && event.message.kind === 'tool.started') started.push(event.message.name);
+            },
+            signal: AbortSignal.timeout(5_000),
+         });
+         assert.deepEqual(started, ['run_command', 'write_file+delete_file', 'read_issue', 'docs/search']);
+      } finally {
          await rm(directory, { recursive: true, force: true });
       }
    });

@@ -23,6 +23,8 @@
  * fetch_url.
  */
 
+import type { AliasRoute } from './route.ts';
+
 const TOOLS = 'https://code.claude.com/docs/en/tools-reference';
 const SUBAGENTS = 'https://code.claude.com/docs/en/agent-sdk/subagents';
 const EVALS = 'https://code.claude.com/docs/en/plugin-evals';
@@ -32,6 +34,8 @@ export interface ClaudeAlias {
    names: readonly string[];
    /** Berry tools this call faithfully stands for. */
    admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   route?: AliasRoute;
    description: string;
    source: string;
    notes?: string;
@@ -61,6 +65,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Bash'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Runs a shell command in the session environment.',
       source: TOOLS,
@@ -88,6 +93,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Edit'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Replaces one exact span in a file.',
       source: TOOLS,
@@ -129,6 +135,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Glob'],
+      route: 'glob',
       admits: ['browse_repository', 'list_files'],
       description: 'Finds files by name pattern.',
       source: TOOLS,
@@ -136,6 +143,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Grep'],
+      route: 'grep',
       admits: ['run_command'],
       description: 'Searches file contents with a regex.',
       source: TOOLS,
@@ -199,6 +207,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Read'],
+      route: 'read',
       admits: ['read_repository_file', 'read_file'],
       description: 'Reads a file. Images, PDFs, and notebooks come back in their own forms.',
       source: TOOLS,
@@ -339,6 +348,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['WebFetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetches a URL and returns extracted page content.',
       source: TOOLS,
@@ -360,6 +370,7 @@ export const CLAUDE_ALIAS_DICTIONARY: readonly ClaudeAlias[] = [
    },
    {
       names: ['Write'],
+      route: 'write',
       admits: ['write_file'],
       description: 'Creates a file or overwrites one with the full contents.',
       source: TOOLS,

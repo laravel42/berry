@@ -61,6 +61,9 @@ const LEVEL_3 = [...LEVEL_2, 'run_command', 'collect_file'] as const;
  */
 const WITH_SHELL = ['check_page', 'check_performance'] as const;
 
+/** What write_file implies, granted with it the same way. */
+export const WITH_WRITE = ['edit_file', 'delete_file', 'move_file'] as const;
+
 const LEVEL_5 = [...LEVEL_3, 'submit_review'] as const;
 
 const CEILINGS: Record<AutonomyLevel, readonly string[]> = {
@@ -94,9 +97,10 @@ export function effectiveTools(contract: Pick<RoleContract, 'allowed_tools' | 'a
    const ceiling = new Set(toolCeiling(contract.autonomy_level));
    const reached = [...new Set(contract.allowed_tools)].filter((tool) => ceiling.has(tool));
    if (reached.includes('run_command')) reached.push(...WITH_SHELL);
-   // Changing part of a file is the same reach as writing the whole file.
-   // Derived, so a stored contract does not have to name it.
-   if (reached.includes('write_file')) reached.push('edit_file');
+   // Changing part of a file, deleting it or moving it is the same reach as
+   // writing the whole file. Derived, so a stored contract does not have to
+   // name them.
+   if (reached.includes('write_file')) reached.push(...WITH_WRITE);
    return [...new Set(reached)].sort();
 }
 

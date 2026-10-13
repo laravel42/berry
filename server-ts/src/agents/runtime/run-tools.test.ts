@@ -65,7 +65,9 @@ test('list_run_tools returns admitted aliases and sandbox commands that are not 
    assert.ok(kiro.aliases.some((entry) => entry.name === 'execute_bash'));
    assert.ok(kiro.aliases.some((entry) => entry.name === 'grep'));
    assert.ok(kiro.aliases.some((entry) => entry.name === 'read' && entry.berry.includes('read_repository_file')));
-   assert.ok(kiro.aliases.some((entry) => entry.name === 'read_file'));
+   // Kiro's read_file and delete_file are Berry tool names, so they are Berry's own tools, not aliases.
+   assert.equal(kiro.aliases.some((entry) => entry.name === 'read_file'), false);
+   assert.equal(kiro.aliases.some((entry) => entry.name === 'delete_file'), false);
    assert.equal(kiro.aliases.some((entry) => entry.name === 'grepSearch'), false);
    assert.equal(kiro.aliases.some((entry) => entry.name === 'readFile'), false);
    assert.equal(kiro.aliases.some((entry) => entry.name === 'read_files'), false);

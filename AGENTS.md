@@ -170,7 +170,13 @@ when their labels or paths are touched. A run writes its handoff at
 task to read that file. A delivery does not delete any other file in that
 directory. The sandbox commands a run may use are the same on every runtime
 and are written into the task prompt. The agent runs them with `run_command`
-and does not call `list_run_tools` to learn them. Agents can `propose_work` and
+and does not call `list_run_tools` to learn them. On a subscription runtime the
+berry MCP server also serves the runtime's native tool names (`Bash`,
+`execute_bash`, `exec_command`, `apply_patch`, `Edit` and the rest of its alias
+dictionary); each runs the Berry tool it names, only when the role has that
+tool, and the ledger records the Berry tool. The runtime's own shell, write and
+delete tools stay off; Cursor's and Grok's own read-only tools stay allowed. `delete_file` and `move_file` come with `write_file`, as `edit_file`
+does, and never touch `.git` or `.handoffs/`. Agents can `propose_work` and
 `delegate_to_agent`, and escalate to a role or to a human — but never to
 `done`, and never through a merge tool.
 

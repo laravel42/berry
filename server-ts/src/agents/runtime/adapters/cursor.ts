@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CURSOR_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { ledgerToolName } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -519,7 +520,8 @@ function readEvent(line: string, model: string): ParsedLine | null {
    if (record.type === 'tool_call') {
       const id = typeof record.id === 'string' ? record.id : typeof record.tool_call_id === 'string' ? record.tool_call_id : null;
       if (!id) return { sessionId, text: '', messages: [], usage: null, failure: null };
-      const name = typeof record.name === 'string' ? record.name : typeof record.tool === 'string' ? record.tool : 'tool';
+      const raw = typeof record.name === 'string' ? record.name : typeof record.tool === 'string' ? record.tool : null;
+      const name = raw === null ? 'tool' : ledgerToolName('cursor', raw, record.args ?? record.input);
       const subtype = record.subtype;
       if (subtype === 'started') {
          return { sessionId, text: '', messages: [{ type: 'task.message', message: { kind: 'tool.started', toolCallId: id, name } }], usage: null, failure: null };

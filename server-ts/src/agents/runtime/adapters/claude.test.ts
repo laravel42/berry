@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, test } from 'node:test';
 import { CLAUDE_CLI_LOGIN, taskEnvelopeSchema, type TaskEnvelope } from '../../../runtime/envelope.ts';
-import { leakedInvokes } from './claude-invokes.ts';
+import { tool } from '@strands-agents/sdk';
+import { z } from 'zod';
+import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { withRuntimeAliases } from '../runtime-aliases.ts';
+import { leakedInvokes, resumeAfterLeakedInvokes } from './claude-invokes.ts';
 import { ClaudeAgentAdapter, type ClaudeChild, type ClaudeLauncher, type ClaudeSpawn } from './claude.ts';
 import type { RuntimeCredential } from './types.ts';
 
@@ -143,6 +147,40 @@ test('invoke tags in a reply are the tool calls', () => {
       { name: 'list_files', input: {} },
       { name: 'read_skill', input: { name: 'prd-authoring' } },
    ]);
+});
+
+test('a Claude built-in written as text runs its Berry tool and is recorded under it', async () => {
+   const ran: unknown[] = [];
+   const runCommand = tool({
+      name: 'run_command',
+      description: 'Run one command.',
+      inputSchema: z.record(z.string(), z.unknown()),
+      callback: (input: unknown) => {
+         ran.push(input);
+         return { exitCode: 0, stdout: 'clean' };
+      },
+   });
+   const events: LifecycleEvent[] = [];
+   const directory = await mkdtemp(join(tmpdir(), 'berry-claude-leak-'));
+   try {
+      const resume = await resumeAfterLeakedInvokes(
+         withRuntimeAliases('claude', [runCommand]),
+         leakedInvokes('<invoke name="Bash">\n<parameter name="command">git status</parameter>\n</invoke><invoke name="Write"></invoke>'),
+         directory,
+         AbortSignal.timeout(5_000),
+         (event) => events.push(event),
+         0
+      );
+      assert.deepEqual(ran, [{ command: 'git status' }]);
+      assert.match(resume, /clean/);
+      assert.match(resume, /Unknown tool Write\./);
+      const started = events.flatMap((event) =>
+         event.type === 'task.message' && event.message.kind === 'tool.started' ? [event.message.name] : []
+      );
+      assert.deepEqual(started, ['run_command', 'Write']);
+   } finally {
+      await rm(directory, { recursive: true, force: true });
+   }
 });
 
 describe('Claude adapter', () => {

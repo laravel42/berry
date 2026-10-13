@@ -295,6 +295,11 @@ describe('Qoder adapter', () => {
          new Set(['read_issue'])
       );
       assert.equal(deny.outcome.optionId, 'no');
+      const routed = new Set(['Bash', 'run_command']);
+      assert.equal(selectQoderPermission({ options, toolCall: { title: 'Bash' } }, routed).outcome.optionId, 'no');
+      assert.equal(selectQoderPermission({ options, toolCall: { title: 'Bash: git status' } }, routed).outcome.optionId, 'no');
+      assert.equal(selectQoderPermission({ options, toolCall: { title: 'notberry/Bash' } }, routed).outcome.optionId, 'no');
+      assert.equal(selectQoderPermission({ options, toolCall: { title: 'berry/Bash' } }, routed).outcome.optionId, 'once');
    });
 
    test('normalizes assistant text and records usage without a price', () => {

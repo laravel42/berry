@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEX_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { ledgerToolName } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -63,8 +64,10 @@ export interface CodexAdapterOptions {
  * Codex on this workstation.
  *
  * The CLI keeps its ChatGPT login. Berry never reads that store and never
- * passes an API key. Its shell may write inside the task checkout, which is
- * what Berry commits. Writes outside that checkout stay denied.
+ * passes an API key. Codex's own shell and apply_patch are off: the shell
+ * feature is disabled, and every model in the catalog Codex is given has no
+ * apply_patch tool. Berry's MCP server serves both names instead, so a
+ * command or a patch goes through Berry's tools and its permission check.
  */
 export class CodexAgentAdapter implements AgentProcessAdapter {
    readonly identity = {
@@ -217,6 +220,7 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
       const socketPath = join(process.platform === 'win32' ? tmpdir() : '/tmp', `berry-codex-${randomBytes(8).toString('hex')}.sock`);
+      const catalog = await this.#catalogWithoutApplyPatch(input.stateDirectory);
       const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
       await host.listen();
       const model = runtime.model;
@@ -237,6 +241,12 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
          'skills.bundled.enabled=false',
          '--config',
          'cloud.skills.enabled=false',
+         // Codex's own shell and apply_patch would write without Berry. The
+         // shell is a feature; apply_patch is on a model only when its
+         // catalog entry names a patch tool type, and this catalog names none.
+         ...CODEX_NATIVE_TOOLS_OFF,
+         '--config',
+         `model_catalog_json=${tomlString(catalog)}`,
          '--config',
          `mcp_servers.berry.command=${tomlString(process.execPath)}`,
          '--config',
@@ -288,6 +298,36 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
          await host.close();
       }
       return { text, sessionId: sessionId || input.envelope.runId };
+   }
+
+   /**
+    * Codex's bundled model catalog with apply_patch removed, written into the
+    * run's state directory for `model_catalog_json`. A catalog Berry cannot
+    * build stops the run rather than starting Codex with its own patch tool.
+    */
+   async #catalogWithoutApplyPatch(directory: string): Promise<string> {
+      const child = this.#launch({
+         command: this.#command,
+         args: ['debug', 'models', '--bundled'],
+         cwd: directory,
+         env: childEnvironment(),
+         stdin: '',
+      });
+      let body = '';
+      try {
+         for await (const line of child.lines()) body += `${line}\n`;
+      } catch (cause) {
+         const error = cause as NodeJS.ErrnoException;
+         if (error.code === 'ENOENT') throw new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'codex is not installed on this workstation.', false);
+         throw cause;
+      }
+      const exit = await child.exited;
+      if (exit.error && (exit.error as NodeJS.ErrnoException).code === 'ENOENT') {
+         throw new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'codex is not installed on this workstation.', false);
+      }
+      const path = join(directory, 'model-catalog.json');
+      await writeFile(path, catalogWithoutApplyPatch(body), { mode: 0o600 });
+      return path;
    }
 
    async #loginStatus(): Promise<'chatgpt' | 'api_key' | 'missing'> {
@@ -418,6 +458,32 @@ function tomlArray(values: string[]): string {
    return `[${values.map(tomlString).join(',')}]`;
 }
 
+/** The flags that turn off Codex's own shell. apply_patch goes with the model catalog. */
+export const CODEX_NATIVE_TOOLS_OFF = ['--disable', 'shell_tool'] as const;
+
+/**
+ * `codex debug models --bundled`, with no model offering apply_patch and no
+ * experimental built-in tools. Anything that is not that catalog is refused.
+ */
+export function catalogWithoutApplyPatch(body: string): string {
+   let parsed: unknown;
+   try {
+      parsed = JSON.parse(body);
+   } catch {
+      throw new RuntimeAdapterError('RUNTIME_PROTOCOL', 'Codex CLI did not list its models, so Berry could not turn off its apply_patch.', false);
+   }
+   const models = parsed && typeof parsed === 'object' ? (parsed as { models?: unknown }).models : null;
+   if (!Array.isArray(models) || models.length === 0 || !models.every((entry) => entry && typeof entry === 'object' && !Array.isArray(entry))) {
+      throw new RuntimeAdapterError('RUNTIME_PROTOCOL', 'Codex CLI did not list its models, so Berry could not turn off its apply_patch.', false);
+   }
+   const stripped = models.map((entry) => ({
+      ...(entry as Record<string, unknown>),
+      apply_patch_tool_type: null,
+      experimental_supported_tools: [],
+   }));
+   return `${JSON.stringify({ ...(parsed as Record<string, unknown>), models: stripped })}\n`;
+}
+
 function listedModels(body: string): RuntimeModel[] {
    let parsed: unknown;
    try {
@@ -491,7 +557,9 @@ function readEvent(line: string, model: string): ParsedLine | null {
       return { sessionId, text: part.text, messages: [], usage: null, failure: null };
    }
    if (part.type === 'mcp_tool_call' && typeof part.id === 'string') {
-      const name = typeof part.tool === 'string' ? part.tool : 'tool';
+      const tool = typeof part.tool === 'string' && part.tool !== '' ? part.tool : null;
+      const server = typeof part.server === 'string' && part.server !== '' ? part.server : null;
+      const name = tool === null ? 'tool' : ledgerToolName('codex', server === null ? tool : `${server}/${tool}`, part.arguments);
       const message: LifecycleEvent = record.type === 'item.started'
          ? { type: 'task.message', message: { kind: 'tool.started', toolCallId: part.id, name } }
          : { type: 'task.message', message: { kind: 'tool.completed', toolCallId: part.id, succeeded: part.error == null } };

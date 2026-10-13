@@ -218,7 +218,7 @@ describe('Kiro adapter', () => {
          assert.doesNotMatch(text, /built-ins stay refused/);
          const admitted = kiroToolNote(new Set(['write_file', 'edit_file', 'run_command', 'read_repository_file', 'fetch_url', 'browse_repository']));
          assert.match(admitted, /list_run_tools/);
-         assert.match(admitted, /native commands for this runtime/);
+         assert.match(admitted, /native tool names Berry serves on this runtime/);
          assert.doesNotMatch(admitted, /ignore the instruction/);
       } finally {
          if (previous === undefined) delete process.env.KIRO_API_KEY;
@@ -325,7 +325,7 @@ describe('Kiro adapter', () => {
       assert.match(unavailable.reason ?? '', /not installed/);
    });
 
-   test('allows one Berry tool call and denies native shell', () => {
+   test('allows only Berry tool calls; native Kiro tools are refused even when their Berry tool is allowed', () => {
       const options = [
          { optionId: 'once', name: 'Allow', kind: 'allow_once' },
          { optionId: 'always', name: 'Always', kind: 'allow_always' },
@@ -356,15 +356,23 @@ describe('Kiro adapter', () => {
          },
          new Set(['run_command'])
       );
-      assert.equal(shellAllowed.outcome.optionId, 'once');
+      assert.equal(shellAllowed.outcome.optionId, 'no');
+      const routedShell = selectKiroPermission(
+         {
+            options,
+            _meta: { kiro: { mcpTool: { identity: { serverName: 'berry', toolName: 'execute_bash' } } } },
+         },
+         new Set(['execute_bash', 'run_command'])
+      );
+      assert.equal(routedShell.outcome.optionId, 'once');
       const write = selectKiroPermission(
          {
             options,
             toolCall: { name: 'fs_write' },
          },
-         new Set(['write_file'])
+         new Set(['write_file', 'fs_write'])
       );
-      assert.equal(write.outcome.optionId, 'once');
+      assert.equal(write.outcome.optionId, 'no');
       const writeDenied = selectKiroPermission(
          {
             options,

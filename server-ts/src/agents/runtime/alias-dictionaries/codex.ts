@@ -23,11 +23,15 @@
  * as a registered function.
  */
 
+import type { AliasRoute } from './route.ts';
+
 export interface CodexAliasEntry {
    /** Registered function name first, then aliases. */
    names: readonly string[];
    /** Berry tools this native tool faithfully stands for. */
    admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   route?: AliasRoute;
    description: string;
    source: string;
    notes?: string;
@@ -40,6 +44,7 @@ const MULTI_AGENT = 'https://github.com/openai/codex/blob/main/codex-rs/core/src
 export const CODEX_ALIAS_DICTIONARY: readonly CodexAliasEntry[] = [
    {
       names: ['exec_command', 'shell', 'local_shell', 'shell_command'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Runs a command in a PTY and returns output or a session id.',
       source: SHELL_SPEC,
@@ -54,10 +59,11 @@ export const CODEX_ALIAS_DICTIONARY: readonly CodexAliasEntry[] = [
    },
    {
       names: ['apply_patch'],
-      admits: ['write_file', 'edit_file'],
+      route: 'patch',
+      admits: ['write_file', 'edit_file', 'delete_file', 'move_file'],
       description: 'Edits files with a freeform patch. The patch can add, update, delete, or move a file.',
       source: 'https://github.com/openai/codex/blob/main/codex-rs/core/src/tools/handlers/apply_patch_spec.rs',
-      notes: 'write_file and edit_file cover creating and changing file contents. The patch grammar also deletes and renames files.',
+      notes: 'Berry applies the patch: an added file through write_file, each hunk through edit_file, a deleted file through delete_file, and a moved file through move_file. The whole patch is checked before any of it is written.',
    },
    {
       names: ['update_plan'],

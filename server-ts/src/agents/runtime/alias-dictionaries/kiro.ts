@@ -1,7 +1,9 @@
 /**
  * Kiro native tool names and the Berry tools each one may alias.
  *
- * Standalone. Nothing in the server imports this module.
+ * The one Kiro table: an entry with a `route` is served on Berry's MCP
+ * server under its certain names, and Kiro's own tool of that name is
+ * refused at the permission prompt.
  *
  * Pages read 2026-10-12:
  * - https://kiro.dev/docs/tools/
@@ -26,6 +28,8 @@
  * Tags and capabilities that are not a function id are their own entries.
  */
 
+import type { AliasRoute } from './route.ts';
+
 type BerryToolName =
    | 'read_repository_file'
    | 'read_file'
@@ -33,12 +37,15 @@ type BerryToolName =
    | 'list_files'
    | 'write_file'
    | 'edit_file'
+   | 'delete_file'
    | 'run_command'
    | 'fetch_url';
 
 interface KiroAliasEntry {
    readonly names: readonly string[];
    readonly admits: readonly BerryToolName[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   readonly route?: AliasRoute;
    readonly description: string;
    readonly source: string;
    readonly notes?: string;
@@ -56,6 +63,7 @@ const LIST = ['browse_repository', 'list_files'] as const satisfies readonly Ber
 export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    {
       names: ['read_file', 'read', 'fs_read', 'fsRead', 'readFile'],
+      route: 'read',
       admits: READ,
       description: 'Read a single file.',
       source: TOOLS,
@@ -72,6 +80,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['list_directory', 'listDirectory'],
+      route: 'list',
       admits: LIST,
       description: 'List a directory.',
       source: TOOLS,
@@ -80,6 +89,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['file_search', 'glob', 'fileSearch'],
+      route: 'glob',
       admits: LIST,
       description: 'Find paths by glob.',
       source: TOOLS,
@@ -88,6 +98,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['grep_search', 'grep', 'grepSearch'],
+      route: 'grep',
       admits: ['run_command'],
       description: 'Search file contents with a regular expression.',
       source: TOOLS,
@@ -111,6 +122,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['fs_write', 'write', 'fsWrite', 'writeFile'],
+      route: 'write',
       admits: ['write_file'],
       description: 'Create or overwrite a file.',
       source: TOOLS,
@@ -126,6 +138,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['str_replace'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Replace one exact span in a file.',
       source: TOOLS,
@@ -133,13 +146,15 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['delete_file'],
-      admits: ['run_command'],
+      route: 'delete',
+      admits: ['delete_file'],
       description: 'Delete a file.',
       source: TOOLS,
-      notes: 'Tag write, capability fs_write. Berry has no delete tool; the adapter removes the path with rm through run_command.',
+      notes: 'Tag write, capability fs_write. The name is Berry\'s own delete_file, so the session calls that tool directly.',
    },
    {
       names: ['execute_bash', 'execute_pwsh', 'shell', 'execute_cmd', 'executeCmd'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Run a shell command.',
       source: TOOLS,
@@ -170,6 +185,7 @@ export const KIRO_ALIAS_DICTIONARY: readonly KiroAliasEntry[] = [
    },
    {
       names: ['web_fetch', 'webFetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch text from a URL.',
       source: TOOLS,

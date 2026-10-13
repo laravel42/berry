@@ -57,3 +57,17 @@ export function insideDirectory(path: string): string | null {
    }
    return parts.length === 0 ? null : parts.join('/');
 }
+
+/**
+ * Why delete_file or move_file may not touch this path, or null when it may.
+ *
+ * `.git` is the repository's own state. `.handoffs/` holds the notes earlier
+ * tasks left for the ones that wait on them; a run writes its own with
+ * write_file and removes or renames none of them.
+ */
+export function protectedPathReason(relative: string): string | null {
+   const segments = relative.split('/');
+   if (segments.includes('.git')) return `${relative} is inside .git`;
+   if (segments[0] === '.handoffs') return `${relative} is under .handoffs/, where no file is deleted or moved`;
+   return null;
+}

@@ -17,6 +17,8 @@
  * admits is empty when no Berry tool is a faithful implementation.
  */
 
+import type { AliasRoute } from './route.ts';
+
 const TOOLS = 'https://moonshotai.github.io/kimi-code/en/reference/tools';
 
 export interface KimiAlias {
@@ -24,6 +26,8 @@ export interface KimiAlias {
    names: readonly string[];
    /** Berry tools this call may stand for. Empty when none is faithful. */
    admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   route?: AliasRoute;
    description: string;
    source: string;
    notes?: string;
@@ -32,6 +36,7 @@ export interface KimiAlias {
 export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    {
       names: ['Read'],
+      route: 'read',
       admits: ['read_repository_file', 'read_file'],
       description: 'Read a text file. Alias of read_repository_file.',
       source: TOOLS,
@@ -39,6 +44,7 @@ export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    },
    {
       names: ['Write'],
+      route: 'write',
       admits: ['write_file'],
       description: 'Create or overwrite a file, including append. Alias of write_file.',
       source: TOOLS,
@@ -46,6 +52,7 @@ export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    },
    {
       names: ['Edit'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Replace one exact span, or every span when replace_all is set. Alias of edit_file.',
       source: TOOLS,
@@ -60,6 +67,7 @@ export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    },
    {
       names: ['Glob'],
+      route: 'glob',
       admits: ['browse_repository', 'list_files'],
       description: 'Find files by glob pattern. Alias of browse_repository.',
       source: TOOLS,
@@ -73,6 +81,7 @@ export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    },
    {
       names: ['Bash'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Run a shell command, in the foreground or the background. Alias of run_command.',
       source: TOOLS,
@@ -87,6 +96,7 @@ export const KIMI_ALIAS_DICTIONARY: readonly KimiAlias[] = [
    },
    {
       names: ['FetchURL'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch one URL and return its text. Alias of fetch_url.',
       source: TOOLS,

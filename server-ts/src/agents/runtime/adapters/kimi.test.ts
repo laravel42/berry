@@ -302,6 +302,22 @@ describe('Kimi adapter', () => {
       assert.equal(berryIdentity.outcome.optionId, 'once');
    });
 
+   test('a native Kimi name is approved only as the routed Berry tool', () => {
+      const options = [
+         { optionId: 'once', name: 'Allow', kind: 'allow_once' },
+         { optionId: 'no', name: 'Deny', kind: 'reject_once' },
+      ];
+      const allowed = new Set(['Bash', 'run_command']);
+      assert.equal(selectKimiPermission({ options, toolCall: { name: 'Bash' } }, allowed).outcome.optionId, 'no');
+      assert.equal(selectKimiPermission({ options, toolCall: { title: 'Bash' } }, allowed).outcome.optionId, 'no');
+      assert.equal(selectKimiPermission({ options, toolCall: { name: 'berry/Bash' } }, allowed).outcome.optionId, 'once');
+      assert.equal(
+         selectKimiPermission({ options, _meta: { mcpTool: { identity: { serverName: 'berry', toolName: 'Bash' } } } }, allowed).outcome.optionId,
+         'once'
+      );
+      assert.equal(selectKimiPermission({ options, toolCall: { name: 'berry/Bash' } }, new Set(['read_issue'])).outcome.optionId, 'no');
+   });
+
    test('skips replayed text and records usage without a dollar price', () => {
       const state = { thinkingChars: 0, started: new Set<string>() };
       const replayed = normalizeKimiUpdate(

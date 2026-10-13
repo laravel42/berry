@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { artifactPathSchema, savedOnTask, textSlice } from './core-tools.ts';
+import { artifactPathSchema, removablePath, savedOnTask, textSlice } from './core-tools.ts';
 
 test('a relative file path is accepted, nested or not', () => {
    for (const path of ['report.md', 'epg/start.js', 'src/main/index.ts', '.env.example', 'user:preferences.json']) {
@@ -44,4 +44,12 @@ test('a file saved on the task is reported with the artifact row that stores it'
       saved: true,
       artifact: { id: 'art-1', path: 'docs/brief.md', version: 2 },
    });
+});
+
+test('delete_file and move_file refuse .git, .handoffs and paths outside the workspace', () => {
+   assert.deepEqual(removablePath('src/./maze.ts'), { path: 'src/maze.ts' });
+   assert.deepEqual(removablePath('docs/.handoffs-notes.md'), { path: 'docs/.handoffs-notes.md' });
+   for (const path of ['.git/config', 'vendor/.git/HEAD', '.handoffs/BER-1 - task', './.handoffs/x', '../escape.ts', 'a/../../escape.ts']) {
+      assert.ok('error' in removablePath(path), path);
+   }
 });

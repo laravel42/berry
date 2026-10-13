@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GROK_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -629,12 +630,8 @@ function readEvent(line: string, model: string): ParsedLine | null {
       return data === '' ? null : { sessionId: null, text: data, messages: [], usage: null, failure: null };
    }
    if (type === 'tool_call' && typeof record.toolCallId === 'string') {
-      const name =
-         typeof record.toolName === 'string'
-            ? record.toolName
-            : typeof record.title === 'string'
-              ? record.title
-              : 'tool';
+      const raw = typeof record.toolName === 'string' && record.toolName !== '' ? record.toolName : acpToolName(record);
+      const name = raw === null ? 'tool' : ledgerToolName('grok', raw, record.rawInput ?? record.input);
       return {
          sessionId: null,
          text: '',

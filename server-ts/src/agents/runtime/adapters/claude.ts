@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CLAUDE_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { leakedInvokes, MAX_LEAKED_TOOL_ROUNDS, proseBesideInvokes, resumeAfterLeakedInvokes } from './claude-invokes.ts';
+import { ledgerToolName } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -535,7 +536,10 @@ function readEvent(line: string, model: string): ParsedLine | null {
       const part = block as Record<string, unknown>;
       if (part.type === 'text' && typeof part.text === 'string' && part.text !== '') text += part.text;
       if (part.type === 'tool_use' && typeof part.id === 'string' && typeof part.name === 'string') {
-         messages.push({ type: 'task.message', message: { kind: 'tool.started', toolCallId: part.id, name: part.name } });
+         messages.push({
+            type: 'task.message',
+            message: { kind: 'tool.started', toolCallId: part.id, name: ledgerToolName('claude', part.name, part.input) },
+         });
       }
       if (part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
          messages.push({

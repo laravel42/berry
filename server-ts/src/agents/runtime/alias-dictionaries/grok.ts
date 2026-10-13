@@ -31,9 +31,13 @@
  * still classified, and each is marked uncertain.
  */
 
+import type { AliasRoute } from './route.ts';
+
 export interface GrokAliasEntry {
    readonly names: readonly string[];
    readonly admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   readonly route?: AliasRoute;
    readonly description: string;
    readonly source: string;
    readonly notes?: string;
@@ -42,18 +46,21 @@ export interface GrokAliasEntry {
 export const GROK_ALIAS_DICTIONARY: readonly GrokAliasEntry[] = [
    {
       names: ['read_file'],
+      route: 'read',
       admits: ['read_repository_file'],
       description: 'Read a file in the checkout, with line numbers. Alias of read_repository_file.',
       source: 'user-guide/01-getting-started.md; shell README built-in tools; tools.rs Read',
    },
    {
       names: ['list_dir'],
+      route: 'list',
       admits: ['browse_repository'],
       description: 'List a directory in the checkout. Alias of browse_repository.',
       source: 'user-guide/01-getting-started.md; shell README; tools.rs List',
    },
    {
       names: ['grep', 'grep_search'],
+      route: 'grep',
       admits: ['run_command'],
       description: 'Regex search across the checkout (ripgrep). Alias of run_command.',
       source: 'user-guide/01-getting-started.md; user-guide/22-permissions-and-safety.md; tools.rs Grep',
@@ -61,6 +68,7 @@ export const GROK_ALIAS_DICTIONARY: readonly GrokAliasEntry[] = [
    },
    {
       names: ['search_replace', 'edit_file', 'apply_patch'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Make a precise edit to a file. Alias of edit_file.',
       source: 'user-guide/01-getting-started.md; shell README; tools.rs Edit',
@@ -68,6 +76,7 @@ export const GROK_ALIAS_DICTIONARY: readonly GrokAliasEntry[] = [
    },
    {
       names: ['write', 'write_file', 'create_file'],
+      route: 'write',
       admits: ['write_file'],
       description: 'Create or replace a file. Alias of write_file.',
       source: 'tools.rs Write; session/goal_role_tools.rs write fallback',
@@ -75,13 +84,15 @@ export const GROK_ALIAS_DICTIONARY: readonly GrokAliasEntry[] = [
    },
    {
       names: ['delete_file'],
-      admits: ['run_command'],
-      description: 'Remove one file. Alias of run_command.',
+      route: 'delete',
+      admits: ['delete_file'],
+      description: 'Remove one file. Alias of delete_file.',
       source: 'adapters/grok.ts GROK_DISALLOWED_TOOLS; tools.rs Delete',
       notes: 'Uncertain: delete_file. tools.rs says Grok Build does not offer a delete tool (that variant has no Grok Build name; the daemon worker is the one that removes a file). Berry still strips delete_file.',
    },
    {
       names: ['run_terminal_command', 'run_terminal_cmd', 'bash'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Run a shell command. Alias of run_command.',
       source: 'user-guide/01-getting-started.md; user-guide/20-background-tasks.md; tools.rs Shell',
@@ -89,6 +100,7 @@ export const GROK_ALIAS_DICTIONARY: readonly GrokAliasEntry[] = [
    },
    {
       names: ['web_fetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch a URL and return its content as markdown. Alias of fetch_url.',
       source: 'shell README web_fetch section; user-guide/01-getting-started.md; tools.rs WebFetch',

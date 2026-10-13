@@ -226,6 +226,25 @@ export class BerryArtifactService {
       }
    }
 
+   /**
+    * Removes a file from the task: every version any run saved at this path.
+    *
+    * The task, not the run, because that is what list_files and read_file
+    * show. Removing only this run's versions would leave an earlier run's
+    * copy listed, and the agent that deleted it would read it back.
+    */
+   async deleteFromTask(filename: string): Promise<number> {
+      const path = artifactPath(filename);
+      const rows = await this.sql`
+         DELETE FROM run_artifacts
+          WHERE issue_id = ${this.issueId} AND path = ${path}
+          RETURNING storage_key`;
+      for (const row of rows) {
+         await this.storage.delete(row.storage_key as string).catch(() => undefined);
+      }
+      return rows.length;
+   }
+
    async listVersions(request: ListVersionsRequest): Promise<number[]> {
       const rows = await this.sql`
          SELECT version FROM run_artifacts

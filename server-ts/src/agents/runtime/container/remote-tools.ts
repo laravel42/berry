@@ -3,7 +3,7 @@ import { z } from 'zod';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { FileTooLarge, getBytes } from '../../../execution/bytes.ts';
 import { shellQuote } from '../../checkout.ts';
-import { insideDirectory } from '../../workspace-files.ts';
+import { insideDirectory, protectedPathReason } from '../../workspace-files.ts';
 import { applyFileEdit } from '../../edit-file.ts';
 import { WORKDIR_KEY } from '../command-tool.ts';
 
@@ -37,7 +37,7 @@ const MAX_COLLECT_BYTES = 10 * 1024 * 1024;
 /**
  * The run's workspace.
  *
- * `write_file` and `edit_file` write into this container, where commands run
+ * `write_file`, `edit_file`, `delete_file` and `move_file` act in this container, where commands run
  * and where the delivery commit is taken. When the run commits its checkout,
  * that commit is how the file leaves the container. When it does not (no
  * repository, or a read-only one), the workspace is thrown away with the run,
@@ -74,6 +74,8 @@ export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): 
          description: entry.description,
          inputSchema: entry.inputSchema as JSONSchema,
          callback: async (input: unknown, context?: ToolContext) => {
+            if (mirror && entry.name === 'delete_file') return deleteInWorkspace(api, mirror, input, context);
+            if (mirror && entry.name === 'move_file') return moveInWorkspace(api, mirror, input, context);
             if (!mirror || (entry.name !== 'write_file' && entry.name !== 'edit_file')) return callBerry(api, entry.name, input);
             const written =
                entry.name === 'edit_file'
@@ -187,6 +189,84 @@ async function editInWorkspace(
       mirror.warn?.('edit_file could not be written into the workspace', { path: relative, error: detail });
       return { workspaceError: `not written to the workspace: ${detail}` };
    }
+}
+
+/**
+ * Removes a file from the checkout. When the run commits, the removal is
+ * delivered with the commit; otherwise the task's saved copy is deleted too,
+ * since the workspace is thrown away. A path outside the workspace, inside
+ * .git or under .handoffs/ is refused and nothing is removed.
+ */
+async function deleteInWorkspace(api: BerryApi, mirror: WorkspaceMirror, input: unknown, context?: ToolContext): Promise<JSONValue> {
+   const { path } = (isRecord(input) ? input : {}) as { path?: unknown };
+   if (typeof path !== 'string') return { error: 'delete_file needs a path' };
+   const relative = workspacePath(path);
+   if ('error' in relative) return { path, error: relative.error };
+   const target = inWorkdir(relative.path, context);
+   const session = await mirror.session();
+   const removed = await session.exec(`test -f ${shellQuote(target)} && rm -f -- ${shellQuote(target)}`);
+   if (removed.exitCode === 0) {
+      if (mirror.committed) {
+         return { path: relative.path, deleted: true, delivery: 'pending', note: 'Removed from the checkout. Berry commits the removal when the run ends.' };
+      }
+      return callBerry(api, 'delete_file', { path: relative.path });
+   }
+   if (mirror.committed) return { path: relative.path, found: false, error: `no file at ${relative.path} in the checkout` };
+   return callBerry(api, 'delete_file', { path: relative.path });
+}
+
+/**
+ * Moves a file in the checkout. The destination must not exist. When the run
+ * does not commit, the task's saved copy is moved too.
+ */
+async function moveInWorkspace(api: BerryApi, mirror: WorkspaceMirror, input: unknown, context?: ToolContext): Promise<JSONValue> {
+   const { from, to } = (isRecord(input) ? input : {}) as { from?: unknown; to?: unknown };
+   if (typeof from !== 'string' || typeof to !== 'string') return { error: 'move_file needs from and to' };
+   const source = workspacePath(from);
+   if ('error' in source) return { from, to, error: source.error };
+   const destination = workspacePath(to);
+   if ('error' in destination) return { from, to, error: destination.error };
+   if (source.path === destination.path) return { from: source.path, to: destination.path, error: 'from and to are the same path' };
+   const a = inWorkdir(source.path, context);
+   const b = inWorkdir(destination.path, context);
+   const parent = b.includes('/') ? b.slice(0, b.lastIndexOf('/')) : '.';
+   const session = await mirror.session();
+   const exists = await session.exec(`test -f ${shellQuote(a)}`);
+   if (exists.exitCode !== 0) {
+      if (mirror.committed) return { from: source.path, to: destination.path, found: false, error: `no file at ${source.path} in the checkout` };
+      return callBerry(api, 'move_file', { from: source.path, to: destination.path });
+   }
+   const taken = await session.exec(`test -e ${shellQuote(b)} || test -L ${shellQuote(b)}`);
+   if (taken.exitCode === 0) return { from: source.path, to: destination.path, error: `${destination.path} already exists` };
+   const moved = await session.exec(`mkdir -p -- ${shellQuote(parent)} && mv -- ${shellQuote(a)} ${shellQuote(b)}`);
+   if (moved.exitCode !== 0) {
+      const detail = moved.stderr.trim() || `exit ${moved.exitCode}`;
+      mirror.warn?.('move_file could not move the file in the workspace', { from: source.path, to: destination.path, error: detail });
+      return { from: source.path, to: destination.path, error: `not moved in the workspace: ${detail}` };
+   }
+   if (mirror.committed) {
+      return {
+         from: source.path,
+         to: destination.path,
+         moved: true,
+         delivery: 'pending',
+         note: 'Moved in the checkout. Berry commits the move when the run ends.',
+      };
+   }
+   return callBerry(api, 'move_file', { from: source.path, to: destination.path });
+}
+
+function workspacePath(path: string): { path: string } | { error: string } {
+   const relative = insideDirectory(path);
+   if (relative === null) return { error: `${path} is outside the workspace` };
+   const reason = protectedPathReason(relative);
+   return reason === null ? { path: relative } : { error: reason };
+}
+
+/** The checkout when the run has one, else the workspace root, where run_command runs. */
+function inWorkdir(relative: string, context?: ToolContext): string {
+   const workdir = context?.agent.appState.get(WORKDIR_KEY);
+   return typeof workdir === 'string' ? `${workdir}/${relative}` : relative;
 }
 
 function isRecord(value: unknown): value is Record<string, JSONValue> {

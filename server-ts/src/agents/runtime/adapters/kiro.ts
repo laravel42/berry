@@ -7,8 +7,8 @@ import type { Tool } from '@strands-agents/sdk';
 import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
-import { kiroAgentNote, kiroCallAllowed, withKiroAliases } from '../kiro-aliases.ts';
-import { runtimeTurnNote } from '../tool-note.ts';
+import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
+import { runtimeToolNote, runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
    AgentProcessAdapter,
@@ -51,6 +51,8 @@ export interface KiroAdapterOptions {
 interface NormalizationState {
    thinkingChars: number;
    started: Set<string>;
+   /** The tools on the session, so a read alias is recorded as the reader it ran. */
+   tools?: ReadonlySet<string>;
 }
 
 /**
@@ -58,8 +60,9 @@ interface NormalizationState {
  *
  * The login stays in the CLI. Berry starts `acp --agent-engine=v3` with
  * `--auth-method cli` and the workstation home, and does not read or store
- * that credential. Native shell and file tools are denied. Berry tools are
- * the MCP server Kiro is allowed to call. Berry skills live under
+ * that credential. Kiro's own tools are refused at the permission prompt.
+ * Berry's MCP server is the only tool source approved, and it serves Kiro's
+ * built-in names as aliases of Berry tools. Berry skills live under
  * `.berry/skills/`.
  */
 export class KiroAgentAdapter implements AgentProcessAdapter {
@@ -221,9 +224,9 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
-      const sessionTools = withKiroAliases(input.tools);
+      const sessionTools = input.tools;
       const allowed = new Set(sessionTools.map((tool) => tool.name));
-      const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
+      const normalization: NormalizationState = { thinkingChars: 0, started: new Set(), tools: allowed };
       let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
          onUpdate: (params: unknown): void => {
@@ -461,14 +464,33 @@ function initializeParams(): unknown {
 }
 
 /** What a Kiro agent turn is told. Completions stay on the shared no-tools note. */
-function turnNote(kind: string, allowed: ReadonlySet<string>, schema?: unknown): string {
+function turnNote(kind: string, _allowed: ReadonlySet<string>, schema?: unknown): string {
    if (kind === 'completion') return runtimeTurnNote(kind, '', schema);
-   return kiroAgentNote(allowed);
+   return kiroToolNote();
 }
 
-/** Kiro exposes Berry MCP tools as `@berry/<tool>` and its built-ins as aliases of those tools. */
-export function kiroToolNote(allowed: ReadonlySet<string> = new Set()): string {
-   return kiroAgentNote(allowed);
+/**
+ * Kiro exposes Berry MCP tools as `@berry/<tool>`, and Berry serves Kiro's
+ * built-in names there too. The prompt uses the same list as every other
+ * runtime; `list_run_tools` names the aliases this run may call.
+ */
+export function kiroToolNote(_allowed: ReadonlySet<string> = new Set()): string {
+   const note = runtimeToolNote('list_run_tools');
+   return note.endsWith('\n') ? `${note.slice(0, -1)} Do not delegate to a subagent.\n` : `${note} Do not delegate to a subagent.\n`;
+}
+
+/**
+ * Whether a permission request may run: only a tool on Berry's MCP server,
+ * identified by Kiro's MCP identity, whose name is on the run. Kiro's own
+ * tools, subagents and powers are refused, including a built-in whose name
+ * Berry serves as an alias; the alias is approved as Berry's tool instead.
+ */
+export function kiroCallAllowed(params: unknown, allowed: ReadonlySet<string>): boolean {
+   if (!params || typeof params !== 'object') return false;
+   const identity = (params as { _meta?: { kiro?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } } } })
+      ._meta?.kiro?.mcpTool?.identity;
+   if (!identity || identity.serverName !== 'berry' || typeof identity.toolName !== 'string') return false;
+   return allowed.has(identity.toolName);
 }
 
 function berryMcpServer(socketPath: string): unknown {
@@ -741,6 +763,7 @@ export function normalizeKiroUpdate(params: unknown, state: NormalizationState):
       toolCallId?: unknown;
       title?: unknown;
       status?: unknown;
+      rawInput?: unknown;
       _meta?: { kiro?: { replay?: unknown; kind?: unknown } };
    };
    if (body._meta?.kiro?.replay === true) return [];
@@ -765,7 +788,7 @@ export function normalizeKiroUpdate(params: unknown, state: NormalizationState):
          message: {
             kind: 'tool.started',
             toolCallId: body.toolCallId,
-            name: typeof body.title === 'string' && body.title !== '' ? body.title : 'tool',
+            name: recordedName(update, body.rawInput, state.tools),
          },
       }];
    }
@@ -788,4 +811,10 @@ function contentText(content: { type?: unknown; text?: unknown } | Array<{ type?
    if (Array.isArray(content)) return content.map((block) => contentText(block)).join('');
    if (!content || content.type !== 'text' || typeof content.text !== 'string') return '';
    return content.text;
+}
+
+/** The tool's name for the ledger, never its display title: the Berry tool an alias ran. */
+function recordedName(update: unknown, input: unknown, tools?: ReadonlySet<string>): string {
+   const name = acpToolName(update);
+   return name === null ? 'tool' : ledgerToolName('kiro', name, input, tools);
 }

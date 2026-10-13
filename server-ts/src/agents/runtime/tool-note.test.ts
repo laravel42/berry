@@ -9,7 +9,7 @@ test('every runtime is told the same sandbox commands', () => {
    assert.match(claude, /Commands in the sandbox/);
    assert.match(claude, /Run one with run_command/);
    assert.match(claude, /Call list_run_tools to list every tool you may use/);
-   assert.match(claude, /The reply contains the native commands for this runtime plus the sandbox commands/);
+   assert.match(claude, /The reply contains the native tool names Berry serves on this runtime, each with the Berry tool it runs, plus the sandbox commands/);
    assert.doesNotMatch(claude, /shell and file tools are refused/);
    assert.doesNotMatch(claude, /mcp__berry__list_run_tools/);
    assert.doesNotMatch(kiro, /@berry\/list_run_tools/);

@@ -316,3 +316,94 @@ test('a saved file that cannot be read back is reported as failed, not dropped',
    const restored = await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: fetchFiles }, session, join(session.root, 'repo'));
    assert.deepEqual(restored, { placed: [], skipped: [], failed: ['src/a.ts'] });
 });
+
+function berryWithFileTools(calls: Array<{ url: string; body: unknown }>): typeof fetch {
+   return (async (input: string | URL | Request, init?: RequestInit) => {
+      if (!init?.method || init.method === 'GET') {
+         return Response.json({
+            tools: [
+               { name: 'delete_file', description: 'Delete', inputSchema: { type: 'object', properties: { path: { type: 'string' } } } },
+               {
+                  name: 'move_file',
+                  description: 'Move',
+                  inputSchema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' } } },
+               },
+            ],
+         });
+      }
+      calls.push({ url: String(input), body: JSON.parse(String(init.body ?? '{}')) });
+      return Response.json({ result: { ok: true } });
+   }) as typeof fetch;
+}
+
+async function fileTool(session: LocalSession, committed: boolean, name: string, input: Record<string, unknown>) {
+   const calls: Array<{ url: string; body: unknown }> = [];
+   const tools = await loadRemoteTools(
+      { apiUrl: 'https://berry.test', token: 't', fetch: berryWithFileTools(calls) },
+      { session: async () => session, committed }
+   );
+   const agent = new Agent({ model: new ScriptedModel([call(name, input), say('done')]), tools, printer: false });
+   agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
+   await agent.invoke('go');
+   return { calls, result: toolResult(agent) };
+}
+
+test('delete_file and move_file act in the checkout and upload nothing when the run commits', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-remove-')) });
+   await session.writeFile('repo/src/old.ts', 'old\n');
+   await session.writeFile('repo/src/a.ts', 'a\n');
+   const removed = await fileTool(session, true, 'delete_file', { path: 'src/old.ts' });
+   assert.deepEqual(removed.calls, []);
+   assert.equal(removed.result.deleted, true);
+   assert.equal(removed.result.delivery, 'pending');
+   assert.equal((await session.exec('test -e repo/src/old.ts')).exitCode === 0, false);
+
+   const moved = await fileTool(session, true, 'move_file', { from: 'src/a.ts', to: 'lib/b.ts' });
+   assert.deepEqual(moved.calls, []);
+   assert.equal(moved.result.moved, true);
+   assert.equal(await session.readFile('repo/lib/b.ts'), 'a\n');
+
+   await session.writeFile('repo/src/c.ts', 'c\n');
+   const taken = await fileTool(session, true, 'move_file', { from: 'src/c.ts', to: 'lib/b.ts' });
+   assert.match(String(taken.result.error), /lib\/b\.ts already exists/);
+   assert.equal(await session.readFile('repo/src/c.ts'), 'c\n');
+
+   const absent = await fileTool(session, true, 'delete_file', { path: 'src/absent.ts' });
+   assert.equal(absent.result.found, false);
+});
+
+test('without a commit, delete_file and move_file also change the task\'s saved copy', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-remove-')) });
+   await session.writeFile('repo/src/old.ts', 'old\n');
+   await session.writeFile('repo/src/a.ts', 'a\n');
+   const removed = await fileTool(session, false, 'delete_file', { path: 'src/old.ts' });
+   assert.deepEqual(removed.calls, [{ url: 'https://berry.test/api/v1/agent-tools/delete_file', body: { path: 'src/old.ts' } }]);
+   const moved = await fileTool(session, false, 'move_file', { from: 'src/a.ts', to: 'src/b.ts' });
+   assert.deepEqual(moved.calls, [{ url: 'https://berry.test/api/v1/agent-tools/move_file', body: { from: 'src/a.ts', to: 'src/b.ts' } }]);
+   assert.equal(await session.readFile('repo/src/b.ts'), 'a\n');
+});
+
+test('delete_file and move_file never touch .git, .handoffs or anything outside the workspace', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-remove-')) });
+   await session.writeFile('repo/.git/config', 'git\n');
+   await session.writeFile('repo/.handoffs/BER-1 - task', 'note\n');
+   await session.writeFile('repo/src/a.ts', 'a\n');
+   await session.writeFile('outside.txt', 'keep\n');
+   for (const [name, input] of [
+      ['delete_file', { path: '.git/config' }],
+      ['delete_file', { path: '.handoffs/BER-1 - task' }],
+      ['delete_file', { path: '../outside.txt' }],
+      ['move_file', { from: 'src/a.ts', to: '.git/hooks/pre-commit' }],
+      ['move_file', { from: '.handoffs/BER-1 - task', to: 'src/note' }],
+      ['move_file', { from: 'src/a.ts', to: '../escaped.ts' }],
+   ] as const) {
+      const { calls, result } = await fileTool(session, false, name, input);
+      assert.deepEqual(calls, [], `${name} ${JSON.stringify(input)}`);
+      assert.equal(typeof result.error, 'string', `${name} ${JSON.stringify(input)}`);
+   }
+   assert.equal(await session.readFile('repo/.git/config'), 'git\n');
+   assert.equal(await session.readFile('repo/.handoffs/BER-1 - task'), 'note\n');
+   assert.equal(await session.readFile('repo/src/a.ts'), 'a\n');
+   assert.equal(await session.readFile('outside.txt'), 'keep\n');
+   assert.equal((await session.exec('test -e repo/.git/hooks/pre-commit || test -e escaped.ts')).exitCode === 0, false);
+});

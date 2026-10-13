@@ -56,10 +56,14 @@ describe('autonomy ceilings', () => {
       assert.equal(toolCeiling(3).includes('run_command'), true);
    });
 
-   test('editing a file comes with writing one', () => {
+   test('editing, deleting and moving a file come with writing one', () => {
       const writer = { ...base, autonomy_level: 2 as const, allowed_tools: ['write_file', 'read_file'] };
-      assert.deepEqual(effectiveTools(writer), ['edit_file', 'read_file', 'write_file']);
-      assert.equal(effectiveTools({ ...base, allowed_tools: ['read_file'] }).includes('edit_file'), false);
+      assert.deepEqual(effectiveTools(writer), ['delete_file', 'edit_file', 'move_file', 'read_file', 'write_file']);
+      const reader = effectiveTools({ ...base, allowed_tools: ['read_file'] });
+      for (const tool of ['edit_file', 'delete_file', 'move_file']) assert.equal(reader.includes(tool), false, tool);
+      // A ceiling without write_file has none of them, whatever the contract lists.
+      const capped = effectiveTools({ ...base, autonomy_level: 1, allowed_tools: ['write_file', 'delete_file', 'move_file'] });
+      assert.deepEqual(capped, []);
    });
 
    test('effective tools are the allowed tools inside the ceiling', () => {

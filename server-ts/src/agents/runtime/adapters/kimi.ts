@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { KIMI_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { classifyKimiText, KimiAcpClient, spawnKimiProcess, type KimiChild, type KimiSpawn } from './kimi-acp.ts';
+import { acpToolName, hasBerryQualifier, isNativeToolName, ledgerToolName, stripBerryQualifier } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -47,6 +48,8 @@ export interface KimiAdapterOptions {
 interface NormalizationState {
    thinkingChars: number;
    started: Set<string>;
+   /** The tools on the session, so a read alias is recorded as the reader it ran. */
+   tools?: ReadonlySet<string>;
 }
 
 /**
@@ -201,7 +204,7 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
       const allowed = new Set(input.tools.map((tool) => tool.name));
-      const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
+      const normalization: NormalizationState = { thinkingChars: 0, started: new Set(), tools: allowed };
       let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
          onUpdate: (params: unknown): void => {
@@ -530,8 +533,11 @@ export function selectKimiPermission(
    allowed: ReadonlySet<string>
 ): { outcome: { outcome: 'selected'; optionId: string } } {
    const options = permissionOptions(params);
-   const toolName = berryToolName(params);
-   const permit = toolName !== null && allowed.has(toolName);
+   const resolved = berryToolName(params);
+   // A bare native name may be Kimi's own tool, even when Berry serves an
+   // alias of the same name, so only a Berry-identified call approves it.
+   const permit =
+      resolved !== null && allowed.has(resolved.name) && (resolved.qualified || !isNativeToolName('kimi', resolved.name));
    const kind = permit ? 'allow_once' : 'reject_once';
    const chosen =
       options.find((option) => option.kind === kind) ??
@@ -573,7 +579,7 @@ const BERRY_MCP_SERVER = 'berry';
  * non-`berry` server is rejected outright; otherwise the standard
  * `toolCall.name`/`title` is used, with a `berry` server qualifier stripped.
  */
-function berryToolName(params: unknown): string | null {
+function berryToolName(params: unknown): { name: string; qualified: boolean } | null {
    if (!params || typeof params !== 'object') return null;
    const record = params as {
       toolCall?: { title?: unknown; name?: unknown };
@@ -588,7 +594,7 @@ function berryToolName(params: unknown): string | null {
    const identity = record._meta?.mcpTool?.identity ?? record._meta?.kiro?.mcpTool?.identity;
    if (identity && typeof identity.serverName === 'string') {
       if (identity.serverName !== BERRY_MCP_SERVER) return null;
-      return typeof identity.toolName === 'string' && identity.toolName !== '' ? identity.toolName : null;
+      return typeof identity.toolName === 'string' && identity.toolName !== '' ? { name: identity.toolName, qualified: true } : null;
    }
 
    // Standard ACP shape: resolve from the tool call's programmatic name, then
@@ -596,23 +602,7 @@ function berryToolName(params: unknown): string | null {
    const raw =
       (typeof record.toolCall?.name === 'string' && record.toolCall.name !== '' ? record.toolCall.name : null) ??
       (typeof record.toolCall?.title === 'string' && record.toolCall.title !== '' ? record.toolCall.title : null);
-   return raw === null ? null : stripBerryQualifier(raw);
-}
-
-/**
- * MCP clients name a server's tool in several forms. Strip a leading `berry`
- * server qualifier so the bare tool name can be checked against the allow-set;
- * a name with a different server qualifier is left unchanged and will miss the
- * allow-set.
- */
-function stripBerryQualifier(name: string): string {
-   for (const sep of ['__', '/', '.', ':']) {
-      const prefix = `${BERRY_MCP_SERVER}${sep}`;
-      if (name.startsWith(prefix)) return name.slice(prefix.length);
-   }
-   const mcpPrefix = `mcp__${BERRY_MCP_SERVER}__`;
-   if (name.startsWith(mcpPrefix)) return name.slice(mcpPrefix.length);
-   return name;
+   return raw === null ? null : { name: stripBerryQualifier(raw), qualified: hasBerryQualifier(raw) };
 }
 
 function promptContext(input: AgentProcessRun): string {
@@ -638,6 +628,7 @@ export function normalizeKimiUpdate(params: unknown, state: NormalizationState):
       toolCallId?: unknown;
       title?: unknown;
       status?: unknown;
+      rawInput?: unknown;
       _meta?: { replay?: unknown };
    };
    if (body._meta?.replay === true) return [];
@@ -661,7 +652,7 @@ export function normalizeKimiUpdate(params: unknown, state: NormalizationState):
             message: {
                kind: 'tool.started',
                toolCallId: body.toolCallId,
-               name: typeof body.title === 'string' && body.title !== '' ? body.title : 'tool',
+               name: recordedName(update, body.rawInput, state.tools),
             },
          },
       ];
@@ -684,4 +675,10 @@ function contentText(
    if (Array.isArray(content)) return content.map((block) => contentText(block)).join('');
    if (!content || content.type !== 'text' || typeof content.text !== 'string') return '';
    return content.text;
+}
+
+/** The tool's name for the ledger, never its display title: the Berry tool an alias ran. */
+function recordedName(update: unknown, input: unknown, tools?: ReadonlySet<string>): string {
+   const name = acpToolName(update);
+   return name === null ? 'tool' : ledgerToolName('kimi', name, input, tools);
 }

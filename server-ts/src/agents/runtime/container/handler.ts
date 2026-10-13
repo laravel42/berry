@@ -7,7 +7,7 @@ import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { runCommandTool, WORKDIR_KEY } from '../command-tool.ts';
-import { withKiroAliases } from '../kiro-aliases.ts';
+import { withRuntimeAliases } from '../runtime-aliases.ts';
 import { pageTools } from '../page-tools.ts';
 import { repositoryTools } from '../repository-tools.ts';
 import { readSkillTool } from '../skill-tool.ts';
@@ -561,9 +561,9 @@ function restoreFailed(cause: unknown): RestoredFiles {
    return { placed: [], skipped: [], error: cause instanceof Error ? cause.message : String(cause) };
 }
 
-/** Kiro's built-in names, added beside the Berry tools this run already admitted. */
+/** The runtime's native names, routed to the Berry tools this run already admitted. */
 function sessionTools(runtimeId: string, tools: Tool[]): Tool[] {
-   return runtimeId === 'kiro' ? withKiroAliases(tools) : tools;
+   return withRuntimeAliases(runtimeId, tools);
 }
 
 /**

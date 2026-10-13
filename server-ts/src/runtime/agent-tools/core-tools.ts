@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPath, BerryArtifactService } from '../../agents/artifact-service.ts';
 import { applyFileEdit } from '../../agents/edit-file.ts';
+import { insideDirectory, protectedPathReason } from '../../agents/workspace-files.ts';
 import { postRunResult } from '../../runs/result-comment.ts';
 import { enqueueTask } from '../../runs/queue.ts';
 import { ApiError } from '../../http/errors.ts';
@@ -201,6 +202,14 @@ async function artifactsOf(context: AgentToolContext, issueId: string = issueOf(
       clock: () => new Date(),
       newId: randomUUID,
    });
+}
+
+/** A path delete_file and move_file may touch, normalized, or why not. */
+export function removablePath(path: string): { path: string } | { error: string } {
+   const relative = insideDirectory(artifactPath(path));
+   if (relative === null) return { error: `${path} is outside the workspace` };
+   const reason = protectedPathReason(relative);
+   return reason === null ? { path: relative } : { error: reason };
 }
 
 /**
@@ -525,6 +534,44 @@ export function registerCoreAgentTools(): void {
             artifact: { text: edited.content },
          });
          return savedOnTask(artifact);
+      },
+   });
+
+   registerAgentTool('delete_file', {
+      description:
+         'Delete a file saved on this task, by path. A file in the checkout is removed there, and the removal is part of ' +
+         'what the run delivers. Nothing inside .git or under .handoffs/ can be deleted.',
+      scope: 'task:write',
+      inputSchema: z.object({ path: artifactPathSchema }),
+      handler: async (context, input) => {
+         const path = removablePath(input.path);
+         if ('error' in path) return { path: input.path, error: path.error };
+         const removed = await (await artifactsOf(context)).deleteFromTask(path.path);
+         return removed === 0 ? { path: path.path, found: false } : { path: path.path, deleted: true };
+      },
+   });
+
+   registerAgentTool('move_file', {
+      description:
+         'Move or rename a file saved on this task, from `from` to `to`. A file in the checkout is moved there. ' +
+         'The destination must not exist yet. Nothing inside .git or under .handoffs/ can be moved, or moved there.',
+      scope: 'task:write',
+      inputSchema: z.object({ from: artifactPathSchema, to: artifactPathSchema }),
+      handler: async (context, input) => {
+         const from = removablePath(input.from);
+         if ('error' in from) return { from: input.from, to: input.to, error: from.error };
+         const to = removablePath(input.to);
+         if ('error' in to) return { from: input.from, to: input.to, error: to.error };
+         if (from.path === to.path) return { from: from.path, to: to.path, error: 'from and to are the same path' };
+         const artifacts = await artifactsOf(context);
+         const part = await artifacts.loadArtifact({ filename: from.path });
+         if (!part?.inlineData?.data) return { from: from.path, to: to.path, found: false };
+         if (await artifacts.loadArtifact({ filename: to.path })) {
+            return { from: from.path, to: to.path, error: `${to.path} already exists` };
+         }
+         const artifact = await artifacts.saveArtifactReceipt({ filename: to.path, artifact: part });
+         await artifacts.deleteFromTask(from.path);
+         return { from: from.path, ...savedOnTask(artifact), moved: true };
       },
    });
 

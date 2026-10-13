@@ -10,15 +10,19 @@
  * - https://docs.qoder.com/cli/permissions
  *
  * Names are the runtime tool names from the TypeScript SDK reference
- * built-in tool table, plus Skill from the skills guide. This file is a
- * standalone dictionary. Nothing in the server imports it.
+ * built-in tool table, plus Skill from the skills guide. An entry with a
+ * `route` is served on Berry's MCP server under its name.
  */
+
+import type { AliasRoute } from './route.ts';
 
 export interface QoderAliasEntry {
    /** Runtime names the model can call. The first name is the documented one. */
    readonly names: readonly string[];
    /** Berry tools this call faithfully stands for. Empty when none do. */
    readonly admits: readonly string[];
+   /** How Berry serves this name on its MCP server. Absent when the runtime runs it itself. */
+   readonly route?: AliasRoute;
    readonly description: string;
    readonly source: string;
    readonly notes?: string;
@@ -35,12 +39,14 @@ const LIST = ['browse_repository', 'list_files'] as const;
 export const QODER_ALIAS_DICTIONARY: readonly QoderAliasEntry[] = [
    {
       names: ['Bash'],
+      route: 'shell',
       admits: ['run_command'],
       description: 'Execute a shell command.',
       source: TYPESCRIPT_TOOLS,
    },
    {
       names: ['Read'],
+      route: 'read',
       admits: READ,
       description: 'Read a file in the workspace.',
       source: TYPESCRIPT_TOOLS,
@@ -48,24 +54,28 @@ export const QODER_ALIAS_DICTIONARY: readonly QoderAliasEntry[] = [
    },
    {
       names: ['Edit'],
+      route: 'replace',
       admits: ['edit_file'],
       description: 'Edit a file by replacing an exact string.',
       source: TYPESCRIPT_TOOLS,
    },
    {
       names: ['Write'],
+      route: 'write',
       admits: ['write_file'],
       description: 'Create a file or overwrite its contents.',
       source: TYPESCRIPT_TOOLS,
    },
    {
       names: ['Glob'],
+      route: 'glob',
       admits: LIST,
       description: 'Find files by name pattern.',
       source: TYPESCRIPT_TOOLS,
    },
    {
       names: ['Grep'],
+      route: 'grep',
       admits: ['run_command'],
       description: 'Search file contents by regular expression.',
       source: TYPESCRIPT_TOOLS,
@@ -73,6 +83,7 @@ export const QODER_ALIAS_DICTIONARY: readonly QoderAliasEntry[] = [
    },
    {
       names: ['WebFetch'],
+      route: 'fetch',
       admits: ['fetch_url'],
       description: 'Fetch a URL and process the page.',
       source: TYPESCRIPT_TOOLS,

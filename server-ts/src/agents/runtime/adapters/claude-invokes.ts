@@ -1,5 +1,6 @@
 import type { Tool } from '@strands-agents/sdk';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
+import { ledgerToolName } from '../runtime-aliases.ts';
 import { invokeStrandsTool, stringifyToolResult } from './kiro-mcp.ts';
 
 /**
@@ -48,6 +49,7 @@ export function proseBesideInvokes(text: string): string {
    return text.replace(INVOKE, '').trim();
 }
 
+/** A Berry tool, or a Claude built-in name Berry serves as an alias of one. */
 function toolNamed(tools: Tool[], name: string): Tool | undefined {
    const bare = name.replace(/^mcp__berry__/, '');
    return tools.find((tool) => tool.name === name || tool.name === bare);
@@ -72,8 +74,9 @@ export async function resumeAfterLeakedInvokes(
    const results: string[] = [];
    for (const [index, call] of invokes.entries()) {
       const toolCallId = `leaked-${round + 1}-${index + 1}`;
-      emit({ type: 'task.message', message: { kind: 'tool.started', toolCallId, name: call.name } });
       const tool = toolNamed(tools, call.name);
+      const name = tool ? ledgerToolName('claude', call.name, call.input) : call.name;
+      emit({ type: 'task.message', message: { kind: 'tool.started', toolCallId, name } });
       let text: string;
       let succeeded = true;
       if (!tool) {

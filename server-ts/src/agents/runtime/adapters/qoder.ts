@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { QODER_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
+import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
 import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -48,6 +49,8 @@ export interface QoderAdapterOptions {
 interface NormalizationState {
    thinkingChars: number;
    started: Set<string>;
+   /** The tools on the session, so a read alias is recorded as the reader it ran. */
+   tools?: ReadonlySet<string>;
 }
 
 /**
@@ -240,7 +243,7 @@ export class QoderAgentAdapter implements AgentProcessAdapter {
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
       const allowed = new Set(input.tools.map((tool) => tool.name));
-      const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
+      const normalization: NormalizationState = { thinkingChars: 0, started: new Set(), tools: allowed };
       let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
          onUpdate: (params: unknown): void => {
@@ -549,11 +552,16 @@ function permissionOptions(params: unknown): Array<{ optionId: string; kind: str
    });
 }
 
+/**
+ * Only a Berry-qualified title approves a call. Berry serves Qoder's built-in
+ * names (Bash, Read, …) as aliases, and a bare `Bash` may be Qoder's own
+ * tool, so it never matches here; `berry/Bash` is the routed alias.
+ */
 function berryToolName(params: unknown): string | null {
    if (!params || typeof params !== 'object') return null;
    const title = (params as { toolCall?: { title?: unknown } }).toolCall?.title;
    if (typeof title === 'string') {
-      const match = title.match(/berry[\/.]([A-Za-z0-9_]+)/);
+      const match = title.match(/(?:^|[^A-Za-z0-9_])berry[\/.]([A-Za-z0-9_]+)/);
       if (match) return match[1] ?? null;
    }
    return null;
@@ -570,6 +578,7 @@ export function normalizeQoderUpdate(params: unknown, state: NormalizationState)
       toolCallId?: unknown;
       title?: unknown;
       status?: unknown;
+      rawInput?: unknown;
    };
    const kind = body.sessionUpdate;
    if (kind === 'agent_message_chunk') {
@@ -590,7 +599,7 @@ export function normalizeQoderUpdate(params: unknown, state: NormalizationState)
          message: {
             kind: 'tool.started',
             toolCallId: body.toolCallId,
-            name: typeof body.title === 'string' && body.title !== '' ? body.title : 'tool',
+            name: recordedName(update, body.rawInput, state.tools),
          },
       }];
    }
@@ -608,4 +617,10 @@ function contentText(content: { type?: unknown; text?: unknown } | Array<{ type?
    if (Array.isArray(content)) return content.map((block) => contentText(block)).join('');
    if (!content || content.type !== 'text' || typeof content.text !== 'string') return '';
    return content.text;
+}
+
+/** The tool's name for the ledger, never its display title: the Berry tool an alias ran. */
+function recordedName(update: unknown, input: unknown, tools?: ReadonlySet<string>): string {
+   const name = acpToolName(update);
+   return name === null ? 'tool' : ledgerToolName('qoder', name, input, tools);
 }
