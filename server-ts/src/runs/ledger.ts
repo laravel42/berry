@@ -496,7 +496,8 @@ export class RunLedger {
    }
 
    /**
-    * Terminal success: usage, the summary, and the task moved to review.
+    * Terminal success: usage, the summary, and the task moved to review — or
+    * left blocked, when the agent blocked it during the run.
     *
     * Three events in one transaction — usage, completion, and the issue update
     * that tells every open board the task moved. Splitting them would let a
@@ -537,10 +538,13 @@ export class RunLedger {
              WHERE id = ${params.runId}`;
 
          // Guarded on active_run_id so a run that is no longer the issue's
-         // active one cannot move a task someone else already moved.
+         // active one cannot move a task someone else already moved. A task
+         // the agent blocked during the run is waiting on someone, not ready
+         // for review, so it is released and stays blocked.
          const reviewed = await tx`
             UPDATE issues
-               SET status = 'in_review', active_run_id = NULL, updated_at = ${now}
+               SET status = CASE WHEN status = 'blocked' THEN status ELSE 'in_review'::issue_status END,
+                   active_run_id = NULL, updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
          if (reviewed.length > 0 && run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);

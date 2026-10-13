@@ -44,6 +44,23 @@ test('a followup tick runs a bounded batch concurrently', async () => {
    assert.equal(reviewed.length, 8);
 });
 
+test('a run that left its task blocked schedules no review', async () => {
+   const schedule = async (status: string) => {
+      const inserts: string[] = [];
+      const sql = (async (strings: TemplateStringsArray) => {
+         const query = strings.join('');
+         if (query.includes('INSERT INTO run_followups')) inserts.push(query);
+         if (query.includes('SELECT issue.auto_gate')) return [{ auto_gate: true, status }];
+         return [];
+      }) as unknown as Sql;
+      await scheduleReview(sql, 'run-1');
+      return inserts.length;
+   };
+
+   assert.equal(await schedule('blocked'), 0, 'a blocked task is waiting on someone; AutoGate must not review it');
+   assert.equal(await schedule('in_progress'), 1, 'a task the run worked is reviewed as before');
+});
+
 describe('durable run followups', { skip: !process.env.BERRY_TEST_DATABASE_URL }, () => {
    let sql: Sql;
    let fixture: Fixture | null = null;
@@ -64,6 +81,15 @@ describe('durable run followups', { skip: !process.env.BERRY_TEST_DATABASE_URL }
       await worker().tick();
       await worker().tick();
       assert.equal(reviewed, 1);
+   });
+   test('a gated task its run blocked gets no review followup', async () => {
+      assert.ok(fixture);
+      const issueId = await createIssue(sql, fixture);
+      const { runId } = await enqueueTask(sql, { workspaceId: fixture.workspaceId, issueId, agentId: fixture.agentId, kind: 'agent', source: 'assignment' });
+      await sql`UPDATE issues SET auto_gate = true, status = 'blocked' WHERE id = ${issueId}`;
+      await scheduleReview(sql, runId);
+      const rows = await sql`SELECT id FROM run_followups WHERE run_id = ${runId}`;
+      assert.equal(rows.length, 0);
    });
    test('duplicate mentions create exactly one downstream run', async () => {
       assert.ok(fixture);

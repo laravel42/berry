@@ -232,6 +232,33 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       await sql`UPDATE issues SET active_run_id = ${second} WHERE id = ${issueId}`;
    });
 
+   test('a run that blocked its task succeeds without moving it to review', async () => {
+      const { runId, issueId } = await createRun(sql, fixture, null);
+      await ledger.claimDispatch(runId);
+      await ledger.markRunning(runId);
+      // What set_status or escalate leaves behind: blocked, the run still active.
+      await sql`UPDATE issues SET status = 'blocked' WHERE id = ${issueId}`;
+      await ledger.completeSuccess({
+         runId,
+         summary: 'Waiting on the API key.',
+         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null },
+      });
+
+      const [run] = await sql`SELECT status::text AS status FROM runs WHERE id = ${runId}`;
+      assert.equal(run!.status, 'succeeded');
+      const [issue] = await sql`
+         SELECT status::text AS status, active_run_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(issue!.status, 'blocked', 'a blocked task is waiting on someone, not ready for review');
+      assert.equal(issue!.active_run_id, null, 'the task is still released for the next run');
+
+      const [event] = await sql`
+         SELECT payload FROM outbox_events
+          WHERE topic = 'issue.updated' AND payload->>'runId' = ${runId}
+          ORDER BY occurred_at DESC LIMIT 1`;
+      const payload = (event!.payload as Record<string, Record<string, unknown>>).payload!;
+      assert.equal((payload.issue as Record<string, unknown>).status, 'blocked');
+   });
+
    test('running the task again takes it out of review; a question to someone else does not', async () => {
       const start = async (source: string, assigned: boolean) => {
          const { runId, issueId } = await createRun(sql, fixture, null);
