@@ -87,13 +87,43 @@ function berryWithWriteFile(calls: string[], answer: () => Response): typeof fet
    }) as typeof fetch;
 }
 
-test('write_file lands in the checkout and does not upload', async () => {
+/** What the model was handed back by the one tool call in a run. */
+function toolResult(agent: Agent): Record<string, unknown> {
+   for (const message of agent.messages) {
+      for (const block of message.content) {
+         if (block.type !== 'toolResultBlock') continue;
+         const [first] = block.content;
+         if (first?.type === 'jsonBlock') return first.json as Record<string, unknown>;
+         if (first?.type === 'textBlock') return JSON.parse(first.text) as Record<string, unknown>;
+      }
+   }
+   throw new Error('no tool result');
+}
+
+async function writeOnce(committed: boolean | undefined, answer: () => Response): Promise<{ calls: string[]; session: LocalSession; result: Record<string, unknown> }> {
+   const calls: string[] = [];
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-mirror-')) });
+   const tools = await loadRemoteTools(
+      { apiUrl: 'https://berry.test', token: 't', fetch: berryWithWriteFile(calls, answer) },
+      { session: async () => session, ...(committed === undefined ? {} : { committed }) }
+   );
+   const agent = new Agent({
+      model: new ScriptedModel([call('write_file', { path: 'docs/brief.md', content: '# Brief\n' }), say('done')]),
+      tools,
+      printer: false,
+   });
+   agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
+   await agent.invoke('go');
+   return { calls, session, result: toolResult(agent) };
+}
+
+test('write_file on a run that commits lands in the checkout, does not upload, and says delivery is pending', async () => {
    const calls: string[] = [];
    const saved = () => Response.json({ result: { path: 'server/a.ts', version: 1, saved: true } });
    const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-mirror-')) });
    const tools = await loadRemoteTools(
       { apiUrl: 'https://berry.test', token: 't', fetch: berryWithWriteFile(calls, saved) },
-      { session: async () => session }
+      { session: async () => session, committed: true }
    );
    const content = 'const a = 1;\n\ttabbed — ünïcode\n';
    const agent = new Agent({
@@ -106,9 +136,40 @@ test('write_file lands in the checkout and does not upload', async () => {
    assert.deepEqual(calls, []);
    assert.equal(await session.readFile('repo/server/a.ts'), content);
    assert.equal((await session.exec('cat server/a.ts', { cwd: 'repo' })).stdout, content);
+   const result = toolResult(agent);
+   assert.equal(result.savedOnTask, false);
+   assert.equal(result.delivery, 'pending');
+   assert.equal('artifact' in result, false);
+   assert.match(String(result.note), /commits the checkout when the run ends/);
 });
 
-test('edit_file replaces one span in the checkout and does not upload', async () => {
+test('write_file on a run that commits nothing is also saved on the task, with the artifact id', async () => {
+   const { calls, session, result } = await writeOnce(undefined, () =>
+      Response.json({ result: { path: 'docs/brief.md', version: 0, saved: true, artifact: { id: 'art-7', path: 'docs/brief.md', version: 0 } } })
+   );
+   assert.deepEqual(calls, ['https://berry.test/api/v1/agent-tools/write_file']);
+   assert.equal(await session.readFile('repo/docs/brief.md'), '# Brief\n');
+   assert.equal(result.savedOnTask, true);
+   assert.deepEqual(result.artifact, { id: 'art-7', path: 'docs/brief.md', version: 0 });
+   assert.match(String(result.note), /Saved on this task/);
+});
+
+test('a refused or unconfirmed save is reported as not saved on the task, not as saved', async () => {
+   for (const answer of [
+      () => Response.json({ error: { message: 'this deployment has no file storage' } }, { status: 503 }),
+      () => Response.json({ result: { path: 'docs/brief.md', saved: true } }),
+   ]) {
+      const { result, session } = await writeOnce(false, answer);
+      assert.equal(result.savedOnTask, false);
+      assert.match(String(result.error), /^Written into the workspace but not saved on the task/);
+      assert.match(String(result.error), /do not report it as attached/);
+      assert.equal(await session.readFile('repo/docs/brief.md'), '# Brief\n');
+   }
+   const { result } = await writeOnce(false, () => Response.json({ error: { message: 'no file storage' } }, { status: 503 }));
+   assert.match(String(result.error), /no file storage/);
+});
+
+test('edit_file replaces one span in the checkout and does not upload when the run commits', async () => {
    const calls: string[] = [];
    const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-edit-')) });
    await session.writeFile('repo/server/a.ts', 'const a = 1;\n');
@@ -130,16 +191,23 @@ test('edit_file replaces one span in the checkout and does not upload', async ()
       calls.push(String(input));
       return Response.json({ result: { saved: true } });
    }) as typeof fetch;
-   const tools = await loadRemoteTools({ apiUrl: 'https://berry.test', token: 't', fetch: fetchEdit }, { session: async () => session });
-   const agent = new Agent({
-      model: new ScriptedModel([call('edit_file', { path: 'server/a.ts', old: 'const a = 1;', new: 'const a = 2;' }), say('done')]),
-      tools,
-      printer: false,
-   });
-   agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
-   await agent.invoke('go');
+   const edit = async (committed: boolean) => {
+      const tools = await loadRemoteTools({ apiUrl: 'https://berry.test', token: 't', fetch: fetchEdit }, { session: async () => session, committed });
+      const agent = new Agent({
+         model: new ScriptedModel([call('edit_file', { path: 'server/a.ts', old: 'const a = 1;', new: 'const a = 2;' }), say('done')]),
+         tools,
+         printer: false,
+      });
+      agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
+      await agent.invoke('go');
+   };
+   await edit(true);
    assert.deepEqual(calls, []);
    assert.equal(await session.readFile('repo/server/a.ts'), 'const a = 2;\n');
+   // Uncommitted, the edited file is saved on the task whole: the task may not hold it yet.
+   await session.writeFile('repo/server/a.ts', 'const a = 1;\n');
+   await edit(false);
+   assert.deepEqual(calls, ['https://berry.test/api/v1/agent-tools/write_file']);
 });
 
 test('write_file never writes outside the workspace', async () => {
@@ -209,8 +277,19 @@ test('saved work the branch does not have is put back; what the branch has is ne
    const note = restoredNote(restored);
    assert.match(note, /put 2 files saved on this task/);
    assert.match(note, /0009_prompts\.up\.sql/);
-   assert.match(note, /Not restored \(binary or too large\): .*diagram\.png/);
-   assert.equal(restoredNote({ placed: [], skipped: ['x'] }), '');
+   assert.match(note, /not restored \(binary or too large\): .*diagram\.png/);
+   assert.equal(restoredNote({ placed: [], skipped: [] }), '');
+});
+
+test('what could not be checked or placed is reported even when nothing was restored', () => {
+   const skipped = restoredNote({ placed: [], skipped: ['docs/diagram.png'] });
+   assert.match(skipped, /missing from the branch, and not in your checkout: not restored \(binary or too large\): docs\/diagram\.png/);
+   assert.doesNotMatch(skipped, /Berry put/);
+   const failed = restoredNote({ placed: [], skipped: [], failed: ['src/a.ts'] });
+   assert.match(failed, /could not be read from the task or written into the checkout: src\/a\.ts/);
+   const refused = restoredNote({ placed: [], skipped: [], error: "Berry did not list the task's saved files: no" });
+   assert.match(refused, /could not check this task's saved files against your checkout: Berry did not list/);
+   assert.match(restoredNote({ placed: [], skipped: [], unchecked: 12 }), /12 more files are saved on this task/);
 });
 
 test('a task with no saved files, or a Berry that will not list them, restores nothing', async () => {
@@ -219,5 +298,21 @@ test('a task with no saved files, or a Berry that will not list them, restores n
    const none = await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: berryWithFiles({}, []) }, session, join(session.root, 'repo'));
    assert.deepEqual(none, { placed: [], skipped: [] });
    const refusing = (async () => Response.json({ error: { message: 'no' } }, { status: 403 })) as unknown as typeof fetch;
-   assert.deepEqual(await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: refusing }, session, join(session.root, 'repo')), { placed: [], skipped: [] });
+   assert.deepEqual(await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: refusing }, session, join(session.root, 'repo')), {
+      placed: [],
+      skipped: [],
+      error: "Berry did not list the task's saved files: no",
+   });
+});
+
+test('a saved file that cannot be read back is reported as failed, not dropped', async () => {
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-restore-')) });
+   await session.exec('mkdir -p repo');
+   const fetchFiles = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/list_files')) return Response.json({ result: { files: ['src/a.ts'] } });
+      return Response.json({ error: { message: 'storage is down' } }, { status: 503 });
+   }) as unknown as typeof fetch;
+   const restored = await restoreTaskFiles({ apiUrl: 'https://b', token: 't', fetch: fetchFiles }, session, join(session.root, 'repo'));
+   assert.deepEqual(restored, { placed: [], skipped: [], failed: ['src/a.ts'] });
 });

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile, rm } from 'node:fs/promis
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LocalSession } from './local-session.ts';
-import { isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository } from './snapshot-repository.ts';
+import { isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository, toolchainPins } from './snapshot-repository.ts';
 import { sampleEnvelope } from '../../../runtime/envelope.test.ts';
 import { shellQuote } from '../../checkout.ts';
 
@@ -162,4 +162,46 @@ test('a crash dump is known by its ELF header, not by being named core', () => {
    assert.equal(isCoreDump(header(4, true)), true, 'ET_CORE, big-endian');
    assert.equal(isCoreDump(header(2)), false, 'an executable');
    assert.equal(isCoreDump(new TextEncoder().encode('export const core = 1;\n')), false, 'source');
+});
+
+test('a Node pin is found in any file that can hold one, before the repository is called unpinned', () => {
+   assert.deepEqual(toolchainPins({ packageJson: '{}', nvmrc: 'v20.11.1\n' }).node, { source: '.nvmrc', version: 'v20.11.1', exact: true });
+   assert.deepEqual(toolchainPins({ packageJson: '{}', nodeVersion: '22\n' }).node, { source: '.node-version', version: '22', exact: true });
+   assert.deepEqual(toolchainPins({ packageJson: '{}', toolVersions: 'python 3.12.1\nnodejs 20.10.0\n' }).node, { source: '.tool-versions', version: '20.10.0', exact: true });
+   assert.deepEqual(toolchainPins({ packageJson: '{"volta":{"node":"18.19.0"}}' }).node, { source: "package.json's volta.node", version: '18.19.0', exact: true });
+   assert.deepEqual(toolchainPins({ packageJson: '{"engines":{"node":">=20"}}' }).node, { source: "package.json's engines.node", version: '>=20', exact: false });
+   // The most specific pin wins over a range.
+   assert.equal(toolchainPins({ packageJson: '{"engines":{"node":">=18"}}', nvmrc: '20' }).node?.source, '.nvmrc');
+   assert.equal(toolchainPins({ packageJson: '{}', nvmrc: '\n' }).node, undefined);
+   assert.equal(toolchainPins({ packageJson: 'not json' }).node, undefined);
+});
+
+test("package.json's packageManager names the manager and its version", () => {
+   assert.deepEqual(toolchainPins({ packageJson: '{"packageManager":"pnpm@9.1.0+sha512.abc"}' }).manager, { name: 'pnpm', version: '9.1.0' });
+   assert.deepEqual(toolchainPins({ packageJson: '{"packageManager":"yarn"}' }).manager, { name: 'yarn', version: null });
+   assert.equal(toolchainPins({ packageJson: '{"packageManager":"deno@2"}' }).manager, undefined);
+   assert.equal(toolchainPins({ packageJson: '{}' }).manager, undefined);
+});
+
+test('a checkout with no lockfile follows packageManager, and an engines range is reported, not called unpinned', async (t) => {
+   const root = await mkdtemp(join(tmpdir(), 'berry-snapshot-test-'));
+   t.after(() => rm(root, { recursive: true, force: true }));
+   const session = new LocalSession({ id: 'test', root: join(root, 'workspace') });
+   await mkdir(join(root, 'source'), { recursive: true });
+   await writeFile(join(root, 'source', 'package.json'), '{"packageManager":"pnpm@9.1.0","engines":{"node":">=20"}}');
+   const path = join(root, 'archive.tar.gz');
+   assert.equal((await session.exec(`tar -czf ${shellQuote(path)} -C ${shellQuote(root)} source`)).exitCode, 0);
+   const archive = await readFile(path);
+   const repository = snapshotRepository({ fetch: (async () => new Response(archive)) as typeof fetch });
+   const envelope = sampleEnvelope({ repo: {
+      fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
+      credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
+   } });
+   const directory = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   assert.ok(directory);
+   const note = await repository.describe!({ session, directory });
+   assert.match(note, /Packages: pnpm 9\.1\.0, from package\.json's packageManager/);
+   assert.match(note, /engines\.node asks for >=20/);
+   assert.doesNotMatch(note, /pins no version/);
+   assert.match(note, /Run pnpm install when the task needs/);
 });

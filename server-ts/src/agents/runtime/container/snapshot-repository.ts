@@ -229,28 +229,44 @@ const INSTALL_ONCE =
  * `test -d node_modules`, one reply each, in a third of all runs.
  */
 async function describeToolchain(session: LocalSession, directory: string, carried: boolean): Promise<string> {
-   if ((await readRegularFile(join(directory, 'package.json'))) === null) return '';
+   const manifest = await readRegularFile(join(directory, 'package.json'));
+   if (manifest === null) return '';
    const lockfiles = (await Promise.all(LOCKFILES.map(async (entry) => (await lstat(join(directory, entry[0])).then((i) => i.isFile(), () => false)) ? entry : null)))
       .filter((entry) => entry !== null);
    const lock = lockfiles[0];
-   const manager: PackageManager = lock?.[1] ?? 'npm';
+   const pins = toolchainPins({
+      packageJson: manifest,
+      nvmrc: await readRegularFile(join(directory, '.nvmrc')),
+      nodeVersion: await readRegularFile(join(directory, '.node-version')),
+      toolVersions: await readRegularFile(join(directory, '.tool-versions')),
+   });
+   const declared = pins.manager;
+   const manager: PackageManager = lock?.[1] ?? declared?.name ?? 'npm';
    const lines: string[] = [];
+   const named = declared ? `${declared.name}${declared.version ? ` ${declared.version}` : ''}` : '';
    lines.push(
       lock
-         ? `- Packages: ${manager}, from the committed ${lock[0]}. Install, build and test with it.`
-         : '- Packages: no lockfile is committed; npm is the default.'
+         ? `- Packages: ${manager}, from the committed ${lock[0]}. Install, build and test with it.` +
+              (declared && declared.name === manager && declared.version ? ` package.json's packageManager pins ${named}.` : '') +
+              (declared && declared.name !== manager ? ` package.json's packageManager names ${named}, but the committed lockfile is ${manager}'s; follow the lockfile.` : '')
+         : declared
+           ? `- Packages: ${named}, from package.json's packageManager. No lockfile is committed.`
+           : '- Packages: no lockfile is committed and package.json names no packageManager; npm is the default.'
    );
-   const nvmrc = (await readRegularFile(join(directory, '.nvmrc')))?.split('\n')[0]?.trim() ?? '';
-   if (nvmrc === '') {
-      lines.push(`- Node: ${process.versions.node}; the repository pins no version.`);
+   const node = pins.node;
+   if (!node) {
+      lines.push(`- Node: ${process.versions.node}; the repository pins no version (no .nvmrc, .node-version, .tool-versions, volta or engines entry).`);
+   } else if (!node.exact) {
+      lines.push(`- Node: ${process.versions.node}. ${node.source} asks for ${node.version}; if that range excludes this version, run nvm install with one it allows before anything that needs it.`);
    } else {
-      const wanted = nvmrc.replace(/^v/, '');
+      const wanted = node.version.replace(/^v/, '');
       const installed = await readdir(join(session.root, '.nvm', 'versions', 'node')).catch(() => [] as string[]);
       const has = /^\d+(\.\d+){0,2}$/.test(wanted) && installed.some((version) => version === `v${wanted}` || version.startsWith(`v${wanted}.`));
+      const install = node.source === '.nvmrc' ? 'nvm install' : `nvm install ${wanted}`;
       lines.push(
          has
-            ? `- Node: .nvmrc asks for ${nvmrc}. It is installed in this workspace, and every command already runs on it.`
-            : `- Node: .nvmrc asks for ${nvmrc}. Run nvm install once before anything that needs it; every later command then runs on it.`
+            ? `- Node: ${node.source} asks for ${node.version}. It is installed in this workspace, and every command already runs on it.`
+            : `- Node: ${node.source} asks for ${node.version}. Run ${install} once before anything that needs it; every later command then runs on it.`
       );
    }
    const present = await lstat(join(directory, 'node_modules')).then((info) => info.isDirectory(), () => false);
@@ -259,9 +275,63 @@ async function describeToolchain(session: LocalSession, directory: string, carri
          ? '- Dependencies: node_modules is in place from this task\'s previous run, installed from the same lockfile. Do not reinstall unless a command reports something missing. An audit or deprecation notice is not something missing.'
          : present
            ? '- Dependencies: node_modules is committed in the repository.'
-           : `- Dependencies: not installed. Run ${lock ? INSTALL[manager] : 'npm install'} when the task needs to build, run or test, and not before. ${INSTALL_ONCE}`
+           : `- Dependencies: not installed. Run ${lock ? INSTALL[manager] : `${manager} install`} when the task needs to build, run or test, and not before. ${INSTALL_ONCE}`
    );
    return '\n\nYour toolchain, as Berry found it before you started\n' + lines.join('\n') + '\n';
+}
+
+export interface ToolchainPins {
+   /** package.json's `packageManager`, when it names a manager Berry installs with. */
+   manager?: { name: PackageManager; version: string | null };
+   /** The first Node pin found. `exact` is false for an engines range. */
+   node?: { source: string; version: string; exact: boolean };
+}
+
+/**
+ * The versions a repository asks for, from every file that can ask.
+ *
+ * .nvmrc alone missed most pins: a repository on .node-version, asdf's
+ * .tool-versions, Volta or `engines.node` was told it pinned nothing, and a
+ * pnpm project with no lockfile yet was told npm was its manager.
+ */
+export function toolchainPins(files: {
+   packageJson: string | null;
+   nvmrc?: string | null;
+   nodeVersion?: string | null;
+   toolVersions?: string | null;
+}): ToolchainPins {
+   const pins: ToolchainPins = {};
+   let manifest: Record<string, unknown> = {};
+   try {
+      const parsed: unknown = JSON.parse(files.packageJson ?? '{}');
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) manifest = parsed as Record<string, unknown>;
+   } catch {
+      // An unreadable package.json pins nothing; the install reports it.
+   }
+   const declared = typeof manifest.packageManager === 'string' ? /^(npm|pnpm|yarn|bun)(?:@([^+\s]+))?/.exec(manifest.packageManager.trim()) : null;
+   if (declared) pins.manager = { name: declared[1] as PackageManager, version: declared[2] ?? null };
+
+   const firstLine = (text: string | null | undefined) => text?.split('\n')[0]?.trim() ?? '';
+   const toolVersion = (files.toolVersions ?? '')
+      .split('\n')
+      .map((line) => line.trim().split(/\s+/))
+      .find(([tool]) => tool === 'nodejs' || tool === 'node')?.[1];
+   const volta = typeof manifest.volta === 'object' && manifest.volta !== null ? (manifest.volta as Record<string, unknown>).node : undefined;
+   const engines = typeof manifest.engines === 'object' && manifest.engines !== null ? (manifest.engines as Record<string, unknown>).node : undefined;
+   const candidates: Array<[string, unknown, boolean]> = [
+      ['.nvmrc', firstLine(files.nvmrc), true],
+      ['.node-version', firstLine(files.nodeVersion), true],
+      ['.tool-versions', toolVersion, true],
+      ["package.json's volta.node", volta, true],
+      ["package.json's engines.node", engines, false],
+   ];
+   for (const [source, version, exact] of candidates) {
+      if (typeof version === 'string' && version.trim() !== '') {
+         pins.node = { source, version: version.trim(), exact };
+         break;
+      }
+   }
+   return pins;
 }
 
 /**

@@ -107,6 +107,11 @@ export class BerryArtifactService {
     * everyone.
     */
    async saveArtifact(request: SaveArtifactRequest): Promise<number> {
+      return (await this.saveArtifactReceipt(request)).version;
+   }
+
+   /** As saveArtifact, with the stored row's id and normalized path: what a tool reports as saved. */
+   async saveArtifactReceipt(request: SaveArtifactRequest): Promise<{ id: string; path: string; version: number }> {
       const path = artifactPath(request.filename);
       const body = partToBytes(request.artifact);
       // Sniffed rather than defaulted when the part names no type. An agent
@@ -158,7 +163,7 @@ export class BerryArtifactService {
             SET state = 'ready', ready_at = ${this.clock().toISOString()}
           WHERE id = ${id}`;
 
-      return version;
+      return { id, path, version };
    }
 
    /** The named version, or the newest when none is asked for. */

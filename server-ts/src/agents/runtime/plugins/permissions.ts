@@ -40,6 +40,9 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    // The step-budget handover. Every agent may call it; the budget plugin
    // refuses it until the run is close to its limit.
    summarize: null,
+   // Stopping because a task this one depends on has not landed. Offered only
+   // when the task has one; it ends the run and changes nothing.
+   report_blocked: null,
    // The berry MCP server's declaration of this run's tools. Every agent
    // calls it before anything else; the run-tools gate refuses the rest.
    list_run_tools: null,

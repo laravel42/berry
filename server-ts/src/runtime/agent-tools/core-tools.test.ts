@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { artifactPathSchema, textSlice } from './core-tools.ts';
+import { artifactPathSchema, savedOnTask, textSlice } from './core-tools.ts';
 
 test('a relative file path is accepted, nested or not', () => {
    for (const path of ['report.md', 'epg/start.js', 'src/main/index.ts', '.env.example', 'user:preferences.json']) {
@@ -35,4 +35,13 @@ test('a long fetched text comes a slice at a time, with where the next one start
    assert.deepEqual(textSlice(text, 20, 10), { text: 'a'.repeat(5) });
    assert.deepEqual(textSlice('short', 0, 10), { text: 'short' });
    assert.deepEqual(textSlice(text, 0, 10, false), { text: 'a'.repeat(10), nextFrom: 10 });
+});
+
+test('a file saved on the task is reported with the artifact row that stores it', () => {
+   assert.deepEqual(savedOnTask({ id: 'art-1', path: 'docs/brief.md', version: 2 }), {
+      path: 'docs/brief.md',
+      version: 2,
+      saved: true,
+      artifact: { id: 'art-1', path: 'docs/brief.md', version: 2 },
+   });
 });

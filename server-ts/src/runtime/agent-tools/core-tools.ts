@@ -204,6 +204,20 @@ async function artifactsOf(context: AgentToolContext, issueId: string = issueOf(
 }
 
 /**
+ * The receipt a file tool returns once Berry has stored the file on the task.
+ * The artifact id is the proof: the runtime reports a file as saved on the
+ * task only when it carries one.
+ */
+export function savedOnTask(artifact: { id: string; path: string; version: number }) {
+   return {
+      path: artifact.path,
+      version: artifact.version,
+      saved: true,
+      artifact: { id: artifact.id, path: artifact.path, version: artifact.version },
+   };
+}
+
+/**
  * An agent of this workspace named by id, role key or exact name (case
  * insensitive), or null. A name two live agents share is refused as ambiguous
  * rather than guessed.
@@ -474,15 +488,18 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('write_file', {
       description:
-         "Write a text file into the workspace checkout, at a relative path such as 'src/maze.ts'. The next command sees it there.",
+         "Write a text file at a relative path such as 'src/maze.ts' or 'docs/brief.md'. With a workspace it is written " +
+         'into the checkout, where the next command sees it. The result says what keeps it: the commit Berry makes when ' +
+         'the run ends, or, when the run commits nothing, the task, where it is saved as an attachment and the result ' +
+         'carries its artifact id.',
       scope: 'task:write',
       inputSchema: z.object({ path: artifactPathSchema, content: z.string() }),
       handler: async (context, input) => {
-         const version = await (await artifactsOf(context)).saveArtifact({
+         const artifact = await (await artifactsOf(context)).saveArtifactReceipt({
             filename: input.path,
             artifact: { text: input.content },
          });
-         return { path: input.path, version, saved: true };
+         return savedOnTask(artifact);
       },
    });
 
@@ -503,11 +520,11 @@ export function registerCoreAgentTools(): void {
          if (!part?.inlineData?.data) return { path: input.path, found: false };
          const edited = applyFileEdit(Buffer.from(part.inlineData.data, 'base64').toString('utf8'), input.old, input.new);
          if ('error' in edited) return { path: input.path, found: true, error: edited.error };
-         const version = await artifacts.saveArtifact({
+         const artifact = await artifacts.saveArtifactReceipt({
             filename: input.path,
             artifact: { text: edited.content },
          });
-         return { path: input.path, version, saved: true };
+         return savedOnTask(artifact);
       },
    });
 
@@ -522,7 +539,7 @@ export function registerCoreAgentTools(): void {
          contentType: z.string().optional(),
       }),
       handler: async (context, input) => {
-         const version = await (await artifactsOf(context)).saveArtifact({
+         const artifact = await (await artifactsOf(context)).saveArtifactReceipt({
             filename: input.path,
             artifact: {
                inlineData: {
@@ -531,7 +548,7 @@ export function registerCoreAgentTools(): void {
                },
             },
          });
-         return { path: input.path, version, sizeBytes: Buffer.from(input.base64, 'base64').byteLength, saved: true };
+         return { ...savedOnTask(artifact), sizeBytes: Buffer.from(input.base64, 'base64').byteLength };
       },
    });
 

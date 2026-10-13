@@ -94,6 +94,18 @@ export async function runCompletionTask(
          return;
       }
       emitModelUsage(emit, envelope.agent.model, byModel.entries());
+      const conflict = schema ? structuredOutputConflict(added) : null;
+      if (conflict) {
+         emit({
+            type: 'task.failed',
+            failure: {
+               code: 'COMPLETION_INVALID',
+               message: `The answer was split across calls that gave \`${conflict}\` two different values, so neither is taken.`,
+               retryable: false,
+            },
+         });
+         return;
+      }
       const structured = schema ? mergedStructuredOutput(added, schema) ?? result.structuredOutput : undefined;
       if (schema && structured === undefined) {
          emit({ type: 'task.failed', failure: { code: 'COMPLETION_INVALID', message: textOf(result.lastMessage), retryable: false } });
@@ -131,14 +143,36 @@ const STRUCTURED_TOOL = 'strands_structured_output';
  * sent `goal`, `milestones`, `assumptions`, `issues` and `approvals` as five
  * calls. Strands keeps the first, so the plan arrived as a goal with no tasks,
  * which a loose schema accepts. When the model's last structured turn holds
- * more than one call, their objects are merged (a later call's field wins) and
- * the merge is kept only if it satisfies the schema; one call, or a merge
- * that does not validate, leaves Strands' own answer in place.
+ * more than one call, their objects are merged and the merge is kept only if
+ * it satisfies the schema; one call, or a merge that does not validate, leaves
+ * Strands' own answer in place. Calls that give one field two different values
+ * are not merged at all: see structuredOutputConflict.
  */
 export function mergedStructuredOutput(
    messages: ReadonlyArray<{ role: string; toJSON(): unknown }>,
    schema: { safeParse(value: unknown): { success: boolean; data?: unknown } }
 ): unknown {
+   const inputs = lastStructuredCalls(messages);
+   if (inputs.length < 2 || !inputs.every(isPlainObject)) return undefined;
+   if (conflictingKey(inputs as Array<Record<string, unknown>>) !== null) return undefined;
+   const parsed = schema.safeParse(Object.assign({}, ...(inputs as object[])));
+   return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * The top-level field that two of the last structured turn's calls set to
+ * different values, or null. Neither value is the answer: a later call winning
+ * would keep one plan's tasks and drop the other's without a word, and Strands
+ * keeping the first is the same guess the other way.
+ */
+export function structuredOutputConflict(messages: ReadonlyArray<{ role: string; toJSON(): unknown }>): string | null {
+   const inputs = lastStructuredCalls(messages);
+   if (inputs.length < 2 || !inputs.every(isPlainObject)) return null;
+   return conflictingKey(inputs as Array<Record<string, unknown>>);
+}
+
+/** The inputs of the structured-output calls in the last assistant turn that made any. */
+function lastStructuredCalls(messages: ReadonlyArray<{ role: string; toJSON(): unknown }>): unknown[] {
    for (const message of [...messages].reverse()) {
       if (message.role !== 'assistant') continue;
       const content = (message.toJSON() as { content?: Array<Record<string, unknown>> }).content ?? [];
@@ -146,15 +180,38 @@ export function mergedStructuredOutput(
          .map((block) => block.toolUse as { name?: unknown; input?: unknown } | undefined)
          .filter((use) => use?.name === STRUCTURED_TOOL)
          .map((use) => use?.input);
-      if (inputs.length === 0) continue;
-      if (inputs.length === 1) return undefined;
-      if (!inputs.every((input) => typeof input === 'object' && input !== null && !Array.isArray(input))) {
-         return undefined;
-      }
-      const parsed = schema.safeParse(Object.assign({}, ...(inputs as object[])));
-      return parsed.success ? parsed.data : undefined;
+      if (inputs.length > 0) return inputs;
    }
-   return undefined;
+   return [];
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function conflictingKey(inputs: ReadonlyArray<Record<string, unknown>>): string | null {
+   const first = new Map<string, string>();
+   for (const input of inputs) {
+      for (const [key, value] of Object.entries(input)) {
+         const canonical = canonicalJson(value);
+         const earlier = first.get(key);
+         if (earlier === undefined) first.set(key, canonical);
+         else if (earlier !== canonical) return key;
+      }
+   }
+   return null;
+}
+
+/** JSON with object keys sorted, so the same value written in another key order compares equal. */
+function canonicalJson(value: unknown): string {
+   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+   if (isPlainObject(value)) {
+      return `{${Object.keys(value)
+         .sort()
+         .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+         .join(',')}}`;
+   }
+   return JSON.stringify(value) ?? 'null';
 }
 
 /** One frame's worth of model output; past this the messages are cut. */

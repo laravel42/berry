@@ -7,10 +7,11 @@ import { RunLedger, RunTerminal } from './ledger.ts';
 /**
  * Puts the files a run saved into its repository, as a branch and a pull request.
  *
- * `write_file` — the tool agents actually use — saves an artifact against the
- * run. It does not touch the checkout, so a run could write a package and a
- * design document and still deliver `committed: false, files: []`. Three things
- * broke on that, all of them quietly:
+ * `collect_file`, `attach_file`, and `write_file` on a run with no workspace
+ * save artifacts on the task without touching a checkout, so a run could write
+ * a package and a design document and still deliver `committed: false,
+ * files: []`. Left unpublished, three things break on that, all of them
+ * quietly:
  *
  *   - the reviewer had no diff, so it refused work it could not see;
  *   - nothing merged, because there was no pull request to merge;
@@ -82,6 +83,13 @@ export async function publishRunArtifacts(
        WHERE run_id = ${runId} AND event_type = 'run.delivered'
        ORDER BY occurred_at DESC LIMIT 1`;
    if ((delivered?.payload as { pullRequest?: unknown } | undefined)?.pullRequest) return null;
+
+   // Only a run that was given the repository to change. A read-only run, or
+   // one with no checkout, saves its documents on the task and was told they
+   // stay there, uncommitted; the same rule trusted delivery applies.
+   const [snapshot] = await deps.sql<Array<{ read_only: boolean }>>`
+      SELECT read_only FROM run_repository_snapshots WHERE run_id = ${runId}`;
+   if (snapshot?.read_only !== false) return null;
 
    const repository = await repositoryForIssue(deps.sql, run.issue_id);
    if (!repository?.fullName) return null;

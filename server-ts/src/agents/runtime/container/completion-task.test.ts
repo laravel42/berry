@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { mergedStructuredOutput, runCompletionTask } from './completion-task.ts';
+import { mergedStructuredOutput, runCompletionTask, structuredOutputConflict } from './completion-task.ts';
 
 function completion(jsonSchema: Record<string, unknown> | null, transcript: TaskEnvelope['transcript'] = []): TaskEnvelope {
    return {
@@ -122,5 +122,30 @@ describe('a structured answer split across calls', () => {
          'no goal anywhere: not a plan'
       );
       assert.equal(mergedStructuredOutput([turn('assistant', [{ text: 'no tool' }])], planSchema), undefined);
+   });
+
+   test('two calls that give one field different values are a conflict, not a merge', () => {
+      const split = [
+         turn('assistant', [
+            structuredCall({ goal: { title: 'Launch' }, issues: [{ title: 'Write copy' }] }),
+            structuredCall({ issues: [{ title: 'Build hero' }] }),
+         ]),
+      ];
+      assert.equal(structuredOutputConflict(split), 'issues');
+      assert.equal(mergedStructuredOutput(split, planSchema), undefined);
+   });
+
+   test('the same value sent twice, in any key order, is not a conflict', () => {
+      const repeated = [
+         turn('assistant', [
+            structuredCall({ goal: { title: 'Launch' }, milestones: [{ title: 'Strategy' }] }),
+            structuredCall({ milestones: [{ title: 'Strategy' }], issues: [] }),
+         ]),
+      ];
+      assert.equal(structuredOutputConflict(repeated), null);
+      assert.deepEqual(mergedStructuredOutput(repeated, planSchema), { goal: { title: 'Launch' }, milestones: [{ title: 'Strategy' }], issues: [] });
+      const reordered = [turn('assistant', [structuredCall({ goal: { title: 'A', id: 1 } }), structuredCall({ goal: { id: 1, title: 'A' } })])];
+      assert.equal(structuredOutputConflict(reordered), null);
+      assert.equal(structuredOutputConflict([turn('assistant', [structuredCall({ goal: { title: 'A' } })])]), null);
    });
 });

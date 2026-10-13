@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { branchNameFor, pullRequestBodyFor } from './publish-artifacts.ts';
+import type { Sql } from '../db/pool.ts';
+import { branchNameFor, publishRunArtifacts, pullRequestBodyFor } from './publish-artifacts.ts';
 
 /**
  * The pure halves of publishing a run's saved files.
@@ -45,5 +46,50 @@ describe('the pull request body', () => {
    test('says so when the run left no summary, rather than showing an empty section', () => {
       assert.match(pullRequestBodyFor('L42-9', null, ['x']), /left no summary/);
       assert.match(pullRequestBodyFor('L42-9', '   ', ['x']), /left no summary/);
+   });
+});
+
+describe('which runs are published', () => {
+   /** Answers each query by what it reads; anything past the snapshot check is recorded. */
+   function database(snapshot: { read_only: boolean } | undefined, reached: string[]): Sql {
+      const sql = (strings: TemplateStringsArray) => {
+         const text = strings.join('?');
+         if (text.includes('FROM runs AS run')) {
+            return Promise.resolve([{ issue_id: 'issue-1', branch: null, workspace_id: 'ws', number: 1, title: 'Brief', summary: null, identifier: 'ABC-1' }]);
+         }
+         if (text.includes('FROM run_events')) return Promise.resolve([]);
+         if (text.includes('FROM run_repository_snapshots')) return Promise.resolve(snapshot ? [snapshot] : []);
+         reached.push(text);
+         return Promise.resolve([]);
+      };
+      return sql as unknown as Sql;
+   }
+
+   for (const [label, snapshot] of [
+      ['a read-only run', { read_only: true }],
+      ['a run with no checkout', undefined],
+   ] as const) {
+      test(`${label} keeps its documents on the task instead of opening a pull request`, async () => {
+         const reached: string[] = [];
+         const published = await publishRunArtifacts(
+            {
+               sql: database(snapshot, reached),
+               github: async () => assert.fail('no provider call'),
+               openArtifact: async () => assert.fail('no artifact read'),
+            },
+            'run-1'
+         );
+         assert.equal(published, null);
+         assert.deepEqual(reached, []);
+      });
+   }
+
+   test('a run that could change the repository goes on to look for its files', async () => {
+      const reached: string[] = [];
+      await publishRunArtifacts(
+         { sql: database({ read_only: false }, reached), github: async () => assert.fail('no files, no provider call'), openArtifact: async () => new Uint8Array() },
+         'run-1'
+      ).catch(() => null);
+      assert.ok(reached.length > 0);
    });
 });

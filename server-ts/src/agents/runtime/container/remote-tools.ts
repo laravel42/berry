@@ -37,14 +37,26 @@ const MAX_COLLECT_BYTES = 10 * 1024 * 1024;
 /**
  * The run's workspace.
  *
- * `write_file` writes into this container, where commands run and where the
- * delivery commit is taken. It does not upload the file.
+ * `write_file` and `edit_file` write into this container, where commands run
+ * and where the delivery commit is taken. When the run commits its checkout,
+ * that commit is how the file leaves the container. When it does not (no
+ * repository, or a read-only one), the workspace is thrown away with the run,
+ * so the file is also saved on the task, and the result carries the artifact
+ * Berry stored or says that it could not.
  */
 export interface WorkspaceMirror {
    session: () => Promise<ExecutionSession>;
    /** Where a file that was saved but could not be mirrored is reported. */
    warn?: (message: string, fields: Record<string, unknown>) => void;
+   /** Whether Berry commits this run's checkout when it ends. Absent means it does not. */
+   committed?: boolean;
 }
+
+/** What a file tool reports: where the file is now, and what will carry it out of the run. */
+export type WrittenFile =
+   | { path: string; workspacePath: string; savedOnTask: false; delivery: 'pending'; note: string }
+   | { path: string; workspacePath: string; savedOnTask: true; artifact: { id: string; path: string; version: number }; note: string }
+   | { path: string; workspacePath: string; savedOnTask: false; error: string };
 
 export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): Promise<Tool[]> {
    const doFetch = api.fetch ?? fetch;
@@ -68,10 +80,48 @@ export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): 
                   ? await editInWorkspace(mirror, input, context)
                   : await writeInWorkspace(mirror, input, context);
             if ('workspaceError' in written) return { error: written.workspaceError };
-            return { path: written.workspacePath, saved: true, workspacePath: written.workspacePath };
+            if (mirror.committed) return committedFile(written.workspacePath);
+            return saveOnTask(api, written.workspacePath, written.content);
          },
       })
    );
+}
+
+function committedFile(path: string): WrittenFile {
+   return {
+      path,
+      workspacePath: path,
+      savedOnTask: false,
+      delivery: 'pending',
+      note: 'Written into the checkout. Berry commits the checkout when the run ends; until then it is not delivered, and it is not saved on the task as an attachment.',
+   };
+}
+
+/**
+ * The same file, saved on the task through Berry. Its receipt is the artifact
+ * row Berry wrote; anything short of one is reported as not saved, because the
+ * workspace copy does not outlive the run.
+ */
+async function saveOnTask(api: BerryApi, path: string, content: string): Promise<WrittenFile> {
+   const saved: JSONValue = await callBerry(api, 'write_file', { path, content }).catch((cause: unknown) => ({ error: message(cause) }));
+   const artifact = isRecord(saved) && isRecord(saved.artifact) ? saved.artifact : null;
+   if (!artifact || typeof artifact.id !== 'string' || typeof artifact.version !== 'number') {
+      const reason = isRecord(saved) && typeof saved.error === 'string' ? saved.error : 'Berry did not confirm that it stored the file';
+      return {
+         path,
+         workspacePath: path,
+         savedOnTask: false,
+         error: `Written into the workspace but not saved on the task: ${reason}. This workspace is not kept after the run, so the file is lost unless it is saved; do not report it as attached.`,
+      };
+   }
+   const stored = typeof artifact.path === 'string' ? artifact.path : path;
+   return {
+      path,
+      workspacePath: path,
+      savedOnTask: true,
+      artifact: { id: artifact.id, path: stored, version: artifact.version },
+      note: `Saved on this task as ${stored} (version ${artifact.version}), and written into the workspace. It is not committed to the repository.`,
+   };
 }
 
 /**
@@ -82,7 +132,7 @@ async function writeInWorkspace(
    mirror: WorkspaceMirror,
    input: unknown,
    context?: ToolContext
-): Promise<{ workspacePath: string } | { workspaceError: string }> {
+): Promise<{ workspacePath: string; content: string } | { workspaceError: string }> {
    const { path, content } = (isRecord(input) ? input : {}) as { path?: unknown; content?: unknown };
    if (typeof path !== 'string' || typeof content !== 'string') return { workspaceError: 'no path or content to write' };
    const relative = insideDirectory(path);
@@ -92,7 +142,7 @@ async function writeInWorkspace(
    const target = typeof workdir === 'string' ? `${workdir}/${relative}` : relative;
    try {
       await (await mirror.session()).writeFile(target, content);
-      return { workspacePath: relative };
+      return { workspacePath: relative, content };
    } catch (cause) {
       const detail = message(cause);
       mirror.warn?.('write_file could not be written into the workspace', { path: relative, error: detail });
@@ -108,7 +158,7 @@ async function editInWorkspace(
    mirror: WorkspaceMirror,
    input: unknown,
    context?: ToolContext
-): Promise<{ workspacePath: string } | { workspaceError: string }> {
+): Promise<{ workspacePath: string; content: string } | { workspaceError: string }> {
    const { path, old, new: replacement } = (isRecord(input) ? input : {}) as {
       path?: unknown;
       old?: unknown;
@@ -131,7 +181,7 @@ async function editInWorkspace(
    if ('error' in edited) return { workspaceError: edited.error };
    try {
       await (await mirror.session()).writeFile(target, edited.content);
-      return { workspacePath: relative };
+      return { workspacePath: relative, content: edited.content };
    } catch (cause) {
       const detail = message(cause);
       mirror.warn?.('edit_file could not be written into the workspace', { path: relative, error: detail });
@@ -180,6 +230,12 @@ export interface RestoredFiles {
    placed: string[];
    /** Absent too, but not placed: binary, cut short by the read limit, or outside the repository. */
    skipped: string[];
+   /** Absent, and could not be read from the task or written into the checkout. */
+   failed?: string[];
+   /** Why the task's files could not be compared with the checkout at all. */
+   error?: string;
+   /** Saved files past the restore limit, not compared with the checkout. */
+   unchecked?: number;
 }
 
 /**
@@ -198,50 +254,95 @@ export interface RestoredFiles {
  * Only what is missing. A path the checkout already has is left alone: the
  * branch is the newer truth whenever a command edited a file after it was
  * saved, and an older saved copy must never overwrite it.
+ *
+ * What could not be checked or placed is reported rather than dropped: an
+ * agent told nothing assumes the branch holds the task's earlier work.
  */
 export async function restoreTaskFiles(api: BerryApi, session: ExecutionSession, directory: string): Promise<RestoredFiles> {
    const listed = await callBerry(api, 'list_files', {});
+   if (isRecord(listed) && typeof listed.error === 'string') {
+      return { placed: [], skipped: [], error: `Berry did not list the task's saved files: ${listed.error}` };
+   }
    const all = isRecord(listed) && Array.isArray(listed.files) ? listed.files.filter((entry): entry is string => typeof entry === 'string') : [];
-   const candidates = all.map((path) => [path, insideDirectory(path)] as const).filter((entry): entry is readonly [string, string] => entry[1] !== null).slice(0, RESTORE_MAX_FILES);
+   const inside = all.map((path) => [path, insideDirectory(path)] as const).filter((entry): entry is readonly [string, string] => entry[1] !== null);
+   const candidates = inside.slice(0, RESTORE_MAX_FILES);
+   const unchecked = Math.max(0, inside.length - RESTORE_MAX_FILES);
    if (candidates.length === 0) return { placed: [], skipped: [] };
 
    // One command answers "which of these does the checkout lack", as the session's own user.
    const probe = await session.exec(`for f in ${candidates.map(([, relative]) => shellQuote(relative)).join(' ')}; do [ -e "$f" ] || [ -L "$f" ] || printf '%s\\n' "$f"; done`, { cwd: directory });
-   if (probe.exitCode !== 0) return { placed: [], skipped: [] };
+   if (probe.exitCode !== 0) {
+      return { placed: [], skipped: [], error: `the checkout could not be compared with the task's ${candidates.length} saved files (exit ${probe.exitCode})` };
+   }
    const missing = new Set(probe.stdout.split('\n').filter((line) => line !== ''));
 
    const placed: string[] = [];
    const skipped: string[] = [];
+   const failed: string[] = [];
    let bytes = 0;
    for (const [path, relative] of candidates) {
       if (!missing.has(relative)) continue;
       const file = await callBerry(api, 'read_file', { path });
+      if (isRecord(file) && typeof file.error === 'string') {
+         failed.push(relative);
+         continue;
+      }
       const usable = isRecord(file) && file.found === true && file.truncated !== true && typeof file.content === 'string' && String(file.contentType ?? 'text/plain').startsWith('text/');
       if (!usable || bytes + Buffer.byteLength(file.content as string) > RESTORE_MAX_BYTES) {
          skipped.push(relative);
          continue;
       }
+      try {
+         await session.writeFile(`${directory}/${relative}`, file.content as string);
+      } catch {
+         failed.push(relative);
+         continue;
+      }
       bytes += Buffer.byteLength(file.content as string);
-      await session.writeFile(`${directory}/${relative}`, file.content as string);
       placed.push(relative);
    }
-   return { placed, skipped };
+   return { placed, skipped, ...(failed.length ? { failed } : {}), ...(unchecked ? { unchecked } : {}) };
 }
 
-/** What the agent is told about files Berry put back, appended to its task. Empty when there were none. */
+/**
+ * What the agent is told about files Berry put back, appended to its task.
+ * Empty only when the checkout already had every file the task saved.
+ */
 export function restoredNote(restored: RestoredFiles): string {
-   if (restored.placed.length === 0) return '';
+   const failed = restored.failed ?? [];
+   const unchecked = restored.unchecked ?? 0;
+   if (restored.placed.length === 0 && restored.skipped.length === 0 && failed.length === 0 && !restored.error && !unchecked) return '';
    const list = (paths: string[]) => paths.slice(0, 40).join(', ') + (paths.length > 40 ? `, and ${paths.length - 40} more` : '');
-   return (
-      '\n\nWork saved on this task that the branch did not have\n' +
-      `Berry put ${restored.placed.length} file${restored.placed.length === 1 ? '' : 's'} saved on this task by an earlier run into your checkout, ` +
-      `because the branch had no file at those paths: ${list(restored.placed)}. They are uncommitted, and will be ` +
-      'committed with your work. They were written against an older state of the repository: read them against ' +
-      'what is there now, fit them in (imports, routes, migrations numbering, tests), run the checks, and say in ' +
-      'your report what you kept and what you changed.' +
-      (restored.skipped.length ? ` Not restored (binary or too large): ${list(restored.skipped)}.` : '') +
-      '\n'
-   );
+   const lines: string[] = [];
+   if (restored.error) {
+      lines.push(
+         `Berry could not check this task's saved files against your checkout: ${restored.error}. ` +
+            'Work an earlier run saved on the task may be missing from the branch; list_files and read_file show what the task holds.'
+      );
+   }
+   if (restored.placed.length) {
+      lines.push(
+         `Berry put ${restored.placed.length} file${restored.placed.length === 1 ? '' : 's'} saved on this task by an earlier run into your checkout, ` +
+            `because the branch had no file at those paths: ${list(restored.placed)}. They are uncommitted, and will be ` +
+            'committed with your work. They were written against an older state of the repository: read them against ' +
+            'what is there now, fit them in (imports, routes, migrations numbering, tests), run the checks, and say in ' +
+            'your report what you kept and what you changed.'
+      );
+   }
+   const left = [
+      restored.skipped.length ? `not restored (binary or too large): ${list(restored.skipped)}` : '',
+      failed.length ? `could not be read from the task or written into the checkout: ${list(failed)}` : '',
+   ].filter(Boolean);
+   if (left.length) {
+      lines.push(
+         `Saved on this task but missing from the branch, and not in your checkout: ${left.join('; ')}. ` +
+            'read_file shows them; decide whether the task still needs them, and say so in your report.'
+      );
+   }
+   if (unchecked) {
+      lines.push(`${unchecked} more file${unchecked === 1 ? ' is' : 's are'} saved on this task than Berry compares in one run; list_files shows them all.`);
+   }
+   return '\n\nWork saved on this task that the branch did not have\n' + lines.join(' ') + '\n';
 }
 
 async function callBerry(api: BerryApi, name: string, input: unknown): Promise<JSONValue> {

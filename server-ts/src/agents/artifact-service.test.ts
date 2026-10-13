@@ -173,6 +173,17 @@ describe('files across the runs of one task', { skip: url ? false : 'BERRY_TEST_
       assert.equal(await second.loadArtifact({ filename: 'video/clip.mp4', version: 1 }), undefined);
    });
 
+   test('a receipt names the ready row that holds the file', async () => {
+      const receipt = await service(await finishedRun(), new Date('2026-09-09T12:00:00Z')).saveArtifactReceipt({
+         filename: 'docs/brief.md',
+         artifact: { text: 'brief' },
+      });
+      assert.equal(receipt.path, 'docs/brief.md');
+      assert.equal(receipt.version, 0);
+      const [row] = await sql`SELECT path, version, state FROM run_artifacts WHERE id = ${receipt.id}`;
+      assert.deepEqual({ ...row }, { path: 'docs/brief.md', version: 0, state: 'ready' });
+   });
+
    function text(part: { inlineData?: { data: string } | undefined } | undefined): string | undefined {
       return part?.inlineData ? Buffer.from(part.inlineData.data, 'base64').toString('utf8') : undefined;
    }

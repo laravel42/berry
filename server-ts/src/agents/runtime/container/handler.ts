@@ -20,7 +20,16 @@ import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
 import { PermissionPlugin, TOOL_PERMISSIONS } from '../plugins/permissions.ts';
 import { RepetitionPlugin } from '../plugins/repetition.ts';
-import { StepBudgetPlugin, budgetContract, summarizeTool, type Handoff } from '../plugins/step-budget.ts';
+import {
+   REPORT_BLOCKED,
+   StepBudgetPlugin,
+   blockedMessage,
+   budgetContract,
+   reportBlockedTool,
+   summarizeTool,
+   type Blocked,
+   type Handoff,
+} from '../plugins/step-budget.ts';
 import { LIST_RUN_TOOLS, RunToolsPlugin, listRunToolsTool } from '../run-tools.ts';
 import { ToolOutcomePlugin } from '../plugins/tool-outcome.ts';
 import { MAX_SUMMARY_BYTES } from '../result-text.ts';
@@ -40,6 +49,7 @@ import {
    restoreTaskFiles,
    restoredNote,
    type BerryApi,
+   type RestoredFiles,
    type WorkspaceMirror,
 } from './remote-tools.ts';
 import { CallerGone, type SessionRegistry } from './sessions.ts';
@@ -255,17 +265,39 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // Whatever the loader threw, a task that cannot read its tools never
       // runs toolless: it fails retryable, as Berry being unreachable.
       const session = async (): Promise<ExecutionSession> => workspace;
-      const remote = await (deps.loadTools ?? loadRemoteTools)(api, { session, warn }).catch((cause: unknown) => {
+      // Whether the run commits its checkout is known once it is prepared;
+      // a file tool reads it when it is called, not when it is loaded.
+      const mirror: WorkspaceMirror = { session, warn, committed: false };
+      const remote = await (deps.loadTools ?? loadRemoteTools)(api, mirror).catch((cause: unknown) => {
          if (cause instanceof RemoteToolsUnavailable) throw cause;
          throw new RemoteToolsUnavailable(
             `could not load Berry's tools: ${cause instanceof Error ? cause.message : String(cause)}`
          );
       });
-      const handoff: Handoff = { open: false, summary: null };
+      const handoff: Handoff = { open: false, summary: null, blocked: null };
       const budget = new StepBudgetPlugin({ maxTurns: envelope.agent.maxTurns, handoff });
+      const dependsOn = envelope.task.dependencies.filter((dependency) => dependency.direction === 'depends_on');
+      // Stopped for a task it depends on. What it did so far is kept as a
+      // checkpoint, as at the step limit; the task waits in To do until the
+      // task it named is done, and is not retried before then.
+      const emitBlocked = async (blocked: Blocked, directory: string | null): Promise<void> => {
+         const message = blockedMessage(blocked);
+         const checkpoint =
+            deps.repository && directory
+               ? await deps.repository
+                    .deliver({ envelope, session: workspace, directory, summary: message, emit, signal, checkpoint: true })
+                    .catch(() => null)
+               : null;
+         emit({
+            type: 'task.failed',
+            failure: { code: 'TASK_BLOCKED', message, retryable: false },
+            ...(checkpoint ? { delivery: checkpoint } : {}),
+         });
+      };
       const tools: Tool[] = [
          runCommandTool({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          summarizeTool(handoff),
+         ...(dependsOn.length ? [reportBlockedTool(handoff, dependsOn)] : []),
          ...pageTools({ ledger: sink, runId: envelope.runId, session, newId: randomUUID }),
          collectFileTool(api, session),
          ...repositoryTools(session),
@@ -296,22 +328,29 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          warn
       );
       const table = toolTable(envelope.agent.mcpServers, mcp.listed, remote.map((t) => t.name));
-      const visible = [...tools, ...mcp.tools];
-      const declaration = listRunToolsTool(
-         visible.map((entry) => ({ name: entry.name, description: entry.description })),
-         envelope.runtime?.id
-      );
-      const offered = [declaration, ...visible];
       const exempt = new Set([
          'summarize',
+         REPORT_BLOCKED,
          LIST_RUN_TOOLS,
          ...remote.map((entry) => entry.name),
          ...mcp.tools.map((entry) => entry.name),
       ]);
+      // An agent process has no step counter and nothing that opens summarize,
+      // so it is not offered there. The native loop is offered every tool and
+      // PermissionPlugin refuses a call with its reason; both declare only what
+      // the run can call, which is what list_run_tools is for.
+      const visible = [...tools, ...mcp.tools].filter((entry) => !envelope.runtime || entry.name !== 'summarize');
+      const callable = authorizedAgentTools(visible, envelope, table, exempt);
+      const declaration = listRunToolsTool(
+         callable.map((entry) => ({ name: entry.name, description: entry.description })),
+         envelope.runtime?.id
+      );
 
       const directory = deps.repository
          ? await deps.repository.prepare({ envelope, session: workspace, warm, emit, signal })
          : null;
+      const delivers = directory !== null && envelope.repo !== null && envelope.repo !== undefined && !envelope.repo.readOnly;
+      mirror.committed = delivers;
 
       if (envelope.runtime) {
          if (envelope.runtime.executionMode !== 'agent_process') {
@@ -330,19 +369,13 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             );
          }
          await workspace.open();
-         const restored =
-            directory && envelope.repo && !envelope.repo.readOnly
-               ? await restoreTaskFiles(api, workspace, directory).catch(() => ({ placed: [], skipped: [] }))
-               : { placed: [], skipped: [] };
+         const restored = delivers ? await restoreTaskFiles(api, workspace, directory).catch(restoreFailed) : NOTHING_RESTORED;
          const toolchain =
-            directory && envelope.repo && !envelope.repo.readOnly && deps.repository?.describe
+            delivers && deps.repository?.describe
                ? await deps.repository.describe({ session: workspace, directory }).catch(() => '')
                : '';
-         const prompt =
-            envelope.task.prompt +
-            restoredNote(restored) +
-            toolchain +
-            budgetContract(envelope.agent.maxTurns);
+         // No step-budget contract: nothing on this path counts steps or opens summarize.
+         const prompt = envelope.task.prompt + restoredNote(restored) + toolchain;
          const processEnvelope: TaskEnvelope = {
             ...envelope,
             task: { ...envelope.task, prompt },
@@ -352,29 +385,14 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             credential: envelope.runtime.credential,
             workingDirectory: directory ?? workspace.root,
             stateDirectory: join(workspace.root, '.runtime-state', envelope.runtime.id),
-            tools: sessionTools(envelope.runtime.id, authorizedAgentTools(offered, envelope, table, exempt)),
+            tools: sessionTools(envelope.runtime.id, [declaration, ...callable]),
             emit,
             signal,
          });
          await ledger.flush();
-         const summary = budget.summary();
-         if (summary) {
-            const checkpoint =
-               deps.repository && directory
-                  ? await deps.repository
-                       .deliver({ envelope, session: workspace, directory, summary, emit, signal, checkpoint: true })
-                       .catch(() => null)
-                  : null;
-            emit({
-               type: 'task.failed',
-               failure: {
-                  code: 'RUN_LIMIT_REACHED',
-                  message: 'The agent summarized near its step limit. The next run starts fresh from that summary.',
-                  retryable: false,
-                  summary,
-               },
-               ...(checkpoint ? { delivery: checkpoint } : {}),
-            });
+         const blocked = budget.blocked();
+         if (blocked) {
+            await emitBlocked(blocked, directory);
             return;
          }
          signal.throwIfAborted();
@@ -411,7 +429,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             // The runtime's execution role; there is no key in the envelope.
             credentials: null,
             systemPrompt: envelope.agent.instructions,
-            tools: offered,
+            tools: [declaration, ...visible],
             plugins: [
                ledger,
                accounting,
@@ -443,13 +461,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // After the baseline is committed, so what is put back counts as this run's
       // change and is delivered. Never for a read-only checkout, which delivers
       // nothing; and never fatal — a task that cannot list its files still runs.
-      const restored =
-         directory && envelope.repo && !envelope.repo.readOnly
-            ? await restoreTaskFiles(api, workspace, directory).catch(() => ({ placed: [], skipped: [] }))
-            : { placed: [], skipped: [] };
+      const restored = delivers ? await restoreTaskFiles(api, workspace, directory).catch(restoreFailed) : NOTHING_RESTORED;
       // Never fatal either: without it the agent finds the same out by itself.
       const toolchain =
-         directory && envelope.repo && !envelope.repo.readOnly && deps.repository?.describe
+         delivers && deps.repository?.describe
             ? await deps.repository.describe({ session: workspace, directory }).catch(() => '')
             : '';
 
@@ -462,6 +477,12 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       });
       thinking.flush();
       await ledger.flush();
+      const blocked = budget.blocked();
+      if (blocked) {
+         deps.registry.drop(key);
+         await emitBlocked(blocked, directory);
+         return;
+      }
       const summary = budget.summary();
       // A summary near the limit ends the run on purpose, with stopReason endTurn.
       // It is still a limit stop: the next run starts fresh from the summary.
@@ -531,6 +552,13 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       await workspace.stop();
       await Promise.all(mcpClients.map((client) => client.disconnect().catch(() => undefined)));
    }
+}
+
+const NOTHING_RESTORED: RestoredFiles = { placed: [], skipped: [] };
+
+/** A restore that threw is reported to the agent, never fatal to the run. */
+function restoreFailed(cause: unknown): RestoredFiles {
+   return { placed: [], skipped: [], error: cause instanceof Error ? cause.message : String(cause) };
 }
 
 /** Kiro's built-in names, added beside the Berry tools this run already admitted. */

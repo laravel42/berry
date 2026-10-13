@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Agent, tool, type Message } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { ScriptedModel, call, say } from '../scripted-model.ts';
-import { StepBudgetPlugin, budgetContract, summarizeTool, wrapUpAt, type Handoff } from './step-budget.ts';
+import { StepBudgetPlugin, blockedMessage, budgetContract, reportBlockedTool, summarizeTool, wrapUpAt, type Handoff } from './step-budget.ts';
 
 const echo = tool({
    name: 'echo',
@@ -102,4 +102,43 @@ test('summarize is refused until the wrap-up notice, and then it ends the run', 
 
 test('a run with no step limit is left alone', async () => {
    assert.deepEqual(notices(await run(undefined, 6)), []);
+});
+
+test('report_blocked is accepted at any step, names only a task this one depends on, and ends the run', async () => {
+   const handoff: Handoff = { open: false, summary: null, blocked: null };
+   const agent = new Agent({
+      model: new ScriptedModel([
+         call('report_blocked', { task: 'ABC-3', missing: 'the API' }),
+         call('report_blocked', { task: 'ABC-2', missing: '   ' }),
+         call('report_blocked', { task: 'abc-2', missing: 'The /users endpoint ABC-2 adds is not on main.' }),
+         say('must not run'),
+      ]),
+      tools: [echo, reportBlockedTool(handoff, [{ identifier: 'ABC-2' }])],
+      // No step limit: stopping for a missing input is not a budget matter.
+      plugins: [new StepBudgetPlugin({ maxTurns: undefined, handoff })],
+      printer: false,
+   });
+   const result = await agent.invoke('go');
+   const replies = JSON.stringify(agent.messages);
+   assert.match(replies, /ABC-3 is not a task this one depends on\. It depends on ABC-2/);
+   assert.match(replies, /Say what this task needs from ABC-2/);
+   assert.equal(result.stopReason, 'endTurn');
+   assert.deepEqual(handoff.blocked, { task: 'ABC-2', missing: 'The /users endpoint ABC-2 adds is not on main.' });
+   assert.doesNotMatch(replies, /must not run/);
+   assert.match(blockedMessage(handoff.blocked!), /^Blocked on ABC-2: .* This task starts again when ABC-2 is done\.$/);
+});
+
+test('in the last steps report_blocked still goes through', async () => {
+   const handoff: Handoff = { open: false, summary: null, blocked: null };
+   const agent = new Agent({
+      model: new ScriptedModel([
+         ...Array.from({ length: 11 }, () => call('echo', {})),
+         call('report_blocked', { task: 'ABC-2', missing: 'its schema' }),
+      ]),
+      tools: [echo, reportBlockedTool(handoff, [{ identifier: 'ABC-2' }])],
+      plugins: [new StepBudgetPlugin({ maxTurns: 12, handoff })],
+      printer: false,
+   });
+   await agent.invoke('go');
+   assert.equal(handoff.blocked?.task, 'ABC-2');
 });

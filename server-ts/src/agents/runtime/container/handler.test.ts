@@ -12,6 +12,9 @@ import { textOf } from '../plugins/accounting.ts';
 import { ScriptedModel, call, say, throwing, type ScriptedTurn } from '../scripted-model.ts';
 import { handleInvocation, THINKING_EVERY_MS, thinkingReporter, toConversation, toolTable, type HandlerDeps } from './handler.ts';
 import { SessionRegistry } from './sessions.ts';
+import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
+import type { AgentProcessAdapter, AgentProcessRun } from '../adapters/types.ts';
+import type { WorkspaceMirror } from './remote-tools.ts';
 
 const SESSION = `berry-${'a'.repeat(64)}`;
 
@@ -455,4 +458,122 @@ test('reasoning held at the end of an interval is sent without waiting for more'
    assert.deepEqual(thoughts(events), [[5, 'first'], [22, ' then a tool call']]);
    report.flush();
    assert.equal(events.length, 2, 'nothing held, nothing sent');
+});
+
+const REPO = {
+   fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
+   credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
+};
+
+const UPSTREAM = { identifier: 'B-1', title: 'The schema', status: 'in_review', direction: 'depends_on' as const };
+
+test('list_run_tools names only the tools this agent can call', async () => {
+   const listed = async (permissions: string[]) => {
+      const { model, run } = harness([call('list_run_tools', {}), say('done')]);
+      await run(envelope({ agent: { ...envelope().agent, permissions } }));
+      return JSON.stringify(model.received[1]);
+   };
+   assert.doesNotMatch(await listed([]), /"name":"run_command"/);
+   assert.match(await listed(['run_commands']), /"name":"run_command"/);
+});
+
+test('write_file is told whether the run commits its checkout, once the checkout is prepared', async () => {
+   const committed = async (repo: TaskEnvelope['repo'], prepared: string | null) => {
+      let mirror: WorkspaceMirror | undefined;
+      const { run } = harness([say('done')], {
+         loadTools: async (_api, given) => {
+            mirror = given;
+            return [];
+         },
+         repository: { prepare: async () => prepared, deliver: async () => null },
+      });
+      await run(envelope({ repo }));
+      return mirror?.committed;
+   };
+   assert.equal(await committed(REPO, '.'), true);
+   assert.equal(await committed({ ...REPO, readOnly: true }, '.'), false, 'a read-only checkout is never committed');
+   assert.equal(await committed(null, null), false, 'no repository, nothing committed');
+});
+
+test('a run that cannot go on without a task it depends on ends as blocked on that task, with its work kept', async () => {
+   const seen: Array<{ checkpoint: boolean | undefined }> = [];
+   const { model, run } = harness(
+      [
+         call('report_blocked', { task: 'B-9', missing: 'x' }),
+         call('report_blocked', { task: 'b-1', missing: 'The users table B-1 adds is not on main.' }),
+         say('must not run'),
+      ],
+      {
+         repository: {
+            prepare: async () => '.',
+            deliver: async (input) => {
+               seen.push({ checkpoint: input.checkpoint });
+               return null;
+            },
+         },
+      }
+   );
+   const events = await run(envelope({ repo: REPO, task: { ...envelope().task, dependencies: [UPSTREAM] } }));
+   assert.match(JSON.stringify(model.received[1]), /B-9 is not a task this one depends on/);
+   const last = events.at(-1);
+   assert.ok(last?.type === 'task.failed', JSON.stringify(last));
+   assert.equal(last.failure.code, 'TASK_BLOCKED');
+   assert.equal(last.failure.retryable, false);
+   assert.match(last.failure.message, /^Blocked on B-1: The users table B-1 adds is not on main\./);
+   assert.deepEqual(seen, [{ checkpoint: true }]);
+   assert.equal(model.received.length, 2, 'the run ended on the report');
+});
+
+test('report_blocked is offered only to a task that depends on another', async () => {
+   const { model, run } = harness([call('report_blocked', { task: 'B-1', missing: 'x' }), say('done')]);
+   const events = await run(envelope());
+   assert.equal(events.at(-1)?.type, 'task.completed');
+   assert.doesNotMatch(JSON.stringify(model.received[1]), /Recorded/);
+});
+
+function processAdapter(seen: { run: AgentProcessRun | null }, text = 'done'): AgentProcessAdapter {
+   return {
+      identity: {
+         id: 'codex', name: 'Codex', kind: 'agent_process', provider: 'OpenAI', billing: 'subscription',
+         capabilities: { modelDiscovery: true, streaming: true, tools: true, sessions: true, cancellation: true, usage: true },
+      },
+      checkAvailability: async () => ({ available: true, version: '0', reason: null, protocolVersion: 1, principalIsolation: 'workstation' }),
+      connectionStatus: async () => ({ status: 'connected', accountId: null, accountName: null, detail: null }),
+      disconnect: async () => undefined,
+      discoverModels: async () => [],
+      start: async (input) => {
+         seen.run = input;
+         return { text, sessionId: 'thread-1' };
+      },
+      resume: async () => {
+         throw new Error('not resumed');
+      },
+      cancel: async () => undefined,
+   };
+}
+
+const PROCESS_RUNTIME = {
+   id: 'codex', executionMode: 'agent_process' as const, provider: 'OpenAI', billing: 'subscription' as const, model: 'gpt',
+   credential: { type: 'oauth' as const, token: 'codex-cli', accountId: null, accountName: null },
+};
+
+test('an agent process is promised no step budget it does not count, and is offered only what it can call', async () => {
+   const seen: { run: AgentProcessRun | null } = { run: null };
+   const { run } = harness([], { adapters: new RuntimeAdapterRegistry([processAdapter(seen)]) });
+   const events = await run(
+      envelope({
+         runtime: PROCESS_RUNTIME,
+         agent: { ...envelope().agent, maxTurns: 40 },
+         task: { ...envelope().task, dependencies: [UPSTREAM] },
+      })
+   );
+   assert.equal(events.at(-1)?.type, 'task.completed');
+   const given = seen.run!;
+   assert.doesNotMatch(given.envelope.task.prompt, /step budget|ends after 40 steps|call summarize/);
+   const names = given.tools.map((entry) => entry.name);
+   assert.ok(!names.includes('summarize'), names.join(','));
+   assert.ok(!names.includes('run_command'), 'this agent lacks run_commands');
+   assert.ok(names.includes('report_blocked') && names.includes('list_run_tools'));
+   const declared = given.tools.find((entry) => entry.name === 'list_run_tools')!;
+   assert.doesNotMatch(declared.toolSpec.description ?? '', /summarize/);
 });

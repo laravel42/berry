@@ -16,10 +16,58 @@ import { MAX_SUMMARY_BYTES } from '../result-text.ts';
  * starts from the summary with an empty conversation.
  */
 
-/** Shared by the tool and the plugin: summarize counts only after the wrap-up notice. */
+/** Shared by the tools and the plugin: summarize counts only after the wrap-up notice. */
 export interface Handoff {
    open: boolean;
    summary: string | null;
+   /** Set when the agent stopped because a task this one depends on has not landed. */
+   blocked?: Blocked | null;
+}
+
+export interface Blocked {
+   /** The key of the task this one waits on, as the task named it. */
+   task: string;
+   missing: string;
+}
+
+export const REPORT_BLOCKED = 'report_blocked';
+
+/**
+ * Stopping for upstream work that is not in the checkout.
+ *
+ * Not summarize: that is the handover near the step limit and refuses every
+ * call before it, so a run told to summarize when a task it depends on had
+ * not landed was answered "not yet" and went on without its input. This ends
+ * the run at any step, as blocked on that task. The task returns to To do, and
+ * closing the task it waits on starts it again. Only a task this one depends
+ * on can be named, because nothing else would start it again.
+ */
+export function reportBlockedTool(handoff: Handoff, dependsOn: ReadonlyArray<{ identifier: string }>): Tool {
+   const known = new Map(dependsOn.map((dependency) => [dependency.identifier.trim().toUpperCase(), dependency.identifier]));
+   const names = dependsOn.map((dependency) => dependency.identifier).join(', ');
+   return tool({
+      name: REPORT_BLOCKED,
+      description:
+         'End this run because the task cannot be done without work from a task it depends on that is not in your checkout. ' +
+         `Name that task (${names}) and what this task needs from it. Berry starts this task again when that task is done.`,
+      inputSchema: z.object({
+         task: z.string().describe(`The key of the task this one waits on: one of ${names}.`),
+         missing: z.string().describe('What this task needs from it, and where you looked for it.'),
+      }),
+      callback: ({ task, missing }) => {
+         const identifier = known.get(task.trim().toUpperCase());
+         if (!identifier) return `Refused: ${task} is not a task this one depends on. It depends on ${names}.`;
+         const text = missing.trim();
+         if (text === '') return `Say what this task needs from ${identifier}, and where you looked for it.`;
+         handoff.blocked = { task: identifier, missing: truncateUtf8(text, MAX_SUMMARY_BYTES) };
+         return `Recorded. This run ends now as blocked on ${identifier}. Berry starts this task again when ${identifier} is done.`;
+      },
+   });
+}
+
+/** What the run's failure says when it stopped as blocked. */
+export function blockedMessage(blocked: Blocked): string {
+   return `Blocked on ${blocked.task}: ${blocked.missing} This task starts again when ${blocked.task} is done.`;
 }
 
 export function summarizeTool(handoff: Handoff): Tool {
@@ -93,7 +141,18 @@ export class StepBudgetPlugin implements Plugin {
       return this.#handoff.summary;
    }
 
+   /** The task this run stopped for, once report_blocked was accepted. Null until then. */
+   blocked(): Blocked | null {
+      return this.#handoff.blocked ?? null;
+   }
+
    initAgent(agent: LocalAgent): void {
+      // summarize or report_blocked was accepted: stop before another model
+      // call spends the rest of the budget. A run with no limit can be blocked too.
+      agent.addHook(AfterToolsEvent, (event) => {
+         if (this.#handoff.summary || this.#handoff.blocked) event.endTurn = true;
+      });
+
       const maxTurns = this.#maxTurns;
       if (!maxTurns) return;
 
@@ -103,8 +162,10 @@ export class StepBudgetPlugin implements Plugin {
       });
 
       // Near the end, only the handover runs: the replies left are for it.
+      // Stopping as blocked is a handover too.
       agent.addHook(BeforeToolCallEvent, (event) => {
-         if (this.#toldLast && event.toolUse.name !== 'summarize') event.cancel = SUMMARIZE_ONLY;
+         const name = event.toolUse.name;
+         if (this.#toldLast && name !== 'summarize' && name !== REPORT_BLOCKED) event.cancel = SUMMARIZE_ONLY;
       });
 
       // On a tool result, because that is the next thing the model reads. Once
@@ -130,11 +191,6 @@ export class StepBudgetPlugin implements Plugin {
             content: [...event.result.content, new TextBlock(notice)],
             ...(event.result.error ? { error: event.result.error } : {}),
          });
-      });
-
-      // summarize was accepted: stop before another model call spends the rest of the budget.
-      agent.addHook(AfterToolsEvent, (event) => {
-         if (this.#handoff.summary) event.endTurn = true;
       });
    }
 }

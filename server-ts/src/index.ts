@@ -1503,11 +1503,12 @@ dispatcher.start();
 /**
  * Publish, then review.
  *
- * The files a run saved are put on a branch and into a pull request before the
- * reviewer is asked anything, because that is what makes the work reviewable:
- * `write_file` saves against the run rather than the checkout, so without this
- * step the reviewer sees a summary and no diff, nothing merges, and the next
- * task checks out a repository missing everything before it. Publishing never
+ * The files a writable run saved on the task (`collect_file`, `attach_file`, or
+ * `write_file` without a workspace) are put on a branch and into a pull request
+ * before the reviewer is asked anything, because that is what makes the work
+ * reviewable: without this step the reviewer sees a summary and no diff,
+ * nothing merges, and the next task checks out a repository missing everything
+ * before it. A read-only run's files stay on the task. Publishing never
  * throws — a run whose files could not be committed is still reviewed on the
  * files themselves.
  */

@@ -431,7 +431,9 @@ function reportingContract(identifier: string, title: string): string {
       'any file under .handoffs/. Leave every other file in that directory as it is. ' +
       'Berry stores the same note at that path for whoever is blocked by this task.\n' +
       'A file you save with write_file is written into the workspace at that path, so the ' +
-      'next command can use it. A file a command produces (a merged clip, a built ' +
+      'next command can use it. Its result says what keeps it: when Berry commits this run\'s ' +
+      'checkout, that commit; otherwise the task, and then the result carries the artifact id. ' +
+      'Call a file attached to the task only when its result has that id. A file a command produces (a merged clip, a built ' +
       'archive) is saved on the task with collect_file — the workspace is ' +
       'gone when the run ends, and only collected files survive it.\n'
    );

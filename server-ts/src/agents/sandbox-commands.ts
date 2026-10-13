@@ -12,7 +12,7 @@ export function berryFileToolsContract(): string {
       'A tool this role does not have is refused, and that refusal is the answer.\n' +
       '- list_files: the files saved on a task. Defaults to this task. Pass `task` to list a parent or a task this one depends on.\n' +
       '- read_file: one of those files, by `path`. A long file returns `nextFrom`; pass that as `from` only if you need the rest.\n' +
-      '- write_file: write text into the checkout at a relative path such as src/maze.ts. The next command sees it there. Subdirectories are created. Use it to create a file or replace it entirely.\n' +
+      '- write_file: write text into the checkout at a relative path such as src/maze.ts. The next command sees it there. Subdirectories are created. Use it to create a file or replace it entirely. On a run that commits nothing, it is also saved on the task, and the result carries its artifact id.\n' +
       '- edit_file: change part of a file already in the checkout. Pass `path`, `old` (the exact text to replace, including spaces and line breaks, matching once) and `new` (what replaces it). Do not send the whole file. If `old` is missing or matches more than once, read the file and send a longer span.\n' +
       '- collect_file: save a file a command produced (a clip, a build, an archive) onto the task, by its path in the workspace. The workspace is gone when the run ends, and only a collected file survives it.\n' +
       '- attach_file: attach a binary, as base64, only when you have no workspace. A file already in the workspace goes on the task with collect_file.\n' +
