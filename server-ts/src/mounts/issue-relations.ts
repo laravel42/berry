@@ -132,6 +132,8 @@ function describeSkip(because: string): string {
          return 'Only a task in review can be reviewed.';
       case 'attempts_exhausted':
          return 'This task has been sent back as many times as the gate allows; a person decides now.';
+      case 'already_reviewed':
+         return 'This delivery already has a verdict from its reviewer.';
       default:
          return 'The task was not reviewed.';
    }

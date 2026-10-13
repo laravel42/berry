@@ -8,6 +8,7 @@ import type { AgentToolContext } from '../runtime/agent-tools/registry.ts';
 import { getAgentTool } from '../runtime/agent-tools/registry.ts';
 import { cleanupFixture, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
 import { ReviewGate } from '../agents/review-gate.ts';
+import type { GitHubClient } from '../integrations/github.ts';
 import { RunLedger } from '../runs/ledger.ts';
 import { RunRepository } from '../runs/repository.ts';
 import { catalogRole } from './catalog.ts';
@@ -341,24 +342,70 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
          assert.equal(await statusOf(issueId), 'todo');
       });
 
-      test('the last required approval says the reviews passed and AutoGate closes the task', async () => {
+      test('the last required approval says the reviews passed, and AutoGate merges the pull request and closes the task', async () => {
          const { issueId } = await deliveredByBackend('Auth approved', ['server-ts/src/auth/x.ts']);
+         const [project] = await sql`
+            INSERT INTO projects (id, workspace_id, name, status, github_repo_full_name, github_repo_id, created_by)
+            VALUES (${randomUUID()}, ${fixture.workspaceId}, 'Released project', 'planned', 'berry/x', 9, ${fixture.userId})
+            RETURNING id`;
+         await sql`
+            INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by)
+            VALUES (${fixture.workspaceId}, ${issueId}, ${project!.id as string}, ${fixture.userId})`;
+         const merged: Array<{ number: number; expectedHeadSha: string }> = [];
+         toolDeps.gate = new ReviewGate({
+            sql,
+            issues,
+            runs: new RunRepository(sql),
+            defaultModel: 'm',
+            completion: { async structured() { throw new Error('the tool path never asks a model'); } },
+            github: async () => ({
+               mergePullRequest: async (input: { number: number; expectedHeadSha: string }) => {
+                  merged.push(input);
+                  return { merged: true, sha: 'f00dfeed', reason: null, conflict: false };
+               },
+               pullRequestState: async () => ({
+                  merged: true, open: false, conflicts: false, base: 'main', githubId: 90_009, repoId: 9,
+                  title: 'Auth approved', url: 'https://github.com/berry/x/pull/9', headRef: 'backend/x', headSha: 'abc',
+               }),
+            }) as unknown as GitHubClient,
+         });
+         try {
+            await tool('submit_review').run(contextFor('reviewer', issueId), { approved: true, reason: 'Tested.' });
+            let bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
+            assert.ok(!bodies.some((comment) => /Required reviews passed/.test(comment.body as string)), 'Security has not reviewed yet');
+            assert.equal(merged.length, 0, 'nothing merges on one of two blocking approvals');
+
+            await tool('submit_review').run(contextFor('security-engineer', issueId), { approved: true, reason: 'No security concerns.', findings: [] });
+
+            bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
+            assert.ok(bodies.some((comment) => /Required reviews passed/.test(comment.body as string)));
+            // Both blocking reviewers approved a task whose plan carried AutoGate,
+            // which is the person's standing consent to release on exactly that
+            // (ADR-0016). A reviewer submitting its own verdict settles by the same
+            // rules as the gate: the pull request merges at the delivered commit,
+            // is recorded as merged, and only then does the task close.
+            assert.deepEqual(merged.map((call) => [call.number, call.expectedHeadSha]), [[9, 'abc']]);
+            assert.equal(await statusOf(issueId), 'done');
+         } finally {
+            toolDeps.gate = gate;
+            await sql`DELETE FROM github_pull_request_links WHERE issue_id = ${issueId}`;
+            await sql`DELETE FROM github_pull_requests WHERE workspace_id = ${fixture.workspaceId}`;
+            await sql`DELETE FROM issue_project_links WHERE issue_id = ${issueId}`;
+            await sql`DELETE FROM projects WHERE id = ${project!.id as string}`;
+         }
+      });
+
+      test('AutoGate does not close a task whose pull request it could not merge', async () => {
+         // The delivery names pull request #9, but the task has no repository, so
+         // the gate has nothing to merge it in. Closing anyway would mark work
+         // done that never reached the default branch.
+         const { issueId } = await deliveredByBackend('Approved, not merged', ['server-ts/src/auth/x.ts']);
          await tool('submit_review').run(contextFor('reviewer', issueId), { approved: true, reason: 'Tested.' });
-         let bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
-         assert.ok(!bodies.some((comment) => /Required reviews passed/.test(comment.body as string)), 'Security has not reviewed yet');
+         await tool('submit_review').run(contextFor('security-engineer', issueId), { approved: true, reason: 'No security concerns.', findings: [] });
 
-         const approval = {
-            approved: true, reason: 'No security concerns.', findings: [],
-         };
-         await tool('submit_review').run(contextFor('security-engineer', issueId), approval);
-
-         bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
-         assert.ok(bodies.some((comment) => /Required reviews passed/.test(comment.body as string)));
-         // Both blocking reviewers approved a task whose plan carried AutoGate,
-         // which is the person's standing consent to release on exactly that
-         // (ADR-0016). A reviewer submitting its own verdict settles by the same
-         // rules as the gate, so it closes here too.
-         assert.equal(await statusOf(issueId), 'done');
+         const bodies = await sql`SELECT body FROM comments WHERE issue_id = ${issueId}`;
+         assert.ok(bodies.some((comment) => /Required reviews passed\*\* — waiting for a person/.test(comment.body as string)));
+         assert.equal(await statusOf(issueId), 'in_review');
       });
 
       test('the delivered run is reviewed even when the reviewer\'s own run on the task is newer', async () => {

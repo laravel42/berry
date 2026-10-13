@@ -138,6 +138,22 @@ AGENTS.md, the coding playbook, the product brief and the steering rules.
 
 ## Current state
 
+Updated 2026-10-12. A review has a fourth outcome besides approve, request
+changes and read more: **inconclusive**, for work that exists but whose
+deciding evidence the reviewer could not see. It never counts as approval, so
+AutoGate does not release on it. It is not a rejection either: the task stays
+in review for a person, no author attempt is spent, and the next run is not
+told it was rejected. A reviewer that still asks to read when its reading
+rounds are spent, or when the repository cannot be read, is inconclusive. So
+is an answer that contradicts itself. The sentence above about a review that
+cannot see the work now applies only to work that is absent: that is still a
+rejection. The row stores `approved = false` with a reason under the existing
+"The review could not be completed" prefix, which every rejection counter
+already skips, so no migration was needed. Reviewers are also shown the run's
+instructions and people's comments as the current requirements, and a diff
+too large to show is chosen file by file, with the omitted files named
+(`src/agents/review-gate.ts`).
+
 Updated 2026-10-11. The always-blocking reviewer of code is `reviewer`, not
 QA. QA writes and runs tests. Security and architecture stay blocking on
 their labels and paths. See [ADR-0018](0018-core-roles-and-specialists.md).
