@@ -20,7 +20,9 @@ function Section({
 }) {
    return (
       <section className={cn('flex flex-col gap-2', className)}>
-         <h3>{title}</h3>
+         <h3 data-heading="label" className="text-muted-foreground">
+            {title}
+         </h3>
          {children}
       </section>
    );
@@ -166,7 +168,7 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
             </dl>
 
             <Section title={t('summary.title')} className="-mt-4">
-               <div className="overflow-auto rounded-md border border-border/70 bg-muted/20 p-4 font-mono">
+               <div className="overflow-auto rounded-md border border-border/70 bg-muted/20 p-4 font-mono leading-relaxed">
                   {item.run.summary ? (
                      <AgentMarkdown
                         body={withoutLeadingSummaryHeading(item.run.summary)}

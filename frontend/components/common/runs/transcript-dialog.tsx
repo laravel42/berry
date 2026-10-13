@@ -297,10 +297,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          const truncated = payload.truncated === true ? '\n[output truncated]' : '';
          next[next.indexOf(target)] = {
             ...target,
-            durationMs:
-               typeof payload.durationMs === 'number'
-                  ? payload.durationMs
-                  : elapsed(target.at, event.occurredAt),
+            durationMs: stepDuration(payload.durationMs, target.at, event.occurredAt),
             ok: code === 0,
             result: `${target.result}${truncated}\n[${code === null ? 'did not finish' : `exit ${code}`}]`,
          };
@@ -335,10 +332,7 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
             ...target,
             ok: payload.status === 'succeeded',
             // Measured in the runtime when it says; the two timestamps otherwise.
-            durationMs:
-               typeof payload.durationMs === 'number'
-                  ? payload.durationMs
-                  : elapsed(target.at, event.occurredAt),
+            durationMs: stepDuration(payload.durationMs, target.at, event.occurredAt),
             detail: detailOf(payload.detail),
          };
          return next;
@@ -369,6 +363,52 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
    }
 }
 
+/** A row of the log: one step, or a run of the same call repeated back to back. */
+export interface TranscriptRow extends TranscriptStep {
+   count: number;
+}
+
+/**
+ * Consecutive calls of the same tool or command read as one row. The row keeps
+ * the first call's id, adds up the durations it knows, and is open while any
+ * call is open and failed when any call failed. A detail survives only when
+ * every call reported the same one.
+ */
+export function collapseRepeats(steps: TranscriptStep[]): TranscriptRow[] {
+   const rows: TranscriptRow[] = [];
+   for (const step of steps) {
+      const last = rows.at(-1);
+      const repeatable = !isProse(step.kind) && step.kind !== 'error';
+      if (
+         !last ||
+         !repeatable ||
+         last.kind !== step.kind ||
+         last.title !== step.title ||
+         last.input !== step.input
+      ) {
+         rows.push({ ...step, count: 1 });
+         continue;
+      }
+      rows[rows.length - 1] = {
+         ...last,
+         count: last.count + 1,
+         result: [last.result, step.result].filter((text) => text.trim()).join('\n'),
+         durationMs:
+            last.durationMs === null && step.durationMs === null
+               ? null
+               : (last.durationMs ?? 0) + (step.durationMs ?? 0),
+         ok:
+            last.ok === false || step.ok === false
+               ? false
+               : last.ok === null || step.ok === null
+                 ? null
+                 : true,
+         detail: JSON.stringify(last.detail) === JSON.stringify(step.detail) ? last.detail : null,
+      };
+   }
+   return rows;
+}
+
 /** "2.4 KB" — binary units, one decimal under ten. */
 export function formatBytes(bytes: number): string {
    if (bytes < 1024) return `${bytes} B`;
@@ -382,8 +422,23 @@ export function formatBytes(bytes: number): string {
    return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-/** Seconds with one decimal, the unit the row reads in: "0.3 s", "12.4 s". */
+/**
+ * How long a finished step took.
+ *
+ * A reported 0 is an unmeasured call, not a duration: the start and finish
+ * timestamps are used instead. Both missing still yields null.
+ */
+function stepDuration(reported: unknown, from: string, to: string): number | null {
+   if (typeof reported === 'number' && reported > 0) return reported;
+   return elapsed(from, to);
+}
+
+/** Under a second in milliseconds, so a short call does not read as 0.0 s. */
 export function formatSeconds(ms: number): string {
+   if (ms < 1000) {
+      const rounded = Math.round(ms);
+      return rounded < 1 ? '<1 ms' : `${rounded} ms`;
+   }
    return `${(ms / 1000).toFixed(1)} s`;
 }
 
@@ -416,7 +471,7 @@ function StepCard({
    highlight,
    current,
 }: {
-   step: TranscriptStep;
+   step: TranscriptRow;
    highlight: string;
    current: boolean;
 }) {
@@ -863,9 +918,10 @@ export function RunTranscript({
                  .toLowerCase()
                  .includes(needle)
            );
+      const rows = collapseRepeats(matched);
       // Newest first: the last thing an agent did is the thing being waited on.
       // Oldest first reads as it happened, the latest at the foot.
-      return oldestFirst ? matched : [...matched].reverse();
+      return oldestFirst ? rows : [...rows].reverse();
    }, [withFailure, kinds, query, oldestFirst]);
 
    const matches = query.trim() ? visible.length : 0;
