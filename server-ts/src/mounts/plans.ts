@@ -499,6 +499,7 @@ async function generate(
          workspaceId: record.workspaceId,
          planId: record.id,
          prompt,
+         facts: await planFacts(options.sql, record.projectId),
          // Written as each stage begins, so a person watching sees where the
          // plan is rather than a spinner. Failing to write it must not fail
          // the generation.
@@ -588,6 +589,7 @@ async function regenerate(options: PlanOptions, record: PlanRecord, userId: stri
          planId: record.id,
          prompt: record.sourcePrompt ?? '',
          answers,
+         facts: await planFacts(options.sql, record.projectId),
          onStage: (stage) => {
             void options.plans.markStage(record.id, stage).catch(() => undefined);
          },
@@ -747,6 +749,25 @@ export async function startPlan(options: PlanOptions, input: PlanStartInput): Pr
 async function boardInWorkspace(sql: Sql, boardId: string, workspaceId: string): Promise<boolean> {
    const [row] = await sql`SELECT 1 FROM boards WHERE id = ${boardId} AND workspace_id = ${workspaceId}`;
    return Boolean(row);
+}
+
+/**
+ * What the planner is told about where the tasks will land. Only what the
+ * project row says: a plan with no project gets no facts rather than a guess.
+ */
+async function planFacts(sql: Sql, projectId: string | null): Promise<string[]> {
+   if (!projectId) return [];
+   const [project] = await sql`
+      SELECT name, github_repo_full_name FROM projects
+       WHERE id = ${projectId} AND deleted_at IS NULL`;
+   if (!project) return [];
+   const repository = project.github_repo_full_name as string | null;
+   return [
+      `The tasks land in the project "${project.name as string}".`,
+      repository
+         ? `That project's repository is ${repository}.`
+         : 'That project has no repository linked yet.',
+   ];
 }
 
 async function oldestBoard(sql: Sql, workspaceId: string): Promise<string | null> {

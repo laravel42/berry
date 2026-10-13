@@ -82,6 +82,20 @@ export interface PlanIssue {
    estimate?: string | null;
    /** The milestone this task belongs to, by `tempId`. */
    milestone: string | null;
+   /** The requirements this task delivers, by id. Absent on plans written before requirements. */
+   covers?: string[];
+}
+
+/**
+ * One thing the request asked for, in its own terms.
+ *
+ * Listed by the planner so the critic and the repair role check the plan
+ * against the request rather than against itself: a plan can be coherent and
+ * still drop the one feature that made the request worth asking.
+ */
+export interface PlanRequirement {
+   id: string;
+   description: string;
 }
 
 export interface PlanApproval {
@@ -103,6 +117,8 @@ export interface PlanDependency {
 export interface Plan {
    version: string;
    goal: PlanGoal;
+   /** Absent on plans written before requirements, and on a plan that listed none. */
+   requirements?: PlanRequirement[];
    /** In delivery order. Never empty when there are tasks: the reader sees to that. */
    milestones: PlanMilestone[];
    assumptions: PlanAssumption[];
@@ -185,6 +201,8 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       });
    });
 
+   const requirements = readRequirements(source.requirements);
+
    const issues: PlanIssue[] = [];
    const rawIssues = Array.isArray(source.issues) ? source.issues : [];
    if (rawIssues.length > MAX_ISSUES) {
@@ -198,6 +216,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       const item = isRecord(entry) ? named(entry) : {};
       const tempId = text(item.tempId) || `issue-${index + 1}`;
       const title = text(item.title);
+      const covers = strings(item.covers);
       if (title === '') {
          problems.push({
             path: `/issues/${index}/title`,
@@ -220,6 +239,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
          expectedArtifacts: strings(item.expectedArtifacts),
          estimate: text(item.estimate) || null,
          milestone: text(item.milestone) || null,
+         ...(covers.length > 0 ? { covers } : {}),
       });
    });
 
@@ -292,6 +312,7 @@ export function readPlan(raw: unknown): { plan: Plan; problems: FieldProblem[] }
       plan: {
          version: '1',
          goal,
+         ...(requirements.length > 0 ? { requirements } : {}),
          milestones,
          assumptions,
          requiredConnections: [],
@@ -403,6 +424,36 @@ export function validatePlan(
          });
       }
    });
+
+   // Warned rather than refused: coverage does not decide whether the plan
+   // compiles, and whether a task really delivers a requirement is the
+   // critic's judgement. A gap is still worth showing before Start Plan.
+   const requirements = plan.requirements ?? [];
+   if (requirements.length > 0) {
+      const known = new Set(requirements.map((requirement) => requirement.id));
+      const covered = new Set<string>();
+      plan.issues.forEach((issue, index) => {
+         for (const id of issue.covers ?? []) {
+            if (known.has(id)) {
+               covered.add(id);
+               continue;
+            }
+            warnings.push({
+               path: `/issues/${index}/covers`,
+               code: 'unknown_requirement',
+               message: `${taskName(issue)} covers "${id}", which is not a requirement in this plan.`,
+            });
+         }
+      });
+      requirements.forEach((requirement, index) => {
+         if (covered.has(requirement.id)) return;
+         warnings.push({
+            path: `/requirements/${index}`,
+            code: 'uncovered_requirement',
+            message: `No task covers ${requirement.id}: "${requirement.description}".`,
+         });
+      });
+   }
 
    // Milestones are checked only when the plan has them; the reader gives
    // every real plan at least one, and a hand-built fixture without any is
@@ -583,6 +634,26 @@ function readOptions(value: unknown, assumptionIndex: number): PlanAssumptionOpt
 }
 
 /**
+ * The requirements the planner listed, read leniently: a bare string is the
+ * requirement's text, and an entry with no text says nothing to check.
+ */
+function readRequirements(value: unknown): PlanRequirement[] {
+   if (!Array.isArray(value)) return [];
+   const requirements: PlanRequirement[] = [];
+   const seen = new Set<string>();
+   for (const [index, entry] of value.entries()) {
+      const item = typeof entry === 'string' ? { description: entry } : isRecord(entry) ? named(entry) : {};
+      const description = text(item.description);
+      if (description === '') continue;
+      const id = text(item.id) || `r${index + 1}`;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      requirements.push({ id, description });
+   }
+   return requirements;
+}
+
+/**
  * Field names a plan object uses, longest first.
  *
  * A structured answer sometimes glues the next value onto the key (`title  `,
@@ -597,6 +668,7 @@ const PLAN_FIELDS = [
    'suggestedAgentId',
    'expectedArtifacts',
    'requiresApproval',
+   'requirements',
    'requiresReview',
    'userEditable',
    'dependencies',
@@ -614,6 +686,7 @@ const PLAN_FIELDS = [
    'approver',
    'options',
    'timeout',
+   'covers',
    'tempId',
    'issues',
    'reason',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { z } from 'zod';
-import { PlanGenerator, PLAN_SHAPE, PlannerUnavailable, repairPrompt } from './generator.ts';
+import { criticPrompt, PlanGenerator, PLAN_SHAPE, PlannerUnavailable, repairPrompt } from './generator.ts';
 import type { Plan } from './schema.ts';
 import type { Sql } from '../db/pool.ts';
 import { CompletionFailed, CompletionInvalid, type RuntimeCompletion } from '../runtime/completion.ts';
@@ -357,7 +357,7 @@ test('the same fault is said once, with each task named', () => {
       approvals: [],
       dependencies: [],
    } satisfies Plan;
-   const text = repairPrompt(plan, [
+   const text = repairPrompt('ship it', plan, [
       { path: '/issues/0/title', code: 'required', message: 'Task t1 needs a title.' },
       { path: '/issues/1/title', code: 'required', message: 'Task t2 needs a title.' },
       { path: '/issues/0/milestone', code: 'unknown_milestone', message: 't1 names milestone nothing; this plan has m1.' },
@@ -464,4 +464,131 @@ test('a critic revision the gateway never answers keeps the valid plan', async (
    assert.equal(result.plan.issues.length, 1);
    // The verdict stands as given: reporting `accept` would hide the problems.
    assert.equal(result.critique?.verdict, 'revise');
+});
+
+const REQUEST = 'Add a dark mode toggle that remembers the choice across visits';
+
+test('the critic and the repair role are shown the request, its answers and its facts', async () => {
+   // Shown only the plan, a reviewer can find it coherent while it leaves out
+   // the part of the request that made it worth asking.
+   const revise = {
+      verdict: 'revise',
+      problems: [{ code: 'too_big', path: '/issues/0', message: 'Split it.', severity: 'error' }],
+   };
+   const { planner, script } = generator([BROKEN, GOOD, revise, GOOD]);
+   await planner.generate({
+      workspaceId: 'w',
+      prompt: REQUEST,
+      answers: [{ question: 'Where is the choice kept?', answer: 'In localStorage' }],
+      facts: ['That project\'s repository is acme/site.'],
+   });
+
+   assert.equal(script.prompts.length, 4);
+   const [generate, repair, critic, revision] = script.prompts;
+   for (const prompt of [generate!, repair!, critic!, revision!]) {
+      assert.match(prompt.user, /remembers the choice across visits/);
+      assert.match(prompt.user, /In localStorage/);
+      assert.match(prompt.user, /acme\/site/);
+   }
+   assert.match(repair!.system, /request the plan answers/);
+   assert.match(critic!.system, /request the plan answers/);
+});
+
+test('the planner sizes the plan to the request instead of a fixed count', async () => {
+   const { planner, script } = generator([GOOD, ACCEPT]);
+   await planner.generate({ workspaceId: 'w', prompt: 'Fix the typo in the README' });
+   const system = script.prompts[0]!.system;
+   assert.doesNotMatch(system, /2 to 6 milestones/);
+   assert.doesNotMatch(system, /3 to 8 tasks/);
+   assert.match(system, /one milestone with one\s+or two tasks/);
+   assert.match(system, /Acceptance criteria:/);
+   assert.match(system, /requirements/);
+});
+
+test('a one-task plan for a small request is valid and accepted as it is', async () => {
+   const small = {
+      goal: { tempId: 'g1', title: 'Fix the README typo' },
+      requirements: [{ id: 'r1', description: 'The README spells "Berry" correctly' }],
+      milestones: [{ tempId: 'm1', title: 'The README reads correctly' }],
+      issues: [
+         {
+            tempId: 't1',
+            title: 'Fix the typo',
+            description: 'Correct the spelling.\n\nAcceptance criteria:\n- README.md contains "Berry", not "Bery".',
+            milestone: 'm1',
+            covers: ['r1'],
+            changesRepository: true,
+         },
+      ],
+   };
+   const { planner, script } = generator([small, ACCEPT]);
+   const result = await planner.generate({ workspaceId: 'w', prompt: 'Fix the typo in the README' });
+
+   assert.equal(result.validation.status, 'valid');
+   assert.deepEqual(result.validation.warnings, []);
+   assert.equal(result.plan.issues.length, 1);
+   assert.deepEqual(result.plan.requirements, [{ id: 'r1', description: 'The README spells "Berry" correctly' }]);
+   assert.deepEqual(result.plan.issues[0]!.covers, ['r1']);
+   assert.equal(script.calls(), 2);
+});
+
+test('the critic is shown which tasks claim each requirement, and which none do', () => {
+   const plan = {
+      version: '1',
+      goal: { tempId: 'g', title: 'Dark mode' },
+      requirements: [
+         { id: 'r1', description: 'A toggle switches the theme' },
+         { id: 'r2', description: 'The choice is remembered across visits' },
+      ],
+      milestones: [{ tempId: 'm1', title: 'Dark mode works' }],
+      assumptions: [],
+      requiredConnections: [],
+      issues: [{ ...bare('t1'), title: 'Add the toggle', covers: ['r1'] }],
+      approvals: [],
+      dependencies: [],
+   } satisfies Plan;
+   const text = criticPrompt(REQUEST, plan);
+   assert.match(text, /^Request:\nAdd a dark mode toggle/);
+   assert.match(text, /- r1 "A toggle switches the theme": t1 \("Add the toggle"\)/);
+   assert.match(text, /- r2 "The choice is remembered across visits": no task/);
+
+   const { requirements: _listed, ...withoutRequirements } = plan;
+   const unlisted = criticPrompt(REQUEST, withoutRequirements);
+   assert.match(unlisted, /lists no requirements/);
+});
+
+test('a coverage gap is a revision even when the critic said accept', async () => {
+   // The verdict and the coverage disagreeing is the critic contradicting
+   // itself; the gap is the part that is about the request.
+   const inconsistent = {
+      verdict: 'accept',
+      problems: [],
+      coverage: [
+         { requirement: 'r1', tasks: ['t1'], status: 'covered' },
+         { requirement: 'r2', tasks: [], status: 'missing', note: 'nothing remembers the choice' },
+      ],
+   };
+   const { planner, script } = generator([GOOD, inconsistent, GOOD], { maxCriticRounds: 1 });
+   const result = await planner.generate({ workspaceId: 'w', prompt: REQUEST });
+
+   assert.equal(result.critique?.verdict, 'revise');
+   assert.equal(result.critique?.coverage?.length, 2);
+   assert.deepEqual(
+      result.stages.map((stage) => stage.stage),
+      ['generate', 'critic', 'repair']
+   );
+   assert.match(script.prompts[2]!.user, /missing_requirement: r2 is missing in this plan: nothing remembers the choice/);
+});
+
+test('a gap the critic already named is not reported twice', async () => {
+   const named = {
+      verdict: 'revise',
+      problems: [
+         { code: 'weakened_requirement', path: '/requirements/0', message: 'r1 asks for real time; t1 runs nightly.', severity: 'error' },
+      ],
+      coverage: [{ requirement: 'r1', tasks: ['t1'], status: 'weakened' }],
+   };
+   const { planner } = generator([GOOD, named, GOOD], { maxCriticRounds: 1 });
+   const result = await planner.generate({ workspaceId: 'w', prompt: REQUEST });
+   assert.equal(result.critique?.problems.length, 1);
 });

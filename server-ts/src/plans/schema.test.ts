@@ -84,7 +84,56 @@ test('a runaway plan is capped, and says so', () => {
    assert.ok(problems.some((problem) => problem.code === 'too_long'));
 });
 
+test('requirements and what each task covers are read, leniently', () => {
+   const { plan, problems } = readPlan({
+      goal: { title: 'Dark mode' },
+      requirements: [
+         { id: 'r1', description: 'A toggle switches the theme' },
+         'The choice is remembered across visits',
+         { id: 'r3', description: '' },
+         { id: 'r1', description: 'a duplicate id' },
+      ],
+      issues: [
+         { title: 'Add the toggle', covers: ['r1'] },
+         { title: 'Remember it', covers: 'r2' },
+      ],
+   });
+   assert.equal(problems.length, 0);
+   assert.deepEqual(plan.requirements, [
+      { id: 'r1', description: 'A toggle switches the theme' },
+      { id: 'r2', description: 'The choice is remembered across visits' },
+   ]);
+   assert.deepEqual(plan.issues[0]!.covers, ['r1']);
+   assert.deepEqual(plan.issues[1]!.covers, ['r2']);
+});
+
+test('a plan written before requirements reads exactly as it did', () => {
+   const { plan } = readPlan({ goal: { title: 'Ship it' }, issues: [{ title: 'Do the work' }] });
+   assert.equal('requirements' in plan, false);
+   assert.equal('covers' in plan.issues[0]!, false);
+});
+
 // -------------------------------------------------------------- validating
+
+test('an uncovered requirement or an unknown one is warned about, not refused', () => {
+   const report = validatePlan(
+      planWith({
+         requirements: [
+            { id: 'r1', description: 'A toggle switches the theme' },
+            { id: 'r2', description: 'The choice is remembered across visits' },
+         ],
+         issues: [{ ...issue('a'), covers: ['r1', 'r9'] }],
+      })
+   );
+   assert.equal(report.status, 'valid');
+   assert.deepEqual(
+      report.warnings.map((warning) => [warning.code, warning.path]),
+      [
+         ['unknown_requirement', '/issues/0/covers'],
+         ['uncovered_requirement', '/requirements/1'],
+      ]
+   );
+});
 
 test('a plan whose tasks all exist is valid', () => {
    const report = validatePlan(planWith({ issues: [issue('a'), issue('b', ['a'])] }));
