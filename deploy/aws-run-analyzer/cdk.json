@@ -1,0 +1,10 @@
+{
+   "app": "npx tsx bin/run-analyzer.ts",
+   "watch": { "include": ["bin/**", "lib/**", "src/**"], "exclude": ["src/**/*.test.ts"] },
+   "context": {
+      "@aws-cdk/core:checkSecretUsage": true,
+      "@aws-cdk/aws-iam:minimizePolicies": true,
+      "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+      "@aws-cdk/aws-lambda:useCdkManagedLogGroup": true
+   }
+}
