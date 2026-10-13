@@ -1,18 +1,18 @@
 /**
- * How a runtime's Berry tools are actually named.
+ * The same tool note on every runtime.
  *
- * The task prompt says to call `list_run_tools`. Several CLIs already expose
- * that as a direct function and reject `tool_load` / `tool_call`. Without the
- * exact name, the model spends the turn on those wrappers and the CLI's own
- * shell before it finds the tool.
+ * Supported native tools are the aliases in that runtime's dictionary whose
+ * Berry tools this run admits. `list_run_tools` is the one list of those
+ * aliases plus the sandbox commands. `firstCall` stays so existing call sites
+ * compile; the note names `list_run_tools` itself.
  */
-export function runtimeToolNote(firstCall: string): string {
+export function runtimeToolNote(_firstCall: string): string {
    return (
       '\n\nHow to call tools on this runtime\n' +
-      `Call ${firstCall} first. It is already loaded. ` +
-      'Its reply names every other tool this run may use; call those the same way. ' +
-      'Do not call tool_load, tool_call, or a powers interface. ' +
-      "This runtime's own shell and file tools are refused.\n"
+      'The programs you may run are listed in the task under Commands in the sandbox, and they are the same on every runtime. ' +
+      'Run one with run_command. ' +
+      'Call list_run_tools to list every tool you may use. ' +
+      'The reply contains the native commands for this runtime plus the sandbox commands.\n'
    );
 }
 
@@ -27,7 +27,7 @@ export function runtimeCompletionNote(schema?: unknown): string {
    return (
       '\n\nHow this completion works\n' +
       'This turn is a single answer. There is no Berry tool server and no checkout of the repository. ' +
-      'Do not call list_run_tools, tool_load, tool_call, a powers interface, or this runtime\'s shell or file tools. ' +
+      'This completion cannot call tools. ' +
       'They are not available and will fail.' +
       inspect +
       '\n'

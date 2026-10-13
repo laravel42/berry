@@ -4,12 +4,24 @@ import { buildMessage } from './prompt.ts';
 
 const base = { issueIdentifier: 'L42-7', issueTitle: 'Decide the cache TTL', issueDescription: 'Pick one.', instructions: null, reviewFeedback: null, repository: null } as unknown as Parameters<typeof buildMessage>[0];
 
-test('the agent is told to query the berry MCP server before it works', () => {
+test('the agent is told which sandbox commands it may run, and to list aliases with list_run_tools', () => {
    const message = buildMessage(base);
-   assert.match(message, /Tools for this run/);
-   assert.match(message, /call list_run_tools/);
+   assert.match(message, /Files/);
+   assert.match(message, /list_files/);
+   assert.match(message, /read_file/);
+   assert.match(message, /write_file/);
+   assert.match(message, /edit_file/);
+   assert.match(message, /collect_file/);
+   assert.match(message, /Commands in the sandbox/);
+   assert.match(message, /Run a command with run_command/);
+   assert.match(message, /Call list_run_tools to list the native aliases this runtime supports and these programs/);
+   assert.match(message, /git/);
+   assert.match(message, /node, npm, npx, pnpm, yarn, bun, bunx, nvm/);
+   assert.match(message, /python, python3, pip/);
+   assert.match(message, /ffmpeg/);
+   assert.match(message, /playwright/);
    assert.match(message, /Do not call tool_load, tool_call, or a powers interface/);
-   assert.match(message, /Every other tool call is refused until it has/);
+   assert.doesNotMatch(message, /call list_run_tools\. It is already loaded/);
 });
 
 test('the tasks around a task are given as context, fenced like any task data, and absent when there are none', () => {

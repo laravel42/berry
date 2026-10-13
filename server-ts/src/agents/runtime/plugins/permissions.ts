@@ -31,6 +31,7 @@ export const TOOL_PERMISSIONS: Readonly<Record<string, Permission | null>> = {
    // existing agents' `write_file`, and an artifact is the run's own output,
    // not a change to anything outside it.
    write_file: null,
+   edit_file: null,
    // A file a command produced, saved the same way write_file saves text.
    collect_file: null,
    read_file: null,

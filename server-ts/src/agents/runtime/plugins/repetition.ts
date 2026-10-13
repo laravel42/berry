@@ -20,7 +20,7 @@ export const REPEATED_WRITE_AT = 5;
 /** What one tool call does again, when it does the same thing as another: a command, or a file it writes. */
 export function repetitionKey(name: string, input: unknown): { kind: 'command' | 'write'; key: string } | null {
    const fields = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
-   if (name === 'write_file' && typeof fields.path === 'string') {
+   if ((name === 'write_file' || name === 'edit_file') && typeof fields.path === 'string') {
       return { kind: 'write', key: fields.path.replace(/^\.\//, '') };
    }
    if (name !== 'run_command' || typeof fields.command !== 'string') return null;

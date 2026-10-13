@@ -140,6 +140,7 @@ export function runCommandTool(scope: CommandToolScope): Tool {
       name: 'run_command',
       description:
          'Run a shell command in this task\'s isolated workspace and return its output and exit code. ' +
+         'The programs on PATH are the ones named in the task under Commands in the sandbox, the same set on every runtime. ' +
          'The files saved on this task (see list_files) are present in the workspace at the same paths. ' +
          'The workspace is yours alone and is destroyed when the run ends; a file a command produces ' +
          'is kept only if you collect_file it. ' +

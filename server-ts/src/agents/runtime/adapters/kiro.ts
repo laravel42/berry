@@ -7,7 +7,8 @@ import type { Tool } from '@strands-agents/sdk';
 import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
-import { runtimeToolNote, runtimeTurnNote } from '../tool-note.ts';
+import { kiroAgentNote, kiroCallAllowed, withKiroAliases } from '../kiro-aliases.ts';
+import { runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
    AgentProcessAdapter,
@@ -220,7 +221,8 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       this.#assertIsolated();
       await mkdir(input.stateDirectory, { recursive: true, mode: 0o700 });
       await chmod(input.stateDirectory, 0o700);
-      const allowed = new Set(input.tools.map((tool) => tool.name));
+      const sessionTools = withKiroAliases(input.tools);
+      const allowed = new Set(sessionTools.map((tool) => tool.name));
       const normalization: NormalizationState = { thinkingChars: 0, started: new Set() };
       let pendingUsage: LifecycleEvent | null = null;
       const handlers = {
@@ -232,7 +234,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          onPermission: (params: unknown) => selectKiroPermission(params, allowed),
       };
       const socketPath = kiroMcpSocketPath();
-      const host = new BerryMcpHost(socketPath, input.tools, input.workingDirectory, input.signal);
+      const host = new BerryMcpHost(socketPath, sessionTools, input.workingDirectory, input.signal);
       await host.listen();
       const client = await this.#open(input.stateDirectory, handlers);
       let sessionId = '';
@@ -297,7 +299,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
             'session/prompt',
             {
                sessionId,
-               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${runtimeTurnNote(input.envelope.kind, '@berry/list_run_tools', input.envelope.completion?.jsonSchema)}` }],
+               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${turnNote(input.envelope.kind, allowed, input.envelope.completion?.jsonSchema)}` }],
             },
             this.#deadlineMs
          );
@@ -458,9 +460,15 @@ function initializeParams(): unknown {
    };
 }
 
-/** Kiro exposes Berry MCP tools as `@berry/<tool>` and rejects `tool_load` / `tool_call`. */
-export function kiroToolNote(): string {
-   return runtimeToolNote('@berry/list_run_tools');
+/** What a Kiro agent turn is told. Completions stay on the shared no-tools note. */
+function turnNote(kind: string, allowed: ReadonlySet<string>, schema?: unknown): string {
+   if (kind === 'completion') return runtimeTurnNote(kind, '', schema);
+   return kiroAgentNote(allowed);
+}
+
+/** Kiro exposes Berry MCP tools as `@berry/<tool>` and its built-ins as aliases of those tools. */
+export function kiroToolNote(allowed: ReadonlySet<string> = new Set()): string {
+   return kiroAgentNote(allowed);
 }
 
 function berryMcpServer(socketPath: string): unknown {
@@ -692,8 +700,7 @@ export function selectKiroPermission(
    allowed: ReadonlySet<string>
 ): { outcome: { outcome: 'selected'; optionId: string } } {
    const options = permissionOptions(params);
-   const toolName = berryToolName(params);
-   const permit = toolName !== null && allowed.has(toolName);
+   const permit = kiroCallAllowed(params, allowed);
    const kind = permit ? 'allow_once' : 'reject_once';
    const chosen =
       options.find((option) => option.kind === kind) ??
@@ -713,14 +720,6 @@ function permissionOptions(params: unknown): Array<{ optionId: string; kind: str
       if (typeof optionId !== 'string' || typeof kind !== 'string') return [];
       return [{ optionId, kind }];
    });
-}
-
-function berryToolName(params: unknown): string | null {
-   if (!params || typeof params !== 'object') return null;
-   const meta = (params as { _meta?: { kiro?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } } } })
-      ._meta?.kiro?.mcpTool?.identity;
-   if (!meta || meta.serverName !== 'berry' || typeof meta.toolName !== 'string') return null;
-   return meta.toolName;
 }
 
 function transcriptContext(messages: AgentProcessRun['envelope']['transcript']): string {

@@ -7,6 +7,7 @@ import type { TaskEnvelope } from '../../../runtime/envelope.ts';
 import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
 import type { ExecutionSession } from '../../../execution/driver.ts';
 import { runCommandTool, WORKDIR_KEY } from '../command-tool.ts';
+import { withKiroAliases } from '../kiro-aliases.ts';
 import { pageTools } from '../page-tools.ts';
 import { repositoryTools } from '../repository-tools.ts';
 import { readSkillTool } from '../skill-tool.ts';
@@ -296,7 +297,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       );
       const table = toolTable(envelope.agent.mcpServers, mcp.listed, remote.map((t) => t.name));
       const visible = [...tools, ...mcp.tools];
-      const declaration = listRunToolsTool(visible.map((entry) => ({ name: entry.name, description: entry.description })));
+      const declaration = listRunToolsTool(
+         visible.map((entry) => ({ name: entry.name, description: entry.description })),
+         envelope.runtime?.id
+      );
       const offered = [declaration, ...visible];
       const exempt = new Set([
          'summarize',
@@ -348,7 +352,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             credential: envelope.runtime.credential,
             workingDirectory: directory ?? workspace.root,
             stateDirectory: join(workspace.root, '.runtime-state', envelope.runtime.id),
-            tools: authorizedAgentTools(offered, envelope, table, exempt),
+            tools: sessionTools(envelope.runtime.id, authorizedAgentTools(offered, envelope, table, exempt)),
             emit,
             signal,
          });
@@ -527,6 +531,11 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       await workspace.stop();
       await Promise.all(mcpClients.map((client) => client.disconnect().catch(() => undefined)));
    }
+}
+
+/** Kiro's built-in names, added beside the Berry tools this run already admitted. */
+function sessionTools(runtimeId: string, tools: Tool[]): Tool[] {
+   return runtimeId === 'kiro' ? withKiroAliases(tools) : tools;
 }
 
 /**

@@ -56,6 +56,12 @@ describe('autonomy ceilings', () => {
       assert.equal(toolCeiling(3).includes('run_command'), true);
    });
 
+   test('editing a file comes with writing one', () => {
+      const writer = { ...base, autonomy_level: 2 as const, allowed_tools: ['write_file', 'read_file'] };
+      assert.deepEqual(effectiveTools(writer), ['edit_file', 'read_file', 'write_file']);
+      assert.equal(effectiveTools({ ...base, allowed_tools: ['read_file'] }).includes('edit_file'), false);
+   });
+
    test('effective tools are the allowed tools inside the ceiling', () => {
       // Level 4 cannot review even when the contract lists the tool. The page
       // checks come with the shell: they are a command in the same workspace.

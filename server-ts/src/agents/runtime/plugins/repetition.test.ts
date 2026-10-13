@@ -36,6 +36,7 @@ test('a heredoc into a file counts as writing that file, whatever its body', () 
       key: '__tests__/zz-bisect.test.tsx',
    });
    assert.deepEqual(repetitionKey('write_file', { path: './src/App.tsx', content: 'x' }), { kind: 'write', key: 'src/App.tsx' });
+   assert.deepEqual(repetitionKey('edit_file', { path: './src/App.tsx', old: 'a', new: 'b' }), { kind: 'write', key: 'src/App.tsx' });
    assert.deepEqual(repetitionKey('run_command', { command: 'npm   test' }), { kind: 'command', key: 'npm test' });
    assert.equal(repetitionKey('read_file', { path: 'a' }), null);
 });

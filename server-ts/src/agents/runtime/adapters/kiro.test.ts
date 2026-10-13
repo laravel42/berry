@@ -213,8 +213,13 @@ describe('Kiro adapter', () => {
          const prompt = replied.find((message) => (message as { method?: string }).method === 'session/prompt') as {
             params?: { prompt?: Array<{ text?: string }> };
          };
-         assert.match(prompt.params?.prompt?.[0]?.text ?? '', /@berry\/list_run_tools/);
-         assert.match(kiroToolNote(), /Do not call tool_load, tool_call, or a powers interface/);
+         const text = prompt.params?.prompt?.[0]?.text ?? '';
+         assert.match(text, /Call list_run_tools to list every tool you may use/);
+         assert.doesNotMatch(text, /built-ins stay refused/);
+         const admitted = kiroToolNote(new Set(['write_file', 'edit_file', 'run_command', 'read_repository_file', 'fetch_url', 'browse_repository']));
+         assert.match(admitted, /list_run_tools/);
+         assert.match(admitted, /native commands for this runtime/);
+         assert.doesNotMatch(admitted, /ignore the instruction/);
       } finally {
          if (previous === undefined) delete process.env.KIRO_API_KEY;
          else process.env.KIRO_API_KEY = previous;
@@ -343,6 +348,40 @@ describe('Kiro adapter', () => {
          new Set(['read_issue'])
       );
       assert.equal(shell.outcome.optionId, 'no');
+      const shellAllowed = selectKiroPermission(
+         {
+            options,
+            _meta: { kiro: { consent: { capability: 'shell' } } },
+            toolCall: { title: 'git status' },
+         },
+         new Set(['run_command'])
+      );
+      assert.equal(shellAllowed.outcome.optionId, 'once');
+      const write = selectKiroPermission(
+         {
+            options,
+            toolCall: { name: 'fs_write' },
+         },
+         new Set(['write_file'])
+      );
+      assert.equal(write.outcome.optionId, 'once');
+      const writeDenied = selectKiroPermission(
+         {
+            options,
+            toolCall: { name: 'fs_write' },
+         },
+         new Set(['read_file'])
+      );
+      assert.equal(writeDenied.outcome.optionId, 'no');
+      const subagent = selectKiroPermission(
+         {
+            options,
+            _meta: { kiro: { consent: { capability: 'subagent' } } },
+            toolCall: { name: 'subagent' },
+         },
+         new Set(['run_command', 'write_file'])
+      );
+      assert.equal(subagent.outcome.optionId, 'no');
    });
 
    test('skips replayed text and redacts the key', () => {

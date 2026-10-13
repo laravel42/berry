@@ -21,6 +21,8 @@ export const CONTAINER_ALLOWED_FILES = [
    'src/agents/delivery.ts',
    'src/agents/verification.ts',
    'src/agents/workspace-files.ts',
+   'src/agents/sandbox-commands.ts',
+   'src/agents/edit-file.ts',
    'src/execution/driver.ts',
    'src/execution/bytes.ts',
    'src/runtime/envelope.ts',

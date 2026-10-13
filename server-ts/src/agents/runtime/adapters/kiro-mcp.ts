@@ -6,9 +6,9 @@ import { WORKDIR_KEY } from '../command-tool.ts';
 import { LIST_RUN_TOOLS, RunToolDeclaration } from '../run-tools.ts';
 
 /**
- * The only tools Kiro may call. Native shell and filesystem stay denied in
- * the ACP permission handler. This server exposes the tools Berry already
- * admitted for the run.
+ * The tools this Kiro session may call: Berry's tools, plus Kiro's built-in
+ * names aliased onto them. A built-in is admitted only when its Berry tool
+ * is already on the run.
  */
 export class BerryMcpHost {
    readonly #server: Server;

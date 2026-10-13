@@ -94,6 +94,9 @@ export function effectiveTools(contract: Pick<RoleContract, 'allowed_tools' | 'a
    const ceiling = new Set(toolCeiling(contract.autonomy_level));
    const reached = [...new Set(contract.allowed_tools)].filter((tool) => ceiling.has(tool));
    if (reached.includes('run_command')) reached.push(...WITH_SHELL);
+   // Changing part of a file is the same reach as writing the whole file.
+   // Derived, so a stored contract does not have to name it.
+   if (reached.includes('write_file')) reached.push('edit_file');
    return [...new Set(reached)].sort();
 }
 

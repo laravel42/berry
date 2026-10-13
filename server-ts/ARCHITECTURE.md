@@ -231,10 +231,10 @@ them:
    set a task to `done` or `cancelled`; organization tools
    (`delegate_to_agent`, `submit_review`, `propose_work`) are registered
    separately. Subscription runtimes receive those tools from the berry MCP
-   server (`src/agents/runtime/adapters/kiro-mcp.ts`). The task prompt tells
-   the agent to call `list_run_tools` on that server before anything else;
-   the server and the in-process loop refuse every other tool until that
-   call succeeds (`src/agents/runtime/run-tools.ts`). A finished run writes
+   server (`src/agents/runtime/adapters/kiro-mcp.ts`). The task prompt names
+   the sandbox commands, the same set on every runtime
+   (`src/agents/sandbox-commands.ts`), and the agent runs them with
+   `run_command`. A finished run writes
    its handoff at `.handoffs/<identifier> - <slug>` (`src/runs/handoff.ts`).
    A later task that depends on it is told that path. The root file
    `HANDOFF.md` is not a handoff.

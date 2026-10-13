@@ -108,6 +108,40 @@ test('write_file lands in the checkout and does not upload', async () => {
    assert.equal((await session.exec('cat server/a.ts', { cwd: 'repo' })).stdout, content);
 });
 
+test('edit_file replaces one span in the checkout and does not upload', async () => {
+   const calls: string[] = [];
+   const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-edit-')) });
+   await session.writeFile('repo/server/a.ts', 'const a = 1;\n');
+   const fetchEdit = (async (input: string | URL | Request, init?: RequestInit) => {
+      if (!init?.method || init.method === 'GET') {
+         return Response.json({
+            tools: [
+               {
+                  name: 'edit_file',
+                  description: 'Edit a file',
+                  inputSchema: {
+                     type: 'object',
+                     properties: { path: { type: 'string' }, old: { type: 'string' }, new: { type: 'string' } },
+                  },
+               },
+            ],
+         });
+      }
+      calls.push(String(input));
+      return Response.json({ result: { saved: true } });
+   }) as typeof fetch;
+   const tools = await loadRemoteTools({ apiUrl: 'https://berry.test', token: 't', fetch: fetchEdit }, { session: async () => session });
+   const agent = new Agent({
+      model: new ScriptedModel([call('edit_file', { path: 'server/a.ts', old: 'const a = 1;', new: 'const a = 2;' }), say('done')]),
+      tools,
+      printer: false,
+   });
+   agent.appState.set(WORKDIR_KEY, join(session.root, 'repo'));
+   await agent.invoke('go');
+   assert.deepEqual(calls, []);
+   assert.equal(await session.readFile('repo/server/a.ts'), 'const a = 2;\n');
+});
+
 test('write_file never writes outside the workspace', async () => {
    const session = new LocalSession({ id: 's', root: mkdtempSync(join(tmpdir(), 'berry-mirror-')) });
    const run = async (path: string) => {

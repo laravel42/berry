@@ -1,6 +1,7 @@
 import type { Sql } from '../db/pool.ts';
 import { handoffPath } from '../runs/handoff.ts';
 import type { Dispatch } from '../runs/ledger.ts';
+import { berryFileToolsContract, sandboxCommandsContract } from './sandbox-commands.ts';
 import { truncateUtf8 } from './runtime/utf8.ts';
 
 /** A review that threw, rather than a verdict. Not a rejection of the work. */
@@ -154,23 +155,15 @@ export function buildMessage(dispatch: PromptContext): string {
  * end up only where nobody looks.
  */
 /**
- * The tools this run may use.
+ * The file tools and the shell this run may use.
  *
- * They are not listed here. The berry MCP server declares them for this run,
- * and a tool named from memory is how an agent calls something its contract
- * does not allow. The call is refused until that declaration has come back.
+ * The same names and the same programs on every runtime. `list_run_tools`
+ * repeats the native aliases for this runtime and the programs that are not
+ * aliases. A tool the role does not have is still refused by the permission
+ * check.
  */
 function runToolsContract(): string {
-   return (
-      '\n\nTools for this run\n' +
-      'Before any other action, call list_run_tools. It is already loaded as a direct tool. ' +
-      'Do not call tool_load, tool_call, or a powers interface to load it. ' +
-      "This runtime's own shell and file tools are refused. " +
-      'That reply is the complete set. ' +
-      'A tool the reply does not name is not available, including one you used on another task. ' +
-      'Do not call another tool, edit a file, or run a command until that reply has come back. ' +
-      'Every other tool call is refused until it has.\n'
-   );
+   return berryFileToolsContract() + sandboxCommandsContract();
 }
 
 function reportingContract(identifier: string, title: string): string {

@@ -4,6 +4,7 @@ import type { ExecutionSession } from '../../../execution/driver.ts';
 import { FileTooLarge, getBytes } from '../../../execution/bytes.ts';
 import { shellQuote } from '../../checkout.ts';
 import { insideDirectory } from '../../workspace-files.ts';
+import { applyFileEdit } from '../../edit-file.ts';
 import { WORKDIR_KEY } from '../command-tool.ts';
 
 /**
@@ -61,8 +62,11 @@ export async function loadRemoteTools(api: BerryApi, mirror?: WorkspaceMirror): 
          description: entry.description,
          inputSchema: entry.inputSchema as JSONSchema,
          callback: async (input: unknown, context?: ToolContext) => {
-            if (entry.name !== 'write_file' || !mirror) return callBerry(api, entry.name, input);
-            const written = await writeInWorkspace(mirror, input, context);
+            if (!mirror || (entry.name !== 'write_file' && entry.name !== 'edit_file')) return callBerry(api, entry.name, input);
+            const written =
+               entry.name === 'edit_file'
+                  ? await editInWorkspace(mirror, input, context)
+                  : await writeInWorkspace(mirror, input, context);
             if ('workspaceError' in written) return { error: written.workspaceError };
             return { path: written.workspacePath, saved: true, workspacePath: written.workspacePath };
          },
@@ -92,6 +96,45 @@ async function writeInWorkspace(
    } catch (cause) {
       const detail = message(cause);
       mirror.warn?.('write_file could not be written into the workspace', { path: relative, error: detail });
+      return { workspaceError: `not written to the workspace: ${detail}` };
+   }
+}
+
+/**
+ * Replaces one exact span in a checkout file. A path outside the workspace
+ * is refused and nothing is written.
+ */
+async function editInWorkspace(
+   mirror: WorkspaceMirror,
+   input: unknown,
+   context?: ToolContext
+): Promise<{ workspacePath: string } | { workspaceError: string }> {
+   const { path, old, new: replacement } = (isRecord(input) ? input : {}) as {
+      path?: unknown;
+      old?: unknown;
+      new?: unknown;
+   };
+   if (typeof path !== 'string' || typeof old !== 'string' || typeof replacement !== 'string') {
+      return { workspaceError: 'edit_file needs path, old and new' };
+   }
+   const relative = insideDirectory(path);
+   if (relative === null) return { workspaceError: `${path} is outside the workspace` };
+   const workdir = context?.agent.appState.get(WORKDIR_KEY);
+   const target = typeof workdir === 'string' ? `${workdir}/${relative}` : relative;
+   let current: string;
+   try {
+      current = await (await mirror.session()).readFile(target);
+   } catch {
+      return { workspaceError: `no file at ${relative}` };
+   }
+   const edited = applyFileEdit(current, old, replacement);
+   if ('error' in edited) return { workspaceError: edited.error };
+   try {
+      await (await mirror.session()).writeFile(target, edited.content);
+      return { workspacePath: relative };
+   } catch (cause) {
+      const detail = message(cause);
+      mirror.warn?.('edit_file could not be written into the workspace', { path: relative, error: detail });
       return { workspaceError: `not written to the workspace: ${detail}` };
    }
 }

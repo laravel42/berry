@@ -3,6 +3,7 @@ import { callerContract, canDelegate } from '../../organization/delegation.ts';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { artifactPath, BerryArtifactService } from '../../agents/artifact-service.ts';
+import { applyFileEdit } from '../../agents/edit-file.ts';
 import { postRunResult } from '../../runs/result-comment.ts';
 import { enqueueTask } from '../../runs/queue.ts';
 import { ApiError } from '../../http/errors.ts';
@@ -480,6 +481,31 @@ export function registerCoreAgentTools(): void {
          const version = await (await artifactsOf(context)).saveArtifact({
             filename: input.path,
             artifact: { text: input.content },
+         });
+         return { path: input.path, version, saved: true };
+      },
+   });
+
+   registerAgentTool('edit_file', {
+      description:
+         'Replace one exact span of a text file saved on this task. Pass `old` as the text to replace, ' +
+         'including spaces and line breaks, matching once, and `new` as what replaces it. ' +
+         'A file in the checkout is edited there. Use write_file to create a file or replace it entirely.',
+      scope: 'task:write',
+      inputSchema: z.object({
+         path: artifactPathSchema,
+         old: z.string().describe('The exact text to replace. It must appear once.'),
+         new: z.string().describe('The text that replaces `old`.'),
+      }),
+      handler: async (context, input) => {
+         const artifacts = await artifactsOf(context);
+         const part = await artifacts.loadArtifact({ filename: input.path });
+         if (!part?.inlineData?.data) return { path: input.path, found: false };
+         const edited = applyFileEdit(Buffer.from(part.inlineData.data, 'base64').toString('utf8'), input.old, input.new);
+         if ('error' in edited) return { path: input.path, found: true, error: edited.error };
+         const version = await artifacts.saveArtifact({
+            filename: input.path,
+            artifact: { text: edited.content },
          });
          return { path: input.path, version, saved: true };
       },
