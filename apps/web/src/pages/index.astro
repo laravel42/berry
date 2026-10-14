@@ -1,0 +1,35 @@
+---
+import Layout from "../layouts/Layout.astro";
+import "../styles/global.css";
+import Nav from "../components/Nav.astro";
+import Hero from "../components/Hero.astro";
+import WorkModel from "../components/WorkModel.astro";
+import Execution from "../components/Execution.astro";
+import Review from "../components/Review.astro";
+import Agents from "../components/Agents.astro";
+import Board from "../components/Board.astro";
+import OpenSource from "../components/OpenSource.astro";
+import Faq from "../components/Faq.astro";
+import Footer from "../components/Footer.astro";
+---
+<Layout>
+  <div class="page">
+    <a href="#main" class="sr">Skip to content</a>
+    <Nav />
+    <main id="main" tabindex="-1">
+    <Hero />
+    <WorkModel />
+    <Execution />
+    <Review />
+    <Agents />
+    <Board />
+    <Faq />
+    <OpenSource />
+    </main>
+    <Footer />
+  </div>
+</Layout>
+
+<script>
+  import "../scripts/landing";
+</script>

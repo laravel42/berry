@@ -1,0 +1,58 @@
+---
+import Logo from "./Logo.astro";
+import { LOG } from "../scripts/data";
+
+const initialLines = LOG.slice(0, 4);
+---
+<div id="execution" style="border-bottom: 1px solid var(--rule-section); background: var(--surface-exec);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: clamp(48px, 7vw, 88px) clamp(20px, 3.4vw, 40px);">
+    <div data-r="head" style="display: flex; align-items: flex-end; justify-content: space-between; gap: 60px; margin-bottom: 40px;">
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+        <div style="font-size: 11px; letter-spacing: 0.16em; color: var(--ink-4);">02 &nbsp;·&nbsp; EXECUTION</div>
+        <h2 style="margin: 0; font-weight: 400; font-family: 'DM Serif Display', serif; font-size: clamp(30px, 3.7vw, 46px); line-height: 1.1; letter-spacing: -0.02em;">Agents don&rsquo;t disappear<br>into a chat window.</h2>
+      </div>
+      <p style="margin: 0; max-width: 380px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">Every run is a first-class object: isolated workspace, streamed log, recorded commands, exit codes, token spend. You can watch it, stop it, or read it back six weeks later.</p>
+    </div>
+
+    <div data-r="split" role="img" aria-label="An agent run in progress: Forge, run 1842 on issue BER-142, showing branch, runtime, model, token usage and a streaming log of the commands it executed." style="border: 1px solid var(--line); background: var(--surface-run); display: grid; grid-template-columns: 292px minmax(0,1fr);">
+      <div style="border-right: 1px solid var(--line); padding: 20px 22px; display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <Logo size={18} stroke="#5a92c9" fill="#5a92c9" strokeWidth={7} radius={14} />
+          <span style="font-size: 14px; color: var(--ink);">FORGE / RUN #1842</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--run);"><span style="width: 6px; height: 6px; background: var(--run); border-radius: 50%; animation: berrypulse var(--pulse) infinite;"></span>Running</div>
+        <div data-r="runmeta" style="display: grid; grid-template-columns: 88px minmax(0,1fr); gap: 9px 12px; font-size: 12px;">
+          <span style="color: var(--ink-4);">Issue</span><span style="color: var(--ink-2);">BER‑142</span>
+          <span style="color: var(--ink-4);">Branch</span><span style="color: var(--ink-2); word-break: break-all;">forge/ber‑142‑passkeys</span>
+          <span style="color: var(--ink-4);">Runtime</span><span data-runtime style="color: var(--ink-2);">08:42</span>
+          <span style="color: var(--ink-4);">Model</span><span style="color: var(--ink-2);">claude‑sonnet‑5</span>
+          <span style="color: var(--ink-4);">Tokens</span><span style="color: var(--ink-2);">184.2K in / 21.7K out</span>
+          <span style="color: var(--ink-4);">Workspace</span><span style="color: var(--ink-2);">isolated · node 24</span>
+          <span style="color: var(--ink-4);">Files</span><span style="color: var(--ink-2);">4 changed</span>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+          <div class="btn-ghost">Stop run</div>
+          <div class="btn-ghost">Retry</div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; min-width: 0;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 20px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 0.14em; color: var(--ink-4);">
+          <span>ACTIVITY</span><span>workspace/forge‑1842</span>
+        </div>
+        <div id="activity-log" style="padding: 16px 20px; display: flex; flex-direction: column; gap: 7px; min-height: 268px; font-size: 12.5px;">
+          {initialLines.map((line) => (
+            <div class="log-row">
+              <span class="log-t">{line.t}</span>
+              <span class={"ok" in line && line.ok ? "log-ok" : "log-msg"}>{line.msg}</span>
+            </div>
+          ))}
+          <div id="log-cursor" class="log-row">
+            <span id="log-stamp" class="log-t">12:42:17</span>
+            <span style="width: 7px; height: 14px; background: var(--run); animation: berrypulse var(--blink) infinite;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

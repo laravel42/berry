@@ -1,0 +1,80 @@
+---
+import Logo from "./Logo.astro";
+import GitHubIcon from "./GitHubIcon.astro";
+---
+<div id="review" style="border-bottom: 1px solid var(--rule-section);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: clamp(48px, 7vw, 88px) clamp(20px, 3.4vw, 40px);">
+    <div data-r="head" style="display: flex; align-items: flex-end; justify-content: space-between; gap: 60px; margin-bottom: 40px;">
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+        <div style="font-size: 11px; letter-spacing: 0.16em; color: var(--ink-4);">03 &nbsp;·&nbsp; REVIEW &amp; CONTROL</div>
+        <h2 style="margin: 0; font-weight: 400; font-family: 'DM Serif Display', serif; font-size: clamp(30px, 3.7vw, 46px); line-height: 1.1; letter-spacing: -0.02em;">Autonomy you can inspect.</h2>
+      </div>
+      <p style="margin: 0; max-width: 380px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">Nothing merges because an agent said it was finished. Work arrives as a diff with test output attached, and it waits for a human unless you explicitly say otherwise.</p>
+    </div>
+
+    <div data-r="split" role="img" aria-label="A code review of the agent's work: a diff of src/auth/passkey.ts with the agent's explanation, a reviewer reply, and an evidence panel listing test results, lint status, artifacts and merge target." style="border: 1px solid var(--line); display: grid; grid-template-columns: minmax(0,1fr) 388px;">
+      <div style="border-right: 1px solid var(--line); background: var(--surface-2); min-width: 0;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--ink-4);">
+          <span style="color: var(--ink-2);">src/auth/passkey.ts</span><span>+38 −6</span>
+        </div>
+        <div data-r="diff" style="font-size: 12.5px; line-height: 1.85;">
+          <div data-difftrack>
+            <div style="display: grid; grid-template-columns: 44px minmax(0,1fr); color: var(--ink-4);"><span style="padding-left: 14px;">128</span><span style="padding-left: 12px; white-space: pre;">  const cred = await navigator.credentials</span></div>
+            <div style="display: grid; grid-template-columns: 44px minmax(0,1fr); background: var(--diff-del-bg); color: var(--diff-del);"><span style="padding-left: 14px; color: var(--diff-del-gutter);">129</span><span style="padding-left: 12px; white-space: pre;">-   .get({"{"} publicKey: opts {"}"})</span></div>
+            <div style="display: grid; grid-template-columns: 44px minmax(0,1fr); background: var(--diff-add-bg); color: var(--diff-add);"><span style="padding-left: 14px; color: var(--diff-add-gutter);">129</span><span style="padding-left: 12px; white-space: pre;">+   .get({"{"} publicKey: opts, signal {"}"})</span></div>
+            <div style="display: grid; grid-template-columns: 44px minmax(0,1fr); background: var(--diff-add-bg); color: var(--diff-add);"><span style="padding-left: 14px; color: var(--diff-add-gutter);">130</span><span style="padding-left: 12px; white-space: pre;">+ if (!cred) throw new PasskeyAborted()</span></div>
+            <div style="display: grid; grid-template-columns: 44px minmax(0,1fr); color: var(--ink-4);"><span style="padding-left: 14px;">131</span><span style="padding-left: 12px; white-space: pre;">  return verify(cred)</span></div>
+</div>
+        </div>
+        <div style="border-top: 1px solid var(--line); padding: 14px 18px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; gap: 11px; align-items: flex-start;">
+            <Logo size={15} stroke="#5a92c9" fill="#5a92c9" strokeWidth={8} radius={15} />
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: var(--ink-4);">Forge · agent · 12:46</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.65;">Added an abort signal so a cancelled prompt no longer leaves the session half-open. Two existing tests covered the old path; I updated both.</span></div>
+          </div>
+          <div style="display: flex; gap: 11px; align-items: flex-start;">
+            <span style="width: 15px; height: 15px; border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--ink-3); flex: none; margin-top: 2px;">A</span>
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 11px; color: var(--ink-4);">Andrea · 12:52</span><span style="font-size: 12.5px; color: var(--ink-2); line-height: 1.65;">Good catch. Add a telemetry event before you merge.</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="background: var(--surface-2); display: flex; flex-direction: column;">
+        <div style="padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 0.14em; color: var(--ink-4);">EVIDENCE</div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px;"><span style="color: var(--ink-3);">pnpm test</span><span style="color: var(--done);">84 passed · exit 0</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px;"><span style="color: var(--ink-3);">pnpm lint</span><span style="color: var(--done);">clean</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px;"><span style="color: var(--ink-3);">playwright e2e</span><span style="color: var(--review);">1 flaky · retried</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px;"><span style="color: var(--ink-3);">artifacts</span><span style="color: var(--ink-2);">3 · 2.1 MB</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px;"><span style="color: var(--ink-3);">duration</span><span style="color: var(--ink-2);">2m 41s</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 12px;"><span style="color: var(--ink-3);">merge target</span><span style="color: var(--ink-2);">main ← forge/ber‑142</span></div>
+        </div>
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 13px; margin-top: auto;">
+          <div style="font-size: 13px; line-height: 1.6; color: var(--ink-2); text-wrap: pretty;">Forge cannot merge without approval. Permission is off by default.</div>
+          <div style="display: flex; gap: 8px;">
+            <div class="btn-approve">Approve &amp; merge</div>
+            <div class="btn-request">Request changes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top: 30px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+      <a href="https://github.com/laravel42/berry" target="_blank" rel="noopener" class="btn-inline" id="review-github-link">
+        <GitHubIcon size={14} />
+        Read the permission layer
+      </a>
+      <span style="font-size: 12px; color: var(--ink-4);">MIT licensed &middot; self&#8209;hostable &middot; your own model keys</span>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', function () {
+    var link = document.getElementById('review-github-link');
+    if (link) {
+      link.addEventListener('click', function () {
+        window.posthog?.capture('github_cta_clicked', { location: 'review_section' });
+      });
+    }
+  });
+</script>

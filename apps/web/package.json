@@ -1,0 +1,20 @@
+{
+  "name": "berry.pm",
+  "type": "module",
+  "version": "0.9.4",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler deploy --name berry-astro"
+  },
+  "dependencies": {
+    "astro": "^7.3.1"
+  },
+  "devDependencies": {
+    "@astrojs/ts-plugin": "^1.10.11",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.129.1"
+  }
+}

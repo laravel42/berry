@@ -1,0 +1,180 @@
+---
+import Logo from "./Logo.astro";
+import GitHubIcon from "./GitHubIcon.astro";
+
+const issues = [
+  {
+    id: "BER‑142",
+    title: "Implement passkey enrolment",
+    who: "Forge",
+    whoKind: "agent" as const,
+    whoColor: "#5a92c9",
+    status: "RUNNING",
+    statusColor: "var(--run)",
+    pulse: true,
+    updated: "2m",
+    highlight: "var(--surface-run)",
+  },
+  {
+    id: "BER‑143",
+    title: "Review session migration",
+    who: "Andrea",
+    whoKind: "human" as const,
+    whoInitial: "A",
+    status: "IN_REVIEW",
+    statusColor: "var(--review)",
+    pulse: false,
+    updated: "12m",
+  },
+  {
+    id: "BER‑144",
+    title: "Update auth documentation",
+    who: "Rhea",
+    whoKind: "agent" as const,
+    whoColor: "#8b8a92",
+    status: "QUEUED",
+    statusColor: "var(--ink-4)",
+    pulse: false,
+    updated: "1h",
+    queued: true,
+  },
+  {
+    id: "BER‑139",
+    title: "Rotate signing keys on deploy",
+    who: "Miro",
+    whoKind: "human" as const,
+    whoInitial: "M",
+    status: "IN_PROGRESS",
+    statusColor: "var(--ink-3)",
+    pulse: false,
+    updated: "3h",
+  },
+  {
+    id: "BER‑136",
+    title: "Harden rate limiting on /session",
+    who: "Forge",
+    whoKind: "agent" as const,
+    whoColor: "#4f9a7a",
+    status: "DONE",
+    statusColor: "var(--done)",
+    pulse: false,
+    updated: "yest",
+    highlight: "var(--tint-done)",
+    done: true,
+  },
+];
+---
+<div style="border-bottom: 1px solid var(--rule-section);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: clamp(44px, 6vw, 76px) clamp(20px, 3.4vw, 40px) 0;">
+    <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4);">
+      <span style="color: var(--accent-text);">MIT licensed</span>
+      <span style="width: 3px; height: 3px; background: var(--line-strong); border-radius: 50%;"></span>
+      <span>self‑hostable</span>
+      <span style="width: 3px; height: 3px; background: var(--line-strong); border-radius: 50%;"></span>
+      <span>v0.9.4</span>
+    </div>
+
+    <div data-r="hero" style="display: grid; grid-template-columns: minmax(0,1fr) 400px; gap: 60px; align-items: end; margin-top: 26px;">
+      <h1 style="margin: 0; font-family: 'DM Serif Display', serif; font-weight: 400; font-size: clamp(38px, 5.4vw, 68px); line-height: 1.02; letter-spacing: -0.025em; text-wrap: balance;">
+        A team you can<br>spin up<span style="color: var(--accent);">.</span>
+      </h1>
+      <div style="display: flex; flex-direction: column; gap: 24px; padding-bottom: 8px;">
+        <p style="margin: 0; font-size: 15px; line-height: 1.7; color: var(--ink-3); text-wrap: pretty;">
+          Berry is an issue tracker where the assignee can be a person or a coding agent. Same issues, same reviews, same history.
+        </p>
+        <div style="display: flex; gap: 10px;">
+          <a href="https://github.com/laravel42/berry" target="_blank" rel="noopener" class="btn-primary" id="hero-github-link">
+            <GitHubIcon size={14} />
+            View on GitHub
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width: 1240px; margin: clamp(36px, 4.5vw, 56px) auto 0; padding: 0 clamp(20px, 3.4vw, 40px);">
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: var(--ink-4); text-wrap: pretty;">
+      <span style="color: var(--accent-text); flex: none;">&darr;</span>
+      <span>Three of these five issues are assigned to agents. The top one is running right now.</span>
+    </div>
+    <div data-r="window" role="img" aria-label="The Berry workspace for the ship-auth-v2 project: five issues in a table, each with an assignee that is either a person or a coding agent, and a status. The top row shows an agent named Forge running right now." style="border: 1px solid var(--line); border-bottom: none; background: var(--surface); display: grid; grid-template-columns: 186px minmax(0,1fr);">
+      <div style="border-right: 1px solid var(--line); padding: 14px 0 0; display: flex; flex-direction: column; min-height: 380px;">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 0 14px 18px;">
+          <Logo size={17} strokeWidth={7} radius={14} />
+          <span style="font-family: 'DM Serif Display', serif; font-size: 17px; letter-spacing: -0.01em;">Berry<span style="color: var(--accent-text);">.</span></span>
+          <span style="margin-left: auto; font-size: 10px; color: var(--ink-4);">ACME</span>
+        </div>
+        <div style="padding: 0 14px 7px; font-size: 10px; letter-spacing: 0.16em; color: var(--ink-4);">WORK</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">projects</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink); background: var(--surface-2); border-left: 2px solid var(--accent);">tasks</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">reviews <span style="margin-left: auto; color: var(--review);">3</span></div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">goals</div>
+        <div style="padding: 18px 14px 7px; font-size: 10px; letter-spacing: 0.16em; color: var(--ink-4);">MANAGE</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">runtimes <span style="margin-left: auto; width: 5px; height: 5px; background: var(--run); border-radius: 50%;"></span></div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">agents</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">analytics</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; min-width: 0;">
+        <div style="display: flex; align-items: stretch; border-bottom: 1px solid var(--line); height: 34px;">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 11px; color: var(--ink-4); border-right: 1px solid var(--line);">projects</div>
+          <div style="display: flex; align-items: center; gap: 8px; padding: 0 14px; font-size: 11px; color: var(--ink); background: var(--surface-2); border-right: 1px solid var(--line); border-top: 1px solid var(--line-strong);">ship-auth-v2</div>
+          <div style="margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 0 14px; font-size: 11px; color: var(--ink-4);"><span>2 runs live</span><span style="width: 5px; height: 5px; background: var(--run); border-radius: 50%;"></span></div>
+        </div>
+
+        <div data-r="projhead" style="padding: 16px 18px 14px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line);">
+          <div style="display: flex; flex-direction: column; gap: 5px; min-width: 0;">
+            <div style="font-size: 10px; letter-spacing: 0.14em; color: var(--ink-4);">PROJECT</div>
+            <div data-projtitle style="font-size: 15px; color: var(--ink);">Ship authentication v2</div>
+          </div>
+          <div data-r="projmeta" style="display: flex; gap: 22px; font-size: 11px; color: var(--ink-4); flex: none;">
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span>cycle 14</span><span style="color: var(--ink-2);">6 days left</span></div>
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span>assignees</span><span style="color: var(--ink-2);">4 human · 3 agent</span></div>
+            <div style="display: flex; flex-direction: column; gap: 4px;"><span>progress</span><span style="color: var(--done);">62%</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div data-r="row" style="display: grid; grid-template-columns: 72px minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,0.72fr) 62px; gap: 12px; padding: 8px 18px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 0.12em; color: var(--ink-4);">
+            <div>ID</div><div>TITLE</div><div>ASSIGNEE</div><div>STATUS</div><div style="text-align: right;">UPDATED</div>
+          </div>
+          {issues.map((issue) => (
+            <div data-r="row" style={`display: grid; grid-template-columns: 72px minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,0.72fr) 62px; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px; align-items: center;${issue.highlight ? ` background: ${issue.highlight};` : ""}`}>
+              <div style="color: var(--ink-4);">{issue.id}</div>
+              <div style={`overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${issue.done ? "var(--ink-3)" : "var(--ink)"};`}>{issue.title}</div>
+              <div style={`display: flex; align-items: center; gap: 8px; color: ${issue.done ? "var(--ink-3)" : "var(--ink-2)"};`}>
+                {issue.whoKind === "agent" ? (
+                  <Logo size={13} stroke={issue.whoColor} fill={issue.whoColor} strokeWidth={8} radius={15} />
+                ) : (
+                  <span style="width: 14px; height: 14px; border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--ink-3); flex: none;">{issue.whoInitial}</span>
+                )}
+                {issue.who}{issue.whoKind === "agent" && <span data-agent-tag style={`color: ${issue.whoColor}; font-size: 11px; letter-spacing: 0.05em; border: 1px solid currentColor; padding: 1px 5px; line-height: 1.35; flex: none;`}>agent</span>}
+              </div>
+              <div style={`display: flex; align-items: center; gap: 7px; color: ${issue.statusColor};`}>
+                <span style={`width: 6px; height: 6px; border-radius: 50%; ${issue.queued ? "border: 1px solid var(--ink-4);" : `background: ${issue.statusColor};`}${issue.pulse ? " animation: berrypulse var(--pulse) infinite;" : ""}`}></span>
+                {issue.status}
+              </div>
+              <div style="text-align: right; color: var(--ink-4);">
+                {issue.updated}
+              </div>
+            </div>
+          ))}
+          <div data-r="wrapline" style="padding: 10px 18px; display: flex; gap: 18px; font-size: 11px; color: var(--ink-4); border-bottom: 1px solid var(--line);">
+            <span>main ← forge/ber‑142‑passkeys</span><span>PR #381</span><span>4 files changed</span><span style="color: var(--done);">84 tests passed</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', function () {
+    var heroGithub = document.getElementById('hero-github-link');
+    if (heroGithub) {
+      heroGithub.addEventListener('click', function () {
+        window.posthog?.capture('github_cta_clicked', { location: 'hero' });
+      });
+    }
+  });
+</script>

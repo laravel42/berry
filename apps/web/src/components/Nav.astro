@@ -1,0 +1,48 @@
+---
+import Logo from "./Logo.astro";
+import GitHubIcon from "./GitHubIcon.astro";
+
+interface Props {
+  root?: string;
+}
+
+const { root = "" } = Astro.props;
+const homeHref = root || "#";
+const sectionHref = (id: string) => `${root}#${id}`;
+---
+<div
+  role="banner"
+  style="position: sticky; top: 0; z-index: 40; background: rgba(17,17,19,0.86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);"
+>
+  <div data-navbar style="max-width: 1240px; margin: 0 auto; padding: 0 clamp(20px, 3.4vw, 40px); height: 60px; display: flex; align-items: center; justify-content: space-between; gap: 40px;">
+    <a href={homeHref} aria-label="Berry home" data-tap style="display: flex; align-items: center; gap: 11px; color: var(--ink);">
+      <Logo size={22} label="Berry logo" />
+      <div style="font-family: 'DM Serif Display', serif; font-size: 23px; letter-spacing: -0.02em; line-height: 1;">
+        berry<span style="color: var(--accent-text);">.</span>
+      </div>
+    </a>
+    <div role="navigation" aria-label="Primary" data-navlinks style="display: flex; align-items: center; gap: 20px; font-size: 13px; color: var(--ink-3); min-width: 0; white-space: nowrap;">
+      <a href={sectionHref("workmodel")} class="nav-link" data-nav="workmodel">work model</a>
+      <a href={sectionHref("execution")} class="nav-link" data-nav="execution">execution</a>
+      <a href={sectionHref("agents")} class="nav-link" data-nav="agents">agents</a>
+      <a href={sectionHref("opensource")} class="nav-link" data-nav="opensource">open source</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="https://github.com/laravel42/berry" target="_blank" rel="noopener" class="btn-github" id="nav-github-link">
+        <GitHubIcon size={13} />
+        <span>GitHub</span>
+      </a>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  document.addEventListener('DOMContentLoaded', function () {
+    var navGithub = document.getElementById('nav-github-link');
+    if (navGithub) {
+      navGithub.addEventListener('click', function () {
+        window.posthog?.capture('github_nav_clicked', { location: 'nav' });
+      });
+    }
+  });
+</script>

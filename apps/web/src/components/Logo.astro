@@ -1,0 +1,32 @@
+---
+interface Props {
+  size?: number;
+  stroke?: string;
+  fill?: string;
+  strokeWidth?: number;
+  radius?: number;
+  label?: string;
+}
+
+const {
+  size = 22,
+  stroke = "#f0edea",
+  fill = "#c74a5e",
+  strokeWidth = 6,
+  radius = 13,
+  label,
+} = Astro.props;
+---
+<svg
+  width={size}
+  height={size}
+  viewBox="0 0 64 64"
+  role={label ? "img" : undefined}
+  aria-label={label}
+  aria-hidden={label ? undefined : "true"}
+  style="flex: none;"
+>
+  <path d="M14 8H8v48h6" stroke={stroke} stroke-width={strokeWidth} fill="none"></path>
+  <path d="M50 8h6v48h-6" stroke={stroke} stroke-width={strokeWidth} fill="none"></path>
+  <circle cx="32" cy="32" r={radius} fill={fill}></circle>
+</svg>

@@ -1,0 +1,40 @@
+---
+import Logo from "./Logo.astro";
+---
+<div id="workmodel" style="border-bottom: 1px solid var(--rule-section);">
+  <div data-r="split" style="max-width: 1240px; margin: 0 auto; padding: clamp(48px, 7vw, 88px) clamp(20px, 3.4vw, 40px); display: grid; grid-template-columns: minmax(0,1fr) 520px; gap: 80px;">
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <div style="font-size: 11px; letter-spacing: 0.16em; color: var(--ink-4);">01 &nbsp;·&nbsp; ONE WORK MODEL</div>
+      <h2 style="margin: 0; font-weight: 400; font-family: 'DM Serif Display', serif; font-size: clamp(30px, 3.7vw, 46px); line-height: 1.1; letter-spacing: -0.02em; text-wrap: pretty;">One workflow.<br>Human or agent.</h2>
+      <p style="margin: 0; max-width: 460px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">There is no separate AI surface. An agent is an assignee type. It receives the same issue, moves through the same statuses, leaves the same comments, and its work lands in the same review queue as anyone else&rsquo;s.</p>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 11px; letter-spacing: 0.14em; color: var(--ink-4);">REASSIGN BER‑142 <span style="color: var(--accent-text); letter-spacing: 0; margin-left: 6px;">try it &rarr;</span></div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="chip-human" class="chip">
+            <span style="width: 15px; height: 15px; border: 1px solid var(--ink-4); display: flex; align-items: center; justify-content: center; font-size: 8px;">A</span>Andrea
+          </button>
+          <button type="button" id="chip-agent" class="chip is-on">
+            <Logo size={14} stroke="currentColor" fill="currentColor" strokeWidth={8} radius={15} />
+            Forge<span style="font-size: 10px; opacity: .7;">agent</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid var(--line); background: var(--surface-2); padding: 26px 28px; display: flex; flex-direction: column; gap: 0;">
+      <div style="font-size: 11px; letter-spacing: 0.14em; color: var(--ink-4); padding-bottom: 18px;">PIPELINE</div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; border: 1px solid var(--ink-4); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Issue</span><span style="font-size: 12px; color: var(--ink-4);">BER‑142 · passkey enrolment</span></div>
+      <div style="width: 1px; height: 14px; background: var(--line-strong); margin-left: 3px;"></div>
+      <div id="pipe-assignee" class="pipe-row" style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; background: var(--accent); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Assignee</span><span id="assignee-label" class="pipe-value" style="font-size: 12px; color: var(--ink-2);">Forge · agent · claude-sonnet-5</span></div>
+      <div style="width: 1px; height: 14px; background: var(--line-strong); margin-left: 3px;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; border: 1px solid var(--ink-4); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Work</span><span id="work-label" class="pipe-value" style="font-size: 12px; color: var(--ink-4);">isolated workspace · 4 files changed</span></div>
+      <div style="width: 1px; height: 14px; background: var(--line-strong); margin-left: 3px;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; border: 1px solid var(--ink-4); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Evidence</span><span id="evidence-label" class="pipe-value" style="font-size: 12px; color: var(--ink-4);">run #1842 log · 84 tests passed</span></div>
+      <div style="width: 1px; height: 14px; background: var(--line-strong); margin-left: 3px;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; border: 1px solid var(--ink-4); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Review</span><span style="font-size: 12px; color: var(--ink-4);">Andrea approves · PR #381</span></div>
+      <div style="width: 1px; height: 14px; background: var(--line-strong); margin-left: 3px;"></div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 11px 0;"><span style="width: 8px; height: 8px; background: var(--done); flex: none;"></span><span style="font-size: 13px; color: var(--ink); width: 92px;">Done</span><span style="font-size: 12px; color: var(--done);">merged into main · exit 0</span></div>
+      <div style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.7; color: var(--ink-4); text-wrap: pretty;">The only step that changes is who does the work. Everything before and after it stays identical.</div>
+    </div>
+  </div>
+</div>

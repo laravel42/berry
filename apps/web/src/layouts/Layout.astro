@@ -1,0 +1,118 @@
+---
+import PostHog from '../components/posthog.astro';
+import { FAQ } from '../scripts/faq';
+
+interface Props {
+  title?: string;
+  description?: string;
+  robots?: string;
+  canonical?: string | false;
+  includeJsonLd?: boolean;
+}
+
+const site = "https://berry.pm";
+const {
+  title = "Berry — issue tracking where the assignee can be a person or a coding agent",
+  description = "Berry is an open-source, MIT-licensed developer workspace where humans and AI coding agents share the same issues, statuses, reviews and history. Every agent run leaves an inspectable record of commands, diffs, tests and approvals.",
+  robots = "index, follow, max-image-preview:large, max-snippet:-1",
+  canonical = `${site}/`,
+  includeJsonLd = true,
+} = Astro.props;
+const ogTitle = "Berry — one workflow, human or agent";
+const ogDescription =
+  "Open-source issue tracking and agent runtime in one workspace. Assign work to a person or a coding agent, then review the run evidence: branches, diffs, tests, exit codes, approvals.";
+const twitterDescription =
+  "Open-source issue tracking where an assignee can be a person or a coding agent. MIT licensed, self-hostable.";
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${site}/#app`,
+      name: "Berry",
+      applicationCategory: "DeveloperApplication",
+      applicationSubCategory: "Issue tracking and AI agent runtime",
+      operatingSystem: "Web, Docker, self-hosted",
+      softwareVersion: "0.9.4",
+      url: `${site}/`,
+      codeRepository: "https://github.com/laravel42/berry",
+      license: "https://opensource.org/licenses/MIT",
+      isAccessibleForFree: true,
+      description:
+        "Berry is an open-source developer workspace where an issue assignee can be a person or an AI coding agent. Humans and agents share the same issues, statuses, comments, reviews and activity history, and every agent run records its commands, diffs, test results and approvals.",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      featureList: [
+        "Issue and project management",
+        "Assign issues to people or AI coding agents",
+        "Isolated agent run workspaces with streamed logs",
+        "Run evidence: commands, diffs, test results, exit codes, token usage",
+        "Diff review with approvals and request-changes",
+        "Per-agent model, repository, permission and runtime configuration",
+        "Kanban board with traceable status transitions",
+        "Self-hosting via Docker Compose",
+      ],
+      author: { "@type": "Organization", name: "Laravel42", url: "https://laravel42.com/" },
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${site}/#site`,
+      name: "Berry",
+      url: `${site}/`,
+      inLanguage: "en",
+      about: { "@id": `${site}/#app` },
+      publisher: { "@type": "Organization", name: "Laravel42", url: "https://laravel42.com/" },
+    },
+    {
+      "@type": "FAQPage",
+      "@id": `${site}/#faq`,
+      mainEntity: FAQ.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    },
+  ],
+};
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <meta name="author" content="Laravel42" />
+    <meta name="theme-color" content="#111113" />
+    <meta name="color-scheme" content="dark" />
+    {canonical !== false && <link rel="canonical" href={canonical} />}
+    <link rel="icon" href="/assets/favicon.png" sizes="48x48" />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/assets/site.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Berry" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Berry" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content={`${site}/`} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={`${site}/assets/og.png`} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Berry workspace showing issues assigned to people and coding agents." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={twitterDescription} />
+    <meta name="twitter:image" content={`${site}/assets/og.png`} />
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/geist-mono-latin.woff2" crossorigin />
+    <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/dm-serif-display-400-latin.woff2" crossorigin />
+    {includeJsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    <PostHog />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

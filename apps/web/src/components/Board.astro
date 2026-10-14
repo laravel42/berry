@@ -1,0 +1,57 @@
+---
+import { CARDS } from "../scripts/data";
+
+const columns = [
+  { id: 0, label: "Todo", color: "var(--ink-4)", pulse: false, boxed: true, bg: undefined as string | undefined },
+  { id: 1, label: "In Progress", color: "var(--run)", pulse: true, boxed: false, bg: "var(--surface-run)" },
+  { id: 2, label: "In Review", color: "var(--review)", pulse: false, boxed: false, bg: "var(--tint-review)" },
+  { id: 3, label: "Done", color: "var(--done)", pulse: false, boxed: false, bg: "var(--tint-done)" },
+];
+
+function cardsIn(col: number) {
+  return CARDS.filter((card) => card.col === col);
+}
+---
+<div id="board" style="border-bottom: 1px solid var(--rule-section); background: var(--surface-board);">
+  <div style="max-width: 1240px; margin: 0 auto; padding: clamp(48px, 7vw, 88px) clamp(20px, 3.4vw, 40px);">
+    <div data-r="head" style="display: flex; align-items: flex-end; justify-content: space-between; gap: 60px; margin-bottom: 40px;">
+      <div style="display: flex; flex-direction: column; gap: 22px;">
+        <div style="font-size: 11px; letter-spacing: 0.16em; color: var(--ink-4);">05 &nbsp;·&nbsp; THE BOARD</div>
+        <h2 style="margin: 0; font-weight: 400; font-family: 'DM Serif Display', serif; font-size: clamp(30px, 3.7vw, 46px); line-height: 1.1; letter-spacing: -0.02em;">The board keeps<br>moving without you.</h2>
+      </div>
+      <p style="margin: 0; max-width: 400px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">Agents pick up assigned issues and advance them through the same columns your team uses. Cards move because work actually happened — a branch opened, tests passed, a review was requested.</p>
+    </div>
+
+    <div style="border: 1px solid var(--line); background: var(--surface-2);">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid var(--line); font-size: 11px; color: var(--ink-4);">
+        <span style="color: var(--ink-2);">ship‑auth‑v2 · cycle 14</span>
+        <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 6px; height: 6px; background: var(--run); border-radius: 50%; animation: berrypulse var(--pulse) infinite;"></span>live</span>
+      </div>
+
+      <div data-r="board" role="img" aria-label="A kanban board for the ship-auth-v2 cycle. Six issues move between Todo, In Progress, In Review and Done; some are assigned to people, some to coding agents." style="display: grid; grid-template-columns: repeat(4, minmax(0,1fr));">
+        {columns.map((col, index) => (
+          <div style={`min-height: 320px; display: flex; flex-direction: column;${index < 3 ? " border-right: 1px solid var(--line);" : ""}${col.bg ? ` background: ${col.bg};` : ""}`}>
+            <div style={`display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 11px; color: ${col.color};`}>
+              <span style={`width: 7px; height: 7px;${col.boxed ? " border: 1px solid var(--ink-4);" : ` background: ${col.color}; border-radius: 50%;`}${col.pulse ? " animation: berrypulse var(--pulse) infinite;" : ""}`}></span>
+              {col.label}<span id={`n-${col.id}`} style="margin-left: auto; color: var(--ink-4);">{cardsIn(col.id).length}</span>
+            </div>
+            <div id={`col-${col.id}`}>
+              {cardsIn(col.id).map((card) => (
+                <div class="board-card">
+                  <div class="board-card-meta"><span>{card.id}</span><span>{card.meta}</span></div>
+                  <div class:list={["board-card-title", { "is-done": col.id === 3 }]}>{card.title}</div>
+                  <div class="board-card-who">{card.who}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style="border-top: 1px solid var(--line); padding: 11px 18px; display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--ink-4);">
+        <span id="event-time" style="color: var(--ink-4);">12:41:03</span>
+        <span id="event-text" style="color: var(--ink-2);">Forge picked up BER-142 · workspace forge-1842 created</span>
+      </div>
+    </div>
+  </div>
+</div>

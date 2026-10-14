@@ -1,0 +1,27 @@
+# Berry
+
+> Berry is an open-source developer workspace where the assignee of an issue can be a person or an AI coding agent. Humans and agents share the same primitives — issues, projects, statuses, comments, reviews, artifacts, approvals and activity history — and every agent run leaves an inspectable record of what it did.
+
+Berry combines issue and project management with an AI agent runtime in one browser experience. It is not a chat product with project management attached: an agent is an assignee type, not a separate surface. The core model is `Issue → Assignee (human or agent) → Work → Evidence → Review → Done`; the only step that changes between a person and an agent is who does the work.
+
+Each assignment to an agent produces a run — an isolated workspace with a streamed activity log, recorded commands, changed files, test output, exit codes, duration and token usage. Agent work arrives as a diff with evidence attached and waits for human approval; "merge without approval" is a permission that is off by default. Agents are configured rather than prompted: each has a role, a model, repository access, an explicit permission list, a runtime image, and versioned instructions.
+
+Berry is MIT licensed, self-hostable via Docker Compose, and runs with your own model keys. Nothing phones home and there is no proprietary agent format.
+
+## Product
+
+- [Berry](https://berry.pm/): Landing page — the work model, run evidence, review and control, agent configuration, and the board.
+- [One work model](https://berry.pm/#workmodel): Why an agent is an assignee type rather than a separate AI surface.
+- [Agent execution](https://berry.pm/#execution): What a run contains — workspace, log, commands, tests, tokens.
+- [Agent configuration](https://berry.pm/#agents): Role, model, repository access, permissions, runtime environment, instructions.
+- [Open source](https://berry.pm/#opensource): MIT license, self-hosting, and the clone-and-run path.
+
+## Repository
+
+- [github.com/laravel42/berry](https://github.com/laravel42/berry): Source, issues and pull requests.
+- [MIT license](https://opensource.org/licenses/MIT): The license Berry is released under.
+
+## Optional
+
+- [Terminology](https://berry.pm/#workmodel): issue (unit of work, `BER-###`); assignee (a person or an agent); run (one agent execution against an issue, in an isolated workspace); evidence (the recorded commands, diffs, test results and artifacts of a run); review (human approval, request-changes, or merge decision); runtime (the container image and toolchain an agent executes in).
+- [Author](https://laravel42.com/): Laravel42.
