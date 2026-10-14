@@ -18,9 +18,10 @@ human decision. See [PRODUCT.md](PRODUCT.md) for the product-level description.
 | `server-ts` | TypeScript product server, its migrations, and the agent runtime sources |
 | `frontend` | Next.js App Router UI |
 | `packages/plugin-sdk` | SDK for building Berry plugins |
+| `apps/bridge` | Node host on this workstation; pairs with a remote Berry and starts subscription AI CLIs |
 | `docs` | Product brief, ADRs, API contract, design system, and [AI runtime matrix](docs/ai-runtimes.md) |
 
-The server, frontend, plugin SDK, desktop and mobile packages form a pnpm workspace
+The server, frontend, plugin SDK, bridge and mobile packages form a pnpm workspace
 and do not share a validation workflow (different formatters and linters) — see [AGENTS.md](AGENTS.md) for the
 per-package rules.
 

@@ -42,7 +42,7 @@ delegation rules and required reviewers — see
 ## Repository shape
 
 One Git repo, five pnpm workspace packages: `frontend`, `server-ts`,
-`packages/plugin-sdk`, `apps/mobile`, and `apps/desktop`. They do **not** share a formatter, lint
+`packages/plugin-sdk`, `apps/mobile`, and `apps/bridge`. They do **not** share a formatter, lint
 config, or validation workflow. Know which workspace you are in before you
 write code. Never run one workspace's tools over another.
 
@@ -55,12 +55,13 @@ write code. Never run one workspace's tools over another.
 | Tests | `node --test` | none — lint + build | `node --test` |
 | Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
 
-`apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
-With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
-with `DATABASE_URL=pglite:<userData>/pglite`, migrates that directory, stores
-artifacts under `<userData>/artifacts`, and serves the web app on `127.0.0.1:4174`. Set `BERRY_DESKTOP_URL` to open an
-existing server instead. Navigation stays on that origin plus GitHub sign-in.
-`pnpm dev:desktop`.
+`apps/bridge` (`@berry/bridge`, `berry-bridge`) is a Node host that starts
+subscription AI CLIs on this workstation. Pair it on first login or from
+Settings → Runtimes, then wget the command this Berry serves
+(`wget -qO- <BERRY_PUBLIC_URL>/install/berry-bridge | sh -s -- up --url … --token berry_ws_…`).
+It dials the product server, claims one job, and runs the CLI already signed
+in here. It does not embed a model or read a CLI credential store. From this
+repo, `pnpm dev:bridge -- up --url … --token …` still works.
 
 Also in the repo: `docs/` and `scripts/` (Python repository checks). Berry can run on the host against PostgreSQL 16 and object storage, with
 subscription CLIs or a native compute host. Optional Docker development and
@@ -154,7 +155,8 @@ override on one task stays on the deployment model. A completion runs as
 the Orchestrator and uses the first connected model on that agent's selected
 tier; with none placed, it stays on Bedrock or Kilo. Kiro, Claude Code, and Codex are the connectable runtimes,
 each a CLI on the workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or
-`codex`), not a container Berry runs. With Kiro connected, Settings → Model tiers places
+`codex`), not a container Berry runs. The laptop process is `berry-bridge`;
+the product server enqueues the job and never forks that host. With Kiro connected, Settings → Model tiers places
 Kiro models on BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit on
 more than one tier, and a run with no explicit model uses the first model on
 the agent's tier that Kiro offers. Every other requested product stays
@@ -249,6 +251,9 @@ pnpm dev:server
 # Plugin SDK
 pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
 
+# Workstation bridge (subscription CLIs on this machine)
+pnpm test:bridge && pnpm typecheck:bridge
+
 # Frontend
 cd frontend && pnpm lint && pnpm build:check
 ```
@@ -268,7 +273,7 @@ provisions a protected Orchestrator agent that cannot be deleted.
 type(scope): imperative summary (BERR-NN)
 ```
 
-- Scopes: `server-ts`, `frontend`, or omit for docs-only.
+- Scopes: `server-ts`, `frontend`, `bridge`, or omit for docs-only.
 - One issue per branch and PR.
 
 Definition of done: server typecheck and tests; frontend lint + `build:check`
