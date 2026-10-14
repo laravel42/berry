@@ -92,8 +92,7 @@ export function SettingsSection({
                <div className="mb-1 flex items-end justify-between gap-4">
                   <div>
                      {/* Same heading as the page name in SettingsShell: the
-                         display face at the h1 size, capitalized, in the
-                         foreground. */}
+                         display face at the h1 size, in the foreground. */}
                      {title ? <h2 data-heading="h1">{title}</h2> : null}
                      {description ? (
                         <p className="mt-0.5 text-muted-foreground">{description}</p>

@@ -176,7 +176,7 @@ export function FilterValueOptionDisplay<TData>({
       const hasIcon = !!Icon;
       return (
          <span className="inline-flex items-center gap-1">
-            {hasIcon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary" />)}
+            {hasIcon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary-text" />)}
             <span>{label}</span>
          </span>
       );
@@ -215,7 +215,7 @@ export function FilterValueMultiOptionDisplay<TData>({
       const hasIcon = !!Icon;
       return (
          <span className="inline-flex items-center gap-1.5">
-            {hasIcon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary" />)}
+            {hasIcon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary-text" />)}
 
             <span>{label}</span>
          </span>
@@ -421,7 +421,7 @@ const OptionItem = memo(function OptionItem({ option, onToggle }: OptionItemProp
                checked={selected}
                className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 mr-1 border-input data-[state=checked]:border-violet-500 data-[state=checked]:bg-violet-500 data-[state=checked]:text-white"
             />
-            {Icon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary" />)}
+            {Icon && (isValidElement(Icon) ? Icon : <Icon className="size-4 text-primary-text" />)}
             <span>
                {label}
                <sup

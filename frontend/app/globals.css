@@ -80,14 +80,16 @@
 
    --background: #f4f2ec;
    --foreground: var(--brand-void);
-   /* Default placeholder colour; see the unlayered input rules below. */
-   --placeholder-default: color-mix(in oklab, var(--foreground) 40%, transparent);
+   /* Solid ink, not a faded --foreground: a 40% mix sat at 2.5:1 on this card. */
+   --placeholder: var(--brand-slate);
    --container: #fdfcf8;
    --card: #fdfcf8;
    --card-foreground: var(--brand-void);
    --popover: #ffffff;
    --popover-foreground: var(--brand-void);
    --primary: var(--brand-berry);
+   /* Darker berry for links and chips; #C74A5E on this card is 4.5:1. */
+   --primary-text: #9b3344;
    --primary-foreground: #ffffff;
    --secondary: #e9e6de;
    --secondary-foreground: var(--brand-void);
@@ -168,6 +170,10 @@
    --popover-foreground: var(--brand-chalk);
    --primary: var(--brand-berry);
    --primary-foreground: #ffffff;
+   /* 5.0:1 on void and base; quieter than ash (muted body). */
+   --placeholder: #8a898f;
+   /* Berry as ink. Fill stays --brand-berry; that pair is 3.9:1 on void. */
+   --primary-text: #d37684;
    --secondary: var(--brand-hairline);
    --secondary-foreground: var(--brand-chalk);
    --muted: #202024;
@@ -213,7 +219,9 @@
    --color-popover: var(--popover);
    --color-popover-foreground: var(--popover-foreground);
    --color-primary: var(--primary);
+   --color-primary-text: var(--primary-text);
    --color-primary-foreground: var(--primary-foreground);
+   --color-placeholder: var(--placeholder);
    --color-secondary: var(--secondary);
    --color-secondary-foreground: var(--secondary-foreground);
    --color-muted: var(--muted);
@@ -358,28 +366,9 @@
       line-height: var(--text-3xl--line-height);
    }
 
-   /* Titles stay on the interface face. Each word of a title is capitalized;
-      section labels stay in tracked caps. */
-   h1,
-   h2,
-   h3,
-   h4,
-   h5,
-   h6,
-   [data-heading='h1'],
-   [data-heading='h2'],
-   [data-heading='h3'],
-   [data-heading='h4'],
-   [data-heading='display'] {
-      text-transform: capitalize;
-   }
-
-   /* The user agent sets text-transform: none on buttons and fields, so a
-      title written as a control would stay in sentence case. Inherit the
-      heading's capitalization instead. */
-   :is(h1, h2, h3, h4, h5, h6) :is(button, input, textarea) {
-      text-transform: inherit;
-   }
+   /* Titles stay on the interface face. Write the words as they should read;
+      do not capitalize here — that rewrites identifiers (BER-286, API).
+      Section labels stay in tracked caps. */
 
    /* Headings carry one step of weight over the 400 body so a page title, a
       dialog title and a section title read as a different role from the row
@@ -621,10 +610,8 @@ body {
  * follows the page theme. Such a field opts out by setting --input-color and
  * --placeholder-color on itself; the defaults keep the page behaviour.
  *
- * The default mix lives in --placeholder-default rather than inline: the CSS
- * minifier adds a plain-colour fallback beside any color-mix() it sees, and
- * because var() declarations cannot be rejected at parse time that fallback
- * out-cascades the mix in every browser, leaving placeholders at 100%.
+ * --placeholder is a solid colour that clears 4.5:1. Do not fade --foreground
+ * here: a 40% mix on void was 3.7:1.
  */
 input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
 textarea,
@@ -638,8 +625,8 @@ input:not([type='checkbox']):not([type='radio']):not([type='range']):not(
       [type='file']
    )::placeholder,
 textarea::placeholder {
-   color: var(--placeholder-color, var(--placeholder-default));
-   -webkit-text-fill-color: var(--placeholder-color, var(--placeholder-default));
+   color: var(--placeholder-color, var(--placeholder));
+   -webkit-text-fill-color: var(--placeholder-color, var(--placeholder));
 }
 
 input::-webkit-search-cancel-button {
@@ -876,13 +863,13 @@ input[type='search'] {
 }
 
 .tiptap-ai-editor .ProseMirror a {
-   color: var(--primary);
+   color: var(--primary-text);
    text-decoration: underline;
    text-underline-offset: 2px;
 }
 
 .tiptap-ai-editor .ProseMirror p.is-editor-empty:first-child::before {
-   color: var(--placeholder-default);
+   color: var(--placeholder);
    content: attr(data-placeholder);
    float: left;
    height: 0;

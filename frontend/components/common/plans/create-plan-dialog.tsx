@@ -152,7 +152,7 @@ export function CreatePlanDialog() {
                         placeholder="What do you want to accomplish?"
                         value={prompt}
                         onChange={setPrompt}
-                        className="min-h-28 placeholder:text-foreground/40"
+                        className="min-h-28 placeholder:text-placeholder"
                      />
                   </div>
                   <p className="text-muted-foreground">

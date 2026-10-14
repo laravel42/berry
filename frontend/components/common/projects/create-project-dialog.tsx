@@ -240,7 +240,7 @@ export function CreateProjectDialog() {
                         id="create-project-name"
                         data-heading="h1"
                         autoFocus
-                        className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-foreground/40"
+                        className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-placeholder"
                         placeholder="Project name"
                         value={form.name}
                         onChange={(event) => setForm({ ...form, name: event.target.value })}
