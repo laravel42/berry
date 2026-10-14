@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 import { AlertTriangle, CircleCheck, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { ReviewTranscriptButton } from './review-transcript-button';
 
 /**
  * What the peer reviewer decided, and why.
@@ -62,12 +61,10 @@ function incompleteReview(reason: string | null | undefined): boolean {
 
 export function IssueReviewCard({
    review,
-   issueId,
    inReview = false,
    autoGate = false,
 }: {
    review: AutoReview;
-   issueId?: string;
    inReview?: boolean;
    autoGate?: boolean;
 }) {
@@ -94,7 +91,6 @@ export function IssueReviewCard({
             )}
             <PeerVerdictChip verdict={{ approved, reviewer: review.reviewer }} />
             <span className="text-muted-foreground">{timeAgo(when, 'recently')}</span>
-            {issueId ? <ReviewTranscriptButton issueId={issueId} review={review} /> : null}
          </div>
          {review.reason ? (
             <AgentMarkdown
@@ -116,12 +112,10 @@ export function IssueReviewCard({
 }
 
 export function IssueReviews({
-   issueId,
    issueRef,
    inReview = false,
    autoGate = false,
 }: {
-   issueId?: string;
    issueRef: string;
    inReview?: boolean;
    autoGate?: boolean;
@@ -135,7 +129,6 @@ export function IssueReviews({
             <IssueReviewCard
                key={review.id}
                review={review}
-               issueId={issueId}
                inReview={inReview}
                autoGate={autoGate}
             />

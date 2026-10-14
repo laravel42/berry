@@ -126,8 +126,16 @@ export async function deleteSession(id: string): Promise<void> {
    await apiFetch(session(id), { method: 'DELETE' });
 }
 
+/** Same-tab signal so the rail recounts before the workspace stream arrives. */
+export const CHAT_UNREAD_CHANGED = 'berry:chat-unread';
+
+export function unreadAcrossThreads(threads: ReadonlyArray<{ unread: number }>): number {
+   return threads.reduce((sum, thread) => sum + thread.unread, 0);
+}
+
 export async function markSessionRead(id: string): Promise<void> {
    await apiFetch(session(id, '/read'), { method: 'POST', body: '{}' });
+   window.dispatchEvent(new Event(CHAT_UNREAD_CHANGED));
 }
 
 export async function saveDraft(id: string, draft: string): Promise<void> {

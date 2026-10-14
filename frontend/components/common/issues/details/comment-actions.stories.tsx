@@ -11,6 +11,7 @@ import {
    healthTests,
    maya,
    seedIssuesWorkspace,
+   storyWorkspace,
 } from '../stories-fixtures';
 
 const mine = comment(
@@ -32,7 +33,6 @@ const meta = {
       comment: mine,
       issueRef: 'BERR-42',
       replyCount: 0,
-      onChanged: fn(),
       onDeleted: fn(),
       onReply: fn(),
    },
@@ -47,10 +47,6 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedIssuesWorkspace({ withSession: true });
       msw.use(
-         http.patch('*/api/v1/comments/:id', async ({ request }) => {
-            const { body } = (await request.json()) as { body: string };
-            return HttpResponse.json({ ...mine, body, revision: mine.revision + 1 });
-         }),
          http.delete('*/api/v1/comments/:id', () => new HttpResponse(null, { status: 204 })),
          http.post('*/api/v1/issues/:ref/children', () =>
             HttpResponse.json(apiIssue({ ...healthTests, id: 'issue-51', identifier: 'BERR-51' }))
@@ -66,36 +62,25 @@ export const MyComment: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Activity' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('menuitem', { name: 'Edit' })).toBeVisible();
-      await expect(body.getByRole('menuitem', { name: 'Delete' })).toBeVisible();
+      await expect(await body.findByRole('menuitem', { name: 'Delete' })).toBeVisible();
+      await expect(body.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
    },
 };
 
 export const SomeoneElsesAsMember: Story = {
    args: { comment: agentReply, onReply: undefined },
    beforeEach: () => {
-      useSessionStore.setState({ user: maya });
+      useSessionStore.setState({
+         user: maya,
+         workspace: { ...storyWorkspace, role: 'member' },
+      });
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Activity' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByRole('menuitem', { name: 'Copy the text' })).toBeVisible();
-      // Only the author or an admin may change it, and the menu says so.
-      await expect(body.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
-   },
-};
-
-export const Edit: Story = {
-   play: async ({ args, canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Activity' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Edit' }));
-      const field = await body.findByRole('textbox');
-      await userEvent.type(field, ' Agreed with Maya.');
-      await userEvent.click(body.getByRole('button', { name: 'Save' }));
-      await waitFor(() =>
-         expect(args.onChanged).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }))
-      );
+      // Only the author or an admin may delete it, and the menu says so.
+      await expect(body.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
    },
 };
 

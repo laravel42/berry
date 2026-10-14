@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Input } from '@/components/ui/input';
-import { useModelGateway } from '@/hooks/use-model-gateway';
 import {
    AGENT_PERMISSIONS,
    agentTier,
@@ -31,7 +30,6 @@ export default function AiAgents() {
    const t = useTranslations('workspaceAdmin.agents');
    const { orgId } = useParams<{ orgId: string }>();
    const agents = useSettingsResource<Agent[]>(loadWorkspaceAgents);
-   const modelGateway = useModelGateway();
    const [query, setQuery] = useState('');
 
    const roster = useMemo(() => {
@@ -41,13 +39,9 @@ export default function AiAgents() {
          .sort((a, b) => a.name.localeCompare(b.name));
    }, [agents.value, query]);
 
-   /** Under a model gateway an agent runs on its tier, or a gateway model it is pinned to; otherwise on a model. */
    const runsOn = (agent: Agent): string => {
-      if (modelGateway === true) {
-         const pin = gatewayPin(agent);
-         return pin ? bareModelName(pin) || pin : TIER_NAMES[agentTier(agent)];
-      }
-      return agent.modelName ? bareModelName(agent.modelName) || agent.modelName : t('noModel');
+      const pin = gatewayPin(agent);
+      return pin ? bareModelName(pin) || pin : TIER_NAMES[agentTier(agent)];
    };
 
    return (

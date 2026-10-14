@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { useHorizontalWheel } from '@/hooks/use-horizontal-wheel';
 import { cn } from '@/lib/utils';
 import { Issue } from '@/data/issues';
 import { priorities } from '@/data/priorities';
@@ -279,6 +280,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    /* Dragging towards the edge of the board scrolls it, so a card can reach a
       column that is not on screen without being dropped halfway. */
    const scrollerRef = useRef<HTMLDivElement>(null);
+   useHorizontalWheel(scrollerRef);
    const autoScroll = (event: React.DragEvent<HTMLDivElement>) => {
       const element = scrollerRef.current;
       if (!element) return;
@@ -315,7 +317,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                <div
                   ref={scrollerRef}
                   onDragOver={autoScroll}
-                  className="flex-1 min-h-0 overflow-x-auto"
+                  className="show-scrollbar flex-1 min-h-0 overflow-x-auto"
                >
                   <div className="flex h-full min-w-max gap-3 px-4 py-3">
                      {onBoard.map((entry) => (

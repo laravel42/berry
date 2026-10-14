@@ -695,7 +695,9 @@ input[type='search'] {
 
 /* Berry scrollbars. Hidden by default so lists and the canvas read as one
    surface inside the framed shell; overflow still scrolls. `.no-scrollbar`
-   and `.tabstrip` stay as explicit aliases for the same treatment. */
+   and `.tabstrip` stay as explicit aliases for the same treatment.
+   `.show-scrollbar` opts a scroller back in, used where overflow must be
+   obvious (the board's horizontal strip). */
 * {
    scrollbar-width: none;
 }
@@ -713,6 +715,23 @@ input[type='search'] {
 .tabstrip::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {
    display: none;
+}
+
+.show-scrollbar {
+   scrollbar-width: thin;
+   scrollbar-color: var(--border) transparent;
+}
+.show-scrollbar::-webkit-scrollbar {
+   display: block;
+   width: 8px;
+   height: 8px;
+}
+.show-scrollbar::-webkit-scrollbar-track {
+   background: transparent;
+}
+.show-scrollbar::-webkit-scrollbar-thumb {
+   background: var(--border);
+   border-radius: 999px;
 }
 
 /* Pending-reply pulse, from the prototype's `berrypulse`. Honoured only when
@@ -774,6 +793,10 @@ input[type='search'] {
    color: var(--foreground);
    -webkit-text-fill-color: var(--foreground);
    white-space: pre-wrap;
+   /* Body chrome stays at 1.2. Description prose is a paragraph you read,
+      and JetBrains Mono at that spacing stacks wrapped lines on top of
+      each other. */
+   line-height: 1.6;
 }
 
 .tiptap-ai-editor .ProseMirror p + p {

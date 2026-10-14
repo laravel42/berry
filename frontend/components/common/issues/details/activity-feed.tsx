@@ -291,7 +291,6 @@ function CommentCard({
                comment={comment}
                issueRef={issueRef}
                replyCount={replies.length}
-               onChanged={onChanged}
                onDeleted={onDeleted}
                onReply={() => setReplying(true)}
             />
@@ -517,7 +516,6 @@ export function ActivityFeedList({
    onCommentDeleted,
    onCommentPosted,
    onRunChanged,
-   issueId,
    inReview = false,
    autoGate = false,
 }: {
@@ -530,7 +528,6 @@ export function ActivityFeedList({
    onCommentDeleted: (commentId: string) => void;
    onCommentPosted: (comment: ApiComment) => void;
    onRunChanged: (run: RunRecord) => void;
-   issueId?: string;
    inReview?: boolean;
    autoGate?: boolean;
 }) {
@@ -562,9 +559,9 @@ export function ActivityFeedList({
          | { kind: 'events'; at: string; items: EventItem[] }
          | { kind: 'review'; at: string; review: AutoReview };
       const rows: Row[] = [
-         // Runs are not listed here: the task's console shows them, and each
-         // run's result comment (its report, or why it stopped) reads as the
-         // comment it is.
+         // Agent runs are not listed here: the task's console shows them, and
+         // each run's result comment reads as the comment it is. AutoGate
+         // reviews sit on this feed as the verdict and reason.
          ...roots.map((comment) => ({ kind: 'comment' as const, at: comment.createdAt, comment })),
          ...events.map((event) => ({
             kind: 'events' as const,
@@ -630,7 +627,6 @@ export function ActivityFeedList({
                   <IssueReviewCard
                      key={row.review.id}
                      review={row.review}
-                     issueId={issueId}
                      inReview={inReview}
                      autoGate={autoGate}
                   />

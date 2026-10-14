@@ -31,7 +31,6 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
-import { useModelGateway } from '@/hooks/use-model-gateway';
 import { BerryApiError } from '@/lib/api';
 import {
    archiveAgent,
@@ -97,7 +96,6 @@ export default function Agents() {
    const t = useTranslations('agentsChat.list');
    const common = useTranslations('agentsChat.common');
    const tiers = useTranslations('agentsChat.detail.tiers');
-   const modelGateway = useModelGateway();
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
 
@@ -462,16 +460,14 @@ export default function Agents() {
                   </Button>
                ) : (
                   <>
-                     {modelGateway === true ? (
-                        <Button
-                           size="xs"
-                           variant="secondary"
-                           disabled={busy}
-                           onClick={() => setBulkTierOpen(true)}
-                        >
-                           {t('bulkTier')}
-                        </Button>
-                     ) : null}
+                     <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => setBulkTierOpen(true)}
+                     >
+                        {t('bulkTier')}
+                     </Button>
                      <Button
                         size="xs"
                         variant="secondary"

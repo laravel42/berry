@@ -2,9 +2,8 @@ import { create } from 'zustand';
 
 /**
  * Which run the task drawer's console shows, per task, and a request to bring
- * it into view. The transcript buttons on the task (the live chip in the
- * header, each run in the activity) point the console at their run rather
- * than opening a dialog over the task.
+ * it into view. Agent work stays in the console; AutoGate reviews open their
+ * transcript from the activity, not from here.
  */
 interface RunConsoleState {
    /** The run a person picked, per task; absent means the console follows the live or latest run. */

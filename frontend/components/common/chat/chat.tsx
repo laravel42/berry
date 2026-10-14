@@ -28,6 +28,7 @@ import {
    listConversationSuggestions,
    listThreads,
    markSessionRead,
+   unreadAcrossThreads,
    openAgentThread,
    renameSession,
    saveDraft,
@@ -42,6 +43,7 @@ import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
+import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
 import { chatRepositoryToSend } from './chat-repository-select';
@@ -121,12 +123,16 @@ export function Chat() {
    const activeId = active?.id ?? null;
    const activeAgent = active?.agentId ? agents.find((a) => a.id === active.agentId) : undefined;
 
+   const setChatUnread = useShellStore((state) => state.setChatUnread);
    const refreshThreads = useCallback(async () => {
       const epoch = ++threadsEpoch.current;
       const found = withPendingTopics(await listThreads(), pendingRenames.current);
-      if (epoch === threadsEpoch.current) setThreads(found);
+      if (epoch === threadsEpoch.current) {
+         setThreads(found);
+         setChatUnread(unreadAcrossThreads(found));
+      }
       return found;
-   }, []);
+   }, [setChatUnread]);
 
    const refreshArchived = useCallback(async () => {
       const epoch = ++archivedEpoch.current;

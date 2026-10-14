@@ -33,11 +33,11 @@ const nextConfig: NextConfig = {
    distDir: process.env.NEXT_DIST_DIR ?? '.next',
    devIndicators: false,
    // Next protects dev-only endpoints (including the HMR websocket) by Origin.
-   // A Cloudflare tunnel is an intentional second origin for this local dev
-   // server; without the allowlist Next answers the upgrade `Unauthorized`,
-   // which Cloudflare correctly surfaces as a 502 handshake failure.
+   // `localhost` is allowed by default; `127.0.0.1` is not, and that is the
+   // host Electron and Docker use. A Cloudflare tunnel is another origin;
+   // without it Next answers the upgrade `Unauthorized` (Cloudflare 502).
    // `*` is one hostname label, so a quick-tunnel name matches.
-   allowedDevOrigins: ['local.berry.pm', '*.trycloudflare.com'],
+   allowedDevOrigins: ['127.0.0.1', 'local.berry.pm', '*.trycloudflare.com'],
    /**
     * A self-contained server, so the app can be deployed without the workspace.
     *

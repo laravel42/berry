@@ -66,7 +66,7 @@ export const SentBackThenApproved: Story = {
       // The reason is the point of a rejection: it says what to fix.
       await expect(await canvas.findByText(/Keep the query string/)).toBeInTheDocument();
       await expect(
-         canvas.getByText('Sent back to To do to be worked again, with this feedback.')
+         canvas.getByText('Sent back to be worked again, with this feedback.')
       ).toBeInTheDocument();
    },
 };
@@ -88,7 +88,7 @@ export const RejectedWhileInReview: Story = {
       await expect(canvas.getByText(/drops the query string/)).toBeInTheDocument();
       await expect(canvas.queryByText('Peer sent back')).not.toBeInTheDocument();
       await expect(
-         canvas.queryByText('Sent back to To do to be worked again, with this feedback.')
+         canvas.queryByText('Sent back to be worked again, with this feedback.')
       ).not.toBeInTheDocument();
    },
 };

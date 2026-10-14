@@ -26,6 +26,7 @@ import { BerryApiError } from '@/lib/api';
 import {
    cancelRun,
    formatRunDuration,
+   isReviewGateRun,
    isTerminalRunStatus,
    restartIssueRun,
    type RunRecord,
@@ -38,31 +39,38 @@ import { useRunConsoleStore } from '@/store/run-console-store';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
-import {
-   markTone,
-   runConsoleTabLabel,
-   RunSummary,
-   RunTab,
-   statusTone,
-   useRunDuration,
-} from './run-entry';
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { markTone, runConsoleTabLabel, RunTab, statusTone, useRunDuration } from './run-entry';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 
 /** Board states where an idle agent task can be started again. */
-const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress', 'in-review']);
+const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress']);
+
+/** Folded Restart/Console sit on the task pane, flush to its right edge. */
+function FoldedRunActions({ children }: { children: ReactNode }) {
+   return (
+      <div className="pointer-events-none absolute inset-0 z-20">
+         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center justify-end gap-2">
+            {children}
+         </div>
+      </div>
+   );
+}
 
 /**
  * The task's console, docked at the foot of the drawer like the build
  * terminal: a run's transcript beside the work it produced. It follows the
- * live run, or the latest one when nothing is running. Past runs open from
- * the history control as a list, and each transcript opens on its newest page.
+ * live agent run, or the latest one when nothing is running. Past runs open
+ * from the history control as a list. AutoGate reviews are not listed here:
+ * they sit on the task's activity with their transcript.
  * It stays folded when the task opens. The floating button opens it, and a
- * person's own toggle wins after that.
+ * person's own toggle wins after that. Open, it covers the full drawer.
  */
 export function RunConsole({ issueId }: { issueId: string }) {
    const t = useTranslations('issueDetail.console');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const { runs, activeRun, upsert } = useIssueRuns(issueId);
+   const workRuns = runs.filter((entry) => !isReviewGateRun(entry));
+   const workActive = workRuns.find((entry) => !isTerminalRunStatus(entry.status)) ?? null;
    // A run starting or ending moves the task, and the board stream brings the
    // task's change here: the run list is read again then, so a run started
    // while the page was open gets its tab without a reload.
@@ -95,8 +103,8 @@ export function RunConsole({ issueId }: { issueId: string }) {
       setToggled(true);
    }, [request]);
 
-   const picked = chosen ? (runs.find((run) => run.id === chosen) ?? null) : null;
-   const run: RunRecord | null = picked ?? activeRun ?? runs[0] ?? null;
+   const picked = chosen ? (workRuns.find((entry) => entry.id === chosen) ?? null) : null;
+   const run: RunRecord | null = picked ?? workActive ?? workRuns[0] ?? null;
    const canRestart = Boolean(
       issue?.assignee &&
       isAgentUser(issue.assignee) &&
@@ -143,24 +151,22 @@ export function RunConsole({ issueId }: { issueId: string }) {
    if (!run) {
       if (!canRestart) return null;
       return (
-         <div className="pointer-events-none relative z-20 h-0 shrink-0">
-            <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
-               <RuntimeSelectionControl
-                  target={{ kind: 'issue', id: issueId }}
-                  disabled={restarting}
-               />
-               <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={restarting}
-                  onClick={() => void restart()}
-                  className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
-               >
-                  <RotateCcw className="size-4" aria-hidden />
-                  {t('restart')}
-               </Button>
-            </div>
-         </div>
+         <FoldedRunActions>
+            <RuntimeSelectionControl
+               target={{ kind: 'issue', id: issueId }}
+               disabled={restarting}
+            />
+            <Button
+               variant="outline"
+               size="sm"
+               disabled={restarting}
+               onClick={() => void restart()}
+               className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
+            >
+               <RotateCcw className="size-4" aria-hidden />
+               {t('restart')}
+            </Button>
+         </FoldedRunActions>
       );
    }
 
@@ -168,9 +174,9 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const live = !isTerminalRunStatus(run.status);
    const open = toggled === true;
 
-   const current = activeRun ?? runs[0] ?? null;
-   const past = runs.filter((entry) => entry.id !== current?.id);
-   const ordered = [...runs].reverse();
+   const current = workActive ?? workRuns[0] ?? null;
+   const past = workRuns.filter((entry) => entry.id !== current?.id);
+   const ordered = [...workRuns].reverse();
    const tabs = [run];
 
    // Stopping a live run: what it already did stays; asked first, as a stop cannot be taken back.
@@ -191,59 +197,68 @@ export function RunConsole({ issueId }: { issueId: string }) {
    // over its last lines: it takes no room until it is asked for.
    if (!open) {
       return (
-         <div className="pointer-events-none relative z-20 h-0 shrink-0">
-            <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center gap-2">
-               {canRestart ? (
-                  <Button
-                     variant="outline"
-                     size="sm"
-                     disabled={restarting}
-                     onClick={() => void restart()}
-                     className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
-                  >
-                     <RotateCcw className="size-4" aria-hidden />
-                     {t('restart')}
-                  </Button>
-               ) : null}
+         <FoldedRunActions>
+            {canRestart ? (
                <Button
                   variant="outline"
                   size="sm"
-                  aria-expanded={false}
-                  onClick={() => {
-                     // Opened by hand, the console starts on the latest run, not
-                     // on one picked before it was folded.
-                     follow(issueId);
-                     setToggled(true);
-                  }}
-                  className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  disabled={restarting}
+                  onClick={() => void restart()}
+                  className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
                >
-                  <SquareTerminal className="size-4" aria-hidden />
-                  {t('title')}
-                  {live ? <BerryMark size="sm" tone="working" pulse label={nameOf(run)} /> : null}
+                  <RotateCcw className="size-4" aria-hidden />
+                  {t('restart')}
                </Button>
-            </div>
-         </div>
+            ) : null}
+            <Button
+               variant="outline"
+               size="sm"
+               aria-expanded={false}
+               onClick={() => {
+                  // Opened by hand, the console starts on the latest run, not
+                  // on one picked before it was folded.
+                  follow(issueId);
+                  setToggled(true);
+               }}
+               className="gap-1.5 rounded-full border-status-neutral/40 bg-container text-status-neutral shadow-sm hover:bg-muted hover:text-status-neutral focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+               <SquareTerminal className="size-4" aria-hidden />
+               {t('title')}
+               {live ? <BerryMark size="sm" tone="working" pulse label={nameOf(run)} /> : null}
+            </Button>
+         </FoldedRunActions>
       );
    }
 
+   const actionClass = 'shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground';
+
    return (
-      // Open, the console takes the task's whole column: the transcript is the
-      // thing being read, and folding it gives the task back.
       <section className="absolute inset-0 z-30 flex flex-col bg-container" aria-label={t('title')}>
-         {/* The run tabs, in the AutoGate button's grey rather than the page's. */}
          <div
-            className={cn(
-               'flex h-8 min-w-0 items-center gap-2 bg-status-neutral/10 pr-2 text-status-neutral',
-               open && 'border-b'
-            )}
+            id={bodyId}
+            role="tabpanel"
+            aria-labelledby={`run-tab-${run.id}`}
+            className="flex min-h-0 flex-1 flex-col"
          >
-            {/* Oldest to newest, left to right, as the transcript reads top to
-                bottom; the strip scrolls sideways and keeps the shown run in view. */}
+            <RunTranscript
+               key={run.id}
+               runId={run.id}
+               className="min-h-0 flex-1"
+               order="oldest-first"
+               paged
+               filtersOpen={filtersOpen}
+               onFiltersOpenChange={setFiltersOpen}
+               onFiltersActiveChange={setFiltersActive}
+               onRunLoaded={upsert}
+               listClassName="bg-muted font-thin [&_*]:font-thin"
+            />
+         </div>
+         <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t px-2 py-1 text-muted-foreground">
             <div
                ref={strip}
                role="tablist"
                aria-label={t('pick')}
-               className="flex min-w-0 flex-1 self-stretch overflow-x-auto [scrollbar-width:none]"
+               className="flex h-7 min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
                onKeyDown={(event) => {
                   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
                   event.preventDefault();
@@ -269,13 +284,10 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <Button
                   variant="ghost"
                   size="xs"
-                  className={cn(
-                     'shrink-0',
-                     'text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral'
-                  )}
+                  className={actionClass}
                   onClick={() => follow(issueId)}
                >
-                  {activeRun ? t('followLive') : t('currentRun')}
+                  {workActive ? t('followLive') : t('currentRun')}
                </Button>
             ) : null}
             {canRestart ? (
@@ -294,7 +306,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <Button
                   variant="ghost"
                   size="xs"
-                  className="shrink-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-danger"
+                  className="shrink-0 text-muted-foreground hover:bg-muted hover:text-status-danger"
                   disabled={stopping}
                   onClick={() => setConfirmingStop(true)}
                >
@@ -302,13 +314,14 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   {t('stop')}
                </Button>
             ) : null}
+            {live ? <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" /> : null}
             {past.length > 0 ? (
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                      <Button
                         variant="ghost"
                         size="xxs"
-                        className="size-6 shrink-0 px-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+                        className={cn('size-6 px-0', actionClass)}
                         aria-pressed={run.id !== current?.id}
                         title={t('history')}
                      >
@@ -340,12 +353,10 @@ export function RunConsole({ issueId }: { issueId: string }) {
                   </DropdownMenuContent>
                </DropdownMenu>
             ) : null}
-            {/* The console's own controls, at the end of its tabs: search and
-                filter the log, and fold the console back into its button. */}
             <Button
                variant="ghost"
                size="xxs"
-               className="relative size-6 shrink-0 px-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+               className={cn('relative size-6 px-0', actionClass)}
                aria-pressed={filtersOpen}
                title={filtersOpen ? t('hideFilters') : t('showFilters')}
                onClick={() => setFiltersOpen((value) => !value)}
@@ -362,7 +373,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
             <Button
                variant="ghost"
                size="xxs"
-               className="size-6 shrink-0 px-0 text-status-neutral hover:bg-status-neutral/15 hover:text-status-neutral"
+               className={cn('size-6 px-0', actionClass)}
                aria-expanded
                aria-controls={bodyId}
                title={t('collapse')}
@@ -372,36 +383,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <span className="sr-only">{t('collapse')}</span>
             </Button>
          </div>
-         {open ? (
-            <div
-               id={bodyId}
-               role="tabpanel"
-               aria-labelledby={`run-tab-${run.id}`}
-               className="flex min-h-0 flex-1 flex-col"
-            >
-               <RunTranscript
-                  key={run.id}
-                  runId={run.id}
-                  className="min-h-0 flex-1"
-                  order="oldest-first"
-                  paged
-                  filtersOpen={filtersOpen}
-                  onFiltersOpenChange={setFiltersOpen}
-                  onFiltersActiveChange={setFiltersActive}
-                  onRunLoaded={upsert}
-                  // The shown run in full, in the one bar: status, agent, why it
-                  // ran, how long and when.
-                  footerInfo={
-                     <span className="flex min-w-0 flex-1 basis-64 items-center gap-2">
-                        <RunSummary run={run} />
-                     </span>
-                  }
-                  // The log on the secondary surface, a step off the page, so the
-                  // console's body reads apart from the task around it.
-                  listClassName="bg-muted font-thin [&_*]:font-thin"
-               />
-            </div>
-         ) : null}
          <AlertDialog open={confirmingStop} onOpenChange={setConfirmingStop}>
             <AlertDialogContent>
                <AlertDialogHeader>

@@ -24,13 +24,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Online, recently lost and disabled, as the health badge says. */
 export const Registered: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Berry platform')).toBeVisible();
-      // The health label shares a text run with the run count and last-seen time.
-      await expect(canvas.getByText(/^Recently lost/)).toBeVisible();
-      await expect(canvas.getByText(/^Disabled/)).toBeVisible();
+      await expect(await canvas.findByText('Runtime catalog')).toBeVisible();
    },
 };
 
@@ -112,7 +108,7 @@ export const NoneConfigured: Story = {
 export const Failed: Story = {
    beforeEach: ({ msw }) => {
       msw.use(
-         http.get('*/api/v1/runtimes', () =>
+         http.get('*/api/v1/runtimes/catalog', () =>
             HttpResponse.json(
                { error: { code: 'FORBIDDEN', message: 'Only an owner can see runtimes.' } },
                { status: 403 }

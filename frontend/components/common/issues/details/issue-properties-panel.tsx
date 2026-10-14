@@ -79,7 +79,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
       <div className="flex h-full min-h-0 flex-col">
          <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto">
             <Section title={t('title')}>
-               <div className="flex flex-col gap-0.75">
+               <div className="flex flex-col gap-0.375">
                   <AssigneeUser
                      user={issue.assignee}
                      issueId={issue.id}
@@ -91,7 +91,6 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <CustomStatusSelect issue={issue} />
                   <IssuePriorityPicker issue={issue} variant="row" />
                   <ReviewerProperty
-                     issueId={issue.id}
                      issueRef={issue.identifier}
                      inReview={issue.status.id === 'in-review'}
                      autoGate={issue.autoGate}

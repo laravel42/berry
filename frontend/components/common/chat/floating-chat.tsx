@@ -213,6 +213,9 @@ export function FloatingChat() {
       setMessages(await listMessages(thread.id).catch(() => []));
       setTasks(await listSessionTasks(thread.id).catch(() => []));
       await markSessionRead(thread.id).catch(() => undefined);
+      setThreads((current) =>
+         current.map((entry) => (entry.id === thread.id ? { ...entry, unread: 0 } : entry))
+      );
    }, []);
 
    const withAgent = async (agent: Agent) => {

@@ -5,7 +5,6 @@ import { type AutoReview, loadAutoReviews } from '@/lib/runs';
 import { AlertTriangle, CircleCheck, Loader2, ShieldCheck } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
-import { ReviewTranscriptButton } from './review-transcript-button';
 
 /**
  * Who is reviewing this task, in the sidebar beside status and assignee.
@@ -20,12 +19,10 @@ import { ReviewTranscriptButton } from './review-transcript-button';
  * cheaper than the machinery to push it.
  */
 export function ReviewerProperty({
-   issueId,
    issueRef,
    inReview = false,
    autoGate = false,
 }: {
-   issueId?: string;
    issueRef: string;
    inReview?: boolean;
    /** Peer review runs only while AutoGate is on. */
@@ -88,7 +85,6 @@ export function ReviewerProperty({
          )}
          {approved === false ? null : <span className="min-w-0 truncate">{review.reviewer}</span>}
          <PeerVerdictChip verdict={{ approved, reviewer: review.reviewer }} />
-         {issueId ? <ReviewTranscriptButton issueId={issueId} review={review} compact /> : null}
       </div>
    );
 }

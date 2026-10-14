@@ -182,7 +182,6 @@
       "edit": "Edits",
       "read": "Reads",
       "empty": "Nothing has been recorded yet.",
-      "earlier": "Earlier",
       "input": "Input",
       "result": "Result",
       "copy": "Copy",
@@ -257,9 +256,6 @@
       "copied": "Copied.",
       "createSubIssue": "Create a sub-task from this",
       "subIssueCreated": "{identifier} created from this comment.",
-      "edit": "Edit",
-      "editTitle": "Edit the comment",
-      "save": "Save",
       "cancel": "Cancel",
       "delete": "Delete",
       "deleteTitle": "Delete this comment?",
@@ -416,8 +412,7 @@
       }
    },
    "reviews": {
-      "title": "AutoGate review",
-      "openTranscript": "Transcript"
+      "title": "AutoGate review"
    },
    "pullRequests": {
       "title": "Pull requests"

@@ -5,7 +5,8 @@ import type { Project } from '@/data/projects';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { ChevronDown, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useHorizontalWheel } from '@/hooks/use-horizontal-wheel';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { EmptyProjects } from './empty-projects';
@@ -97,7 +98,12 @@ export default function ProjectsBoard({
    const boardEntries = activeFilters
       ? entries.filter((entry) => entry.projects.length > 0)
       : entries.filter((entry) => showEmptyGroups || entry.projects.length > 0);
-   const hiddenEntries = activeFilters ? entries.filter((entry) => entry.projects.length === 0) : [];
+   const hiddenEntries = activeFilters
+      ? entries.filter((entry) => entry.projects.length === 0)
+      : [];
+
+   const scrollerRef = useRef<HTMLDivElement>(null);
+   useHorizontalWheel(scrollerRef);
 
    if (empty) {
       return <EmptyProjects />;
@@ -107,7 +113,7 @@ export default function ProjectsBoard({
       <DndProvider backend={HTML5Backend}>
          <ProjectDragLayer />
          <div className="h-full flex flex-col">
-            <div className="flex-1 min-h-0 overflow-x-auto">
+            <div ref={scrollerRef} className="show-scrollbar flex-1 min-h-0 overflow-x-auto">
                <div className="flex h-full min-w-max gap-3 px-4 py-3">
                   {boardEntries.map((entry) => (
                      <GroupProjects

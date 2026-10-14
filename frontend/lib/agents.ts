@@ -355,7 +355,7 @@ export const MAIN_TIERS = [
 /**
  * How a tier spreads its tasks over its models, best first: each task (an
  * agent on an issue) keeps one of the top three, picked 3:2:1 by rank.
- * Mirrors `RANK_WEIGHTS` in server-ts/src/agents/kilo/tiers.ts.
+ * How a tier used to spread tasks over leaderboard models. Kept for the Usage page.
  */
 const RANK_WEIGHTS = [3, 2, 1] as const;
 
