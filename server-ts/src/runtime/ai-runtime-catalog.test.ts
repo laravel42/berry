@@ -14,7 +14,7 @@ describe('AI runtime catalog', () => {
 
    test('advertises only a fully implemented integration as available', () => {
       const available = AI_RUNTIME_CATALOG.filter((runtime) => runtime.availability === 'available');
-      assert.deepEqual(available.map((runtime) => runtime.id), ['claude', 'codex', 'cursor', 'kimi', 'kiro', 'qoder', 'grok']);
+      assert.deepEqual(available.map((runtime) => runtime.id), ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi']);
       assert.equal(available[0]?.executionMode, 'agent_process');
       assert.equal(available[0]?.billing, 'subscription');
       assert.equal(available.find((runtime) => runtime.id === 'kiro')?.unavailableReason, null);
