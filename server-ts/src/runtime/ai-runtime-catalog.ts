@@ -331,7 +331,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       },
       availability: 'blocked',
       unavailableReason:
-         'Google now confirms launching the official `agy` binary as a local child, with `agy auth login` and all backend traffic staying inside it, is a supported use of CLI Headless Mode (login model qualifies). But the only headless path, `agy -p`, is documented to hang or emit empty output on exit 0 when stdout is a non-TTY subprocess pipe — exactly how Berry would spawn it — and there is no official ACP contract. No working non-TTY headless child contract exists to wire without an unofficial PTY/scrape bridge (verified 2026-10-10).',
+         'Google still confirms launching the official `agy` binary as a local child, with `agy auth login` and all backend traffic staying inside it, is a supported use of CLI Headless Mode (login model qualifies). But the only headless path, `agy -p` / `--print`, still hangs to its print-timeout or completes the model round trip and emits empty stdout on exit 0 when stdout is a non-TTY subprocess pipe, exactly how Berry would spawn it, and there is still no official ACP contract. Upstream issue #318 remains open (reproduced on agy v1.2.0), and every working third-party path is an unofficial PTY/ConPTY wrap or a scrape of Antigravity’s conversation SQLite store, both forbidden. No official non-TTY headless-child or ACP contract exists to wire (re-read 2026-10-14).',
       officialSources: [
          'https://discuss.ai.google.dev/t/is-invoking-the-official-antigravity-cli-from-codex-allowed/186952',
          'https://discuss.ai.google.dev/t/is-external-orchestration-of-antigravity-cli-headless-mode-supported-with-account-based-usage/183051',
