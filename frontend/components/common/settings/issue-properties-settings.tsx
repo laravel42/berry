@@ -32,6 +32,7 @@ import {
    type PropertyKind,
 } from '@/lib/properties';
 import { useSessionStore } from '@/store/session-store';
+import { Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -152,8 +153,14 @@ export default function IssuePropertiesSettings() {
             ) : null}
          </span>
          {property.archivedAt === null ? (
-            <Button variant="ghost" size="sm" onClick={() => setRemoving(property)}>
-               {t('remove')}
+            <Button
+               variant="ghost"
+               size="xs"
+               className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
+               aria-label={t('remove')}
+               onClick={() => setRemoving(property)}
+            >
+               <Trash2 className="size-3.5" aria-hidden />
             </Button>
          ) : (
             <Button variant="ghost" size="sm" onClick={() => void restore(property)}>
