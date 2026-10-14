@@ -27,6 +27,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { PreviewFrame } from './preview-frame';
 import { PreviewPanel, type PanelAction } from './preview-panel';
 
 const TOOL =
@@ -353,11 +354,11 @@ export function EnvironmentPreview({
              docked at its foot. The panel keeps its place, its tab and its
              session while the preview goes from building to running. */}
          <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="relative min-h-0 flex-1 overflow-hidden">
                {notice?.kind === 'loading' ? (
                   <BerryLoading label={notice.text} className="min-h-full" />
                ) : notice ? (
-                  <div className="flex flex-col items-start gap-3 p-6 text-muted-foreground">
+                  <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
                      <p>{notice.text}</p>
                      {notice.kind === 'stopped' && (
                         <Button size="xs" variant="outline" onClick={() => start(false)}>
@@ -366,12 +367,10 @@ export function EnvironmentPreview({
                      )}
                   </div>
                ) : ready && shown ? (
-                  <iframe
-                     key={`${shown.url}#${reload}`}
+                  <PreviewFrame
                      src={shown.url}
                      title={t('title', { app: shown.name })}
-                     className="size-full border-0 bg-white"
-                     allow="clipboard-write"
+                     reload={reload}
                   />
                ) : (
                   // Building, or failed: where it stands, and the way out. The output is in the panel below.

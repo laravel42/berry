@@ -11,6 +11,7 @@ import { ExternalLink, Hammer, PanelBottom, RotateCw, Square } from 'lucide-reac
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { PreviewFrame } from './preview-frame';
 import { PreviewPanel, type PanelAction } from './preview-panel';
 import { useSiteBuild } from './site-build-frame';
 
@@ -252,7 +253,7 @@ export function SitePreview({
                {state === 'loading' && !live ? (
                   <BerryLoading label={t('loading')} className="min-h-full" />
                ) : notice ? (
-                  <div className="flex flex-col items-start gap-3 p-6 text-muted-foreground">
+                  <div className="flex size-full flex-col items-center justify-center gap-3 p-6 text-center text-muted-foreground">
                      <p>{notice}</p>
                      {held && (
                         <Button size="xs" variant="outline" onClick={() => setHeld(false)}>
@@ -261,18 +262,11 @@ export function SitePreview({
                      )}
                   </div>
                ) : showing && src ? (
-                  <iframe
-                     key={`${src}#${reload}`}
+                  <PreviewFrame
                      src={src}
                      title={t('title', { path: entry?.path ?? '' })}
-                     // A built site has its own host. A plain page stays sandboxed,
-                     // with no origin, so it cannot act as Berry.
-                     {...(live
-                        ? {}
-                        : { sandbox: 'allow-scripts allow-forms allow-popups allow-modals' })}
-                     referrerPolicy="no-referrer"
-                     className="absolute inset-0 size-full border-0 bg-background"
-                     allow="clipboard-write"
+                     reload={reload}
+                     sandboxed={!live}
                   />
                ) : (
                   <div
