@@ -180,7 +180,6 @@
       "agentsSaved": "Tier agents saved.",
       "modelsTitle": "Models",
       "noAgents": "This runtime has not reported any agents.",
-      "section": "Models per tier",
       "gatewayOff": "Tiers apply when agents run through the Kilo gateway. This server calls Bedrock directly, so each agent runs on its own model or the server default. Set BERRY_MODEL_PROVIDER=kilo and BERRY_KILO_API_KEY to use tiers.",
       "loading": "Loading…",
       "sourceWorkspace": "This workspace uses its own placement.",
