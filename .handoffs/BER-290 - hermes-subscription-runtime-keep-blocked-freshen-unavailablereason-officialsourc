@@ -1,0 +1,28 @@
+.handoffs/BER-290 - hermes-subscription-runtime-keep-blocked-freshen-unavailablereason-officialsourc
+
+# Handoff from BER-290
+
+Hermes subscription runtime: keep blocked, freshen unavailableReason + officialSources (BER-288)
+
+This is a resumed run. Let me first check the current state of the checkout to see what the earlier run already saved.Working tree is clean. The earlier run's edits were rejected and not applied. Let me verify the current content of the hermes row in the catalog.Confirmed: the checkout still has the original (unmodified) hermes row. The earlier run's edits were not applied, so I need to apply them now. I already verified the Hermes docs in the prior investigation:
+
+- Profiles doc explicitly: "A sandbox is what limits filesystem access. Profiles do not sandbox the agent."
+- Portal doc: refresh token at root `~/.hermes/auth.json` is shared across all profiles; a refresh in any profile is written back to root — one principal-wide store.
+- Security doc: per-connection isolation requires an external container backend (docker/singularity/modal/daytona/vercel_sandbox); the `local` backend has no isolation.
+- All five links return HTTP 200.
+
+The verdict holds: stay blocked, no first-party per-connection isolation that avoids reading auth.json, so no escalation. Let me apply the catalog edit.The native tool is `str_replace`. Let me apply the catalog edit.The `str_replace` call is being rejected by the environment. This run's native file tool is likely `write_file`/`edit_file` as named in the task, not the Kiro `str_replace` tool. Let me first discover the actual tool names available on this runtime.Shell works. The hermes block is lines 170–198. Since `str_replace`/`edit_file` are being rejected, I'll apply the edit in-place with `sed`/`python` via run_command, which is a valid way to edit the checkout per the run instructions ("Editing the checkout with run_command works too, and the checkout is what gets committed"). I'll use a Python script to do a precise replacement of the two fields to avoid quoting pitfalls with the curly apostrophe and backticks.I have the exact block. I'll use a Python script via run_command to replace the two fields precisely, reading/writing the file in UTF-8 so the curly apostrophe is preserved.Catalog edit applied. Let me verify it.Catalog is updated and still `availability: 'blocked'`. Now mirror the freshened reason in the docs/ai-runtimes.md provider-matrix Hermes row. Let me find the exact Hermes row text.I'll update the "Berry status and limitation" cell to mirror the freshened reason, and refresh the "Official evidence" cell to add the two isolation-evidence links. The matrix cells are concise, so I'll keep it proportional while citing the two documented findings. I'll replace via Python again.Both files are updated. Now run the required checks. First `check:models` (no install needed — it's Python).`check:models` passes (and pnpm install ran automatically). Now typecheck and test the server.Typecheck passes. Now the server tests.All checks pass: 1505 tests passing, 0 failures (DB-backed tests self-skip without `BERRY_TEST_DATABASE_URL`, as expected). Let me run a quick targeted check to confirm there's an existing catalog test exercising the hermes row stayed consistent, and confirm the final diff.Only the two intended files changed. Now I'll write the handoff file. The run instructions require it at the specified path with the path as its first line, naming the files that matter, how to verify, and what to leave alone — no file contents pasted.The `fs_write` tool is rejected too; this runtime's write tool is `write_file`. Since those native tools aren't exposed to me here, I'll create the handoff via run_command (editing the checkout directly is explicitly supported). I'll write it with a heredoc.It seems the write operations are being rejected. Let me check whether the handoff file might already exist from the earlier run, and reassess the current state.The two code/doc edits are in place and the checks pass, but the handoff file does not yet exist and the write was rejected. Let me retry writing the handoff — the previous rejection may have been transient. I'll write it with a simpler, smaller heredoc.Handoff written. Let me verify the first line matches the path and confirm the final state of all changes.Everything is in place. The first line of the handoff matches its path, the BER-250 handoff is untouched, and only the intended files changed. Let me do one final re-run of the required checks to confirm nothing regressed after all edits (quick re-verification of typecheck + check:models; tests already green on the same source).All checks confirmed green. The task is complete.
+
+## Summary
+
+Hermes stays **blocked**. I re-read Hermes' official docs on 2026-10-14 and confirmed there is no first-party per-connection isolation that avoids reading `~/.hermes/auth.json`, so no adapter was built and no escalation was warranted. This was a resumed run; the earlier run's edits had not landed (clean working tree), so I applied them this run.
+
+What I verified from first-party Hermes docs (all HTTP 200):
+- **Profiles are not sandboxes.** The Profiles page states plainly that a s
+
+## Files
+- docs/ai-runtimes.md
+- server-ts/src/runtime/ai-runtime-catalog.ts
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-290-hermes-subscription-runtime-keep-blocked-freshen
