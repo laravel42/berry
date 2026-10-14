@@ -1,5 +1,8 @@
 # Frontend
 
+- 2026-10-14 — Placeholders use `--placeholder` / `placeholder:text-placeholder`
+  (5.0:1 on void). Berry as ink uses `--primary-text`. Do not fade
+  `--foreground` for placeholders (40% was 3.7:1).
 - 2026-09-14 — **Supersedes entries below.** One backend origin,
   `BERRY_API_ORIGIN`, proxied by `next.config.ts` for `/api/*`, `/v1/*`,
   `/health`, `/ready`. Tooling is **pnpm**, not Bun. Zod is **3**

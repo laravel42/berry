@@ -39,17 +39,19 @@ consume semantic state names rather than raw colors.
 | `ash` | `#A8A6A6` | Dark-theme supporting body text |
 | `slate` | `#6A6767` | Metadata on light surfaces only. Dark captions use `ash` so they stay above 4.5:1. |
 | `hairline` | `#26262B` | Rules and borders; never body text |
-| `berry` | `#C74A5E` | Brand mark, wordmark stop, and one primary action per view |
+| `berry` | `#C74A5E` | Brand mark, wordmark stop, and one filled primary action per view |
+| `primary-text` | `#D37684` (dark) | Berry as ink: links, selected chips, page figures. Fill stays `berry`. |
 | `amber` | `#D9A441` | Human input, blocked, awaiting review |
 | `verdant` | `#4F9F7A` | Done, accepted, merged |
 | `azure` | `#5A92C9` | Agent activity in progress |
 
-Berry Dark is the default product theme. Berry Light is an accessible print-like inversion;
-System selects between those two. The inherited `pure-light`, `magic-blue`, `classic-dark`,
-and custom theme variants are not Berry themes. Today `theme-provider.tsx` forces dark. The
-shell (rail and top bar) is dark chrome in either theme and sets its own text colour, so
-`MainLayout` resets `text-foreground` at the page boundary: a page never inherits the
-shell's colour, which is what makes the light theme safe to enable without an audit.
+Berry Dark is the only shipped theme: `app/layout.tsx` sets `className="dark"` on
+`<html>`. Light tokens still live on `:root` so a future inversion has a home; they
+are not a product theme and there is no appearance switch. The inherited
+`pure-light`, `magic-blue`, `classic-dark`, and custom theme variants are not Berry
+themes. The shell (rail and top bar) is dark chrome and sets its own text colour;
+`MainLayout` resets `text-foreground` at the page boundary so a page never inherits
+the shell's colour.
 
 Semantic state aliases keep color meaning stable across both themes:
 
@@ -106,11 +108,15 @@ spacing. `font-normal` resolves to 300 (`--font-weight-normal`), the shell's wei
 page's; do not reach for it to "reset" text.
 
 Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` in
-`globals.css`. Do not rely on the user-agent fill. Placeholders fade
-`--foreground` (about 40% opacity), not low-opacity `--muted-foreground`, so they
-stay visible on void.
+`globals.css`. Do not rely on the user-agent fill. Placeholders use the
+`--placeholder` token (`#8A898F` on dark, 5.0:1 on void), not a fade of
+`--foreground` (40% was 3.7:1). Berry as ink — links, selected chips, the page
+figure — uses `--primary-text` (`#D37684` on dark, 5.6:1 on void). Filled primary
+actions stay `--primary` / `--brand-berry` with chalk or white label.
 
-Titles stay on JetBrains Mono. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
+Titles stay on JetBrains Mono. Write them as they should read; do not
+`text-transform: capitalize` headings — that rewrites identifiers (`BER-286`,
+`API`). Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
 labels into named `type-micro` and `type-overline` styles if they survive accessibility review.
 
 ### Spacing and sizing
@@ -350,7 +356,7 @@ Baseline requirements:
    all revised surfaces.
 2. Centralize layout dimensions, motion durations, and repeated micro typography in tokens.
 3. Replace hard-coded palette utilities in feature components with semantic status tokens.
-4. Build a primitive/state showcase for light, dark, high-density desktop, and mobile.
+4. Build a primitive/state showcase for dark, high-density desktop, and mobile.
 5. Redesign the app shell, issue row/card, agent execution surface, and review gate first;
    these establish the strongest Berry identity.
 6. Run automated and manual keyboard, screen-reader, reduced-motion, zoom, contrast, and

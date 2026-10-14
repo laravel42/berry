@@ -282,8 +282,9 @@ and a manual check of the changed view. No secrets or `.env` files.
   Do not conflate them.
 - Prefer semantic design tokens (`status-*`, `actor-*`, `review-*` in
   `app/globals.css`) over raw palette utilities.
-- Native inputs need `--foreground` and `-webkit-text-fill-color`. Fading
-  placeholders with low-opacity `muted-foreground` reads as black on void.
+- Native inputs need `--foreground` and `-webkit-text-fill-color`. Placeholders
+  use `--placeholder` (`placeholder:text-placeholder`); do not fade
+  `--foreground` or use low-opacity `muted-foreground` on void.
 
 <!-- BEGIN AWS Agent Toolkit rules -->
 # AWS Guidance

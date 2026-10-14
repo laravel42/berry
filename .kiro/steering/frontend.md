@@ -35,8 +35,8 @@ the changed view.
   `-webkit-text-fill-color` (see `app/globals.css`). `color` alone is not
   enough: WebKit keeps a black fill on `color-scheme: dark` and
   `bg-transparent` fields. Placeholders must stay readable on dark
-  surfaces — fade with `placeholder:text-foreground/40`, never low-opacity
-  `muted-foreground` (ash at 30% reads as black on void).
+  surfaces — use `placeholder:text-placeholder` (`--placeholder`, 5.0:1 on
+  void). Do not fade `--foreground` (40% was 3.7:1).
 - Keep the Circle MIT notice in `LICENSE.md`.
 - Vendored `components/data-table-filter/**` may use `any`; do not copy that
   exemption. When forms land, use `zodResolver` with one Zod schema per form.

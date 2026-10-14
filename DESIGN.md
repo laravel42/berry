@@ -256,7 +256,7 @@ Operate components are restrained and token-driven: Berry for the rare primary, 
 
 - **Style:** `h-9`, `rounded-md`, border `input`, background `background`, chalk text, `shadow-xs`
 - **Focus:** Border shifts to `ring` (azure)
-- **Placeholder:** `foreground` at ~40% opacity — never low-opacity muted ash (reads as black on void)
+- **Placeholder:** `--placeholder` (`#8A898F` on dark, 5.0:1 on void) — never a fade of `--foreground`
 - **Invalid:** Destructive border + ring
 - **Native fill:** Form controls set `color` and `-webkit-text-fill-color` from `--foreground`
 
