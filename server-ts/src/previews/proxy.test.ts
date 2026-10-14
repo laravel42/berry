@@ -49,6 +49,14 @@ test('a preview request reaches its app with the path intact, without Berry’s 
    assert.equal(response.headers.get('set-cookie'), 'cart=1; Path=/');
 });
 
+test('a preview answers CORS from Berry’s origin, and from a sandboxed frame', async () => {
+   const proxy = previewProxy({ target: () => 1 }, DOMAIN, (async () => new Response('ok', { headers: { 'content-type': 'text/plain' } })) as unknown as typeof fetch);
+   const fromBerry = (await proxy(new Request(`http://p-${ID}-web.${DOMAIN}/`, { headers: { host: `p-${ID}-web.${DOMAIN}`, origin: 'http://localhost:3000' } })))!;
+   assert.equal(fromBerry.headers.get('access-control-allow-origin'), 'http://localhost:3000');
+   const fromFrame = (await proxy(new Request(`http://p-${ID}-web.${DOMAIN}/`, { headers: { host: `p-${ID}-web.${DOMAIN}`, origin: 'null' } })))!;
+   assert.equal(fromFrame.headers.get('access-control-allow-origin'), 'null');
+});
+
 test('an environment that is gone, or an app that does not answer, says so plainly', async () => {
    const host = { host: `p-${ID}.${DOMAIN}` };
    const gone = await previewProxy({ target: () => null }, DOMAIN)(new Request(`http://p-${ID}.${DOMAIN}/`, { headers: host }));

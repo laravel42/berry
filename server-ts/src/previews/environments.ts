@@ -821,9 +821,18 @@ function followLogs(container: string, onOutput: (text: string) => void): () => 
    return () => child.kill('SIGTERM');
 }
 
-/** Any HTTP answer counts — a 404 from a server is a server. */
+/** A listening server. A refused connection is not ready; a 404 is a server. */
 async function answersOn(host: string, port: number): Promise<boolean> {
-   return fetch(`http://${host}:${port}/`, { redirect: 'manual', signal: AbortSignal.timeout(3_000) }).then(() => true).catch(() => false);
+   try {
+      const response = await fetch(`http://${host}:${port}/`, {
+         redirect: 'manual',
+         signal: AbortSignal.timeout(3_000),
+      });
+      await response.body?.cancel();
+      return response.status < 500;
+   } catch {
+      return false;
+   }
 }
 
 /** `docker exec`, its output streamed, ended with the signal. Resolves with the exit code. */

@@ -120,6 +120,10 @@ export async function proxyToPort(
    // Shown inside Berry's review page: an app that forbids framing forbids its
    // own preview. Both ways of saying so go — helmet's defaults send the CSP one.
    answer.delete('x-frame-options');
+   // The review pane fetches this page from Berry's origin (and a sandboxed
+   // frame may send Origin: null). Reflect that so the scripts can load.
+   const origin = request.headers.get('origin');
+   if (origin) answer.set('access-control-allow-origin', origin === 'null' ? 'null' : origin);
    for (const name of ['content-security-policy', 'content-security-policy-report-only']) {
       const policy = answer.get(name);
       if (!policy) continue;
