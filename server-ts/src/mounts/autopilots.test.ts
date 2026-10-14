@@ -228,10 +228,10 @@ describe('/api/v1/autopilots', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is
                headers: { authorization: `Bearer ${viewerToken}`, 'content-type': 'application/json' },
                ...(body === undefined ? {} : { body: JSON.stringify(body) }),
             });
-         for (const [method, body] of [['PATCH', { name: 'x' }], ['DELETE', undefined]] as const) {
-            assert.equal((await as(method, `/${theirs.id}`, body)).status, 404, `${method}: another workspace's autopilot`);
-            assert.equal((await as(method, `/${randomUUID()}`, body)).status, 404, `${method}: no autopilot at all`);
-            assert.equal((await as(method, `/${ownId}`, body)).status, 403, `${method}: this workspace's autopilot`);
+         for (const [method, suffix, body] of [['PATCH', '', { name: 'x' }], ['DELETE', '', undefined], ['POST', '/restore', undefined]] as const) {
+            assert.equal((await as(method, `/${theirs.id}${suffix}`, body)).status, 404, `${method} ${suffix}: another workspace's autopilot`);
+            assert.equal((await as(method, `/${randomUUID()}${suffix}`, body)).status, 404, `${method} ${suffix}: no autopilot at all`);
+            assert.equal((await as(method, `/${ownId}${suffix}`, body)).status, 403, `${method} ${suffix}: this workspace's autopilot`);
          }
          const triggerProbes = [['PATCH', '', { enabled: false }], ['DELETE', '', undefined], ['POST', '/rotate', undefined]] as const;
          for (const [method, suffix, body] of triggerProbes) {
@@ -255,5 +255,23 @@ describe('/api/v1/autopilots', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is
       assert.equal((await call('DELETE', `/api/v1/autopilots/${created.id}`)).status, 204);
       const list = (await (await call('GET', `/api/v1/autopilots?workspaceId=${fixture.workspaceId}`)).json()) as { nodes: { id: string }[] };
       assert.equal(list.nodes.some((node) => node.id === created.id), false);
+
+      const hidden = (await (await call('GET', `/api/v1/autopilots?workspaceId=${fixture.workspaceId}&archived=true`)).json()) as { nodes: { id: string; status: string; archivedAt: string | null }[] };
+      const found = hidden.nodes.find((node) => node.id === created.id);
+      assert.ok(found);
+      assert.equal(found.status, 'archived');
+      assert.equal(typeof found.archivedAt, 'string');
+
+      const restoredRes = await call('POST', `/api/v1/autopilots/${created.id}/restore`);
+      assert.equal(restoredRes.status, 200);
+      const restored = (await restoredRes.json()) as { status: string; archivedAt: string | null };
+      assert.equal(restored.status, 'paused');
+      assert.equal(restored.archivedAt, null);
+
+      const again = (await (await call('GET', `/api/v1/autopilots?workspaceId=${fixture.workspaceId}`)).json()) as { nodes: { id: string }[] };
+      assert.equal(again.nodes.some((node) => node.id === created.id), true);
+
+      const bad = await call('GET', `/api/v1/autopilots?workspaceId=${fixture.workspaceId}&archived=maybe`);
+      assert.equal(bad.status, 400);
    });
 });

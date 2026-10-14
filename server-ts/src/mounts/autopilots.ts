@@ -159,10 +159,17 @@ export function autopilotMounts(options: AutopilotMountOptions): Mount[] {
    });
 
    route.get('/', async (context) => {
-      const workspaceId = new URL(context.req.url).searchParams.get('workspaceId') ?? '';
+      const url = new URL(context.req.url);
+      const workspaceId = url.searchParams.get('workspaceId') ?? '';
       if (!workspaceId) assertValid([fieldError('/workspaceId', 'required', 'workspaceId is required.')]);
+      const archived = url.searchParams.get('archived');
+      if (archived !== null && archived !== 'true' && archived !== 'false') {
+         throw ApiError.badRequest('archived is true or false.');
+      }
       const scoped = await resolveScoped(options.sql, context.get('user').id, workspaceId);
-      const nodes = await autopilots.list(scoped.ctx.workspaceId);
+      const nodes = await autopilots.list(scoped.ctx.workspaceId, {
+         ...(archived === 'true' ? { archived: true } : {}),
+      });
       return json({ nodes: nodes.map(serializeAutopilot) });
    });
 
@@ -200,6 +207,15 @@ export function autopilotMounts(options: AutopilotMountOptions): Mount[] {
       const workspaceId = await scopeOf(context, id, 'product.write');
       await autopilots.archive(workspaceId, id, context.get('user').id).catch(mapError);
       return new Response(null, { status: 204 });
+   });
+
+   route.post('/:autopilotId/restore', async (context) => {
+      const id = pathId(context.req.param('autopilotId'), 'Autopilot');
+      const workspaceId = await scopeOf(context, id, 'product.write');
+      const restored = await autopilots
+         .restore(workspaceId, id, context.get('user').id)
+         .catch(mapError);
+      return json(serializeAutopilot(restored));
    });
 
    route.post('/:autopilotId/run', idempotent(options.idempotency), async (context) => {
@@ -363,6 +379,7 @@ export function serializeAutopilot(autopilot: Autopilot): Record<string, unknown
       triggerKinds: autopilot.triggerKinds,
       createdAt: autopilot.createdAt,
       updatedAt: autopilot.updatedAt,
+      archivedAt: autopilot.archivedAt,
    };
 }
 

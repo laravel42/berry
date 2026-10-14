@@ -7,8 +7,11 @@
       "empty": {
          "mark": "No skills",
          "title": "No skills yet.",
-         "body": "A skill is a set of instructions and files an agent carries into its tasks."
+         "body": "A skill is a set of instructions and files an agent carries into its tasks.",
+         "archived": "Nothing is archived."
       },
+      "scopeAll": "All",
+      "scopeArchived": "Archived",
       "noMatch": "No skill matches that.",
       "cancel": "Cancel",
       "columns": {
@@ -45,17 +48,20 @@
          "notCarrying": "Not carrying it",
          "carrying": "Already carrying it",
          "noAgents": "No agents yet",
-         "delete": "Delete",
+         "delete": "Archive",
+         "restore": "Restore",
          "locked": "Your role cannot change the catalogue",
          "usedBy": "{count, plural, =1 {1 agent} other {# agents}}",
          "unused": "Unused",
          "unknownCreator": "Unknown",
          "added": "{skill} added to {agent}",
          "addFailed": "The skill could not be added to that agent.",
-         "deleted": "{name} deleted",
-         "deleteFailed": "The skill could not be deleted.",
-         "confirmDeleteTitle": "Delete {name}?",
-         "confirmDeleteBody": "Agents carrying it stop carrying it into their tasks. This cannot be undone."
+         "deleted": "{name} archived",
+         "deleteFailed": "The skill could not be archived.",
+         "restored": "{name} restored",
+         "restoreFailed": "The skill could not be restored.",
+         "confirmDeleteTitle": "Archive {name}?",
+         "confirmDeleteBody": "Agents carrying it stop carrying it into their tasks. It can be restored."
       },
       "refresh": {
          "action": "Update from source",
@@ -70,16 +76,18 @@
          "select": "Select {name}",
          "addToAgents": "Add to agents",
          "update": "Update from source",
-         "delete": "Delete",
+         "delete": "Archive",
+         "restore": "Restore",
          "clear": "Clear",
          "progress": "{done} of {total}",
          "updated": "{count} updated, {failed} failed",
-         "deleted": "{count, plural, =1 {1 skill deleted} other {# skills deleted}}",
+         "deleted": "{count, plural, =1 {1 skill archived} other {# skills archived}}",
+         "restored": "{count, plural, =1 {1 skill restored} other {# skills restored}}",
          "addedTo": "{count, plural, =1 {1 skill added to {name}} other {# skills added to {name}}}",
          "oneFailed": "{name} could not be changed.",
          "nothingToUpdate": "Only a skill imported from GitHub can be updated from its source.",
-         "confirmDeleteTitle": "{count, plural, =1 {1 skill will be deleted} other {# skills will be deleted}}",
-         "confirmDeleteBody": "Agents carrying them stop carrying them. This cannot be undone."
+         "confirmDeleteTitle": "{count, plural, =1 {1 skill will be archived} other {# skills will be archived}}",
+         "confirmDeleteBody": "Agents carrying them stop carrying them. They can be restored."
       },
       "create": {
          "title": "New skill",
@@ -138,8 +146,11 @@
       "empty": {
          "mark": "No autopilots",
          "title": "No autopilots yet.",
-         "body": "An autopilot hands an agent the same runbook on a schedule, on a webhook, or whenever you press run."
+         "body": "An autopilot hands an agent the same runbook on a schedule, on a webhook, or whenever you press run.",
+         "archived": "Nothing is archived."
       },
+      "scopeAll": "All",
+      "scopeArchived": "Archived",
       "noMatch": "No autopilot matches that.",
       "cancel": "Cancel",
       "columns": {
@@ -190,13 +201,15 @@
          "open": "Open autopilot",
          "pause": "Pause",
          "resume": "Resume",
-         "delete": "Delete",
+         "delete": "Archive",
+         "restore": "Restore",
          "locked": "Your role cannot change autopilots",
          "paused": "Paused",
          "resumed": "Resumed",
-         "deleted": "{name} deleted",
-         "confirmDeleteTitle": "Delete {name}?",
-         "confirmDeleteBody": "It stops running. Its history stays, but nothing will fire again.",
+         "deleted": "{name} archived",
+         "restored": "{name} restored",
+         "confirmDeleteTitle": "Archive {name}?",
+         "confirmDeleteBody": "It stops running. Its history stays, and it can be restored.",
          "unknownAssignee": "Someone who is gone",
          "someone": "A member here"
       },
@@ -206,14 +219,16 @@
          "select": "Select {name}",
          "pause": "Pause",
          "resume": "Resume",
-         "delete": "Delete",
+         "delete": "Archive",
+         "restore": "Restore",
          "clear": "Clear",
          "progress": "{done} of {total}",
          "pausedDone": "Paused",
          "resumedDone": "Resumed",
-         "deletedDone": "Deleted",
-         "confirmDeleteTitle": "{count, plural, =1 {1 autopilot will be deleted} other {# autopilots will be deleted}}",
-         "confirmDeleteBody": "They stop running. Their history stays, but nothing will fire again."
+         "deletedDone": "Archived",
+         "restoredDone": "Restored",
+         "confirmDeleteTitle": "{count, plural, =1 {1 autopilot will be archived} other {# autopilots will be archived}}",
+         "confirmDeleteBody": "They stop running. Their history stays, and they can be restored."
       },
       "templates": {
          "title": "Start from one of these",
@@ -396,7 +411,7 @@
          "role_subscriber": "Subscriber",
          "accessSaved": "Access saved",
          "danger": "Danger zone",
-         "dangerHint": "Deleting an autopilot stops it for good. Its history stays where it is."
+         "dangerHint": "Archiving an autopilot stops it. Its history stays, and it can be restored."
       }
    },
    "usage": {

@@ -632,6 +632,7 @@ const skillBase = {
    agents: [] as Skill['agents'],
    createdAt: '2026-07-01T09:00:00Z',
    updatedAt: '2026-09-10T09:00:00Z',
+   archivedAt: null,
 } satisfies Omit<Skill, 'id' | 'name' | 'description'>;
 
 export const skills: Skill[] = [
@@ -915,6 +916,7 @@ const autopilotBase = {
    triggerKinds: [],
    createdAt: '2026-07-10T09:00:00Z',
    updatedAt: '2026-09-17T09:00:00Z',
+   archivedAt: null,
 } satisfies Omit<Autopilot, 'id' | 'name' | 'assigneeId' | 'promptTemplate'>;
 
 export const autopilots: Autopilot[] = [

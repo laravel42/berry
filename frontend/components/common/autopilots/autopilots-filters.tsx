@@ -17,7 +17,11 @@ import { createColumnConfigHelper } from '@/components/data-table-filter/core/fi
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
+
+export const AUTOPILOT_SCOPES = ['all', 'archived'] as const;
+export type AutopilotScope = (typeof AUTOPILOT_SCOPES)[number];
 
 export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
@@ -112,51 +116,84 @@ interface Props {
    filter: ListFilterController<Autopilot>;
    /** Trailing primary action (e.g. New autopilot), after Display-style controls. */
    action?: ReactNode;
+   scope?: AutopilotScope;
+   onScopeChange?: (scope: AutopilotScope) => void;
+   counts?: Record<AutopilotScope, number | null>;
 }
 
 /** Filter and column controls for the autopilot list. Search sits on the page statement. */
-export default function AutopilotsFilters({ criteria, onChange, filter, action }: Props) {
+export default function AutopilotsFilters({
+   criteria,
+   onChange,
+   filter,
+   action,
+   scope = 'all',
+   onScopeChange,
+   counts = { all: 0, archived: null },
+}: Props) {
    const t = useTranslations('areas.autopilots');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
+   const scopeLabel: Record<AutopilotScope, string> = {
+      all: t('scopeAll'),
+      archived: t('scopeArchived'),
+   };
 
    return (
-      <div className="mb-1 flex w-full shrink-0 items-center justify-end gap-2 border-b px-4 py-[6px] [&_button]:!h-9">
-         <ListFilterTrigger filter={filter} />
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                  <Columns3 className="size-4" />
-                  {t('filters.columns')}
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-52 p-0" align="end">
-               <Command>
-                  <CommandList>
-                     <CommandGroup>
-                        {AUTOPILOT_COLUMNS.map((column) => (
-                           <CommandItem
-                              key={column}
-                              onSelect={() =>
-                                 set({
-                                    columns: criteria.columns.includes(column)
-                                       ? criteria.columns.filter((entry) => entry !== column)
-                                       : [...criteria.columns, column],
-                                 })
-                              }
-                              className="justify-between"
-                           >
-                              {t(`columns.${column}`)}
-                              {criteria.columns.includes(column) ? (
-                                 <Check className="size-4" />
-                              ) : null}
-                           </CommandItem>
-                        ))}
-                     </CommandGroup>
-                  </CommandList>
-               </Command>
-            </PopoverContent>
-         </Popover>
-         {action}
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-9">
+         <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Tabs value={scope} onValueChange={(value) => onScopeChange?.(value as AutopilotScope)}>
+               <TabsList aria-label={t('title')}>
+                  {AUTOPILOT_SCOPES.map((entry) => (
+                     <TabsTrigger key={entry} value={entry}>
+                        {scopeLabel[entry]}
+                        {counts[entry] === null ? null : (
+                           <span className="tabular-nums text-muted-foreground">
+                              {counts[entry]}
+                           </span>
+                        )}
+                     </TabsTrigger>
+                  ))}
+               </TabsList>
+            </Tabs>
+         </div>
+         <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <ListFilterTrigger filter={filter} />
+            <Popover>
+               <PopoverTrigger asChild>
+                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                     <Columns3 className="size-4" />
+                     {t('filters.columns')}
+                  </Button>
+               </PopoverTrigger>
+               <PopoverContent className="w-52 p-0" align="end">
+                  <Command>
+                     <CommandList>
+                        <CommandGroup>
+                           {AUTOPILOT_COLUMNS.map((column) => (
+                              <CommandItem
+                                 key={column}
+                                 onSelect={() =>
+                                    set({
+                                       columns: criteria.columns.includes(column)
+                                          ? criteria.columns.filter((entry) => entry !== column)
+                                          : [...criteria.columns, column],
+                                    })
+                                 }
+                                 className="justify-between"
+                              >
+                                 {t(`columns.${column}`)}
+                                 {criteria.columns.includes(column) ? (
+                                    <Check className="size-4" />
+                                 ) : null}
+                              </CommandItem>
+                           ))}
+                        </CommandGroup>
+                     </CommandList>
+                  </Command>
+               </PopoverContent>
+            </Popover>
+            {action}
+         </div>
       </div>
    );
 }

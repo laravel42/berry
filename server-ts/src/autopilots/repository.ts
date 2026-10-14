@@ -58,6 +58,7 @@ export interface Autopilot extends AutopilotDraft {
    triggerKinds: Array<'cron' | 'webhook'>;
    createdAt: string;
    updatedAt: string;
+   archivedAt: string | null;
 }
 
 /**
@@ -181,10 +182,11 @@ export class AutopilotRepository {
       return row.workspace_id as string;
    }
 
-   async list(workspaceId: string): Promise<Autopilot[]> {
+   async list(workspaceId: string, filter: { archived?: boolean } = {}): Promise<Autopilot[]> {
       const rows = await this.#sql`
          SELECT a.*, ${this.#sql.unsafe(TRIGGER_KINDS)} FROM autopilots AS a
-          WHERE a.workspace_id = ${workspaceId} AND a.archived_at IS NULL
+          WHERE a.workspace_id = ${workspaceId}
+            AND (${filter.archived ?? false}::boolean = (a.archived_at IS NOT NULL))
           ORDER BY a.updated_at DESC, a.id DESC
           LIMIT 500`;
       return rows.map(toAutopilot);
@@ -316,6 +318,30 @@ export class AutopilotRepository {
             occurredAt: now,
          });
       });
+   }
+
+   /**
+    * Comes back paused so it does not fire the first slot that passed while
+    * it was archived. A person turns it on again.
+    */
+   async restore(workspaceId: string, autopilotId: string, actorId: string): Promise<Autopilot> {
+      const now = this.#clock().toISOString();
+      return this.#sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const [row] = await tx`
+            UPDATE autopilots SET status = 'paused', archived_at = NULL, updated_at = ${now}
+             WHERE workspace_id = ${workspaceId} AND id = ${autopilotId} AND archived_at IS NOT NULL
+             RETURNING *`;
+         if (!row) throw new NotFound();
+         await writeAutopilotEvent(tx, {
+            workspaceId,
+            topic: 'autopilot.updated',
+            autopilotId,
+            payload: { status: 'paused', restoredBy: actorId },
+            occurredAt: now,
+         });
+         return toAutopilot(row);
+      }) as Promise<Autopilot>;
    }
 
    async versions(workspaceId: string, autopilotId: string): Promise<AutopilotVersion[]> {
@@ -735,6 +761,7 @@ function toAutopilot(row: Row): Autopilot {
       createdBy: (row.created_by as string | null) ?? null,
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
+      archivedAt: toRFC3339(row.archived_at as string | null),
    };
 }
 

@@ -78,6 +78,10 @@ export function skillMounts(options: SkillMountOptions): Mount[] {
       if (inUse !== null && inUse !== 'true' && inUse !== 'false') {
          throw ApiError.badRequest('inUse is true or false.');
       }
+      const archived = url.searchParams.get('archived');
+      if (archived !== null && archived !== 'true' && archived !== 'false') {
+         throw ApiError.badRequest('archived is true or false.');
+      }
       const nodes = await skills.list(scoped.ctx.workspaceId, {
          ...(url.searchParams.get('q') ? { query: url.searchParams.get('q') as string } : {}),
          ...(url.searchParams.get('label') ? { label: url.searchParams.get('label') as string } : {}),
@@ -86,6 +90,7 @@ export function skillMounts(options: SkillMountOptions): Mount[] {
          ...(createdBy ? { createdBy: pathId(createdBy, 'Skill') } : {}),
          ...(source ? { source } : {}),
          ...(inUse === null ? {} : { inUse: inUse === 'true' }),
+         ...(archived === 'true' ? { archived: true } : {}),
       });
       return json({ nodes });
    });
@@ -179,6 +184,13 @@ export function skillMounts(options: SkillMountOptions): Mount[] {
       const scoped = await scopeOne(context.get('user'), id);
       await skills.remove(scoped.ctx.workspaceId, id).catch(rethrow);
       return new Response(null, { status: 204 });
+   });
+
+   route.post('/:skillId/restore', async (context) => {
+      const id = pathId(context.req.param('skillId'), 'Skill');
+      const scoped = await scopeOne(context.get('user'), id);
+      const restored = await skills.restore(scoped.ctx.workspaceId, id).catch(rethrow);
+      return json(serialize(restored));
    });
 
    route.put('/:skillId/agents/:agentId', async (context) => {

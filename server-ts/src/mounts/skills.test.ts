@@ -135,7 +135,7 @@ describe('skills mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not s
       try {
          const list = await call(app, world.ownerToken, 'GET', '/api/v1/skills');
          const own = (list.body.nodes as { id: string }[])[0]?.id as string;
-         const probes = [['PATCH', '', { description: 'x' }], ['DELETE', '', undefined], ['POST', '/refresh', undefined]] as const;
+         const probes = [['PATCH', '', { description: 'x' }], ['DELETE', '', undefined], ['POST', '/refresh', undefined], ['POST', '/restore', undefined]] as const;
          for (const [method, suffix, body] of probes) {
             const probe = (id: string) => call(app, viewer.token, method, `/api/v1/skills/${id}${suffix}`, body);
             assert.equal((await probe(foreign)).status, 404, `${method} ${suffix}: another workspace's skill`);
@@ -212,5 +212,58 @@ describe('skills mount', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not s
       assert.deepEqual(names(mine.body), ['imported-skill', 'pdf-tools']);
       const nobody = await call(app, world.ownerToken, 'GET', `/api/v1/skills?createdBy=${randomUUID()}`);
       assert.deepEqual(nobody.body.nodes, []);
+   });
+
+   test('DELETE archives a skill, the live list drops it, and restore brings it back', async () => {
+      const created = await call(app, world.ownerToken, 'POST', '/api/v1/skills', {
+         name: `archive-me-${randomUUID().slice(0, 8)}`,
+         description: '',
+         content: '',
+         labels: [],
+         files: [],
+      });
+      assert.equal(created.status, 201);
+      const id = created.body.id as string;
+      assert.equal(created.body.archivedAt, null);
+
+      const archived = await call(app, world.ownerToken, 'DELETE', `/api/v1/skills/${id}`);
+      assert.equal(archived.status, 204);
+
+      const live = await call(app, world.ownerToken, 'GET', '/api/v1/skills');
+      assert.equal((live.body.nodes as { id: string }[]).some((node) => node.id === id), false);
+
+      const hidden = await call(app, world.ownerToken, 'GET', '/api/v1/skills?archived=true');
+      const found = (hidden.body.nodes as { id: string; archivedAt: string | null }[]).find((node) => node.id === id);
+      assert.ok(found);
+      assert.equal(typeof found.archivedAt, 'string');
+
+      const restored = await call(app, world.ownerToken, 'POST', `/api/v1/skills/${id}/restore`);
+      assert.equal(restored.status, 200);
+      assert.equal(restored.body.archivedAt, null);
+      const again = await call(app, world.ownerToken, 'GET', '/api/v1/skills');
+      assert.equal((again.body.nodes as { id: string }[]).some((node) => node.id === id), true);
+   });
+
+   test('a name can be reused after archive, and restore then conflicts', async () => {
+      const name = `reuse-${randomUUID().slice(0, 8)}`;
+      const first = await call(app, world.ownerToken, 'POST', '/api/v1/skills', {
+         name, description: '', content: '', labels: [], files: [],
+      });
+      assert.equal(first.status, 201);
+      assert.equal((await call(app, world.ownerToken, 'DELETE', `/api/v1/skills/${first.body.id as string}`)).status, 204);
+
+      const second = await call(app, world.ownerToken, 'POST', '/api/v1/skills', {
+         name, description: '', content: '', labels: [], files: [],
+      });
+      assert.equal(second.status, 201);
+
+      const clash = await call(app, world.ownerToken, 'POST', `/api/v1/skills/${first.body.id as string}/restore`);
+      assert.equal(clash.status, 409);
+      assert.equal((clash.body.error as { code: string }).code, 'SKILL_NAME_TAKEN');
+   });
+
+   test('archived must be true or false', async () => {
+      const bad = await call(app, world.ownerToken, 'GET', '/api/v1/skills?archived=maybe');
+      assert.equal(bad.status, 400);
    });
 });

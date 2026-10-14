@@ -10,7 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
-import { deleteSkill, refreshSkill, setSkillForAgent, type Skill } from '@/lib/skills';
+import {
+   deleteSkill,
+   refreshSkill,
+   restoreSkill,
+   setSkillForAgent,
+   type Skill,
+} from '@/lib/skills';
 
 interface Props {
    selected: Skill[];
@@ -18,6 +24,7 @@ interface Props {
    onClear: () => void;
    /** Re-read the catalogue: several rows have just changed underneath it. */
    onChanged: () => void;
+   archived?: boolean;
 }
 
 interface Progressing {
@@ -32,7 +39,13 @@ interface Progressing {
  * would hide which of them failed — so the bar counts them off as they land and
  * reports the failures rather than a single "something went wrong".
  */
-export default function SkillBulkBar({ selected, agents, onClear, onChanged }: Props) {
+export default function SkillBulkBar({
+   selected,
+   agents,
+   onClear,
+   onChanged,
+   archived = false,
+}: Props) {
    const t = useTranslations('areas.skills');
    const [progress, setProgress] = useState<Progressing | null>(null);
    const [confirming, setConfirming] = useState(false);
@@ -108,6 +121,16 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
          }
       );
 
+   const restore = () =>
+      void walk(
+         selected,
+         (skill) => restoreSkill(skill.id),
+         (succeeded) => {
+            toast.success(t('bulk.restored', { count: succeeded }));
+            onClear();
+         }
+      );
+
    return (
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
          <span className="font-medium">{t('bulk.selected', { count: selected.length })}</span>
@@ -122,34 +145,42 @@ export default function SkillBulkBar({ selected, agents, onClear, onChanged }: P
             </span>
          ) : (
             <>
-               <AgentPicker
-                  options={agentOptions}
-                  value={null}
-                  multiple={false}
-                  searchPlaceholder={t('filters.searchAgents')}
-                  onChange={(next) => {
-                     if (typeof next === 'string') addToAgent(next);
-                  }}
-                  trigger={
-                     <Button size="xs" variant="secondary">
-                        {t('bulk.addToAgents')}
+               {archived ? (
+                  <Button size="xs" variant="secondary" onClick={restore}>
+                     {t('bulk.restore')}
+                  </Button>
+               ) : (
+                  <>
+                     <AgentPicker
+                        options={agentOptions}
+                        value={null}
+                        multiple={false}
+                        searchPlaceholder={t('filters.searchAgents')}
+                        onChange={(next) => {
+                           if (typeof next === 'string') addToAgent(next);
+                        }}
+                        trigger={
+                           <Button size="xs" variant="secondary">
+                              {t('bulk.addToAgents')}
+                           </Button>
+                        }
+                     />
+
+                     <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={refreshable.length === 0}
+                        title={refreshable.length === 0 ? t('bulk.nothingToUpdate') : undefined}
+                        onClick={update}
+                     >
+                        {t('bulk.update')}
                      </Button>
-                  }
-               />
 
-               <Button
-                  size="xs"
-                  variant="secondary"
-                  disabled={refreshable.length === 0}
-                  title={refreshable.length === 0 ? t('bulk.nothingToUpdate') : undefined}
-                  onClick={update}
-               >
-                  {t('bulk.update')}
-               </Button>
-
-               <Button size="xs" variant="secondary" onClick={() => setConfirming(true)}>
-                  {t('bulk.delete')}
-               </Button>
+                     <Button size="xs" variant="secondary" onClick={() => setConfirming(true)}>
+                        {t('bulk.delete')}
+                     </Button>
+                  </>
+               )}
 
                <Button size="xs" variant="ghost" onClick={onClear}>
                   {t('bulk.clear')}

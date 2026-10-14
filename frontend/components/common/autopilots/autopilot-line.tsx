@@ -44,6 +44,7 @@ interface AutopilotLineProps {
    onToggleSelected: (id: string) => void;
    onPauseOrResume: (autopilot: Autopilot) => void;
    onConfirmDelete: (autopilot: Autopilot) => void;
+   onRestore: (autopilot: Autopilot) => void;
 }
 
 function Cell({
@@ -85,6 +86,7 @@ export default function AutopilotLine({
    onToggleSelected,
    onPauseOrResume,
    onConfirmDelete,
+   onRestore,
 }: AutopilotLineProps) {
    const t = useTranslations('areas.autopilots');
    const format = useFormatter();
@@ -164,13 +166,21 @@ export default function AutopilotLine({
                   <DropdownMenuItem asChild>
                      <Link href={href}>{t('row.open')}</Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => onPauseOrResume(autopilot)}>
-                     {paused ? t('row.resume') : t('row.pause')}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => onConfirmDelete(autopilot)}>
-                     {t('row.delete')}
-                  </DropdownMenuItem>
+                  {autopilot.status === 'archived' ? (
+                     <DropdownMenuItem onClick={() => onRestore(autopilot)}>
+                        {t('row.restore')}
+                     </DropdownMenuItem>
+                  ) : (
+                     <>
+                        <DropdownMenuItem onClick={() => onPauseOrResume(autopilot)}>
+                           {paused ? t('row.resume') : t('row.pause')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => onConfirmDelete(autopilot)}>
+                           {t('row.delete')}
+                        </DropdownMenuItem>
+                     </>
+                  )}
                </DropdownMenuContent>
             </DropdownMenu>
          ) : (

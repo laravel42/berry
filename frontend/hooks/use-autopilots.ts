@@ -18,7 +18,11 @@ interface AutopilotsView {
 }
 
 /** The workspace's autopilots, re-read when any autopilot fact arrives on the stream. */
-export function useAutopilots(): AutopilotsView {
+export function useAutopilots(
+   options: { archived?: boolean; enabled?: boolean } = {}
+): AutopilotsView {
+   const archived = options.archived === true;
+   const enabled = options.enabled !== false;
    const status = useSessionStore((state) => state.status);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const [autopilots, setAutopilots] = useState<Autopilot[]>([]);
@@ -28,9 +32,9 @@ export function useAutopilots(): AutopilotsView {
    const reload = useCallback(() => setNonce((value) => value + 1), []);
 
    useEffect(() => {
-      if (status !== 'ready' || !workspaceId) return;
+      if (!enabled || status !== 'ready' || !workspaceId) return;
       let cancelled = false;
-      void listAutopilots(workspaceId)
+      void listAutopilots(workspaceId, { archived })
          .then((nodes) => {
             if (cancelled) return;
             setAutopilots(nodes);
@@ -45,7 +49,7 @@ export function useAutopilots(): AutopilotsView {
       return () => {
          cancelled = true;
       };
-   }, [status, workspaceId, nonce]);
+   }, [archived, enabled, status, workspaceId, nonce]);
 
    useEffect(() => {
       let timer: ReturnType<typeof setTimeout> | undefined;

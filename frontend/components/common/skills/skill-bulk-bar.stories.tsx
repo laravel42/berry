@@ -49,10 +49,10 @@ export const NothingToUpdate: Story = {
 
 export const ConfirmDelete: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Delete' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Archive' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(
-         await body.findByRole('alertdialog', { name: '2 skills will be deleted' })
+         await body.findByRole('alertdialog', { name: '2 skills will be archived' })
       ).toBeVisible();
    },
 };

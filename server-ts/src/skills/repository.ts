@@ -46,6 +46,7 @@ export interface Skill {
    agents: SkillAgent[];
    createdAt: string;
    updatedAt: string;
+   archivedAt: string | null;
 }
 
 /** What narrows the catalogue beyond the workspace. */
@@ -58,6 +59,8 @@ export interface SkillFilter {
    createdBy?: string | undefined;
    /** True: at least one agent has it switched on. False: no agent does. */
    inUse?: boolean | undefined;
+   /** True lists archived skills; omitted or false lists the live catalogue. */
+   archived?: boolean | undefined;
 }
 
 export interface SkillWithFiles extends Skill {
@@ -65,7 +68,7 @@ export interface SkillWithFiles extends Skill {
 }
 
 const COLUMNS = `s.id, s.name, s.description, s.content, s.labels, s.source_kind, s.source_url,
-   s.source_ref, s.imported_at, s.created_by, s.created_at, s.updated_at,
+   s.source_ref, s.imported_at, s.created_by, s.created_at, s.updated_at, s.archived_at,
    (SELECT cu.name FROM users cu WHERE cu.id = s.created_by) AS creator_name,
    COALESCE((SELECT json_agg(json_build_object('path', f.path, 'size', octet_length(f.content))
                ORDER BY f.path)
@@ -103,6 +106,7 @@ export class SkillRepository {
                  OR EXISTS (SELECT 1 FROM agent_skills ub
                              JOIN agents ua ON ua.id = ub.agent_id AND ua.archived_at IS NULL
                             WHERE ub.skill_id = s.id AND ub.enabled) = ${filter.inUse ?? null}::boolean)
+            AND (${filter.archived ?? false}::boolean = (s.archived_at IS NOT NULL))
           ORDER BY s.name ASC
           LIMIT 500`;
       return rows.map(toSkill);
@@ -145,7 +149,7 @@ export class SkillRepository {
                content = COALESCE(${patch.content ?? null}, content),
                labels = COALESCE(${patch.labels ?? null}::text[], labels),
                updated_at = now()
-             WHERE id = ${id} AND workspace_id = ${workspaceId}`.catch(classify);
+             WHERE id = ${id} AND workspace_id = ${workspaceId} AND archived_at IS NULL`.catch(classify);
          if (updated.count !== 1) throw new NotFound();
          if (patch.labels) await ensureSkillLabels(tx, workspaceId, patch.labels, null);
          if (patch.files) {
@@ -157,9 +161,18 @@ export class SkillRepository {
    }
 
    async remove(workspaceId: string, id: string): Promise<void> {
-      const deleted = await this.#sql`
-         DELETE FROM skills WHERE id = ${id} AND workspace_id = ${workspaceId}`;
-      if (deleted.count !== 1) throw new NotFound();
+      const archived = await this.#sql`
+         UPDATE skills SET archived_at = now(), updated_at = now()
+          WHERE id = ${id} AND workspace_id = ${workspaceId} AND archived_at IS NULL`;
+      if (archived.count !== 1) throw new NotFound();
+   }
+
+   async restore(workspaceId: string, id: string): Promise<SkillWithFiles> {
+      const restored = await this.#sql`
+         UPDATE skills SET archived_at = NULL, updated_at = now()
+          WHERE id = ${id} AND workspace_id = ${workspaceId} AND archived_at IS NOT NULL`.catch(classify);
+      if (restored.count !== 1) throw new NotFound();
+      return this.get(workspaceId, id);
    }
 
    /** An import creates the skill, or (refresh) replaces an existing one wholesale. */
@@ -184,7 +197,7 @@ export class SkillRepository {
             const updated = await tx`
                UPDATE skills SET description = ${imported.description}, content = ${imported.content},
                       source_ref = ${imported.sourceRef}, imported_at = now(), updated_at = now()
-                WHERE id = ${id} AND workspace_id = ${workspaceId}`;
+                WHERE id = ${id} AND workspace_id = ${workspaceId} AND archived_at IS NULL`;
             if (updated.count !== 1) throw new NotFound();
             await tx`DELETE FROM skill_files WHERE skill_id = ${id}`;
          }
@@ -194,6 +207,9 @@ export class SkillRepository {
    }
 
    async setBinding(workspaceId: string, agentId: string, skillId: string, enabled: boolean): Promise<void> {
+      const [skill] = await this.#sql`
+         SELECT archived_at FROM skills WHERE id = ${skillId} AND workspace_id = ${workspaceId}`;
+      if (!skill || skill.archived_at) throw new NotFound();
       await this.#sql`
          INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
          VALUES (${agentId}, ${skillId}, ${workspaceId}, ${enabled})
@@ -213,8 +229,10 @@ export class SkillRepository {
    static async copyBindings(tx: Queryable, fromAgentId: string, toAgentId: string): Promise<void> {
       await tx`
          INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
-         SELECT ${toAgentId}, skill_id, workspace_id, enabled FROM agent_skills
-          WHERE agent_id = ${fromAgentId}`;
+         SELECT ${toAgentId}, b.skill_id, b.workspace_id, b.enabled
+           FROM agent_skills b
+           JOIN skills s ON s.id = b.skill_id AND s.archived_at IS NULL
+          WHERE b.agent_id = ${fromAgentId}`;
    }
 
    /** Skills in this workspace with these names, in the order asked for. */
@@ -223,7 +241,7 @@ export class SkillRepository {
       if (wanted.length === 0) return [];
       const rows = await this.#sql`
          SELECT id, name FROM skills
-          WHERE workspace_id = ${workspaceId} AND name IN ${this.#sql(wanted)}`;
+          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND name IN ${this.#sql(wanted)}`;
       const ids = new Map(rows.map((row) => [row.name as string, row.id as string]));
       const found: SkillWithFiles[] = [];
       for (const name of wanted) {
@@ -238,6 +256,7 @@ export class SkillRepository {
          SELECT s.id FROM skills s
            JOIN agent_skills b ON b.skill_id = s.id AND b.enabled
           WHERE b.agent_id = ${agentId} AND s.workspace_id = ${workspaceId}
+            AND s.archived_at IS NULL
           ORDER BY s.name`;
       return Promise.all(rows.map((row) => this.get(workspaceId, row.id as string)));
    }
@@ -291,6 +310,7 @@ function toSkill(row: Record<string, unknown>): Skill {
       agents: (row.agents as SkillAgent[] | null) ?? [],
       createdAt: toRFC3339(row.created_at as string) ?? '',
       updatedAt: toRFC3339(row.updated_at as string) ?? '',
+      archivedAt: toRFC3339(row.archived_at as string | null),
    };
 }
 

@@ -25,6 +25,7 @@ const skill: Skill = {
    agents: [{ id: 'agent-1', name: 'Backend Engineer', enabled: true }],
    createdAt: '2026-08-20T09:00:00Z',
    updatedAt: '2026-09-10T09:00:00Z',
+   archivedAt: null,
 };
 
 const connection = (nodes: unknown[]) => ({

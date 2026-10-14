@@ -34,6 +34,7 @@ export const autopilotSchema = z.object({
    triggerKinds: z.array(z.enum(['cron', 'webhook'])).default([]),
    createdAt: z.string(),
    updatedAt: z.string(),
+   archivedAt: z.string().nullable().default(null),
 });
 
 export const autopilotTriggerSchema = z.object({
@@ -149,8 +150,13 @@ function send(method: string, body: unknown, idempotent = false): RequestInit {
    };
 }
 
-export async function listAutopilots(workspaceId: string): Promise<Autopilot[]> {
-   const json: unknown = await apiFetch(`${base}?workspaceId=${encodeURIComponent(workspaceId)}`);
+export async function listAutopilots(
+   workspaceId: string,
+   options: { archived?: boolean } = {}
+): Promise<Autopilot[]> {
+   const query = new URLSearchParams({ workspaceId });
+   if (options.archived) query.set('archived', 'true');
+   const json: unknown = await apiFetch(`${base}?${query.toString()}`);
    return parse(z.object({ nodes: z.array(autopilotSchema) }), json, 'Autopilot list').nodes;
 }
 
@@ -174,6 +180,11 @@ export async function updateAutopilot(id: string, patch: AutopilotPatch): Promis
 
 export async function archiveAutopilot(id: string): Promise<void> {
    await apiFetch(at(id), { method: 'DELETE' });
+}
+
+export async function restoreAutopilot(id: string): Promise<Autopilot> {
+   const json: unknown = await apiFetch(`${at(id)}/restore`, send('POST', {}));
+   return parse(autopilotSchema, json, 'Restored autopilot');
 }
 
 export async function runAutopilot(id: string): Promise<FireOutcome> {

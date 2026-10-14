@@ -167,6 +167,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    if (!draft || !loaded) return <EmptyStateLoading label={t('detail.loading')} />;
+   const editable = canEdit && !loaded.archivedAt;
 
    const fail = (failure: unknown, fallback: string) =>
       toast.error(failure instanceof BerryApiError ? failure.message : fallback);
@@ -254,7 +255,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                   <span className="text-muted-foreground">{t('create.name')}</span>
                   <Input
                      value={draft.name}
-                     disabled={!canEdit}
+                     disabled={!editable}
                      onChange={(event) => editIdentity({ name: event.target.value })}
                   />
                </label>
@@ -262,21 +263,21 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                   <span className="text-muted-foreground">{t('create.description')}</span>
                   <Input
                      value={draft.description}
-                     disabled={!canEdit}
+                     disabled={!editable}
                      onChange={(event) => editIdentity({ description: event.target.value })}
                   />
                </label>
             </div>
             <SkillLabelMultiselect
                value={draft.labels}
-               disabled={!canEdit}
+               disabled={!editable}
                options={labelOptions}
                colors={labelColors}
                onChange={editLabels}
             />
             <div className="flex min-h-0 flex-1 flex-col gap-1.5">
                <span className="text-muted-foreground">{t('create.instructions')}</span>
-               {canEdit ? (
+               {editable ? (
                   <div
                      data-font-weight="100"
                      className="border-input bg-background focus-within:border-ring min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs [font-weight:100] focus-within:ring-[3px] focus-within:ring-ring/50"
@@ -305,7 +306,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
             </div>
          </div>
 
-         {canEdit && changes.length > 0 ? (
+         {editable && changes.length > 0 ? (
             <UnsavedChangesBar
                what={changes.map((part) => t(`detail.change_${part}`)).join(', ')}
                busy={busy}

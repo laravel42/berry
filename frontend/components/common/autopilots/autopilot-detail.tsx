@@ -30,6 +30,7 @@ import { useAutopilot } from '@/hooks/use-autopilot';
 import {
    archiveAutopilot,
    describeAutopilotFailure,
+   restoreAutopilot,
    runAutopilot,
    updateAutopilot,
    type AutopilotDetail as Autopilot,
@@ -327,6 +328,16 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                      canEdit={canEdit}
                      busy={busy}
                      onArchive={() => setArchiving(true)}
+                     onRestore={() =>
+                        void restoreAutopilot(autopilot.id)
+                           .then(() => {
+                              toast.success(t('row.restored', { name: autopilot.name }));
+                              reload();
+                           })
+                           .catch((failure: unknown) =>
+                              toast.error(describeAutopilotFailure(failure))
+                           )
+                     }
                   />
                ) : null}
                {view === 'triggers' ? (
@@ -393,6 +404,7 @@ function OverviewPanel({
    canEdit,
    busy,
    onArchive,
+   onRestore,
 }: {
    autopilot: Autopilot;
    assigneeName: string;
@@ -401,6 +413,7 @@ function OverviewPanel({
    canEdit: boolean;
    busy: boolean;
    onArchive: () => void;
+   onRestore: () => void;
 }) {
    const t = useTranslations('areas.autopilots');
 
@@ -450,9 +463,9 @@ function OverviewPanel({
                      variant="secondary"
                      className="mt-3"
                      disabled={busy}
-                     onClick={onArchive}
+                     onClick={autopilot.status === 'archived' ? onRestore : onArchive}
                   >
-                     {t('row.delete')}
+                     {autopilot.status === 'archived' ? t('row.restore') : t('row.delete')}
                   </Button>
                </section>
             ) : null}

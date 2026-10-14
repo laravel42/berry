@@ -9,6 +9,7 @@ import AutopilotsFilters, {
    DEFAULT_AUTOPILOT_CRITERIA,
    useAutopilotFilterColumns,
    type AutopilotCriteria,
+   type AutopilotScope,
 } from '@/components/common/autopilots/autopilots-filters';
 import {
    applyListFilters,
@@ -33,7 +34,11 @@ export default function AutopilotsPage() {
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
    const agents = useAgentsStore((state) => state.agents);
-   const { autopilots, error, loaded, reload } = useAutopilots();
+   const [scope, setScope] = useState<AutopilotScope>('all');
+   const [archivedTouched, setArchivedTouched] = useState(false);
+   const live = useAutopilots();
+   const archived = useAutopilots({ archived: true, enabled: archivedTouched });
+   const { autopilots, error, loaded } = scope === 'archived' ? archived : live;
 
    const [people, setPeople] = useState<User[]>([]);
    const [criteria, setCriteria] = useState<AutopilotCriteria>(DEFAULT_AUTOPILOT_CRITERIA);
@@ -122,7 +127,21 @@ export default function AutopilotsPage() {
                ) : null}
             </div>
          </PageStatement>
-         <AutopilotsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
+         <AutopilotsFilters
+            criteria={criteria}
+            onChange={setCriteria}
+            filter={filter}
+            scope={scope}
+            onScopeChange={(next) => {
+               setScope(next);
+               setFilters([]);
+               if (next === 'archived') setArchivedTouched(true);
+            }}
+            counts={{
+               all: live.loaded ? live.autopilots.length : 0,
+               archived: archived.loaded ? archived.autopilots.length : null,
+            }}
+         />
          <ListFilterBar filter={filter} />
       </>
    );
@@ -136,9 +155,13 @@ export default function AutopilotsPage() {
             criteria={criteria}
             assigneeName={assigneeName}
             canEdit={canEdit}
-            onChanged={reload}
             narrowed={filter.filters.length > 0 || query.trim() !== ''}
             onCriteriaChange={setCriteria}
+            archived={scope === 'archived'}
+            onChanged={() => {
+               live.reload();
+               archived.reload();
+            }}
             onUseTemplate={(chosen) => {
                setTemplate(chosen);
                setCreating(true);
@@ -148,7 +171,10 @@ export default function AutopilotsPage() {
             open={creating}
             onOpenChange={setCreating}
             template={template}
-            onSaved={reload}
+            onSaved={() => {
+               live.reload();
+               archived.reload();
+            }}
          />
       </MainLayout>
    );

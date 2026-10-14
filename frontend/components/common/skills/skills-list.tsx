@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
 import { colorForSkillLabel } from '@/lib/skill-labels';
-import { deleteSkill, type Skill } from '@/lib/skills';
+import { deleteSkill, restoreSkill, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
@@ -42,6 +42,7 @@ interface Props {
    onCriteriaChange?: (criteria: SkillCriteria) => void;
    /** Catalogue colours, keyed by label name. A missing name keeps the hash colour. */
    labelColors?: Record<string, string>;
+   archived?: boolean;
 }
 
 /** Each sort's natural order: names and labels A→Z, the newest and the most used first. */
@@ -145,6 +146,7 @@ interface SkillLabelGroupProps {
    onChanged: () => void;
    onRefreshing: (id: string | null) => void;
    onConfirmDelete: (skill: Skill) => void;
+   onRestore: (skill: Skill) => void;
    labelColors?: Record<string, string>;
 }
 
@@ -162,6 +164,7 @@ function SkillLabelGroup({
    onChanged,
    onRefreshing,
    onConfirmDelete,
+   onRestore,
    labelColors,
 }: SkillLabelGroupProps) {
    const t = useTranslations('areas.skills');
@@ -221,6 +224,7 @@ function SkillLabelGroup({
                   refreshing={refreshingId === skill.id}
                   onRefreshing={onRefreshing}
                   onConfirmDelete={onConfirmDelete}
+                  onRestore={onRestore}
                />
             ))}
          </CollapsibleContent>
@@ -248,6 +252,7 @@ export default function SkillsList({
    narrowed,
    onCriteriaChange,
    labelColors,
+   archived = false,
 }: Props) {
    const t = useTranslations('areas.skills');
    const setOrderedIds = useSkillsCatalogueStore((state) => state.setOrderedIds);
@@ -273,9 +278,17 @@ export default function SkillsList({
 
    if (rows.length === 0) {
       return (
-         <EmptyState icon={<EmptyStateMark label={narrowed ? t('noMatch') : t('empty.mark')} />}>
+         <EmptyState
+            icon={
+               <EmptyStateMark
+                  label={narrowed ? t('noMatch') : archived ? t('empty.archived') : t('empty.mark')}
+               />
+            }
+         >
             {narrowed ? (
                <EmptyStateText>{t('noMatch')}</EmptyStateText>
+            ) : archived ? (
+               <EmptyStateText>{t('empty.archived')}</EmptyStateText>
             ) : (
                <>
                   <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>
@@ -302,6 +315,17 @@ export default function SkillsList({
          onChanged();
       } catch (failure) {
          fail(failure, t('row.deleteFailed'));
+      }
+   };
+
+   const restore = async (skill: Skill) => {
+      try {
+         await restoreSkill(skill.id);
+         toast.success(t('row.restored', { name: skill.name }));
+         setSelection((current) => current.filter((entry) => entry !== skill.id));
+         onChanged();
+      } catch (failure) {
+         fail(failure, t('row.restoreFailed'));
       }
    };
 
@@ -400,6 +424,7 @@ export default function SkillsList({
                   onChanged={onChanged}
                   onRefreshing={setRefreshingId}
                   onConfirmDelete={setConfirming}
+                  onRestore={restore}
                   labelColors={labelColors}
                />
             ))}
@@ -411,6 +436,7 @@ export default function SkillsList({
                agents={agents}
                onClear={() => setSelection([])}
                onChanged={onChanged}
+               archived={archived}
             />
          ) : null}
 

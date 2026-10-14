@@ -27,6 +27,7 @@ import {
 import {
    archiveAutopilot,
    describeAutopilotFailure,
+   restoreAutopilot,
    updateAutopilot,
    type Autopilot,
 } from '@/lib/autopilots';
@@ -48,6 +49,7 @@ interface Props {
    onUseTemplate: (template: { name: string; prompt: string }) => void;
    /** Updates sort when a sortable column heading is clicked. */
    onCriteriaChange?: (criteria: AutopilotCriteria) => void;
+   archived?: boolean;
 }
 
 /** Something to start from, so an empty workspace is not an empty page. */
@@ -106,6 +108,7 @@ export default function Autopilots({
    narrowed,
    onUseTemplate,
    onCriteriaChange,
+   archived = false,
 }: Props) {
    const t = useTranslations('areas.autopilots');
    const [selection, setSelection] = useState<string[]>([]);
@@ -136,6 +139,17 @@ export default function Autopilots({
       try {
          await archiveAutopilot(autopilot.id);
          toast.success(t('row.deleted', { name: autopilot.name }));
+         setSelection((current) => current.filter((id) => id !== autopilot.id));
+         onChanged();
+      } catch (failure) {
+         fail(failure);
+      }
+   };
+
+   const restore = async (autopilot: Autopilot) => {
+      try {
+         await restoreAutopilot(autopilot.id);
+         toast.success(t('row.restored', { name: autopilot.name }));
          setSelection((current) => current.filter((id) => id !== autopilot.id));
          onChanged();
       } catch (failure) {
@@ -234,6 +248,13 @@ export default function Autopilots({
             </EmptyState>
          );
       }
+      if (archived) {
+         return (
+            <EmptyState icon={<EmptyStateMark label={t('empty.archived')} />}>
+               <EmptyStateText>{t('empty.archived')}</EmptyStateText>
+            </EmptyState>
+         );
+      }
       return (
          <div className="flex h-full min-h-64 w-full items-center justify-center px-6 py-12">
             <div className="flex w-full max-w-2xl flex-col items-center text-center">
@@ -322,6 +343,7 @@ export default function Autopilots({
                      void setStatus(row, row.status === 'paused' ? 'active' : 'paused')
                   }
                   onConfirmDelete={setConfirming}
+                  onRestore={restore}
                />
             ))}
          </div>
@@ -339,33 +361,56 @@ export default function Autopilots({
                   </span>
                ) : (
                   <>
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        onClick={() =>
-                           void walk(
-                              (autopilot) => updateAutopilot(autopilot.id, { status: 'paused' }),
-                              t('bulk.pausedDone')
-                           )
-                        }
-                     >
-                        {t('bulk.pause')}
-                     </Button>
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        onClick={() =>
-                           void walk(
-                              (autopilot) => updateAutopilot(autopilot.id, { status: 'active' }),
-                              t('bulk.resumedDone')
-                           )
-                        }
-                     >
-                        {t('bulk.resume')}
-                     </Button>
-                     <Button size="xs" variant="secondary" onClick={() => setConfirmingBulk(true)}>
-                        {t('bulk.delete')}
-                     </Button>
+                     {archived ? (
+                        <Button
+                           size="xs"
+                           variant="secondary"
+                           onClick={() =>
+                              void walk(
+                                 (autopilot) => restoreAutopilot(autopilot.id),
+                                 t('bulk.restoredDone')
+                              )
+                           }
+                        >
+                           {t('bulk.restore')}
+                        </Button>
+                     ) : (
+                        <>
+                           <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() =>
+                                 void walk(
+                                    (autopilot) =>
+                                       updateAutopilot(autopilot.id, { status: 'paused' }),
+                                    t('bulk.pausedDone')
+                                 )
+                              }
+                           >
+                              {t('bulk.pause')}
+                           </Button>
+                           <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() =>
+                                 void walk(
+                                    (autopilot) =>
+                                       updateAutopilot(autopilot.id, { status: 'active' }),
+                                    t('bulk.resumedDone')
+                                 )
+                              }
+                           >
+                              {t('bulk.resume')}
+                           </Button>
+                           <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => setConfirmingBulk(true)}
+                           >
+                              {t('bulk.delete')}
+                           </Button>
+                        </>
+                     )}
                      <Button size="xs" variant="ghost" onClick={() => setSelection([])}>
                         {t('bulk.clear')}
                      </Button>

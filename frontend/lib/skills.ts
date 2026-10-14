@@ -31,6 +31,7 @@ export const skillSchema = z.object({
       .default([]),
    createdAt: z.string(),
    updatedAt: z.string(),
+   archivedAt: z.string().nullable().default(null),
 });
 export type Skill = z.infer<typeof skillSchema>;
 
@@ -45,6 +46,8 @@ export interface SkillFilters {
    createdBy?: string;
    /** True lists only skills an agent carries; false only those none does. */
    inUse?: boolean;
+   /** True lists archived skills; omitted lists the live catalogue. */
+   archived?: boolean;
 }
 
 export interface SkillInput {
@@ -92,6 +95,9 @@ export const updateSkill = async (id: string, patch: Partial<SkillInput>) =>
 export async function deleteSkill(id: string): Promise<void> {
    await apiFetch(skillPath(id), { method: 'DELETE' });
 }
+
+export const restoreSkill = async (id: string) =>
+   parse(await apiFetch(skillPath(id, '/restore'), { method: 'POST', body: '{}' }));
 
 export const refreshSkill = async (id: string) =>
    parse(await apiFetch(skillPath(id, '/refresh'), { method: 'POST', body: '{}' }));

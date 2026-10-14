@@ -15,6 +15,7 @@ import SkillsFilters, {
    DEFAULT_CRITERIA,
    useSkillFilterColumns,
    type SkillCriteria,
+   type SkillScope,
 } from '@/components/common/skills/skills-filters';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { PageStatement } from '@/components/common/page/page-parts';
@@ -44,9 +45,14 @@ function SkillsScreen() {
    const bump = useSkillsCatalogueStore((state) => state.bump);
 
    const [query, setQuery] = useState('');
+   const [scope, setScope] = useState<SkillScope>('all');
+   const [archivedTouched, setArchivedTouched] = useState(false);
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
-   const [skills, setSkills] = useState<Skill[] | null>(null);
+   const [live, setLive] = useState<Skill[] | null>(null);
+   const [archived, setArchived] = useState<Skill[] | null>(null);
+   const [total, setTotal] = useState(0);
+   const [archivedTotal, setArchivedTotal] = useState<number | null>(null);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
@@ -72,22 +78,39 @@ function SkillsScreen() {
    useEffect(() => {
       let cancelled = false;
       const timer = setTimeout(() => {
-         listSkills(query.trim() ? { q: query.trim() } : {})
+         const term = query.trim();
+         void listSkills(term ? { q: term } : {})
             .then((found) => {
                if (cancelled) return;
-               setSkills(found);
-               setError(null);
+               setLive(found);
+               if (!term) setTotal(found.length);
+               if (scope === 'all') setError(null);
             })
             .catch((failure: unknown) => {
-               if (cancelled) return;
+               if (cancelled || scope !== 'all') return;
                setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
             });
+         if (archivedTouched) {
+            void listSkills({ ...(term ? { q: term } : {}), archived: true })
+               .then((found) => {
+                  if (cancelled) return;
+                  setArchived(found);
+                  if (!term) setArchivedTotal(found.length);
+                  if (scope === 'archived') setError(null);
+               })
+               .catch((failure: unknown) => {
+                  if (cancelled || scope !== 'archived') return;
+                  setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
+               });
+         }
       }, 200);
       return () => {
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [query, revision, t]);
+   }, [archivedTouched, query, revision, scope, t]);
+
+   const skills = scope === 'archived' ? archived : live;
 
    useEffect(() => {
       if (!workspaceId) return;
@@ -167,7 +190,18 @@ function SkillsScreen() {
                ) : null}
             </div>
          </PageStatement>
-         <SkillsFilters criteria={criteria} onChange={setCriteria} filter={filter} />
+         <SkillsFilters
+            criteria={criteria}
+            onChange={setCriteria}
+            filter={filter}
+            scope={scope}
+            onScopeChange={(next) => {
+               setScope(next);
+               setFilters([]);
+               if (next === 'archived') setArchivedTouched(true);
+            }}
+            counts={{ all: total ?? 0, archived: archivedTotal }}
+         />
          <ListFilterBar filter={filter} />
       </>
    );
@@ -186,6 +220,7 @@ function SkillsScreen() {
             narrowed={query.trim() !== '' || filter.filters.length > 0}
             onCriteriaChange={setCriteria}
             labelColors={labelColors}
+            archived={scope === 'archived'}
          />
          {view ? (
             <DetailDrawerShell
@@ -202,7 +237,7 @@ function SkillsScreen() {
                reload();
                open(skill.id);
             }}
-            existingNames={(skills ?? []).map((skill) => skill.name)}
+            existingNames={(live ?? []).map((skill) => skill.name)}
             labelOptions={labelOptions}
             labelColors={labelColors}
          />

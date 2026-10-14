@@ -51,6 +51,7 @@ interface SkillLineProps {
    refreshing: boolean;
    onRefreshing: (id: string | null) => void;
    onConfirmDelete: (skill: Skill) => void;
+   onRestore: (skill: Skill) => void;
 }
 
 function Cell({
@@ -96,6 +97,7 @@ export default function SkillLine({
    refreshing,
    onRefreshing,
    onConfirmDelete,
+   onRestore,
 }: SkillLineProps) {
    const t = useTranslations('areas.skills');
    const carried = skill.agents.filter((agent) => agent.enabled).length;
@@ -188,56 +190,64 @@ export default function SkillLine({
                   </button>
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="min-w-52">
-                  <DropdownMenuSub>
-                     <DropdownMenuSubTrigger>{t('row.addToAgent')}</DropdownMenuSubTrigger>
-                     <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
-                        {agents.length === 0 ? (
-                           <DropdownMenuItem disabled>{t('row.noAgents')}</DropdownMenuItem>
-                        ) : (
-                           <>
-                              <DropdownMenuLabel>{t('row.notCarrying')}</DropdownMenuLabel>
-                              {agents
-                                 .filter(
-                                    (agent) =>
-                                       !skill.agents.some(
-                                          (bound) => bound.id === agent.id && bound.enabled
+                  {skill.archivedAt ? (
+                     <DropdownMenuItem onClick={() => onRestore(skill)}>
+                        {t('row.restore')}
+                     </DropdownMenuItem>
+                  ) : (
+                     <>
+                        <DropdownMenuSub>
+                           <DropdownMenuSubTrigger>{t('row.addToAgent')}</DropdownMenuSubTrigger>
+                           <DropdownMenuSubContent className="max-h-80 w-56 overflow-y-auto">
+                              {agents.length === 0 ? (
+                                 <DropdownMenuItem disabled>{t('row.noAgents')}</DropdownMenuItem>
+                              ) : (
+                                 <>
+                                    <DropdownMenuLabel>{t('row.notCarrying')}</DropdownMenuLabel>
+                                    {agents
+                                       .filter(
+                                          (agent) =>
+                                             !skill.agents.some(
+                                                (bound) => bound.id === agent.id && bound.enabled
+                                             )
                                        )
-                                 )
-                                 .map((agent) => (
-                                    <DropdownMenuItem
-                                       key={agent.id}
-                                       onClick={() => void addTo(agent)}
-                                    >
-                                       {agent.name}
-                                    </DropdownMenuItem>
-                                 ))}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuLabel>{t('row.carrying')}</DropdownMenuLabel>
-                              {skill.agents
-                                 .filter((bound) => bound.enabled)
-                                 .map((bound) => (
-                                    <DropdownMenuItem key={bound.id} disabled>
-                                       {bound.name}
-                                    </DropdownMenuItem>
-                                 ))}
-                           </>
-                        )}
-                     </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuItem
-                     disabled={skill.source.kind !== 'github' || refreshing}
-                     onClick={() => void update()}
-                  >
-                     {t('refresh.action')}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                     variant="destructive"
-                     className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
-                     onClick={() => onConfirmDelete(skill)}
-                  >
-                     {t('row.delete')}
-                  </DropdownMenuItem>
+                                       .map((agent) => (
+                                          <DropdownMenuItem
+                                             key={agent.id}
+                                             onClick={() => void addTo(agent)}
+                                          >
+                                             {agent.name}
+                                          </DropdownMenuItem>
+                                       ))}
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuLabel>{t('row.carrying')}</DropdownMenuLabel>
+                                    {skill.agents
+                                       .filter((bound) => bound.enabled)
+                                       .map((bound) => (
+                                          <DropdownMenuItem key={bound.id} disabled>
+                                             {bound.name}
+                                          </DropdownMenuItem>
+                                       ))}
+                                 </>
+                              )}
+                           </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                        <DropdownMenuItem
+                           disabled={skill.source.kind !== 'github' || refreshing}
+                           onClick={() => void update()}
+                        >
+                           {t('refresh.action')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                           variant="destructive"
+                           className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
+                           onClick={() => onConfirmDelete(skill)}
+                        >
+                           {t('row.delete')}
+                        </DropdownMenuItem>
+                     </>
+                  )}
                </DropdownMenuContent>
             </DropdownMenu>
          ) : (
