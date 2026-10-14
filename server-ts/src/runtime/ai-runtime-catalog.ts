@@ -188,11 +188,13 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       },
       availability: 'blocked',
       unavailableReason:
-         'Hermes’ Nous Portal path is a single in-CLI OAuth login (hermes auth login, token in ~/.hermes/auth.json) and `hermes acp` is a stdio ACP child, matching the Claude/Codex login model. But Hermes documents itself as a shared host "not tied to your laptop" with one principal-wide credential store, its stdio ACP spawns a fresh process whose session dies per invocation, and other model routes need separate provider credentials. Berry has not shipped the isolated per-connection Hermes boundary ADR-0019 requires (login model verified 2026-10-10).',
+         'Hermes’ Nous Portal path is a single in-CLI OAuth login (hermes auth login, token in ~/.hermes/auth.json) and `hermes acp` is a stdio ACP child, matching the Claude/Codex login model. But the per-connection isolation ADR-0019 requires does not exist first-party. Hermes documents profiles as independent home directories that are explicitly NOT sandboxes ("A sandbox is what limits filesystem access. Profiles do not sandbox the agent"); isolating principals on one host needs an external container/OS boundary (docker, singularity, modal, daytona, or vercel_sandbox) that Hermes does not provide itself. The Nous Portal credential is one principal-wide store: the refresh token lives at root ~/.hermes/auth.json, is shared across every profile, and a refresh inside any profile is written back to root, so one connection cannot be isolated the way Claude/Kimi are. The only per-profile login (hermes -p <name> auth add) still writes a profile auth.json Berry would have to read. Berry cannot isolate one connection without reading ~/.hermes/auth.json, which is forbidden (docs re-read 2026-10-14).',
       officialSources: [
          'https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration',
          'https://hermes-agent.nousresearch.com/docs/developer-guide/acp-internals',
          'https://hermes-agent.nousresearch.com/docs/integrations/nous-portal',
+         'https://hermes-agent.nousresearch.com/docs/user-guide/profiles',
+         'https://hermes-agent.nousresearch.com/docs/user-guide/security',
       ],
    },
    {
