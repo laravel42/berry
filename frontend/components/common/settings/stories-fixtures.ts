@@ -355,7 +355,7 @@ export const integrationProviders = [
    },
    {
       id: 'github',
-      include: 'nango',
+      include: 'oauth',
       name: 'GitHub',
       description:
          'The repositories your agents check out, branch and open pull requests. Connect to grant repository access so agents can clone, push and open pull requests.',
@@ -371,7 +371,7 @@ export const integrationProviders = [
    },
    {
       id: 'gitlab',
-      include: 'nango',
+      include: 'oauth',
       name: 'GitLab',
       description: 'Connect a GitLab account for this workspace.',
       configured: true,

@@ -22,8 +22,9 @@ import { GitHubClient, GitHubError, type RepositoryChoice } from './github.ts';
  * a table rather than a live call needing a credential that may be absent, and
  * the list outlives the session that fetched it.
  *
- * What this cannot do is clone, branch or push: those need an installation token
- * and therefore the App's private key. Nothing here pretends otherwise.
+ * Listing grants cannot clone, branch or push: those need an installation
+ * token and therefore the App's private key. A workspace with no App can
+ * still clone and push with a member's sign-in token, which asks for `repo`.
  *
  * The token is read, used and dropped. It is never returned, never logged, and
  * never part of an error message.

@@ -17,7 +17,7 @@ test('each integration file is included with the same shape', () => {
    const berry = findProvider(BUILT_IN_PROVIDER);
    const github = findProvider('github');
    assert.equal(berry?.include, 'built-in');
-   assert.equal(github?.include, 'nango');
+   assert.equal(github?.include, 'oauth');
    assert.equal(github?.name, 'GitHub');
    assert.deepEqual(github?.scopes, ['repo', 'workflow', 'read:org']);
    assert.equal(needsConnection('berry'), false);
@@ -26,12 +26,12 @@ test('each integration file is included with the same shape', () => {
       github?.tools.find((tool) => tool.name === 'github.merge_pull_request')?.requiresApproval,
       true
    );
-   assert.deepEqual(INCLUSION_METHODS, ['built-in', 'nango']);
+   assert.deepEqual(INCLUSION_METHODS, ['built-in', 'oauth']);
 });
 
-test('GitLab is a Nango integration with repository scopes and gitlab-prefixed tools', () => {
+test('GitLab is an OAuth integration with repository scopes and gitlab-prefixed tools', () => {
    const gitlab = findProvider('gitlab');
-   assert.equal(gitlab?.include, 'nango');
+   assert.equal(gitlab?.include, 'oauth');
    assert.equal(gitlab?.name, 'GitLab');
    assert.deepEqual(gitlab?.scopes, ['read_repository', 'write_repository']);
    assert.equal(needsConnection('gitlab'), true);

@@ -17,7 +17,7 @@ export interface AttributedRepository extends RepositoryChoice {
 
 export interface RepositoryListing {
    repositories: AttributedRepository[];
-   /** What listed them. The connection is a user token held by Nango. */
+   /** What listed them. The connection is a user token. */
    kind: 'user';
    /** The accounts that answered, in first-seen order. */
    accounts: Array<{

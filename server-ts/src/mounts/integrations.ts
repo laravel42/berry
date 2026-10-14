@@ -34,9 +34,6 @@ import {
    type GitHubAppRepository,
    type StoredApp,
 } from '../integrations/github-app.ts';
-import { adoptNangoConnections } from '../integrations/nango-connect.ts';
-import type { NangoClient } from '../integrations/nango.ts';
-
 /**
  * `/api/v1/integrations`.
  *
@@ -280,13 +277,6 @@ export interface IntegrationsOptions {
    /** OAuth credentials per provider. Absent means "Connect cannot work here". */
    github: GitHubOAuthOptions | null;
    /**
-    * Nango, when this process holds an environment API key.
-    *
-    * Catalogue files with `include: "nango"` open Connect through it. The
-    * environment key stays on this client and is not returned to the browser.
-    */
-   nango?: NangoClient | null;
-   /**
     * The App this deployment created for itself, when it has one.
     *
     * Preferred over `github` above: an App's credentials are stored rather than
@@ -450,28 +440,6 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
     */
    route.get('/providers', async (context) => {
       const workspaceId = await requireWorkspace(context, options, 'product.read');
-      // A free self-hosted Nango does not send auth webhooks. The consent is
-      // already stored there; an admin opening this catalogue is when Berry
-      // records the connection id. A member's read does not write one.
-      if (options.connections && options.nango) {
-         const userId = context.get('user').id;
-         const canRecord = await options.boards
-            .authorizeWorkspace(userId, workspaceId, 'settings.write')
-            .then(() => true)
-            .catch((error: unknown) => {
-               if (error instanceof Forbidden || error instanceof NotFound) return false;
-               throw error;
-            });
-         if (canRecord) {
-            await adoptNangoConnections({
-               providers: PROVIDERS,
-               connections: options.connections,
-               nango: options.nango,
-               workspaceId,
-               userId,
-            });
-         }
-      }
       const connections = options.connections
          ? await options.connections.list(workspaceId)
          : [];
@@ -479,13 +447,23 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
 
       const grants = options.connections ? await listGrants(options, workspaceId) : [];
       const attention = options.agentCoreAttention?.() ?? null;
+      const githubSignIn = await githubSignInState(workspaceId, options);
 
       return json({
          providers: PROVIDERS.map((provider) => {
             const connection = byProvider.get(provider.id);
-            const connected =
-               !needsConnection(provider.id) || connection?.status === 'connected';
             const renew = provider.id === 'github' ? attention : null;
+            const viaSignIn = provider.id === 'github' && githubSignIn.connected;
+            const connected =
+               !needsConnection(provider.id) ||
+               connection?.status === 'connected' ||
+               viaSignIn;
+            const githubStatus = provider.id === 'github' ? githubSignIn : null;
+            const status = renew
+               ? 'expired'
+               : viaSignIn && connection?.status !== 'connected'
+                 ? githubStatus?.status ?? null
+                 : (connection?.status ?? githubStatus?.status ?? null);
             return {
                id: provider.id,
                include: provider.include,
@@ -494,12 +472,15 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
                // Berry's own is always available; the rest need a way to connect.
                configured: !needsConnection(provider.id) || configuredFor(provider.id, options),
                connected,
-               status: renew ? 'expired' : (connection?.status ?? null),
-               statusDetail: renew?.message ?? null,
+               status,
+               statusDetail:
+                  renew?.message ??
+                  connection?.statusDetail ??
+                  (provider.id === 'github' ? githubSignIn.statusDetail : null),
                renewalUrl: renew?.url ?? null,
-               source: null,
+               source: viaSignIn && connection?.status !== 'connected' ? 'sign-in' : null,
                accountName: connection?.externalAccountName ?? null,
-               scopes: connection?.scopes ?? provider.scopes,
+               scopes: connection?.scopes?.length ? connection.scopes : provider.scopes,
                tools: provider.tools.map((tool) => ({
                   name: tool.name,
                   description: tool.description,
@@ -722,27 +703,6 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
 
       if (!needsConnection(provider.id)) {
          throw new ApiError(409, 'CONFLICT', 'Berry needs no connection to itself.');
-      }
-      if (provider.include === 'nango') {
-         if (!options.nango) {
-            throw new ApiError(
-               503,
-               'PROVIDER_NOT_CONFIGURED',
-               'This deployment has no Nango environment key.'
-            );
-         }
-         const user = context.get('user');
-         const tags: Record<string, string> = {
-            end_user_id: user.id,
-            organization_id: workspaceId,
-         };
-         const email = user.email.trim();
-         if (email) tags.end_user_email = email;
-         const session = await options.nango.createConnectSession({
-            tags,
-            allowedIntegrations: [provider.id],
-         });
-         return json({ authorizeUrl: session.connectLink });
       }
       if (!options.connections || !options.states) {
          throw new ApiError(
@@ -1034,8 +994,37 @@ async function handleCallback(
 // ------------------------------------------------------------------- helpers
 
 function configuredFor(providerId: string, options: IntegrationsOptions): boolean {
-   if (findProvider(providerId)?.include === 'nango') return options.nango != null;
+   if (providerId === 'github' && options.userAccess) return true;
    return credentialsFor(providerId, options) !== null && options.connections !== null;
+}
+
+/**
+ * Whether a member's GitHub sign-in connects this workspace.
+ *
+ * A database read, never a GitHub call: settings must not depend on a live
+ * token to decide "connected". A refused token is reconnect, not missing.
+ */
+async function githubSignInState(
+   workspaceId: string,
+   options: Pick<IntegrationsOptions, 'userAccess'>
+): Promise<{ connected: boolean; status: string | null; statusDetail: string | null }> {
+   if (!options.userAccess) {
+      return { connected: false, status: null, statusDetail: null };
+   }
+   try {
+      const signIn = await options.userAccess.workspaceSignIn(workspaceId);
+      if (signIn) return { connected: true, status: 'connected', statusDetail: null };
+      if (await options.userAccess.workspaceSignInRefused(workspaceId)) {
+         return {
+            connected: false,
+            status: 'reconnect',
+            statusDetail: 'The GitHub sign-in needs to be renewed.',
+         };
+      }
+   } catch {
+      // A failed read must not fail the catalogue.
+   }
+   return { connected: false, status: null, statusDetail: null };
 }
 
 function credentialsFor(providerId: string, options: IntegrationsOptions): GitHubOAuthOptions | null {
@@ -1394,7 +1383,7 @@ async function completeInstallation(
 /**
  * The credential GitHub work runs on.
  *
- * The token is the one Nango holds for this workspace's GitHub connection.
+ * The token is the workspace connection or a member's GitHub sign-in.
  * It is opened for the call and not written into a product row.
  */
 export async function githubCredential(

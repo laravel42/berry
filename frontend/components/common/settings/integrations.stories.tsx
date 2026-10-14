@@ -21,7 +21,7 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedSession();
       msw.use(
-         http.get('*/api/v1/config', () => HttpResponse.json({ capabilities: { nango: false } })),
+         http.get('*/api/v1/config', () => HttpResponse.json({ capabilities: {} })),
          http.get('*/api/v1/integrations/providers', () =>
             HttpResponse.json({ providers: integrationProviders })
          ),

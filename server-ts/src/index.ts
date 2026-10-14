@@ -52,7 +52,6 @@ import { goalMounts } from './mounts/goals.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
-import { createNangoClient } from './integrations/nango.ts';
 import { integrationMounts } from './mounts/integrations.ts';
 import { PlanTriage } from './plans/triage.ts';
 import { createScm } from './scm/provider-factory.ts';
@@ -260,14 +259,6 @@ const githubUserAccess = config.auth.secret
    : null;
 
 /**
- * Nango, when this process holds an environment API key.
- *
- * The key stays on this client. `/api/v1/config` reports only whether the
- * client exists, so a browser can show the settings entry without the secret.
- */
-const nango = config.nango ? createNangoClient(config.nango) : null;
-
-/**
  * Sign-in: Better Auth sessions, built once at boot.
  *
  * GitHub is Better Auth's GitHub provider on `BERRY_AUTH_GITHUB_CLIENT_ID` /
@@ -457,8 +448,12 @@ const pluginNetwork = createPluginNetwork({ allowPrivate: config.pluginsAllowPri
  * cannot reach a git host. Awaited because gateway tool discovery runs at boot.
  */
 const githubToken =
-   connections && nango
-      ? (workspaceId: string) => githubConnectionToken(workspaceId, { connections, nango })
+   connections || githubUserAccess
+      ? (workspaceId: string) =>
+           githubConnectionToken(workspaceId, {
+              connections,
+              userAccess: githubUserAccess,
+           })
       : null;
 const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
@@ -1359,7 +1354,6 @@ registry.registerAll(
       // handshake either, so the two travel together.
       states: connections ? new OAuthStateStore({ sql }) : null,
       github: config.integrations.github,
-      nango,
       githubApp,
       githubToken,
       // Not a secret, and not stored: the App's public name, so an install can
@@ -1477,7 +1471,6 @@ registry.registerAll(
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
-         nango: nango !== null,
       },
       signInOrigin: config.auth.baseUrl,
    })

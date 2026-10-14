@@ -6,9 +6,9 @@
  *
  *   - `built-in` — the tools run inside the product. Nothing to configure,
  *     nothing to connect.
- *   - `nango` — authorized through a Nango environment. The file's `id` is
- *     that integration's `unique_key`. Provider client secrets stay in Nango.
- *     A file is added only for an integration that environment already has.
+ *   - `oauth` — authorized through this deployment's own OAuth App, or
+ *     (for GitHub) a person's sign-in token. Provider client secrets stay
+ *     in Berry, sealed.
  *
  * A file cannot invent another way. The loader refuses an `include` this
  * process does not implement, so a catalogue entry cannot offer a Connect
@@ -23,7 +23,7 @@ import { z } from 'zod';
 export type ToolEffect = 'read' | 'write' | 'external_side_effect' | 'destructive';
 
 /** The ways this build knows how to include an integration. */
-export const INCLUSION_METHODS = ['built-in', 'nango'] as const;
+export const INCLUSION_METHODS = ['built-in', 'oauth'] as const;
 export type InclusionMethod = (typeof INCLUSION_METHODS)[number];
 
 export interface ProviderTool {

@@ -2,7 +2,7 @@
    "id": "gitlab",
    "name": "GitLab",
    "description": "Connect a GitLab account for this workspace.",
-   "include": "nango",
+   "include": "oauth",
    "scopes": ["read_repository", "write_repository"],
    "tools": [
       {

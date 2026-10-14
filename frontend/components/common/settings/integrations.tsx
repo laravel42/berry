@@ -108,15 +108,12 @@ function visibleProviderDescription(provider: { description?: string | null }): 
    return provider.description ?? '';
 }
 
-/** Drops a status line that would name the connection broker. */
 function publicDetail(detail: string | null | undefined): string | null {
-   if (!detail || /nango/i.test(detail)) return null;
-   return detail;
+   return detail && detail.trim().length > 0 ? detail : null;
 }
 
 function visibleFailure(failure: unknown): string {
-   const message = describeIntegrationFailure(failure);
-   return /nango/i.test(message) ? 'The integration request failed.' : message;
+   return describeIntegrationFailure(failure);
 }
 
 function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGrant[] }) {
@@ -270,7 +267,7 @@ function ProviderCard({
                <h3 className="font-medium">{visibleProviderName(provider)}</h3>
                <StatusBadge
                   look={{
-                     label: /nango/i.test(state.label) ? 'Needs attention' : state.label,
+                     label: state.label,
                      tone: state.tone,
                      state: state.tone === 'complete' ? 'solid' : 'hollow',
                   }}
@@ -295,9 +292,7 @@ function ProviderCard({
             )}
             {!builtIn && !provider.configured && (
                <p className="mt-1 text-muted-foreground">
-                  {provider.include === 'nango'
-                     ? 'Not configured on this deployment, so Connect is unavailable.'
-                     : `Not configured on this deployment: set the ${visibleProviderName(provider)} credentials to enable Connect.`}
+                  {`Not configured on this deployment: set the ${visibleProviderName(provider)} credentials to enable Connect.`}
                </p>
             )}
             {provider.id === 'github' &&
@@ -305,8 +300,8 @@ function ProviderCard({
                provider.status !== 'reconnect' &&
                provider.status !== 'expired' && (
                   <p className="mt-1 text-muted-foreground">
-                     Signing in with GitHub is your identity. Connect to grant repository access so
-                     agents can clone, push and open pull requests.
+                     Sign in with GitHub to grant repository access so agents can clone, push and
+                     open pull requests.
                   </p>
                )}
             {inDrawer && provider.status === 'reconnect' && (
@@ -401,27 +396,6 @@ function ProviderCard({
          {toolsOpen && <ToolsTable provider={provider} grants={grants} />}
       </section>
    );
-}
-
-/**
- * Waits until Berry has recorded the Nango connection, or the window closes.
- *
- * Each catalogue read asks Nango for a connection tagged to this workspace.
- * The provider token never comes back with that list.
- */
-async function watchNangoConnect(
-   providerId: string,
-   popup: Window,
-   load: () => Promise<Provider[]>
-): Promise<boolean> {
-   const deadline = Date.now() + 3 * 60 * 1000;
-   while (Date.now() < deadline) {
-      const providers = await load().catch(() => [] as Provider[]);
-      if (providers.some((item) => item.id === providerId && item.connected)) return true;
-      if (popup.closed) return false;
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-   }
-   return false;
 }
 
 /**
@@ -580,38 +554,12 @@ function IntegrationsDirectory() {
 
    const connect = async (provider: Provider) => {
       setBusy(provider.id);
-      // Open before the await. A popup after the request returns is blocked,
-      // and the settings page has to stay here to notice the consent.
-      const popup =
-         provider.include === 'nango'
-            ? window.open('about:blank', 'berry-nango-connect', 'popup,width=520,height=760')
-            : null;
       try {
          const url = await startAuthorize(provider.id);
-         if (provider.include === 'nango') {
-            const current = await load();
-            const already = current.some((item) => item.id === provider.id && item.connected);
-            if (already) {
-               popup?.close();
-               toast.success(`${visibleProviderName(provider)} connected`);
-               return;
-            }
-            if (popup && !popup.closed) {
-               popup.location.href = url;
-               const connected = await watchNangoConnect(provider.id, popup, load);
-               if (!popup.closed) popup.close();
-               if (connected) toast.success(`${visibleProviderName(provider)} connected`);
-               return;
-            }
-            popup?.close();
-         }
          window.location.assign(url);
       } catch (failure) {
-         popup?.close();
          toast.error(visibleFailure(failure));
          setBusy(null);
-      } finally {
-         if (provider.include === 'nango') setBusy(null);
       }
    };
 

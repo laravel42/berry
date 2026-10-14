@@ -98,8 +98,9 @@ export function createBerryAuth(options: BerryAuthOptions) {
               github: {
                  clientId: options.github.clientId,
                  clientSecret: options.github.clientSecret,
-                 // Profile only. Repository access is the workspace GitHub
-                 // connection, not this login: a sign-in token must not clone or push.
+                 // Repository access rides on this login. A workspace with no
+                 // App installation clones and pushes with the sign-in token.
+                 scope: ['repo', 'workflow', 'read:org'],
                  mapProfileToUser: githubProfileToUser,
               },
            }
@@ -160,8 +161,8 @@ export function createBerryAuth(options: BerryAuthOptions) {
             createdAt: 'created_at',
             updatedAt: 'updated_at',
          },
-         // Sign-in never uses the GitHub token again, but if it is kept it is
-         // kept sealed.
+         // The sign-in token is used again for repository work, and is kept
+         // sealed.
          encryptOAuthTokens: true,
          accountLinking: {
             enabled: true,

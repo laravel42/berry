@@ -23,8 +23,9 @@ import { integrationMounts, type IntegrationsOptions } from './integrations.ts';
 /**
  * `GET /providers`, and whether GitHub reads as connected.
  *
- * An installed App connects it. A person who only signed in stays
- * disconnected, and the route never calls GitHub to decide.
+ * A member's GitHub sign-in connects it. An installed App is a separate
+ * settings surface and does not, by itself, mark the catalogue connected.
+ * The route never calls GitHub to decide.
  */
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -272,17 +273,17 @@ describe(
          return (await response.json()) as ProvidersResponse;
       }
 
-      test('a GitHub sign-in does not connect the integration', async () => {
+      test('a GitHub sign-in connects the integration', async () => {
          githubCalls = 0;
          const body = await providersOf(signedInApp, signedInToken);
          assert.equal(githubCalls, 0, 'no GitHub call on a settings load');
          const github = body.providers.find((provider) => provider.id === 'github');
          assert.ok(github, 'github is in the catalogue');
-         assert.equal(github!.connected, false);
-         assert.equal(github!.source, null);
-         assert.equal(github!.status, null);
+         assert.equal(github!.connected, true);
+         assert.equal(github!.source, 'sign-in');
+         assert.equal(github!.status, 'connected');
          assert.ok(!JSON.stringify(body).includes('ghu_live'), 'the token is never in the response');
-         assert.ok(github!.tools.every((tool) => tool.allowed !== true));
+         assert.ok(github!.tools.some((tool) => tool.allowed === true));
       });
 
       test('an installed App does not connect GitHub', async () => {
@@ -302,19 +303,19 @@ describe(
          assert.ok(github!.tools.every((tool) => tool.allowed !== true));
       });
 
-      test('a member without their own GitHub still does not see the integration connected', async () => {
+      test('a member without their own GitHub still sees the owner sign-in as connected', async () => {
          const body = await providersOf(signedInApp, memberToken);
          const github = body.providers.find((provider) => provider.id === 'github');
-         assert.equal(github!.connected, false);
-         assert.equal(github!.source, null);
+         assert.equal(github!.connected, true);
+         assert.equal(github!.source, 'sign-in');
       });
 
-      test('with no App on the deployment, a sign-in still leaves GitHub disconnected', async () => {
+      test('with no App on the deployment, a sign-in still connects GitHub', async () => {
          const signedIn = await providersOf(noAppApp, signedInToken);
          const github = signedIn.providers.find((provider) => provider.id === 'github');
-         assert.equal(github!.connected, false);
-         assert.equal(github!.source, null);
-         assert.equal(github!.status, null);
+         assert.equal(github!.connected, true);
+         assert.equal(github!.source, 'sign-in');
+         assert.equal(github!.status, 'connected');
 
          const neither = await providersOf(noAppApp, neitherToken);
          const none = neither.providers.find((provider) => provider.id === 'github');
@@ -330,7 +331,7 @@ describe(
          assert.ok(github!.tools.every((tool) => tool.allowed === false));
       });
 
-      test('a refused sign-in token does not mark the integration for reconnect', async () => {
+      test('a refused sign-in token marks the integration for reconnect', async () => {
          const accountId = randomUUID();
          await sql`
             INSERT INTO auth_accounts (id, user_id, account_id, provider_id, access_token, scope)
@@ -339,12 +340,12 @@ describe(
             const withApp = await providersOf(neitherApp, neitherToken);
             const installed = withApp.providers.find((provider) => provider.id === 'github');
             assert.equal(installed!.connected, false);
-            assert.equal(installed!.status, null);
+            assert.equal(installed!.status, 'reconnect');
 
             const withoutApp = await providersOf(noAppApp, neitherToken);
             const none = withoutApp.providers.find((provider) => provider.id === 'github');
             assert.equal(none!.connected, false);
-            assert.equal(none!.status, null);
+            assert.equal(none!.status, 'reconnect');
          } finally {
             await sql`DELETE FROM auth_accounts WHERE id = ${accountId}`;
          }

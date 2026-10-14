@@ -135,7 +135,7 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       return id;
    }
 
-   test('GitHub sign-in asks only for the profile, not repository access', async () => {
+   test('GitHub sign-in asks for the profile and repository access', async () => {
       const start = await auth.handler(
          new Request(`${BASE}/api/auth/sign-in/social`, {
             method: 'POST',
@@ -146,7 +146,10 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       assert.equal(start.status, 200, await start.clone().text());
       const { url: authorize } = (await start.json()) as { url: string };
       const scopes = (new URL(authorize).searchParams.get('scope') ?? '').split(/[\s,]+/).filter(Boolean);
-      assert.deepEqual([...new Set(scopes)].sort(), ['read:user', 'user:email']);
+      assert.deepEqual(
+         [...new Set(scopes)].sort(),
+         ['read:org', 'read:user', 'repo', 'user:email', 'workflow']
+      );
       assert.equal(scopes.length, new Set(scopes).size, 'no scope is requested twice');
    });
 

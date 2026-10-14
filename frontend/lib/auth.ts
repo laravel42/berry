@@ -46,8 +46,6 @@ const configSchema = z.object({
       emailRegistration: z.boolean().optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
-      /** This process can call a Nango environment. The key is not in the payload. */
-      nango: z.boolean().optional(),
    }),
 });
 
@@ -56,8 +54,8 @@ export type BootstrapWorkspace = z.infer<typeof workspaceSchema>;
 export type BootstrapPayload = z.infer<typeof bootstrapSchema>;
 
 /**
- * Starts GitHub sign-in. It identifies the person. Repository access is the
- * GitHub App, started from Settings, not from here.
+ * Starts GitHub sign-in. It identifies the person and asks for repository
+ * access so a workspace without an App can still clone and push.
  *
  * The browser must start on the server's sign-in origin so the state cookie
  * and the GitHub callback stay on the same host.
@@ -167,20 +165,6 @@ export async function fetchModelGatewayAvailable(): Promise<boolean> {
       const json: unknown = await apiFetch('/api/v1/config');
       const parsed = configSchema.safeParse(json);
       return parsed.success && parsed.data.capabilities.modelGateway === true;
-   } catch {
-      return false;
-   }
-}
-
-/**
- * Whether this process can call a Nango environment. False when the server
- * does not say so, or cannot be asked: the settings entry stays unconfigured.
- */
-export async function fetchNangoAvailable(): Promise<boolean> {
-   try {
-      const json: unknown = await apiFetch('/api/v1/config');
-      const parsed = configSchema.safeParse(json);
-      return parsed.success && parsed.data.capabilities.nango === true;
    } catch {
       return false;
    }
