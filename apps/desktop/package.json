@@ -7,7 +7,7 @@
    "main": "dist/main.js",
    "scripts": {
       "build:js": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs",
-      "dev": "pnpm build:js && electron .",
+      "dev": "pnpm build:js && node --env-file-if-exists=.env node_modules/electron/cli.js .",
       "typecheck": "tsc -p tsconfig.json --noEmit",
       "test": "node --experimental-strip-types --test test/*.test.ts",
       "package": "pnpm build:js && electron-builder --dir"
