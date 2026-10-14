@@ -6,11 +6,11 @@ sync. See [AGENTS.md](../AGENTS.md) for the short authoritative overview and
 [ADR-0014](adr/0014-agentcore-runtime-control-plane.md) for how agent execution actually
 works today.
 
-## Repository shape: one repo, five workspace packages (`frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, `apps/desktop`), no shared toolchain
+## Repository shape: one repo, five workspace packages (`frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, `apps/bridge`), no shared toolchain
 
 Berry is a single pnpm workspace containing five independently tooled
 packages: `frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, and
-`apps/desktop`. They do **not** share a formatter, lint config, or language target.
+`apps/bridge`. They do **not** share a formatter, lint config, or language target.
 Know which workspace you are in before you write code.
 
 | | `server-ts/` | `frontend/` | `packages/plugin-sdk/` |
@@ -23,9 +23,10 @@ Know which workspace you are in before you write code.
 | Tests | `node --test` | none — lint + `build:check` | `node --test` |
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 
-`apps/desktop` compiles TypeScript to `dist/` and runs Electron. Match the
-server style (3-space, single quotes). It loads the frontend and does not
-import the server.
+`apps/bridge` is Node, `--experimental-strip-types`, no build step. Match the
+server style (3-space, single quotes). A laptop wgets `/install/berry-bridge`
+from this Berry, then `up` dials back and starts subscription CLIs here;
+adapters stay under `server-ts/src/agents/runtime/`.
 
 **Never run one workspace's formatter or linter over another.** Berry is the
 control plane for agent execution and imports no model SDK outside
@@ -233,6 +234,7 @@ the affected view.
 python3 scripts/check-locale-catalogues.py   # English catalogues well-formed; no extra locales
 pnpm check:models                            # no model SDK imports in server-ts/src outside agents/runtime/
 pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+pnpm test:bridge && pnpm typecheck:bridge
 ```
 
 ## Commits
@@ -245,8 +247,8 @@ type(scope): imperative summary (BERR-NN)
 
 - **Types in use:** `feat`, `fix`, `docs`, `test`, `chore`. Add others from
   the Conventional Commits set (`refactor`, `build`, `ci`) as needed.
-- **Scope** is the workspace or area, e.g. `feat(server-ts): …` or
-  `feat(frontend): …`. Docs-only commits are typically scope-less:
+- **Scope** is the workspace or area, e.g. `feat(server-ts): …`,
+  `feat(frontend): …`, or `feat(bridge): …`. Docs-only commits are typically scope-less:
   `docs: add product brief (BERR-9)`.
 - **Reference the issue** as `(BERR-NN)` in the subject.
 - **Imperative mood, ~72-char subject.** Explain the *why* in the body when

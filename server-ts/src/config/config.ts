@@ -211,7 +211,7 @@ export interface StorageConfig {
    maxBytes: number;
    /**
     * A directory on this machine. When set, artifacts stay here and S3 is
-    * not used, which is how the desktop app keeps files without a bucket.
+    * not used.
     */
    directory: string | null;
 }

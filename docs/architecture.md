@@ -90,7 +90,7 @@ flowchart LR
     image <-->|"model calls (default)"| bedrock
     image -->|"model calls with<br/>BERRY_MODEL_PROVIDER=kilo"| kilo
     kilo -->|"paid models, BYOK"| bedrock
-    dispatcher -->|"Kiro connected: workstation process"| kiro
+    dispatcher -->|"Kiro connected: berry-bridge on the laptop"| kiro
     kiro -->|"Berry tools on 127.0.0.1"| tools
     kiro -.->|"lifecycle event stream"| ledger
     dispatcher -->|"tier's model for the session"| tiers

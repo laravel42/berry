@@ -1,0 +1,26 @@
+{
+   "name": "@berry/bridge",
+   "version": "0.0.1",
+   "private": true,
+   "type": "module",
+   "description": "Node host on this workstation: pairs with Berry and starts subscription AI CLIs.",
+   "bin": {
+      "berry-bridge": "./bin/berry-bridge.js"
+   },
+   "exports": {
+      ".": "./src/main.ts"
+   },
+   "scripts": {
+      "start": "node --experimental-strip-types src/main.ts",
+      "typecheck": "tsc --noEmit",
+      "test": "node --experimental-strip-types --test src/*.test.ts"
+   },
+   "dependencies": {
+      "@berry/server": "workspace:*"
+   },
+   "devDependencies": {
+      "@types/node": "^26.6.4",
+      "typescript": "^7.0.2"
+   },
+   "license": "AGPL-3.0-only"
+}
