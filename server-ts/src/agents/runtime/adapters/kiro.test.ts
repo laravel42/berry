@@ -43,7 +43,7 @@ class ScriptedChild {
             },
          });
          this.#push({ jsonrpc: '2.0', id: 50, method: '_kiro/auth/getAccessToken', params: {} });
-      } else if (message.method === 'session/new') {
+      } else if (message.method === 'session/new' || message.method === 'session/load') {
          this.#push({
             jsonrpc: '2.0',
             id: message.id,
@@ -214,15 +214,56 @@ describe('Kiro adapter', () => {
             params?: { prompt?: Array<{ text?: string }> };
          };
          const text = prompt.params?.prompt?.[0]?.text ?? '';
-         assert.match(text, /Call list_run_tools to list every tool you may use/);
+         assert.match(text, /Do not call list_run_tools to learn those programs/);
+         assert.match(text, /@berry\/run_command/);
+         assert.doesNotMatch(text, /Call list_run_tools to list every tool you may use/);
          assert.doesNotMatch(text, /built-ins stay refused/);
          const admitted = kiroToolNote(new Set(['write_file', 'edit_file', 'run_command', 'read_repository_file', 'fetch_url', 'browse_repository']));
-         assert.match(admitted, /list_run_tools/);
-         assert.match(admitted, /native tool names Berry serves on this runtime/);
+         assert.match(admitted, /@berry\/<name>/);
+         assert.match(admitted, /you are in a conversation: answer the person/);
          assert.doesNotMatch(admitted, /ignore the instruction/);
       } finally {
          if (previous === undefined) delete process.env.KIRO_API_KEY;
          else process.env.KIRO_API_KEY = previous;
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('a second turn reuses the ACP process', async () => {
+      const children: ScriptedChild[] = [];
+      const adapter = new KiroAgentAdapter({
+         launcher: (spec) => {
+            if (spec.args[0] === '--version') {
+               const child = new ScriptedChild();
+               queueMicrotask(() => {
+                  child.pushLine('kiro-cli 3.1.0');
+                  child.kill();
+               });
+               return child;
+            }
+            const child = new ScriptedChild();
+            children.push(child);
+            return child;
+         },
+      });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-kiro-warm-'));
+      try {
+         const run = {
+            envelope: envelope(),
+            credential,
+            workingDirectory: directory,
+            stateDirectory: join(directory, 'state'),
+            tools: [],
+            emit: () => undefined,
+            signal: new AbortController().signal,
+         };
+         await adapter.start(run);
+         await adapter.start({ ...run, signal: new AbortController().signal });
+         assert.equal(children.length, 1);
+         const methods = children[0]?.sent.map((message) => (message as { method?: string }).method);
+         assert.equal(methods?.filter((method) => method === 'initialize').length, 1);
+         assert.equal(methods?.filter((method) => method === 'session/prompt').length, 2);
+      } finally {
          await rm(directory, { recursive: true, force: true });
       }
    });
@@ -390,6 +431,22 @@ describe('Kiro adapter', () => {
          new Set(['run_command', 'write_file'])
       );
       assert.equal(subagent.outcome.optionId, 'no');
+      const qualified = selectKiroPermission(
+         {
+            options,
+            toolCall: { name: '@berry/list_run_tools' },
+         },
+         new Set(['list_run_tools', 'run_command'])
+      );
+      assert.equal(qualified.outcome.optionId, 'once');
+      const bareInventory = selectKiroPermission(
+         {
+            options,
+            toolCall: { name: 'list_run_tools' },
+         },
+         new Set(['list_run_tools', 'run_command'])
+      );
+      assert.equal(bareInventory.outcome.optionId, 'no');
    });
 
    test('skips replayed text and redacts the key', () => {

@@ -71,7 +71,7 @@ what a folder is allowed to do.
 | `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
 | `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow (BerryFree and BerryAuto were removed on 2026-09-27), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
 | `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
-| `agents/runtime/` | Code that runs *inside* the runtime image, never imported as a model SDK by the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes. Kiro is the one that runs: the product server starts `kiro-cli acp --agent-engine=v3` on the workstation (`runtime/workstation-kiro.ts`), and the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; Kiro does not) |
+| `agents/runtime/` | Code that runs *inside* the runtime image, never imported as a model SDK by the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes. Kiro is the one that runs: `berry-bridge` starts `kiro-cli acp --agent-engine=v3` on the workstation (`runtime/workstation-kiro.ts` enqueues the job), and the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; Kiro does not) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
 | `plans/` | The planner: `repository`, `generator`, `triage` (routing), `answers`. | domain + integration |
 | `conversations/` | Conversation threads and their model-backed responder. | domain + integration |
@@ -174,9 +174,9 @@ user-scoped agent-process selection from ADR-0019.
   `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
 - **User-scoped agent process** (ADR-0019) — the run snapshots an AI-runtime
   key, model and connection. Kiro, Claude, and Codex are the connectable ones. The product
-  server starts the matching CLI on the workstation, rewrites the envelope callback
-  to `127.0.0.1` on the API port, and records the CLI's text, tool, usage and
-  terminal events. Usage from a subscription is stored unpriced. There is no
+  server enqueues the job for `berry-bridge` on that person's laptop. The
+  envelope callback stays `BERRY_PUBLIC_URL` so the laptop can call tools.
+  Usage from a subscription is stored unpriced. There is no
   fallback to Bedrock or Kilo, and Kiro does not hand Berry a container to
   run. GitHub Copilot is not a runtime. See
   [`docs/ai-runtimes.md`](../docs/ai-runtimes.md).

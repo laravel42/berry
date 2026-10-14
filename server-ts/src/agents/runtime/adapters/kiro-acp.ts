@@ -76,17 +76,31 @@ export interface KiroAcpHandlers {
 export class KiroAcpClient {
    readonly #child: KiroChild;
    readonly #token: string;
-   readonly handlers: KiroAcpHandlers;
+   #handlers: KiroAcpHandlers;
    readonly #pending = new Map<number, Pending>();
    #nextId = 0;
    #closed = false;
+   #dead = false;
    #stderr = '';
    #reading: Promise<void> = Promise.resolve();
 
    constructor(child: KiroChild, token: string, handlers: KiroAcpHandlers) {
       this.#child = child;
       this.#token = token;
-      this.handlers = handlers;
+      this.#handlers = handlers;
+   }
+
+   get handlers(): KiroAcpHandlers {
+      return this.#handlers;
+   }
+
+   /** Still accepting ACP after a previous turn. The workstation keeps one process warm. */
+   get usable(): boolean {
+      return !this.#closed && !this.#dead;
+   }
+
+   setHandlers(handlers: KiroAcpHandlers): void {
+      this.#handlers = handlers;
    }
 
    start(): void {
@@ -152,6 +166,7 @@ export class KiroAcpClient {
             this.#dispatch(message);
          }
       } finally {
+         this.#dead = true;
          if (!this.#closed) {
             const exit = await Promise.race([
                this.#child.exited,
@@ -187,14 +202,14 @@ export class KiroAcpClient {
          else pending.resolve(message.result);
          return;
       }
-      if (message.method === 'session/update') this.handlers.onUpdate(message.params);
+      if (message.method === 'session/update') this.#handlers.onUpdate(message.params);
    }
 
    #answer(method: string, params: unknown): { result: unknown } | { error: { code: number; message: string } } {
       if (method === '_kiro/auth/getAccessToken') {
          return { error: { code: -32601, message: 'Kiro CLI owns this login.' } };
       }
-      if (method === 'session/request_permission') return { result: this.handlers.onPermission(params) };
+      if (method === 'session/request_permission') return { result: this.#handlers.onPermission(params) };
       return { error: { code: -32601, message: 'Method not supported' } };
    }
 

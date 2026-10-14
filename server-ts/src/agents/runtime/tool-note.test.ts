@@ -7,9 +7,10 @@ test('every runtime is told the same sandbox commands', () => {
    const kiro = runtimeToolNote('@berry/list_run_tools');
    assert.equal(claude, kiro);
    assert.match(claude, /Commands in the sandbox/);
-   assert.match(claude, /Run one with run_command/);
-   assert.match(claude, /Call list_run_tools to list every tool you may use/);
-   assert.match(claude, /The reply contains the native tool names Berry serves on this runtime, each with the Berry tool it runs, plus the sandbox commands/);
+   assert.match(claude, /run one with run_command/);
+   assert.match(claude, /Do not call list_run_tools to learn those programs/);
+   assert.match(claude, /you are in a conversation: answer the person/);
+   assert.doesNotMatch(claude, /Call list_run_tools to list every tool you may use/);
    assert.doesNotMatch(claude, /shell and file tools are refused/);
    assert.doesNotMatch(claude, /mcp__berry__list_run_tools/);
    assert.doesNotMatch(kiro, /@berry\/list_run_tools/);
@@ -28,7 +29,7 @@ test('a completion is told it has no tools, and how to inspect when the schema h
    assert.match(review, /list paths in `read`/);
    assert.match(review, /`read` empty/);
 
-   assert.match(runtimeTurnNote('agent', '@berry/list_run_tools'), /Run one with run_command/);
+   assert.match(runtimeTurnNote('agent', '@berry/list_run_tools'), /run one with run_command/);
    assert.equal(runtimeTurnNote('agent', 'mcp__berry__list_run_tools'), runtimeTurnNote('agent', '@berry/list_run_tools'));
    assert.match(runtimeTurnNote('completion', '@berry/list_run_tools'), /no Berry tool server/);
    assert.equal(runtimeTurnNote('completion', '@berry/list_run_tools').includes('list_run_tools first'), false);

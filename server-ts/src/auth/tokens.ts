@@ -14,6 +14,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 const TOKEN_BYTES = 32;
 const PERSONAL_TOKEN_ID_BYTES = 12;
 export const PERSONAL_TOKEN_PREFIX = 'berry_pat_';
+export const WORKSTATION_TOKEN_PREFIX = 'berry_ws_';
 const PERSONAL_TOKEN_SEPARATOR = '_';
 
 /** Length of `n` bytes encoded as unpadded base64url, matching Go's EncodedLen. */
@@ -66,18 +67,29 @@ export function digestToken(token: string): Buffer {
 export function generatePersonalToken(
    random: (size: number) => Buffer = randomBytes
 ): GeneratedPersonalToken {
-   const publicId = random(PERSONAL_TOKEN_ID_BYTES).toString('base64url');
-   const secret = random(TOKEN_BYTES).toString('base64url');
-   return {
-      token: PERSONAL_TOKEN_PREFIX + publicId + PERSONAL_TOKEN_SEPARATOR + secret,
-      publicId,
-      secretHash: digestToken(secret),
-   };
+   return generateNamespacedToken(PERSONAL_TOKEN_PREFIX, random);
+}
+
+/**
+ * Builds `berry_ws_<publicId>_<secret>` for a paired workstation.
+ *
+ * Same split as a personal token: the public half is indexed, the secret is
+ * shown once, and only the digest is stored.
+ */
+export function generateWorkstationToken(
+   random: (size: number) => Buffer = randomBytes
+): GeneratedPersonalToken {
+   return generateNamespacedToken(WORKSTATION_TOKEN_PREFIX, random);
 }
 
 /** Whether a credential claims Berry's PAT namespace, well-formed or not. */
 export function isPersonalToken(token: string): boolean {
    return token.startsWith(PERSONAL_TOKEN_PREFIX);
+}
+
+/** Whether a credential claims Berry's workstation-bridge namespace. */
+export function isWorkstationToken(token: string): boolean {
+   return token.startsWith(WORKSTATION_TOKEN_PREFIX);
 }
 
 /**
@@ -91,8 +103,33 @@ export function isPersonalToken(token: string): boolean {
  * to find `publicId` and match the secret's digest.
  */
 export function parsePersonalToken(token: string): { publicId: string; secret: string } {
-   if (!isPersonalToken(token)) throw new Unauthenticated();
-   const remainder = token.slice(PERSONAL_TOKEN_PREFIX.length);
+   return parseNamespacedToken(token, PERSONAL_TOKEN_PREFIX);
+}
+
+/** Splits a workstation token the same way a personal token splits. */
+export function parseWorkstationToken(token: string): { publicId: string; secret: string } {
+   return parseNamespacedToken(token, WORKSTATION_TOKEN_PREFIX);
+}
+
+function generateNamespacedToken(
+   prefix: string,
+   random: (size: number) => Buffer
+): GeneratedPersonalToken {
+   const publicId = random(PERSONAL_TOKEN_ID_BYTES).toString('base64url');
+   const secret = random(TOKEN_BYTES).toString('base64url');
+   return {
+      token: prefix + publicId + PERSONAL_TOKEN_SEPARATOR + secret,
+      publicId,
+      secretHash: digestToken(secret),
+   };
+}
+
+function parseNamespacedToken(
+   token: string,
+   prefix: string
+): { publicId: string; secret: string } {
+   if (!token.startsWith(prefix)) throw new Unauthenticated();
+   const remainder = token.slice(prefix.length);
 
    // Split on position rather than on the first separator. Both halves are
    // base64url and that alphabet includes '_', so searching for one lands
@@ -155,6 +192,7 @@ export function parseBearer(header: string | undefined | null): string {
    const token = header.slice('Bearer '.length);
    if (!BEARER_TOKEN.test(token)) throw new Unauthenticated();
    if (isPersonalToken(token)) parsePersonalToken(token);
+   if (isWorkstationToken(token)) parseWorkstationToken(token);
    return token;
 }
 

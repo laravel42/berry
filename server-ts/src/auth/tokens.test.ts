@@ -2,14 +2,18 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
    PERSONAL_TOKEN_PREFIX,
+   WORKSTATION_TOKEN_PREFIX,
    Unauthenticated,
    generatePersonalToken,
    generateToken,
+   generateWorkstationToken,
    hashToken,
    isPersonalToken,
+   isWorkstationToken,
    parseAuthorization,
    parseBearer,
    parsePersonalToken,
+   parseWorkstationToken,
    secretMatches,
 } from './tokens.ts';
 
@@ -40,6 +44,7 @@ test('parseBearer refuses every malformed header the same way', () => {
       `Bearer ${'a'.repeat(513)}`,
       'Bearer ab"c',
       'Bearer berry_pat_malformed',
+      'Bearer berry_ws_malformed',
    ]) {
       assert.throws(() => parseBearer(header), Unauthenticated, String(header));
    }
@@ -171,6 +176,18 @@ test('a malformed personal token never falls through to session parsing', () => 
       assert.throws(() => parsePersonalToken(token), Unauthenticated, `accepted ${token}`);
       assert.throws(() => parseAuthorization(`Bearer ${token}`), Unauthenticated, `accepted ${token}`);
    }
+});
+
+test('a workstation token is not a session or personal token', () => {
+   const generated = generateWorkstationToken();
+   assert.ok(generated.token.startsWith(WORKSTATION_TOKEN_PREFIX));
+   assert.equal(isWorkstationToken(generated.token), true);
+   assert.equal(isPersonalToken(generated.token), false);
+   assert.equal(parseBearer(`Bearer ${generated.token}`), generated.token);
+   assert.throws(() => parseAuthorization(`Bearer ${generated.token}`), Unauthenticated);
+   const { publicId, secret } = parseWorkstationToken(generated.token);
+   assert.equal(publicId, generated.publicId);
+   assert.ok(secretMatches(secret, generated.secretHash));
 });
 
 test('tokens are unique across generations', () => {

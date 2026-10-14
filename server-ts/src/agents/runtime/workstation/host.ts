@@ -14,64 +14,76 @@ import { KimiAgentAdapter } from '../adapters/kimi.ts';
 import { KiroAgentAdapter } from '../adapters/kiro.ts';
 import { QoderAgentAdapter } from '../adapters/qoder.ts';
 import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
-import { runtimeControlRequestSchema, taskEnvelopeSchema } from '../../../runtime/envelope.ts';
+import {
+   runtimeControlRequestSchema,
+   taskEnvelopeSchema,
+   type RuntimeControlRequest,
+   type RuntimeControlResponse,
+   type TaskEnvelope,
+} from '../../../runtime/envelope.ts';
+import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 
 /**
- * Kiro, Claude Code, Codex, Cursor, Kimi, Grok, and Qoder on the machine the person is using.
- *
- * The product server starts this process and writes one JSON document on
- * stdin: a runtime control request, or a task envelope. Lifecycle events come
- * back as one JSON object per line. `kiro-cli`, `claude`, `codex`, `cursor-agent`,
- * `kimi`, `grok`, or `qoder` is a child of this process, found on the workstation
- * PATH. Nothing here listens on a port, and the runtime container is not involved.
+ * Kiro, Claude Code, Codex, Cursor, Kimi, Grok, and Qoder on the machine the
+ * person is using. `apps/bridge` is the process that calls this: one JSON
+ * document on stdin, or one job claimed from a remote Berry. Lifecycle events
+ * come back as one JSON object per line (stdin host) or as posted events
+ * (companion). The named CLI is a child of this process, found on the
+ * workstation PATH. Nothing here listens on a port, and the runtime container
+ * is not involved.
  */
+export async function runHost(): Promise<void> {
+   const chunks: Buffer[] = [];
+   for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
 
-const workRoot = (process.env.BERRY_WORKSTATION_WORK_ROOT ?? '').trim() || join(homedir(), '.berry', 'workstation');
-await mkdir(workRoot, { recursive: true });
+   let body: unknown;
+   try {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+   } catch {
+      await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
+   }
 
-const adapters = new RuntimeAdapterRegistry([
-   new KiroAgentAdapter({ principalIsolation: 'workstation' }),
-   new ClaudeAgentAdapter({ principalIsolation: 'workstation' }),
-   new CodexAgentAdapter({ principalIsolation: 'workstation' }),
-   new CursorAgentAdapter({ principalIsolation: 'workstation' }),
-   new KimiAgentAdapter({ principalIsolation: 'workstation' }),
-   new GrokAgentAdapter({ principalIsolation: 'workstation' }),
-   new QoderAgentAdapter({ principalIsolation: 'workstation' }),
-]);
-const modelFactory = (() => {
-   throw new Error('This workstation process does not call a Berry model provider.');
-}) as ModelFactory;
+   const control = runtimeControlRequestSchema.safeParse(body);
+   if (control.success) {
+      const response = await runWorkstationControl(control.data.control);
+      process.stdout.write(`${JSON.stringify(response)}\n`);
+      await exitWhenFlushed(0);
+   }
 
-const chunks: Buffer[] = [];
-for await (const chunk of process.stdin) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+   const envelope = taskEnvelopeSchema.safeParse(body);
+   const task = envelope.success
+      ? envelope.data
+      : await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
 
-let body: unknown;
-try {
-   body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-} catch {
-   await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
-}
-
-const control = runtimeControlRequestSchema.safeParse(body);
-if (control.success) {
-   const response = await handleRuntimeControl(adapters, control.data.control);
-   process.stdout.write(`${JSON.stringify(response)}\n`);
+   const caller = new AbortController();
+   process.once('SIGTERM', () => caller.abort());
+   try {
+      await runWorkstationTask(task, (event) => {
+         process.stdout.write(`${JSON.stringify(event)}\n`);
+      }, caller.signal);
+   } catch (error) {
+      const message = error instanceof Error ? error.message : 'The workstation process failed.';
+      await fail('RUNTIME_FAULT', message, true);
+   }
    await exitWhenFlushed(0);
 }
 
-const envelope = taskEnvelopeSchema.safeParse(body);
-const task = envelope.success
-   ? envelope.data
-   : await fail('RUNTIME_PROTOCOL', 'The workstation process received a request it could not read.', false);
+export async function runWorkstationControl(
+   request: RuntimeControlRequest
+): Promise<RuntimeControlResponse> {
+   const { adapters } = await workstationRuntime();
+   return handleRuntimeControl(adapters, request);
+}
 
-const caller = new AbortController();
-process.once('SIGTERM', () => caller.abort());
-try {
+export async function runWorkstationTask(
+   envelope: TaskEnvelope,
+   emit: (event: LifecycleEvent) => void,
+   signal?: AbortSignal
+): Promise<void> {
+   const { adapters, workRoot, modelFactory } = await workstationRuntime();
    await handleInvocation(
-      task,
-      (event) => {
-         process.stdout.write(`${JSON.stringify(event)}\n`);
-      },
+      envelope,
+      emit,
       {
          registry: new SessionRegistry(),
          modelFactory,
@@ -81,13 +93,43 @@ try {
          repository: snapshotRepository(),
          adapters,
       },
-      caller.signal
+      signal
    );
-} catch (error) {
-   const message = error instanceof Error ? error.message : 'The workstation process failed.';
-   await fail('RUNTIME_FAULT', message, true);
 }
-await exitWhenFlushed(0);
+
+type WorkstationRuntime = {
+   adapters: RuntimeAdapterRegistry;
+   workRoot: string;
+   modelFactory: ModelFactory;
+};
+
+/** One registry for the life of berry-bridge, so Kiro's ACP process stays warm. */
+let workstation: Promise<WorkstationRuntime> | null = null;
+
+async function workstationRuntime(): Promise<WorkstationRuntime> {
+   workstation ??= openWorkstationRuntime();
+   return workstation;
+}
+
+async function openWorkstationRuntime(): Promise<WorkstationRuntime> {
+   const workRoot = (process.env.BERRY_WORKSTATION_WORK_ROOT ?? '').trim() || join(homedir(), '.berry', 'workstation');
+   await mkdir(workRoot, { recursive: true });
+   return {
+      workRoot,
+      adapters: new RuntimeAdapterRegistry([
+         new KiroAgentAdapter({ principalIsolation: 'workstation' }),
+         new ClaudeAgentAdapter({ principalIsolation: 'workstation' }),
+         new CodexAgentAdapter({ principalIsolation: 'workstation' }),
+         new CursorAgentAdapter({ principalIsolation: 'workstation' }),
+         new KimiAgentAdapter({ principalIsolation: 'workstation' }),
+         new GrokAgentAdapter({ principalIsolation: 'workstation' }),
+         new QoderAgentAdapter({ principalIsolation: 'workstation' }),
+      ]),
+      modelFactory: (() => {
+         throw new Error('This workstation process does not call a Berry model provider.');
+      }) as ModelFactory,
+   };
+}
 
 /**
  * `process.exit` returns before a large write reaches the pipe. The last

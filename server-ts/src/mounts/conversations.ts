@@ -316,11 +316,11 @@ export function conversationMounts(options: ConversationOptions): Mount[] {
          throw error;
       });
       await conversations.saveDraft(conversation.id, userId, '');
-      const complete = options.complete;
-      if (first && complete) {
-         // Best effort, after the response: a title is a nicety, never a failed send.
+      if (first) {
+         // From the typed text — never a completion, which would spawn another
+         // workstation CLI beside the reply.
          void generateTitle(
-            { sql, complete },
+            { sql },
             { workspaceId: conversation.workspaceId, conversationId: conversation.id, firstMessage: body }
          ).catch((error: unknown) => options.logger?.error('chat title failed', { error: String(error) }));
       }

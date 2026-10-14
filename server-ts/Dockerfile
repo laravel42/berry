@@ -19,6 +19,9 @@ RUN pnpm install --prod --frozen-lockfile --ignore-workspace
 
 COPY tsconfig.json ./
 COPY src ./src
+# Pairing's wget installer needs apps/bridge as ./bridge-package. This
+# context is server-ts only, so GET /install/berry-bridge.tgz answers 503
+# here. deploy/docker/api.Dockerfile copies it when the context is the repo.
 # The schema. Shipped in the image because the migrator runs from it at boot,
 # and a server whose migrations live somewhere else can start against a
 # database it does not match.

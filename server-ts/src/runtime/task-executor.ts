@@ -208,10 +208,18 @@ export class RuntimeTaskExecutor implements Executor {
       if (task.aiRuntimeId) {
          const workstation = this.#o.workstation;
          const control = this.#o.transport.control;
+         const workstationOwner = task.aiRuntimeUserId ?? task.requestedBy;
          if (onWorkstation && !workstation) {
             return this.#fail(task, recorder, usage, {
                code: 'AI_RUNTIME_INCOMPATIBLE',
-               message: 'This AI runtime runs on this workstation, and that process is not available.',
+               message: 'This AI runtime runs on this workstation, and berry-bridge is not paired.',
+               retryable: false,
+            });
+         }
+         if (onWorkstation && !workstationOwner) {
+            return this.#fail(task, recorder, usage, {
+               code: 'AI_RUNTIME_UNAVAILABLE',
+               message: 'This run has no workstation owner. Pair berry-bridge from Settings → Runtimes.',
                retryable: false,
             });
          }
@@ -230,8 +238,8 @@ export class RuntimeTaskExecutor implements Executor {
                runtimeId: task.aiRuntimeId,
                credential: null,
             };
-            checked = onWorkstation && workstation
-               ? await workstation.control(request, abort)
+            checked = onWorkstation && workstation && workstationOwner
+               ? await workstation.control(request, workstationOwner, abort)
                : await control!({
                     target,
                     request,
@@ -310,9 +318,10 @@ export class RuntimeTaskExecutor implements Executor {
             }
          );
 
+         const owner = task.aiRuntimeUserId ?? task.requestedBy;
          const stream =
-            onWorkstation && this.#o.workstation
-               ? this.#o.workstation.invoke(envelope, abort)
+            onWorkstation && this.#o.workstation && owner
+               ? this.#o.workstation.invoke(envelope, owner, abort)
                : this.#o.transport.invoke({ target, envelope, signal: abort, observe: log?.observer });
          const outcome = await this.#consume(
             { task, recorder, usage, target, session: envelopeSession, abort, log, cursor: 0, resumed: false, ...resumable },

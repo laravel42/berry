@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import type { Tool } from '@strands-agents/sdk';
 import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
-import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
-import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
+import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroAcpHandlers, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
+import { acpToolName, hasBerryQualifier, ledgerToolName, stripBerryQualifier } from '../runtime-aliases.ts';
 import { runtimeToolNote, runtimeTurnNote } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
@@ -87,6 +87,8 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
    readonly #principalIsolation: RuntimePrincipalIsolation;
    readonly #deadlineMs: number;
    readonly #active = new Map<string, KiroAcpClient>();
+   /** One idle ACP process, so the next chat turn does not spawn kiro-cli again. */
+   #idle: KiroAcpClient | null = null;
 
    constructor(options: KiroAdapterOptions = {}) {
       this.#command = options.command ?? 'kiro-cli';
@@ -239,16 +241,17 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
       const socketPath = kiroMcpSocketPath();
       const host = new BerryMcpHost(socketPath, sessionTools, input.workingDirectory, input.signal);
       await host.listen();
-      const client = await this.#open(input.stateDirectory, handlers);
+      const client = await this.#borrow(input.stateDirectory, handlers);
       let sessionId = '';
       let timedOut = false;
+      let keep = true;
       const abort = () => {
+         keep = false;
          if (sessionId !== '') client.notify('session/cancel', { sessionId });
          void client.close();
       };
       let deadline: ReturnType<typeof setTimeout> | null = null;
       try {
-         await client.request('initialize', initializeParams(), HANDSHAKE_MS);
          const mcpServers = [berryMcpServer(socketPath)];
          const saved = await readSessionId(input.stateDirectory);
          const loaded = saved
@@ -341,9 +344,30 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          if (deadline) clearTimeout(deadline);
          input.signal.removeEventListener('abort', abort);
          if (sessionId !== '') this.#active.delete(sessionId);
-         await client.close();
+         await this.#release(client, keep);
          await host.close();
       }
+   }
+
+   async #borrow(home: string, handlers: KiroAcpHandlers): Promise<KiroAcpClient> {
+      const idle = this.#idle;
+      this.#idle = null;
+      if (idle?.usable) {
+         idle.setHandlers(handlers);
+         return idle;
+      }
+      if (idle) await idle.close().catch(() => undefined);
+      const client = await this.#open(home, handlers);
+      await client.request('initialize', initializeParams(), HANDSHAKE_MS);
+      return client;
+   }
+
+   async #release(client: KiroAcpClient, keep: boolean): Promise<void> {
+      if (keep && client.usable && this.#idle === null) {
+         this.#idle = client;
+         return;
+      }
+      await client.close();
    }
 
    async #withClient<T>(home: string, operation: (client: KiroAcpClient) => Promise<T>): Promise<T> {
@@ -471,26 +495,33 @@ function turnNote(kind: string, _allowed: ReadonlySet<string>, schema?: unknown)
 
 /**
  * Kiro exposes Berry MCP tools as `@berry/<tool>`, and Berry serves Kiro's
- * built-in names there too. The prompt uses the same list as every other
- * runtime; `list_run_tools` names the aliases this run may call.
+ * built-in names there too. The model must call the qualified name; a bare
+ * `list_run_tools` is treated as a native tool and refused.
  */
 export function kiroToolNote(_allowed: ReadonlySet<string> = new Set()): string {
-   const note = runtimeToolNote('list_run_tools');
-   return note.endsWith('\n') ? `${note.slice(0, -1)} Do not delegate to a subagent.\n` : `${note} Do not delegate to a subagent.\n`;
+   const note = runtimeToolNote('@berry/list_run_tools');
+   const prefix =
+      'Call a Berry tool as @berry/<name>, for example @berry/run_command. ' +
+      'Kiro\'s own tools are refused.';
+   const extra = ' Do not delegate to a subagent.\n';
+   return note.endsWith('\n') ? `${note.slice(0, -1)} ${prefix}${extra}` : `${note} ${prefix}${extra}`;
 }
 
 /**
- * Whether a permission request may run: only a tool on Berry's MCP server,
- * identified by Kiro's MCP identity, whose name is on the run. Kiro's own
- * tools, subagents and powers are refused, including a built-in whose name
- * Berry serves as an alias; the alias is approved as Berry's tool instead.
+ * Whether a permission request may run: a tool on Berry's MCP server whose
+ * name is on the run. Kiro usually sends an MCP identity; some builds only
+ * send `@berry/<name>`. Kiro's own tools, subagents and powers stay refused,
+ * including a built-in whose name Berry serves as an alias.
  */
 export function kiroCallAllowed(params: unknown, allowed: ReadonlySet<string>): boolean {
    if (!params || typeof params !== 'object') return false;
    const identity = (params as { _meta?: { kiro?: { mcpTool?: { identity?: { serverName?: unknown; toolName?: unknown } } } } })
       ._meta?.kiro?.mcpTool?.identity;
-   if (!identity || identity.serverName !== 'berry' || typeof identity.toolName !== 'string') return false;
-   return allowed.has(identity.toolName);
+   if (identity && identity.serverName === 'berry' && typeof identity.toolName === 'string') {
+      return allowed.has(identity.toolName) || allowed.has(stripBerryQualifier(identity.toolName));
+   }
+   const name = acpToolName(params);
+   return name !== null && hasBerryQualifier(name) && allowed.has(stripBerryQualifier(name));
 }
 
 function berryMcpServer(socketPath: string): unknown {
@@ -498,7 +529,7 @@ function berryMcpServer(socketPath: string): unknown {
       name: 'berry',
       command: process.execPath,
       args: ['--experimental-strip-types', BRIDGE, socketPath],
-      env: [],
+      env: {},
    };
 }
 

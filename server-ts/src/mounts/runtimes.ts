@@ -28,7 +28,7 @@ import {
    type ProfileView,
    type RuntimeView,
 } from '../runtime/runtimes.ts';
-import type { RuntimeTarget } from '../runtime/transport.ts';
+import { RuntimeUnavailable, type RuntimeTarget } from '../runtime/transport.ts';
 import type { RuntimeControlRequest, RuntimeControlResponse } from '../runtime/envelope.ts';
 import { runtimeSessionIdFor } from '../runtime/session-id.ts';
 import type { Permission } from '../identity/roles.ts';
@@ -36,10 +36,10 @@ import type { ScopedDb } from '../identity/workspace-context.ts';
 import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
 
 /**
- * The subscription runtimes whose login stays inside a CLI on the workstation
- * that runs Berry. Berry starts the CLI as its own child process and never
- * reads or forwards its credential store. The token is a non-secret sentinel
- * that marks the run as using that CLI's own login.
+ * The subscription runtimes whose login stays inside a CLI on the person's
+ * workstation. berry-bridge claims the job and starts the CLI there. Berry
+ * never reads or forwards that credential store. The token is a non-secret
+ * sentinel that marks the run as using that CLI's own login.
  */
 const WORKSTATION_CLI_LOGINS = {
    claude: { label: 'Claude', token: CLAUDE_CLI_LOGIN, authMethod: 'claude_cli', defaultAccountName: 'Claude' },
@@ -129,7 +129,7 @@ export function runtimeMounts(options: {
    /** Cancels an active run after its personal runtime connection is removed. */
    cancelRun?: (runId: string) => Promise<void>;
    /** Runs adapter control operations inside the configured runtime image. */
-   runtimeControl?: (request: RuntimeControlRequest) => Promise<RuntimeControlResponse>;
+   runtimeControl?: (request: RuntimeControlRequest, userId: string) => Promise<RuntimeControlResponse>;
 }): Mount[] {
    const repository = new RuntimeRepository(options.sql, options.sealer);
    const aiRuntimes = new AiRuntimeRepository(options.sql);
@@ -200,6 +200,23 @@ export function runtimeMounts(options: {
       const value = (raw ?? '').trim();
       if (!isAiRuntimeId(value)) throw ApiError.notFound('AI runtime');
       return value;
+   };
+   const probe = async (userId: string, request: RuntimeControlRequest): Promise<RuntimeControlResponse> => {
+      if (!options.runtimeControl) {
+         throw new ApiError(
+            503,
+            'AI_RUNTIME_AUTH_UNAVAILABLE',
+            'This AI runtime runs on a paired workstation, and berry-bridge is not available.'
+         );
+      }
+      try {
+         return await options.runtimeControl(request, userId);
+      } catch (error) {
+         if (error instanceof RuntimeUnavailable) {
+            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', error.message);
+         }
+         throw error;
+      }
    };
    const controlError = (error: Extract<RuntimeControlResponse, { ok: false }>['error']): never => {
       const status =
@@ -308,13 +325,6 @@ export function runtimeMounts(options: {
       if (host === null) {
          throw ApiError.badRequest('Host must be localhost or a fully qualified domain name.');
       }
-      if (host !== 'localhost') {
-         throw new ApiError(
-            409,
-            'AI_RUNTIME_HOST_UNREACHABLE',
-            `Berry starts the CLI on the computer where this server runs. Connect with localhost.`
-         );
-      }
       if (
          runtimeId === 'claude' ||
          runtimeId === 'codex' ||
@@ -327,16 +337,13 @@ export function runtimeMounts(options: {
          // Each keeps its login inside the CLI on this workstation. Berry
          // forwards no API key: the oauth token is a non-secret sentinel.
          const cli = WORKSTATION_CLI_LOGINS[runtimeId];
-         if (!options.runtimeControl) {
-            throw new ApiError(503, 'AI_RUNTIME_AUTH_UNAVAILABLE', `${cli.label} runs on this workstation, and that process is not available.`);
-         }
          const credential = {
             type: 'oauth' as const,
             token: cli.token,
             accountId: null,
             accountName: null,
          };
-         const probed = await options.runtimeControl({
+         const probed = await probe(user.id, {
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-connect:${workspaceId}:${user.id}:${runtimeId}`),
             operation: 'connection',
             runtimeId,
@@ -347,7 +354,7 @@ export function runtimeMounts(options: {
          if (!status || status.status !== 'connected') {
             throw new ApiError(409, 'AI_RUNTIME_AUTH_FAILED', status?.detail ?? `${cli.label} CLI is not signed in on this workstation.`);
          }
-         const listed = await options.runtimeControl({
+         const listed = await probe(user.id, {
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-models:${workspaceId}:${user.id}:${runtimeId}`),
             operation: 'models',
             runtimeId,
@@ -507,14 +514,13 @@ export function runtimeMounts(options: {
          throw new ApiError(409, 'AI_RUNTIME_NOT_CONNECTED', `Connect ${runtimeId} before listing models.`);
       }
       if (
-         options.runtimeControl &&
-         (runtimeId === 'kiro' ||
-            runtimeId === 'claude' ||
-            runtimeId === 'codex' ||
-            runtimeId === 'cursor' ||
-            runtimeId === 'kimi' ||
-            runtimeId === 'grok' ||
-            runtimeId === 'qoder')
+         runtimeId === 'kiro' ||
+         runtimeId === 'claude' ||
+         runtimeId === 'codex' ||
+         runtimeId === 'cursor' ||
+         runtimeId === 'kimi' ||
+         runtimeId === 'grok' ||
+         runtimeId === 'qoder'
       ) {
          const credential = {
             type: 'oauth' as const,
@@ -522,7 +528,7 @@ export function runtimeMounts(options: {
             accountId: connection.accountId,
             accountName: connection.accountName,
          };
-         const result = await options.runtimeControl({
+         const result = await probe(user.id, {
             runtimeSessionId: runtimeSessionIdFor(`ai-runtime-control:${connection.id}`),
             operation: 'models',
             runtimeId,

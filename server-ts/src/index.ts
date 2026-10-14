@@ -169,7 +169,12 @@ import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KI
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
+import { workstationBerryUrl } from './runtime/bridge-install.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
+import { createWorkstationHub } from './runtime/workstation-hub.ts';
+import { WorkstationRepository } from './runtime/workstations.ts';
+import { workstationBridgeMounts, workstationMounts } from './mounts/workstations.ts';
+import { bridgeInstallMounts } from './mounts/bridge-install.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
 import { syncPlatformRuntime } from './runtime/runtimes.ts';
@@ -325,7 +330,7 @@ const idempotency = new IdempotencyStore(sql);
 
 /**
  * Object storage, where an agent's files land. A directory when this process
- * asked for one (the desktop app); otherwise S3. Null when neither is
+ * asked for one (`BERRY_STORAGE_DIR`); otherwise S3. Null when neither is
  * configured: the tool API then refuses file writes rather than dropping them.
  */
 const storage: ObjectStore | null = !config.storage
@@ -682,14 +687,18 @@ if (modelGateway && config.modelGateway) {
    setInterval(reconcile, 60 * 60_000).unref();
 }
 
-// The container reaches Berry through BERRY_RUNTIME_CALLBACK_URL. Kiro is a
-// child of this process, so it uses the port this server is listening on.
-const kiroOnWorkstation = workstationKiro({
-   callbackUrl: `http://127.0.0.1:${config.apiAddr.port}`,
+// Subscription CLIs run on the person's laptop. berry-bridge dials this
+// process, claims a job, and posts events. The server never forks that host.
+const workstationHub = createWorkstationHub();
+const workstations = new WorkstationRepository(sql);
+const berryUrl = workstationBerryUrl({
+   publicUrl: config.integrations.publicUrl,
+   port: config.apiAddr.port,
 });
+const kiroOnWorkstation = workstationKiro(workstationHub, { apiUrl: berryUrl });
 
-// Built even when no AgentCore or HTTP host is configured. Kiro, Claude,
-// Codex, and Cursor run in a process beside this server; native tasks still need `defaultTarget`.
+// Built even when no AgentCore or HTTP host is configured. Subscription
+// runtimes wait for a paired workstation; native tasks still need `defaultTarget`.
 const executor = new RuntimeTaskExecutor({
         workstation: kiroOnWorkstation,
         sql,
@@ -1163,13 +1172,15 @@ registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
       : null,
 }));
 const agentCore = config.agentCore;
+registry.registerAll(workstationMounts({ sessions, workstations, hub: workstationHub, berryUrl }));
+registry.registerAll(workstationBridgeMounts({ workstations, hub: workstationHub }));
 registry.registerAll(
    runtimeMounts({
       sessions,
       sql,
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
-      runtimeControl: (request: RuntimeControlRequest) => {
+      runtimeControl: (request: RuntimeControlRequest, userId: string) => {
          if (
             request.runtimeId === 'kiro' ||
             request.runtimeId === 'claude' ||
@@ -1179,7 +1190,7 @@ registry.registerAll(
             request.runtimeId === 'grok' ||
             request.runtimeId === 'qoder'
          ) {
-            return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
+            return kiroOnWorkstation.control(request, userId, AbortSignal.timeout(120_000));
          }
          const control = transport.control;
          if (!defaultTarget || !control) throw new Error('runtime control is unavailable');
@@ -1434,6 +1445,7 @@ registry.registerAll(
 if (auth) {
    registry.registerAll(betterAuthMounts({ handler: (request) => auth.handler(request) }));
 }
+registry.registerAll(bridgeInstallMounts({ origin: berryUrl }));
 registry.registerAll(
    platformMounts({
       database: () => checkDatabase(sql),

@@ -4,6 +4,13 @@ import { createInterface } from 'node:readline';
 import type { Tool, ToolContext } from '@strands-agents/sdk';
 import { WORKDIR_KEY } from '../command-tool.ts';
 import { LIST_RUN_TOOLS, RunToolDeclaration } from '../run-tools.ts';
+import { stripBerryQualifier } from '../runtime-aliases.ts';
+
+/** Kiro may send `@berry/run_command`; the session registers the bare name. */
+export function resolveBerryMcpTool<T extends { name: string }>(tools: readonly T[], name: string): T | undefined {
+   const bare = stripBerryQualifier(name);
+   return tools.find((candidate) => candidate.name === name || candidate.name === bare);
+}
 
 /**
  * The tools this Kiro session may call: Berry's tools, plus Kiro's built-in
@@ -116,7 +123,7 @@ export class BerryMcpHost {
                result: { content: [{ type: 'text', text: refusal }], isError: true },
             };
          }
-         const tool = this.#tools.find((candidate) => candidate.name === name);
+         const tool = resolveBerryMcpTool(this.#tools, name);
          if (!tool) {
             return {
                jsonrpc: '2.0',
@@ -126,7 +133,7 @@ export class BerryMcpHost {
          }
          try {
             const value = await invokeStrandsTool(tool, message.params?.arguments ?? {}, this.#workingDirectory, this.#signal);
-            this.#declaration.note(name);
+            this.#declaration.note(tool.name);
             return {
                jsonrpc: '2.0',
                id: message.id,

@@ -107,7 +107,7 @@ export function sandboxCommandsContract(): string {
    return (
       '\n\nCommands in the sandbox\n' +
       'Every runtime uses this same sandbox. Run a command with run_command. ' +
-      'Call list_run_tools to list the native aliases this runtime supports and these programs. ' +
+      'Do not call list_run_tools to learn these programs or the native aliases; they are already on Berry\'s MCP server. ' +
       'Do not call tool_load, tool_call, or a powers interface.\n' +
       'These programs are on PATH:\n' +
       '- Version control: git\n' +

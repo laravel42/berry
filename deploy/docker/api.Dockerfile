@@ -28,6 +28,9 @@ COPY server-ts/migrations ./migrations
 # The preview image's source, where the server looks for it. The release
 # pulls that image ready-made; this is what a host without it builds from.
 COPY server-ts/sandbox/preview ./sandbox/preview
+# berry-bridge sources, packed at GET /install/berry-bridge.tgz. The laptop
+# wgets that archive; this image is the only copy it has.
+COPY apps/bridge ./bridge-package
 
 ENV NODE_ENV=production
 ENV API_ADDR=0.0.0.0:4000
