@@ -97,16 +97,9 @@ export default function AutopilotsPage() {
       });
    }, [autopilots, filterColumns, filters, query, assigneeName]);
 
-   const enabled = autopilots.filter((autopilot) => autopilot.status === 'active').length;
-
    const header = (
       <>
-         <PageStatement
-            label={t('title')}
-            figure={loaded ? enabled : undefined}
-            line={t('statement.line', { count: enabled })}
-            sub={t('statement.sub')}
-         >
+         <PageStatement label={t('title')}>
             <div className="flex min-w-0 items-center gap-2">
                <Input
                   value={query}

@@ -47,9 +47,6 @@ function SkillsScreen() {
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
    const [skills, setSkills] = useState<Skill[] | null>(null);
-   // How many skills the workspace has: the last unsearched answer, so the
-   // figure does not shrink to the matches while someone is searching.
-   const [total, setTotal] = useState<number | undefined>(undefined);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
@@ -79,7 +76,6 @@ function SkillsScreen() {
             .then((found) => {
                if (cancelled) return;
                setSkills(found);
-               if (!query.trim()) setTotal(found.length);
                setError(null);
             })
             .catch((failure: unknown) => {
@@ -155,12 +151,7 @@ function SkillsScreen() {
 
    const header = (
       <>
-         <PageStatement
-            label={t('title')}
-            figure={total}
-            line={t('statement.line', { count: total ?? 0 })}
-            sub={t('statement.sub')}
-         >
+         <PageStatement label={t('title')}>
             <div className="flex min-w-0 items-center gap-2">
                <Input
                   value={query}
