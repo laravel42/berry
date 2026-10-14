@@ -1,5 +1,6 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
@@ -18,7 +19,7 @@ import SkillsFilters, {
    type SkillScope,
 } from '@/components/common/skills/skills-filters';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
-import { PageStatement } from '@/components/common/page/page-parts';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import SkillsList from '@/components/common/skills/skills-list';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
@@ -174,22 +175,21 @@ function SkillsScreen() {
 
    const header = (
       <>
-         <PageStatement label={t('title')}>
-            <div className="flex min-w-0 items-center gap-2">
-               <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t('search')}
-                  aria-label={t('search')}
-                  className="h-[34px] w-48 min-w-0"
-               />
-               {canEdit ? (
-                  <Button className="h-[34px] shrink-0 px-3" onClick={() => setCreating(true)}>
-                     {t('create.button')}
-                  </Button>
-               ) : null}
-            </div>
-         </PageStatement>
+         <PageKpiHeader label={t('title')}>
+            <Input
+               className="h-9 w-64 max-sm:w-40"
+               value={query}
+               onChange={(event) => setQuery(event.target.value)}
+               placeholder={t('search')}
+               aria-label={t('search')}
+            />
+            {canEdit ? (
+               <Button size="xs" className="h-[34px] shrink-0" onClick={() => setCreating(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  {t('create.button')}
+               </Button>
+            ) : null}
+         </PageKpiHeader>
          <SkillsFilters
             criteria={criteria}
             onChange={setCriteria}

@@ -1,5 +1,6 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -16,7 +17,7 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
-import { PageStatement } from '@/components/common/page/page-parts';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -104,29 +105,28 @@ export default function AutopilotsPage() {
 
    const header = (
       <>
-         <PageStatement label={t('title')}>
-            <div className="flex min-w-0 items-center gap-2">
-               <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t('search')}
-                  aria-label={t('search')}
-                  className="h-[34px] w-48 min-w-0"
-               />
-               {canEdit ? (
-                  <Button
-                     size="xs"
-                     className="h-[34px] shrink-0"
-                     onClick={() => {
-                        setTemplate(null);
-                        setCreating(true);
-                     }}
-                  >
-                     {t('new')}
-                  </Button>
-               ) : null}
-            </div>
-         </PageStatement>
+         <PageKpiHeader label={t('title')}>
+            <Input
+               className="h-9 w-64 max-sm:w-40"
+               value={query}
+               onChange={(event) => setQuery(event.target.value)}
+               placeholder={t('search')}
+               aria-label={t('search')}
+            />
+            {canEdit ? (
+               <Button
+                  size="xs"
+                  className="h-[34px] shrink-0"
+                  onClick={() => {
+                     setTemplate(null);
+                     setCreating(true);
+                  }}
+               >
+                  <Plus className="size-4" aria-hidden />
+                  {t('new')}
+               </Button>
+            ) : null}
+         </PageKpiHeader>
          <AutopilotsFilters
             criteria={criteria}
             onChange={setCriteria}

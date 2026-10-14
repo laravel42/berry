@@ -91,7 +91,7 @@
       },
       "create": {
          "title": "New skill",
-         "button": "+ New skill",
+         "button": "New skill",
          "name": "Name",
          "nameHint": "Lowercase letters, digits and dashes.",
          "nameInvalid": "Use lowercase letters, digits and dashes.",
@@ -140,7 +140,7 @@
    },
    "autopilots": {
       "title": "Autopilots",
-      "new": "+ New autopilot",
+      "new": "New autopilot",
       "search": "Search autopilots",
       "loading": "Loading autopilots…",
       "empty": {
