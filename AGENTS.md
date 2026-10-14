@@ -131,34 +131,24 @@ served over HTTP). The runtime's lifecycle stream is written to the run ledger.
 The runtime calls Berry's tools back at `/api/v1/agent-tools` with a
 task-scoped token. There is no other external worker.
 
-**Native models are reached one of two ways**
-([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)). By default
-(`BERRY_MODEL_PROVIDER=bedrock`) the runtime calls Bedrock directly, on the
-agent's model or `BERRY_AGENT_DEFAULT_MODEL`. With `BERRY_MODEL_PROVIDER=kilo`
-and `BERRY_KILO_API_KEY`, set for the server and the runtime alike, it calls
-the Kilo AI gateway, and an agent runs on a Berry tier (BerryMax, BerryXHigh,
-BerryHigh, BerryMid, BerryLow) unless it pins a gateway model. `server-ts/src/agents/kilo/` refills
-the tiers hourly from Terminal-Bench ratings and Kilo's prices and usage, so
-do not name a tier's current models in code or docs. The server only reads
-Kilo's model list, leaderboard and account; it never calls a model.
-
-When a workspace has a connected **subscription AI runtime** under
-[ADR-0019](docs/adr/0019-subscription-ai-runtimes.md), agent runs use it
-instead of Bedrock or Kilo. This is separate from the AgentCore/HTTP compute
-host and from the underlying model provider. The connection id is snapshotted
-on the run. Resolution order is the task override, then the project's
-runtime, then the person's preference, then that person's newest connection,
-then the workspace's newest connection. A failed or disconnected subscription
-does not fall back to native/API billing, and an explicit Berry-managed
-override on one task stays on the deployment model. A completion runs as
-the Orchestrator and uses the first connected model on that agent's selected
-tier; with none placed, it stays on Bedrock or Kilo. Kiro, Claude Code, and Codex are the connectable runtimes,
-each a CLI on the workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or
-`codex`), not a container Berry runs. With Kiro connected, Settings → Model tiers places
-Kiro models on BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit on
-more than one tier, and a run with no explicit model uses the first model on
-the agent's tier that Kiro offers. Every other requested product stays
-visible with its verified blocker. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
+**Models are subscription CLIs only**
+([ADR-0019](docs/adr/0019-subscription-ai-runtimes.md);
+[ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md) is superseded). There is
+no native Bedrock or Kilo path. Agent runs and completions need a connected
+subscription AI runtime. This is separate from the AgentCore/HTTP compute
+host. The connection id is snapshotted on the run. Resolution order is the
+task override, then the project's runtime, then the person's preference, then
+the first connected model on the agent's tier, then that person's newest
+connection, then the workspace's newest connection. A failed or disconnected
+subscription does not fall back to a native model. `berry-native` is refused.
+A completion runs as the Orchestrator (or the named role) and uses the first
+connected model on that agent's selected tier; with none placed, it fails.
+Kiro, Claude Code, and Codex are the connectable runtimes, each a CLI on the
+workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or `codex`), not a
+container Berry runs. Settings → Model tiers places subscription models on
+BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit
+on more than one tier. Products that are not yet connectable are omitted
+from Settings until their adapter ships. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
 
 **The organization gates and routes agent work.** Each role agent has a
 contract (mission, allowed tools, delegation and escalation targets, required
@@ -192,8 +182,8 @@ exists.
 **`GET /api/v1/config` is how the browser learns what works.** It reports only
 capabilities this process actually has — for example, `agentExecution` is true
 only when a runtime target (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) is
-configured, not merely when a model credential exists; `modelGateway` is true
-only when the Kilo gateway is configured. A capability reported true that the
+configured or the requested workspace has a connected subscription CLI;
+`modelGateway` is always false. A capability reported true that the
 server cannot deliver is worse than one reported false.
 
 **Frontend is wired to the API** through `lib/api.ts` (`apiUrl` / `apiFetch`).
@@ -201,12 +191,12 @@ Do not reintroduce demo/mock datasets. `NEXT_PUBLIC_BERRY_API_URL` empty means
 same-origin through the Next.js rewrites, which is the normal case.
 
 **Removed, do not re-add:** squads/Crew (a team module with a client-side
-roster); the Google ADK in-process runtime; OpenRouter; the old production Docker Compose stack. Their
+roster); the Google ADK in-process runtime; OpenRouter; Kilo; native Bedrock
+model calls; Polly/Nova Reel; the old production Docker Compose stack. Their
 replacements are, respectively, the organization above, ADR-0014's AgentCore
-Runtime, Bedrock, and host-run PostgreSQL/S3/AgentCore. The optional local development stack is
-current and must not be confused with the removed production stack. The one gateway allowed
-in front of Bedrock is Kilo, under ADR-0017's rules (paid calls on the Bedrock
-key only, cost from Kilo's reports).
+Runtime (compute host only), subscription AI runtimes (ADR-0019), and host-run
+PostgreSQL/S3. The optional local development stack is current and must not
+be confused with the removed production stack.
 
 **Descriptions are plain-text fields.** A rich editor round-tripped markdown
 through parse/serialize, which rewrote untouched content — bullet markers,

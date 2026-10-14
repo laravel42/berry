@@ -1,15 +1,36 @@
 # ADR-0017: Model calls go through the Kilo gateway, in leaderboard-ranked tiers
 
-- **Status:** Accepted — provider switch, tiers, routing and the tier interface implemented
+- **Status:** Superseded — Kilo gateway and native Bedrock model calls removed
 - **Date:** 2026-09-25
 - **Deciders:** Berry platform
-- **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md), [ADR-0015](0015-default-agent-organization.md)
+- **Related:** [ADR-0014](0014-agentcore-runtime-control-plane.md), [ADR-0015](0015-default-agent-organization.md), [ADR-0019](0019-subscription-ai-runtimes.md)
 - **Supersedes:** the "Bedrock is the model" decision carried by ADR-0014 (and
   the "do not re-add OpenRouter" rule in `AGENTS.md`, for this gateway only).
   ADR-0014's control-plane split stands: the loop runs in the runtime image,
   and the server still imports no model SDK.
+- **Superseded by:** subscription AI runtimes (ADR-0019). Tiers remain
+  (BerryMax, BerryXHigh, BerryHigh, BerryMid, BerryLow) as placements for
+  subscription models (`workspace_tier_models`, `/api/v1/runtimes/tier-models`).
+  The Kilo catalogue, hourly refill, gateway fees, and Bedrock/Kilo factories
+  are gone.
 
-## Current state (2026-09-26)
+## Current state (2026-10-14)
+
+- Native model providers are gone. Agent runs and completions require a
+  connected subscription AI runtime. `berry-native` is refused.
+- Tiers still exist. A workspace admin places subscription models on each
+  tier. An agent is on a tier; a run uses the first connected model on that
+  tier unless the task names a runtime and model.
+- `GET /api/v1/config` reports `modelGateway: false`.
+- `/api/v1/agents/tiers`, `/tiers/candidates`, `/tiers/placement`, and
+  `/model-gateway` are unserved.
+- Polly, Nova Reel, and `deploy/aws-run-analyzer` are removed.
+- AgentCore (`InvokeAgentRuntime`) remains the AWS compute host for the
+  runtime image. `BERRY_AGENT_RUNTIME_URL` is the same image over HTTP.
+  That image has no native model factory. Subscription CLIs do not run
+  inside it.
+
+## Historical current state (2026-09-26)
 
 - `BERRY_MODEL_PROVIDER=kilo` makes the runtime image call the Kilo gateway
   (`src/agents/runtime/model.ts`, `kiloModel`). Unset or `bedrock` keeps the

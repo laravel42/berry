@@ -22,9 +22,15 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 7. **The product server does not call a model.** Model and agent SDK imports remain under `server-ts/src/agents/runtime/`. The product server stores catalog facts and selections, creates envelopes, and records normalized lifecycle events. Kiro is started on the workstation by that server; the runtime image's adapter registry stays empty.
 8. **Preserve agent semantics.** A direct-inference adapter and an agent-process adapter implement different interfaces. Agent-process adapters stream tool and execution events and retain their own session/cancellation semantics instead of being flattened into text generation.
 9. **Executable adapter: Kiro.** Kiro's official headless credential is a paid-plan API key. Berry seals that key, gives each run an empty CLI home, and passes the key only into that process. Kiro's own shell and file tools are denied. Berry tools are the only MCP server it may call. `kiro-cli` runs on the user workstation, started by the Berry server as its own process, with `acp --agent-engine=v3`. It is not bundled and it is not started inside the runtime container. GitHub Copilot is not a Berry runtime. GitHub sign-in and the GitHub App stay for identity and repository access.
-10. **Catalog unavailable honestly.** Every requested product appears in the catalog. An item without a supported Berry execution/authentication boundary is unavailable with a concrete reason and official evidence. A known protocol with no safe credential path is not a working integration.
+10. **Catalog lists only connectable runtimes.** Settings shows a product when Berry can start its official child on a CLI-owned login. A known protocol with no safe credential path is omitted until that adapter is live, not shown as a blocked placeholder.
 
-## Current state (2026-10-08)
+## Current state (2026-10-14)
+
+- Native Bedrock and Kilo are gone. Agent runs and completions require a connected subscription. `berry-native` is refused.
+- Completions use the first connected model on the agent's selected tier. With none placed, they fail.
+- The catalog is Kiro, Claude, Codex, Cursor, Kimi, Grok, and Qoder. OpenCode, OpenClaw, Hermes, Pi, Antigravity, Trae, and Qwen are omitted until their adapters ship.
+
+## Historical current state (2026-10-08)
 
 - Kiro, Claude Code, and Codex are connectable. Each runs its CLI on the workstation and leaves the login in the CLI. Berry does not read or store those credential files. GitHub Copilot is not in the catalog. GitHub sign-in and the GitHub App stay for identity and repository access.
 - The product server starts `kiro-cli acp --agent-engine=v3 --auth-method cli` on the workstation. v3 rejects `--agent`. `--auth-method cli` uses the `kiro login` already on the machine. The CLI is not in the runtime image, and that image's adapter registry is empty. Kiro does not give Berry a container per model. `kiro-cli chat --cloud` is a Kiro-hosted sandbox for a whole session; Berry does not set `_meta.kiro.executionTarget`.
@@ -35,14 +41,14 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 
 For an agent run:
 
-1. task or conversation override, including an explicit Berry-managed (`berry-native`) opt-out;
+1. task or conversation override (`berry-native` is refused);
 2. the task's project runtime, when the task itself has none;
 3. the authorizing person's workspace preference;
-4. that person's newest connected subscription runtime;
-5. the workspace's newest connected subscription runtime;
-6. Berry's native Strands runtime on the deployment's Bedrock or Kilo configuration, only when nothing is connected.
+4. the first connected model on the agent's tier;
+5. that person's newest connected subscription runtime;
+6. the workspace's newest connected subscription runtime.
 
-An explicit non-native selection must have a connected runtime in the workspace. Step 6 is the absence of a subscription, not a fallback after one fails.
+An explicit selection must have a connected runtime in the workspace. There is no native fallback.
 
 ## Adapter contract
 

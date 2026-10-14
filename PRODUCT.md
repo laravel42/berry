@@ -20,7 +20,7 @@ Your team runs Berry on its own infrastructure. The agents run in a separate, is
 - **Review gate.** The point where delivered work stops and waits for a person to approve it or send it back.
 - **Approval.** A yes-or-no decision a person must make before something goes ahead, such as starting a risky task.
 - **Pull request.** A proposed code change on GitHub, which a person can read and merge.
-- **Tier.** On a deployment that reaches models through the Kilo gateway, a named class of models an agent runs on: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow. Berry fills each tier from public benchmark leaderboards, so the models behind a tier change as the leaderboards do.
+- **Tier.** A named class of models an agent runs on: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow. A workspace admin places models from connected subscription AI runtimes on each tier.
 
 ## How to read the status notes
 
@@ -65,7 +65,7 @@ A task is Berry's basic unit of work. It has a title, a description, a status, a
 
 ### Statuses and priorities
 
-Tasks move through backlog, todo, in progress, in review, done, blocked and cancelled. Priority is none, urgent, high, medium or low. You can change either one inline from any list, from the board columns or from the task's properties panel, or change many tasks at once. Status changes follow set paths: for example, a task can only be marked *Done* from *In review*, so finished work always passes through that status first. Statuses carry meaning for agents as well: an agent can move a task as far as *In review* or *Blocked*, but only a person can move it to *Done* or *Cancelled*.
+Tasks move through backlog, todo, in progress, in review, done, blocked and cancelled. Priority is none, urgent, high, medium or low. You can change either one inline from any list, from the board columns or from the task's properties panel, or change many tasks at once. A person can move a task to any status. Agents still follow set paths: an agent can move a task as far as *In review* or *Blocked*, but only a person can move it to *Done* or *Cancelled*.
 
 ### Assigning to a person or an agent
 
@@ -284,7 +284,7 @@ You can choose which columns to show, filter by availability, runtime, access, o
 
 Clicking an agent in the roster or in Settings → Agents opens its page, which has six tabs: General, Instructions, Role and Permissions, Skills, MCP servers and Usage. It opens on General, and the open tab is part of the address, so a tab can be linked to. Changes on a tab are a draft until you press *Save* on the bar that appears; Berry asks before you leave a tab or the page with unsaved changes. Changes take effect on the agent's next run.
 
-- **General:** the agent's name and description, and the model it runs on. On a deployment with the Kilo gateway this is a choice of tier (see [Models and tiers](#models-and-tiers)); otherwise it's a model from the live catalogue (see [Model picker with prices](#model-picker-with-prices)). Below that, which runtime its tasks run on, how many tasks it should run at once (1 to 5), and who may assign or mention it, which admins choose: only themselves, or everyone in the workspace (a list of specific people can be set through the API). Berry shows the concurrency number but doesn't enforce it yet; the runtime's own limit is what caps parallel work. Workspace owners and admins can always use an agent.
+- **General:** the agent's name and description, and the tier it runs on (see [Models and tiers](#models-and-tiers)). Below that, which runtime its tasks run on, how many tasks it should run at once (1 to 5), and who may assign or mention it, which admins choose: only themselves, or everyone in the workspace (a list of specific people can be set through the API). Berry shows the concurrency number but doesn't enforce it yet; the runtime's own limit is what caps parallel work. Workspace owners and admins can always use an agent.
 - **Instructions:** the guidance the agent follows on every task, written in sections, each with a short note on what belongs there and an example: *Role and goal*, *Context*, *How to work*, *Definition of done*, *Boundaries* and *Anything else*. Berry saves them as one prompt with a heading per section, and shows the whole prompt, folded, at the end, where it can be copied or downloaded. Instructions written before the sections existed open under *Anything else*, unchanged until you edit them. An organization role's instructions start out written from its contract (see [Who's in it](#whos-in-it)).
 - **Role and Permissions:** its autonomy level and its permissions (see [The Role and Permissions tab](#the-role-and-permissions-tab)).
 - **Skills:** switches for the skills it carries, with a search box, a label filter and a choice between its active skills and all of them.
@@ -383,34 +383,21 @@ You can register external tool servers so agents can use tools beyond Berry's ow
 
 > **Needs setup:** a server with custom sign-in headers needs the server's encryption key to store them safely. A public server with no headers works without it. Gateway-routed servers need an AgentCore Gateway set up; without one, they're skipped at run time with a warning.
 
-### Model picker with prices
-
-On a deployment that calls Amazon Bedrock directly, choosing an agent's model lists the available Bedrock models grouped by provider, cheapest first, with each model's price per million input and output tokens. When creating an agent you can also leave it on the workspace default.
-
-> **Needs setup:** the catalogue needs an AWS region for Bedrock. On a deployment with the Kilo gateway, agents choose a tier instead.
-
 ### Models and tiers
 
-A deployment can reach models through the Kilo AI gateway instead of calling Amazon Bedrock directly. Then an agent doesn't pick a model: it picks a **tier**, an outcome, and Berry picks the models. (A specific model can still be pinned to an agent through the API; the tier list then shows it, with a button to go back to the tier.)
+An agent picks a **tier**, and Berry picks a model from the subscription models placed on that tier. Connect a subscription AI runtime (Kiro, Claude Code, Codex, or another workstation CLI), then place its models under Settings → Model tiers.
 
 | Tier | What it's for |
 |---|---|
-| BerryMax | Best results: the three best-rated models. |
-| BerryXHigh | Stronger results: the best-rated models that cost less than any BerryMax model. |
-| BerryHigh | Strong results: the best-rated models that cost less than any BerryXHigh model. |
-| BerryMid | Balanced: the best-rated models that cost less than any BerryHigh model. |
-| BerryLow | Lowest cost: the best-rated models among the cheapest third, preferring those no cheaper model rates better. |
+| BerryMax | Highest capability. |
+| BerryXHigh | Stronger results than High, below Max. |
+| BerryHigh | Strong results. |
+| BerryMid | Balanced. |
+| BerryLow | Lightest work. |
 
-Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier choice is one row of five buttons, each named for its tier. Ratings, shares and prices choose and spread the work but aren't shown on the card.
+Each organization role comes with a tier, marked *Recommended* on the agent's General tab, and any agent can be moved to another. The tier choice is one row of five buttons. A run uses the first connected model on the agent's tier unless the task or project names a runtime and model.
 
-- **Ratings** come from the public Terminal-Bench leaderboards (tbench.ai), which measure how many real terminal tasks a model solves. Terminal-Bench has several versions, each harder than the last, and none rates every model, so Berry puts every rating on the newest version's scale: a model the newest version lists keeps that score, and the others are converted through the models they share with it. Kilo's own benchmark scores fill the gaps. A converted rating is an estimate, ranked a little behind a measured rating of the same value. A new version that no leaderboard rates yet, such as Claude Opus 5.5, borrows the rating of the version before it, if it costs no more, until it's measured. Berry reads the leaderboards every hour.
-- **Only rated models** go in the paid tiers, three in each, from the models the organization's own provider keys serve, such as its Amazon Bedrock key. A setting opens them to every provider Kilo serves, billed to the Kilo credit balance. A model that costs as much as a BerryMax model but rates lower is in no tier: that BerryMax model is the better choice.
-- **Each task keeps one model.** A tier holds three models, and each task an agent works on keeps one of them for as long as the leaderboards hold: the best-rated gets about half of the tier's tasks, the second a third, and the third the rest. Keeping one model per task lets the model reuse what it has already read, which is faster and cheaper.
-- **When a call fails**, the run retries once on a fallback model, which Berry takes from the leaderboards too: the best model of the next tier down. A tier that's empty today uses the nearest tier in price.
-
-A paid model runs on the organization's own provider key when one added to the Kilo account serves it, such as its Amazon Bedrock key, and is billed to the Kilo credit balance otherwise. Keep the balance topped up: when it runs out, runs on those models stop with a message saying so. The cost of every run is exactly what Kilo reports for it. The Usage page's Spend tab compares the tiers: runs, cost, cost per run, and how often each fell back.
-
-> **Needs setup:** needs the Kilo gateway turned on for the deployment, in both the server and the agent runtime, with a Kilo account that has the organization's own provider key (such as its Bedrock key) added. Without it, agents use a Bedrock model chosen directly.
+> **Needs setup:** needs a connected subscription AI runtime and at least one of its models placed on the agent's tier. Without that, agent runs and completions are refused. There is no native Bedrock or Kilo model path.
 
 ### Writing help in editors
 
@@ -441,7 +428,7 @@ Each new workspace gets eight agents: a protected Orchestrator and seven core ro
 
 Fourteen **specialists** stay in the catalogue for when a workspace has deep work in their field: Business Analyst, UX Researcher, Software Architect, Engineering Manager, Backend, Frontend, Database and Integration Engineers, Security Engineer, Site Reliability Engineer, Data & Analytics Engineer, Technical Writer, Growth Engineer and CTO. An owner or admin adds one from the Organization settings page. Until then the core roles cover the work: a review that would call in a specialist the workspace doesn't have goes ahead without it, and a question for a missing CTO goes to a person. Workspaces made before this keep every agent they had (ADR-0018).
 
-BerryMax is for the hardest work, BerryMid for most of it and BerryLow for lighter analytical and writing work (see [Models and tiers](#models-and-tiers)). Because a role comes with a tier, picking the right agent for a job also picks a sensible model, and you can still move any agent to another tier. On a deployment that calls Bedrock directly, tiers don't apply: agents use their own model or the workspace default. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
+BerryMax is for the hardest work, BerryMid for most of it and BerryLow for lighter analytical and writing work (see [Models and tiers](#models-and-tiers)). Because a role comes with a tier, picking the right agent for a job also picks a sensible model, and you can still move any agent to another tier. The Orchestrator's job is only to sort incoming work and send it along the shortest suitable path. It never builds anything, never reviews, and never decides product or technical questions itself.
 
 Each role's instructions are written from its contract, under the same sections as the Instructions tab: what the role is and is responsible for, what it works from, how it works and hands work on, what it produces and who reviews it, and what it must never do and when to escalate.
 
@@ -759,7 +746,7 @@ This section explains what happens behind the scenes, and why the promise that p
 
 ### Berry directs the work; it doesn't call the AI
 
-The Berry server, which runs the web app, the database and the APIs, never talks to an AI model. It prepares a task, hands it to a separate runtime and records what comes back. A check script in the codebase fails if any AI model library is imported by the main server. This means an operator's model credentials are never exposed to the product server, and agent execution can be swapped or switched off without touching the tracker. With the Kilo gateway, the server reads Kilo's model list, its public usage figures and the account's balance to fill the tiers, but it still never calls a model. In other words, Berry is a *control plane*: it decides what work happens, and something separate does the work.
+The Berry server, which runs the web app, the database and the APIs, never talks to an AI model. It prepares a task, hands it to a subscription CLI or the optional AgentCore compute host, and records what comes back. A check script in the codebase fails if any AI model library is imported by the main server. In other words, Berry is a *control plane*: it decides what work happens, and something separate does the work.
 
 ### Runs happen on Amazon Bedrock AgentCore Runtime
 
@@ -771,13 +758,13 @@ When an agent picks up a task, Berry packages the task and sends it to Amazon Be
 
 Instead of AgentCore, an operator can run the same runtime image anywhere reachable over HTTP. Berry uses the same task package and the same progress events either way. If both are configured, AgentCore wins.
 
-> **Needs setup:** the image still needs model access: AWS Bedrock access when it calls Bedrock directly, or the Kilo gateway's key.
+> **Needs setup:** AgentCore is an optional compute host. Model calls need a connected subscription AI runtime.
 
 ### The agent loop
 
-Inside the runtime, the "think, use a tool, look at the result, repeat" loop is built on the open-source Strands Agents SDK, using models on Amazon Bedrock or, through the Kilo gateway, the models of the agent's tier. This loop is what lets an agent read files, write code, run commands and comment over many steps instead of answering once. Each step is recorded in the run's event log as tool calls and messages.
+Subscription CLIs run that loop on the workstation. The AgentCore image still ships a Strands loop, but it has no native model factory.
 
-> **Needs setup:** needs a runtime and model access, through Bedrock or the Kilo gateway.
+> **Needs setup:** needs a connected subscription AI runtime.
 
 ### Models matched to the job
 
@@ -825,7 +812,7 @@ Everything a run does is recorded as an ordered, append-only list of events. A r
 
 ### Usage and cost per run
 
-Every model call a run makes is recorded with its tokens and priced, giving a cost per run that adds up per agent and per workspace on the Usage page. Through the Kilo gateway, the price is exactly what Kilo reports for each call; a run with a call Kilo didn't price is shown as unpriced rather than given an estimate.
+Every model call a run makes is recorded with its tokens. Cost is what the subscription runtime reports, or unpriced.
 
 > **Needs setup:** fills in only once real runs happen.
 
