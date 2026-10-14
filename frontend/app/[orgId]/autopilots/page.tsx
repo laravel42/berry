@@ -21,7 +21,6 @@ import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { User } from '@/data/users';
-import { Plus } from 'lucide-react';
 import { useAutopilots } from '@/hooks/use-autopilots';
 import type { Autopilot } from '@/lib/autopilots';
 import { loadWorkspaceMembers } from '@/lib/members';
@@ -118,16 +117,14 @@ export default function AutopilotsPage() {
                />
                {canEdit ? (
                   <Button
-                     size="icon"
-                     className="size-[34px] shrink-0"
-                     aria-label={t('new')}
-                     title={t('new')}
+                     size="xs"
+                     className="h-[34px] shrink-0"
                      onClick={() => {
                         setTemplate(null);
                         setCreating(true);
                      }}
                   >
-                     <Plus className="size-4" aria-hidden />
+                     {t('new')}
                   </Button>
                ) : null}
             </div>

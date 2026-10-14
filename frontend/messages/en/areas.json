@@ -140,7 +140,7 @@
          "line": "{count, plural, one {autopilot is switched on} other {autopilots are switched on}}",
          "sub": "A paused autopilot stays in the list and leaves this count."
       },
-      "new": "New autopilot",
+      "new": "+ New autopilot",
       "search": "Search autopilots",
       "loading": "Loading autopilots…",
       "empty": {
