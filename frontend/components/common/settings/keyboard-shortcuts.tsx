@@ -15,7 +15,6 @@ import {
    AlertDialogTitle,
    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
    SHORTCUTS,
@@ -29,7 +28,7 @@ import {
 import { setShortcutsSuspended } from '@/components/layout/shortcut-provider';
 import { useShortcutBindings, useShortcutsStore } from '@/store/shortcuts-store';
 import { cn } from '@/lib/utils';
-import { SettingsCard, SettingsShell } from './shared';
+import { SETTINGS_PILL, SettingsCard, SettingsShell } from './shared';
 
 /**
  * Settings › keyboard shortcuts.
@@ -155,9 +154,12 @@ export function KeyboardShortcuts() {
             />
             <AlertDialog>
                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="xs" className="ml-auto">
+                  <button
+                     type="button"
+                     className={cn(SETTINGS_PILL, 'ml-auto h-8 min-h-8 py-0 lg:min-h-8')}
+                  >
                      {t('restoreAll')}
-                  </Button>
+                  </button>
                </AlertDialogTrigger>
                <AlertDialogContent>
                   <AlertDialogHeader>

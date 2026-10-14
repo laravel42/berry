@@ -28,8 +28,9 @@ import {
    type WorkspaceSummary,
 } from '@/lib/workspaces';
 import { useSessionStore } from '@/store/session-store';
+import { cn } from '@/lib/utils';
 import { SaveIndicator } from './save-indicator';
-import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import { SETTINGS_PILL, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useAutosave } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -278,9 +279,13 @@ export default function WorkspaceGeneral() {
                   trailing={
                      <span className="flex items-center gap-2">
                         {prefixChanged ? (
-                           <Button size="xs" variant="ghost" onClick={() => setPrefix(savedPrefix)}>
+                           <button
+                              type="button"
+                              className={cn(SETTINGS_PILL, 'h-7 min-h-7 px-2.5 py-0 lg:min-h-7')}
+                              onClick={() => setPrefix(savedPrefix)}
+                           >
                               {t('cancel')}
-                           </Button>
+                           </button>
                         ) : null}
                         <Button
                            size="xs"
@@ -303,8 +308,7 @@ export default function WorkspaceGeneral() {
                   trailing={
                      <Button
                         size="xs"
-                        variant="ghost"
-                        className="text-status-danger hover:text-status-danger"
+                        className="bg-ripe text-white shadow-xs hover:bg-ripe/90 hover:text-white"
                         disabled={soleOwner || leaving || !workspaceId}
                         onClick={() => setConfirmingLeave(true)}
                      >

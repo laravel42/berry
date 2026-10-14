@@ -49,7 +49,7 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { useModelGateway } from '@/hooks/use-model-gateway';
 import { SaveIndicator } from './save-indicator';
-import { SettingsCard, SettingsSection, SettingsShell } from './shared';
+import { SETTINGS_PILL, SettingsCard, SettingsSection, SettingsShell } from './shared';
 import type { SaveState } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -484,10 +484,6 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
 
    return (
       <SettingsSection
-         title={t('section')}
-         description={t('subscriptionDescription', {
-            runtimes: listed(runtimes.map((runtime) => runtime.name)),
-         })}
          action={
             canEdit ? (
                <SaveIndicator
@@ -518,15 +514,14 @@ function AddRuntimeModel({
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <Button
-               variant="ghost"
-               size="xxs"
-               className="ml-auto"
+            <button
+               type="button"
+               className={cn(SETTINGS_PILL, 'ml-auto')}
                disabled={disabled || choices.length === 0}
             >
-               <Plus className="size-3.5" />
+               <Plus className="size-4" />
                {t('add')}
-            </Button>
+            </button>
          </PopoverTrigger>
          <PopoverContent align="end" className="w-80 p-0">
             <Command>
@@ -715,7 +710,6 @@ function TierPlacementEditor() {
 
    return (
       <SettingsSection
-         title={t('section')}
          description={data.error ?? undefined}
          action={
             canEdit && data.value ? (
@@ -763,10 +757,10 @@ function AddModel({
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <Button variant="ghost" size="xxs" className="ml-auto" disabled={disabled}>
-               <Plus className="size-3.5" />
+            <button type="button" className={cn(SETTINGS_PILL, 'ml-auto')} disabled={disabled}>
+               <Plus className="size-4" />
                {t('add')}
-            </Button>
+            </button>
          </PopoverTrigger>
          <PopoverContent align="end" className="w-96 p-0">
             <Command

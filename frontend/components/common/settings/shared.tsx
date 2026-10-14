@@ -19,6 +19,12 @@ import { cn } from '@/lib/utils';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 
+/** Same pill as Settings → Back to app. */
+export const SETTINGS_PILL_SHAPE =
+   'flex min-h-11 w-fit items-center gap-1.5 rounded-[5px] bg-[var(--shell-line)] px-2 py-1 font-normal transition-colors hover:bg-[var(--shell-line-strong)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:opacity-50 lg:min-h-0';
+
+export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]`;
+
 /** Centered settings page: big title, optional description, stacked sections. */
 export function SettingsShell({
    title,

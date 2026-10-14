@@ -1,9 +1,8 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { describeDevice, loadSessions, revokeSession, type AccountSession } from '@/lib/settings';
 import { Monitor } from 'lucide-react';
-import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import { SETTINGS_PILL, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -49,14 +48,14 @@ export default function AccountSecurity() {
                            .filter(Boolean)
                            .join(' · ')}
                         trailing={
-                           <Button
-                              size="xs"
-                              variant="ghost"
+                           <button
+                              type="button"
+                              className={SETTINGS_PILL}
                               disabled={sessions.saving}
                               onClick={() => void signOut(session)}
                            >
                               Sign out
-                           </Button>
+                           </button>
                         }
                      />
                   ))

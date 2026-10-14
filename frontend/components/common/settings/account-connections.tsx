@@ -10,10 +10,18 @@ import {
    removeChannel,
    type ChannelIdentity,
 } from '@/lib/settings';
+import { cn } from '@/lib/utils';
 import { Loader2, Mail, MessageCircle, Phone, Send } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { SelectMenu, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import {
+   SelectMenu,
+   SETTINGS_PILL,
+   SettingsCard,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -161,14 +169,14 @@ export default function AccountConnections() {
                               if (event.key === 'Enter') void add();
                            }}
                         />
-                        <Button
-                           size="xs"
-                           variant="ghost"
+                        <button
+                           type="button"
+                           className={cn(SETTINGS_PILL, 'h-8 min-h-8 py-0 lg:min-h-8')}
                            disabled={adding || address.trim() === ''}
                            onClick={() => void add()}
                         >
                            {adding ? <Loader2 className="size-3.5 animate-spin" /> : 'Add'}
-                        </Button>
+                        </button>
                      </span>
                   }
                />

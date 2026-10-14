@@ -1,7 +1,6 @@
 'use client';
 
 import { CustomizeSidebarDialog } from '@/components/layout/sidebar/customize-sidebar-dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { writeLocaleCookie } from '@/lib/i18n/client-locale';
@@ -20,7 +19,14 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { SaveIndicator } from './save-indicator';
-import { SelectMenu, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import {
+   SelectMenu,
+   SETTINGS_PILL,
+   SettingsCard,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import { useAutosave } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -183,9 +189,13 @@ export default function Preferences() {
                   title={t('sidebar')}
                   description={t('sidebarDescription')}
                   trailing={
-                     <Button size="xs" variant="ghost" onClick={() => setCustomizeOpen(true)}>
+                     <button
+                        type="button"
+                        className={SETTINGS_PILL}
+                        onClick={() => setCustomizeOpen(true)}
+                     >
                         {t('customize')}
-                     </Button>
+                     </button>
                   }
                />
                <SettingsRow

@@ -292,16 +292,7 @@ export default function Members() {
             sub={t('statement.sub')}
          />
          <div className="mx-auto max-w-5xl px-6 py-8 pb-20">
-            <SettingsSection
-               action={
-                  canManage ? (
-                     <Button size="xs" onClick={() => setInviting(true)}>
-                        <Plus className="size-4" />
-                        {t('invite')}
-                     </Button>
-                  ) : null
-               }
-            >
+            <SettingsSection>
                <SettingsCard>
                   {members.loading ? <SettingsRow title={t('loading')} /> : null}
                   {/* A failed read is said here: the section has no title, so its
@@ -447,6 +438,10 @@ export default function Members() {
                            );
                         })}
                      </SettingsCard>
+                     <Button size="xs" className="w-fit self-end" onClick={() => setInviting(true)}>
+                        <Plus className="size-4" />
+                        {t('invite')}
+                     </Button>
                   </SettingsSection>
 
                   <div className="mt-10">
