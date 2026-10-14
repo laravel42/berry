@@ -1,9 +1,5 @@
 import React from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { CreateIssueModalProvider } from '@/components/common/issues/create-issue-modal-provider';
-import { IssuesHydrator } from '@/components/common/issues/issues-hydrator';
-import { CreatePlanModalProvider } from '@/components/common/plans/create-plan-modal-provider';
-import { CommandPalette } from '@/components/layout/command-palette';
 import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
@@ -31,13 +27,10 @@ const isEmptyHeader = (header: React.ReactNode | undefined): boolean => {
 export default function MainLayout({ children, header }: MainLayoutProps) {
    return (
       <SidebarProvider className="h-full min-h-0 max-h-full">
-         <IssuesHydrator />
-         <CreateIssueModalProvider />
-         <CreatePlanModalProvider />
-         <CommandPalette />
-         {/* No sidebar here: BerryShell owns the rail and the tab strip. The
-             provider stays because sidebar preference stores are still used
-             across headers and settings. */}
+         {/* Hydrator, palette, and create dialogs live on the org shell so a
+             page change does not remount them. No sidebar here: BerryShell
+             owns the rail. The provider stays because preference stores are
+             still used across headers and settings. */}
          {/* `text-foreground` is the page boundary: the shell around this is
              dark chrome in both themes and sets its own text colour, and a
              page that inherited it would keep chalk text on a light theme.

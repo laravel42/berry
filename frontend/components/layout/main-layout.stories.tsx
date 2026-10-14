@@ -4,6 +4,7 @@ import { useSessionStore } from '@/store/session-store';
 import GoalsHeader from './headers/goals/header';
 import MainLayout from './main-layout';
 import { workspaceRoute } from './stories-fixtures';
+import { CommandPalette } from './command-palette';
 
 const pageBody = (
    <div className="mx-auto flex max-w-2xl flex-col gap-3 px-6 py-8">
@@ -29,7 +30,6 @@ const meta = {
          </div>
       ),
    ],
-   // Left signed out, so the workspace hydrator it mounts stays idle.
    beforeEach: () => {
       useSessionStore.setState({ status: 'anonymous', user: null, workspace: null });
    },
@@ -49,8 +49,14 @@ export const WithoutHeader: Story = {
    args: { header: undefined },
 };
 
-/** The layout mounts the command palette, which ⌘K opens from anywhere. */
+/** ⌘K opens the palette, which the workspace shell keeps mounted. */
 export const CommandPaletteShortcut: Story = {
+   render: (args) => (
+      <>
+         <CommandPalette />
+         <MainLayout {...args} />
+      </>
+   ),
    play: async ({ canvasElement, userEvent }) => {
       await userEvent.keyboard('{Meta>}k{/Meta}');
       const body = within(canvasElement.ownerDocument.body);

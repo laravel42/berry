@@ -17,6 +17,12 @@ interface AutopilotsView {
    reload: () => void;
 }
 
+const autopilotCache = new Map<string, Autopilot[]>();
+
+function cacheKey(workspaceId: string, archived: boolean): string {
+   return `${workspaceId}:${archived ? 'archived' : 'live'}`;
+}
+
 /** The workspace's autopilots, re-read when any autopilot fact arrives on the stream. */
 export function useAutopilots(
    options: { archived?: boolean; enabled?: boolean } = {}
@@ -25,9 +31,11 @@ export function useAutopilots(
    const enabled = options.enabled !== false;
    const status = useSessionStore((state) => state.status);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
-   const [autopilots, setAutopilots] = useState<Autopilot[]>([]);
+   const key = cacheKey(workspaceId, archived);
+   const cached = autopilotCache.get(key);
+   const [autopilots, setAutopilots] = useState<Autopilot[]>(cached ?? []);
    const [error, setError] = useState<string | null>(null);
-   const [loaded, setLoaded] = useState(false);
+   const [loaded, setLoaded] = useState(cached !== undefined);
    const [nonce, setNonce] = useState(0);
    const reload = useCallback(() => setNonce((value) => value + 1), []);
 
@@ -37,6 +45,7 @@ export function useAutopilots(
       void listAutopilots(workspaceId, { archived })
          .then((nodes) => {
             if (cancelled) return;
+            autopilotCache.set(key, nodes);
             setAutopilots(nodes);
             setError(null);
          })
@@ -49,7 +58,7 @@ export function useAutopilots(
       return () => {
          cancelled = true;
       };
-   }, [archived, enabled, status, workspaceId, nonce]);
+   }, [archived, enabled, status, workspaceId, nonce, key]);
 
    useEffect(() => {
       let timer: ReturnType<typeof setTimeout> | undefined;

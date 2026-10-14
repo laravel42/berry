@@ -14,6 +14,7 @@ import { useChatUnreadSync } from './use-chat-unread-sync';
 import { NotificationToasts } from '../notifications/notification-toasts';
 import { ShortcutProvider } from '../shortcut-provider';
 import { NavigationProgress } from '../navigation-progress';
+import { WorkspaceRuntime } from '../workspace-runtime';
 import { ShellShortcuts } from './shell-shortcuts';
 
 /**
@@ -95,6 +96,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
 
    return (
       <ShortcutProvider>
+         <WorkspaceRuntime />
          <ShellShortcuts orgId={orgId} />
          <div
             // `--shell-strip` is what the canvas reserves above the page.

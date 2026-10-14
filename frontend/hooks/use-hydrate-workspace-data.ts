@@ -29,7 +29,14 @@ import { useOpenReviewsSync } from './use-open-reviews-sync';
 import { useWorkspaceEventStream } from './use-workspace-event-stream';
 
 /**
- * Seeds workspace data from the Go API once a session is ready.
+ * What this tab has already seeded. Survives a remount (React Strict Mode)
+ * so a second mount of the same board does not flash loading and refetch.
+ */
+let seededBoardId: string | null = null;
+let seededBoardRetry = -1;
+
+/**
+ * Seeds workspace data from the API once a session is ready.
  */
 export function useHydrateWorkspaceData(): void {
    // The initial load below is a snapshot; these keep it current as agents
@@ -61,11 +68,15 @@ export function useHydrateWorkspaceData(): void {
 
    useEffect(() => {
       if (status !== 'ready' || !boardId) return;
+      if (seededBoardId === boardId && seededBoardRetry === retryToken) return;
       let cancelled = false;
-      setIssuesLoadState('loading');
+      const sameBoard = seededBoardId === boardId;
+      if (!sameBoard) setIssuesLoadState('loading');
       void loadBoardIssues(boardId)
          .then((issues) => {
             if (cancelled) return;
+            seededBoardId = boardId;
+            seededBoardRetry = retryToken;
             hydrateIssues(issues);
             setIssuesLoadState('ready');
          })

@@ -16,6 +16,8 @@ interface AgentsState {
    archived: Agent[] | null;
    roster: Map<string, AgentRoster>;
    error: string | null;
+   /** True after the first successful or failed hydrate, including an empty list. */
+   ready: boolean;
    hydrateAgents: (agents: Agent[], error?: string | null) => void;
    hydrateArchived: (agents: Agent[] | null) => void;
    hydrateRoster: (roster: Map<string, AgentRoster>) => void;
@@ -36,8 +38,9 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
    archived: null,
    roster: new Map(),
    error: null,
+   ready: false,
 
-   hydrateAgents: (agents, error = null) => set({ agents, error }),
+   hydrateAgents: (agents, error = null) => set({ agents, error, ready: true }),
    hydrateArchived: (archived) => set({ archived }),
    hydrateRoster: (roster) => set({ roster }),
 

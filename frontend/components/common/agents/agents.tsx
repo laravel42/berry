@@ -105,6 +105,7 @@ export default function Agents() {
    const archived = useAgentsStore((state) => state.archived);
    const roster = useAgentsStore((state) => state.roster);
    const storedError = useAgentsStore((state) => state.error);
+   const agentsReady = useAgentsStore((state) => state.ready);
    const hydrateAgents = useAgentsStore((state) => state.hydrateAgents);
    const hydrateArchived = useAgentsStore((state) => state.hydrateArchived);
    const hydrateRoster = useAgentsStore((state) => state.hydrateRoster);
@@ -130,33 +131,36 @@ export default function Agents() {
       onFiltersChange: setFilters,
    });
 
-   const [loading, setLoading] = useState(true);
+   const [loading, setLoading] = useState(!agentsReady);
    const [confirm, setConfirm] = useState<Confirm | null>(null);
    const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
    const [bulkTierOpen, setBulkTierOpen] = useState(false);
    const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
    const [busy, setBusy] = useState(false);
 
-   const load = useCallback(async () => {
-      setLoading(true);
-      try {
-         const [live, entries] = await Promise.all([
-            loadWorkspaceAgents(),
-            // Best effort: an agent list without its roster still lists agents,
-            // and the cells that need the roster simply stay empty.
-            loadAgentRoster(7).catch(() => new Map()),
-         ]);
-         hydrateAgents(live, null);
-         hydrateRoster(entries);
-      } catch (error) {
-         hydrateAgents([], reason(error, t('errorTitle')));
-      } finally {
-         setLoading(false);
-      }
-   }, [hydrateAgents, hydrateRoster, t]);
+   const load = useCallback(
+      async (silent = false) => {
+         if (!silent) setLoading(true);
+         try {
+            const [live, entries] = await Promise.all([
+               loadWorkspaceAgents(),
+               // Best effort: an agent list without its roster still lists agents,
+               // and the cells that need the roster simply stay empty.
+               loadAgentRoster(7).catch(() => new Map()),
+            ]);
+            hydrateAgents(live, null);
+            hydrateRoster(entries);
+         } catch (error) {
+            hydrateAgents([], reason(error, t('errorTitle')));
+         } finally {
+            setLoading(false);
+         }
+      },
+      [hydrateAgents, hydrateRoster, t]
+   );
 
    useEffect(() => {
-      void load();
+      void load(useAgentsStore.getState().ready);
    }, [load]);
 
    // The archive is read the first time it is asked for, and re-read whenever

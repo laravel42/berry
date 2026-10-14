@@ -27,12 +27,37 @@ import SkillDetailHeader from '@/components/layout/headers/skills/detail-header'
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
-import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import { loadSkillLabels, type SkillCatalogueLabel } from '@/lib/skill-labels';
 import { listSkills, type Skill } from '@/lib/skills';
 import { canEditProduct } from '@/lib/workspace-role';
+import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
+
+/**
+ * Last unfiltered lists for this tab. A page remount should paint these
+ * immediately; searching still goes to the server.
+ */
+const skillsCache: {
+   workspaceId: string;
+   live: Skill[] | null;
+   archived: Skill[] | null;
+   total: number;
+   archivedTotal: number | null;
+} = {
+   workspaceId: '',
+   live: null,
+   archived: null,
+   total: 0,
+   archivedTotal: null,
+};
+
+function cachedFor(workspaceId: string) {
+   if (!workspaceId || skillsCache.workspaceId !== workspaceId) {
+      return { live: null, archived: null, total: 0, archivedTotal: null as number | null };
+   }
+   return skillsCache;
+}
 
 function SkillsScreen() {
    const t = useTranslations('areas.skills');
@@ -44,47 +69,41 @@ function SkillsScreen() {
    const canEdit = canEditProduct(role);
    const revision = useSkillsCatalogueStore((state) => state.revision);
    const bump = useSkillsCatalogueStore((state) => state.bump);
+   const agents = useAgentsStore((state) => state.agents);
+   const seed = cachedFor(workspaceId);
 
    const [query, setQuery] = useState('');
    const [scope, setScope] = useState<SkillScope>('all');
-   const [archivedTouched, setArchivedTouched] = useState(false);
+   const [archivedTouched, setArchivedTouched] = useState(seed.archived !== null);
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
-   const [live, setLive] = useState<Skill[] | null>(null);
-   const [archived, setArchived] = useState<Skill[] | null>(null);
-   const [total, setTotal] = useState(0);
-   const [archivedTotal, setArchivedTotal] = useState<number | null>(null);
-   const [agents, setAgents] = useState<Agent[]>([]);
+   const [live, setLive] = useState<Skill[] | null>(seed.live);
+   const [archived, setArchived] = useState<Skill[] | null>(seed.archived);
+   const [total, setTotal] = useState(seed.total);
+   const [archivedTotal, setArchivedTotal] = useState<number | null>(seed.archivedTotal);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
    const [catalogue, setCatalogue] = useState<SkillCatalogueLabel[] | null>(null);
    const reload = useCallback(() => bump(), [bump]);
 
-   useEffect(() => {
-      let cancelled = false;
-      void loadWorkspaceAgents()
-         .then((found) => {
-            if (!cancelled) setAgents(found);
-         })
-         .catch(() => {
-            /* The catalogue is still usable without the agent list. */
-         });
-      return () => {
-         cancelled = true;
-      };
-   }, []);
-
    // The server answers the search; the filters, sort and columns are the
    // reader's own view of that answer, matched here from the list payload.
+   // An empty query is fetched immediately so returning to Skills is not
+   // held for the typeahead debounce.
    useEffect(() => {
       let cancelled = false;
-      const timer = setTimeout(() => {
-         const term = query.trim();
+      const term = query.trim();
+      const run = () => {
          void listSkills(term ? { q: term } : {})
             .then((found) => {
                if (cancelled) return;
                setLive(found);
-               if (!term) setTotal(found.length);
+               if (!term) {
+                  setTotal(found.length);
+                  skillsCache.workspaceId = workspaceId;
+                  skillsCache.live = found;
+                  skillsCache.total = found.length;
+               }
                if (scope === 'all') setError(null);
             })
             .catch((failure: unknown) => {
@@ -96,7 +115,12 @@ function SkillsScreen() {
                .then((found) => {
                   if (cancelled) return;
                   setArchived(found);
-                  if (!term) setArchivedTotal(found.length);
+                  if (!term) {
+                     setArchivedTotal(found.length);
+                     skillsCache.workspaceId = workspaceId;
+                     skillsCache.archived = found;
+                     skillsCache.archivedTotal = found.length;
+                  }
                   if (scope === 'archived') setError(null);
                })
                .catch((failure: unknown) => {
@@ -104,12 +128,19 @@ function SkillsScreen() {
                   setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
                });
          }
-      }, 200);
+      };
+      if (!term) {
+         run();
+         return () => {
+            cancelled = true;
+         };
+      }
+      const timer = setTimeout(run, 200);
       return () => {
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [archivedTouched, query, revision, scope, t]);
+   }, [archivedTouched, query, revision, scope, t, workspaceId]);
 
    const skills = scope === 'archived' ? archived : live;
 

@@ -12,7 +12,13 @@ const meta = {
    parameters: orgParams,
    beforeEach: ({ msw }) => {
       msw.use(...storyHandlers);
-      useAgentsStore.setState({ agents: [], archived: null, roster: new Map(), error: null });
+      useAgentsStore.setState({
+         agents: [],
+         archived: null,
+         roster: new Map(),
+         error: null,
+         ready: false,
+      });
       useAgentsListStore.setState({
          scope: 'all',
          sortKey: 'activity',
