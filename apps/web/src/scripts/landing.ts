@@ -89,13 +89,10 @@ function init() {
   const reduced = prefersReducedMotion();
   let secs = 522;
   let n = reduced ? LOG.length : 4;
-  let who: "agent" | "human" = "agent";
   let cards = CARDS.map((card) => ({ ...card }));
   let step = 0;
   let moved = -1;
 
-  const humanChip = $("chip-human");
-  const agentChip = $("chip-agent");
   const navLinks = Object.fromEntries(
     NAV_IDS.map((id) => [id, document.querySelector(`[data-nav="${id}"]`)])
   );
@@ -104,44 +101,6 @@ function init() {
     document.querySelectorAll("[data-runtime]").forEach((el) => {
       el.textContent = formatRuntime(secs);
     });
-  }
-
-  // Cross-fade rather than snapping: fade out, swap the text, fade back in.
-  let swapTimers: number[] = [];
-  function swapPipe(id: string, value: string) {
-    const el = $(id);
-    if (!el) return;
-    if (reduced) {
-      el.textContent = value;
-      return;
-    }
-    el.style.opacity = "0";
-    swapTimers.push(
-      window.setTimeout(() => {
-        el.textContent = value;
-        el.style.opacity = "1";
-      }, 180)
-    );
-  }
-
-  function setWho(next: "agent" | "human", flash = false) {
-    swapTimers.forEach(clearTimeout);
-    swapTimers = [];
-    who = next;
-    const agent = who === "agent";
-    if (flash && !reduced) {
-      const row = $("pipe-assignee");
-      if (row) {
-        row.classList.remove("is-swapped");
-        void row.offsetWidth; // restart the animation
-        row.classList.add("is-swapped");
-      }
-    }
-    humanChip?.classList.toggle("is-on", !agent);
-    agentChip?.classList.toggle("is-on", agent);
-    swapPipe("assignee-label", agent ? "Forge · agent · claude-sonnet-5" : "Andrea · human · frontend");
-    swapPipe("work-label", agent ? "isolated workspace · 4 files changed" : "local branch · 4 files changed");
-    swapPipe("evidence-label", agent ? "run #1842 log · 84 tests passed" : "commit trail · 84 tests passed");
   }
 
   function onScroll() {
@@ -184,7 +143,6 @@ function init() {
   tickRuntime();
   renderLog(n);
   renderBoard(cards, moved);
-  setWho(who);
 
   let tick = 0;
   let feed = 0;
@@ -241,17 +199,7 @@ function init() {
   window.addEventListener("scroll", onScroll, { passive: true });
   requestAnimationFrame(() => requestAnimationFrame(onScroll));
 
-  humanChip?.addEventListener("click", () => {
-    setWho("human", true);
-    (window as any).posthog?.capture("work_model_toggled", { assignee_type: "human" });
-  });
-  agentChip?.addEventListener("click", () => {
-    setWho("agent", true);
-    (window as any).posthog?.capture("work_model_toggled", { assignee_type: "agent" });
-  });
-
   window.addEventListener("pagehide", () => {
-    swapTimers.forEach(clearTimeout);
     if (tick) clearInterval(tick);
     if (feed) clearInterval(feed);
     if (board) clearInterval(board);

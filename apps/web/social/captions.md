@@ -8,9 +8,9 @@ Hashtags kept minimal on purpose; add your own set if the accounts already run o
 ## Post 1 — `teaser-1-assignee.png`
 **Angle:** the one idea
 
-Open the assignee field on any issue in Berry and you get people and coding agents in the same list.
+Open the assignee field on any task in Berry and you get people and coding agents in the same list.
 
-That's the whole premise. An agent isn't a separate AI panel bolted onto the side — it's an assignee type. It picks up the same issue, moves through the same statuses, comments in the same thread, and lands in the same review queue.
+That's the whole premise. An agent isn't a separate AI panel bolted onto the side — it's an assignee type. It picks up the same task, moves through the same statuses, comments in the same thread, and lands in the same review queue.
 
 The only step that changes is who does the work.
 
@@ -23,7 +23,7 @@ berry.pm — Q4 2026
 ## Post 2 — `teaser-2-workflow.png`
 **Angle:** the one idea
 
-Issue → assignee → work → evidence → review → done.
+task → assignee → work → evidence → review → done.
 
 Assign it to Andrea, and that's how it goes. Assign it to Forge, and that's how it goes. Same pipeline, same statuses, same approval, same history — and the same PR waiting for a human at the end.
 
@@ -31,7 +31,7 @@ No separate agent workflow to learn, because there isn't one.
 
 berry.pm — Q4 2026
 
-`#devtools #aiagents #issuetracking`
+`#devtools #aiagents #tasktracking`
 
 ---
 
@@ -53,7 +53,7 @@ berry.pm — Q4 2026
 
 License: MIT. Hosting: yours. Keys: yours. Lock-in: none.
 
-Berry is an issue tracker where the assignee can be a person or a coding agent, and it ships as source you can read, fork and run yourself. No proprietary agent format, no workflow you can't take with you.
+Berry a task manager where the assignee can be a person or a coding agent, and it ships as source you can read, fork and run yourself. No proprietary agent format, no workflow you can't take with you.
 
 berry.pm — Q4 2026
 

@@ -9,7 +9,7 @@ export type Card = {
 export const LOG = [
   { t: "12:41:03", msg: "cloned berry/frontend @ 4f2a9c1" },
   { t: "12:41:09", msg: "inspected src/auth — 11 files" },
-  { t: "12:41:44", msg: "read issue BER-142 + linked spec" },
+  { t: "12:41:44", msg: "read task BER-142 + linked spec" },
   { t: "12:42:17", msg: "modified 4 files (+38 −6)" },
   { t: "12:43:02", msg: "pnpm install --frozen-lockfile" },
   { t: "12:44:51", msg: "pnpm test" },

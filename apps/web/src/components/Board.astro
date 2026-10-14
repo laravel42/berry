@@ -19,7 +19,7 @@ function cardsIn(col: number) {
         <div style="font-size: 11px; letter-spacing: 0.16em; color: var(--ink-4);">05 &nbsp;·&nbsp; THE BOARD</div>
         <h2 style="margin: 0; font-weight: 400; font-family: 'DM Serif Display', serif; font-size: clamp(30px, 3.7vw, 46px); line-height: 1.1; letter-spacing: -0.02em;">The board keeps<br>moving without you.</h2>
       </div>
-      <p style="margin: 0; max-width: 400px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">Agents pick up assigned issues and advance them through the same columns your team uses. Cards move because work actually happened — a branch opened, tests passed, a review was requested.</p>
+      <p style="margin: 0; max-width: 400px; font-size: 15px; line-height: 1.75; color: var(--ink-3); text-wrap: pretty;">Agents pick up assigned tasks and advance them through the same columns your team uses. Cards move because work actually happened — a branch opened, tests passed, a review was requested.</p>
     </div>
 
     <div style="border: 1px solid var(--line); background: var(--surface-2);">
@@ -28,7 +28,7 @@ function cardsIn(col: number) {
         <span style="display: flex; align-items: center; gap: 8px;"><span style="width: 6px; height: 6px; background: var(--run); border-radius: 50%; animation: berrypulse var(--pulse) infinite;"></span>live</span>
       </div>
 
-      <div data-r="board" role="img" aria-label="A kanban board for the ship-auth-v2 cycle. Six issues move between Todo, In Progress, In Review and Done; some are assigned to people, some to coding agents." style="display: grid; grid-template-columns: repeat(4, minmax(0,1fr));">
+      <div data-r="board" role="img" aria-label="A kanban board for the ship-auth-v2 cycle. Six tasks move between Todo, In Progress, In Review and Done; some are assigned to people, some to coding agents." style="display: grid; grid-template-columns: repeat(4, minmax(0,1fr));">
         {columns.map((col, index) => (
           <div style={`min-height: 320px; display: flex; flex-direction: column;${index < 3 ? " border-right: 1px solid var(--line);" : ""}${col.bg ? ` background: ${col.bg};` : ""}`}>
             <div style={`display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 11px; color: ${col.color};`}>

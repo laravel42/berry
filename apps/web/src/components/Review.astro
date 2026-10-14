@@ -1,6 +1,5 @@
 ---
 import Logo from "./Logo.astro";
-import GitHubIcon from "./GitHubIcon.astro";
 ---
 <div id="review" style="border-bottom: 1px solid var(--rule-section);">
   <div style="max-width: 1240px; margin: 0 auto; padding: clamp(48px, 7vw, 88px) clamp(20px, 3.4vw, 40px);">
@@ -59,22 +58,7 @@ import GitHubIcon from "./GitHubIcon.astro";
     </div>
 
     <div style="margin-top: 30px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-      <a href="https://github.com/laravel42/berry" target="_blank" rel="noopener" class="btn-inline" id="review-github-link">
-        <GitHubIcon size={14} />
-        Read the permission layer
-      </a>
-      <span style="font-size: 12px; color: var(--ink-4);">MIT licensed &middot; self&#8209;hostable &middot; your own model keys</span>
+      <span style="font-size: 12px; color: var(--ink-4);">MIT licensed &middot; self&#8209;hostable &middot; your own AI subscriptions</span>
     </div>
   </div>
 </div>
-
-<script is:inline>
-  document.addEventListener('DOMContentLoaded', function () {
-    var link = document.getElementById('review-github-link');
-    if (link) {
-      link.addEventListener('click', function () {
-        window.posthog?.capture('github_cta_clicked', { location: 'review_section' });
-      });
-    }
-  });
-</script>

@@ -24,7 +24,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Online, recently lost and disabled, as the health dot and label say. */
+/** Online, recently lost and disabled, as the health badge says. */
 export const Registered: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Berry platform')).toBeVisible();

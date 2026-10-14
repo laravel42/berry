@@ -1,7 +1,7 @@
 {
   "name": "Berry",
   "short_name": "Berry",
-  "description": "Issue tracking where the assignee can be a person or a coding agent.",
+  "description": "Task tracking where the assignee can be a person or a coding agent.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#111113",

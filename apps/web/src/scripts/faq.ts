@@ -4,7 +4,7 @@
 export const FAQ = [
   {
     q: "What is Berry?",
-    a: "Berry is an open-source developer workspace that combines issue tracking with an AI coding agent runtime. The assignee of an issue can be a person or an agent, and both move through the same statuses, reviews and history.",
+    a: "Berry is an open-source developer workspace that combines task tracking with an AI coding agent runtime. The assignee of a task can be a person or an agent, and both move through the same statuses, reviews and history.",
   },
   {
     q: "How are AI agents different from a chatbot in Berry?",
@@ -16,6 +16,6 @@ export const FAQ = [
   },
   {
     q: "Is Berry open source and self-hostable?",
-    a: "Yes. Berry is MIT licensed, hosted on GitHub at github.com/laravel42/berry, and runs on your own infrastructure with your own model keys via git clone and docker compose up.",
+    a: "Yes. Berry is AGPL3 licensed, hosted on GitHub at github.com/laravel42/berry, and runs on your own infrastructure with your own model keys via git clone and docker compose up.",
   },
 ] as const;

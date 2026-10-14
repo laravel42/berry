@@ -12,17 +12,17 @@ interface Props {
 
 const site = "https://berry.pm";
 const {
-  title = "Berry — issue tracking where the assignee can be a person or a coding agent",
-  description = "Berry is an open-source, MIT-licensed developer workspace where humans and AI coding agents share the same issues, statuses, reviews and history. Every agent run leaves an inspectable record of commands, diffs, tests and approvals.",
+  title = "Berry — task tracking where the assignee can be a person or a coding agent",
+  description = "Berry is an open-source, MIT-licensed developer workspace where humans and AI coding agents share the same tasks, statuses, reviews and history. Every agent run leaves an inspectable record of commands, diffs, tests and approvals.",
   robots = "index, follow, max-image-preview:large, max-snippet:-1",
   canonical = `${site}/`,
   includeJsonLd = true,
 } = Astro.props;
 const ogTitle = "Berry — one workflow, human or agent";
 const ogDescription =
-  "Open-source issue tracking and agent runtime in one workspace. Assign work to a person or a coding agent, then review the run evidence: branches, diffs, tests, exit codes, approvals.";
+  "Open-source task tracking and agent runtime in one workspace. Assign work to a person or a coding agent, then review the run evidence: branches, diffs, tests, exit codes, approvals.";
 const twitterDescription =
-  "Open-source issue tracking where an assignee can be a person or a coding agent. MIT licensed, self-hostable.";
+  "Open-source task tracking where an assignee can be a person or a coding agent. MIT licensed, self-hostable.";
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -32,7 +32,7 @@ const jsonLd = {
       "@id": `${site}/#app`,
       name: "Berry",
       applicationCategory: "DeveloperApplication",
-      applicationSubCategory: "Issue tracking and AI agent runtime",
+      applicationSubCategory: "Task tracking and AI agent runtime",
       operatingSystem: "Web, Docker, self-hosted",
       softwareVersion: "0.9.4",
       url: `${site}/`,
@@ -40,11 +40,11 @@ const jsonLd = {
       license: "https://opensource.org/licenses/MIT",
       isAccessibleForFree: true,
       description:
-        "Berry is an open-source developer workspace where an issue assignee can be a person or an AI coding agent. Humans and agents share the same issues, statuses, comments, reviews and activity history, and every agent run records its commands, diffs, test results and approvals.",
+        "Berry is an open-source developer workspace where a task assignee can be a person or an AI coding agent. Humans and agents share the same tasks, statuses, comments, reviews and activity history, and every agent run records its commands, diffs, test results and approvals.",
       offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
       featureList: [
-        "Issue and project management",
-        "Assign issues to people or AI coding agents",
+        "Task and project management",
+        "Assign tasks to people or AI coding agents",
         "Isolated agent run workspaces with streamed logs",
         "Run evidence: commands, diffs, test results, exit codes, token usage",
         "Diff review with approvals and request-changes",
@@ -102,7 +102,7 @@ const jsonLd = {
     <meta property="og:image" content={`${site}/assets/og.png`} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="The Berry workspace showing issues assigned to people and coding agents." />
+    <meta property="og:image:alt" content="The Berry workspace showing tasks assigned to people and coding agents." />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={ogTitle} />
     <meta name="twitter:description" content={twitterDescription} />

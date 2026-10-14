@@ -2,7 +2,7 @@
 import Logo from "./Logo.astro";
 import GitHubIcon from "./GitHubIcon.astro";
 
-const issues = [
+const tasks = [
   {
     id: "BER‑142",
     title: "Implement passkey enrolment",
@@ -67,7 +67,7 @@ const issues = [
 <div style="border-bottom: 1px solid var(--rule-section);">
   <div style="max-width: 1240px; margin: 0 auto; padding: clamp(44px, 6vw, 76px) clamp(20px, 3.4vw, 40px) 0;">
     <div style="display: flex; align-items: center; gap: 14px; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-4);">
-      <span style="color: var(--accent-text);">MIT licensed</span>
+      <span style="color: var(--accent-text);">Open source</span>
       <span style="width: 3px; height: 3px; background: var(--line-strong); border-radius: 50%;"></span>
       <span>self‑hostable</span>
       <span style="width: 3px; height: 3px; background: var(--line-strong); border-radius: 50%;"></span>
@@ -80,7 +80,7 @@ const issues = [
       </h1>
       <div style="display: flex; flex-direction: column; gap: 24px; padding-bottom: 8px;">
         <p style="margin: 0; font-size: 15px; line-height: 1.7; color: var(--ink-3); text-wrap: pretty;">
-          Berry is an issue tracker where the assignee can be a person or a coding agent. Same issues, same reviews, same history.
+          Berry is a task manager where the assignee can be a person or a coding agent. Same tasks, same reviews, same history.
         </p>
         <div style="display: flex; gap: 10px;">
           <a href="https://github.com/laravel42/berry" target="_blank" rel="noopener" class="btn-primary" id="hero-github-link">
@@ -95,9 +95,9 @@ const issues = [
   <div style="max-width: 1240px; margin: clamp(36px, 4.5vw, 56px) auto 0; padding: 0 clamp(20px, 3.4vw, 40px);">
     <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; font-size: 12px; line-height: 1.6; color: var(--ink-4); text-wrap: pretty;">
       <span style="color: var(--accent-text); flex: none;">&darr;</span>
-      <span>Three of these five issues are assigned to agents. The top one is running right now.</span>
+      <span>Three of these five tasks are assigned to agents. The top one is running right now.</span>
     </div>
-    <div data-r="window" role="img" aria-label="The Berry workspace for the ship-auth-v2 project: five issues in a table, each with an assignee that is either a person or a coding agent, and a status. The top row shows an agent named Forge running right now." style="border: 1px solid var(--line); border-bottom: none; background: var(--surface); display: grid; grid-template-columns: 186px minmax(0,1fr);">
+    <div data-r="window" role="img" aria-label="The Berry workspace for the ship-auth-v2 project: five tasks in a table, each with an assignee that is either a person or a coding agent, and a status. The top row shows an agent named Forge running right now." style="border: 1px solid var(--line); border-bottom: none; background: var(--surface); display: grid; grid-template-columns: 186px minmax(0,1fr);">
       <div style="border-right: 1px solid var(--line); padding: 14px 0 0; display: flex; flex-direction: column; min-height: 380px;">
         <div style="display: flex; align-items: center; gap: 9px; padding: 0 14px 18px;">
           <Logo size={17} strokeWidth={7} radius={14} />
@@ -112,7 +112,7 @@ const issues = [
         <div style="padding: 18px 14px 7px; font-size: 10px; letter-spacing: 0.16em; color: var(--ink-4);">MANAGE</div>
         <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">runtimes <span style="margin-left: auto; width: 5px; height: 5px; background: var(--run); border-radius: 50%;"></span></div>
         <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">agents</div>
-        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">analytics</div>
+        <div style="display: flex; align-items: center; gap: 9px; padding: 6px 14px; font-size: 12px; color: var(--ink-3);">usage</div>
       </div>
 
       <div style="display: flex; flex-direction: column; min-width: 0;">
@@ -138,24 +138,24 @@ const issues = [
           <div data-r="row" style="display: grid; grid-template-columns: 72px minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,0.72fr) 62px; gap: 12px; padding: 8px 18px; border-bottom: 1px solid var(--line); font-size: 10px; letter-spacing: 0.12em; color: var(--ink-4);">
             <div>ID</div><div>TITLE</div><div>ASSIGNEE</div><div>STATUS</div><div style="text-align: right;">UPDATED</div>
           </div>
-          {issues.map((issue) => (
-            <div data-r="row" style={`display: grid; grid-template-columns: 72px minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,0.72fr) 62px; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px; align-items: center;${issue.highlight ? ` background: ${issue.highlight};` : ""}`}>
-              <div style="color: var(--ink-4);">{issue.id}</div>
-              <div style={`overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${issue.done ? "var(--ink-3)" : "var(--ink)"};`}>{issue.title}</div>
-              <div style={`display: flex; align-items: center; gap: 8px; color: ${issue.done ? "var(--ink-3)" : "var(--ink-2)"};`}>
-                {issue.whoKind === "agent" ? (
-                  <Logo size={13} stroke={issue.whoColor} fill={issue.whoColor} strokeWidth={8} radius={15} />
+          {tasks.map((task) => (
+            <div data-r="row" style={`display: grid; grid-template-columns: 72px minmax(0,1.6fr) minmax(0,0.9fr) minmax(0,0.72fr) 62px; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--line-soft); font-size: 12px; align-items: center;${task.highlight ? ` background: ${task.highlight};` : ""}`}>
+              <div style="color: var(--ink-4);">{task.id}</div>
+              <div style={`overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${task.done ? "var(--ink-3)" : "var(--ink)"};`}>{task.title}</div>
+              <div style={`display: flex; align-items: center; gap: 8px; color: ${task.done ? "var(--ink-3)" : "var(--ink-2)"};`}>
+                {task.whoKind === "agent" ? (
+                  <Logo size={13} stroke={task.whoColor} fill={task.whoColor} strokeWidth={8} radius={15} />
                 ) : (
-                  <span style="width: 14px; height: 14px; border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--ink-3); flex: none;">{issue.whoInitial}</span>
+                  <span style="width: 14px; height: 14px; border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: 8px; color: var(--ink-3); flex: none;">{task.whoInitial}</span>
                 )}
-                {issue.who}{issue.whoKind === "agent" && <span data-agent-tag style={`color: ${issue.whoColor}; font-size: 11px; letter-spacing: 0.05em; border: 1px solid currentColor; padding: 1px 5px; line-height: 1.35; flex: none;`}>agent</span>}
+                {task.who}{task.whoKind === "agent" && <span data-agent-tag style={`color: ${task.whoColor}; font-size: 11px; letter-spacing: 0.05em; border: 1px solid currentColor; padding: 1px 5px; line-height: 1.35; flex: none;`}>agent</span>}
               </div>
-              <div style={`display: flex; align-items: center; gap: 7px; color: ${issue.statusColor};`}>
-                <span style={`width: 6px; height: 6px; border-radius: 50%; ${issue.queued ? "border: 1px solid var(--ink-4);" : `background: ${issue.statusColor};`}${issue.pulse ? " animation: berrypulse var(--pulse) infinite;" : ""}`}></span>
-                {issue.status}
+              <div style={`display: flex; align-items: center; gap: 7px; color: ${task.statusColor};`}>
+                <span style={`width: 6px; height: 6px; border-radius: 50%; ${task.queued ? "border: 1px solid var(--ink-4);" : `background: ${task.statusColor};`}${task.pulse ? " animation: berrypulse var(--pulse) infinite;" : ""}`}></span>
+                {task.status}
               </div>
               <div style="text-align: right; color: var(--ink-4);">
-                {issue.updated}
+                {task.updated}
               </div>
             </div>
           ))}
