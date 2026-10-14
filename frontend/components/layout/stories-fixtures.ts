@@ -127,6 +127,7 @@ export function seedSession(role: string = 'admin') {
       workspace: { ...workspace, role },
       workspaces: [{ ...workspace, role }, otherWorkspace],
       boardId: 'board-1',
+      needsSetup: false,
       error: null,
    });
 }

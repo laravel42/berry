@@ -442,6 +442,7 @@ export function seedProjectStores({
       user: andrea,
       workspace: { id: 'ws-1', name: 'Berry', slug: 'berry', role: 'admin' },
       workspaces: [{ id: 'ws-1', name: 'Berry', slug: 'berry', role: 'admin' }],
+      needsSetup: false,
    });
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
+import { WorkstationBridge } from '@/components/common/runtimes/workstation-bridge';
 import {
    SettingsCard,
    SettingsRow,
@@ -151,8 +152,9 @@ export default function RuntimesList() {
       <SettingsShell
          compact
          title="AI Runtimes"
-         description="Choose the agent or inference product used inside Berry’s execution host. Runtime identity, model provider, authentication, and billing stay separate."
+         description="Pair this computer, then choose the agent or inference product. Runtime identity, model provider, authentication, and billing stay separate."
       >
+         <WorkstationBridge />
          <SettingsSection title="Runtime catalog">
             <div className="relative max-w-sm">
                <Search

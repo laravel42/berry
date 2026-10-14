@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { apiFetch } from './api';
 import { authClient } from './auth-client';
+import { onboardingSchema } from './onboarding';
 
 const userSchema = z.object({
    id: z.string(),
@@ -33,6 +34,7 @@ const bootstrapSchema = z.object({
          reducedMotion: z.boolean(),
          locale: z.string().default('en'),
       }),
+      onboarding: onboardingSchema.optional(),
    }),
    workspaces: z.array(workspaceSchema),
    currentWorkspaceId: z.string().nullable(),

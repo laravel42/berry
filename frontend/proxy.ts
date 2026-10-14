@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { landingPathAfterSignIn } from '@/lib/server-landing';
+
 /**
  * A Berry page asked for inside a frame is a site preview that lost its way.
  *
@@ -12,7 +14,14 @@ import { NextResponse, type NextRequest } from 'next/server';
  * `Sec-Fetch-Dest: iframe` is always this: it gets a page that tells the
  * preview where it was, and the preview reopens the site there.
  */
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
+   if (request.nextUrl.pathname === '/' && request.headers.get('sec-fetch-dest') !== 'iframe') {
+      const dest = await landingPathAfterSignIn(request.headers.get('cookie') ?? '');
+      if (dest !== '/') {
+         return NextResponse.redirect(new URL(dest, request.url));
+      }
+   }
+
    if (request.headers.get('sec-fetch-dest') !== 'iframe') return NextResponse.next();
    const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
    const html = `<!doctype html><meta charset="utf-8"><script>try{parent.postMessage({type:"berry-preview:lost",path:${JSON.stringify(path)}+location.hash},"*")}catch(e){}</script>`;

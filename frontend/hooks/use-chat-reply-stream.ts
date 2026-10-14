@@ -68,7 +68,7 @@ export function useChatReplyStream(input: {
                   text += chunk;
                   if (!pending) {
                      pending = true;
-                     flush = setTimeout(show, 60);
+                     flush = setTimeout(show, 20);
                   }
                }
                if (isTerminalTaskEvent(event.type)) break;

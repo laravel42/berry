@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { AuthCard } from '@/components/auth/auth-card';
+import { Panel } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
    createWorkspace,
    createWorkspaceFailure,
@@ -122,11 +123,12 @@ export function WorkspaceStep({
    };
 
    return (
-      <AuthCard title={t('workspaceTitle')} description={t('workspaceBody')}>
-         <div className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5">
-               <span className="font-medium">{nw('name')}</span>
+      <Panel>
+         <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-1.5">
+               <Label htmlFor="setup-workspace-name">{nw('name')}</Label>
                <Input
+                  id="setup-workspace-name"
                   value={name}
                   autoFocus
                   placeholder={nw('namePlaceholder')}
@@ -136,13 +138,13 @@ export function WorkspaceStep({
                {name.trim() === '' ? (
                   <span className="text-muted-foreground">{nw('nameHint')}</span>
                ) : null}
-            </label>
+            </div>
 
-            <label className="flex flex-col gap-1.5">
-               <span className="font-medium">{nw('slug')}</span>
+            <div className="flex flex-col gap-1.5">
+               <Label htmlFor="setup-workspace-slug">{nw('slug')}</Label>
                <Input
+                  id="setup-workspace-slug"
                   value={effectiveSlug}
-                  className="font-mono"
                   disabled={creating}
                   aria-invalid={slugProblem !== null}
                   onChange={(event) => {
@@ -158,13 +160,14 @@ export function WorkspaceStep({
                <span className={slugProblem ? 'text-status-danger' : 'text-muted-foreground'}>
                   {slugProblem ?? nw('slugHint', { url: `/${effectiveSlug || '…'}` })}
                </span>
-            </label>
+            </div>
 
-            <label className="flex flex-col gap-1.5">
-               <span className="font-medium">{nw('prefix')}</span>
+            <div className="flex flex-col gap-1.5">
+               <Label htmlFor="setup-workspace-prefix">{nw('prefix')}</Label>
                <Input
+                  id="setup-workspace-prefix"
                   value={effectivePrefix}
-                  className="w-40 font-mono"
+                  className="w-40"
                   disabled={creating}
                   aria-invalid={prefixProblem !== null}
                   onChange={(event) => {
@@ -180,7 +183,7 @@ export function WorkspaceStep({
                <span className={prefixProblem ? 'text-status-danger' : 'text-muted-foreground'}>
                   {prefixProblem ?? nw('prefixHint', { example: `${effectivePrefix || 'WS'}-1` })}
                </span>
-            </label>
+            </div>
 
             {failure ? (
                <p role="alert" className="text-status-danger">
@@ -192,17 +195,15 @@ export function WorkspaceStep({
                {creating ? nw('creating') : nw('create')}
             </Button>
             {onJoin ? (
-               <div className="text-center">
-                  <button
-                     type="button"
-                     className="text-muted-foreground hover:underline"
-                     onClick={onJoin}
-                  >
-                     {t('joinInstead')}
-                  </button>
-               </div>
+               <button
+                  type="button"
+                  className="self-start text-muted-foreground underline-offset-4 hover:underline"
+                  onClick={onJoin}
+               >
+                  {t('joinInstead')}
+               </button>
             ) : null}
          </div>
-      </AuthCard>
+      </Panel>
    );
 }

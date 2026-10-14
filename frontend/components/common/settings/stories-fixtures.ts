@@ -39,6 +39,7 @@ export function seedSession(workspace: SessionWorkspace = adminWorkspace) {
       workspaces: [workspace],
       boardId: 'board-1',
       preferredLocale: 'en',
+      needsSetup: false,
       error: null,
    });
 }
