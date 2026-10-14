@@ -8,6 +8,7 @@ import type { FieldError } from '../http/errors.ts';
 import {
    ONBOARDING_ANSWER_KEYS,
    ONBOARDING_STEPS,
+   SETUP_ONBOARDING_VERSION,
    THEMES,
    boundedLength,
    validAvatar,
@@ -217,7 +218,7 @@ export function meMounts(options: MeOptions): Mount[] {
       }
 
       const current = await profileOf(identity, userId);
-      const next: OnboardingState = { ...current.onboarding, version: 1 };
+      const next: OnboardingState = { ...current.onboarding, version: SETUP_ONBOARDING_VERSION };
       next.answers ??= {};
       const fields: FieldError[] = [];
 
@@ -229,7 +230,7 @@ export function meMounts(options: MeOptions): Mount[] {
                fieldError(
                   '/step',
                   'invalid_enum_value',
-                  'Step must be welcome, aboutYou, workspace, or complete.'
+                  'Step must be welcome, aboutYou, workspace, workstation, tiers, or complete.'
                )
             );
          }

@@ -24,18 +24,7 @@ import {
    CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import {
-   getModelTiers,
-   getTierCandidates,
-   MAIN_TIERS,
-   TIER_PLACES,
-   updateTierPlacement,
-   type ModelTiers,
-   type Tier,
-   type TierCandidate,
-   type TierCandidates,
-   type TierPlacement,
-} from '@/lib/agents';
+import { MAIN_TIERS, TIER_PLACES, type Tier } from '@/lib/agents';
 import {
    aiRuntimeModelsFrom,
    connectedAiRuntimes,
@@ -47,52 +36,21 @@ import {
 } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
-import { useModelGateway } from '@/hooks/use-model-gateway';
 import { SaveIndicator } from './save-indicator';
 import { SETTINGS_PILL, SettingsCard, SettingsSection, SettingsShell } from './shared';
 import type { SaveState } from './use-autosave';
-import { useSettingsResource } from './use-settings-resource';
-
-interface TiersData {
-   tiers: ModelTiers;
-   candidates: TierCandidates;
-}
-
-const EMPTY: TierPlacement = {
-   berry_max: [],
-   berry_xhigh: [],
-   berry_high: [],
-   berry_mid: [],
-   berry_low: [],
-};
-
-/** "Anthropic: Claude Opus 5 ($$$$)" → "Claude Opus 5". */
-function modelName(name: string): string {
-   return name.replace(/\s*\(\$+\)\s*$/, '').replace(/^[^:]+:\s*/, '');
-}
-
-function usd(value: number): string {
-   return value >= 0.01 ? `$${value.toFixed(3)}` : `$${value.toFixed(4)}`;
-}
 
 /**
  * Settings → AI: which models each Berry tier runs in this workspace
  * (ADR-0017).
  *
- * The models used to be placed in the server's environment, so changing them
- * meant a restart. Each tier is an order, first choice first: a task starts on
- * the first model and moves down only when its work is rejected, and the
- * leaderboard fills the places a list leaves. The cost per step is shown
- * because the price per token misleads in an agent loop: every step re-sends
- * the conversation, and a model without a cache price pays its full input
- * price on all of it.
+ * Models come from subscription runtimes this workspace has connected. Each
+ * tier is an order, first choice first: a task starts on the first model and
+ * moves down only when its work is rejected. Lists stay empty until someone
+ * places a model — the server's gateway catalogue is not a default roster.
  *
  * Owners and admins edit; the server refuses anyone else.
  */
-function listed(names: string[]): string {
-   return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
-}
-
 /** Move one id from `from` to `to`. The original list is left unchanged. */
 function moveItem(list: readonly string[], from: number, to: number): string[] {
    if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
@@ -306,9 +264,8 @@ function SortableModelList({
    );
 }
 
-export default function ModelTiersSettings() {
+export function ModelTiersPanel({ embedded = false }: { embedded?: boolean }) {
    const t = useTranslations('workspaceAdmin.modelTiers');
-   const gateway = useModelGateway();
    const [subscriptions, setSubscriptions] = useState<AiRuntimeDefinition[] | null>(null);
    useEffect(() => {
       let alive = true;
@@ -319,29 +276,17 @@ export default function ModelTiersSettings() {
          alive = false;
       };
    }, []);
-   const usingSubscription = (subscriptions?.length ?? 0) > 0;
+   if (subscriptions === null) {
+      return <p className="text-muted-foreground">{t('loading')}</p>;
+   }
+   return <SubscriptionRoster runtimes={subscriptions} embedded={embedded} />;
+}
+
+export default function ModelTiersSettings() {
+   const t = useTranslations('workspaceAdmin.modelTiers');
    return (
-      <SettingsShell
-         title={t('title')}
-         description={
-            usingSubscription
-               ? t('subscriptionDescription', {
-                    runtimes: listed((subscriptions ?? []).map((runtime) => runtime.name)),
-                 })
-               : t('description')
-         }
-      >
-         {subscriptions === null || gateway === null ? (
-            <p className="text-muted-foreground">{t('loading')}</p>
-         ) : usingSubscription ? (
-            <SubscriptionRoster runtimes={subscriptions} />
-         ) : gateway === true ? (
-            <TierPlacementEditor />
-         ) : (
-            <SettingsCard>
-               <p className="text-muted-foreground">{t('gatewayOff')}</p>
-            </SettingsCard>
-         )}
+      <SettingsShell title={t('title')} description={t('description')}>
+         <ModelTiersPanel />
       </SettingsShell>
    );
 }
@@ -366,7 +311,13 @@ function tierModelChoices(runtimes: AiRuntimeDefinition[]): TierModelChoice[] {
    return choices;
 }
 
-function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
+function SubscriptionRoster({
+   runtimes,
+   embedded = false,
+}: {
+   runtimes: AiRuntimeDefinition[];
+   embedded?: boolean;
+}) {
    const t = useTranslations('workspaceAdmin.modelTiers');
    const role = useSessionStore((state) => state.workspace?.role);
    const canEdit = role === 'owner' || role === 'admin';
@@ -484,6 +435,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
 
    return (
       <SettingsSection
+         panel={embedded}
          action={
             canEdit ? (
                <SaveIndicator
@@ -495,6 +447,9 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
          }
       >
          {loading ? <p className="text-muted-foreground">{t('loading')}</p> : null}
+         {!loading && runtimes.length === 0 ? (
+            <p className="text-muted-foreground">{t('connectFirst')}</p>
+         ) : null}
          <SettingsCard>{MAIN_TIERS.map(card)}</SettingsCard>
       </SettingsSection>
    );
@@ -542,253 +497,6 @@ function AddRuntimeModel({
                               <span className="block truncate">{choice.name}</span>
                               <span className="block truncate text-muted-foreground">
                                  {choice.runtimeName}
-                              </span>
-                           </span>
-                        </CommandItem>
-                     ))}
-                  </CommandGroup>
-               </CommandList>
-            </Command>
-         </PopoverContent>
-      </Popover>
-   );
-}
-
-function TierPlacementEditor() {
-   const t = useTranslations('workspaceAdmin.modelTiers');
-   const role = useSessionStore((state) => state.workspace?.role);
-   const canEdit = role === 'owner' || role === 'admin';
-   const data = useSettingsResource<TiersData>(async () => {
-      const [tiers, candidates] = await Promise.all([getModelTiers(), getTierCandidates()]);
-      return { tiers, candidates };
-   });
-   const [draft, setDraft] = useState<TierPlacement | null>(null);
-
-   const saved = data.value?.tiers.placement?.tiers ?? EMPTY;
-   const source = data.value?.tiers.placement?.source ?? 'deployment';
-   const placement = draft ?? saved;
-   const dirty = draft !== null && !samePlacement(draft, saved);
-   const shownRef = useRef(placement);
-   shownRef.current = placement;
-   const valueRef = useRef(data.value);
-   valueRef.current = data.value;
-   const readyRef = useRef(false);
-   readyRef.current = data.value !== null && !data.loading;
-   const byId = useMemo(
-      () => new Map((data.value?.candidates.models ?? []).map((model) => [model.id, model])),
-      [data.value]
-   );
-   const placed = new Set(MAIN_TIERS.flatMap((tier) => placement[tier]));
-
-   const autosave = useQueuedSave({
-      run: (next: TierPlacement) => updateTierPlacement(next),
-      apply: (tiers, sent) => {
-         const current = valueRef.current;
-         if (!current) return;
-         data.set({ ...current, tiers });
-         setDraft((draftNow) => {
-            if (draftNow && !samePlacement(draftNow, sent)) return draftNow;
-            return null;
-         });
-      },
-   });
-
-   const stage = (tier: Tier, next: string[]) => {
-      const full = { ...shownRef.current, [tier]: next };
-      shownRef.current = full;
-      setDraft(full);
-      return full;
-   };
-
-   const commitTier = (tier: Tier, next: string[]) => {
-      const full = stage(tier, next);
-      if (readyRef.current) autosave.commit(full);
-   };
-
-   const mix = data.value?.candidates.mix ?? null;
-
-   const meta = (model: TierCandidate | undefined) => {
-      if (!model) return t('unlisted');
-      const parts = [
-         model.rating === null ? t('unrated') : t('rating', { rating: model.rating.toFixed(2) }),
-         model.stepCostUsd === null
-            ? t('prices', {
-                 input: model.inputPricePerM.toFixed(2),
-                 output: model.outputPricePerM.toFixed(2),
-              })
-            : t('perStep', { cost: usd(model.stepCostUsd) }),
-      ];
-      return parts.join(' · ');
-   };
-
-   const row = (tier: Tier, id: string) => {
-      const model = byId.get(id);
-      return (
-         <>
-            <span className="min-w-0 flex-1">
-               <span className="block truncate" title={id}>
-                  {model ? modelName(model.name) : id}
-               </span>
-               <span className="block truncate text-muted-foreground">
-                  {meta(model)}
-                  {model && model.cacheReadPricePerM === null ? (
-                     <span className="text-status-warning"> · {t('noCache')}</span>
-                  ) : null}
-               </span>
-            </span>
-            {canEdit ? (
-               <Button
-                  variant="ghost"
-                  size="xs"
-                  className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
-                  aria-label={t('remove')}
-                  disabled={data.loading}
-                  onClick={() =>
-                     commitTier(
-                        tier,
-                        shownRef.current[tier].filter((other) => other !== id)
-                     )
-                  }
-               >
-                  <Trash2 className="size-3.5" aria-hidden />
-               </Button>
-            ) : null}
-         </>
-      );
-   };
-
-   const card = (tier: Tier) => {
-      const list = placement[tier];
-      const runsOn = data.value?.tiers.tiers.find((entry) => entry.tier === tier)?.models ?? [];
-      return (
-         <div key={tier} className="flex min-w-0 flex-col gap-2 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-2">
-               <TierChip tier={tier} className="px-2 py-1" />
-               <span className="text-muted-foreground">
-                  {list.length === 0
-                     ? t('leaderboardOnly')
-                     : list.length < TIER_PLACES
-                       ? t('partlyPlaced', { count: list.length, places: TIER_PLACES })
-                       : null}
-               </span>
-               {canEdit && list.length < TIER_PLACES ? (
-                  <AddModel
-                     candidates={(data.value?.candidates.models ?? []).filter(
-                        (model) => !placed.has(model.id)
-                     )}
-                     describe={meta}
-                     disabled={data.loading}
-                     onAdd={(id) => commitTier(tier, [...list, id])}
-                  />
-               ) : null}
-            </div>
-            {list.length > 0 ? (
-               <SortableModelList
-                  ids={list}
-                  disabled={data.loading}
-                  sortable={canEdit}
-                  labelFor={(id) => {
-                     const model = byId.get(id);
-                     return model ? modelName(model.name) : id;
-                  }}
-                  onReorder={(next) => stage(tier, next)}
-                  onCommit={(next) => commitTier(tier, next)}
-               >
-                  {(id) => row(tier, id)}
-               </SortableModelList>
-            ) : null}
-            {!dirty && runsOn.length > 0 ? (
-               <p className="text-muted-foreground">
-                  {t('runsOn', {
-                     models: runsOn.map((model) => modelName(model.name)).join(', '),
-                  })}
-               </p>
-            ) : null}
-         </div>
-      );
-   };
-
-   return (
-      <SettingsSection
-         description={data.error ?? undefined}
-         action={
-            canEdit && data.value ? (
-               <SaveIndicator
-                  state={autosave.state}
-                  error={autosave.error}
-                  onRetry={autosave.retry}
-               />
-            ) : null
-         }
-      >
-         {data.loading ? <p className="text-muted-foreground">{t('loading')}</p> : null}
-         {data.value ? (
-            <>
-               <p className="text-muted-foreground">
-                  {source === 'workspace' ? t('sourceWorkspace') : t('sourceDeployment')}
-                  {mix
-                     ? ` ${t('mix', {
-                          context: mix.contextTokens.toLocaleString('en-US'),
-                          output: mix.outputTokens.toLocaleString('en-US'),
-                          cached: Math.round(mix.cacheHitShare * 100),
-                       })}`
-                     : null}
-               </p>
-               <SettingsCard>{MAIN_TIERS.map(card)}</SettingsCard>
-            </>
-         ) : null}
-      </SettingsSection>
-   );
-}
-
-function AddModel({
-   candidates,
-   describe,
-   disabled,
-   onAdd,
-}: {
-   candidates: TierCandidate[];
-   describe: (model: TierCandidate) => string;
-   disabled: boolean;
-   onAdd: (id: string) => void;
-}) {
-   const t = useTranslations('workspaceAdmin.modelTiers');
-   const [open, setOpen] = useState(false);
-   return (
-      <Popover open={open} onOpenChange={setOpen}>
-         <PopoverTrigger asChild>
-            <button type="button" className={cn(SETTINGS_PILL, 'ml-auto')} disabled={disabled}>
-               <Plus className="size-4" />
-               {t('add')}
-            </button>
-         </PopoverTrigger>
-         <PopoverContent align="end" className="w-96 p-0">
-            <Command
-               filter={(value, search) => {
-                  const needle = search.trim().toLowerCase();
-                  return needle === '' || value.toLowerCase().includes(needle) ? 1 : 0;
-               }}
-            >
-               <CommandInput placeholder={t('search')} />
-               <CommandList>
-                  <CommandEmpty>{t('noMatch')}</CommandEmpty>
-                  <CommandGroup>
-                     {candidates.map((model) => (
-                        <CommandItem
-                           key={model.id}
-                           value={`${model.name} ${model.id}`}
-                           onSelect={() => {
-                              onAdd(model.id);
-                              setOpen(false);
-                           }}
-                        >
-                           <span className="min-w-0 flex-1">
-                              <span className="block truncate">{modelName(model.name)}</span>
-                              <span className="block truncate text-muted-foreground">
-                                 {describe(model)}
-                                 {model.cacheReadPricePerM === null ? (
-                                    <span className="text-status-warning"> · {t('noCache')}</span>
-                                 ) : null}
                               </span>
                            </span>
                         </CommandItem>

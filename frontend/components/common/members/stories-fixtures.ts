@@ -113,6 +113,7 @@ export function seedSession(userId = 'user-1', role = 'owner') {
          teamIds: [],
          timezone: 'UTC',
       },
+      needsSetup: false,
    });
 }
 

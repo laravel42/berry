@@ -108,48 +108,61 @@ export function useHydrateWorkspaceData(): void {
       if (status !== 'ready' || !workspaceId) return;
       let cancelled = false;
       const viewer = user ?? currentUser;
-      // A person lead is resolved from the member store while each project is
-      // mapped. Load the roster first: running both requests in parallel meant a
-      // fast project response permanently became "Unknown member", because the
-      // later member hydration did not remap projects already in the store.
-      void loadWorkspaceMembers(workspaceId).then(async (members) => {
+
+      // Tasks and runs start in the effect above. Same-origin HTTP/1 through
+      // the Next proxy only opens a handful of sockets, so kicking the rest
+      // immediately queued the board behind inbox/goals/approvals. Give the
+      // board the first tick; the rail badge can follow; the other lists wait.
+      const soon = window.setTimeout(() => {
          if (cancelled) return;
-         hydrateMembers(members);
-         const projects = await loadWorkspaceProjects(workspaceId);
-         if (!cancelled) hydrateProjects(projects);
-      });
-      void loadWorkspaceInbox(workspaceId, viewer).then((items) => {
-         if (!cancelled) hydrateNotifications(items);
-      });
-      void loadInboxUnreadCount(workspaceId).then((count) => {
-         if (!cancelled) setServerUnreadCount(count);
-      });
-      void loadWorkspaceAgents()
-         .then((agents) => {
-            if (!cancelled) hydrateAgents(agents, null);
-         })
-         .catch((error: unknown) => {
-            if (!cancelled) {
-               hydrateAgents(
-                  [],
-                  error instanceof BerryApiError ? error.message : 'Agent runtime is unavailable.'
-               );
-            }
+         void loadWorkspaceMembers(workspaceId).then(async (members) => {
+            if (cancelled) return;
+            hydrateMembers(members);
+            const projects = await loadWorkspaceProjects(workspaceId);
+            if (!cancelled) hydrateProjects(projects);
          });
-      void loadWorkspaceLabels(workspaceId).then((labels) => {
-         if (!cancelled) hydrateLabels(labels);
-      });
-      void loadWorkspaceViews(workspaceId, viewer).then((views) => {
-         if (!cancelled) hydrateViews(views);
-      });
-      void loadWorkspaceGoals(workspaceId).then((goals) => {
-         if (!cancelled) hydrateGoals(goals);
-      });
-      void loadWorkspaceApprovals(workspaceId).then((approvals) => {
-         if (!cancelled) hydrateApprovals(approvals);
-      });
+         void loadInboxUnreadCount(workspaceId).then((count) => {
+            if (!cancelled) setServerUnreadCount(count);
+         });
+         void loadWorkspaceAgents()
+            .then((agents) => {
+               if (!cancelled) hydrateAgents(agents, null);
+            })
+            .catch((error: unknown) => {
+               if (!cancelled) {
+                  hydrateAgents(
+                     [],
+                     error instanceof BerryApiError
+                        ? error.message
+                        : 'Agent runtime is unavailable.'
+                  );
+               }
+            });
+         void loadWorkspaceLabels(workspaceId).then((labels) => {
+            if (!cancelled) hydrateLabels(labels);
+         });
+      }, 0);
+
+      const later = window.setTimeout(() => {
+         if (cancelled) return;
+         void loadWorkspaceInbox(workspaceId, viewer).then((items) => {
+            if (!cancelled) hydrateNotifications(items);
+         });
+         void loadWorkspaceViews(workspaceId, viewer).then((views) => {
+            if (!cancelled) hydrateViews(views);
+         });
+         void loadWorkspaceGoals(workspaceId).then((goals) => {
+            if (!cancelled) hydrateGoals(goals);
+         });
+         void loadWorkspaceApprovals(workspaceId).then((approvals) => {
+            if (!cancelled) hydrateApprovals(approvals);
+         });
+      }, 200);
+
       return () => {
          cancelled = true;
+         window.clearTimeout(soon);
+         window.clearTimeout(later);
       };
    }, [
       status,

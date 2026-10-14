@@ -2,13 +2,19 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { AuthCard } from '@/components/auth/auth-card';
-import { CreateOrJoin } from '@/components/onboarding/create-or-join';
-import { WorkspaceStep } from '@/components/onboarding/workspace-step';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { Panel } from '@/components/common/page/page-parts';
+import { CreateOrJoin } from '@/components/onboarding/create-or-join';
+import { SetupFrame } from '@/components/onboarding/setup-frame';
+import { TiersStep } from '@/components/onboarding/tiers-step';
+import { WorkstationStep } from '@/components/onboarding/workstation-step';
+import { WorkspaceStep } from '@/components/onboarding/workspace-step';
 import { fetchBootstrap } from '@/lib/auth';
+import { saveOnboarding } from '@/lib/onboarding';
+import { pickWorkspace } from '@/lib/session-workspace';
 import { saveUserSettings } from '@/lib/settings';
 import { selectWorkspace } from '@/lib/workspaces';
 import { useSessionStore } from '@/store/session-store';
@@ -16,21 +22,12 @@ import { useSessionStore } from '@/store/session-store';
 /**
  * Onboarding — the single hand-off after auth.
  *
- * On a ready session it reads `/me/bootstrap` once and branches:
- *  - ≥1 membership: resolve the target (previously selected if still valid,
- *    else earliest-joined) and route into it within budget, without ever
- *    showing a creation step (Requirement 10.1).
- *  - no membership: render the create-or-join step and do not auto-create
- *    (Requirement 10.2). Create / join / select go through the workspace
- *    helpers (Requirements 10.4, 10.5, 10.6); on success the session store is
- *    refreshed and we route into the workspace.
- *
- * An anonymous visitor never reaches the branch: the SessionGate has already
- * sent them to `/sign-in`. While the store is still `booting`, the gate shows
- * its own boot screen, so here we only act once the status is settled.
+ * A first account names a workspace, then pairs this computer and places
+ * models. An account that already belongs somewhere skips naming and starts
+ * at the pair step until setup version 2 is stored.
  */
 
-type Phase = 'resolving' | 'choose';
+type Phase = 'resolving' | 'choose' | 'workstation' | 'tiers';
 
 /** The zone this browser reports, or null where it cannot say. */
 function browserTimezone(): string | null {
@@ -41,21 +38,10 @@ function browserTimezone(): string | null {
    }
 }
 
-// Route into a workspace by slug. One place builds the destination so the
-// with-membership and after-create/join paths stay identical.
 function workspacePath(slug: string): string {
    return `/${slug}/tasks`;
 }
 
-/**
- * What the GitHub install trip came back with, in Berry's words.
- *
- * The install runs on the App's own setup URL, so it returns to this page
- * rather than to settings — nobody asked for settings, they asked to log in.
- * Anything that is not an install and not a request is said plainly and left
- * behind: the account works either way, and Settings → Repositories offers the
- * same link again.
- */
 function describeInstallReturn(status: string): { ok: boolean; message: string } {
    switch (status) {
       case 'installed':
@@ -76,16 +62,14 @@ function describeInstallReturn(status: string): { ok: boolean; message: string }
 export default function OnboardingPage() {
    const router = useRouter();
    const searchParams = useSearchParams();
-   // The workspace switcher links here with `?add=1` to create or join another
-   // workspace. That intent forces the choose step even for a user who already
-   // has memberships, who would otherwise be routed straight back into one.
+   const t = useTranslations('workspaceAdmin.onboarding');
    const addIntent = searchParams.get('add') === '1';
    const status = useSessionStore((state) => state.status);
+   const sessionWorkspace = useSessionStore((state) => state.workspace);
+   const needsSetup = useSessionStore((state) => state.needsSetup);
    const refreshWorkspaces = useSessionStore((state) => state.refreshWorkspaces);
+   const markSetupDone = useSessionStore((state) => state.markSetupDone);
 
-   // GitHub sends the install trip back here with its outcome in the query. It
-   // is said once, and the resolve below carries on into the workspace — the
-   // toast survives that navigation, the address does not have to.
    const installReturn =
       searchParams.get('integration') === 'github' ? searchParams.get('status') : null;
    const announced = useRef<string | null>(null);
@@ -100,21 +84,46 @@ export default function OnboardingPage() {
    const [phase, setPhase] = useState<Phase>('resolving');
    const [error, setError] = useState<string | null>(null);
    const [joining, setJoining] = useState(false);
+
+   const enterApp = useCallback(
+      async (mode: 'complete' | 'skip') => {
+         setError(null);
+         try {
+            await saveOnboarding(
+               mode === 'skip'
+                  ? { skipped: true, completed: true }
+                  : { step: 'complete', completed: true }
+            );
+         } catch (cause) {
+            setError(cause instanceof Error ? cause.message : t('finishFailed'));
+            return;
+         }
+         markSetupDone();
+         const workspace = useSessionStore.getState().workspace;
+         if (workspace) {
+            router.replace(workspacePath(workspace.slug));
+            return;
+         }
+         const refreshed = await refreshWorkspaces();
+         if (refreshed) router.replace(workspacePath(refreshed.slug));
+      },
+      [markSetupDone, refreshWorkspaces, router, t]
+   );
+
    useEffect(() => {
-      // The gate owns the anonymous and booting cases; only a ready session
-      // resolves here. No cross-render ref guard: under React Strict Mode the
-      // effect mounts, is torn down, and remounts, and a ref that survived that
-      // teardown would let the first (cancelled) run block the second from ever
-      // fetching — leaving the page stuck on the resolving spinner. Instead each
-      // run owns its own `cancelled` flag, and `/me/bootstrap` is a safe GET to
-      // repeat. React also drops a state update from a cancelled run, so the
-      // double-invoke settles on the second run's result.
       if (status !== 'ready') return;
 
-      // Explicit "add a workspace" intent: show create/join directly instead of
-      // resolving into an existing workspace.
       if (addIntent) {
          setPhase('choose');
+         return;
+      }
+
+      if (sessionWorkspace) {
+         if (needsSetup) {
+            setPhase('workstation');
+            return;
+         }
+         router.replace(workspacePath(sessionWorkspace.slug));
          return;
       }
 
@@ -125,9 +134,6 @@ export default function OnboardingPage() {
             if (cancelled) return;
 
             if (bootstrap.workspaces.length === 0) {
-               // A first run: the account still holds the server's default
-               // zone, which is nobody's choice yet. The browser's own zone is
-               // the likelier answer, and Preferences can change it.
                const zone = browserTimezone();
                if (bootstrap.user.settings.timezone === 'UTC' && zone && zone !== 'UTC') {
                   void saveUserSettings({ timezone: zone }).catch(() => undefined);
@@ -136,29 +142,22 @@ export default function OnboardingPage() {
                return;
             }
 
-            // Previously selected if the server still reports it as a valid
-            // membership, else the earliest-joined by createdAt (id breaks
-            // ties for determinism).
-            const current = bootstrap.workspaces.find(
-               (workspace) => workspace.id === bootstrap.currentWorkspaceId
-            );
-            const target =
-               current ??
-               [...bootstrap.workspaces].sort((a, b) => {
-                  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
-                  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-               })[0];
+            const target = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
+            if (!target) {
+               setPhase('choose');
+               return;
+            }
 
             if (bootstrap.currentWorkspaceId !== target.id) {
                await selectWorkspace(target.id).catch(() => undefined);
                if (cancelled) return;
             }
 
-            router.replace(workspacePath(target.slug));
+            await refreshWorkspaces();
+            if (cancelled) return;
+            setPhase('workstation');
          } catch {
             if (cancelled) return;
-            // Bootstrap failed on a ready session: surface a retryable error
-            // rather than trapping them on a blank screen.
             setError('We could not load your workspaces. Please try again.');
          }
       })();
@@ -166,51 +165,103 @@ export default function OnboardingPage() {
       return () => {
          cancelled = true;
       };
-   }, [status, router, addIntent]);
+   }, [status, router, addIntent, sessionWorkspace, needsSetup, refreshWorkspaces]);
 
-   // Shared by create and join: make the workspace the selected one, refresh
-   // the store from the server, and route into it.
    const enterWorkspace = useCallback(
       async (workspaceId: string) => {
          setError(null);
-         const selected = await selectWorkspace(workspaceId);
+         await selectWorkspace(workspaceId);
          await refreshWorkspaces();
-         router.replace(workspacePath(selected.slug));
+         if (addIntent) {
+            const selected = useSessionStore.getState().workspace;
+            if (selected) router.replace(workspacePath(selected.slug));
+            return;
+         }
+         setPhase('workstation');
       },
-      [refreshWorkspaces, router]
+      [addIntent, refreshWorkspaces, router]
    );
 
    if (phase === 'choose') {
-      // Naming a new workspace first; joining one by invitation is a link away.
       if (!joining) {
          return (
-            <>
+            <SetupFrame
+               title={t('workspaceTitle')}
+               description={t('workspaceBody')}
+               step="workspace"
+               hasWorkspace={false}
+            >
                {error ? (
-                  <p role="alert" className="mb-4 text-destructive-foreground">
+                  <p role="alert" className="text-status-danger">
                      {error}
                   </p>
                ) : null}
                <WorkspaceStep onEntered={enterWorkspace} onJoin={() => setJoining(true)} />
-            </>
+            </SetupFrame>
          );
       }
       return (
-         <AuthCard
-            title="Set up your workspace"
-            description="Create a new workspace or join one you were invited to."
+         <SetupFrame
+            title={t('joinTitle')}
+            description={t('joinBody')}
+            step="workspace"
+            hasWorkspace={false}
          >
             {error ? (
-               <p role="alert" className="mb-4 text-destructive-foreground">
+               <p role="alert" className="text-status-danger">
                   {error}
                </p>
             ) : null}
-            <CreateOrJoin onEntered={enterWorkspace} initialTab="join" />
-         </AuthCard>
+            <Panel>
+               <CreateOrJoin onEntered={enterWorkspace} initialTab="join" />
+            </Panel>
+         </SetupFrame>
       );
    }
 
-   // Resolving (or routing away): match the boot screen's language so the
-   // move from "loading" to the workspace does not feel like a different app.
+   if (phase === 'workstation') {
+      return (
+         <SetupFrame
+            title={t('workstationTitle')}
+            description={t('workstationBody')}
+            step="workstation"
+            hasWorkspace
+         >
+            {error ? (
+               <p role="alert" className="text-status-danger">
+                  {error}
+               </p>
+            ) : null}
+            <WorkstationStep
+               onContinue={() => {
+                  void saveOnboarding({ step: 'tiers' }).catch(() => undefined);
+                  setPhase('tiers');
+               }}
+               onSkip={() => {
+                  void saveOnboarding({ step: 'tiers' }).catch(() => undefined);
+                  setPhase('tiers');
+               }}
+            />
+         </SetupFrame>
+      );
+   }
+
+   if (phase === 'tiers') {
+      return (
+         <SetupFrame title={t('tiersTitle')} description={t('tiersBody')} step="tiers" hasWorkspace>
+            {error ? (
+               <p role="alert" className="text-status-danger">
+                  {error}
+               </p>
+            ) : null}
+            <TiersStep
+               onContinue={() => void enterApp('complete')}
+               onSkip={() => void enterApp('skip')}
+            />
+         </SetupFrame>
+      );
+   }
+
    return (
       <div className="flex min-h-svh items-center justify-center bg-background">
          <div className="flex flex-col items-center gap-3 text-muted-foreground">

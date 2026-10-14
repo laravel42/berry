@@ -38,6 +38,7 @@ export function seedAdminSession() {
          teamIds: [],
          timezone: 'UTC',
       },
+      needsSetup: false,
    });
 }
 

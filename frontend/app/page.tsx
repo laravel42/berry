@@ -1,12 +1,9 @@
 import { redirect } from 'next/navigation';
 
 /**
- * App root. Sign-in returns to `/`, so this
- * is the single hand-off into onboarding — the one place that decides where a
- * signed-in user lands. Onboarding reads `/me/bootstrap` and either routes into
- * the resolved workspace (previously selected if valid, else earliest-joined)
- * within budget or shows the create-or-join step when there is no membership.
- * The SessionGate still bounces an anonymous visitor to `/sign-in` first.
+ * App root. Sign-in returns to `/`. `proxy.ts` already 307s a session with a
+ * membership into that workspace; this is the fallback when the proxy does
+ * not run. SessionGate still sends an anonymous visitor to `/sign-in`.
  */
 export default function Home() {
    redirect('/onboarding');

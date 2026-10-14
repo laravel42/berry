@@ -6,6 +6,8 @@ import { AUTO_LOGIN_EMAIL } from '@/lib/config';
 import { listBoards, selectBoardId } from '@/lib/boards';
 import { toUiUser } from '@/lib/catalog';
 import { isLocale, type Locale } from '@/lib/i18n/locales';
+import { needsSetupWizard } from '@/lib/onboarding';
+import { pickWorkspace } from '@/lib/session-workspace';
 import { selectWorkspace } from '@/lib/workspaces';
 
 export type SessionStatus = 'booting' | 'anonymous' | 'ready';
@@ -28,6 +30,8 @@ interface SessionState {
    boardId: string | null;
    /** The account's interface language, from bootstrap; null when anonymous. */
    preferredLocale: Locale | null;
+   /** Pair this computer and place models before the first workspace visit. */
+   needsSetup: boolean;
    /** Settings calls this after saving, so LocaleSync does not revert the choice. */
    setPreferredLocale: (locale: Locale) => void;
    error: string | null;
@@ -48,23 +52,91 @@ interface SessionState {
     * one of the user's memberships. Callers navigate into it on success.
     */
    switchWorkspace: (workspaceId: string) => Promise<SessionWorkspace | null>;
+   /** The first-login wizard finished or was skipped; stay out of it. */
+   markSetupDone: () => void;
 }
 
-/**
- * The selection rule (Requirements 10.1, 10.4, 10.5): the previously selected
- * workspace when it is still a valid membership, otherwise the earliest-joined.
- * The server returns `currentId` as previous-if-valid-else-null, so a null here
- * means fall back to the earliest by `createdAt` (ties broken by id for a
- * deterministic pick) rather than trusting incoming array order.
- */
-function pickWorkspace(workspaces: BootstrapWorkspace[], currentId: string | null) {
-   const current = workspaces.find((workspace) => workspace.id === currentId);
-   if (current) return current;
-   const earliest = [...workspaces].sort((a, b) => {
-      if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? -1 : 1;
-      return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-   });
-   return earliest[0] ?? null;
+const SNAPSHOT_KEY = 'berry.session.snapshot.v1';
+
+type ReadySnapshot = Pick<
+   SessionState,
+   'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale' | 'needsSetup'
+>;
+
+function isSessionWorkspace(value: unknown): value is SessionWorkspace {
+   if (typeof value !== 'object' || value === null) return false;
+   const row = value as Record<string, unknown>;
+   return (
+      typeof row.id === 'string' &&
+      typeof row.name === 'string' &&
+      typeof row.slug === 'string' &&
+      typeof row.role === 'string'
+   );
+}
+
+function isUser(value: unknown): value is User {
+   if (typeof value !== 'object' || value === null) return false;
+   const row = value as Record<string, unknown>;
+   return (
+      typeof row.id === 'string' &&
+      typeof row.name === 'string' &&
+      typeof row.avatarUrl === 'string' &&
+      typeof row.email === 'string' &&
+      (row.status === 'online' || row.status === 'offline' || row.status === 'away') &&
+      (row.role === 'Member' ||
+         row.role === 'Admin' ||
+         row.role === 'Guest' ||
+         row.role === 'Application') &&
+      typeof row.joinedDate === 'string' &&
+      Array.isArray(row.teamIds) &&
+      typeof row.timezone === 'string'
+   );
+}
+
+function readSnapshot(): ReadySnapshot | null {
+   if (typeof window === 'undefined') return null;
+   try {
+      const raw = window.sessionStorage.getItem(SNAPSHOT_KEY);
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null) return null;
+      const row = parsed as Record<string, unknown>;
+      if (!isUser(row.user)) return null;
+      if (row.workspace != null && !isSessionWorkspace(row.workspace)) return null;
+      if (!Array.isArray(row.workspaces) || !row.workspaces.every(isSessionWorkspace)) {
+         return null;
+      }
+      if (row.boardId != null && typeof row.boardId !== 'string') return null;
+      if (row.preferredLocale != null && !isLocale(row.preferredLocale)) return null;
+      return {
+         user: row.user,
+         workspace: isSessionWorkspace(row.workspace) ? row.workspace : null,
+         workspaces: row.workspaces,
+         boardId: typeof row.boardId === 'string' ? row.boardId : null,
+         preferredLocale: isLocale(row.preferredLocale) ? row.preferredLocale : null,
+         needsSetup: typeof row.needsSetup === 'boolean' ? row.needsSetup : true,
+      };
+   } catch {
+      return null;
+   }
+}
+
+function writeSnapshot(snapshot: ReadySnapshot): void {
+   if (typeof window === 'undefined') return;
+   try {
+      window.sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+   } catch {
+      // Private mode and quota errors are not worth blocking boot.
+   }
+}
+
+function clearSnapshot(): void {
+   if (typeof window === 'undefined') return;
+   try {
+      window.sessionStorage.removeItem(SNAPSHOT_KEY);
+   } catch {
+      // Same as write: a store we cannot clear is not a session we still hold.
+   }
 }
 
 const toSessionWorkspace = (workspace: BootstrapWorkspace): SessionWorkspace => ({
@@ -74,12 +146,9 @@ const toSessionWorkspace = (workspace: BootstrapWorkspace): SessionWorkspace => 
    role: workspace.role,
 });
 
-async function loadReadyState(): Promise<
-   Pick<SessionState, 'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale'>
-> {
-   const bootstrap = await fetchBootstrap();
+async function loadReadyState(): Promise<ReadySnapshot> {
+   const [bootstrap, boards] = await Promise.all([fetchBootstrap(), listBoards()]);
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
-   const boards = await listBoards();
    return {
       user: toUiUser({
          id: bootstrap.user.id,
@@ -94,6 +163,7 @@ async function loadReadyState(): Promise<
       preferredLocale: isLocale(bootstrap.user.settings.locale)
          ? bootstrap.user.settings.locale
          : null,
+      needsSetup: needsSetupWizard(bootstrap.user.onboarding),
    };
 }
 
@@ -104,6 +174,7 @@ const ANONYMOUS = {
    workspaces: [] as SessionWorkspace[],
    boardId: null,
    preferredLocale: null,
+   needsSetup: false,
    error: null,
 };
 
@@ -114,20 +185,44 @@ export const useSessionStore = create<SessionState>((set, get) => ({
    workspaces: [],
    boardId: null,
    preferredLocale: null,
+   needsSetup: false,
    error: null,
 
    setPreferredLocale: (locale) => set({ preferredLocale: locale }),
+   markSetupDone: () => {
+      set({ needsSetup: false });
+      const current = get();
+      if (current.status === 'ready' && current.user) {
+         writeSnapshot({
+            user: current.user,
+            workspace: current.workspace,
+            workspaces: current.workspaces,
+            boardId: current.boardId,
+            preferredLocale: current.preferredLocale,
+            needsSetup: false,
+         });
+      }
+   },
 
    hydrateFromStorage: async () => {
+      // Last tab's ready state is enough to paint the shell while bootstrap
+      // and the board list confirm. It is not a credential — the cookie is.
+      const snapshot = readSnapshot();
+      if (snapshot && get().status === 'booting') {
+         set({ status: 'ready', error: null, ...snapshot });
+      }
+
       // The session is a cookie the browser sends on its own, so "is anyone
       // signed in" is simply whether bootstrap answers. A 401 is the normal
       // anonymous answer, not an error worth showing.
       try {
          const ready = await loadReadyState();
+         writeSnapshot(ready);
          set({ status: 'ready', error: null, ...ready });
          return;
       } catch (error) {
          if (!(error instanceof BerryApiError) || error.status !== 401) {
+            clearSnapshot();
             set({ ...ANONYMOUS, error: error instanceof BerryApiError ? error.message : null });
             return;
          }
@@ -140,6 +235,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          try {
             await devLogin(AUTO_LOGIN_EMAIL);
             const ready = await loadReadyState();
+            writeSnapshot(ready);
             set({ status: 'ready', error: null, ...ready });
             return;
          } catch {
@@ -147,18 +243,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          }
       }
 
+      clearSnapshot();
       set({ ...ANONYMOUS });
    },
 
    signOut: async () => {
       await logoutSession();
+      clearSnapshot();
       set({ ...ANONYMOUS });
    },
 
-   markAnonymous: () => set({ ...ANONYMOUS }),
+   markAnonymous: () => {
+      clearSnapshot();
+      set({ ...ANONYMOUS });
+   },
 
    refreshWorkspaces: async () => {
       const ready = await loadReadyState();
+      writeSnapshot(ready);
       set({ status: 'ready', error: null, ...ready });
       return ready.workspace;
    },
@@ -175,7 +277,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // The board goes with the workspace: one left from the last workspace
       // would send new tasks and plans onto another workspace's board.
       const boards = await listBoards().catch(() => []);
-      set({ workspace: target, boardId: selectBoardId(boards, target.id) });
+      const next = { workspace: target, boardId: selectBoardId(boards, target.id) };
+      set(next);
+      const current = get();
+      if (current.status === 'ready' && current.user) {
+         writeSnapshot({
+            user: current.user,
+            workspace: next.workspace,
+            workspaces: current.workspaces,
+            boardId: next.boardId,
+            preferredLocale: current.preferredLocale,
+            needsSetup: current.needsSetup,
+         });
+      }
       return target;
    },
 }));

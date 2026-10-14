@@ -83,6 +83,7 @@ export function seedSession(role: 'owner' | 'admin' | 'member' | 'guest' = 'admi
       workspace,
       workspaces: [workspace],
       boardId: 'board-1',
+      needsSetup: false,
       error: null,
    });
 }

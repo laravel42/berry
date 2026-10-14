@@ -94,5 +94,14 @@ export type Locale = (typeof LOCALES)[number];
 export function validLocale(value: string): value is Locale {
    return (LOCALES as readonly string[]).includes(value);
 }
-export const ONBOARDING_STEPS = ['welcome', 'aboutYou', 'workspace', 'complete'] as const;
+export const ONBOARDING_STEPS = [
+   'welcome',
+   'aboutYou',
+   'workspace',
+   'workstation',
+   'tiers',
+   'complete',
+] as const;
+/** First-login pair + tiers. Accounts still on version 1 only finished workspace create/join. */
+export const SETUP_ONBOARDING_VERSION = 2;
 export const ONBOARDING_ANSWER_KEYS = ['role', 'teamSize', 'goal', 'source'] as const;
