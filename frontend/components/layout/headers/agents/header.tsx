@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { PageStatement } from '@/components/common/page/page-parts';
@@ -48,14 +47,8 @@ export default function Header() {
                   aria-label={t('search')}
                   className="h-[34px] w-48 min-w-0"
                />
-               <Button size="icon" className="size-[34px] shrink-0" asChild>
-                  <Link
-                     href={`/${orgId}/agents/new`}
-                     aria-label={t('newAgent')}
-                     title={t('newAgent')}
-                  >
-                     <Plus className="size-4" aria-hidden />
-                  </Link>
+               <Button className="h-[34px] shrink-0 px-3" asChild>
+                  <Link href={`/${orgId}/agents/new`}>{t('newAgent')}</Link>
                </Button>
             </div>
          </PageStatement>

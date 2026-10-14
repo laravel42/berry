@@ -1,7 +1,7 @@
 {
    "header": {
       "title": "Agents",
-      "newAgent": "New agent",
+      "newAgent": "+ Create agent",
       "search": "Search agents",
       "statement": {
          "line": "{count, plural, one {agent is working} other {agents are working}}",

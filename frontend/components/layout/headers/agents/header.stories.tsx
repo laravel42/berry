@@ -5,7 +5,7 @@ import { useAgentsStore } from '@/store/agents-store';
 import { agents, seedSession, workspaceRoute } from '../../stories-fixtures';
 import Header from './header';
 
-/** The agents page chrome: toolbar with scope, filters, and New agent. */
+/** The agents page chrome: toolbar with scope, filters, and Create agent. */
 const meta = {
    component: Header,
    tags: ['ai-generated', 'needs-work'],
@@ -25,12 +25,12 @@ type Story = StoryObj<typeof meta>;
 
 export const Admin: Story = {
    play: async ({ canvas, userEvent }) => {
-      await expect(canvas.getByRole('link', { name: 'New agent' })).toHaveAttribute(
+      await expect(canvas.getByRole('link', { name: '+ Create agent' })).toHaveAttribute(
          'href',
          '/elian/agents/new'
       );
       const search = canvas.getByRole('textbox', { name: 'Search agents' });
-      const button = canvas.getByRole('link', { name: 'New agent' });
+      const button = canvas.getByRole('link', { name: '+ Create agent' });
       await expect(search.getBoundingClientRect().right).toBeLessThanOrEqual(
          button.getBoundingClientRect().left
       );
