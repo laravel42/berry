@@ -51,6 +51,7 @@ export const WORKSPACE_TOPICS = [
    // A chat's reply, and a line when work its agent started ends. Ids only,
    // no message text: the chat reads the messages through its own route.
    'conversation.message.created',
+   'conversation.read',
    'autopilot.created', 'autopilot.updated', 'autopilot.archived',
    'autopilot.run.created', 'autopilot.delivery.received',
 ] as const;

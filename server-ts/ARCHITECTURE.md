@@ -49,7 +49,7 @@ what a folder is allowed to do.
 - **Infrastructure** — cross-cutting plumbing every layer leans on (the HTTP
   framework glue, the database pool, config, logging, realtime fan-out).
 - **External integration** — everything that talks to a system outside Berry
-  (Bedrock, the Kilo gateway's catalogue and account, GitHub, object storage,
+  (GitHub, object storage, AgentCore, subscription CLIs,
   the agent runtime transport).
 - **Dev-script** — run by an operator or CI, not by a request (migrate, seed,
   reset).
@@ -68,16 +68,15 @@ what a folder is allowed to do.
 | `auth/` | Sessions, Better Auth wiring, personal-access tokens, dev-login, and the `requireSession` middleware. | domain (security) |
 | `core/` | The tracker itself: `boards`, `issues`, `comments`, `dependencies`, `reviews`, `goals`, `projects`, `attachments`. | domain |
 | `organization/` | The role catalog, autonomy ceilings, provisioning, discovery and work proposals. See [below](#the-organization). | domain |
-| `agents/` | The agent registry: `repository`, model `catalog` (Bedrock's inference profiles, or the Kilo gateway's models), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
-| `agents/kilo/` | The Kilo gateway's side of ADR-0017, read-only, and constructed only when `BERRY_MODEL_PROVIDER=kilo`. `catalog.ts` reads the gateway's model list (prices, and which models the account's own keys can serve), Kilo's public usage leaderboard and the Terminal-Bench leaderboards, hourly, keeping the last good copy when a read fails. `ratings.ts` puts the Terminal-Bench 4.0, 3.0, 2.1 and 2.0 scores and Kilo's own benchmark scores on the 4.0 scale. `tiers.ts` fills BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow (BerryFree and BerryAuto were removed on 2026-09-27), picks a task's model from its tier's list: the first, then the next after each rejected review (`issues.review_rejections`), and names the fallback. `account.ts` reads the account's daily usage per model and its credit balance. Never calls a model. | external integration (read-only) |
-| `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
-| `agents/runtime/` | Code that runs *inside* the runtime image, never imported as a model SDK by the product server. The native path is the Strands loop against Bedrock or Kilo (`model.ts`, `kilo-fetch.ts`, `fallback-model.ts`). `adapters/` holds provider-owned agent processes. Kiro is the one that runs: the product server starts `kiro-cli acp --agent-engine=v3` on the workstation (`runtime/workstation-kiro.ts`), and the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; Kiro does not) |
+| `agents/` | The agent registry: `repository`, model `catalog` (wire types only; native catalogues are gone), `model-tiers.ts` (the tier names), triggers/mentions. Does not itself call a model. | domain |
+| `runtime/` | The ADR-0014 control plane: envelope, transport, lifecycle stream, agent-tools API and compute-host registrations; ADR-0019 adds the evidence catalog, user-scoped AI-runtime connections, preferences, tier placements and run selection. See [below](#agent-execution-the-control-plane). | domain + integration |
+| `agents/runtime/` | Code that ships *inside* the runtime image. Native Bedrock and Kilo factories are gone (`model.ts` throws). `adapters/` holds provider-owned agent processes. Subscription CLIs run on the workstation (`runtime/workstation-kiro.ts`); the container's adapter registry is empty. Only this tree may import model or agent SDKs (`check:models`). | integration (the native loop builds into the runtime image; subscription CLIs do not) |
 | `runs/` | The run queue and ledger: `queue`, `auto-dispatch`, `scheduler`, and the `dispatcher` that claims a queued run with `SKIP LOCKED` under a renewed lease. | domain |
 | `plans/` | The planner: `repository`, `generator`, `triage` (routing), `answers`. | domain + integration |
 | `conversations/` | Conversation threads and their model-backed responder. | domain + integration |
 | `approvals/` | The approval-gate records, including work-proposal decisions. | domain |
 | `inbox/` | Per-user inbox notifications. | domain |
-| `usage/` | Model usage and cost: `record.ts` writes each `task.usage` report with its cost (priced from `PriceBook` on the Bedrock path; through Kilo, exactly the cost Kilo reported, or unpriced), `queries.ts` behind the Usage page and dashboard (including the per-tier comparison), `prompt-logs.ts`. `gateway-fees.ts` is the hourly Kilo reconciliation: it spreads BerryAuto's classifier fees into `task_usage.gateway_fee_micros` and logs a credit balance below `BERRY_KILO_MIN_BALANCE_USD`. | domain |
+| `usage/` | Model usage and cost: `record.ts` writes each `task.usage` report (unpriced unless the runtime reported a cost), `queries.ts` behind the Usage page and dashboard, `prompt-logs.ts`. | domain |
 | `editor/` | Model-backed editor assistance. | integration |
 | `integrations/` | Sealed provider credentials — connections, the GitHub App manifest flow, OAuth, sealing. **The only place a provider secret is decrypted**, using `INTEGRATION_ENCRYPTION_KEY`. | external integration (security) |
 | `scm/` | Source control: the provider interface, GitHub providers, provisioning, sync, inbound webhooks. | external integration |
@@ -149,35 +148,16 @@ target; `S3_ENDPOINT` can point at any S3-compatible store instead.
 
 ## Models
 
-Every model call happens in the runtime image. The native Strands path is
-selected by `BERRY_MODEL_PROVIDER`; a person-started run may instead carry a
-user-scoped agent-process selection from ADR-0019.
+Every model call happens in a subscription CLI on the workstation
+(ADR-0019). Native Bedrock and Kilo factories are gone (ADR-0017
+superseded). `GET /api/v1/config` reports `modelGateway: false`.
 
-- **`bedrock`** (the default) — the runtime calls Amazon Bedrock directly. An
-  agent runs on its own model, else its runtime profile's, else
-  `BERRY_AGENT_DEFAULT_MODEL`, each a Bedrock inference profile id. The model
-  picker lists the account's inference profiles; usage is priced from
-  `PriceBook`. There are no tiers on this path.
-- **`kilo`** (ADR-0017) — the runtime calls the Kilo AI gateway
-  (OpenAI-compatible) with `BERRY_KILO_API_KEY`. An agent that names no
-  gateway model runs on its tier (its own, else its role's), and
-  `agents/kilo/` picks the tier's model for the session plus a fallback. A
-  completion runs as the Orchestrator. When that agent's selected tier has a
-  connected runtime's model placed first, the completion uses it; otherwise
-  it uses the first gateway model on the tier. Paid models must be
-  served by one of the deployment's own provider keys added to Kilo (its
-  Bedrock key): a paid call Kilo bills to its own credits is refused
-  (`NOT_OWN_KEY`), while `kilo-auto/*` and `:free` models are exempt. Cost
-  is exactly what Kilo reports per call.
-  The server reads Kilo's model list, usage leaderboard and account, never a
-  model, and `GET /api/v1/config` reports `modelGateway: true`. The
-  `BERRY_BEDROCK_*` settings stay in use for Polly and Nova Reel.
 - **User-scoped agent process** (ADR-0019) — the run snapshots an AI-runtime
   key, model and connection. Kiro, Claude, and Codex are the connectable ones. The product
   server starts the matching CLI on the workstation, rewrites the envelope callback
   to `127.0.0.1` on the API port, and records the CLI's text, tool, usage and
-  terminal events. Usage from a subscription is stored unpriced. There is no
-  fallback to Bedrock or Kilo, and Kiro does not hand Berry a container to
+  terminal events. Usage from a subscription is stored unpriced unless the
+  runtime reports a cost. There is no native fallback, and Kiro does not hand Berry a container to
   run. GitHub Copilot is not a runtime. See
   [`docs/ai-runtimes.md`](../docs/ai-runtimes.md).
 
@@ -220,10 +200,8 @@ them:
 6. **Lifecycle stream** (`src/runtime/lifecycle.ts`) — the runtime streams
    `task.started | message | usage | completed | failed` back;
    `task-executor.ts` consumes it and `src/runs/ledger.ts` is the only writer
-   of run state. Usage is recorded and priced (`usage/record.ts`): from
-   `PriceBook` on the Bedrock path, through Kilo exactly as it reported, or
-   explicitly unpriced for subscription usage that exposes tokens/quota but no
-   USD charge.
+   of run state. Usage is recorded (`usage/record.ts`) and stays unpriced
+   unless the subscription runtime reports a cost.
 7. **Agent-tools API** (`src/runtime/agent-tools/`) — the only way the agent
    acts on Berry, at `/api/v1/agent-tools/:name` with a task-scoped bearer
    token (TTL at most 8 hours), never through the database directly. Core
@@ -239,13 +217,12 @@ them:
    A later task that depends on it is told that path. The root file
    `HANDOFF.md` is not a handoff.
 8. **The runtime image** (`server-ts/sandbox/agentcore/Dockerfile`) — built
-   from `src/agents/runtime/` (the native Strands loop and Bedrock/Kilo
-   clients) plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
+   from `src/agents/runtime/` (the Strands loop with no native model factory)
+   plus `src/execution/`, `src/runtime/envelope.ts`, `lifecycle.ts`
    and `src/scm/commit-trailer.ts`. The container adapter registry is empty:
-   Kiro is a workstation process, not an image. `deploy.sh` builds, pushes
-   and publishes the image to AWS; it needs account-owner credentials, and
-   with `BERRY_MODEL_PROVIDER=kilo` it passes the Kilo settings to the
-   runtime. Native `runtimeSessionId` is stable per agent/task.
+   subscription CLIs are workstation processes, not an image. `deploy.sh`
+   builds, pushes and publishes the image to AWS; it needs account-owner
+   credentials. Native `runtimeSessionId` is stable per agent/task.
 
 ## The organization
 

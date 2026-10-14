@@ -1,18 +1,11 @@
 export const AI_RUNTIME_IDS = [
    'claude',
    'codex',
-   'opencode',
-   'openclaw',
-   'hermes',
-   'pi',
    'cursor',
-   'kimi',
-   'kiro',
-   'antigravity',
-   'qoder',
-   'trae-cli',
    'grok',
-   'qwen',
+   'kiro',
+   'qoder',
+   'kimi',
 ] as const;
 
 export type AiRuntimeId = (typeof AI_RUNTIME_IDS)[number];
@@ -51,12 +44,10 @@ export interface AiRuntimeDefinition {
 }
 
 /**
- * Product facts verified from first-party documentation on 2026-10-08, with Qoder, Hermes, and Antigravity re-reviewed 2026-10-10.
- *
- * `available` means this Berry build has both a supported authentication
- * boundary and an executable adapter. A documented CLI alone is not enough:
- * the Berry server cannot reach a person's laptop or copy its credential
- * store into an AgentCore session.
+ * Connectable subscription CLIs. A product is omitted until Berry can start
+ * its official child on a workstation login without reading a credential
+ * store or forwarding a key. OpenCode, OpenClaw, Hermes, Pi, Antigravity,
+ * Trae, and Qwen stay out until those adapters ship.
  */
 export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    {
@@ -111,116 +102,6 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       officialSources: [
          'https://developers.openai.com/codex/cli',
          'https://developers.openai.com/codex/app-server',
-      ],
-   },
-   {
-      id: 'opencode',
-      name: 'OpenCode',
-      publisher: 'OpenCode',
-      product: 'OpenCode coding agent and server',
-      description: 'An open coding-agent framework with an HTTP/OpenAPI server. Its model access belongs to the configured provider, not OpenCode itself.',
-      executionMode: 'agent_process',
-      provider: 'Provider selected in OpenCode',
-      billing: 'provider_dependent',
-      billingDetail: 'OpenCode Go is its own plan; other models use the configured provider subscription or API billing.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Provider OAuth/device flow', 'Provider API key', 'OpenCode Go key'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Install OpenCode and configure a protected `opencode serve` process on the runtime host.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'unknown',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'OpenCode is a framework, not a subscription entitlement. Berry has no per-user OpenCode server boundary and will not copy ~/.local/share/opencode/auth.json.',
-      officialSources: ['https://opencode.ai/docs/providers/', 'https://opencode.ai/docs/server/'],
-   },
-   {
-      id: 'openclaw',
-      name: 'OpenClaw',
-      publisher: 'OpenClaw',
-      product: 'OpenClaw Gateway',
-      description: 'A self-hosted agent gateway with WebSocket control, sessions, approvals, models, channels, and provider-owned authentication.',
-      executionMode: 'agent_process',
-      provider: 'Provider configured in OpenClaw',
-      billing: 'provider_dependent',
-      billingDetail: 'OAuth or API billing belongs to the selected model provider; installing OpenClaw grants no model entitlement.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Provider OAuth', 'Provider API key', 'Claude CLI reuse', 'Anthropic setup-token'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Install and operate an authenticated OpenClaw Gateway.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'OpenClaw credentials are gateway- or provider-owned. Berry has no principal-isolated Gateway registration and will not read its per-agent credential store.',
-      officialSources: [
-         'https://docs.openclaw.ai/gateway/authentication',
-         'https://github.com/openclaw/openclaw/blob/main/docs/gateway/protocol.md',
-      ],
-   },
-   {
-      id: 'hermes',
-      name: 'Hermes',
-      publisher: 'Nous Research',
-      product: 'Hermes Agent',
-      description: 'An agent framework exposing ACP, a JSON-RPC TUI gateway, and an HTTP/SSE API server.',
-      executionMode: 'agent_process',
-      provider: 'Nous Portal or configured provider',
-      billing: 'provider_dependent',
-      billingDetail: 'Nous Portal has a subscription; other routes consume their provider’s subscription, plan, or API billing.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Nous Portal OAuth', 'Provider OAuth/device flow', 'Provider API key'],
-      platforms: ['Linux', 'macOS', 'Windows through WSL2'],
-      localProcess: true,
-      installation: 'Install Hermes Agent and configure one provider on the runtime host.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'Hermes’ Nous Portal path is a single in-CLI OAuth login (hermes auth login, token in ~/.hermes/auth.json) and `hermes acp` is a stdio ACP child, matching the Claude/Codex login model. But Hermes documents itself as a shared host "not tied to your laptop" with one principal-wide credential store, its stdio ACP spawns a fresh process whose session dies per invocation, and other model routes need separate provider credentials. Berry has not shipped the isolated per-connection Hermes boundary ADR-0019 requires (login model verified 2026-10-10).',
-      officialSources: [
-         'https://hermes-agent.nousresearch.com/docs/developer-guide/programmatic-integration',
-         'https://hermes-agent.nousresearch.com/docs/developer-guide/acp-internals',
-         'https://hermes-agent.nousresearch.com/docs/integrations/nous-portal',
-      ],
-   },
-   {
-      id: 'pi',
-      name: 'Pi',
-      publisher: 'Earendil Works',
-      product: 'Pi coding agent',
-      description: 'A minimal coding-agent harness with a JSONL RPC process mode and provider-specific OAuth or API credentials.',
-      executionMode: 'agent_process',
-      provider: 'Provider selected in Pi',
-      billing: 'provider_dependent',
-      billingDetail: 'The selected provider owns entitlement and billing; Pi itself does not grant model access.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Provider browser/device OAuth', 'Provider API key', 'ambient cloud credentials'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Install the Pi coding-agent CLI on the runtime host.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'Pi stores OAuth and API credentials in its local auth file. Berry has no supported delegated token boundary and will not scrape or copy that file.',
-      officialSources: [
-         'https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md',
-         'https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md',
       ],
    },
    {
@@ -310,35 +191,6 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       ],
    },
    {
-      id: 'antigravity',
-      name: 'Antigravity',
-      publisher: 'Google',
-      product: 'Google Antigravity CLI and Gemini API managed agent',
-      description: 'Google’s agent harness. The local CLI can be orchestrated headlessly; the similarly named managed agent is a Gemini API preview.',
-      executionMode: 'agent_process',
-      provider: 'Google account for CLI; Gemini API for managed agent',
-      billing: 'unknown',
-      billingDetail: 'Local CLI account usage and Gemini API pay-as-you-go are distinct. The managed-agent API does not consume a consumer subscription.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Antigravity CLI Google login', 'Gemini API key for managed agent'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Install and authenticate the official Antigravity CLI on the runtime host.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'Google now confirms launching the official `agy` binary as a local child, with `agy auth login` and all backend traffic staying inside it, is a supported use of CLI Headless Mode (login model qualifies). But the only headless path, `agy -p`, is documented to hang or emit empty output on exit 0 when stdout is a non-TTY subprocess pipe — exactly how Berry would spawn it — and there is no official ACP contract. No working non-TTY headless child contract exists to wire without an unofficial PTY/scrape bridge (verified 2026-10-10).',
-      officialSources: [
-         'https://discuss.ai.google.dev/t/is-invoking-the-official-antigravity-cli-from-codex-allowed/186952',
-         'https://discuss.ai.google.dev/t/is-external-orchestration-of-antigravity-cli-headless-mode-supported-with-account-based-usage/183051',
-         'https://github.com/google-antigravity/antigravity-cli/issues/318',
-      ],
-   },
-   {
       id: 'qoder',
       name: 'Qoder',
       publisher: 'Qoder',
@@ -367,31 +219,6 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       ],
    },
    {
-      id: 'trae-cli',
-      name: 'Trae CLI',
-      publisher: 'ByteDance',
-      product: 'Trae Agent CLI',
-      description: 'An open-source research-oriented software-engineering agent that runs against separately configured model providers.',
-      executionMode: 'agent_process',
-      provider: 'OpenAI, Anthropic, Google, Doubao, OpenRouter, Ollama, or another configured provider',
-      billing: 'provider_dependent',
-      billingDetail: 'Trae Agent requires credentials for the chosen provider; a Trae product account does not grant this CLI model access.',
-      subscriptionAccess: 'unsupported',
-      connectionMethods: ['Provider API key', 'local Ollama endpoint'],
-      platforms: ['macOS', 'Linux', 'Windows through a compatible Python environment'],
-      localProcess: true,
-      installation: 'Clone/install the open-source Trae Agent CLI and configure a model provider.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'unknown', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'unknown', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'The maintained Trae Agent source requires provider API keys and documents no Trae subscription OAuth or delegated account entitlement. Berry will not label provider billing as Trae subscription access.',
-      officialSources: ['https://github.com/bytedance/trae-agent'],
-   },
-   {
       id: 'kimi',
       name: 'Kimi',
       publisher: 'Moonshot AI',
@@ -416,34 +243,6 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       officialSources: [
          'https://github.com/MoonshotAI/kimi-code',
          'https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html',
-      ],
-   },
-   {
-      id: 'qwen',
-      name: 'Qwen',
-      publisher: 'Alibaba Cloud / Qwen',
-      product: 'Qwen Code CLI and experimental daemon',
-      description: 'Qwen’s terminal coding agent with ACP and an HTTP/SSE daemon. The current subscription route is Alibaba ModelStudio Coding Plan.',
-      executionMode: 'agent_process',
-      provider: 'Alibaba ModelStudio Coding Plan or configured provider',
-      billing: 'subscription',
-      billingDetail: 'Coding Plan is a fixed subscription with a dedicated key and endpoint. Token Plan and standard API keys use different billing.',
-      subscriptionAccess: 'supported',
-      connectionMethods: ['Alibaba Coding Plan key', 'Token Plan key', 'provider API key'],
-      platforms: ['macOS', 'Linux', 'Windows'],
-      localProcess: true,
-      installation: 'Install Qwen Code; configure Coding Plan through `/auth` or its documented environment variables.',
-      defaultModel: null,
-      capabilities: {
-         modelDiscovery: 'supported', streaming: 'supported', tools: 'supported', sessions: 'supported',
-         cancellation: 'supported', usage: 'supported',
-      },
-      availability: 'blocked',
-      unavailableReason:
-         'Qwen OAuth was discontinued. Coding Plan uses a subscription key, while `qwen serve` is currently experimental and explicitly local/single-principal; Berry will not expose it as a production multi-user runtime yet.',
-      officialSources: [
-         'https://qwenlm.github.io/qwen-code-docs/en/users/configuration/auth/',
-         'https://qwenlm.github.io/qwen-code-docs/en/users/qwen-serve/',
       ],
    },
 ];

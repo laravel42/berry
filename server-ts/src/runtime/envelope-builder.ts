@@ -22,8 +22,6 @@ import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import type { RoleKey } from '../organization/contract.ts';
-import { isGatewayModelId, type TierChoice, type TierPlacement } from '../agents/kilo/tiers.ts';
-import type { TierPlacements } from '../agents/kilo/placements.ts';
 import type { Tier } from '../agents/model-tiers.ts';
 import { invokedSkillNames, requiredSkillsContract } from '../skills/invoke.ts';
 import { findAiRuntime, type AiRuntimeId } from './ai-runtime-catalog.ts';
@@ -73,10 +71,10 @@ export function dependencyNote(
       `\n${checkoutSentence(checkout)} ` +
       'Work on those tasks that is not in that commit stays on their own branches and does not appear in your ' +
       'workspace while this run lasts, so do not wait or poll for it. Build on what the checkout holds. When this ' +
-      'task cannot be done without work that is not there, stop and say so: call report_blocked if this run has ' +
-      'it, otherwise set_status blocked and end the run. Either way, name the task you need, the ' +
-      'exact file, interface or decision that is missing, and where you looked. Berry starts this task again once ' +
-      'that task is done. In your report, say which of those tasks\' work you used and where you found it.'
+      'task cannot be done without work that is not there, stop and say so: call report_blocked. Name the task ' +
+      'you need, the exact file, interface or decision that is missing, and where you looked. A local problem — ' +
+      'a busy port, a failed check — is not a hold; finish the run. Berry starts this task again once that task ' +
+      'is done. In your report, say which of those tasks\' work you used and where you found it.'
    );
 }
 
@@ -169,16 +167,15 @@ export interface AgentConfig {
    name: string;
    instructions: string;
    model: string;
-   /** Who serves `model`: `bedrock`, `kilo`, or null when the agent names none. */
+   /** Who serves `model`, or null when the agent names none. */
    modelProvider: string | null;
    /**
-    * The gateway tier the agent runs on when it names no gateway model
-    * (ADR-0017): its own (`agents.model_tier`), else its contract's, else its
-    * role's in the catalogue (a contract customised before tiers existed),
-    * else BerryLow for an agent outside the organization.
+    * The tier the agent runs on when it names no model: its own
+    * (`agents.model_tier`), else its contract's, else its role's in the
+    * catalogue, else BerryLow for an agent outside the organization.
     */
    tier: Tier;
-   /** The gateway model a run falls back to when the tier's choice fails; used by the routing. */
+   /** The model a run falls back to when the first choice fails. */
    fallbackModel: string | null;
    permissions: string[];
    /** The tools this agent's role contract allows; null outside the organization. */
@@ -211,15 +208,6 @@ export interface EnvelopeDeps {
       accountId: string | null;
    }) => Promise<RuntimeCredential>) | undefined;
    defaultModel: string;
-   /**
-    * The model gateway (ADR-0017), when runs call models through it. A model
-    * the gateway cannot serve — a Bedrock profile id, as every agent was
-    * provisioned with — is not sent to it: the agent runs on its tier's
-    * choice for today instead.
-    */
-   gateway?: { choose(tier: Tier, rejections?: number, place?: TierPlacement | null): Promise<TierChoice | null> } | undefined;
-   /** The models a workspace placed in its tiers (Settings → AI); without one, the deployment's. */
-   placements?: Pick<TierPlacements, 'get'> | undefined;
    memory: RunMemory;
    sealer: Sealer | null;
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
@@ -657,59 +645,21 @@ export class EnvelopeBuilder {
    }
 
    /**
-    * The model a task runs on. Without a gateway: the completion's own model,
-    * else the agent's, else its runtime profile's, else the server default.
-    * Through the gateway (ADR-0017) an agent that names a gateway model uses
-    * it, and otherwise runs on its tier's first model for today. A completion
-    * runs as the agent the task was filed on. A plan is filed on the Planner
-    * and takes the first model of that agent's selected tier, even when the
-    * caller named a model.
+    * The model a native task would run on: the completion's own model, else
+    * the agent's, else its runtime profile's, else the server default.
+    * Subscription runs take the model from the selected runtime instead.
     */
-   /** How many times this task's work was rejected at review (migration 214). */
-   async #rejections(issueId: string): Promise<number> {
-      const [row] = await this.#deps.sql`SELECT review_rejections FROM issues WHERE id = ${issueId}`;
-      return row ? Number(row.review_rejections) : 0;
-   }
-
    async #model(
       task: TaskRow,
       agent: AgentConfig,
       profileModel: string | null
    ): Promise<{ model: string; tier: Tier | null; fallback: string | null }> {
       const completionModel = task.kind === 'completion' ? (task.completionSpec?.model ?? null) : null;
-      const gateway = this.#deps.gateway;
-      if (!gateway) {
-         return { model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel), tier: null, fallback: null };
-      }
-
-      // A completion takes the first model on its agent's selected tier, not a
-      // model the caller named and not the deployment default. A plan's agent
-      // is the Planner.
-      const named =
-         task.kind === 'completion'
-            ? undefined
-            : [
-                 agent.modelProvider === 'kilo' || isGatewayModelId(agent.model) ? agent.model : null,
-                 profileModel,
-                 isGatewayModelId(this.#deps.defaultModel) ? this.#deps.defaultModel : null,
-              ].find((candidate): candidate is string => !!candidate && isGatewayModelId(candidate));
-      const tier: Tier = task.source === 'merge_fix' ? TIER_BELOW[agent.tier] : agent.tier;
-      // A task starts on its tier's first model and moves down the list only
-      // when its work is rejected at review (`chooseForTier`).
-      const choice = await gateway.choose(
-         tier,
-         task.kind === 'agent' && task.issueId ? await this.#rejections(task.issueId) : 0,
-         (await this.#deps.placements?.get(task.workspaceId)) ?? null
-      );
-      // The agent's own fallback wins; otherwise Berry's default from the
-      // leaderboard (decided 2026-09-25). Never the model itself.
-      const own = agent.fallbackModel && isGatewayModelId(agent.fallbackModel) ? agent.fallbackModel : null;
-      if (named) {
-         const tierDefault = choice ? (choice.model !== named ? choice.model : choice.fallback) : null;
-         return { model: named, tier: null, fallback: own && own !== named ? own : tierDefault };
-      }
-      if (!choice) throw new Error(`no model is available on the ${tier} tier or its fallbacks today`);
-      return { model: choice.model, tier, fallback: own && own !== choice.model ? own : choice.fallback };
+      return {
+         model: completionModel ?? (agent.model || profileModel || this.#deps.defaultModel),
+         tier: null,
+         fallback: agent.fallbackModel,
+      };
    }
 
    /**

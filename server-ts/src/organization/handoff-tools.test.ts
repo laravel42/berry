@@ -206,10 +206,9 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const lane = await ok('assign_task', unbound('business-analyst'), {
          task: target.key,
          role: 'product-designer',
-         start: false,
       });
-      assert.equal(lane.started, false);
-      assert.equal(lane.note, 'assigned without starting');
+      assert.equal(lane.assignedTo, 'product-designer');
+      assert.equal(lane.status, 'todo');
       const closed = await task(mine, 'Already shipped', 'todo');
       await sql`UPDATE issues SET status = 'done' WHERE id = ${closed.id}`;
       await assert.rejects(
@@ -222,7 +221,7 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const build = await task(mine, 'Build the hero section');
       await sql`UPDATE issues SET metadata = metadata || '{"berry.changesRepository": true}'::jsonb WHERE id = ${build.id}`;
       await assert.rejects(
-         run('assign_task', unbound('orchestrator'), { task: build.key, role: 'product-lead', start: false }),
+         run('assign_task', unbound('orchestrator'), { task: build.key, role: 'product-lead' }),
          /changes the repository and product-lead cannot branch it/
       );
       const [untouched] = await sql`SELECT assignee_id FROM issues WHERE id = ${build.id}`;
@@ -230,7 +229,6 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       const engineer = await ok('assign_task', unbound('orchestrator'), {
          task: build.key,
          role: 'frontend-engineer',
-         start: false,
       });
       assert.equal(engineer.assignedTo, 'frontend-engineer');
    });

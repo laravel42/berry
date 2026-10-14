@@ -199,7 +199,7 @@ test('the runtime section reads the local runtime URL and token lifetime', () =>
 
 test('the runtime section needs no Bedrock region: the server calls no model', () => {
    const config = loadConfig({ ...base, BERRY_BEDROCK_REGION: '', AWS_REGION: '' });
-   assert.equal(config.runtime.defaultModel, 'us.anthropic.claude-haiku-4-5-20251001-v1:0');
+   assert.equal(config.runtime.defaultModel, '');
 });
 
 /**

@@ -40,10 +40,8 @@ import { toConversation } from './conversation.ts';
 import { emitterSink, type Emit } from './emitter.ts';
 import { LocalSession } from './local-session.ts';
 import type { SessionIdentity } from './session-identity.ts';
-import { mediaTools, type VideoOutput } from '../tools/media.ts';
 import {
    RemoteToolsUnavailable,
-   callAttach,
    collectFileTool,
    loadRemoteTools,
    restoreTaskFiles,
@@ -114,8 +112,6 @@ export interface HandlerDeps {
    fetch?: typeof fetch;
    loadTools?: (api: BerryApi, mirror?: WorkspaceMirror) => Promise<Tool[]>;
    repository?: RepositoryStep;
-   /** Where the video job writes. Absent means agents get no video tool. */
-   videoOutput?: VideoOutput | undefined;
    /** Bytes free under the work root, or null when it cannot be read. Injected by tests. */
    freeBytes?: (path: string) => Promise<number | null>;
    /** Connects the agent's MCP servers. Injected by tests; production uses Strands clients. */
@@ -308,17 +304,6 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
          // hundreds of kilobytes into a tool call, minutes of silent output
          // that ended at the reply ceiling.
          ...remote.filter((entry) => entry.name !== 'attach_file'),
-         // Speech and video render here, with the runtime's own role, and
-         // land on the task through Berry like any other file.
-         ...mediaTools({
-            region: deps.region,
-            credentials: deps.credentials ?? null,
-            runId: envelope.runId,
-            video: deps.videoOutput,
-            save: async ({ path, bytes, contentType }) => {
-               await callAttach(api, { path, base64: Buffer.from(bytes).toString('base64'), contentType });
-            },
-         }),
       ];
       // MCP tools are registered as tools, not as clients, so one whose name
       // clashes with a built-in is dropped here instead of failing the task.

@@ -307,12 +307,38 @@ export class ConversationRepository {
    }
 
    async markRead(id: string, userId: string): Promise<void> {
-      expectOne(
-         await this.#sql`
+      await this.#sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const updated = await tx`
             UPDATE conversation_participants SET last_read_at = now()
              WHERE conversation_id = ${id} AND participant_type = 'user'
-               AND participant_id = ${userId} AND left_at IS NULL`
-      );
+               AND participant_id = ${userId} AND left_at IS NULL`;
+         expectOne(updated);
+         const [conversation] = await tx`
+            SELECT workspace_id FROM conversations WHERE id = ${id}`;
+         if (!conversation) throw new NotFound();
+         const eventId = this.#newId();
+         const occurredAt = new Date().toISOString();
+         const workspaceId = conversation.workspace_id as string;
+         const envelope = {
+            id: eventId,
+            type: 'conversation.read',
+            occurredAt,
+            workspaceId,
+            boardId: null,
+            aggregateType: 'conversation',
+            aggregateId: id,
+            payload: { conversationId: id },
+         };
+         await tx`
+            INSERT INTO outbox_events (
+               id, topic, aggregate_type, aggregate_id, workspace_id, board_id,
+               payload, occurred_at, available_at
+            ) VALUES (
+               ${eventId}, 'conversation.read', 'conversation', ${id}, ${workspaceId}, NULL,
+               ${tx.json(envelope as never)}, ${occurredAt}, ${occurredAt}
+            )`;
+      });
    }
 
    async saveDraft(id: string, userId: string, draft: string): Promise<void> {

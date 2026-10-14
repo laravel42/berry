@@ -136,6 +136,23 @@ describe('agent tool API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.equal(statusCalls.length, before);
    });
 
+   test('set_status refuses blocked when nothing in Berry is holding the task', async () => {
+      const before = statusCalls.length;
+      const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 'blocked' }) });
+      assert.equal(response.status, 409);
+      assert.equal(statusCalls.length, before);
+   });
+
+   test('set_status blocked is allowed when a dependency is still open', async () => {
+      assert.ok(mine);
+      const blocker = await createIssue(sql, mine, 'Upstream');
+      await sql`
+         INSERT INTO issue_dependencies (workspace_id, issue_id, depends_on_issue_id)
+         VALUES (${mine.workspaceId}, ${issueId}, ${blocker})`;
+      const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 'blocked' }) });
+      assert.equal(response.status, 200);
+   });
+
    test('invalid input is a 400 that names the field', async () => {
       const response = await call('/set_status', { method: 'POST', body: JSON.stringify({ status: 42 }) });
       assert.equal(response.status, 400);

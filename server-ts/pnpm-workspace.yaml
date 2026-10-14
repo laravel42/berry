@@ -1,0 +1,14 @@
+# Standalone install for deploy/local/start.sh. Isolates this folder from the
+# repo-root workspace so the API container does not install the frontend.
+packages:
+   - .
+strictDepBuilds: false
+allowBuilds:
+   better-sqlite3: true
+   koffi: true
+   node-llama-cpp: true
+   tree-sitter-go: true
+   tree-sitter-javascript: true
+   tree-sitter-python: true
+   tree-sitter-rust: true
+   tree-sitter-typescript: true

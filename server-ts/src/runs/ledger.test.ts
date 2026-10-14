@@ -232,15 +232,14 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       await sql`UPDATE issues SET active_run_id = ${second} WHERE id = ${issueId}`;
    });
 
-   test('a run that blocked its task succeeds without moving it to review', async () => {
+   test('a run that parked itself as blocked, with nothing holding it, goes to review', async () => {
       const { runId, issueId } = await createRun(sql, fixture, null);
       await ledger.claimDispatch(runId);
       await ledger.markRunning(runId);
-      // What set_status or escalate leaves behind: blocked, the run still active.
       await sql`UPDATE issues SET status = 'blocked' WHERE id = ${issueId}`;
       await ledger.completeSuccess({
          runId,
-         summary: 'Waiting on the API key.',
+         summary: 'Port 4000 was busy.',
          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null },
       });
 
@@ -248,8 +247,36 @@ describe('run ledger', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set
       assert.equal(run!.status, 'succeeded');
       const [issue] = await sql`
          SELECT status::text AS status, active_run_id FROM issues WHERE id = ${issueId}`;
-      assert.equal(issue!.status, 'blocked', 'a blocked task is waiting on someone, not ready for review');
+      assert.equal(issue!.status, 'in_review', 'a local problem is not a hold');
       assert.equal(issue!.active_run_id, null, 'the task is still released for the next run');
+   });
+
+   test('a run that blocked its task on an open dependency stays blocked', async () => {
+      const { runId, issueId } = await createRun(sql, fixture, null);
+      const blocker = randomUUID();
+      const [counter] = await sql`
+         UPDATE boards SET issue_counter = issue_counter + 1
+          WHERE id = ${fixture.boardId!} RETURNING issue_counter`;
+      await sql`
+         INSERT INTO issues (id, board_id, number, title, status, created_by)
+         VALUES (${blocker}, ${fixture.boardId!}, ${Number(counter!.issue_counter)},
+                 'Blocker', 'todo', ${fixture.userId!})`;
+      await sql`
+         INSERT INTO issue_dependencies (workspace_id, issue_id, depends_on_issue_id)
+         VALUES (${fixture.workspaceId}, ${issueId}, ${blocker})`;
+      await ledger.claimDispatch(runId);
+      await ledger.markRunning(runId);
+      await sql`UPDATE issues SET status = 'blocked' WHERE id = ${issueId}`;
+      await ledger.completeSuccess({
+         runId,
+         summary: 'Waiting on the API.',
+         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0, costMicros: null, currency: null },
+      });
+
+      const [issue] = await sql`
+         SELECT status::text AS status, active_run_id FROM issues WHERE id = ${issueId}`;
+      assert.equal(issue!.status, 'blocked', 'a blocked task is waiting on someone, not ready for review');
+      assert.equal(issue!.active_run_id, null);
 
       const [event] = await sql`
          SELECT payload FROM outbox_events

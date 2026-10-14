@@ -200,12 +200,12 @@ export class OpenPullRequest extends Error {
 }
 
 /**
- * Which statuses an issue may move to.
+ * Which statuses an *agent* may move a task to.
  *
- * Written out rather than derived: `done` leads only back to `in_review`, and
- * `in_review` can return to `todo` because a reviewer sends rejected work back
- * to be done again — a person looking at the same work must be able to do what
- * the reviewer does.
+ * A person (board drag, drawer, batch, public API) may set any status. Agents
+ * still walk this graph: `done` is not on it, and `set_status` refuses `done`
+ * and `cancelled` on its own. `in_review` can return to `todo` because a
+ * send-back is work to do again.
  */
 const TRANSITIONS: Record<string, string[]> = {
    backlog: ['todo', 'cancelled'],
@@ -511,11 +511,15 @@ export class IssueRepository {
              FOR UPDATE`;
          if (!locked) throw new NotFound();
          const currentStatus = locked.status as string;
+         const actorIsAgent = params.actorType === 'agent';
 
-         if (patch.status !== undefined && !canTransition(currentStatus, patch.status)) {
+         // A person moves a task to any column. The graph and the open-PR
+         // gate stay on agent writes so a run cannot skip review or mark done.
+         if (actorIsAgent && patch.status !== undefined && !canTransition(currentStatus, patch.status)) {
             throw new InvalidTransition(dbStatusToApi(currentStatus), dbStatusToApi(patch.status));
          }
          if (
+            actorIsAgent &&
             patch.status === 'done' &&
             currentStatus !== 'done' &&
             (await openPullRequest(tx, params.issueId))

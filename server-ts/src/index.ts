@@ -81,7 +81,6 @@ import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { ProjectDraftAssist } from './editor/project-draft.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
-import { gatewayModelsAfterDenial } from './runtime/model-denied.ts';
 import { planMounts, type PlanOptions } from './mounts/plans.ts';
 import { registerPlanningTools } from './plans/agent-tools.ts';
 import { PlanAnswerRepository } from './plans/answers.ts';
@@ -114,7 +113,6 @@ import { AgentCoreIdentity } from './agentcore/identity.ts';
 import { agentMounts } from './mounts/agents.ts';
 import { logsMounts } from './mounts/logs.ts';
 import { usageMounts } from './mounts/usage.ts';
-import { PriceBook } from './agents/pricing.ts';
 import { configureUsagePricing, recordTaskUsage } from './usage/record.ts';
 import { eventMounts } from './mounts/events.ts';
 import { resolveWorkspaceContext } from './identity/workspace-context.ts';
@@ -155,11 +153,7 @@ import { ReviewQueue } from './core/review-queue.ts';
 import { reviewMounts } from './mounts/reviews.ts';
 import { GitHubClient } from './integrations/github.ts';
 import { AgentRepository } from './agents/repository.ts';
-import { ModelCatalog, type ModelSource } from './agents/catalog.ts';
-import { KiloAccount } from './agents/kilo/account.ts';
-import { KiloCatalog } from './agents/kilo/catalog.ts';
-import { TierPlacements } from './agents/kilo/placements.ts';
-import { reconcileGateway } from './usage/gateway-fees.ts';
+import type { ModelSource } from './agents/catalog.ts';
 import { createLogger } from './observability/log.ts';
 import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
@@ -502,7 +496,6 @@ const completion = new RuntimeCompletion({
    // Declared further down; called only at request time, after boot.
    nudge: () => dispatcher?.nudge(),
    defaultModel: config.runtime.defaultModel,
-   modelsAfterDenial: (input) => (modelGateway ? gatewayModelsAfterDenial(sql, modelGateway, input) : Promise.resolve([])),
 });
 
 /** The agent layer's single model calls, as completion tasks on the runtime. */
@@ -510,7 +503,6 @@ const complete = agentCompletion({
    sql,
    nudge: () => dispatcher?.nudge(),
    defaultModel: config.runtime.defaultModel,
-   modelsAfterDenial: (input) => (modelGateway ? gatewayModelsAfterDenial(sql, modelGateway, input) : Promise.resolve([])),
 });
 
 /**
@@ -651,37 +643,6 @@ const transport = routingTransport({
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
-// The Kilo model gateway (ADR-0017): its catalogue and tiers, and the
-// account's own spend. Declared before the executor, which picks a tier's
-// model for an agent that names no gateway model.
-const modelGateway = config.modelGateway
-   ? {
-        catalog: new KiloCatalog({
-           apiKey: config.modelGateway.apiKey,
-           baseUrl: config.modelGateway.baseUrl,
-           policy: {
-              exclude: config.modelGateway.exclude,
-              prefer: config.modelGateway.prefer,
-              place: config.modelGateway.place,
-              anyProvider: config.modelGateway.anyProvider,
-           },
-        }),
-        account: new KiloAccount({ apiKey: config.modelGateway.apiKey, appUrl: config.modelGateway.appUrl }),
-        placements: new TierPlacements(sql),
-     }
-   : null;
-if (modelGateway && config.modelGateway) {
-   // Hourly, and once a minute after start: BerryAuto's classifier fees and
-   // the credit balance, as the Kilo account reports them. Never blocks a run.
-   const minBalanceUsd = config.modelGateway.minBalanceUsd;
-   const reconcile = () =>
-      void reconcileGateway({ sql, account: modelGateway.account, logger, minBalanceUsd }).catch((error: unknown) =>
-         logger.error('gateway reconciliation failed', { error: error instanceof Error ? error.message : String(error) })
-      );
-   setTimeout(reconcile, 60_000).unref();
-   setInterval(reconcile, 60 * 60_000).unref();
-}
-
 // The container reaches Berry through BERRY_RUNTIME_CALLBACK_URL. Kiro is a
 // child of this process, so it uses the port this server is listening on.
 const kiroOnWorkstation = workstationKiro({
@@ -753,7 +714,6 @@ const executor = new RuntimeTaskExecutor({
               throw new Error('the personal AI runtime connection is no longer usable');
            },
            defaultModel: config.runtime.defaultModel,
-           ...(modelGateway ? { gateway: modelGateway.catalog, placements: modelGateway.placements } : {}),
            maxTokens: config.runtime.maxTokens,
            memory: runMemory ?? nullRunMemory(),
            sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
@@ -828,26 +788,13 @@ await seedDefaultsEverywhere(sql, deploySkills, (workspaceId, error) =>
    })
 );
 
-// The model picker's catalogue. Null without a credential rather than an
-// empty list: "no models exist" and "this server cannot ask" are different
-// answers, and only one of them is true.
-//
-// Through the Kilo gateway (ADR-0017) the picker lists what the gateway's own
-// catalogue says the account's keys can serve, ranked into tiers.
-const modelCatalog: ModelSource | null = modelGateway
-   ? modelGateway.catalog
-   : config.agents
-     ? new ModelCatalog({
-          region: config.agents.region,
-          ...(config.agents.credentials ? { credentials: config.agents.credentials } : {}),
-       })
-     : null;
+// Native Bedrock and Kilo catalogues are gone. Subscription runtimes list
+// their own models; the picker 503s rather than offering ids that cannot run.
+const modelCatalog: ModelSource | null = null;
 
-// Usage is priced on write from the same open feed the model picker reads.
-// Not gated on agent config: runs executed elsewhere still report usage here.
-// Through Kilo, cost is only what the gateway reports per call: no price
-// table second-guesses it, and a call it reported nothing for stays unpriced.
-configureUsagePricing(modelGateway ? null : new PriceBook());
+// Usage stays unpriced: there is no native price book, and a subscription
+// reports cost only when its runtime sends one.
+configureUsagePricing(null);
 
 // Reading the ledger, and admitting a run. The executor builds its own ledger
 // per run because it writes as the run happens; this one is for the request
@@ -1381,7 +1328,6 @@ registry.registerAll(
       agents,
       idempotency,
       catalog: modelCatalog,
-      ...(modelGateway ? { gateway: modelGateway } : {}),
       logger,
       runs: runOptions.runs,
       ledger: runOptions.ledger,
@@ -1465,7 +1411,7 @@ registry.registerAll(
          // Planning is a completion task, including subscription-backed ones,
          // for the same workspace this read is about.
          planner: executionForRequest,
-         modelGateway: modelGateway !== null,
+         modelGateway: false,
          // What the sign-in page believes: true when the GitHub OAuth App
          // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,

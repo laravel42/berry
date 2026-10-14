@@ -1,7 +1,7 @@
 /**
- * Berry's model tiers (ADR-0017). A role is on a tier, not on a model: which
- * model a tier means today is decided at run time, from the gateway's
- * leaderboard (agents/kilo/tiers.ts). Nothing here names a model or a vendor.
+ * Berry's model tiers. A role is on a tier, not on a model: which model a
+ * tier means is decided at run time from the workspace's subscription
+ * placements (`workspace_tier_models`). Nothing here names a model or a vendor.
  */
 
 // BerryFree and BerryAuto were removed on 2026-09-27: every tier is a paid

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { issueHasOpenHold } from '../work/holds.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
 
@@ -497,7 +498,7 @@ export class RunLedger {
 
    /**
     * Terminal success: usage, the summary, and the task moved to review — or
-    * left blocked, when the agent blocked it during the run.
+    * left blocked, when something in Berry is still holding it.
     *
     * Three events in one transaction — usage, completion, and the issue update
     * that tells every open board the task moved. Splitting them would let a
@@ -538,12 +539,17 @@ export class RunLedger {
              WHERE id = ${params.runId}`;
 
          // Guarded on active_run_id so a run that is no longer the issue's
-         // active one cannot move a task someone else already moved. A task
-         // the agent blocked during the run is waiting on someone, not ready
-         // for review, so it is released and stays blocked.
+         // active one cannot move a task someone else already moved. Blocked
+         // stays only when a dependency, escalation or child still holds it —
+         // otherwise a finished run that parked itself (a busy port, a failed
+         // check) would sit in blocked with nothing to release it.
+         const held = run.issueId ? await issueHasOpenHold(tx, run.issueId) : false;
          const reviewed = await tx`
             UPDATE issues
-               SET status = CASE WHEN status = 'blocked' THEN status ELSE 'in_review'::issue_status END,
+               SET status = CASE
+                     WHEN status = 'blocked' AND ${held} THEN status
+                     ELSE 'in_review'::issue_status
+                   END,
                    active_run_id = NULL, updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;

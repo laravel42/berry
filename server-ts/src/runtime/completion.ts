@@ -3,14 +3,12 @@ import type { Sql } from '../db/pool.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import type { TranscriptMessage } from './envelope.ts';
 import type { CompletionSpec } from './envelope-builder.ts';
-import { isModelPermissionDenied } from './model-denied.ts';
-
 /**
  * One model call for the parts of Berry that are not an agent, executed as a
- * `kind: 'completion'` task on the runtime — the only place Bedrock is called
- * from (ADR-0014). It runs as the workspace's protected Orchestrator, unless
- * the caller names a role: a plan runs as the Planner, on that agent's tier.
- * Usage is billed to the workspace like any other task.
+ * `kind: 'completion'` task on the runtime. It runs as the workspace's
+ * protected Orchestrator, unless the caller names a role: a plan runs as the
+ * Planner, on that agent's tier. Usage is billed to the workspace like any
+ * other task. Completions need a connected subscription runtime.
  */
 
 export interface CompletionDeps {
@@ -21,12 +19,6 @@ export interface CompletionDeps {
    timeoutMs?: number;
    pollMs?: number;
    defaultModel?: string;
-   /**
-    * Models to try after the gateway refuses the one this key may call.
-    * The runtime has already tried the tier's choice and its one fallback.
-    * Absent when there is no gateway.
-    */
-   modelsAfterDenial?: (input: { workspaceId: string; purpose: string }) => Promise<string[]>;
 }
 
 export interface CompletionResult<T> {
@@ -36,8 +28,7 @@ export interface CompletionResult<T> {
    outputTokens: number;
    durationMs: number;
    /**
-    * The model that served the call, as its usage recorded it: under a model
-    * gateway the tier's choice, or the fallback, rather than the one asked for.
+    * The model that served the call, as its usage recorded it.
     * Null or absent when no usage was recorded.
     */
    model?: string | null;
@@ -130,25 +121,8 @@ export async function runCompletionTask(
    const agentId = await agentForCompletion(deps.sql, input.workspaceId, input.agentRole);
    if (!agentId) throw new CompletionFailed({ code: 'NO_ORCHESTRATOR', message: 'this workspace has no orchestrator', retryable: false });
 
-   let model = input.model ?? deps.defaultModel ?? null;
-   let remaining: string[] | null = null;
-   for (;;) {
-      try {
-         return await runOnce(deps, input, agentId, model, started, deadline);
-      } catch (error) {
-         if (!(error instanceof CompletionFailed) || !isModelPermissionDenied(error.message) || !deps.modelsAfterDenial) throw error;
-         if (remaining === null) {
-            try {
-               remaining = await deps.modelsAfterDenial({ workspaceId: input.workspaceId, purpose: input.purpose });
-            } catch {
-               throw error;
-            }
-         }
-         const next = remaining.shift();
-         if (!next || Date.now() > deadline) throw error;
-         model = next;
-      }
-   }
+   const model = input.model ?? deps.defaultModel ?? null;
+   return runOnce(deps, input, agentId, model, started, deadline);
 }
 
 async function runOnce(

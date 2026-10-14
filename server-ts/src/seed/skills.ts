@@ -33,7 +33,7 @@ export async function upsertPackedSkills(
             ${workspaceId}, ${skill.name}, ${skill.description}, ${skill.content}, ${skill.labels},
             'zip', 'seed://berry-agentcore-deep-skills-100', ${now}, ${createdBy}, ${now}, ${now}
          )
-         ON CONFLICT (workspace_id, name) DO UPDATE SET
+         ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO UPDATE SET
             description = EXCLUDED.description,
             content = EXCLUDED.content,
             labels = EXCLUDED.labels,

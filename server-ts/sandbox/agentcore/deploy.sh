@@ -8,12 +8,9 @@
 # bedrock-agentcore-control rights; the service user Berry runs with has
 # neither, on purpose.
 #
-# Reads from ../../../.env (or $ENV_FILE): BERRY_BEDROCK_REGION,
-# BERRY_MEDIA_VIDEO_S3_URI and, when RUNTIME_USES_STATIC_KEYS=1, the
-# BERRY_BEDROCK_* key pair. Without static keys the runtime's execution role
-# must be allowed to invoke Bedrock, Polly and the artifact bucket.
-# With BERRY_MODEL_PROVIDER=kilo it also passes BERRY_KILO_API_KEY and, when
-# set, BERRY_KILO_BASE_URL and BERRY_KILO_ORG_ID (ADR-0017).
+# Reads from ../../../.env (or $ENV_FILE): BERRY_AGENTCORE_REGION or
+# BERRY_BEDROCK_REGION, and when RUNTIME_USES_STATIC_KEYS=1 the matching
+# key pair. The image has no native model factory.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -62,18 +59,11 @@ for line in open(sys.argv[1]):
     if m: env[m.group(1)] = m.group(2).strip('"')
 out = {
     'BERRY_RUNTIME_AUTH_MODE': 'agentcore',
-    'BERRY_BEDROCK_REGION': env.get('BERRY_BEDROCK_REGION') or 'us-east-1',
-    'BERRY_MEDIA_VIDEO_S3_URI': env.get('BERRY_MEDIA_VIDEO_S3_URI', ''),
+    'BERRY_AGENTCORE_REGION': env.get('BERRY_AGENTCORE_REGION') or env.get('BERRY_BEDROCK_REGION') or 'us-east-1',
 }
 if sys.argv[2] == '1':
-    out['BERRY_BEDROCK_ACCESS_KEY_ID'] = env['BERRY_BEDROCK_ACCESS_KEY_ID']
-    out['BERRY_BEDROCK_SECRET_ACCESS_KEY'] = env['BERRY_BEDROCK_SECRET_ACCESS_KEY']
-if env.get('BERRY_MODEL_PROVIDER', '').strip().lower() == 'kilo':
-    out['BERRY_MODEL_PROVIDER'] = 'kilo'
-    for name in ('BERRY_KILO_API_KEY', 'BERRY_KILO_BASE_URL', 'BERRY_KILO_ORG_ID'):
-        out[name] = env.get(name, '')
-    if not out['BERRY_KILO_API_KEY']:
-        sys.exit('BERRY_MODEL_PROVIDER=kilo needs BERRY_KILO_API_KEY in ' + sys.argv[1])
+    out['BERRY_AGENTCORE_ACCESS_KEY_ID'] = env.get('BERRY_AGENTCORE_ACCESS_KEY_ID') or env['BERRY_BEDROCK_ACCESS_KEY_ID']
+    out['BERRY_AGENTCORE_SECRET_ACCESS_KEY'] = env.get('BERRY_AGENTCORE_SECRET_ACCESS_KEY') or env['BERRY_BEDROCK_SECRET_ACCESS_KEY']
 print(json.dumps({k: v for k, v in out.items() if v}))
 PY
 )"
