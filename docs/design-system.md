@@ -77,14 +77,13 @@ non-color cue communicate the state.
 
 ### Typography
 
-The app ships two faces, loaded in `app/layout.tsx`: JetBrains Mono (300-600) as the one
-interface face - `--font-sans` and `--font-mono` both resolve to it - and DM Serif Display
-(400) as the display face.
+The app ships one face, loaded in `app/layout.tsx`: JetBrains Mono (100-800).
+`--font-sans`, `--font-mono` and `--font-display` all resolve to it.
 
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
 | Interface | JetBrains Mono 400, 13 px / 1.2 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | DM Serif Display 400 | Every `h1`–`h6` title and the `data-heading="h1|h2|h3|h4|display"` stand-ins, plus the wordmark and headline figures |
+| Display | JetBrains Mono 500 | Every `h1`–`h6` title and the `data-heading="h1|h2|h3|h4|display"` stand-ins, plus the wordmark and headline figures |
 | Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here. `text-base` (14 px) is the rail items and tab titles |
 | Heading small | `h4` = 13/20 px | Row-level heading |
 | Heading | `h3` = 14/20, `h2` = 16/24, `h1` = 18/24 px, weight 500 | Dialog/card title, section title, page title |
@@ -111,9 +110,7 @@ Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` 
 `--foreground` (about 40% opacity), not low-opacity `--muted-foreground`, so they
 stay visible on void.
 
-DM Serif Display is the title face: `h1`–`h6` and their `data-heading` stand-ins set
-`font-family: var(--font-display)` in the base layer. It stays off buttons, controls,
-tables and dense queue rows. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
+Titles stay on JetBrains Mono. Prefer the defined scale over new arbitrary values; migrate recurring 10 px and 11 px
 labels into named `type-micro` and `type-overline` styles if they survive accessibility review.
 
 ### Spacing and sizing
@@ -246,7 +243,7 @@ Usage is read from shapes before words. The parts live in `frontend/components/c
 
 **The hero.** Small-capital label saying what is counted and over what window; one figure at `hero` size; one plain sentence; two to four `Fact`s that tie the figure to something (per task, per run); a chart on the right showing how the figure came about. 
 
-**Figures.** The number a panel is about goes through `<Figure size="hero|lg|md|sm">` (DM Serif Display, set in `[data-figure]` in `globals.css`). Never a `text-*` size utility: the lint rule forbids them. Everything else stays on the type scale. Numbers are `tabular-nums`.
+**Figures.** The number a panel is about goes through `<Figure size="hero|lg|md|sm">` (set in `[data-figure]` in `globals.css`). Never a `text-*` size utility: the lint rule forbids them. Everything else stays on the type scale. Numbers are `tabular-nums`.
 
 **Picking the chart.**
 

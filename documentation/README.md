@@ -57,13 +57,12 @@ unchanged. This documentation package has its own exact dependency lockfile.
 ## Visual design
 
 The visual reference is [berry.pm](https://berry.pm/) as inspected on 2026-09-17:
-DM Serif Display titles and wordmark, JetBrains Mono body and UI text (requested override), `#111113`
+JetBrains Mono for titles, wordmark, body and UI text, `#111113`
 surfaces, `#f0edea` primary text, `#c74a5e` brand accents, `#de6d80` links,
 and square controls with `#26262b` hairline borders. Dark is the default;
 the existing light option is a print-like inversion for reading.
 
-Fonts are bundled in `assets/fonts/`: DM Serif Display from Berry's public site
-and JetBrains Mono from the Google Fonts repository. Their SIL Open
-Font License notices are included beside them. The docs do not load assets
-from berry.pm at runtime. Layout, search, and mobile navigation remain
-specific to documentation.
+Fonts are bundled in `assets/fonts/`: JetBrains Mono from the Google Fonts
+repository. Its SIL Open Font License notice is included beside it. The docs
+do not load assets from berry.pm at runtime. Layout, search, and mobile
+navigation remain specific to documentation.

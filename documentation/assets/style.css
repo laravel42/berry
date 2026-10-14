@@ -1,8 +1,7 @@
 /* Typography and dark palette from https://berry.pm/ (2026-09-17).
    Font files are bundled locally; licenses live in assets/fonts/. */
 @font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:100 800;font-display:swap;src:url('fonts/jetbrains-mono-variable.ttf') format('truetype')}
-@font-face{font-family:'DM Serif Display';font-style:normal;font-weight:400;font-display:swap;src:url('fonts/dm-serif-display-400-latin.woff2') format('woff2')}
-:root{--bg:#111113;--panel:#1a1a1d;--fg:#f0edea;--muted:#a8a6ac;--line:#26262b;--berry:#de6d80;--accent:#c74a5e;--tint:#241419;--code:#0d0d0f;--header:rgba(17,17,19,.97);--body:'JetBrains Mono',ui-monospace,monospace;--mono:var(--body);--display:'DM Serif Display',Georgia,serif;color-scheme:dark}
+:root{--bg:#111113;--panel:#1a1a1d;--fg:#f0edea;--muted:#a8a6ac;--line:#26262b;--berry:#de6d80;--accent:#c74a5e;--tint:#241419;--code:#0d0d0f;--header:rgba(17,17,19,.97);--body:'JetBrains Mono',ui-monospace,monospace;--mono:var(--body);--display:var(--body);color-scheme:dark}
 :root[data-theme=light]{--bg:#f8f8f4;--panel:#efefeb;--fg:#18181b;--muted:#626167;--line:#d8d8d2;--berry:#a52f44;--accent:#c74a5e;--tint:#f4e4e7;--code:#eeeee9;--header:rgba(248,248,244,.97);color-scheme:light}
 ::selection{background:var(--accent);color:white}
 .brand strong i{font-style:normal;color:var(--berry)}

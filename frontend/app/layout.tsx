@@ -5,13 +5,6 @@ import './globals.css';
 
 // Shipped with the app. next/font/google fetches at compile time, and Turbopack
 // fails once Google's font URLs carry their own query string.
-const dmSerifDisplay = localFont({
-   src: './fonts/dm-serif-display-400-latin.woff2',
-   variable: '--font-dm-serif',
-   weight: '400',
-   display: 'swap',
-});
-
 const jetBrainsMono = localFont({
    src: './fonts/jetbrains-mono-variable.ttf',
    variable: '--font-jetbrains-mono',
@@ -43,10 +36,7 @@ export default async function RootLayout({
       // Berry is dark only, so the theme is a static class rather than a
       // provider: next-themes injected an inline script React 19 refuses to run.
       <html lang={locale} className="dark" suppressHydrationWarning>
-         <body
-            className={`${dmSerifDisplay.variable} ${jetBrainsMono.variable} antialiased`}
-            suppressHydrationWarning
-         >
+         <body className={`${jetBrainsMono.variable} antialiased`} suppressHydrationWarning>
             <NextIntlClientProvider>
                <NuqsAdapter>
                   <SessionGate>

@@ -168,7 +168,10 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
             </dl>
 
             <Section title={t('summary.title')} className="-mt-4">
-               <div className="overflow-auto rounded-md border border-border/70 bg-muted/20 p-4 font-mono leading-relaxed">
+               <div
+                  data-review-summary
+                  className="overflow-auto rounded-md border border-border/70 bg-muted/20 p-4 font-mono leading-relaxed"
+               >
                   {item.run.summary ? (
                      <AgentMarkdown
                         body={withoutLeadingSummaryHeading(item.run.summary)}

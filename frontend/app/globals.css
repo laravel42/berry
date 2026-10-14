@@ -10,7 +10,7 @@
 @theme {
    --font-sans: var(--font-jetbrains-mono);
    --font-mono: var(--font-jetbrains-mono);
-   --font-display: var(--font-dm-serif);
+   --font-display: var(--font-jetbrains-mono);
    --font-weight-normal: 300;
    /* The body size. 13px with 1.2 line spacing, per the house style; every
       other step below keeps its own measure. */
@@ -301,7 +301,7 @@
       @apply text-foreground font-sans text-xs;
       --font-sans: var(--font-jetbrains-mono);
       --font-mono: var(--font-jetbrains-mono);
-      --font-display: var(--font-dm-serif);
+      --font-display: var(--font-jetbrains-mono);
       /* 400, not the 300 that `font-normal` resolves to: this weight used to
          ride along with `.text-xs` (below) on the elements that opted into the
          small size. Now that text-xs is the body default, the weight it was
@@ -361,9 +361,8 @@
       line-height: var(--text-3xl--line-height);
    }
 
-   /* Every title is set in the display face, including the fields that stand
-      in for a heading. Body, controls and labels stay on the interface face.
-      Each word of a title is capitalized; section labels stay in tracked caps. */
+   /* Titles stay on the interface face. Each word of a title is capitalized;
+      section labels stay in tracked caps. */
    h1,
    h2,
    h3,
@@ -375,7 +374,6 @@
    [data-heading='h3'],
    [data-heading='h4'],
    [data-heading='display'] {
-      font-family: var(--font-display);
       text-transform: capitalize;
    }
 
@@ -424,6 +422,23 @@
       line-height: 1rem;
    }
 
+   /* Review list rows, the run summary, and the diff pane. Identifier,
+      branch, stats, and the unified view share the label size so a
+      review reads as one sheet, not 13px chrome next to 13px code. */
+   [data-review-diff],
+   [data-review-row],
+   [data-review-summary] {
+      font-size: 0.75rem;
+      line-height: 1rem;
+   }
+
+   [data-review-diff] :is(h1, h2, h3, h4, h5, h6, [data-heading], pre, code),
+   [data-review-row] :is(h1, h2, h3, h4, h5, h6, [data-heading], pre, code),
+   [data-review-summary] :is(h1, h2, h3, h4, h5, h6, [data-heading], pre, code) {
+      font-size: inherit;
+      line-height: inherit;
+   }
+
    /* The one size set outside the scale above. The wordmark is a logo lockup,
       not running text: the word is drawn to sit against the mark beside it, so
       it has to scale with the mark and not with the surrounding UI. Kept here
@@ -443,12 +458,10 @@
 
    /* The second exception: a headline figure. A page opens with the one number
       it is about, and a Usage panel is read from its figure, so that number is
-      set in the display face at poster size and the other text stays on the
-      scale. Named sizes
+      set at poster size and the other text stays on the scale. Named sizes
       here rather than utilities in the components, for the same reason as the
       wordmark: the departure stays next to the rule. */
    [data-figure] {
-      font-family: var(--font-display);
       font-weight: 400;
       line-height: 1;
       letter-spacing: -0.01em;
