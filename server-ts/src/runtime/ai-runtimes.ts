@@ -205,12 +205,8 @@ export class AiRuntimeRepository {
    async saveTierModels(
       workspaceId: string,
       userId: string,
-      placement: RuntimeAgentTierPlacement | null
-   ): Promise<RuntimeAgentTierPlacement | null> {
-      if (placement === null) {
-         await this.#sql`DELETE FROM workspace_tier_models WHERE workspace_id = ${workspaceId}`;
-         return null;
-      }
+      placement: RuntimeAgentTierPlacement
+   ): Promise<RuntimeAgentTierPlacement> {
       await this.#sql`
          INSERT INTO workspace_tier_models
             (workspace_id, berry_max, berry_xhigh, berry_high, berry_mid, berry_low, updated_by, updated_at)

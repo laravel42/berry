@@ -484,8 +484,8 @@ export async function getTierCandidates(): Promise<TierCandidates> {
    return parsed.data;
 }
 
-/** Saves this workspace's tier models, best first; null goes back to the deployment's placement. */
-export async function updateTierPlacement(placement: TierPlacement | null): Promise<ModelTiers> {
+/** Saves this workspace's tier models, best first. */
+export async function updateTierPlacement(placement: TierPlacement): Promise<ModelTiers> {
    const json: unknown = await apiFetch('/api/v1/agents/tiers/placement', {
       method: 'PUT',
       body: JSON.stringify({ placement }),

@@ -1,9 +1,17 @@
 'use client';
 
-import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
+import { GripVertical, Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
+import {
+   useCallback,
+   useEffect,
+   useMemo,
+   useRef,
+   useState,
+   type KeyboardEvent,
+   type PointerEvent,
+   type ReactNode,
+} from 'react';
 
 import { TierChip } from '@/components/common/agents/tier-chip';
 import { Button } from '@/components/ui/button';
@@ -37,9 +45,12 @@ import {
    type AiRuntimeDefinition,
    type RuntimeAgentTierPlacement,
 } from '@/lib/runtimes';
+import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { useModelGateway } from '@/hooks/use-model-gateway';
+import { SaveIndicator } from './save-indicator';
 import { SettingsCard, SettingsSection, SettingsShell } from './shared';
+import type { SaveState } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
 interface TiersData {
@@ -80,6 +91,219 @@ function usd(value: number): string {
  */
 function listed(names: string[]): string {
    return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
+}
+
+/** Move one id from `from` to `to`. The original list is left unchanged. */
+function moveItem(list: readonly string[], from: number, to: number): string[] {
+   if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) {
+      return [...list];
+   }
+   const next = [...list];
+   const [item] = next.splice(from, 1);
+   if (item === undefined) return [...list];
+   next.splice(to, 0, item);
+   return next;
+}
+
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+   return a.length === b.length && a.every((id, index) => id === b[index]);
+}
+
+function samePlacement(a: { [tier in Tier]: string[] }, b: { [tier in Tier]: string[] }): boolean {
+   return MAIN_TIERS.every((tier) => sameOrder(a[tier], b[tier]));
+}
+
+/**
+ * Writes one placement at a time, in the order the edits happened.
+ *
+ * A drag reports every row it crosses. Only the order at the end of the
+ * gesture is committed, and a newer edit queued before this write starts
+ * replaces it, so an intermediate order never lands on the server ahead of
+ * the one the list is showing.
+ */
+function useQueuedSave<T, R>({
+   run,
+   apply,
+}: {
+   run: (next: T) => Promise<R>;
+   apply: (result: R, sent: T) => void;
+}) {
+   const generation = useRef(0);
+   const chain = useRef(Promise.resolve());
+   const latest = useRef({ run, apply });
+   latest.current = { run, apply };
+   const last = useRef<T | undefined>(undefined);
+   const [state, setState] = useState<SaveState>('idle');
+   const [error, setError] = useState<string | null>(null);
+
+   const commit = useCallback((next: T) => {
+      const mine = ++generation.current;
+      last.current = next;
+      setState('saving');
+      setError(null);
+      chain.current = chain.current.then(async () => {
+         if (generation.current !== mine) return;
+         try {
+            const result = await latest.current.run(next);
+            if (generation.current !== mine) return;
+            latest.current.apply(result, next);
+            setState('saved');
+         } catch (cause: unknown) {
+            if (generation.current !== mine) return;
+            setState('failed');
+            setError(cause instanceof Error ? cause.message : null);
+         }
+      });
+   }, []);
+
+   const retry = useCallback(() => {
+      if (last.current !== undefined) commit(last.current);
+   }, [commit]);
+
+   return { commit, retry, state, error };
+}
+
+/**
+ * A tier's model order. The grip is the sort control.
+ *
+ * Pointer-driven rather than HTML5 drag-and-drop: this page sits in the
+ * transformed shell, where `drop` does not reliably fire. Arrow keys on the
+ * grip move one place, so the order stays reachable from the keyboard.
+ */
+function SortableModelList({
+   ids,
+   disabled,
+   sortable,
+   labelFor,
+   onReorder,
+   onCommit,
+   children,
+}: {
+   ids: string[];
+   disabled: boolean;
+   sortable: boolean;
+   labelFor: (id: string) => string;
+   /** Live order while a grip is moving. Not yet saved. */
+   onReorder: (next: string[]) => void;
+   /** The order to save: a finished drag, or one keyboard step. */
+   onCommit?: (next: string[]) => void;
+   children: (id: string) => ReactNode;
+}) {
+   const t = useTranslations('workspaceAdmin.modelTiers');
+   const listRef = useRef<HTMLOListElement>(null);
+   const fromRef = useRef<number | null>(null);
+   const overRef = useRef<number | null>(null);
+   const orderRef = useRef(ids);
+   const startRef = useRef<string[] | null>(null);
+   const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+   const rowAt = (clientY: number): number | null => {
+      const root = listRef.current;
+      if (!root) return null;
+      const rows = root.querySelectorAll<HTMLElement>('[data-model-row]');
+      let closest: number | null = null;
+      let best = Infinity;
+      for (let index = 0; index < rows.length; index++) {
+         const row = rows[index];
+         if (!row) continue;
+         const rect = row.getBoundingClientRect();
+         const distance = Math.abs(clientY - (rect.top + rect.height / 2));
+         if (distance < best) {
+            best = distance;
+            closest = index;
+         }
+      }
+      return closest;
+   };
+
+   const onGripDown = (index: number) => (event: PointerEvent<HTMLButtonElement>) => {
+      if (disabled || ids.length < 2) return;
+      event.preventDefault();
+      orderRef.current = ids;
+      startRef.current = ids;
+      fromRef.current = index;
+      overRef.current = index;
+      setDragIndex(index);
+      try {
+         event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {
+         // The pointer is not active. Move events on this grip still reorder.
+      }
+   };
+
+   const onGripMove = (event: PointerEvent<HTMLButtonElement>) => {
+      if (fromRef.current === null) return;
+      const next = rowAt(event.clientY);
+      if (next === null || next === overRef.current) return;
+      const from = overRef.current ?? fromRef.current;
+      orderRef.current = moveItem(orderRef.current, from, next);
+      onReorder(orderRef.current);
+      overRef.current = next;
+      setDragIndex(next);
+   };
+
+   const endDrag = () => {
+      const started = startRef.current;
+      const finished = orderRef.current;
+      fromRef.current = null;
+      overRef.current = null;
+      startRef.current = null;
+      setDragIndex(null);
+      if (!started || sameOrder(started, finished)) return;
+      onCommit?.(finished);
+   };
+
+   const onKeyDown = (index: number) => (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (disabled) return;
+      let to: number | null = null;
+      if (event.key === 'ArrowUp') to = index - 1;
+      else if (event.key === 'ArrowDown') to = index + 1;
+      if (to === null || to < 0 || to >= ids.length) return;
+      event.preventDefault();
+      const next = moveItem(ids, index, to);
+      onReorder(next);
+      onCommit?.(next);
+   };
+
+   return (
+      <ol
+         ref={listRef}
+         className={cn('flex flex-col', dragIndex !== null && 'cursor-grabbing select-none')}
+      >
+         {ids.map((id, index) => (
+            <li
+               key={id}
+               data-model-row
+               className={cn(
+                  'flex min-w-0 items-center gap-2 rounded-md py-1.5',
+                  dragIndex === index && 'bg-muted/60'
+               )}
+            >
+               {sortable ? (
+                  <Button
+                     type="button"
+                     variant="ghost"
+                     size="xxs"
+                     aria-label={t('reorder', { name: labelFor(id) })}
+                     disabled={disabled || ids.length < 2}
+                     onPointerDown={onGripDown(index)}
+                     onPointerMove={onGripMove}
+                     onPointerUp={endDrag}
+                     onPointerCancel={endDrag}
+                     onKeyDown={onKeyDown(index)}
+                     className="size-6 shrink-0 cursor-grab touch-none px-0 active:cursor-grabbing"
+                  >
+                     <GripVertical className="size-3.5" />
+                  </Button>
+               ) : null}
+               <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">
+                  {index + 1}
+               </span>
+               {children(id)}
+            </li>
+         ))}
+      </ol>
+   );
 }
 
 export default function ModelTiersSettings() {
@@ -149,12 +373,24 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
    const choices = useMemo(() => tierModelChoices(runtimes), [runtimes]);
    const byKey = useMemo(() => new Map(choices.map((choice) => [choice.key, choice])), [choices]);
    const [saved, setSaved] = useState<RuntimeAgentTierPlacement>(EMPTY_AGENT_TIERS);
-   const [source, setSource] = useState<'workspace' | 'unset'>('unset');
    const [draft, setDraft] = useState<RuntimeAgentTierPlacement | null>(null);
    const [loading, setLoading] = useState(true);
-   const [saving, setSaving] = useState(false);
    const placement = draft ?? saved;
-   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+   const shownRef = useRef(placement);
+   shownRef.current = placement;
+   const readyRef = useRef(false);
+   readyRef.current = !loading;
+
+   const autosave = useQueuedSave({
+      run: (next: RuntimeAgentTierPlacement) => saveTierModels(next),
+      apply: (stored, sent) => {
+         setSaved(stored.tiers);
+         setDraft((current) => {
+            if (current && !samePlacement(current, sent)) return current;
+            return null;
+         });
+      },
+   });
 
    useEffect(() => {
       let alive = true;
@@ -162,7 +398,6 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
          (stored) => {
             if (!alive) return;
             setSaved(stored.tiers);
-            setSource(stored.source);
             setLoading(false);
          },
          () => {
@@ -174,27 +409,16 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
       };
    }, []);
 
-   const edit = (tier: Tier, next: string[]) => setDraft({ ...placement, [tier]: next });
-   const move = (tier: Tier, index: number, by: number) => {
-      const list = [...placement[tier]];
-      const [item] = list.splice(index, 1);
-      if (item === undefined) return;
-      list.splice(index + by, 0, item);
-      edit(tier, list);
+   const stage = (tier: Tier, next: string[]) => {
+      const full = { ...shownRef.current, [tier]: next };
+      shownRef.current = full;
+      setDraft(full);
+      return full;
    };
-   const save = async (next: RuntimeAgentTierPlacement | null) => {
-      setSaving(true);
-      try {
-         const stored = await saveTierModels(next);
-         setSaved(stored.tiers);
-         setSource(stored.source);
-         setDraft(null);
-         toast.success(next === null ? t('agentsCleared') : t('saved'));
-      } catch (cause) {
-         toast.error(cause instanceof Error ? cause.message : t('saveFailed'));
-      } finally {
-         setSaving(false);
-      }
+
+   const commitTier = (tier: Tier, next: string[]) => {
+      const full = stage(tier, next);
+      if (readyRef.current) autosave.commit(full);
    };
 
    const card = (tier: Tier) => {
@@ -206,20 +430,24 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                {canEdit && list.length < TIER_PLACES ? (
                   <AddRuntimeModel
                      choices={choices.filter((choice) => !list.includes(choice.key))}
-                     disabled={saving}
-                     onAdd={(key) => edit(tier, [...list, key])}
+                     disabled={loading}
+                     onAdd={(key) => commitTier(tier, [...list, key])}
                   />
                ) : null}
             </div>
             {list.length > 0 ? (
-               <ol className="flex flex-col">
-                  {list.map((key, index) => {
+               <SortableModelList
+                  ids={list}
+                  disabled={loading}
+                  sortable={canEdit}
+                  labelFor={(key) => byKey.get(key)?.name ?? key}
+                  onReorder={(next) => stage(tier, next)}
+                  onCommit={(next) => commitTier(tier, next)}
+               >
+                  {(key) => {
                      const choice = byKey.get(key);
                      return (
-                        <li key={key} className="flex min-w-0 items-center gap-2 py-1.5">
-                           <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">
-                              {index + 1}
-                           </span>
+                        <>
                            <span className="min-w-0 flex-1">
                               <span className="block truncate">{choice?.name ?? key}</span>
                               {choice ? (
@@ -229,45 +457,26 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                               ) : null}
                            </span>
                            {canEdit ? (
-                              <span className="flex shrink-0 items-center">
-                                 <Button
-                                    variant="ghost"
-                                    size="xxs"
-                                    aria-label={t('moveUp')}
-                                    disabled={index === 0 || saving}
-                                    onClick={() => move(tier, index, -1)}
-                                 >
-                                    <ArrowUp className="size-3.5" />
-                                 </Button>
-                                 <Button
-                                    variant="ghost"
-                                    size="xxs"
-                                    aria-label={t('moveDown')}
-                                    disabled={index === list.length - 1 || saving}
-                                    onClick={() => move(tier, index, 1)}
-                                 >
-                                    <ArrowDown className="size-3.5" />
-                                 </Button>
-                                 <Button
-                                    variant="ghost"
-                                    size="xxs"
-                                    aria-label={t('remove')}
-                                    disabled={saving}
-                                    onClick={() =>
-                                       edit(
-                                          tier,
-                                          list.filter((other) => other !== key)
-                                       )
-                                    }
-                                 >
-                                    <X className="size-3.5" />
-                                 </Button>
-                              </span>
+                              <Button
+                                 variant="ghost"
+                                 size="xs"
+                                 className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
+                                 aria-label={t('remove')}
+                                 disabled={loading}
+                                 onClick={() =>
+                                    commitTier(
+                                       tier,
+                                       list.filter((other) => other !== key)
+                                    )
+                                 }
+                              >
+                                 <Trash2 className="size-3.5" aria-hidden />
+                              </Button>
                            ) : null}
-                        </li>
+                        </>
                      );
-                  })}
-               </ol>
+                  }}
+               </SortableModelList>
             ) : null}
          </div>
       );
@@ -281,35 +490,11 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
          })}
          action={
             canEdit ? (
-               <div className="flex items-center gap-2">
-                  {dirty ? (
-                     <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => setDraft(null)}
-                     >
-                        {t('discard')}
-                     </Button>
-                  ) : null}
-                  {!dirty && source === 'workspace' ? (
-                     <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => void save(null)}
-                     >
-                        {t('reset')}
-                     </Button>
-                  ) : null}
-                  <Button
-                     size="sm"
-                     disabled={!dirty || saving}
-                     onClick={() => void save(placement)}
-                  >
-                     {saving ? t('saving') : t('save')}
-                  </Button>
-               </div>
+               <SaveIndicator
+                  state={autosave.state}
+                  error={autosave.error}
+                  onRetry={autosave.retry}
+               />
             ) : null
          }
       >
@@ -383,40 +568,46 @@ function TierPlacementEditor() {
       return { tiers, candidates };
    });
    const [draft, setDraft] = useState<TierPlacement | null>(null);
-   const [saving, setSaving] = useState(false);
 
    const saved = data.value?.tiers.placement?.tiers ?? EMPTY;
    const source = data.value?.tiers.placement?.source ?? 'deployment';
    const placement = draft ?? saved;
-   const dirty = draft !== null && JSON.stringify(draft) !== JSON.stringify(saved);
+   const dirty = draft !== null && !samePlacement(draft, saved);
+   const shownRef = useRef(placement);
+   shownRef.current = placement;
+   const valueRef = useRef(data.value);
+   valueRef.current = data.value;
+   const readyRef = useRef(false);
+   readyRef.current = data.value !== null && !data.loading;
    const byId = useMemo(
       () => new Map((data.value?.candidates.models ?? []).map((model) => [model.id, model])),
       [data.value]
    );
    const placed = new Set(MAIN_TIERS.flatMap((tier) => placement[tier]));
 
-   const edit = (tier: Tier, next: string[]) => setDraft({ ...placement, [tier]: next });
-   const move = (tier: Tier, index: number, by: number) => {
-      const list = [...placement[tier]];
-      const [item] = list.splice(index, 1);
-      if (item === undefined) return;
-      list.splice(index + by, 0, item);
-      edit(tier, list);
+   const autosave = useQueuedSave({
+      run: (next: TierPlacement) => updateTierPlacement(next),
+      apply: (tiers, sent) => {
+         const current = valueRef.current;
+         if (!current) return;
+         data.set({ ...current, tiers });
+         setDraft((draftNow) => {
+            if (draftNow && !samePlacement(draftNow, sent)) return draftNow;
+            return null;
+         });
+      },
+   });
+
+   const stage = (tier: Tier, next: string[]) => {
+      const full = { ...shownRef.current, [tier]: next };
+      shownRef.current = full;
+      setDraft(full);
+      return full;
    };
 
-   const save = async (next: TierPlacement | null) => {
-      if (!data.value) return;
-      setSaving(true);
-      try {
-         const tiers = await updateTierPlacement(next);
-         data.set({ ...data.value, tiers });
-         setDraft(null);
-         toast.success(next === null ? t('resetDone') : t('saved'));
-      } catch (cause) {
-         toast.error(cause instanceof Error ? cause.message : t('saveFailed'));
-      } finally {
-         setSaving(false);
-      }
+   const commitTier = (tier: Tier, next: string[]) => {
+      const full = stage(tier, next);
+      if (readyRef.current) autosave.commit(full);
    };
 
    const mix = data.value?.candidates.mix ?? null;
@@ -435,13 +626,10 @@ function TierPlacementEditor() {
       return parts.join(' · ');
    };
 
-   const row = (tier: Tier, id: string, index: number, count: number) => {
+   const row = (tier: Tier, id: string) => {
       const model = byId.get(id);
       return (
-         <li key={id} className="flex min-w-0 items-center gap-2 py-1.5">
-            <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">
-               {index + 1}
-            </span>
+         <>
             <span className="min-w-0 flex-1">
                <span className="block truncate" title={id}>
                   {model ? modelName(model.name) : id}
@@ -454,42 +642,23 @@ function TierPlacementEditor() {
                </span>
             </span>
             {canEdit ? (
-               <span className="flex shrink-0 items-center">
-                  <Button
-                     variant="ghost"
-                     size="xxs"
-                     aria-label={t('moveUp')}
-                     disabled={index === 0 || saving}
-                     onClick={() => move(tier, index, -1)}
-                  >
-                     <ArrowUp className="size-3.5" />
-                  </Button>
-                  <Button
-                     variant="ghost"
-                     size="xxs"
-                     aria-label={t('moveDown')}
-                     disabled={index === count - 1 || saving}
-                     onClick={() => move(tier, index, 1)}
-                  >
-                     <ArrowDown className="size-3.5" />
-                  </Button>
-                  <Button
-                     variant="ghost"
-                     size="xxs"
-                     aria-label={t('remove')}
-                     disabled={saving}
-                     onClick={() =>
-                        edit(
-                           tier,
-                           placement[tier].filter((other) => other !== id)
-                        )
-                     }
-                  >
-                     <X className="size-3.5" />
-                  </Button>
-               </span>
+               <Button
+                  variant="ghost"
+                  size="xs"
+                  className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
+                  aria-label={t('remove')}
+                  disabled={data.loading}
+                  onClick={() =>
+                     commitTier(
+                        tier,
+                        shownRef.current[tier].filter((other) => other !== id)
+                     )
+                  }
+               >
+                  <Trash2 className="size-3.5" aria-hidden />
+               </Button>
             ) : null}
-         </li>
+         </>
       );
    };
 
@@ -513,15 +682,25 @@ function TierPlacementEditor() {
                         (model) => !placed.has(model.id)
                      )}
                      describe={meta}
-                     disabled={saving}
-                     onAdd={(id) => edit(tier, [...list, id])}
+                     disabled={data.loading}
+                     onAdd={(id) => commitTier(tier, [...list, id])}
                   />
                ) : null}
             </div>
             {list.length > 0 ? (
-               <ol className="flex flex-col">
-                  {list.map((id, index) => row(tier, id, index, list.length))}
-               </ol>
+               <SortableModelList
+                  ids={list}
+                  disabled={data.loading}
+                  sortable={canEdit}
+                  labelFor={(id) => {
+                     const model = byId.get(id);
+                     return model ? modelName(model.name) : id;
+                  }}
+                  onReorder={(next) => stage(tier, next)}
+                  onCommit={(next) => commitTier(tier, next)}
+               >
+                  {(id) => row(tier, id)}
+               </SortableModelList>
             ) : null}
             {!dirty && runsOn.length > 0 ? (
                <p className="text-muted-foreground">
@@ -540,35 +719,11 @@ function TierPlacementEditor() {
          description={data.error ?? undefined}
          action={
             canEdit && data.value ? (
-               <div className="flex items-center gap-2">
-                  {dirty ? (
-                     <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => setDraft(null)}
-                     >
-                        {t('discard')}
-                     </Button>
-                  ) : null}
-                  {!dirty && source === 'workspace' ? (
-                     <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={saving}
-                        onClick={() => void save(null)}
-                     >
-                        {t('reset')}
-                     </Button>
-                  ) : null}
-                  <Button
-                     size="sm"
-                     disabled={!dirty || saving}
-                     onClick={() => void save(placement)}
-                  >
-                     {saving ? t('saving') : t('save')}
-                  </Button>
-               </div>
+               <SaveIndicator
+                  state={autosave.state}
+                  error={autosave.error}
+                  onRetry={autosave.retry}
+               />
             ) : null
          }
       >

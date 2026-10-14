@@ -97,7 +97,7 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
       assert.equal((await config({ fallbackModel: null })).body.fallbackModel, null);
    });
 
-   test("a workspace places its own tier models, which only an admin may change, and can go back to the deployment's", async () => {
+   test('a workspace places its own tier models, which only an admin may change', async () => {
       const tiers = await call(app, world.ownerToken, 'GET', '/api/v1/agents/tiers');
       assert.equal(tiers.status, 200);
       assert.deepEqual(tiers.body.placement, {
@@ -120,9 +120,7 @@ describe('agent tiers', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not se
       assert.equal((await put({ placement: { berry_max: ['v/top'], berry_mid: ['v/top'], berry_low: [] } })).status, 422, 'a model in two places');
       assert.equal((await put({ placement: { berry_max: ['x/unknown'], berry_mid: [], berry_low: [] } })).status, 422, 'a model the gateway does not list');
       assert.equal((await put({ placement: { berry_max: ['v/top', 'v/mid', 'v/nocache', 'v/x'], berry_mid: [], berry_low: [] } })).status, 422, 'more than a tier\'s three places');
-      assert.equal((await put({ placement: null }, world.memberToken)).status, 403, 'a member cannot change what agents cost');
-
-      const reset = await put({ placement: null });
-      assert.equal((reset.body.placement as { source: string }).source, 'deployment');
+      assert.equal((await put({ placement: { berry_max: [], berry_mid: ['v/top'], berry_low: [] } }, world.memberToken)).status, 403, 'a member cannot change what agents cost');
+      assert.equal((await put({ placement: null })).status, 422, 'a placement is required');
    });
 });

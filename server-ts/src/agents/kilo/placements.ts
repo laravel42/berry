@@ -37,11 +37,6 @@ export class TierPlacements {
                 updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`;
    }
 
-   /** Back to the deployment's placement. */
-   async clear(workspaceId: string): Promise<void> {
-      await this.#sql`DELETE FROM workspace_model_tiers WHERE workspace_id = ${workspaceId}`;
-   }
-
    /** One agent step in this workspace over the last week, on average; null before its agents have run. */
    async stepMix(workspaceId: string): Promise<StepMix | null> {
       const [row] = await this.#sql`

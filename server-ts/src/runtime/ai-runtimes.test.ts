@@ -145,7 +145,7 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
          assert.equal(selected.modelId, 'auto');
       } finally {
          await sql`UPDATE agents SET model_tier = NULL WHERE id = ${world.agentId}`;
-         await repository.saveTierModels(world.workspaceId, world.userId, null);
+         await sql`DELETE FROM workspace_tier_models WHERE workspace_id = ${world.workspaceId}`;
       }
    });
 

@@ -443,15 +443,13 @@ export function runtimeMounts(options: {
 
    const tierModelList = z.array(z.string().trim().min(3).max(360)).max(3);
    const tierModelBody = z.strictObject({
-      placement: z
-         .strictObject({
-            berry_max: tierModelList,
-            berry_xhigh: tierModelList.default([]),
-            berry_high: tierModelList.default([]),
-            berry_mid: tierModelList,
-            berry_low: tierModelList,
-         })
-         .nullable(),
+      placement: z.strictObject({
+         berry_max: tierModelList,
+         berry_xhigh: tierModelList.default([]),
+         berry_high: tierModelList.default([]),
+         berry_mid: tierModelList,
+         berry_low: tierModelList,
+      }),
    });
 
    route.get('/tier-models', async (context) => {
@@ -465,19 +463,17 @@ export function runtimeMounts(options: {
       const user = context.get('user');
       const workspaceId = await scope(user.id, user.currentWorkspaceId, true);
       const body = await parse(context.req.raw, tierModelBody);
-      if (body.placement !== null) {
-         const allowed = await modelsConnected(options.sql, workspaceId);
-         for (const tier of RUNTIME_AGENT_TIERS) {
-            const seen = new Set<string>();
-            for (const id of body.placement[tier]) {
-               if (!allowed.has(id)) {
-                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is not a model a connected runtime offers.`);
-               }
-               if (seen.has(id)) {
-                  throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is already in this tier.`);
-               }
-               seen.add(id);
+      const allowed = await modelsConnected(options.sql, workspaceId);
+      for (const tier of RUNTIME_AGENT_TIERS) {
+         const seen = new Set<string>();
+         for (const id of body.placement[tier]) {
+            if (!allowed.has(id)) {
+               throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is not a model a connected runtime offers.`);
             }
+            if (seen.has(id)) {
+               throw new ApiError(422, 'AI_RUNTIME_MODEL_INVALID', `${id} is already in this tier.`);
+            }
+            seen.add(id);
          }
       }
       const tiers = await aiRuntimes.saveTierModels(workspaceId, user.id, body.placement);

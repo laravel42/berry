@@ -380,7 +380,7 @@ export async function getTierModels(): Promise<RuntimeAgentTiers> {
 }
 
 export async function saveTierModels(
-   placement: RuntimeAgentTierPlacement | null
+   placement: RuntimeAgentTierPlacement
 ): Promise<RuntimeAgentTiers> {
    return parse(
       runtimeAgentTiersSchema,

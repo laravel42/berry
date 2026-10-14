@@ -262,9 +262,8 @@ export function agentMounts(options: AgentOptions): Mount[] {
    });
 
    /**
-    * The models this workspace runs each tier on, best first; null goes back
-    * to the deployment's placement. Admin-only: it decides what every agent
-    * in the workspace costs.
+    * The models this workspace runs each tier on, best first. Admin-only:
+    * it decides what every agent in the workspace costs.
     */
    route.put('/tiers/placement', async (context) => {
       const user = context.get('user');
@@ -273,24 +272,20 @@ export function agentMounts(options: AgentOptions): Mount[] {
       const gateway = requireGateway(options.gateway);
       if (!gateway.placements) throw new ApiError(503, 'MODEL_GATEWAY_UNAVAILABLE', 'Tier placement is not served here.');
       const { placement } = await readJson(context, placementSchema);
-      if (placement === null) {
-         await gateway.placements.clear(workspaceId);
-      } else {
-         const snapshot = await gatewaySnapshot(gateway.catalog, logger);
-         const allowed = new Set(tierCandidates(snapshot.models, gateway.catalog.policy).map((model) => model.id));
-         const seen = new Set<string>();
-         assertValid(
-            TIERS.flatMap((tier) =>
-               placement[tier].flatMap((id, index) => {
-                  const pointer = `/placement/${tier}/${index}`;
-                  if (seen.has(id)) return [fieldError(pointer, 'duplicate', `${id} is placed in more than one place.`)];
-                  seen.add(id);
-                  return allowed.has(id) ? [] : [fieldError(pointer, 'unknown_model', `${id} is not a model the tiers can hold.`)];
-               })
-            )
-         );
-         await gateway.placements.set(workspaceId, user.id, placement);
-      }
+      const snapshot = await gatewaySnapshot(gateway.catalog, logger);
+      const allowed = new Set(tierCandidates(snapshot.models, gateway.catalog.policy).map((model) => model.id));
+      const seen = new Set<string>();
+      assertValid(
+         TIERS.flatMap((tier) =>
+            placement[tier].flatMap((id, index) => {
+               const pointer = `/placement/${tier}/${index}`;
+               if (seen.has(id)) return [fieldError(pointer, 'duplicate', `${id} is placed in more than one place.`)];
+               seen.add(id);
+               return allowed.has(id) ? [] : [fieldError(pointer, 'unknown_model', `${id} is not a model the tiers can hold.`)];
+            })
+         )
+      );
+      await gateway.placements.set(workspaceId, user.id, placement);
       return json(await tiersView(gateway, workspaceId, logger));
    });
 
@@ -1113,7 +1108,7 @@ const placementSchema = z.strictObject({
       berry_high: placedSchema.default([]),
       berry_mid: placedSchema,
       berry_low: placedSchema,
-   }).nullable(),
+   }),
 });
 
 /** Each tier's models for this workspace, and whose placement put them there. */
