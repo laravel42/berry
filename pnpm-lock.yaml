@@ -588,19 +588,10 @@ importers:
 
   server-ts:
     dependencies:
-      '@aws-sdk/client-bedrock':
-        specifier: ^3.1134.0
-        version: 3.1150.0
       '@aws-sdk/client-bedrock-agentcore':
         specifier: ^3.1134.0
         version: 3.1150.0
       '@aws-sdk/client-bedrock-agentcore-control':
-        specifier: ^3.1134.0
-        version: 3.1150.0
-      '@aws-sdk/client-bedrock-runtime':
-        specifier: ^3.1134.0
-        version: 3.1150.0
-      '@aws-sdk/client-polly':
         specifier: ^3.1134.0
         version: 3.1150.0
       '@aws-sdk/client-s3':
@@ -633,9 +624,6 @@ importers:
       ioredis:
         specifier: ^6.0.0
         version: 6.0.0(supports-color@8.1.1)
-      openai:
-        specifier: ^6.49.0
-        version: 6.49.0(@aws-sdk/credential-provider-node@3.972.86)(@smithy/signature-v4@5.7.4)(ws@8.22.0)(zod@4.6.7)
       pg:
         specifier: ^8.23.0
         version: 8.23.1
@@ -682,14 +670,6 @@ packages:
 
   '@aws-sdk/client-bedrock-runtime@3.1150.0':
     resolution: {integrity: sha512-CEc95zjqHCqSiMyYb2GNRr6LzZ9P8ZgTIpJhaEq3aZ9riwpokGdxAf5mj5d/gkYyBUqZTxeW+uz2SqBVJdHoGw==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/client-bedrock@3.1150.0':
-    resolution: {integrity: sha512-UnxJ1BkQH9odfQQkqxRTaWfkVWn8eZxPeRsArBh4QAATgqMWu1r+qg5kftzLcj6zjHRrSeyKcGlFNK9xE13L5g==}
-    engines: {node: '>=20.0.0'}
-
-  '@aws-sdk/client-polly@3.1150.0':
-    resolution: {integrity: sha512-0cDLufDyhJ9MRXKLqQGyNFAz2JGTeGVoz3yH0OCv3CEgtefxSybRqs4Zk+LxiIWOtFY9azIE1ggVcfQwhPmXrg==}
     engines: {node: '>=20.0.0'}
 
   '@aws-sdk/client-s3@3.1150.0':
@@ -10000,31 +9980,6 @@ snapshots:
       '@smithy/types': 4.19.0
       tslib: 2.8.1
 
-  '@aws-sdk/client-bedrock@3.1150.0':
-    dependencies:
-      '@aws-sdk/core': 3.978.3
-      '@aws-sdk/credential-provider-node': 3.972.86
-      '@aws-sdk/token-providers': 3.1150.0
-      '@aws-sdk/types': 3.974.6
-      '@smithy/core': 3.35.2
-      '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/node-http-handler': 4.12.1
-      '@smithy/types': 4.19.0
-      tslib: 2.8.1
-
-  '@aws-sdk/client-polly@3.1150.0':
-    dependencies:
-      '@aws-sdk/core': 3.978.3
-      '@aws-sdk/credential-provider-node': 3.972.86
-      '@aws-sdk/eventstream-handler-node': 3.972.36
-      '@aws-sdk/middleware-eventstream': 3.972.31
-      '@aws-sdk/types': 3.974.6
-      '@smithy/core': 3.35.2
-      '@smithy/fetch-http-handler': 5.8.0
-      '@smithy/node-http-handler': 4.12.1
-      '@smithy/types': 4.19.0
-      tslib: 2.8.1
-
   '@aws-sdk/client-s3@3.1150.0':
     dependencies:
       '@aws-sdk/checksums': 3.1001.3
@@ -18699,6 +18654,7 @@ snapshots:
       '@smithy/signature-v4': 5.7.4
       ws: 8.22.0
       zod: 4.6.7
+    optional: true
 
   optics-ts@2.4.1: {}
 
