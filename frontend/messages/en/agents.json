@@ -1,7 +1,7 @@
 {
    "header": {
       "title": "Agents",
-      "newAgent": "+ Create agent",
+      "newAgent": "New agent",
       "search": "Search agents"
    },
    "roster": {

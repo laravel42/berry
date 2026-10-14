@@ -1,10 +1,11 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { PageStatement } from '@/components/common/page/page-parts';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAgentsListStore } from '@/store/agents-list-store';
@@ -18,21 +19,22 @@ export default function Header() {
    const setQuery = useAgentsListStore((state) => state.setQuery);
 
    return (
-      <div className="flex w-full flex-col items-center">
-         <PageStatement label={t('title')}>
-            <div className="flex min-w-0 items-center gap-2">
-               <Input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder={t('search')}
-                  aria-label={t('search')}
-                  className="h-[34px] w-48 min-w-0"
-               />
-               <Button className="h-[34px] shrink-0 px-3" asChild>
-                  <Link href={`/${orgId}/agents/new`}>{t('newAgent')}</Link>
-               </Button>
-            </div>
-         </PageStatement>
+      <div className="flex w-full flex-col">
+         <PageKpiHeader label={t('title')}>
+            <Input
+               className="h-9 w-64 max-sm:w-40"
+               value={query}
+               onChange={(event) => setQuery(event.target.value)}
+               placeholder={t('search')}
+               aria-label={t('search')}
+            />
+            <Button size="xs" className="h-[34px] shrink-0" asChild>
+               <Link href={`/${orgId}/agents/new`}>
+                  <Plus className="size-4" aria-hidden />
+                  {t('newAgent')}
+               </Link>
+            </Button>
+         </PageKpiHeader>
          <HeaderOptions />
       </div>
    );
