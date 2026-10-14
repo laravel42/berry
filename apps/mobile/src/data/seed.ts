@@ -1,7 +1,4 @@
-import type { Chat, Goal, Issue, Meeting, Notification } from '@/model/types';
-
-export const TODAY = '2026-10-09';
-export const INITIAL_WEEK = '2026-10-05';
+import type { Chat, Issue, Notification } from '@/model/types';
 
 const act = (who: Issue['activity'][number]['who'], text: string, time: string) => ({ who, text, time });
 
@@ -155,21 +152,6 @@ export const NOTIFICATIONS: Notification[] = [
   { id: 'n5', issue: '36', kind: 'mention', body: 'Lena Ortiz: “can you check the currency column?”', time: '2h', read: true, needs: false, archived: false },
   { id: 'n6', issue: '45', kind: 'assigned', body: 'DevOps Engineer marked this urgent', time: '3h', read: true, needs: false, archived: false },
   { id: 'n7', issue: '35', kind: 'done', body: 'You approved CSV export endpoint', time: '1d', read: true, needs: false, archived: true },
-];
-
-export const MEETINGS: Meeting[] = [
-  { id: 'm0', date: '2026-10-06', start: '10:00', end: '10:15', title: 'Invoices standup', people: ['me', 'lena', 'se', 'qa'] },
-  { id: 'm6', date: '2026-10-08', start: '15:00', end: '15:30', title: 'Design sync', people: ['me', 'lena', 'pd'] },
-  { id: 'm1', date: '2026-10-09', start: '10:00', end: '10:15', title: 'Invoices standup', people: ['me', 'lena', 'se', 'qa'] },
-  { id: 'm2', date: '2026-10-09', start: '14:00', end: '14:45', title: 'CSV export review', people: ['me', 'lena', 'pd'] },
-  { id: 'm4', date: '2026-10-12', start: '11:00', end: '12:00', title: 'Plan the 0.9 release', people: ['me', 'lena', 'orch'] },
-  { id: 'm5', date: '2026-10-15', start: '16:00', end: '16:30', title: 'Release 0.9 go/no-go', people: ['me', 'lena', 'ops', 'qa'] },
-];
-
-export const GOALS: Goal[] = [
-  { date: '2026-10-08', title: 'Export endpoint', plan: 'CSV export', done: 4, total: 4 },
-  { date: '2026-10-09', title: 'Export button and download', plan: 'CSV export', done: 1, total: 3 },
-  { date: '2026-10-14', title: 'Approvals in the inbox', plan: 'Inbox', done: 0, total: 2 },
 ];
 
 export const CHATS: Chat[] = [

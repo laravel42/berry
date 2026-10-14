@@ -111,23 +111,6 @@ export type Chat = {
   messages: ChatMessage[];
 };
 
-export type Meeting = {
-  id: string;
-  date: string;
-  start: string;
-  end: string;
-  title: string;
-  people: PersonId[];
-};
-
-export type Goal = {
-  date: string;
-  title: string;
-  plan: string;
-  done: number;
-  total: number;
-};
-
 export type CallKind = 'audio' | 'video';
 
 export type CallSession = {

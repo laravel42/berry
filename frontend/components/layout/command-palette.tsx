@@ -37,7 +37,6 @@ import { useSessionStore } from '@/store/session-store';
 import {
    Bot,
    Box,
-   Calendar,
    CalendarPlus,
    Check,
    ChevronsDownUp,
@@ -153,14 +152,6 @@ const PAGES: PalettePage[] = [
       icon: Bell,
       href: '/inbox',
       shortcutId: 'goto.inbox',
-      primary: true,
-   },
-   {
-      id: 'calendar',
-      label: 'Calendar',
-      keywords: ['schedule', 'events', 'agenda', 'dates'],
-      icon: Calendar,
-      href: '/calendar',
       primary: true,
    },
    {

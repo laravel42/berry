@@ -10,7 +10,6 @@ import { AppText } from './text';
 const TABS: { route: string; label: string; icon: IconName }[] = [
   { route: 'index', label: 'Inbox', icon: 'inbox' },
   { route: 'tasks', label: 'My tasks', icon: 'tasks' },
-  { route: 'calendar', label: 'Calendar', icon: 'calendar' },
   { route: 'chat', label: 'Chat', icon: 'chat' },
 ];
 

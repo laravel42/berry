@@ -2,9 +2,6 @@
 
 @plugin "tailwindcss-animate";
 
-/* CalendarKit ships its layout as Tailwind classes in the built bundle. */
-@source "../node_modules/calendarkit-pro/dist";
-
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -859,19 +856,6 @@ input[type='search'] {
    color: var(--primary);
    text-decoration: underline;
    text-underline-offset: 2px;
-}
-
-/* CalendarKit's own column: mini month, calendar list, time zone.
-   The shell already has the navigation, so this column stays out of the page.
-   Width is set inline by the open animation, so it has to be forced. */
-.berry-calendar .flex-1.overflow-hidden > .hidden.md\:block {
-   display: none !important;
-   width: 0 !important;
-   opacity: 0 !important;
-}
-
-.berry-calendar button.hidden.md\:inline-flex.h-10.w-10 {
-   display: none !important;
 }
 
 .tiptap-ai-editor .ProseMirror p.is-editor-empty:first-child::before {

@@ -2,7 +2,6 @@ import { create } from 'zustand';
 
 import { ADDABLE_AGENTS, AGENT_REPLIES, PEOPLE, VOICE_TRANSCRIPTS, person } from '@/data/people';
 import { CHATS, DUE, ISSUES, NOTIFICATIONS } from '@/data/seed';
-import { INITIAL_WEEK, TODAY } from '@/data/seed';
 import type {
   Activity,
   CallKind,
@@ -18,7 +17,6 @@ import type {
 
 export type InboxView = 'inbox' | 'archive';
 export type MineTab = 'assigned' | 'created';
-export type CalFilter = 'all' | 'due' | 'meetings' | 'goals';
 export type ChatFilter = 'all' | 'agent' | 'person' | 'thread';
 
 type ToastTimer = ReturnType<typeof setTimeout>;
@@ -32,9 +30,6 @@ type AppState = {
   inboxView: InboxView;
   onlyNeeds: boolean;
   mineTab: MineTab;
-  weekStart: string;
-  day: string;
-  calFilter: CalFilter;
   chatFilter: ChatFilter;
   typing: string | null;
   call: CallSession | null;
@@ -46,10 +41,6 @@ type AppState = {
   setRead: (id: string, read: boolean) => void;
   archiveNotification: (id: string) => void;
   setMineTab: (tab: MineTab) => void;
-  setWeek: (start: string, day: string) => void;
-  setDay: (day: string) => void;
-  setCalFilter: (filter: CalFilter) => void;
-  resetCalendar: () => void;
   setChatFilter: (filter: ChatFilter) => void;
   markChatRead: (id: string) => void;
   decide: (issueId: string, patch: Partial<Issue>, entries: Activity[], resolved: string, toast: string) => void;
@@ -91,9 +82,6 @@ export const useApp = create<AppState>((set, get) => ({
   inboxView: 'inbox',
   onlyNeeds: false,
   mineTab: 'assigned',
-  weekStart: INITIAL_WEEK,
-  day: TODAY,
-  calFilter: 'all',
   chatFilter: 'all',
   typing: null,
   call: null,
@@ -129,10 +117,6 @@ export const useApp = create<AppState>((set, get) => ({
     get().showToast(current.archived ? 'Moved back to inbox' : 'Archived');
   },
   setMineTab: (mineTab) => set({ mineTab }),
-  setWeek: (weekStart, day) => set({ weekStart, day }),
-  setDay: (day) => set({ day }),
-  setCalFilter: (calFilter) => set({ calFilter }),
-  resetCalendar: () => set({ weekStart: INITIAL_WEEK, day: TODAY }),
   setChatFilter: (chatFilter) => set({ chatFilter }),
   markChatRead: (id) =>
     set((state) => ({
