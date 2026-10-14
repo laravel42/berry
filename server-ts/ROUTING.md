@@ -13,6 +13,7 @@ Platform:
 - `/health` — liveness
 - `/ready`, `/readyz` — database probe
 - `/metrics` — Prometheus text (served; not gated on `METRICS_ENABLED`, which is parsed but unused)
+- `/install/berry-bridge`, `/install/berry-bridge.tgz` — public wget installer for the workstation host (no session; the pairing token is not in these files)
 - `/api/v1/config` — version and capabilities
 
 Auth and identity:
@@ -44,6 +45,8 @@ Agents and runs:
 - `/api/v1/agent-builder`
 - `/api/v1/runs`
 - `/api/v1/runtimes` — compute-host registrations/profiles/agent binding/health, plus the user-scoped AI-runtime catalog, connections, preferences, live model discovery and task/conversation selection (ADR-0019)
+- `/api/v1/workstations` — pair or revoke a laptop that will wget `berry-bridge` from `/install` (session)
+- `/api/v1/workstation-bridge` — long-poll jobs, events, heartbeat (`berry_ws_` token only)
 - `/api/v1/agent-tools` — task-token auth only; the runtime calling Berry's tools
 - `/api/v1/organization`, `/api/v1/work-proposals`
 - `/api/v1/skills`, `/api/v1/mcp-servers`

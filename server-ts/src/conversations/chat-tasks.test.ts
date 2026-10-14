@@ -1,19 +1,23 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
-import type { CompleteFn, CompletionRequest, EnqueueInput } from '../agents/seams.ts';
+import type { EnqueueInput } from '../agents/seams.ts';
+import { chatModePrompt, chatReplyBody, chatSuggestions, generateTitle, sendChatMessage, STARTER_SUGGESTIONS, titleFromMessage } from './chat-tasks.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { dropAgentLayerWorld, seedAgentLayerWorld, type AgentLayerWorld } from '../mounts/agent-layer.fixture.ts';
 import type { Run } from '../runs/ledger.ts';
-import { chatModePrompt, chatReplyBody, chatSuggestions, generateTitle, sendChatMessage, STARTER_SUGGESTIONS } from './chat-tasks.ts';
 import { ConversationRepository } from './repository.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
 test('a mode other than agent is an instruction in front of the typed text', () => {
-   assert.equal(chatModePrompt('agent', 'Ship the login'), 'Ship the login');
-   assert.equal(chatModePrompt(undefined, 'Ship the login'), 'Ship the login');
+   const agent = chatModePrompt('agent', 'Ship the login');
+   assert.match(agent, /This is a conversation with a person/);
+   assert.match(agent, /Ship the login$/);
+   assert.doesNotMatch(agent, /Plan mode/);
+   assert.equal(chatModePrompt(undefined, 'Ship the login'), agent);
    const planned = chatModePrompt('plan', 'Ship the login');
-   assert.match(planned, /^Plan mode\./);
+   assert.match(planned, /This is a conversation with a person/);
+   assert.match(planned, /Plan mode\./);
    assert.match(planned, /Ship the login$/);
    assert.match(chatModePrompt('debug', 'The page is blank'), /runtime traces/);
    assert.match(chatModePrompt('ask', 'Where is auth?'), /Do not change it/);
@@ -21,11 +25,18 @@ test('a mode other than agent is an instruction in front of the typed text', () 
 
 test('a chosen repository is named in front of the typed text', () => {
    const prompted = chatModePrompt('agent', 'Where is login?', 'acme/api');
-   assert.match(prompted, /^Repository: acme\/api\./);
+   assert.match(prompted, /This is a conversation with a person/);
+   assert.match(prompted, /Repository: acme\/api\./);
    assert.match(prompted, /Where is login\?$/);
    const planned = chatModePrompt('plan', 'Where is login?', 'acme/api');
-   assert.match(planned, /^Plan mode\./);
+   assert.match(planned, /Plan mode\./);
    assert.match(planned, /Repository: acme\/api\./);
+});
+
+test('a chat title is the first few words of the message', () => {
+   assert.equal(titleFromMessage('  Hello there  '), 'Hello there');
+   assert.equal(titleFromMessage('one two three four five six seven'), 'one two three four five six');
+   assert.equal(titleFromMessage(''), 'Chat');
 });
 
 test('a finished chat task’s reply is its summary, or says what happened', () => {
@@ -84,7 +95,7 @@ describe('chat on tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
       assert.equal(calls[0]?.kind, 'agent');
       assert.equal(calls[0]?.chatSessionId, conversationId);
       assert.equal(calls[0]?.agentId, world.agentId);
-      assert.equal(calls[0]?.prompt, 'Summarise the open tasks');
+      assert.equal(calls[0]?.prompt, chatModePrompt('agent', 'Summarise the open tasks'));
       assert.equal(calls[0]?.issueId, undefined);
       // The sender asked for the run, so a project or a task the agent files
       // while answering is filed in their name and not in nobody's.
@@ -98,15 +109,13 @@ describe('chat on tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not 
    });
 
    test('a generated title replaces the default once, and never a title a person set', async () => {
-      const complete: CompleteFn = async <T>(request: CompletionRequest<T>) =>
-         request.schema.parse({ title: 'Open task summary' });
       assert.equal(
-         await generateTitle({ sql, complete }, { workspaceId: world.workspaceId, conversationId, firstMessage: 'x' }),
-         'Open task summary'
+         await generateTitle({ sql }, { workspaceId: world.workspaceId, conversationId, firstMessage: 'x' }),
+         'x'
       );
       await conversations.rename(conversationId, world.ownerId, 'Mine');
       assert.equal(
-         await generateTitle({ sql, complete }, { workspaceId: world.workspaceId, conversationId, firstMessage: 'x' }),
+         await generateTitle({ sql }, { workspaceId: world.workspaceId, conversationId, firstMessage: 'x' }),
          null
       );
    });

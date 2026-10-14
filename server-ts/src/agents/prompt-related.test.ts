@@ -4,7 +4,7 @@ import { buildMessage } from './prompt.ts';
 
 const base = { issueIdentifier: 'L42-7', issueTitle: 'Decide the cache TTL', issueDescription: 'Pick one.', instructions: null, reviewFeedback: null, repository: null } as unknown as Parameters<typeof buildMessage>[0];
 
-test('the agent is told which sandbox commands it may run, and to list aliases with list_run_tools', () => {
+test('the agent is told which sandbox commands it may run, and not to list them with list_run_tools', () => {
    const message = buildMessage(base);
    assert.match(message, /Files/);
    assert.match(message, /list_files/);
@@ -14,7 +14,7 @@ test('the agent is told which sandbox commands it may run, and to list aliases w
    assert.match(message, /collect_file/);
    assert.match(message, /Commands in the sandbox/);
    assert.match(message, /Run a command with run_command/);
-   assert.match(message, /Call list_run_tools to list the native aliases this runtime supports and these programs/);
+   assert.match(message, /Do not call list_run_tools to learn these programs or the native aliases/);
    assert.match(message, /git/);
    assert.match(message, /node, npm, npx, pnpm, yarn, bun, bunx, nvm/);
    assert.match(message, /python, python3, pip/);

@@ -30,6 +30,40 @@ const MAX_MS = 30 * 60 * 1000;
 
 const TERMINAL_EVENTS = new Set(['run.completed', 'run.failed', 'run.cancelled']);
 
+const waiters = new Map<string, Set<() => void>>();
+
+/** Same-process wake when a run event is written, so a remote browser is not waiting on the poll. */
+export function wakeRunEventStream(runId: string): void {
+   const waiting = waiters.get(runId);
+   if (!waiting) return;
+   for (const wake of [...waiting]) wake();
+}
+
+function waitForRunEvent(runId: string, ms: number, signal: AbortSignal): Promise<void> {
+   return new Promise((resolve) => {
+      const finish = () => {
+         clearTimeout(timer);
+         signal.removeEventListener('abort', finish);
+         const waiting = waiters.get(runId);
+         if (waiting) {
+            waiting.delete(finish);
+            if (waiting.size === 0) waiters.delete(runId);
+         }
+         resolve();
+      };
+      const timer = setTimeout(finish, ms);
+      timer.unref?.();
+      const waiting = waiters.get(runId) ?? new Set<() => void>();
+      waiting.add(finish);
+      waiters.set(runId, waiting);
+      if (signal.aborted) {
+         finish();
+         return;
+      }
+      signal.addEventListener('abort', finish, { once: true });
+   });
+}
+
 /** The headers a followed run stream answers with. */
 export const RUN_STREAM_HEADERS: Readonly<Record<string, string>> = {
    'Content-Type': 'text/event-stream; charset=utf-8',
@@ -143,7 +177,7 @@ export async function followRunEvents(options: {
             lastSent = Date.now();
          }
          if (Date.now() - started >= MAX_MS) break;
-         await sleep(POLL_MS);
+         await waitForRunEvent(options.runId, POLL_MS, options.signal);
       }
    } catch {
       // Any failure ends the stream. The client reconnects with its last id and
@@ -172,8 +206,4 @@ export function runEventStream(options: {
       },
    });
    return new Response(stream, { status: 200, headers: { ...RUN_STREAM_HEADERS } });
-}
-
-function sleep(ms: number): Promise<void> {
-   return new Promise((resolve) => setTimeout(resolve, ms).unref?.());
 }

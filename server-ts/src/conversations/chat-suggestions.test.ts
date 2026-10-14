@@ -36,10 +36,11 @@ test('an empty conversation gets the starters, without a model call', async () =
    assert.equal(calls.length, 0);
 });
 
-test('a conversation the model finds generic gets the starters', async () => {
+test('an opening message gets the starters, without a model call', async () => {
    const { conversations, input } = world([{ author: 'user', body: 'hi' }]);
-   const { complete } = answering({ generic: true, suggestions: [] });
+   const { complete, calls } = answering({ generic: false, suggestions: [{ label: 'No', prompt: 'No' }] });
    assert.deepEqual(await conversationSuggestions({ sql, complete, conversations }, input), STARTER_SUGGESTIONS);
+   assert.equal(calls.length, 0);
 });
 
 test('a conversation with a subject gets the model follow-ups, and asks only once per latest message', async () => {

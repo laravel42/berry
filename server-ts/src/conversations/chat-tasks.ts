@@ -37,6 +37,16 @@ const MODE_LEAD: Record<Exclude<ChatMode, 'agent'>, string> = {
 };
 
 /**
+ * Chat is a conversation, not an issue checkout. Without this lead the
+ * runtime tool note (written for task runs) sends the model looking for a
+ * Commands in the sandbox section that is not there.
+ */
+export const CHAT_TURN_LEAD =
+   'This is a conversation with a person. Reply to them. ' +
+   'Berry tools are available when the work needs them. ' +
+   'Do not start a turn by listing tools, and do not write that run_command or list_run_tools are missing.';
+
+/**
  * The task prompt for a chat message.
  *
  * The stored message stays the text the person typed. A mode other than Agent,
@@ -44,14 +54,13 @@ const MODE_LEAD: Record<Exclude<ChatMode, 'agent'>, string> = {
  * follows them while the conversation still shows only what was typed.
  */
 export function chatModePrompt(mode: ChatMode | undefined, body: string, repository?: string): string {
-   const parts: string[] = [];
+   const parts: string[] = [CHAT_TURN_LEAD];
    if (mode && mode !== 'agent') parts.push(MODE_LEAD[mode]);
    if (repository) {
       parts.push(
          `Repository: ${repository}. This repository is the codebase for this answer. Read it and keep the work inside it.`
       );
    }
-   if (parts.length === 0) return body;
    return `${parts.join('\n\n')}\n\n${body}`;
 }
 
@@ -207,8 +216,6 @@ export function registerChatReplies(deps: { sql: Sql; conversations: Conversatio
    });
 }
 
-const titleSchema = z.object({ title: z.string().trim().min(1).max(80) });
-
 /**
  * The one model call that names a chat.
  *
@@ -230,21 +237,30 @@ export function titleRequest(firstMessage: string): { system: string; prompt: st
    };
 }
 
+/**
+ * A title from the first message, without a model call.
+ *
+ * Chat titles used to be a completion. With a workstation runtime that
+ * completion is another kiro-cli spawn on the same laptop as the reply.
+ */
+export function titleFromMessage(firstMessage: string): string {
+   const cleaned = firstMessage.replace(/\s+/g, ' ').trim();
+   if (cleaned === '') return 'Chat';
+   const words = cleaned.split(' ').slice(0, 6);
+   const title = words.join(' ');
+   return title.length > 60 ? `${title.slice(0, 57)}...` : title;
+}
+
 /** A short title from the first message; written only while nobody has chosen one. */
 export async function generateTitle(
-   deps: { sql: Sql; complete: CompleteFn },
+   deps: { sql: Sql },
    input: { workspaceId: string; conversationId: string; firstMessage: string }
 ): Promise<string | null> {
    const [row] = await deps.sql`
       SELECT title_source FROM conversations
        WHERE id = ${input.conversationId} AND workspace_id = ${input.workspaceId}`;
    if (row?.title_source !== 'agent') return null;
-   const { title } = await deps.complete({
-      workspaceId: input.workspaceId,
-      purpose: 'chat_title',
-      ...titleRequest(input.firstMessage),
-      schema: titleSchema,
-   });
+   const title = titleFromMessage(input.firstMessage);
    const updated = await deps.sql`
       UPDATE conversations SET topic = ${title}, title_source = 'generated'
        WHERE id = ${input.conversationId} AND workspace_id = ${input.workspaceId} AND title_source = 'agent'`;
@@ -347,7 +363,7 @@ export async function conversationSuggestions(
 
    const opening = latest.length === 1 && last.author === 'user';
    let contextual: ChatSuggestion[];
-   if (!deps.complete) {
+   if (opening || !deps.complete) {
       contextual = opening ? STARTER_SUGGESTIONS : [];
    } else {
       try {
@@ -359,7 +375,7 @@ export async function conversationSuggestions(
          });
          contextual = reply.generic ? STARTER_SUGGESTIONS : reply.suggestions;
       } catch {
-         return [...(opening ? STARTER_SUGGESTIONS : []), ...actions];
+         return [...actions];
       }
    }
    if (followUpCache.size >= FOLLOW_UP_CACHE_SIZE) {

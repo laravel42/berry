@@ -2,18 +2,19 @@
  * The same tool note on every runtime.
  *
  * A runtime's native tool names are served by Berry's MCP server as aliases
- * of the Berry tools this run admits, and a call to one runs that Berry tool.
- * `list_run_tools` is the one list of those aliases plus the sandbox commands.
- * `firstCall` stays so existing call sites compile; the note names
- * `list_run_tools` itself.
+ * of the Berry tools this run admits. The task names sandbox programs when
+ * there is a checkout; chat has no Commands section, so the note must not
+ * send the model hunting one. `firstCall` stays so existing call sites
+ * compile; AGENTS.md says not to call `list_run_tools` to learn the tools.
  */
 export function runtimeToolNote(_firstCall: string): string {
    return (
       '\n\nHow to call tools on this runtime\n' +
-      'The programs you may run are listed in the task under Commands in the sandbox, and they are the same on every runtime. ' +
-      'Run one with run_command. ' +
-      'Call list_run_tools to list every tool you may use. ' +
-      'The reply contains the native tool names Berry serves on this runtime, each with the Berry tool it runs, plus the sandbox commands.\n'
+      'Berry tools live on the berry MCP server. ' +
+      'When the task names programs under Commands in the sandbox, run one with run_command. ' +
+      'Do not call list_run_tools to learn those programs or the aliases; they are already on the server. ' +
+      'If this turn has no Commands in the sandbox section, you are in a conversation: answer the person. Use tools only when the work needs them. ' +
+      'Do not write that run_command or list_run_tools are missing.\n'
    );
 }
 

@@ -5,6 +5,7 @@ import { RunTerminal } from '../agents/runtime/terminal.ts';
 
 export { RunTerminal };
 import type { TaskResult, ToolDetail } from '../runtime/lifecycle.ts';
+import { wakeRunEventStream } from './event-stream.ts';
 import { notifyRunTerminal } from './terminal-hooks.ts';
 
 /**
@@ -226,7 +227,7 @@ export class RunLedger {
     */
    async markRunning(runId: string): Promise<Run> {
       const now = this.clock().toISOString();
-      return this.sql.begin(async (transaction) => {
+      const started = await this.sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
          const run = await lockRun(tx, runId);
          if (isTerminal(run.status)) throw new RunTerminal();
@@ -295,7 +296,9 @@ export class RunLedger {
             }
          }
          return started;
-      }) as Promise<Run>;
+      });
+      wakeRunEventStream(runId);
+      return started;
    }
 
    /** One display delta, appended to the run's accumulated output. */
@@ -584,6 +587,7 @@ export class RunLedger {
       // After the commit: a hook must never be able to undo the fact that the
       // run ended.
       await notifyRunTerminal(finished as Run);
+      wakeRunEventStream(params.runId);
       return finished as Run;
    }
 
@@ -651,6 +655,7 @@ export class RunLedger {
       // After the commit: a hook must never be able to undo the fact that the
       // run ended.
       await notifyRunTerminal(finished as Run);
+      wakeRunEventStream(params.runId);
       return finished as Run;
    }
 
@@ -706,6 +711,7 @@ export class RunLedger {
       // After the commit: a hook must never be able to undo the fact that the
       // run ended. Idempotent cancels notify again; hooks are idempotent.
       await notifyRunTerminal(finished as Run);
+      wakeRunEventStream(runId);
       return finished as Run;
    }
 
@@ -739,6 +745,7 @@ export class RunLedger {
             payload,
          });
       });
+      wakeRunEventStream(runId);
    }
 
    /**
