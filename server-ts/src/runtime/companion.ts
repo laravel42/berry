@@ -29,7 +29,6 @@ export class Companion {
       // The advisory lock serializes claims for one companion across tabs/processes.
       const picked = await this.sql.begin(async transaction => {
          const tx = transaction as unknown as Sql;
-         await tx`SELECT pg_advisory_xact_lock(hashtextextended('berry:runs:dispatch-capacity', 0))`;
          await tx`SELECT pg_advisory_xact_lock(hashtextextended(${`companion:${userId}:${id}`}, 0))`;
          const [busy] = await tx`SELECT id FROM runs WHERE ai_runtime_user_id = ${userId}
             AND runtime_resume->'companion'->>'id' = ${id} AND dispatch_lease_until > now()`;
@@ -48,7 +47,7 @@ export class Companion {
          if (!run) return null;
          const claim = randomUUID();
          const state = { companion: { id, claim, cursor: 0, model: '', usage: zeroUsage() } };
-         await tx`UPDATE runs SET dispatch_lease_until = now() + interval '60 seconds', runtime_resume = ${tx.json(state as never)} WHERE id = ${run.id}`;
+         await tx`UPDATE runs SET dispatch_lease_until = now() + interval '60 seconds', runtime_resume = jsonb_set(COALESCE(runtime_resume, '{}'::jsonb), '{companion}', ${tx.json(state.companion as never)}) WHERE id = ${run.id}`;
          return { runId: String(run.id), claim, folder: folderForRepository(folders, run.repository as string | null) };
       });
       if (!picked) return null;
@@ -103,7 +102,7 @@ export class Companion {
                state.companion.usageEventIds = [...usageEvents];
                state.companion.cursor++;
                state.companion.fingerprint = fingerprint;
-               await tx`UPDATE runs SET runtime_resume = ${tx.json(state as never)} WHERE id = ${runId}`;
+               await tx`UPDATE runs SET runtime_resume = jsonb_set(COALESCE(runtime_resume, '{}'::jsonb), '{companion}', ${tx.json(state.companion as never)}) WHERE id = ${runId}`;
                if (input.event.type === 'task.completed' || input.event.type === 'task.failed') {
                   await revokeTaskTokens(scoped, runId);
                   await tx`UPDATE runs SET dispatch_lease_until = NULL WHERE id = ${runId}`;

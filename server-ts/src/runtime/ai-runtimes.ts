@@ -271,11 +271,19 @@ export class AiRuntimeRepository {
                'This account is no longer a member of the workspace.'
             );
          }
-         const current = await tx<Array<{ id: string }>>`
-            SELECT id FROM ai_runtime_connections
+         const current = await tx<Array<{ id: string; metadata: Record<string, unknown> }>>`
+            SELECT id, metadata FROM ai_runtime_connections
              WHERE workspace_id = ${input.workspaceId} AND user_id = ${input.userId}
                AND runtime_key = ${input.runtimeId} AND status = 'connected'
              FOR UPDATE`;
+         // Migration 220 permits only one active connection per runtime. Until
+         // distinct companion rows are supported, reject cross-host replacement
+         // instead of silently retargeting Settings or cancelling its active runs.
+         const incomingCompanion = input.metadata?.companionId;
+         if (current.some(row => row.metadata.companionId !== incomingCompanion)) {
+            throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
+               'A separate companion connection is required. This runtime is already connected on another host; it has not been replaced.');
+         }
          const currentIds = current.map((row) => row.id);
          const active =
             currentIds.length === 0

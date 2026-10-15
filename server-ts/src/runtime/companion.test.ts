@@ -54,20 +54,53 @@ describe('companion durable pull transport', { skip: !url && 'BERRY_TEST_DATABAS
       return (await enqueueTask(sql, { workspaceId: fixture.workspaceId, agentId: fixture.agentId, issueId, kind: 'agent', source: 'assignment', requestedBy: fixture.userId, aiRuntime: { runtimeId: 'codex', modelId: 'gpt-5', agentId: null, connectionId, userId: fixture.userId, accountId: null, accountName: 'Test' } })).runId;
    }
    const folders = [{ path: '/open-folder', repositories: [] }];
+   test('Settings connection cannot silently replace a companion connection', async () => {
+      await assert.rejects(new AiRuntimeRepository(sql).connect({ workspaceId: fixture.workspaceId,
+         userId: fixture.userId, runtimeId: 'codex', authMethod: 'codex_cli', accountId: null, accountName: 'Settings',
+      }), /separate companion connection/);
+      const [row] = await sql`SELECT status FROM ai_runtime_connections WHERE id = ${connectionId}`;
+      assert.equal(row?.status, 'connected');
+      const settings = await new AiRuntimeRepository(sql).connect({ workspaceId: fixture.workspaceId,
+         userId: fixture.userId, runtimeId: 'claude', authMethod: 'claude_cli', accountId: null, accountName: 'Settings',
+      });
+      await assert.rejects(new AiRuntimeRepository(sql).connect({ workspaceId: fixture.workspaceId,
+         userId: fixture.userId, runtimeId: 'claude', authMethod: 'claude_cli', accountId: null, accountName: 'Companion', metadata: { companionId: id },
+      }), /separate companion connection/);
+      const [untouched] = await sql`SELECT status, metadata FROM ai_runtime_connections WHERE id = ${settings.connection.id}`;
+      assert.equal(untouched?.status, 'connected');
+      assert.deepEqual(untouched?.metadata, {});
+   });
    test('hosted dispatcher does not invoke companion runs; wrong users cannot claim them', async () => {
       const runId = await queued();
       let invoked = false;
       const dispatcher = new Dispatcher({ sql, executor: { async execute() { invoked = true; } }, logger: { info() {}, error() {}, warn() {} } });
       await dispatcher.tick();
+      await sql`UPDATE runs SET runtime_resume = '{"delivery":{"marker":"preserve"}}'::jsonb WHERE id = ${runId}`;
       assert.equal(invoked, false);
       assert.equal(await companion.claim(randomUUID(), id, folders), null);
-      const run = await companion.claim(fixture.userId, id, folders);
+      const run = await sql.begin(async transaction => {
+         const tx = transaction as unknown as Sql;
+         await tx`SELECT pg_advisory_xact_lock(hashtextextended('berry:runs:dispatch-capacity', 0))`;
+         let timer: ReturnType<typeof setTimeout> | undefined;
+         try {
+            return await Promise.race([
+               companion.claim(fixture.userId, id, folders),
+               new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Companion claim waited for hosted dispatch lock')), 2000); }),
+            ]);
+         } finally { clearTimeout(timer); }
+      });
       assert.equal(run?.runId, runId);
+      const [resume] = await sql`SELECT runtime_resume FROM runs WHERE id = ${runId}`;
+      assert.deepEqual(resume?.runtime_resume.delivery, { marker: 'preserve' });
       assert.ok(run?.envelope.berry.token.startsWith('berry_task_'));
       assert.ok(!JSON.stringify(run).includes('berry_pat_'));
       assert.equal(run?.folder, '/open-folder');
       assert.equal(run?.envelope.repo, null);
       assert.equal(await companion.claim(fixture.userId, id, folders), null);
+      assert.ok(run);
+      await companion.update(fixture.userId, runId, run.claim, { sequence: 0, event: { type: 'task.started' } });
+      const [updated] = await sql`SELECT runtime_resume FROM runs WHERE id = ${runId}`;
+      assert.deepEqual(updated?.runtime_resume.delivery, { marker: 'preserve' });
       if (!run) throw new Error('claim required');
       await assert.rejects(companion.update(randomUUID(), runId, run.claim, {}));
       await assert.rejects(companion.update(fixture.userId, runId, randomUUID(), {}));

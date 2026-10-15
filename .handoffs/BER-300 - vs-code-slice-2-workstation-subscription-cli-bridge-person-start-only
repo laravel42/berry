@@ -4,49 +4,37 @@
 
 VS Code slice 2: workstation subscription CLI bridge (person start only)
 
-I’ll read the dispatch path, adapters, and repository guidance, then implement the approved pull transport and its checks.
-The dispatcher already has durable leases and cancellation polling. I’m checking how to give the companion exclusive ownership of a run while leaving lifecycle writes with the ledger.
-I’m applying the background-job, authentication/authorization, and REST API skills to the claim, lease, and event paths.
-The existing envelope builder and ledger recorder can provide the handoff and lifecycle writes. I’ll store companion ownership in the run’s existing dispatch metadata, exclude those runs from hosted dispatch, and reuse the CLI adapters against the matched open folder.
-The server now has companion claim, heartbeat, and event handlers, with ordered lifecycle posts and folder validation. Companion connections are excluded from normal dispatch. Dependencies are installing; next I’ll wire the extension runner and check the transport end to end.
-The first compile check caught a tool-callback field mismatch and missing completion fields. I also found that the companion needs the existing invocation handler to give Berry’s admitted tools access to the local folder. I’m reusing that handler with a folder-bound repository step.
-The extension build and 17 tests pass. Server typechecking and the model-import boundary check also pass. I’m adding transport tests for exclusive claims, tenant isolation, duplicate events, cancellation, and lease expiry.
-The database-backed transport tests pass against a fresh, temporary database, including duplicate-event replay and cancellation. The full server suite is running. I’m applying the API and developer documentation skills to document the approved transport and companion setup.
-The full server suite passed, with database suites skipped where expected. The new transport tests also passed against a fresh temporary database, including boardless completions. I’m checking the existing ledger and dispatcher database tests now; interactive VS Code and real CLI login checks remain unverified.
-The additional database regression run is taking longer than the companion-specific suite. The transport tests and offline server suite have passed; I’ll report the broader database run separately if it cannot complete.
-The broader database run timed out after reaching the ledger tests; I won’t count it as passing. The companion-specific database suite passed independently. I’ll finish the HTTP-boundary checks and note the timeout and unverified desktop checks in the handoff.
-The final focused checks pass: PAT-only control, request validation, duplicate-event and usage deduplication, cancellation, lease expiry, folder binding, and boardless completions. The packaged worker and MCP bridges also pass syntax checks. I’m running the final server suite and writing the handoff; no history or release actions are needed.
-Implemented BER-300 using BER-298’s companion and the existing CLI adapters: explicit start, outbound pull claims, folder binding, lifecycle posting, leases and cancellation. Updated the transport docs and required handoff.
+I’ll check the review findings against the current code, fix the confirmed issues, and rerun the requested checks.
+The code confirms the shared dispatch lock, incomplete envelope branch, and companion state in `runtime_resume`. I’m applying the background-job and data-integrity skills to fix ownership without overwriting ACP resume data.
+Server typechecking now passes. I fixed the envelope shape, removed the shared dispatch lock, moved skills to the session root, and changed companion state writes to preserve ACP resume data.
 
-Passed server typecheck, 1,508 server tests, 17 extension tests, and five focused database transport tests.
+The connection finding also holds. Migration 220 permits only one connected row per person, workspace, and runtime. Allowing a separate companion connection requires a new migration, which conflicts with the task’s “no migrations” boundary. I’ll make bridge startup reject that collision safely and document the remaining decision.
+The temporary-database transport suite passes, including the new resume-preservation test. A regression test also reproduced silent connection replacement before the guard was added; startup now rejects a cross-host collision without changing the existing connection.
 
-The broader database regression run timed out. Interactive VS Code and real CLI login/execution remain unverified. No history rewrite, push, merge or release performed.
+The ADR now labels the bridge as under review. Extension checks and runtime handler tests are running.
+The extension’s 17 tests, strict typecheck, and build passed. The runtime handler’s 38 tests passed, including the new check that skills stay outside the project folder. I’m finishing verification after preserving the original skill-write path for hosted runs.
+
+The remaining issue is distinct connections: the guard prevents replacement, but supporting both connected hosts requires changing migration 220’s unique index. I’ll report that conflict explicitly and keep the PR marked as not ready to merge.
+The final local checks pass: server typecheck, 17 extension tests, 38 handler tests, and six companion tests against a fresh disposable database.
+
+The tool refused the PR-description update because it requires approval and this session’s approval policy is `never`. The PR body therefore remains stale. The code fixes are ready, but distinct connections still need clarification on the task’s no-migration restriction.
+Fixed skills isolation, dispatch-lock interference, the incomplete envelope, and resume-state overwrites. Added regression tests and corrected docs to describe the bridge as under review. Reused BER-298’s existing companion code and updated the handoff.
+
+Passed server typecheck, extension typecheck/build and 17 tests, 38 handler tests, and six companion tests against a fresh disposable database. Hosted CI and interactive VS Code/real CLI execution remain unverified.
+
+Do not merge yet. Distinct connections require changing migration 220’s unique index, conflicting with “no migrations.” Startup now rejects cross-host replacement safely. Andrea: does the distinct-connection requirement authorize that forward migration?
+
+The PR-description update was refused because the tool requires approval and this session forbids approvals; its body remains stale. Berry controls commits; no history rewrite or merge performed.
 
 ## Files
-- apps/vscode/README.md
-- apps/vscode/build-runtime.mjs
-- apps/vscode/package.json
-- apps/vscode/src/bridge.ts
-- apps/vscode/src/extension.ts
-- apps/vscode/src/host.ts
-- apps/vscode/test/bridge.test.cjs
 - docs/adr/0019-subscription-ai-runtimes.md
 - docs/ai-runtimes.md
-- docs/api/gateway-v1.md
-- pnpm-lock.yaml
-- server-ts/ROUTING.md
+- server-ts/src/agents/runtime/container/handler.test.ts
 - server-ts/src/agents/runtime/container/handler.ts
-- server-ts/src/agents/runtime/container/runtime-completion.ts
-- server-ts/src/agents/runtime/workstation/companion.ts
-- server-ts/src/index.ts
-- server-ts/src/mounts/companion.test.ts
-- server-ts/src/mounts/companion.ts
-- server-ts/src/runs/dispatcher.ts
-- server-ts/src/runs/ledger.ts
+- server-ts/src/runtime/ai-runtimes.ts
 - server-ts/src/runtime/companion.test.ts
 - server-ts/src/runtime/companion.ts
 - server-ts/src/runtime/envelope-builder.ts
-- server-ts/src/runtime/task-executor.ts
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-300-vs-code-slice-2-workstation-subscription

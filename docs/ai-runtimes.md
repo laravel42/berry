@@ -9,14 +9,14 @@ Berry distinguishes four facts that are often collapsed into one label:
 
 Installing an agent framework does not grant model access. A consumer subscription is used only where the provider documents that path. Berry never extracts browser cookies, reads another CLI's credential store, impersonates a first-party client, or falls back to API billing or another account.
 
-The desktop VS Code companion can run Kiro, Claude Code and Codex on the
+The desktop VS Code companion bridge under review can run Kiro, Claude Code and Codex on the
 person's machine while hosted Berry remains the control plane. Use **Berry:
 Start workstation CLI bridge** in a trusted local folder after signing in with
 the official CLI. It pulls one run at a time over outbound `/api/v1`, matches
 the project's GitHub remote (or requires a single open folder), and posts
 lifecycle events to Berry's ledger with leased ownership and cancellation.
 It copies no login stores, creates no second checkout, and never falls back
-to API billing. See [companion setup](../apps/vscode/README.md).
+to API billing. An existing Settings CLI connection prevents connecting the same runtime from a different host; the existing connection is preserved. See [companion setup](../apps/vscode/README.md).
 
 ## What works in this release
 

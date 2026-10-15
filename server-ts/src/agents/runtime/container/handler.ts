@@ -258,7 +258,11 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // Kiro do not attach every file to the model prompt. Bedrock and
       // Kilo read a skill only through `read_skill`. MCP servers become
       // Strands clients beside Berry's own tools.
-      await writeSkills(workspace.root, envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
+      if (deps.workspaceDirectory) {
+         await writeSkills(join(deps.workRoot, key), envelope.agent.skills);
+      } else {
+         await writeSkills(workspace.root, envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
+      }
       // Injected loaders keep their single-arg shape; the production loader
       // bounds each connect and reports a server it had to drop.
       const warn = deps.warn ?? consoleWarn;
