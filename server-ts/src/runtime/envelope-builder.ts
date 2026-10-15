@@ -286,7 +286,7 @@ export class EnvelopeBuilder {
       this.#deps = deps;
    }
 
-   async build(input: { task: TaskRow; dispatch: Dispatch | null; token: string }): Promise<{
+   async build(input: { task: TaskRow; dispatch: Dispatch | null; token: string; companion?: boolean }): Promise<{
       envelope: TaskEnvelope;
       delivery: DeliveryPlan | null;
       model: string;
@@ -419,7 +419,7 @@ export class EnvelopeBuilder {
          this.#projectResources(dispatch.issueId, task.workspaceId),
       ]);
       const priorWork = recallPrompt(recalled);
-      const { repo, delivery, empty, checkout } = await this.#repository(task, dispatch, agent);
+      const { repo, delivery, empty, checkout } = input.companion ? { repo: null, delivery: null, empty: false, checkout: null } : await this.#repository(task, dispatch, agent);
       const note = dependencyNote(dependencies, checkout ?? null);
       const handed = dependencyHandoffs(handoffs);
       // A person's comment written after the last run is already the review

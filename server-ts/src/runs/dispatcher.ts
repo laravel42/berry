@@ -357,6 +357,7 @@ export class Dispatcher {
                     LEFT JOIN agent_busy ON agent_busy.agent_id = r.agent_id
                    WHERE r.status = 'queued'
                      AND r.dispatch_state = 'pending'
+                     AND NOT EXISTS (SELECT 1 FROM ai_runtime_connections companion_connection WHERE companion_connection.id = r.ai_runtime_connection_id AND companion_connection.metadata ? 'companionId')
                      AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
                      AND (rt.id IS NULL OR rt.status <> 'disabled')
                      ${this.#scope('r')}
@@ -411,6 +412,7 @@ export class Dispatcher {
          SELECT id FROM runs
           WHERE status IN ('queued', 'running')
             AND dispatch_state <> 'pending'
+            AND NOT EXISTS (SELECT 1 FROM ai_runtime_connections c WHERE c.id = runs.ai_runtime_connection_id AND c.metadata ? 'companionId')
             AND dispatch_lease_until < now()
             ${this.#scope('runs')}
           LIMIT 20`;
