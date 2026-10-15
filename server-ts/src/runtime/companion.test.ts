@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, mkdir, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { once } from 'node:events';
@@ -312,7 +312,7 @@ if (second) {
          assert.equal(result?.status, 'in_review');
          assert.equal(Number(result?.input_tokens), 11);
          assert.equal(Number(result?.output_tokens), 7);
-         assert.equal(await readFile(marker, 'utf8'), folder);
+         assert.equal(await readFile(marker, 'utf8'), await realpath(folder));
          for (const type of ['task.started', 'task.message', 'task.usage', 'task.completed']) assert.ok(seen.includes(type), type);
          const second = await queued();
          await until(async () => {

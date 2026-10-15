@@ -4,28 +4,46 @@
 
 VS Code slice 2: workstation subscription CLI bridge (person start only)
 
-I’ll check the connection guard and worker tests, add the live-lease protection and end-to-end test, then run the requested checks and write a replacement PR description in the handoff.
-The guard allows a new companion ID to replace a connection even while it has a live run lease. I’m applying the data-integrity skill to add the check inside the existing connection transaction. The no-migration and one-connection limits stay unchanged.
-The regression test reproduced the takeover bug, and the guard now passes it, including replacement after lease expiry. The packaged-worker test is running against the real HTTP mount with a stub Codex executable and an empty home directory. Its first run exposed a test-harness failure that I’m investigating.
-The HTTP test found a real cancellation bug: the worker passed cancellation as a caller disconnect, which leaves the session running. I’m changing the worker to call the session registry’s stop operation when Berry returns cancel.
-The packaged-worker test now passes completion and cancellation: it records usage, moves the issue to `in_review`, receives cancel on heartbeat, and confirms the stub child received SIGTERM. The two requested suites pass with 12 tests, zero failures and zero skips on a schema-only copy of `berry`. Server and extension checks also pass.
-Fixed live-bridge takeover protection while preserving restart after lease expiry. The new HTTP test also exposed and fixed cancellation that left the CLI child running.
+Fixed the macOS assertion to compare the recorded cwd with `await realpath(folder)`. Every other assertion and all production code remain unchanged. Updated and checked the required handoff. No migrations or merge performed.
 
-Verified:
+## PR description
 
-- Server and extension typechecks and extension build passed.
-- Extension tests: 17 passed, 0 failed, 0 skipped.
-- Runtime companion suite: 10 passed, 0 failed, 0 skipped.
-- Companion mount suite: 2 passed, 0 failed, 0 skipped.
-- Model-import boundary and diff checks passed.
+Implements a person-started, PAT-only pull transport at `/api/v1/companion`, reusing BER-298’s companion package and the existing subscription CLI adapters.
 
-Database tests used a schema-only disposable copy, removed afterward. The packaged worker test proves completion, usage recording, and cancellation through the real companion mount using a stub CLI.
+Claims use `SKIP LOCKED` with a 60-second lease renewed by heartbeat. Lifecycle events are posted in order, keyed by sequence and fingerprint. Cancellation is written to the ledger first, then returned on heartbeat; the worker stops the CLI session through the registry. The hosted dispatcher and sweeper skip companion runs. The envelope contains neither the PAT nor provider credentials.
 
-Added a complete replacement PR description to the required handoff. No migrations changed. Hosted CI and interactive VS Code/real CLI execution remain unverified. No merge performed.
+Settings and companion connections cannot replace each other. A new companion ID cannot replace a connection with a live run lease; replacement is allowed after lease expiry.
+
+Out of scope: simultaneous Settings and companion connections, which require a forward migration in a separate issue; remote, SSH and WSL workspaces; vscode.dev; automatic bridge startup.
+
+Verification:
+
+- `pnpm typecheck:server` — passed.
+- `pnpm --filter @berry/vscode typecheck` — passed.
+- `pnpm --filter @berry/vscode build` — passed.
+- `pnpm --filter @berry/vscode test` — **17 passed, 0 failed, 0 skipped**.
+- `python3 scripts/check-no-model-in-server.py` — passed.
+- `git diff --check` — passed.
+
+Database verification used a fresh database with `C` collation, populated using:
+
+```sh
+pg_dump -h 127.0.0.1 -U postgres --schema-only --no-owner --no-privileges berry |
+  psql -h 127.0.0.1 -U postgres -d ber300_review_path_test -q
+```
+
+From `server-ts`, ran:
+
+```sh
+BERRY_TEST_DATABASE_URL='postgres://postgres@127.0.0.1:5432/ber300_review_path_test?sslmode=disable' \
+node --test --experimental-strip-types src/runtime/companion.test.ts src/mounts/companion.test.ts
+```
+
+Result: **12 passed, 0 failed, 0 skipped**, including the packaged-worker HTTP completion, usage and cancellation test with a stub CLI. The disposable database was dropped afterward; tests never targeted the development database.
+
+Not verified: hosted CI, which is not running, and interactive VS Code execution with a real subscription CLI.
 
 ## Files
-- server-ts/src/agents/runtime/workstation/companion.ts
-- server-ts/src/runtime/ai-runtimes.ts
 - server-ts/src/runtime/companion.test.ts
 
 Repository: laravel42/berry
