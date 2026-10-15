@@ -24,9 +24,11 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 9. **Executable adapter: Kiro.** Kiro's official headless credential is a paid-plan API key. Berry seals that key, gives each run an empty CLI home, and passes the key only into that process. Kiro's own shell and file tools are denied. Berry tools are the only MCP server it may call. `kiro-cli` runs on the user workstation, started by the Berry server as its own process, with `acp --agent-engine=v3`. It is not bundled and it is not started inside the runtime container. GitHub Copilot is not a Berry runtime. GitHub sign-in and the GitHub App stay for identity and repository access.
 10. **Catalog unavailable honestly.** Every requested product appears in the catalog. An item without a supported Berry execution/authentication boundary is unavailable with a concrete reason and official evidence. A known protocol with no safe credential path is not a working integration.
 
-## Current state (2026-10-08)
+## Current state (2026-10-14)
 
-The desktop VS Code companion package scaffold exists at `apps/vscode` (`@berry/vscode`).
+- The desktop VS Code companion package scaffold exists at `apps/vscode` (`@berry/vscode`).
+
+## Historical current state (2026-10-08)
 
 - Kiro, Claude Code, and Codex are connectable. Each runs its CLI on the workstation and leaves the login in the CLI. Berry does not read or store those credential files. GitHub Copilot is not in the catalog. GitHub sign-in and the GitHub App stay for identity and repository access.
 - The product server starts `kiro-cli acp --agent-engine=v3 --auth-method cli` on the workstation. v3 rejects `--agent`. `--auth-method cli` uses the `kiro login` already on the machine. The CLI is not in the runtime image, and that image's adapter registry is empty. Kiro does not give Berry a container per model. `kiro-cli chat --cloud` is a Kiro-hosted sandbox for a whole session; Berry does not set `_meta.kiro.executionTarget`.

@@ -20,5 +20,7 @@ test('development host loads this package and builds before launch', () => {
    assert.equal(tasks.tasks[0].label, config.preLaunchTask);
    assert.equal(tasks.tasks[0].command, 'pnpm build');
    assert.equal(manifest.license, 'AGPL-3.0-only');
-   assert.deepEqual(manifest.extensionKind, ['ui']);
+   assert.deepEqual(manifest.extensionKind, ['workspace']);
+   assert.equal(config.preLaunchTask, 'pnpm build');
+   assert.equal(config.request, 'launch');
 });

@@ -4,25 +4,26 @@
 
 VS Code slice 1: scaffold companion package
 
-I’ll read the repository guidance and desktop package, then scaffold the companion package and verify its build and launch configuration.
-I’m applying the developer-documentation skill to the launch and validation instructions. This task will add the package scaffold; authentication and task UI remain for later tasks. The parent’s saved files are unavailable because this deployment has no file storage, so I’m using the acceptance criteria supplied here.
-The scaffold builds, passes strict typechecking and both smoke tests, and installs with the frozen lockfile. ADR-0019 has only the requested one-line addition under Current state. The launch configuration is checked, but interactive F5 activation still needs desktop VS Code verification.
-Implemented BER-297: added `apps/vscode` as `@berry/vscode` with strict TypeScript, activation scaffold, F5 launch configuration, smoke tests, and development README. Registered the workspace and lockfile. Added only the package-exists statement to ADR-0019, preserving its history. Wrote the required handoff.
+I’ll check the review findings against the checkout, fix the scaffold files, and verify the package from a clean copy.
+The missing launch files reproduced the test failure. I’ve added them, narrowed the ignore rule, changed `extensionKind` to `workspace`, and moved the ADR statement into a dated live section. Tests and typechecking pass; I’m now checking a clean Git snapshot.
+Fixed the confirmed review findings:
 
-Validation passed: frozen install, typecheck, build, both tests, and diff checks.
+- Added launch/task configurations and narrowed `.gitignore` to `/.vscode/`.
+- Set `extensionKind` to `workspace`.
+- Moved the ADR package bullet into live Current state; preserved historical content, Decision and Consequences.
+- Updated tests and the required handoff.
 
-Interactive F5 launch remains unverified because desktop VS Code was unavailable. Authentication and task UI remain outside this scaffold task.
+Validation passed: both smoke tests, build, typecheck and diff checks. Tests also passed in a clean committed snapshot containing both launch files, with empty Git status afterward. Interactive F5 remains unverified.
+
+Ready for re-review on the existing PR. Berry controls commit/push; the required subject is `feat(vscode): scaffold companion package (BER-297)`.
 
 ## Files
-- apps/vscode/.gitignore
-- apps/vscode/README.md
+- .gitignore
+- apps/vscode/.vscode/launch.json
+- apps/vscode/.vscode/tasks.json
 - apps/vscode/package.json
-- apps/vscode/src/extension.ts
 - apps/vscode/test/scaffold.test.cjs
-- apps/vscode/tsconfig.json
 - docs/adr/0019-subscription-ai-runtimes.md
-- pnpm-lock.yaml
-- pnpm-workspace.yaml
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-297-vs-code-slice-1-scaffold-companion
