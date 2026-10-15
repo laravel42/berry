@@ -29,21 +29,25 @@ consume semantic state names rather than raw colors.
 
 | Brand token | Value | Intended use |
 | --- | --- | --- |
-| `void` | `#18181b` | Dark app canvas and gutters |
-| `base` | `#1A1A1D` | Primary dark workspace surface |
+| `void` | `#111113` | Window / app canvas |
+| `base` | `#19191c` | Panel surface |
 | `ember` | `#1C1811` | Human-held or review-waiting surface |
 | `thicket` | `#151917` | Completed/merged surface |
 | `deep` | `#121820` | Agent output and active run surface |
 | `ripe` | `oklch(70% 0.13 85)` | One bright empty-state or primary editorial surface |
-| `chalk` | `#F8F8F4` | Dark-theme primary text |
-| `ash` | `#A8A6A6` | Dark-theme supporting body text |
-| `slate` | `#6A6767` | Metadata on light surfaces only. Dark captions use `ash` so they stay above 4.5:1. |
-| `hairline` | `#26262B` | Rules and borders; never body text |
-| `berry` | `#C74A5E` | Brand mark, wordmark stop, and one filled primary action per view |
-| `primary-text` | `#D37684` (dark) | Berry as ink: links, selected chips, page figures. Fill stays `berry`. |
-| `amber` | `#D9A441` | Human input, blocked, awaiting review |
-| `verdant` | `#4F9F7A` | Done, accepted, merged |
-| `azure` | `#5A92C9` | Agent activity in progress |
+| `chalk` | `#F2F0ED` | Primary text |
+| `body` | `#D6D4D1` | Running body |
+| `ash` | `#A9A7AD` | Secondary text |
+| `slate` | `#76747B` | Tertiary labels |
+| `hairline` | `#2A2A2F` | Separators; never body text |
+| `berry` | `#C74A5E` | Brand mark and one filled primary action per view |
+| `berry-hover` | `#D55A6E` | Primary hover |
+| `primary-text` | `#E07A8B` | Berry as ink: links, selected chips. Fill stays `berry`. |
+| `amber` | `#E0A84A` | In review, waiting |
+| `verdant` | `#5FB08A` | Done, accepted |
+| `azure` | `#6EA0D8` | Agent activity |
+| `danger` | `#E0645A` | Error |
+| `urgent` | `#D9584F` | Urgent priority |
 
 Berry Dark is the only shipped theme: `app/layout.tsx` sets `className="dark"` on
 `<html>`. Light tokens still live on `:root` so a future inversion has a home; they
@@ -84,13 +88,14 @@ The app ships one face, loaded in `app/layout.tsx`: JetBrains Mono (100-800).
 
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
-| Interface | JetBrains Mono 400, 13 px / 1.2 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | JetBrains Mono 500 | Every `h1`–`h6` title and the `data-heading="h1|h2|h3|h4|display"` stand-ins, plus the wordmark and headline figures |
-| Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here. `text-base` (14 px) is the rail items and tab titles |
-| Heading small | `h4` = 13/20 px | Row-level heading |
-| Heading | `h3` = 14/20, `h2` = 16/24, `h1` = 18/24 px, weight 500 | Dialog/card title, section title, page title |
-| Section label | `data-heading="label"` = 12/16 px, 500, tracked caps | "Sub-tasks", "Files", "Activity": labels for a group inside a page, not the rail's section headings |
-| Display size | `data-heading="display"` = 24/28 px | Page display titles and the rare empty-state emphasis |
+| Interface | JetBrains Mono 400, 13 px / 1.45 | Default for controls, body, metadata, identifiers, logs, and durations |
+| Display | JetBrains Mono 600 | Every `h1`–`h3` title and the `data-heading` stand-ins |
+| Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here |
+| Page title | `h1` = 17 px / 600 | Index and detail page names |
+| Section | `h2` = 15 px / 600 | Groups inside a page |
+| Callout | 12 px | Identifiers, timestamps |
+| Label | `data-heading="label"` = 11.5 px / 600 | "Properties", "Status": labels, not tracked caps |
+| Display size | `data-heading="display"` = 28 px / 600 | Page display titles |
 | Sidebar menu | `[data-slot='sidebar']` keeps the inherited scale | Already compacted; do not inherit the workspace scale |
 
 Sizes come from the element, never from a utility. `h1`-`h4` step down through the named
@@ -101,18 +106,14 @@ with `data-heading="h1|h2|h3"`; `data-heading="display"` is the page display siz
 `data-heading="label"` is the section-label role. Only the wordmark sizes outside the scale,
 through `data-wordmark`.
 
-**Weight.** The body is 400. `h1`-`h3`, their `data-heading` stand-ins and the section
-label carry one step, to 500. That is the only weight step the scale spends: mono has no
-italic voice and few weights, so the rest of the hierarchy comes from size, tone and
-spacing. `font-normal` resolves to 300 (`--font-weight-normal`), the shell's weight, not the
-page's; do not reach for it to "reset" text.
+**Weight.** The body is 400. Titles are 600. Hierarchy otherwise comes from size
+and tone. `font-normal` resolves to 300 (`--font-weight-normal`); do not use it
+to "reset" page text.
 
 Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` in
-`globals.css`. Do not rely on the user-agent fill. Placeholders use the
-`--placeholder` token (`#8A898F` on dark, 5.0:1 on void), not a fade of
-`--foreground` (40% was 3.7:1). Berry as ink — links, selected chips, the page
-figure — uses `--primary-text` (`#D37684` on dark, 5.6:1 on void). Filled primary
-actions stay `--primary` / `--brand-berry` with chalk or white label.
+`globals.css`. Placeholders use `#6A6970`. Berry as ink uses `--primary-text`
+(`#E07A8B`). Filled primary actions stay `--primary` / `--brand-berry` with a
+white label; hover is `--primary-hover` (`#D55A6E`).
 
 Titles stay on JetBrains Mono. Write them as they should read; do not
 `text-transform: capitalize` headings — that rewrites identifiers (`BER-286`,
@@ -137,10 +138,9 @@ The frontend uses Tailwind's 4 px spacing base. Its working compact scale is:
 | `space-8` | 32 px | Large section separation |
 | `space-10` | 40 px | Empty/loading state breathing room |
 
-Standard control heights are 24, 28, 32, 36, and 40 px (`h-6` through `h-10`). Use 36 px
-for normal desktop fields and buttons, 32 px for dense tables/toolbars, and 40 px or greater
-for primary mobile actions. The inherited 24/28 px variants are for low-priority desktop
-utilities only. Default icons are 16 px; secondary icons use 14 or 12 px.
+Controls are 30 px tall (`--control-height`) with 7 px radius. List rows are 40 px.
+Page toolbars are 52 px; sub-toolbars 44 px. Group headers are 36 px. Default
+icons are 16 px in navigation and 14–15 px in toolbars.
 
 Layout constants currently embedded in components should move to named tokens when those
 components are revised:

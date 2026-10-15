@@ -321,12 +321,7 @@ export function CreateProjectDialog() {
                   </div>
 
                   <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
-                     <Button
-                        type="submit"
-                        size="xs"
-                        className="h-9"
-                        disabled={pending || !form.name.trim()}
-                     >
+                     <Button type="submit" disabled={pending || !form.name.trim()}>
                         {pending ? 'Creating…' : 'Create project'}
                      </Button>
                   </DialogFooter>

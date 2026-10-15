@@ -1,6 +1,5 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 
@@ -19,13 +18,11 @@ interface SegmentedControlProps<T extends string | number> {
 }
 
 /**
- * A small bordered strip of 24px buttons for switching one view setting: a
- * time range, a chart metric, a grouping. The current segment is filled.
+ * Switches a view setting: a time range, a chart metric, a grouping. Track
+ * and selected fill match the component dictionary's segmented control.
  *
- * Each segment is a toggle button with `aria-pressed`, so a screen reader hears
- * which one is on, and Tab moves through them as it did through the plain
- * buttons this replaces. It changes how data is shown, never what is saved;
- * for a setting that persists, use a `Select` or a settings row.
+ * Each segment is a toggle button with `aria-pressed`. It changes how data
+ * is shown, never what is saved; for a setting that persists, use a `Select`.
  */
 export function SegmentedControl<T extends string | number>({
    'aria-label': label,
@@ -38,20 +35,28 @@ export function SegmentedControl<T extends string | number>({
       <div
          role="group"
          aria-label={label}
-         className={cn('flex w-fit items-center gap-1 rounded-md border p-0.5', className)}
+         className={cn(
+            'flex h-7 w-fit items-center rounded-[7px] bg-segment-track p-0.5',
+            className
+         )}
       >
          {options.map((option) => {
             const active = option.value === value;
             return (
-               <Button
+               <button
                   key={option.value}
-                  size="xxs"
-                  variant={active ? 'secondary' : 'ghost'}
+                  type="button"
                   aria-pressed={active}
                   onClick={() => onValueChange(option.value)}
+                  className={cn(
+                     'inline-flex h-6 items-center justify-center rounded-[5px] px-3 font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
+                     active
+                        ? 'bg-segment-selected text-foreground'
+                        : 'text-muted-foreground hover:text-foreground'
+                  )}
                >
                   {option.label}
-               </Button>
+               </button>
             );
          })}
       </div>

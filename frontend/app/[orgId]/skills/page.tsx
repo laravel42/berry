@@ -25,7 +25,7 @@ import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import SkillDetailHeader from '@/components/layout/headers/skills/detail-header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadSkillLabels, type SkillCatalogueLabel } from '@/lib/skill-labels';
 import { listSkills, type Skill } from '@/lib/skills';
@@ -208,14 +208,14 @@ function SkillsScreen() {
       <>
          <PageKpiHeader label={t('title')}>
             <Input
-               className="h-9 w-64 max-sm:w-40"
+               className={`${searchFieldClass} w-64 max-sm:w-40`}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('search')}
                aria-label={t('search')}
             />
             {canEdit ? (
-               <Button size="xs" className="h-[34px] shrink-0" onClick={() => setCreating(true)}>
+               <Button className="shrink-0" onClick={() => setCreating(true)}>
                   <Plus className="size-4" aria-hidden />
                   {t('create.button')}
                </Button>

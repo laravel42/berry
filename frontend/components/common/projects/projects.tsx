@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
@@ -300,7 +300,7 @@ export default function Projects() {
          <div className="w-full shrink-0">
             <PageKpiHeader label={lists('projects.title')}>
                <Input
-                  className="h-9 w-64 max-sm:w-40"
+                  className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
                   placeholder={lists('projects.search')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -308,7 +308,7 @@ export default function Projects() {
                <CreateProjectButton />
             </PageKpiHeader>
          </div>
-         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center gap-2 border-b px-6 py-[6px] [&_button]:!h-9">
+         <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
             <div
                role="group"
                aria-label={lists('projects.layout.label')}

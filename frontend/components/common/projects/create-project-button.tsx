@@ -11,7 +11,7 @@ export function CreateProjectButton({ className }: { className?: string }) {
    const openModal = useCreateProjectStore((state) => state.openModal);
 
    return (
-      <Button className={cn('h-[34px] shrink-0', className)} size="xs" onClick={() => openModal()}>
+      <Button className={cn('shrink-0', className)} onClick={() => openModal()}>
          <Plus className="size-4" aria-hidden />
          {t('newProject')}
       </Button>

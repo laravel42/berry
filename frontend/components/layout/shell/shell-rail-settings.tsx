@@ -45,7 +45,10 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
 
          {settingsNav.map((group) => (
             <div key={group.labelKey}>
-               <div className="px-6 pt-3 pb-1 uppercase tracking-[0.14em] text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]">
+               <div
+                  data-heading="label"
+                  className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
+               >
                   {t(`groups.${group.labelKey}`)}
                </div>
                <ul className="flex flex-col gap-0 px-3 lg:gap-1">

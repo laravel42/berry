@@ -2,22 +2,22 @@
 name: Berry
 description: Dark Operate workspace where people and agents share one board — person first, semantic status, mono figures.
 colors:
-  void: "#18181b"
-  base: "#1A1A1D"
-  chalk: "#F8F8F4"
-  ash: "#A8A6A6"
-  hairline: "#26262B"
+  void: "#111113"
+  base: "#19191c"
+  chalk: "#F2F0ED"
+  ash: "#A9A7AD"
+  hairline: "#2A2A2F"
   berry: "#C74A5E"
-  amber: "#D9A441"
-  verdant: "#4F9F7A"
-  azure: "#5A92C9"
+  amber: "#E0A84A"
+  verdant: "#5FB08A"
+  azure: "#6EA0D8"
   ember: "#1C1811"
   thicket: "#151917"
   deep: "#121820"
   ripe: "oklch(70% 0.13 85)"
-  slate: "#6A6767"
+  slate: "#76747B"
   shell-rail: "#111113"
-  status-danger: "oklch(0.68 0.15 28)"
+  status-danger: "#E0645A"
   primary-foreground: "#ffffff"
 typography:
   display:

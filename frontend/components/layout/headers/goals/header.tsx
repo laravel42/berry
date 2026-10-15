@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { useGoalsListStore } from '@/store/goals-list-store';
 
 function HeaderOptions() {
@@ -11,9 +11,9 @@ function HeaderOptions() {
    const setQuery = useGoalsListStore((state) => state.setQuery);
 
    return (
-      <div className="flex w-full items-center border-b px-4 py-[6px]">
+      <div className="flex h-[44px] w-full items-center border-b px-5">
          <Input
-            className="h-9 min-w-0 flex-1"
+            className={`${searchFieldClass} min-w-0 flex-1`}
             placeholder={t('list.search')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

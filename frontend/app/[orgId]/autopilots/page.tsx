@@ -21,7 +21,7 @@ import { PageKpiHeader } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import type { User } from '@/data/users';
 import { useAutopilots } from '@/hooks/use-autopilots';
 import type { Autopilot } from '@/lib/autopilots';
@@ -107,7 +107,7 @@ export default function AutopilotsPage() {
       <>
          <PageKpiHeader label={t('title')}>
             <Input
-               className="h-9 w-64 max-sm:w-40"
+               className={`${searchFieldClass} w-64 max-sm:w-40`}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('search')}
@@ -115,8 +115,7 @@ export default function AutopilotsPage() {
             />
             {canEdit ? (
                <Button
-                  size="xs"
-                  className="h-[34px] shrink-0"
+                  className="shrink-0"
                   onClick={() => {
                      setTemplate(null);
                      setCreating(true);

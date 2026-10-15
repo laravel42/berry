@@ -557,7 +557,7 @@ export function PreviewPanel({
             />
          )}
          <div
-            className="flex h-10 shrink-0 select-none items-center gap-2 border-b px-4"
+            className="flex h-[44px] shrink-0 select-none items-center gap-2 border-b px-5"
             onDoubleClick={() => !collapsed && setMaximized((current) => !current)}
          >
             <Tabs

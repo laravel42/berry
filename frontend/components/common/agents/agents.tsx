@@ -359,7 +359,10 @@ export default function Agents() {
                </EmptyState>
             ) : (
                <>
-                  <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
+                  <div
+                     data-heading="label"
+                     className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b bg-container px-4 text-subtle-foreground"
+                  >
                      <Checkbox
                         checked={allSelected}
                         onCheckedChange={() =>

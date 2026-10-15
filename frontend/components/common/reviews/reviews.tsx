@@ -428,9 +428,9 @@ export default function Reviews({
                />
             </div>
             {showScope ? (
-               <div className="shrink-0 px-4 py-[6px]">
+               <div className="flex h-[44px] shrink-0 items-center px-5">
                   <Tabs value={listTab} className="items-center gap-0">
-                     <TabsList className="h-9">
+                     <TabsList>
                         <TabsTrigger value="for-you" asChild>
                            <Link href={`/${orgId}/reviews`}>{t('tabs.waiting')}</Link>
                         </TabsTrigger>

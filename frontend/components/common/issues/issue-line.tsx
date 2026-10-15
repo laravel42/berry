@@ -72,7 +72,7 @@ function IssueLineView({
                style={{ opacity: isDragging ? 0.45 : 1 }}
                {...(layoutId && { layoutId: `issue-line-${issue.identifier}` })}
                className={cn(
-                  'group relative flex min-h-11 w-full items-center justify-start border-b border-border/45 px-4 transition-colors sm:px-6',
+                  'group relative flex min-h-10 w-full items-center justify-start border-b border-border/45 px-4 transition-colors sm:px-6',
                   'hover:bg-accent/45 focus-within:bg-accent/45',
                   issue.status.category === 'started' && 'bg-status-info/[0.025]',
                   issue.status.category === 'completed' && 'bg-status-success/[0.025]',

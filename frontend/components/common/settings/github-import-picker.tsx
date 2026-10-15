@@ -202,7 +202,7 @@ export function GitHubImportPicker({
             <div className="flex flex-wrap gap-2">
                <select
                   aria-label="GitHub account"
-                  className="h-9 rounded-md border bg-background px-2 text-foreground"
+                  className="h-[30px] rounded-[7px] border bg-card px-2 text-foreground"
                   value={account}
                   onChange={(event) => setAccount(event.target.value)}
                >
@@ -223,7 +223,7 @@ export function GitHubImportPicker({
                      aria-label="Search repositories"
                      value={query}
                      onChange={(event) => setQuery(event.target.value)}
-                     className="h-9 pl-8"
+                     className="pl-8"
                   />
                </div>
             </div>

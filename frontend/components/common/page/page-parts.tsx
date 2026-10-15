@@ -41,7 +41,7 @@ export function Fact({ value, label }: { value: string; label: string }) {
    );
 }
 
-/** Small capitals: the name of a page, a group or a column. */
+/** A group or column name: the dictionary's 11.5 / 600 label, not tracked caps. */
 export function SectionLabel({
    as: Tag = 'span',
    className,
@@ -52,12 +52,7 @@ export function SectionLabel({
    children: ReactNode;
 }) {
    return (
-      <Tag
-         className={cn(
-            'font-display font-medium tracking-wider text-muted-foreground uppercase',
-            className
-         )}
-      >
+      <Tag data-heading="label" className={cn('text-subtle-foreground', className)}>
          {children}
       </Tag>
    );
@@ -92,13 +87,19 @@ export function PageStatement({
    return (
       <header
          className={cn(
-            'flex w-full flex-col gap-3 border-b px-6',
-            label || children ? 'pt-4 pb-5' : 'py-2'
+            'flex w-full flex-col gap-3 border-b px-5',
+            label || children ? (figure !== undefined ? 'pb-5' : '') : 'py-2'
          )}
       >
          {label || children ? (
-            <div className="flex min-h-7 items-center justify-between gap-4">
-               {label ? <SectionLabel as={heading}>{label}</SectionLabel> : null}
+            <div className="flex h-[52px] items-center justify-between gap-4">
+               {label ? (
+                  heading === 'h1' ? (
+                     <h1 className="min-w-0 truncate">{label}</h1>
+                  ) : (
+                     <h2 className="min-w-0 truncate">{label}</h2>
+                  )
+               ) : null}
                {children}
             </div>
          ) : null}
@@ -168,9 +169,9 @@ export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
          {kpis.map((kpi) => (
             <div
                key={kpi.label}
-               className="flex w-40 min-w-0 shrink-0 snap-start flex-col gap-2 rounded-xl border bg-card px-4 pt-3.5 pb-4 sm:w-auto"
+               className="flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto"
             >
-               <dt className="truncate font-medium tracking-wider text-muted-foreground uppercase">
+               <dt data-heading="label" className="truncate text-subtle-foreground">
                   {kpi.label}
                </dt>
                <dd className="flex min-w-0 flex-col gap-2">
@@ -205,9 +206,9 @@ export function PageKpiHeader({
    children?: ReactNode;
 }) {
    return (
-      <header className="flex w-full flex-col gap-3.5 border-b px-6 py-3">
-         <div className="flex min-h-9 items-center gap-3">
-            <SectionLabel as="h1">{label}</SectionLabel>
+      <header className="flex w-full flex-col gap-3.5 border-b px-5">
+         <div className="flex h-[52px] items-center gap-3">
+            <h1>{label}</h1>
             <div className="ml-auto flex items-center gap-2">{children}</div>
          </div>
          {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} /> : null}

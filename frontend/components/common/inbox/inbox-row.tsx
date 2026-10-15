@@ -61,7 +61,7 @@ export function InboxRow({
                aria-current={selected ? 'true' : undefined}
                className={cn(
                   'flex w-full cursor-pointer items-start gap-3 border-b border-border/50 px-4 py-3 text-left',
-                  selected ? 'bg-accent' : 'hover:bg-sidebar/50'
+                  selected ? 'bg-secondary' : 'hover:bg-accent'
                )}
             >
                <span className="mt-0.5 shrink-0">{getNotificationIcon(item.type, 'size-4')}</span>

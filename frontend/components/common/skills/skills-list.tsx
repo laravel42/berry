@@ -173,7 +173,7 @@ function SkillLabelGroup({
 
    return (
       <Collapsible defaultOpen className="group/skill-group bg-container">
-         <div className="sticky top-0 z-10 h-10 w-full bg-container">
+         <div className="sticky top-0 z-10 h-9 w-full bg-container">
             <div
                data-column-tint="neutral"
                className="flex h-full w-full items-center bg-group-tint-neutral px-6"
@@ -376,7 +376,10 @@ export default function SkillsList({
 
    return (
       <div className="flex h-full min-h-0 w-full flex-col">
-         <div className="flex shrink-0 items-center gap-3 border-b bg-container px-6 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
+         <div
+            data-heading="label"
+            className="flex h-9 shrink-0 items-center gap-3 border-b bg-container px-6 text-subtle-foreground"
+         >
             {canEdit ? (
                <Checkbox
                   className="shrink-0"

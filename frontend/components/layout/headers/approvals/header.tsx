@@ -26,7 +26,7 @@ export default function Header() {
             line={t('statement.line', { count: pending })}
             sub={t('statement.sub')}
          />
-         <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b px-6 py-2">
+         <div className="flex h-[44px] w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b px-5">
             <div className="flex items-center gap-2">
                <Switch
                   id="approvals-mine"
@@ -41,7 +41,7 @@ export default function Header() {
                </span>
             </div>
             <Tabs value={view} onValueChange={(value) => setView(value as ApprovalsView)}>
-               <TabsList className="h-8">
+               <TabsList>
                   <TabsTrigger value="pending">{t('views.pending')}</TabsTrigger>
                   <TabsTrigger value="all">{t('views.all')}</TabsTrigger>
                   <TabsTrigger value="resolved">{t('views.resolved')}</TabsTrigger>

@@ -16,7 +16,7 @@ interface PageTitleBarProps {
  */
 export function PageTitleBar({ title, children }: PageTitleBarProps) {
    return (
-      <header className="flex w-full items-center justify-between gap-4 border-b px-6 py-3">
+      <header className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-5">
          <h1 className="min-w-0 truncate">{title}</h1>
          {children}
       </header>

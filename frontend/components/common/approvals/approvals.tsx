@@ -279,7 +279,7 @@ export default function Approvals() {
             )}
          >
             {selected && (
-               <div className="flex h-10 shrink-0 items-center gap-2 border-b px-4 md:hidden">
+               <div className="flex h-[44px] shrink-0 items-center gap-2 border-b px-5 md:hidden">
                   <button
                      type="button"
                      onClick={() => select(null)}
