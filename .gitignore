@@ -5,7 +5,7 @@ nango/
 .env
 .env.*
 !.env.example
-.vscode/
+/.vscode/
 # agent scratch workspaces (large, machine-local)
 .tmp-agents/
 .tmp-pr/
