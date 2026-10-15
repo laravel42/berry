@@ -1,0 +1,13 @@
+# BER-299 acceptance-derived verification
+
+Scope: slice 1 only; QA owns test code and evidence. BER-298's supplied handoff is the dependency source, and its client, extension and existing tests are present in this checkout. No CLI bridge or product fixture.
+
+Cases derived from the task before implementation review: Connect must mask the PAT and persist only to SecretStorage; every authenticated request must use Bearer and /api/v1 without cookies, URL credentials or redirects; disconnected, empty, failed and recovered connections must render usable states; Refresh must replace results; Open must use the hosted workspace slug and issue identifier; lists must request the signed-in user and open statuses across pages; GitHub remotes must match projects without GitHub authentication. Negative cases include rejected credentials, hostile response bodies, malformed saved state, cancelled connection, remote absence and stale requests after disconnect.
+
+Risks and gates: credential disclosure and wrong-person task queries are high severity; pagination loss, stale tasks and broken hosted links are medium severity. Test layers are compiled-client request/response checks and command/tree integration against a VS Code host double. Typecheck and build are mandatory. Existing tests provide baseline regression coverage. Do not approve an unchecked acceptance criterion.
+
+Environment/data: no live Berry URL or authorized PAT was supplied. Use a checked-in test-only deterministic API response recording, explicitly authored from the gateway contract, not captured from a live account. It cannot prove server-side authorization or production data correctness. No real PAT is used. Instrument configuration and console writes to detect a unique sentinel; only SecretStorage and the Authorization header may contain it. Desktop extension-host/OS keychain behavior remains a manual release check.
+
+Security scope: PAT belongs to the person; SecretStorage is the intended owner-controlled store. Reconnect replaces it and Disconnect deletes it; server-side revocation remains Berry's responsibility. No OAuth, cookie session, password recovery or token issuer implementation is changed. CSRF/session fixation are outside this PAT GET-only companion; tenant isolation, PAT expiry and rate-limit enforcement need a live server and are not established by fixtures. No runtime dependency is added. Rollback is disabling/uninstalling the companion and disconnecting/revoking the PAT.
+
+Evidence: run pnpm --filter @berry/vscode test, pnpm --filter @berry/vscode typecheck and git diff --check. Results and remaining limitations are recorded in the task handoff and final report. Normal Berry reviewers decide release; this task creates no reviewer task.

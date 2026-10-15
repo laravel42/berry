@@ -1,0 +1,17 @@
+.handoffs/BER-297 - vs-code-slice-1-scaffold-companion-package
+
+# Handoff from BER-297
+
+VS Code slice 1: scaffold companion package
+
+I’ll check the branch history and delivery rules, then address the commit-message request without changing the scaffold.
+Andrea, please squash-merge the existing PR after required approvals using exactly:
+
+`feat(vscode): scaffold companion package (BER-297)`
+
+This follows your permitted alternative: this checkout contains only a snapshot commit and no remote, and Berry prohibits pushing from this run. No history rewrite or push was performed.
+
+The scaffold remains unchanged. Both tests and build passed from a clean tree; launch/tasks files are tracked. Updated the required handoff. No features or ADR content changed.
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-297-vs-code-slice-1-scaffold-companion

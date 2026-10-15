@@ -4,6 +4,7 @@ packages:
    - packages/plugin-sdk
    - apps/mobile
    - apps/desktop
+   - apps/vscode
 
 # pnpm 12 reads these here, not from package.json's "pnpm" field.
 allowBuilds:

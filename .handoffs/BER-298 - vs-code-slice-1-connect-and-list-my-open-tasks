@@ -1,0 +1,24 @@
+.handoffs/BER-298 - vs-code-slice-1-connect-and-list-my-open-tasks
+
+# Handoff from BER-298
+
+VS Code slice 1: connect and list my open tasks
+
+I’ll check both findings against the current code, add regression tests, and fix them within `apps/vscode`. Berry’s delivery instructions say it handles the commit and push, so I’ll leave those to Berry.
+Fixed both confirmed bugs:
+
+- Open task now uses `workspace.slug` and the issue identifier (`BER-1`), rather than its UUID.
+- Origin validation accepts HTTP and HTTPS while rejecting paths, credentials and other schemes.
+
+Regression tests reproduced both failures before the fixes. All 10 tests, strict typecheck, build and diff checks now pass. Updated the required handoff.
+
+No server, frontend, migration or git history changes. Berry handles committing and pushing under the delivery policy. Desktop F5 and live hosted connection checks remain unverified.
+
+## Files
+- apps/vscode/src/client.ts
+- apps/vscode/src/extension.ts
+- apps/vscode/test/client.test.cjs
+- apps/vscode/test/extension.test.cjs
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-298-vs-code-slice-1-connect-and
