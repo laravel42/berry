@@ -92,6 +92,7 @@ interface Resumable {
 
 /** A run whose stream is being recorded. */
 interface Consuming extends Resumable {
+   usageEvents?: Set<string>;
    task: TaskRow;
    recorder: TaskRecorder;
    usage: Usage;
@@ -182,6 +183,29 @@ export class RuntimeTaskExecutor implements Executor {
       this.#o = options;
       this.#ledger = options.ledger ?? new RunLedger({ sql: options.sql });
       this.#memory = options.memory ?? nullRunMemory();
+   }
+
+   /** Prepare a pull delivery without probing or invoking a compute host. */
+   async prepareCompanion(runId: string) {
+      const task = await loadTask(this.#o.sql, runId);
+      const dispatch = task.issueId ? await this.#ledger.claimDispatch(runId) : (await this.#ledger.claimTaskDispatch(runId), null);
+      const token = await mintTaskToken(this.#o.sql, {
+         runId, workspaceId: task.workspaceId, agentId: task.agentId,
+         scopes: task.kind === 'completion' ? [] : ['task:read', 'task:write'], ttlSeconds: this.#o.tokenTtlSeconds ?? 28_800,
+      });
+      return this.#o.builder.build({ task, dispatch, token, companion: true });
+   }
+
+   /** Called under the companion's row lock; metadata and the event commit together. */
+   async companionEvent(sql: Sql, ledger: RunLedger, runId: string, event: LifecycleEvent, cursor: number, usage: Usage, model: string, alreadyRunning: boolean, usageEvents: Set<string>) {
+      const executor = new RuntimeTaskExecutor({ ...this.#o, sql, ledger });
+      const task = await loadTask(sql, runId);
+      async function* events() { yield event; }
+      return executor.#record({
+         task, recorder: ledgerRecorder(executor.#ledger, runId, alreadyRunning),
+         usage, target: WORKSTATION_TARGET, session: runId, abort: new AbortController().signal,
+         log: null, cursor, resumed: alreadyRunning, delivery: null, model, tier: null, usageEvents,
+      }, events(), async () => {}, true);
    }
 
    /** Null when this process let go of the run while it was being recorded (`Detached`). */
@@ -438,12 +462,12 @@ export class RuntimeTaskExecutor implements Executor {
    }
 
    /** The frames, recorded in order; `advance` after each one that does not end the run. */
-   async #record(run: Consuming, events: AsyncIterable<LifecycleEvent>, advance: () => Promise<void>): Promise<TaskOutcome> {
+   async #record(run: Consuming, events: AsyncIterable<LifecycleEvent>, advance: () => Promise<void>, partial = false): Promise<TaskOutcome | null> {
       const { sql } = this.#o;
       const { task, recorder, usage, target, abort, log, delivery, model, tier } = run;
       const runId = task.runId;
       let verified: Extract<TaskMessage, { kind: 'verified' }> | null = null;
-      const usageEvents = new Set<string>();
+      const usageEvents = run.usageEvents ?? new Set<string>();
       let frame = run.cursor;
       for await (const event of events) {
          log?.event(event);
@@ -496,6 +520,7 @@ export class RuntimeTaskExecutor implements Executor {
          }
          await advance();
       }
+      if (partial) return null;
       if (isDetached(abort)) throw abort.reason;
       if (abort.aborted) return await this.#cancel(task, recorder, usage, target, run.session);
       return await this.#fail(task, recorder, usage, STREAM_ENDED);

@@ -17,7 +17,7 @@ import type { Emit } from './emitter.ts';
 export async function runRuntimeCompletion(
    envelope: TaskEnvelope,
    emit: Emit,
-   deps: { workRoot: string; adapters?: RuntimeAdapterRegistry },
+   deps: { workRoot: string; workspaceDirectory?: string; processStateDirectory?: string; adapters?: RuntimeAdapterRegistry },
    signal: AbortSignal
 ): Promise<void> {
    emit({ type: 'task.started' });
@@ -53,8 +53,8 @@ export async function runRuntimeCompletion(
       const result = await adapter.start({
          envelope: processEnvelope,
          credential: runtime.credential,
-         workingDirectory: root,
-         stateDirectory: join(root, '.runtime-state', runtime.id),
+         workingDirectory: deps.workspaceDirectory ?? root,
+         stateDirectory: deps.processStateDirectory ?? join(root, '.runtime-state', runtime.id),
          tools: [],
          emit,
          signal,

@@ -104,6 +104,9 @@ export interface HandlerDeps {
    credentials?: AwsCredentials | null;
    /** Where session workspaces live: `/mnt/workspace` in the image. */
    workRoot: string;
+   /** Existing local folder, only for the desktop companion; never cloned or removed. */
+   workspaceDirectory?: string;
+   processStateDirectory?: string;
    /**
     * A Unix user per session, when one runtime serves many sessions (a local
     * container). Absent on AgentCore, where the microVM is the boundary.
@@ -222,7 +225,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
    const warm = held !== undefined && held.fingerprint === fingerprint;
    // Files survive a warm turn; credentials and execution configuration do not.
    const identity = deps.identities ? await deps.identities.for(key) : undefined;
-   const workspace = new LocalSession({ id: key, root: join(deps.workRoot, key), env: envelope.env, signal, ...(identity ? { identity } : {}) });
+   const workspace = new LocalSession({ id: key, root: deps.workspaceDirectory ?? join(deps.workRoot, key), env: envelope.env, signal, ...(identity ? { identity } : {}) });
    const sink = emitterSink(emit);
    // Each model call's usage goes out as it happens: a running task shows its
    // tokens, model and cost, and a run cut off keeps what it already spent.
@@ -251,7 +254,11 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // Kiro do not attach every file to the model prompt. Bedrock and
       // Kilo read a skill only through `read_skill`. MCP servers become
       // Strands clients beside Berry's own tools.
-      await writeSkills(join(deps.workRoot, key), envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
+      if (deps.workspaceDirectory) {
+         await writeSkills(join(deps.workRoot, key), envelope.agent.skills);
+      } else {
+         await writeSkills(workspace.root, envelope.agent.skills, (target, content) => workspace.writeFile(target, content));
+      }
       // Injected loaders keep their single-arg shape; the production loader
       // bounds each connect and reports a server it had to drop.
       const warn = deps.warn ?? consoleWarn;
@@ -369,7 +376,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             envelope: processEnvelope,
             credential: envelope.runtime.credential,
             workingDirectory: directory ?? workspace.root,
-            stateDirectory: join(workspace.root, '.runtime-state', envelope.runtime.id),
+            stateDirectory: deps.processStateDirectory ?? join(workspace.root, '.runtime-state', envelope.runtime.id),
             tools: sessionTools(envelope.runtime.id, [declaration, ...callable]),
             emit,
             signal,

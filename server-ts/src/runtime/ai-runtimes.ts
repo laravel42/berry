@@ -271,11 +271,33 @@ export class AiRuntimeRepository {
                'This account is no longer a member of the workspace.'
             );
          }
-         const current = await tx<Array<{ id: string }>>`
-            SELECT id FROM ai_runtime_connections
+         const current = await tx<Array<{ id: string; metadata: Record<string, unknown> }>>`
+            SELECT id, metadata FROM ai_runtime_connections
              WHERE workspace_id = ${input.workspaceId} AND user_id = ${input.userId}
                AND runtime_key = ${input.runtimeId} AND status = 'connected'
              FOR UPDATE`;
+         // Migration 220 permits only one active connection per runtime. Until
+         // distinct companion rows are supported, reject cross-host replacement
+         // instead of silently retargeting Settings or cancelling its active runs.
+         const isCompanion = (metadata: Record<string, unknown> | undefined): boolean =>
+            metadata?.host === 'vscode' || typeof metadata?.companionId === 'string';
+         const incomingCompanion = isCompanion(input.metadata);
+         if (current.some(row => isCompanion(row.metadata) !== incomingCompanion)) {
+            throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
+               'A separate companion connection is required. This runtime is already connected on another host; it has not been replaced.');
+         }
+         // The membership lock serializes connection ceremonies for this person.
+         // A new window may recover an expired bridge, but cannot evict live work.
+         const otherCompanions = current.filter(row => incomingCompanion && isCompanion(row.metadata)
+            && row.metadata.companionId !== input.metadata?.companionId).map(row => row.id);
+         if (otherCompanions.length > 0) {
+            const [leased] = await tx`
+               SELECT id FROM runs WHERE ai_runtime_connection_id IN ${tx(otherCompanions)}
+                 AND status IN ('queued', 'running') AND dispatch_lease_until > now()
+               LIMIT 1`;
+            if (leased) throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
+               'This runtime is already bridged from another VS Code window with a run in progress. Stop that bridge first.');
+         }
          const currentIds = current.map((row) => row.id);
          const active =
             currentIds.length === 0

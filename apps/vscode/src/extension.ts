@@ -1,3 +1,4 @@
+import { bridgeCommands } from './bridge';
 import { Client, normalizeOrigin, repositoryName, type Connection, type Task } from './client';
 import type { Context, Host, Item } from './host';
 declare function require(name: string): unknown;
@@ -8,6 +9,8 @@ export function activate(context: Context, host: Host = require('vscode') as Hos
    let items: Item[] = [{ label: 'Connect to Berry', command: { command: 'berry.connect', title: 'Connect' } }];
    let generation = 0;
    let connection: Connection | undefined;
+   const bridge = bridgeCommands(context, host, () => connection);
+   context.subscriptions.push(...bridge.disposables);
    const publish = (next: Item[]) => { items = next; changed.fire(); };
    const refresh = async () => {
       const current = ++generation;
@@ -64,12 +67,14 @@ export function activate(context: Context, host: Host = require('vscode') as Hos
       if (!/^berry_pat_\S+$/.test(pat)) { host.window.showErrorMessage('Enter a Berry personal access token.'); return; }
       try {
          await new Client({ origin, pat }).get('/auth/me');
+         bridge.stop();
          await context.secrets.store(SECRET, JSON.stringify({ origin, pat }));
          await refresh();
       } catch { host.window.showErrorMessage('Could not connect to Berry. Check the origin, PAT and network.'); }
    }));
    context.subscriptions.push(host.commands.registerCommand('berry.disconnect', async () => {
       ++generation;
+      bridge.stop();
       connection = undefined;
       await context.secrets.delete(SECRET);
       await refresh();

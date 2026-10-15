@@ -1139,3 +1139,47 @@ A small, stable API for scripts and plugins, separate from the product API.
 - `GET /v1/issues/{ref}/comments?first=1..100` — `{ nodes[] }`, oldest first. `POST` accepts `{ body, parentId? }` and returns `201`.
 - `GET /v1/storage?prefix=&after=&first=`, `GET|PUT|DELETE /v1/storage/{key}` — plugin tokens only (`403 PLUGIN_TOKEN_REQUIRED` otherwise). Keys are 1–200 of `A–Z a–z 0–9 . _ : / -`. `PUT` takes `{ value }`, any JSON of at most 64 KB.
 - `POST /api/v1/tokens` accepts an optional `scopes` array. Token responses end with `scopes` (`null` = every scope).
+
+### Desktop companion pull transport
+
+`/api/v1/companion` accepts a person's `Authorization: Bearer berry_pat_…`
+only, with current workspace membership checked on every operation. Cookies,
+plugin tokens and task tokens cannot control a companion. Responses are
+`Cache-Control: no-store`. There are no companion routes under `/v1`.
+
+- `POST /connect` requires `Idempotency-Key` and takes `{ id, workspaceId,
+  runtimeId, models, accountId, accountName }`. `id` is a companion UUID;
+  `runtimeId` is `kiro`, `claude` or `codex`. The companion checks the official
+  CLI login and lists models locally first. Models have `id`, `name`, nullable
+  `reasoning`, `tools`, and `policy`. This saves a personal connection with
+  `metadata.companionId`; it sends no CLI credentials. Replacing an active
+  connection cancels its runs through the ledger.
+- `POST /claim` takes `{ id, folders: [{ path, repositories: ["owner/repo"] }] }`.
+  It waits up to seven seconds and returns `{ run: null }` or `{ run: { runId,
+  claim, folder, leaseMs, envelope } }`. One unexpired claim per companion is
+  allowed. Run selection uses `SKIP LOCKED`; a lost claim response expires,
+  and another companion cannot steal it. The envelope contains only the
+  existing task-scoped tool token, never the PAT. The companion uses its saved
+  origin for all tool callbacks, even when the compute callback URL is private.
+- `POST /{runId}/heartbeat` takes `{ claim, cancelled? }` and returns
+  `{ cancel, nextSequence }`. Heartbeats renew the 60-second lease. A terminal
+  run returns `cancel: true`; `cancelled: true` acknowledges child shutdown.
+  Cancellation itself remains `POST /api/v1/runs/{runId}/cancel`, which records
+  the ledger decision before the companion stops the child.
+- `POST /{runId}/events` takes `{ claim, sequence, event }`. `event` is the
+  existing `LifecycleEvent`; sequences start at zero. The ledger write, usage,
+  and next sequence commit together. Retrying the last identical event is
+  idempotent. Changed retries or gaps return `409 COMPANION_EVENT_ORDER`.
+  Heartbeat/event operations are control acknowledgements, not creating POSTs;
+  their claim and sequence provide their idempotency instead of a header.
+
+Invalid control bodies return `422` using the standard validation envelope.
+An absent/foreign claim is `404`; an expired lease is
+`409 COMPANION_LEASE_EXPIRED`. Clients must stop children on cancellation or
+loss of heartbeat. The companion stops after 30 seconds without a successful
+heartbeat; adapter cancellation retains its forced child termination behavior.
+The server fails expired or unclaimed (two minutes) work through the ledger
+with `COMPANION_UNAVAILABLE` and a prompt to connect the machine with the
+folder and CLI login. Folder ambiguity fails with `COMPANION_FOLDER_REQUIRED`.
+There is no native/API billing fallback, database access from the extension,
+second checkout, webhook, or inbound workstation listener.

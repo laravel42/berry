@@ -230,6 +230,17 @@ test('an agent task writes its skills into the session workspace and connects it
    assert.deepEqual(loaded, ['docs']);
 });
 
+test('companion skills stay outside the open project folder', async () => {
+   const folder = mkdtempSync(join(tmpdir(), 'berry-project-'));
+   const { deps, run } = harness([say('ok')], { workspaceDirectory: folder });
+   const events = await run(envelope({ agent: { ...envelope().agent,
+      skills: [{ name: 'lint', files: [{ path: 'SKILL.md', content: 'Run lint.' }] }],
+   } }));
+   assert.equal(events.at(-1)?.type, 'task.completed');
+   assert.equal(existsSync(join(folder, '.berry')), false);
+   assert.equal(readFileSync(join(deps.workRoot, SESSION, '.berry/skills/lint/SKILL.md'), 'utf8'), 'Run lint.');
+});
+
 test('a tool from the agent’s own MCP server is listed and runs end to end', async () => {
    const fake = await fakeMcpServer(['lookup']);
    try {
