@@ -21,6 +21,7 @@ Auth and identity:
 - `/api/v1/auth` — `GET /me`; `POST /dev-login` only when dev-login is enabled
 - `/api/v1/me` — account, settings, profile
 - `/api/v1/tokens` — personal access tokens
+- `/api/v1/companion` — PAT-only desktop subscription CLI connection, outbound pull claims, heartbeats and lifecycle acknowledgements (no `/v1` counterpart)
 - `/api/v1/invitations`, `/api/v1/join-links`
 - `/api/v1/workspaces` — workspaces, plus nested work catalogs (issue-statuses, issue-properties, quick-actions, join-links)
 

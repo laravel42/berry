@@ -143,6 +143,8 @@ export interface Dispatch {
 }
 
 export interface LedgerOptions {
+   /** Allows an enclosing transaction to deliver terminal hooks after its commit. */
+   notifyTerminal?: typeof notifyRunTerminal;
    sql: Sql;
    clock?: () => Date;
    newId?: () => string;
@@ -150,11 +152,13 @@ export interface LedgerOptions {
 
 export class RunLedger {
    private readonly sql: Sql;
+   private readonly notifyTerminal: typeof notifyRunTerminal;
    private readonly clock: () => Date;
    private readonly newId: () => string;
 
    constructor(options: LedgerOptions) {
       this.sql = options.sql;
+      this.notifyTerminal = options.notifyTerminal ?? notifyRunTerminal;
       this.clock = options.clock ?? (() => new Date());
       this.newId = options.newId ?? randomUUID;
    }
@@ -167,6 +171,18 @@ export class RunLedger {
     * queued. Duplicating a dispatch would duplicate paid model calls and every
     * side effect the agent's tools have.
     */
+   /** Boardless chat/completion tasks use the same durable dispatch guard. */
+   async claimTaskDispatch(runId: string): Promise<void> {
+      await this.sql.begin(async transaction => {
+         const tx = transaction as unknown as Sql;
+         const run = await lockRun(tx, runId);
+         if (isTerminal(run.status)) throw new RunTerminal();
+         if (run.status !== 'queued' || run.dispatchState !== 'pending') throw new RunConflict();
+         await tx`UPDATE runs SET dispatch_state = 'dispatching', dispatch_version = dispatch_version + 1,
+            dispatch_attempted_at = now(), updated_at = now() WHERE id = ${runId}`;
+      });
+   }
+
    async claimDispatch(runId: string): Promise<Dispatch> {
       const now = this.clock().toISOString();
       return this.sql.begin(async (tx) => {
@@ -583,7 +599,7 @@ export class RunLedger {
       });
       // After the commit: a hook must never be able to undo the fact that the
       // run ended.
-      await notifyRunTerminal(finished as Run);
+      await this.notifyTerminal(finished as Run);
       return finished as Run;
    }
 
@@ -650,7 +666,7 @@ export class RunLedger {
       });
       // After the commit: a hook must never be able to undo the fact that the
       // run ended.
-      await notifyRunTerminal(finished as Run);
+      await this.notifyTerminal(finished as Run);
       return finished as Run;
    }
 
@@ -705,7 +721,7 @@ export class RunLedger {
       });
       // After the commit: a hook must never be able to undo the fact that the
       // run ended. Idempotent cancels notify again; hooks are idempotent.
-      await notifyRunTerminal(finished as Run);
+      await this.notifyTerminal(finished as Run);
       return finished as Run;
    }
 
@@ -799,6 +815,7 @@ export class RunLedger {
     * still have to see the task move.
     */
    private async appendIssueUpdated(tx: Sql, run: Run, occurredAt: string): Promise<void> {
+      if (!run.issueId) return;
       const [row] = await tx`
          SELECT i.id, i.board_id, i.number, i.title, i.description,
                 i.status::text AS status, i.priority::text AS priority, i.sort_order, i.due_date,

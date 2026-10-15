@@ -26,9 +26,37 @@ Network, permission and rate-limit failures offer reconnect/refresh; they do
 not silently show partial lists or retry automatically. No credentials or
 response bodies are logged. Use a trusted Berry origin: it receives your PAT.
 
-The companion does not run Berry, subscription CLIs or PGlite, embed the web
-app, or support vscode.dev. Desktop VS Code is the supported host; Remote
+The companion does not run Berry or PGlite, embed the web app, or support
+vscode.dev. Desktop VS Code is the supported host; Remote
 SSH and WSL are deferred.
+
+## Workstation subscription CLI bridge
+
+Install Node.js 22 or later on the workstation PATH and sign in using the
+official `kiro-cli`, `claude`, or `codex` CLI. Open the project folder locally
+in trusted desktop VS Code. Run **Berry: Start workstation CLI bridge**, choose
+the CLI, then enter the Berry workspace ID shown alongside its name. This
+registers a personal CLI connection for that workspace. Queued work selecting
+that connection is pulled by this companion, one run at a time. Connecting or
+refreshing the task list never starts a CLI.
+
+The folder must have a GitHub remote matching the project's `githubRepo`
+(case-insensitive owner/repo). With no project repository, exactly one open
+folder is required. Enable the built-in Git extension for remote discovery.
+The bridge neither clones nor creates another checkout. Work stays in your
+folder for review; normal Berry review gates still apply. Tools run through
+Berry's existing admitted tool set and the official adapter's Berry MCP bridge;
+the CLI's native shell/write/delete tools remain denied. CLI-owned login stays
+with the CLI. No PAT is passed in a run envelope or CLI environment/arguments.
+
+**Berry: Stop workstation CLI bridge**, Disconnect, closing VS Code, or
+changing open folders stops the bridge and its child. Start it again after
+folder changes. Cancellation from Berry is recorded before the next heartbeat
+aborts the CLI. Heartbeat loss also stops the child; the server expires its
+lease and reports a connection prompt. If it stops immediately, check Node on
+PATH, your official subscription CLI login, workspace access and the hosted
+origin/PAT. Reconnect and start again after a revoked token. Remote SSH/WSL and
+vscode.dev are unsupported.
 
 ## Development
 
@@ -48,8 +76,10 @@ Connect, Refresh, a task click, Disconnect, an empty account, an invalid PAT,
 and a GitHub remote with/without a matching project against a test Berry
 instance. A browser preview cannot validate a desktop extension host.
 
-`build` emits CommonJS and source maps in ignored `dist/`; `watch` rebuilds
-incrementally. Tests use Node with mocked HTTP and VS Code boundaries.
+`build` emits the extension CommonJS, source maps and bundled ESM adapter
+worker/stdio bridges in ignored `dist/`. It reuses server runtime sources
+without importing the product server. `watch` rebuilds the extension only; run
+`build` again after shared adapter changes. Tests use Node with mocked HTTP and VS Code boundaries.
 `src/host.ts` defines the narrow structural desktop API boundary; keep its
 signatures consistent with the VS Code APIs when adding host features.
 This package owns its toolchain; use 3-space indentation and single quotes.

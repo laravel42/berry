@@ -16,13 +16,14 @@
       "onStartupFinished"
    ],
    "scripts": {
-      "build": "tsc -p tsconfig.json",
+      "build": "tsc -p tsconfig.json && node build-runtime.mjs",
       "watch": "tsc -p tsconfig.json --watch",
       "typecheck": "tsc -p tsconfig.json --noEmit",
       "test": "pnpm build && node --test test/*.test.cjs"
    },
    "devDependencies": {
-      "typescript": "^7.0.2"
+      "typescript": "^7.0.2",
+      "esbuild": "0.28.2"
    },
    "contributes": {
       "commands": [
@@ -41,6 +42,14 @@
          {
             "command": "berry.disconnect",
             "title": "Berry: Disconnect"
+         },
+         {
+            "command": "berry.startBridge",
+            "title": "Berry: Start workstation CLI bridge"
+         },
+         {
+            "command": "berry.stopBridge",
+            "title": "Berry: Stop workstation CLI bridge"
          }
       ],
       "viewsContainers": {

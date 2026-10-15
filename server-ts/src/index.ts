@@ -1,3 +1,5 @@
+import { Companion } from './runtime/companion.ts';
+import { companionMount } from './mounts/companion.ts';
 import { join } from 'node:path';
 import { serve } from '@hono/node-server';
 
@@ -1107,6 +1109,10 @@ registry.registerAll(
    })
 );
 registry.registerAll(runMounts(runOptions));
+const companion = new Companion(sql, executor);
+registry.register(companionMount({ sql, sessions, companion, idempotency }));
+const companionSweep = setInterval(() => { void companion.sweep().catch(error => logger.error('companion sweep failed', { error: String(error) })); }, 15_000);
+companionSweep.unref();
 const planOptions: PlanOptions = {
    sessions,
    plans: new PlanRepository(sql),
