@@ -3,11 +3,7 @@
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { HealthPopover } from '@/components/common/projects/health-popover';
-import {
-   LeadAvatarButton,
-   LeadPicker,
-   leadCandidates,
-} from '@/components/common/projects/lead-picker';
+import { LeadPicker, leadCandidates } from '@/components/common/projects/lead-picker';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import type { Project } from '@/data/projects';
 import { useResolvedProjectLead } from '@/lib/use-resolved-project-lead';
@@ -16,7 +12,6 @@ import { useMembersStore } from '@/store/members-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
 import type { Status } from '@/data/status';
-import { format, parseISO } from 'date-fns';
 import { User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -34,17 +29,29 @@ type ProjectGridProps = {
 function ProjectDragPreview({ project }: { project: Project }) {
    const lead = useResolvedProjectLead(project.lead);
    return (
-      <div className="w-full overflow-hidden rounded-lg bg-void px-3.5 py-2 text-chalk shadow-lg">
-         <div className="mb-1.5 flex items-center justify-between gap-2">
+      <div className="flex w-full flex-col overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
+         <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
-            {lead ? (
-               <ActorAvatar user={lead} size="sm" className="size-4" />
-            ) : (
-               <UserIcon className="size-3.5 text-muted-foreground" />
-            )}
+            <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+               {project.health.name}
+            </span>
          </div>
-         <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
+         <div className="mb-2 line-clamp-2 min-h-[2lh]" role="heading" aria-level={4}>
             {project.name}
+         </div>
+         <div className="flex min-h-[1.25rem] items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-muted-foreground">
+               <CapacityRing value={project.percentComplete} size={14} />
+               {project.percentComplete}%
+            </span>
+            {lead ? (
+               <span className="ml-auto flex min-w-0 items-center gap-1.5">
+                  <ActorAvatar user={lead} size="sm" className="size-4" />
+                  <span className="truncate">{lead.name}</span>
+               </span>
+            ) : (
+               <UserIcon className="ml-auto size-3.5 text-muted-foreground" />
+            )}
          </div>
       </div>
    );
@@ -146,7 +153,8 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group w-full cursor-grab rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative flex w-full cursor-grab flex-col rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
+                     'border border-[var(--board-card-line)] shadow-sm',
                      'hover:bg-base',
                      columnStatus === undefined && 'cursor-default',
                      isOver && 'ring-1 ring-primary/40',
@@ -155,14 +163,51 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                   )}
                   style={{ opacity: isDragging ? 0.45 : 1 }}
                >
-                  <div className="min-w-0">
-                     <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                     <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
                         {displayProperties.priority ? (
                            <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
                         ) : null}
+                        {displayProperties.health ? (
+                           <span
+                              className="relative z-[1] ml-auto shrink-0 whitespace-nowrap"
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => event.stopPropagation()}
+                           >
+                              <HealthPopover project={project} compact />
+                           </span>
+                        ) : null}
+                     </div>
+                     <Link
+                        href={`/${orgId}/project/${project.id}/overview`}
+                        className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                        draggable={false}
+                        onClick={(event) => {
+                           if (isDragging) event.preventDefault();
+                        }}
+                     >
+                        {/* Body size, same as a task card title. An h3 would
+                            take the heading step and the name would read
+                            larger than the task titles. Two lines are reserved
+                            so a short name still fills the same card. */}
+                        <div
+                           className="mb-2 line-clamp-2 min-h-[2lh]"
+                           role="heading"
+                           aria-level={4}
+                        >
+                           {project.name}
+                        </div>
+                     </Link>
+                     <div className="relative z-[1] flex min-h-[1.25rem] flex-wrap items-center gap-2">
+                        {displayProperties.issues ? (
+                           <span className="inline-flex items-center gap-1 text-muted-foreground">
+                              <CapacityRing value={project.percentComplete} size={14} />
+                              {project.percentComplete}%
+                           </span>
+                        ) : null}
                         {displayProperties.lead ? (
                            <span
-                              className="relative z-10 ml-auto"
+                              className="relative z-10 ml-auto min-w-0"
                               onPointerDown={(event) => event.stopPropagation()}
                               onClick={(event) => event.stopPropagation()}
                            >
@@ -172,12 +217,19 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                                  onChange={(member) => updateProjectLead(project.id, member)}
                               >
                                  {lead ? (
-                                    <LeadAvatarButton lead={lead} size="sm" />
+                                    <button
+                                       type="button"
+                                       aria-label={`Lead: ${lead.name}`}
+                                       className="flex min-w-0 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                    >
+                                       <ActorAvatar user={lead} size="sm" className="size-4" />
+                                       <span className="truncate">{lead.name}</span>
+                                    </button>
                                  ) : (
                                     <button
                                        type="button"
                                        aria-label="Project lead"
-                                       className="flex size-4 items-center justify-center rounded-sm text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                                       className="flex items-center gap-1.5 text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                     >
                                        <UserIcon className="size-3.5" />
                                     </button>
@@ -185,41 +237,6 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                               </LeadPicker>
                            </span>
                         ) : null}
-                     </div>
-                     <Link
-                        href={`/${orgId}/project/${project.id}/overview`}
-                        className="block rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        draggable={false}
-                        onClick={(event) => {
-                           if (isDragging) event.preventDefault();
-                        }}
-                     >
-                        {/* Body size, same as an issue card title. An h3 would
-                            take the heading step (14px / 500) and the name
-                            would read larger than the task titles beside it. */}
-                        <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
-                           {project.name}
-                        </div>
-                     </Link>
-                     <div className="mb-1 flex min-h-[1.25rem] flex-wrap items-center gap-2">
-                        {displayProperties.health && (
-                           <span
-                              className="relative z-10"
-                              onPointerDown={(event) => event.stopPropagation()}
-                              onClick={(event) => event.stopPropagation()}
-                           >
-                              <HealthPopover project={project} compact />
-                           </span>
-                        )}
-                        {displayProperties.targetDate && project.targetDate && (
-                           <span className="text-muted-foreground">
-                              {format(parseISO(project.targetDate), 'MMM d')}
-                           </span>
-                        )}
-                        <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground">
-                           <CapacityRing value={project.percentComplete} size={14} />
-                           {project.percentComplete}%
-                        </span>
                      </div>
                   </div>
                </div>
