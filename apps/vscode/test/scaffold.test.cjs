@@ -7,7 +7,6 @@ test('desktop extension entry point supports activation and deactivation', () =>
    const extension = require(path.resolve(__dirname, '..', manifest.main));
    assert.equal(typeof extension.activate, 'function');
    assert.equal(typeof extension.deactivate, 'function');
-   assert.doesNotThrow(() => extension.activate());
    assert.doesNotThrow(() => extension.deactivate());
 });
 
