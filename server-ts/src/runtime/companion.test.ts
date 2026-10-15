@@ -1,3 +1,13 @@
+import { spawn } from 'node:child_process';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { once } from 'node:events';
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { companionMount } from '../mounts/companion.ts';
+import { IdempotencyStore } from '../http/idempotency.ts';
+import type { SessionService } from '../auth/sessions.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { folderForRepository } from './companion.ts';
@@ -84,6 +94,36 @@ describe('companion durable pull transport', { skip: !url && 'BERRY_TEST_DATABAS
       await assert.rejects(repository.connect(input), /separate companion connection/);
       const [current] = await sql`SELECT status FROM ai_runtime_connections WHERE id = ${second.connection.id}`;
       assert.equal(current?.status, 'connected');
+   });
+   test('a different companion cannot replace a live queued or running lease', async () => {
+      const runId = await queued();
+      const repository = new AiRuntimeRepository(sql);
+      const input = { workspaceId: fixture.workspaceId, userId: fixture.userId,
+         runtimeId: 'codex' as const, authMethod: 'codex_cli', accountId: null, accountName: 'Replacement',
+         metadata: { host: 'vscode', companionId: randomUUID() } };
+      for (const status of ['queued', 'running']) {
+         await sql`UPDATE runs SET status = ${status}, dispatch_lease_until = now() + interval '60 seconds' WHERE id = ${runId}`;
+         await assert.rejects(repository.connect(input), { code: 'AI_RUNTIME_UNAVAILABLE',
+            message: 'This runtime is already bridged from another VS Code window with a run in progress. Stop that bridge first.' });
+         const [live] = await sql`SELECT status FROM ai_runtime_connections WHERE id = ${connectionId}`;
+         assert.equal(live?.status, 'connected');
+         const [run] = await sql`SELECT status FROM runs WHERE id = ${runId}`;
+         assert.equal(run?.status, status);
+      }
+      await new RunLedger({ sql }).markCancelled(runId);
+      await sql`UPDATE runs SET dispatch_lease_until = NULL WHERE id = ${runId}`;
+   });
+   test('a different companion can replace an expired lease after a crash', async () => {
+      const runId = await queued();
+      await sql`UPDATE runs SET dispatch_lease_until = now() - interval '1 second' WHERE id = ${runId}`;
+      const repository = new AiRuntimeRepository(sql);
+      const input = { workspaceId: fixture.workspaceId, userId: fixture.userId,
+         runtimeId: 'codex' as const, authMethod: 'codex_cli', accountId: null, accountName: 'Replacement' };
+      const replacement = await repository.connect({ ...input, metadata: { host: 'vscode', companionId: randomUUID() } });
+      assert.notEqual(replacement.connection.id, connectionId);
+      await new RunLedger({ sql }).markCancelled(runId);
+      const restored = await repository.connect({ ...input, metadata: { host: 'vscode', companionId: id } });
+      connectionId = restored.connection.id;
    });
    test('hosted dispatcher does not invoke companion runs; wrong users cannot claim them', async () => {
       const runId = await queued();
@@ -193,4 +233,108 @@ describe('companion durable pull transport', { skip: !url && 'BERRY_TEST_DATABAS
       const [unclaimed] = await sql`SELECT status FROM runs WHERE id = ${waiting}`;
       assert.equal(unclaimed?.status, 'failed');
    });
+   test('packaged worker connects, completes with usage, and kills a cancelled stub CLI through HTTP', { timeout: 45000 }, async () => {
+      const root = await mkdtemp(join(tmpdir(), 'berry-worker-test-'));
+      const folder = join(root, 'project');
+      await mkdir(folder);
+      const killed = join(root, 'killed');
+      const marker = join(root, 'turn');
+      // This executable replaces Codex entirely, including login/model discovery.
+      // HOME is empty: neither the worker nor stub can reach a real CLI login.
+      await writeFile(join(root, 'codex'), `#!${process.execPath}
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+if (args[0] === 'login') { console.log('Logged in using ChatGPT'); process.exit(0); }
+if (args[0] === 'debug') { console.log(JSON.stringify({models:[{slug:'gpt-5'}]})); process.exit(0); }
+const second = fs.existsSync(${JSON.stringify(marker)});
+fs.writeFileSync(${JSON.stringify(marker)}, process.cwd());
+console.log(JSON.stringify({type:'thread.started',thread_id:'stub-session'}));
+console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'Stub answer'}}));
+if (second) {
+ process.on('SIGTERM', () => { fs.writeFileSync(${JSON.stringify(killed)}, 'SIGTERM'); process.exit(0); });
+ setInterval(() => {}, 1000);
+} else { console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:11,output_tokens:7}})); }
+`, { mode: 0o700 });
+      const app = new Hono();
+      const seen: string[] = [];
+      let cancelReturned = false;
+      const mount = companionMount({ sql, companion, idempotency: new IdempotencyStore(sql),
+         sessions: { async resolveRequest(request: Request) {
+            assert.equal(request.headers.get('authorization'), 'Bearer berry_pat_stub');
+            return { id: fixture.userId };
+         } } as unknown as SessionService });
+      app.use('*', async (c, next) => {
+         const body = await c.req.raw.clone().json().catch(() => ({})) as { event?: { type: string } };
+         if (body.event) seen.push(body.event.type);
+         await next();
+         if (c.req.path.endsWith('/heartbeat')) {
+            const response = await c.res.clone().json() as { cancel: boolean };
+            if (response.cancel) cancelReturned = true;
+         }
+      });
+      app.get('/api/v1/agent-tools', c => {
+         assert.match(c.req.header('authorization') ?? '', /^Bearer berry_task_/);
+         return c.json({ tools: [] });
+      });
+      app.route(mount.prefix, mount.handler);
+      const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port: 0 });
+      if (!server.listening) await once(server, 'listening');
+      const address = server.address();
+      if (!address || typeof address === 'string') throw new Error('HTTP port required');
+      const worker = spawn(process.execPath, [resolve('../apps/vscode/dist/companion-worker.mjs')], {
+         env: { PATH: root, HOME: root, TMPDIR: root }, stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let stderr = '';
+      worker.stderr.on('data', chunk => { stderr += String(chunk); });
+      const exited = once(worker, 'exit');
+      async function until(check: () => Promise<boolean>) {
+         const deadline = Date.now() + 15000;
+         while (!(await check())) {
+            if (worker.exitCode !== null || Date.now() > deadline) throw new Error('Worker did not progress: ' + stderr + JSON.stringify(await sql`SELECT status, failure_code, failure_message FROM runs WHERE workspace_id = ${fixture.workspaceId}`) + JSON.stringify(seen) + await readFile(killed, 'utf8').catch(() => 'not killed'));
+            await new Promise(resolve => setTimeout(resolve, 50));
+         }
+      }
+      try {
+         worker.stdin.end(JSON.stringify({ origin: `http://127.0.0.1:${address.port}`, pat: 'berry_pat_stub',
+            id, workspaceId: fixture.workspaceId, runtimeId: 'codex', folders: [{ path: folder, repositories: [] }] }) + '\n');
+         await until(async () => {
+            const [row] = await sql`SELECT id FROM ai_runtime_connections WHERE workspace_id = ${fixture.workspaceId}
+               AND runtime_key = 'codex' AND status = 'connected' AND id <> ${connectionId}`;
+            if (!row) return false;
+            connectionId = String(row.id); return true;
+         });
+         const first = await queued();
+         await until(async () => {
+            const [row] = await sql`SELECT status FROM runs WHERE id = ${first}`;
+            return row?.status === 'succeeded';
+         });
+         const [result] = await sql`SELECT r.input_tokens, r.output_tokens, i.status FROM runs r JOIN issues i ON i.id = r.issue_id WHERE r.id = ${first}`;
+         assert.equal(result?.status, 'in_review');
+         assert.equal(Number(result?.input_tokens), 11);
+         assert.equal(Number(result?.output_tokens), 7);
+         assert.equal(await readFile(marker, 'utf8'), folder);
+         for (const type of ['task.started', 'task.message', 'task.usage', 'task.completed']) assert.ok(seen.includes(type), type);
+         const second = await queued();
+         await until(async () => {
+            const events = await sql`SELECT id FROM run_events WHERE run_id = ${second} AND event_type = 'run.output.delta'`;
+            return events.length > 0;
+         });
+         await new RunLedger({ sql }).markCancelled(second);
+         await until(async () => {
+            const [row] = await sql`SELECT status, dispatch_lease_until FROM runs WHERE id = ${second}`;
+            return cancelReturned && row?.status === 'cancelled' && row.dispatch_lease_until === null;
+         });
+         assert.equal(await readFile(killed, 'utf8'), 'SIGTERM');
+      } finally {
+         worker.kill('SIGTERM');
+         // A pending long poll has a bounded 7s duration.
+         const timer = setTimeout(() => worker.kill('SIGKILL'), 12000);
+         await exited;
+         clearTimeout(timer);
+         if ('closeAllConnections' in server) server.closeAllConnections();
+         await new Promise<void>(resolve => server.close(() => resolve()));
+         await rm(root, { recursive: true, force: true });
+      }
+   });
+
 });

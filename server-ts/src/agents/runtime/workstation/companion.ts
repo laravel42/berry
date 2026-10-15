@@ -51,6 +51,11 @@ while (!stopping) {
    if (!run) { await new Promise(resolve => setTimeout(resolve, 2000)); continue; }
    const controller = new AbortController();
    active = controller;
+   const registry = new SessionRegistry();
+   // A caller disconnect alone deliberately leaves container sessions warm.
+   // Here abort means explicit cancel/lease loss: stop the actual CLI loop.
+   const stopSession = () => { registry.stop(run.envelope.runtimeSessionId); };
+   controller.signal.addEventListener('abort', stopSession, { once: true });
    let lastBeat = Date.now();
    let beating = false;
    const heartbeat = setInterval(() => {
@@ -83,7 +88,7 @@ while (!stopping) {
       run.envelope.berry.apiUrl = origin.origin;
       if (run.envelope.runtime?.id !== settings.runtimeId || run.envelope.runtime.credential.token !== token) throw new Error('Unexpected runtime credential.');
       await handleInvocation(run.envelope, event => send(lifecycleEventSchema.parse(event)), {
-         registry: new SessionRegistry(), adapters: new RuntimeAdapterRegistry([adapter]),
+         registry, adapters: new RuntimeAdapterRegistry([adapter]),
          modelFactory() { throw new Error('The companion does not call a model provider.'); },
          region: 'us-east-1', credentials: null, workRoot: directory,
          workspaceDirectory: run.folder, processStateDirectory: directory,
@@ -95,6 +100,7 @@ while (!stopping) {
    } finally {
       await writes.catch(() => undefined);
       clearInterval(heartbeat);
+      controller.signal.removeEventListener('abort', stopSession);
       if (controller.signal.aborted) await post(`/${run.runId}/heartbeat`, { claim: run.claim, cancelled: true }).catch(() => undefined);
       await rm(directory, { recursive: true, force: true });
       active = null;

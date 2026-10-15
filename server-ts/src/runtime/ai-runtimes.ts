@@ -286,6 +286,18 @@ export class AiRuntimeRepository {
             throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
                'A separate companion connection is required. This runtime is already connected on another host; it has not been replaced.');
          }
+         // The membership lock serializes connection ceremonies for this person.
+         // A new window may recover an expired bridge, but cannot evict live work.
+         const otherCompanions = current.filter(row => incomingCompanion && isCompanion(row.metadata)
+            && row.metadata.companionId !== input.metadata?.companionId).map(row => row.id);
+         if (otherCompanions.length > 0) {
+            const [leased] = await tx`
+               SELECT id FROM runs WHERE ai_runtime_connection_id IN ${tx(otherCompanions)}
+                 AND status IN ('queued', 'running') AND dispatch_lease_until > now()
+               LIMIT 1`;
+            if (leased) throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
+               'This runtime is already bridged from another VS Code window with a run in progress. Stop that bridge first.');
+         }
          const currentIds = current.map((row) => row.id);
          const active =
             currentIds.length === 0

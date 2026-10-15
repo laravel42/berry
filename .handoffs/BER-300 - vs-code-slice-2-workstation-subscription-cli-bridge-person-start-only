@@ -4,50 +4,29 @@
 
 VS Code slice 2: workstation subscription CLI bridge (person start only)
 
-I’ll read the merge status and current connection guard, fix the restart regression, then reconcile main and run the requested checks. I’ll also state the migration scope explicitly in the handoff and report.
-The guard compares individual companion IDs, which confirms the restart bug. I’m applying the data-integrity skill to change that check while preserving the transaction lock. The original “no migrations” restriction still applies, so I’ll leave Settings/companion coexistence unsupported and report that scope decision explicitly.
-The new test reproduced the restart failure before the fix and now passes. After reconciling main, server typecheck, all 17 extension tests, and all seven companion tests pass. The database tests used a fresh temporary database that was removed afterward. I also updated the completion fixture to satisfy main’s tier-placement requirement.
-The PR body is still stale. I prepared a replacement describing the implementation and remaining limits, but the update tool refused the action because it requires approval and this session’s approval policy is `never`. PR #45 remains unchanged.
+I’ll check the connection guard and worker tests, add the live-lease protection and end-to-end test, then run the requested checks and write a replacement PR description in the handoff.
+The guard allows a new companion ID to replace a connection even while it has a live run lease. I’m applying the data-integrity skill to add the check inside the existing connection transaction. The no-migration and one-connection limits stay unchanged.
+The regression test reproduced the takeover bug, and the guard now passes it, including replacement after lease expiry. The packaged-worker test is running against the real HTTP mount with a stub Codex executable and an empty home directory. Its first run exposed a test-harness failure that I’m investigating.
+The HTTP test found a real cancellation bug: the worker passed cancellation as a caller disconnect, which leaves the session running. I’m changing the worker to call the session registry’s stop operation when Berry returns cancel.
+The packaged-worker test now passes completion and cancellation: it records usage, moves the issue to `in_review`, receives cancel on heartbeat, and confirms the stub child received SIGTERM. The two requested suites pass with 12 tests, zero failures and zero skips on a schema-only copy of `berry`. Server and extension checks also pass.
+Fixed live-bridge takeover protection while preserving restart after lease expiry. The new HTTP test also exposed and fixed cancellation that left the CLI child running.
 
-The additional handler and HTTP-boundary tests are still running. Interactive VS Code and real CLI execution remain unverified.
-All 40 handler and HTTP-boundary tests passed, along with the model-import boundary check. The merge conflict is resolved, and all 11 affected merge paths are free of conflict markers.
+Verified:
 
-The restart fix is complete. Simultaneous Settings and companion connections remain outside the task’s no-migration scope; migration 220 is unchanged. The PR still needs its description updated, a green hosted Verify run, and interactive VS Code/real CLI verification before merge.
-Fixed bridge restart with a new companion ID while preserving Settings/companion replacement protection. Reconciled main, removed conflict markers, and updated the handoff.
+- Server and extension typechecks and extension build passed.
+- Extension tests: 17 passed, 0 failed, 0 skipped.
+- Runtime companion suite: 10 passed, 0 failed, 0 skipped.
+- Companion mount suite: 2 passed, 0 failed, 0 skipped.
+- Model-import boundary and diff checks passed.
 
-Passed server typecheck, extension typecheck/build and 17 tests, seven companion tests on a disposable database, and 40 handler/HTTP tests.
+Database tests used a schema-only disposable copy, removed afterward. The packaged worker test proves completion, usage recording, and cancellation through the real companion mount using a stub CLI.
 
-Do not merge yet. The explicit no-migration restriction still applies; simultaneous Settings and companion connections require Andrea’s authorization for a forward migration. Hosted Verify and interactive VS Code/real CLI execution remain unverified. Berry controls commits; no history was rewritten.
-
-PR #45’s description remains stale: the update tool refused the prepared replacement because it requires approval and this session’s approval policy is `never`.
+Added a complete replacement PR description to the required handoff. No migrations changed. Hosted CI and interactive VS Code/real CLI execution remain unverified. No merge performed.
 
 ## Files
-- apps/vscode/README.md
-- apps/vscode/build-runtime.mjs
-- apps/vscode/package.json
-- apps/vscode/src/bridge.ts
-- apps/vscode/src/extension.ts
-- apps/vscode/src/host.ts
-- apps/vscode/test/bridge.test.cjs
-- docs/adr/0019-subscription-ai-runtimes.md
-- docs/ai-runtimes.md
-- docs/api/gateway-v1.md
-- pnpm-lock.yaml
-- server-ts/ROUTING.md
-- server-ts/src/agents/runtime/container/handler.test.ts
-- server-ts/src/agents/runtime/container/handler.ts
-- server-ts/src/agents/runtime/container/runtime-completion.ts
 - server-ts/src/agents/runtime/workstation/companion.ts
-- server-ts/src/index.ts
-- server-ts/src/mounts/companion.test.ts
-- server-ts/src/mounts/companion.ts
-- server-ts/src/runs/dispatcher.ts
-- server-ts/src/runs/ledger.ts
 - server-ts/src/runtime/ai-runtimes.ts
 - server-ts/src/runtime/companion.test.ts
-- server-ts/src/runtime/companion.ts
-- server-ts/src/runtime/envelope-builder.ts
-- server-ts/src/runtime/task-executor.ts
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-300-vs-code-slice-2-workstation-subscription
