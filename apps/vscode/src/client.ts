@@ -4,7 +4,7 @@ interface Board { id: string; workspaceId: string }
 export interface Project { id: string; name: string; githubRepo: string | null }
 export function normalizeOrigin(value: string): string {
    const url = new URL(value.trim());
-   if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Enter an HTTPS Berry origin without a path or credentials.');
+   if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username || url.password || url.pathname !== '/' || url.search || url.hash) throw new Error('Enter an HTTP or HTTPS Berry origin without a path or credentials.');
    return url.origin;
 }
 export function repositoryName(remote: string): string | undefined {

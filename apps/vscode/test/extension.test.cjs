@@ -35,7 +35,7 @@ test('connect stores both values in secrets; task opens hosted URL; empty and er
    global.fetch = async url => {
       if (fail) throw new Error('secret must not leak');
       const path = new URL(url).pathname;
-      const data = path.endsWith('/auth/me') ? { id: 'person' } : { nodes: path.endsWith('/boards') ? [{ id: 'board', workspaceId: 'workspace' }] : path.endsWith('/workspaces') ? [{ id: 'workspace', slug: 'team' }] : empty ? [] : [{ id: 'issue', identifier: 'BER-1', title: 'Task', status: 'todo' }], pageInfo: { hasNextPage: false } };
+      const data = path.endsWith('/auth/me') ? { id: 'person' } : { nodes: path.endsWith('/boards') ? [{ id: 'board', workspaceId: 'workspace' }] : path.endsWith('/workspaces') ? [{ id: 'workspace', slug: 'team' }] : empty ? [] : [{ id: '550e8400-e29b-41d4-a716-446655440000', identifier: 'BER-1', title: 'Task', status: 'todo' }], pageInfo: { hasNextPage: false } };
       return { ok: true, json: async () => data };
    };
    try {
@@ -45,7 +45,7 @@ test('connect stores both values in secrets; task opens hosted URL; empty and er
       assert.deepEqual(JSON.parse(app.saved()), { origin: 'https://berry.example', pat: 'berry_pat_secret' });
       assert.match(app.items()[0].label, /No GitHub remote/);
       await app.commands.get('berry.openTask')(...app.items()[1].command.arguments);
-      assert.deepEqual(app.opened, ['https://berry.example/team/issue/issue']);
+      assert.deepEqual(app.opened, ['https://berry.example/team/issue/BER-1']);
       empty = true;
       await app.commands.get('berry.refresh')();
       assert.equal(app.items()[1].label, 'You have no open tasks.');

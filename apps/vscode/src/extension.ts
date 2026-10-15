@@ -55,10 +55,10 @@ export function activate(context: Context, host: Host = require('vscode') as Hos
    context.subscriptions.push(changed, host.window.registerTreeDataProvider('berry.tasks', { onDidChangeTreeData: changed.event, getTreeItem: item => item, getChildren: () => items }));
    context.subscriptions.push(host.commands.registerCommand('berry.refresh', refresh));
    context.subscriptions.push(host.commands.registerCommand('berry.connect', async () => {
-      const originInput = await host.window.showInputBox({ title: 'Connect to Berry', prompt: 'Hosted Berry HTTPS origin (for example https://berry.example)', ignoreFocusOut: true, value: connection?.origin });
+      const originInput = await host.window.showInputBox({ title: 'Connect to Berry', prompt: 'Hosted Berry HTTP or HTTPS origin (for example https://berry.example)', ignoreFocusOut: true, value: connection?.origin });
       if (originInput === undefined) return;
       let origin: string;
-      try { origin = normalizeOrigin(originInput); } catch { host.window.showErrorMessage('Enter an HTTPS Berry origin without a path or credentials.'); return; }
+      try { origin = normalizeOrigin(originInput); } catch { host.window.showErrorMessage('Enter an HTTP or HTTPS Berry origin without a path or credentials.'); return; }
       const pat = await host.window.showInputBox({ title: 'Berry personal access token', prompt: 'Paste your Berry PAT. It will be stored in VS Code SecretStorage.', password: true, ignoreFocusOut: true });
       if (pat === undefined) return;
       if (!/^berry_pat_\S+$/.test(pat)) { host.window.showErrorMessage('Enter a Berry personal access token.'); return; }
@@ -77,8 +77,8 @@ export function activate(context: Context, host: Host = require('vscode') as Hos
    context.subscriptions.push(host.commands.registerCommand('berry.openTask', async (...args) => {
       const task = args[0] as Task | undefined;
       const origin = args[1];
-      if (!task || typeof task.workspaceId !== 'string' || typeof task.id !== 'string' || typeof origin !== 'string' || origin !== connection?.origin) return;
-      const url = origin + '/' + encodeURIComponent(task.workspaceSlug) + '/issue/' + encodeURIComponent(task.id);
+      if (!task || typeof task.workspaceId !== 'string' || typeof task.identifier !== 'string' || typeof origin !== 'string' || origin !== connection?.origin) return;
+      const url = origin + '/' + encodeURIComponent(task.workspaceSlug) + '/issue/' + encodeURIComponent(task.identifier);
       if (!await host.env.openExternal(host.Uri.parse(url))) host.window.showErrorMessage('Could not open the task in your browser.');
    }));
    context.subscriptions.push({ dispose() { ++generation; } });

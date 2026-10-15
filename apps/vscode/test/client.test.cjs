@@ -2,8 +2,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { Client, normalizeOrigin, repositoryName } = require('../dist/client');
 test('rejects credential-bearing and non-origin URLs', () => {
-   for (const url of ['http://host', 'https://user:pass@host', 'https://host/path', 'https://host?x=1']) assert.throws(() => normalizeOrigin(url));
-   assert.equal(normalizeOrigin('https://berry.example/'), 'https://berry.example');
+   for (const url of ['ftp://host', 'file:///tmp', 'https://user:pass@host', 'https://user@host', 'http://localhost:3000/path', 'https://host/path', 'https://host?x=1', 'https://host#fragment']) assert.throws(() => normalizeOrigin(url));
+   assert.equal(normalizeOrigin('https://berry.example'), 'https://berry.example');
+   assert.equal(normalizeOrigin('http://localhost:3000'), 'http://localhost:3000');
 });
 test('normalizes GitHub SSH and HTTPS remotes without GitHub authentication', () => {
    assert.equal(repositoryName('git@github.com:Owner/Repo.git'), 'owner/repo');
