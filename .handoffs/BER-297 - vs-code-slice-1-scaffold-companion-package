@@ -1,0 +1,28 @@
+.handoffs/BER-297 - vs-code-slice-1-scaffold-companion-package
+
+# Handoff from BER-297
+
+VS Code slice 1: scaffold companion package
+
+I’ll read the repository guidance and desktop package, then scaffold the companion package and verify its build and launch configuration.
+I’m applying the developer-documentation skill to the launch and validation instructions. This task will add the package scaffold; authentication and task UI remain for later tasks. The parent’s saved files are unavailable because this deployment has no file storage, so I’m using the acceptance criteria supplied here.
+The scaffold builds, passes strict typechecking and both smoke tests, and installs with the frozen lockfile. ADR-0019 has only the requested one-line addition under Current state. The launch configuration is checked, but interactive F5 activation still needs desktop VS Code verification.
+Implemented BER-297: added `apps/vscode` as `@berry/vscode` with strict TypeScript, activation scaffold, F5 launch configuration, smoke tests, and development README. Registered the workspace and lockfile. Added only the package-exists statement to ADR-0019, preserving its history. Wrote the required handoff.
+
+Validation passed: frozen install, typecheck, build, both tests, and diff checks.
+
+Interactive F5 launch remains unverified because desktop VS Code was unavailable. Authentication and task UI remain outside this scaffold task.
+
+## Files
+- apps/vscode/.gitignore
+- apps/vscode/README.md
+- apps/vscode/package.json
+- apps/vscode/src/extension.ts
+- apps/vscode/test/scaffold.test.cjs
+- apps/vscode/tsconfig.json
+- docs/adr/0019-subscription-ai-runtimes.md
+- pnpm-lock.yaml
+- pnpm-workspace.yaml
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-297-vs-code-slice-1-scaffold-companion
