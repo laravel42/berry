@@ -4,13 +4,13 @@
 
 VS Code slice 2: workstation subscription CLI bridge (person start only)
 
-I’ll check the slice 1 code, existing adapters, and ADR-0019 to see whether this checkout has the interfaces needed for the bridge.
-BER-298’s client and task-list code are present. The server currently starts subscription CLIs beside itself and rejects remote hosts; I found no companion transport for dispatching runs, returning events, or forwarding cancellation. Adding that transport changes a core platform boundary, so I’ll escalate the transport decision to the CTO as your instructions require.
-Blocked pending a transport decision. BER-298’s extension code is present, but the server only launches CLIs locally and rejects remote hosts. No companion run-delivery transport exists in the inspected code.
+I’ll check whether this checkout includes the transport decision or interfaces missing from the earlier run, then proceed within the approved scope.
+BER-298’s extension code is present, but ADR-0019 still records only the scaffold, and the prior handoff’s transport decision remains unresolved in this checkout. I’m checking the dispatch path to identify the exact missing interface.
+BER-300 remains blocked on the companion transport decision. BER-298’s code is present, but the existing runtime interface launches children beside the server; it cannot deliver hosted runs to VS Code or return lifecycle events and cancellation.
 
-Escalated the core platform decision to the CTO; Berry routed it to a human approval. It must cover run delivery, ledger events, cancellation, leases, and folder binding.
+Requested the required CTO decision; Berry routed it to human approval and marked the task blocked. The contract must cover run delivery, scoped authorization, ledger events, cancellation, leases, and folder binding.
 
-No production code changed or tests run. Wrote the required BER-300 handoff.
+Updated the required handoff. No production code changed or tests run.
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-300-vs-code-slice-2-workstation-subscription
