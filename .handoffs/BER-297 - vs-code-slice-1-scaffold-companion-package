@@ -4,26 +4,14 @@
 
 VS Code slice 1: scaffold companion package
 
-I’ll check the review findings against the checkout, fix the scaffold files, and verify the package from a clean copy.
-The missing launch files reproduced the test failure. I’ve added them, narrowed the ignore rule, changed `extensionKind` to `workspace`, and moved the ADR statement into a dated live section. Tests and typechecking pass; I’m now checking a clean Git snapshot.
-Fixed the confirmed review findings:
+I’ll check the branch history and delivery rules, then address the commit-message request without changing the scaffold.
+Andrea, please squash-merge the existing PR after required approvals using exactly:
 
-- Added launch/task configurations and narrowed `.gitignore` to `/.vscode/`.
-- Set `extensionKind` to `workspace`.
-- Moved the ADR package bullet into live Current state; preserved historical content, Decision and Consequences.
-- Updated tests and the required handoff.
+`feat(vscode): scaffold companion package (BER-297)`
 
-Validation passed: both smoke tests, build, typecheck and diff checks. Tests also passed in a clean committed snapshot containing both launch files, with empty Git status afterward. Interactive F5 remains unverified.
+This follows your permitted alternative: this checkout contains only a snapshot commit and no remote, and Berry prohibits pushing from this run. No history rewrite or push was performed.
 
-Ready for re-review on the existing PR. Berry controls commit/push; the required subject is `feat(vscode): scaffold companion package (BER-297)`.
-
-## Files
-- .gitignore
-- apps/vscode/.vscode/launch.json
-- apps/vscode/.vscode/tasks.json
-- apps/vscode/package.json
-- apps/vscode/test/scaffold.test.cjs
-- docs/adr/0019-subscription-ai-runtimes.md
+The scaffold remains unchanged. Both tests and build passed from a clean tree; launch/tasks files are tracked. Updated the required handoff. No features or ADR content changed.
 
 Repository: laravel42/berry
 Branch: software-engineer/ber-297-vs-code-slice-1-scaffold-companion
