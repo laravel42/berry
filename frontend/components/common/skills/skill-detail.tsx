@@ -280,7 +280,7 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                {editable ? (
                   <div
                      data-font-weight="100"
-                     className="border-input bg-background focus-within:border-ring min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs [font-weight:100] focus-within:ring-[3px] focus-within:ring-ring/50"
+                     className="border-input bg-background min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs [font-weight:100]"
                   >
                      <TiptapAiEditor
                         value={readFrontmatter(draft.content).body}

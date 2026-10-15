@@ -240,6 +240,7 @@ export function CreateProjectDialog() {
                         id="create-project-name"
                         data-heading="h1"
                         autoFocus
+                        plain
                         className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-placeholder"
                         placeholder="Project name"
                         value={form.name}

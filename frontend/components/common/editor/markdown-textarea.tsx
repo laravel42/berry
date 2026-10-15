@@ -14,6 +14,7 @@ import { FormatAction, SelectionFormatBar } from './selection-format-bar';
 interface MarkdownTextareaProps extends Omit<React.ComponentProps<'textarea'>, 'onChange'> {
    value: string;
    onChange: (value: string) => void;
+   plain?: boolean;
 }
 
 const WRAP_BY_ACTION: Record<
@@ -26,7 +27,14 @@ const WRAP_BY_ACTION: Record<
    code: { open: '`', close: '`', placeholder: 'code' },
 };
 
-export function MarkdownTextarea({ value, onChange, className, onBlur, ...props }: MarkdownTextareaProps) {
+export function MarkdownTextarea({
+   value,
+   onChange,
+   className,
+   onBlur,
+   plain,
+   ...props
+}: MarkdownTextareaProps) {
    const textareaRef = useRef<HTMLTextAreaElement>(null);
    const [bar, setBar] = useState<{ top: number; left: number } | null>(null);
 
@@ -98,6 +106,7 @@ export function MarkdownTextarea({ value, onChange, className, onBlur, ...props 
       <>
          <Textarea
             ref={textareaRef}
+            plain={plain}
             value={value}
             onChange={(event) => onChange(event.target.value)}
             onSelect={syncBar}
