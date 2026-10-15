@@ -70,6 +70,21 @@ describe('companion durable pull transport', { skip: !url && 'BERRY_TEST_DATABAS
       assert.equal(untouched?.status, 'connected');
       assert.deepEqual(untouched?.metadata, {});
    });
+   test('a new VS Code companion ID can reconnect the same runtime', async () => {
+      const repository = new AiRuntimeRepository(sql);
+      const input = { workspaceId: fixture.workspaceId, userId: fixture.userId,
+         runtimeId: 'kiro' as const, authMethod: 'kiro_cli', accountId: null, accountName: 'VS Code' };
+      const first = await repository.connect({ ...input, metadata: { host: 'vscode', companionId: randomUUID() } });
+      const nextId = randomUUID();
+      const second = await repository.connect({ ...input, metadata: { host: 'vscode', companionId: nextId } });
+      assert.notEqual(second.connection.id, first.connection.id);
+      assert.equal(second.connection.metadata.companionId, nextId);
+      const [old] = await sql`SELECT status FROM ai_runtime_connections WHERE id = ${first.connection.id}`;
+      assert.equal(old?.status, 'disconnected');
+      await assert.rejects(repository.connect(input), /separate companion connection/);
+      const [current] = await sql`SELECT status FROM ai_runtime_connections WHERE id = ${second.connection.id}`;
+      assert.equal(current?.status, 'connected');
+   });
    test('hosted dispatcher does not invoke companion runs; wrong users cannot claim them', async () => {
       const runId = await queued();
       let invoked = false;
@@ -126,6 +141,9 @@ describe('companion durable pull transport', { skip: !url && 'BERRY_TEST_DATABAS
       await sql`UPDATE runs SET dispatch_lease_until = NULL WHERE id = ${runId}`;
    });
    test('a boardless subscription completion uses the ledger and returns a result', async () => {
+      await sql`INSERT INTO workspace_tier_models (workspace_id, berry_high) VALUES (${fixture.workspaceId}, ARRAY['codex/gpt-5'])
+         ON CONFLICT (workspace_id) DO UPDATE SET berry_high = EXCLUDED.berry_high`;
+      await sql`UPDATE agents SET model_tier = 'berry_high' WHERE id = ${fixture.agentId}`;
       const { runId } = await enqueueTask(sql, { workspaceId: fixture.workspaceId, agentId: fixture.agentId, kind: 'completion', source: 'completion', prompt: 'Answer briefly',
          aiRuntime: { runtimeId: 'codex', modelId: 'gpt-5', agentId: null, connectionId, userId: fixture.userId, accountId: null, accountName: 'Test' },
       });

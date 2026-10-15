@@ -244,7 +244,7 @@ export default function SkillDetailHeader({ skillId }: SkillDetailHeaderProps) {
 
    return (
       <>
-         <div className="flex h-10 w-full items-center justify-between gap-4 border-b px-6 py-1.5">
+         <div className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-5 py-1.5">
             <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
                <Link
                   href={`/${orgId}/skills`}

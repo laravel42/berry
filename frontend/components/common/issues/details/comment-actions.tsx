@@ -12,22 +12,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
-   Dialog,
-   DialogContent,
-   DialogFooter,
-   DialogHeader,
-   DialogTitle,
-} from '@/components/ui/dialog';
-import {
    DropdownMenu,
    DropdownMenuContent,
    DropdownMenuItem,
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
 import { BerryApiError } from '@/lib/api';
-import { deleteComment, updateComment, type ApiComment } from '@/lib/comments';
+import { deleteComment, type ApiComment } from '@/lib/comments';
 import { createChild } from '@/lib/issue-tracking';
 import { useSessionStore } from '@/store/session-store';
 import { MoreHorizontal } from 'lucide-react';
@@ -38,10 +30,10 @@ import { toast } from 'sonner';
 /**
  * What a reader can do with one comment.
  *
- * Edit and delete follow the server's rule — the author, or a workspace
- * admin — and the menu now says so on both sides: an admin sees the actions
- * on someone else's comment because they really do have them, rather than the
- * menu hiding them and the server quietly allowing them.
+ * Delete follows the server's rule — the author, or a workspace owner/admin —
+ * and the menu now says so on both sides: an admin sees it on someone else's
+ * comment (including an agent's) because they really do have it, rather than
+ * the menu hiding it and the server quietly allowing it.
  *
  * Deleting warns when replies go with it. A thread root takes its thread with
  * it, and "delete" that silently removes four other people's messages is the
@@ -51,7 +43,6 @@ export function CommentActions({
    comment,
    issueRef,
    replyCount,
-   onChanged,
    onDeleted,
    onReply,
 }: {
@@ -59,41 +50,28 @@ export function CommentActions({
    issueRef: string;
    /** Replies that would go with it; only a root has any. */
    replyCount: number;
-   onChanged: (comment: ApiComment) => void;
    onDeleted: (commentId: string) => void;
    onReply?: () => void;
 }) {
    const t = useTranslations('issueDetail.activity');
    const user = useSessionStore((state) => state.user);
-   const [editing, setEditing] = useState(false);
+   const workspaceRole = useSessionStore((state) => state.workspace?.role);
    const [confirming, setConfirming] = useState(false);
-   const [draft, setDraft] = useState(comment.body);
    const [busy, setBusy] = useState(false);
 
    const mine = comment.author.type === 'user' && comment.author.id === user?.id;
-   // A workspace admin moderates: the server allows it, so the menu offers it.
-   const moderator = user?.role === 'Admin';
-   const mayChange = mine || moderator;
+   // Owner/admin may moderate anyone's comment, including an agent's. The
+   // session user's display role is always Member, so this has to read the
+   // workspace membership — the same check the server uses.
+   const moderator = workspaceRole === 'owner' || workspaceRole === 'admin';
+   const mayDelete = mine || moderator;
 
-   const fail = (cause: unknown, fallback: string) =>
+   const fail = (cause: unknown) =>
       toast.error(
-         cause instanceof BerryApiError && cause.status === 409
-            ? 'This comment changed since you opened it. Reload and try again.'
-            : cause instanceof BerryApiError && cause.status === 403
-              ? 'You cannot change this comment.'
-              : fallback
+         cause instanceof BerryApiError && cause.status === 403
+            ? 'You cannot change this comment.'
+            : t('deleteFailed')
       );
-
-   const save = () => {
-      setBusy(true);
-      void updateComment(comment.id, draft, comment.revision)
-         .then((updated) => {
-            onChanged(updated);
-            setEditing(false);
-         })
-         .catch((cause: unknown) => fail(cause, t('saveFailed')))
-         .finally(() => setBusy(false));
-   };
 
    const remove = () => {
       setBusy(true);
@@ -102,7 +80,7 @@ export function CommentActions({
             onDeleted(comment.id);
             setConfirming(false);
          })
-         .catch((cause: unknown) => fail(cause, t('deleteFailed')))
+         .catch(fail)
          .finally(() => setBusy(false));
    };
 
@@ -137,45 +115,20 @@ export function CommentActions({
                ) : null}
                <DropdownMenuItem onClick={copy}>{t('copy')}</DropdownMenuItem>
                <DropdownMenuItem onClick={split}>{t('createSubIssue')}</DropdownMenuItem>
-               {mayChange ? (
+               {mayDelete ? (
                   <>
                      <DropdownMenuSeparator />
                      <DropdownMenuItem
-                        onClick={() => {
-                           setDraft(comment.body);
-                           setEditing(true);
-                        }}
+                        variant="destructive"
+                        className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
+                        onClick={() => setConfirming(true)}
                      >
-                        {t('edit')}
-                     </DropdownMenuItem>
-                     <DropdownMenuItem onClick={() => setConfirming(true)}>
                         {t('delete')}
                      </DropdownMenuItem>
                   </>
                ) : null}
             </DropdownMenuContent>
          </DropdownMenu>
-
-         <Dialog open={editing} onOpenChange={setEditing}>
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>{t('editTitle')}</DialogTitle>
-               </DialogHeader>
-               <Textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  rows={6}
-               />
-               <DialogFooter>
-                  <Button variant="ghost" onClick={() => setEditing(false)}>
-                     {t('cancel')}
-                  </Button>
-                  <Button onClick={save} disabled={busy || !draft.trim() || draft === comment.body}>
-                     {t('save')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
 
          <AlertDialog open={confirming} onOpenChange={setConfirming}>
             <AlertDialogContent>

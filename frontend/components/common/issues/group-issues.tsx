@@ -146,7 +146,7 @@ function GroupHeaderBar({
    }
 
    return (
-      <div className="sticky top-0 z-10 h-10 w-full bg-container">
+      <div className="sticky top-0 z-10 h-9 w-full bg-container">
          <div
             data-column-tint={tone}
             className={cn('flex h-full w-full items-center justify-between px-6', GROUP_TINT[tone])}

@@ -1,5 +1,5 @@
 import type { Logger } from '../../../observability/log.ts';
-import { bedrockModel, kiloModel, modelProviderFromEnv, type AwsCredentials, type ModelFactory } from '../model.ts';
+import { nativeModelUnavailable, type AwsCredentials, type ModelFactory } from '../model.ts';
 import { setupTelemetry } from '../telemetry.ts';
 import { snapshotRepository } from './snapshot-repository.ts';
 import { createRuntimeServer } from './server.ts';
@@ -10,33 +10,20 @@ import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
 /**
  * The runtime image's entrypoint.
  *
- * In AgentCore the credential is the runtime's execution role, so the
- * `BERRY_BEDROCK_*` pair is unset and Bedrock uses the default chain. Locally
- * (the `agent-runtime` Compose service) the pair is how the same image reaches
- * Bedrock; `AWS_ACCESS_KEY_ID` is never read, because in the stack it is MinIO's.
+ * Native Bedrock and Kilo factories are gone. This image still hosts the
+ * Strands loop for AgentCore / HTTP invokes; a native model call fails in
+ * `nativeModelUnavailable`. Subscription CLIs run on the workstation, not
+ * in this container.
  */
 const env = process.env;
-const region = (env.BERRY_BEDROCK_REGION ?? env.AWS_REGION ?? 'us-east-1').trim();
-const accessKeyId = (env.BERRY_BEDROCK_ACCESS_KEY_ID ?? '').trim();
-const secretAccessKey = (env.BERRY_BEDROCK_SECRET_ACCESS_KEY ?? '').trim();
-const sessionToken = (env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
+const region = (env.BERRY_AGENTCORE_REGION ?? env.AWS_REGION ?? '').trim();
+const accessKeyId = (env.BERRY_AGENTCORE_ACCESS_KEY_ID ?? env.BERRY_BEDROCK_ACCESS_KEY_ID ?? '').trim();
+const secretAccessKey = (env.BERRY_AGENTCORE_SECRET_ACCESS_KEY ?? env.BERRY_BEDROCK_SECRET_ACCESS_KEY ?? '').trim();
+const sessionToken = (env.BERRY_AGENTCORE_SESSION_TOKEN ?? env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
 const credentials: AwsCredentials | null =
    accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null;
 
-// Which gateway the model calls go through (ADR-0017). Bedrock's region and
-// credentials above stay read either way: Polly and Nova Reel use them.
-let modelFactory: ModelFactory;
-try {
-   const choice = modelProviderFromEnv(env);
-   modelFactory =
-      choice.provider === 'kilo'
-         ? (spec) => kiloModel(spec, choice.kilo)
-         : (spec) => bedrockModel({ ...spec, credentials: spec.credentials ?? credentials });
-   console.log(JSON.stringify({ msg: 'model provider', provider: choice.provider }));
-} catch (error) {
-   console.error(JSON.stringify({ level: 'ERROR', msg: (error as Error).message }));
-   process.exit(1);
-}
+const modelFactory: ModelFactory = nativeModelUnavailable;
 
 const workRoot = env.BERRY_RUNTIME_WORK_ROOT ?? '/mnt/workspace';
 
@@ -75,9 +62,6 @@ const server = createRuntimeServer({
    ...(isolate ? { identities: new SessionIdentities(workRoot) } : {}),
    repository: snapshotRepository(),
    localControl: (env.BERRY_RUNTIME_LOCAL_CONTROL ?? '').trim().toLowerCase() === 'true',
-   videoOutput: /^s3:\/\//.test((env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim())
-      ? { s3Uri: (env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim() }
-      : undefined,
 });
 
 // Traces of model and tool calls start here now: the server makes none.

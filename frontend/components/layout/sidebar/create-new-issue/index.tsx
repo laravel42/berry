@@ -321,7 +321,7 @@ export function CreateNewIssue() {
             <div className="max-h-[52vh] w-full overflow-y-auto px-4 pb-0">
                <Input
                   data-heading="h1"
-                  className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-foreground/40"
+                  className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-placeholder"
                   placeholder={t('titlePlaceholder')}
                   value={draft.title}
                   onChange={(event) => setDraft({ title: event.target.value })}
@@ -485,7 +485,7 @@ export function CreateNewIssue() {
 
                <div className="mt-5 min-h-40 border-t border-border/60 pt-4">
                   <MarkdownTextarea
-                     className="min-h-56 resize-none border-none bg-transparent px-0 text-foreground shadow-none outline-none placeholder:text-foreground/40"
+                     className="min-h-56 resize-none border-none bg-transparent px-0 text-foreground shadow-none outline-none placeholder:text-placeholder"
                      placeholder={t('descriptionPlaceholder')}
                      value={draft.description}
                      onChange={(description) => setDraft({ description })}

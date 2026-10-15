@@ -277,12 +277,14 @@ const aiRuntimePreferenceSchema = z.object({
 const aiRuntimeCatalogSchema = z.object({
    nodes: z.array(aiRuntimeDefinitionSchema),
    preference: aiRuntimePreferenceSchema,
-   native: z.object({
-      id: z.literal('berry-native'),
-      name: z.string(),
-      billing: z.literal('api_billing'),
-      description: z.string(),
-   }),
+   native: z
+      .object({
+         id: z.literal('berry-native'),
+         name: z.string(),
+         billing: z.literal('api_billing'),
+         description: z.string(),
+      })
+      .optional(),
 });
 const aiRuntimeSelectionSchema = z.object({
    runtimeId: z.string().nullable(),

@@ -29,7 +29,7 @@ export default function Header() {
    return (
       <div className="w-full flex flex-col">
          <SavedViewsBar />
-         <div className="w-full flex justify-between items-center border-b py-1.5 px-6 h-10">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
             <span className="text-muted-foreground">
                {count} {view?.type === 'project' ? 'projects' : 'tasks'}
             </span>

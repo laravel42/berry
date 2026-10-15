@@ -39,10 +39,8 @@ export default function HeaderNav() {
       .find((item) => isNavItemActive(pathname, `/${orgId}${item.url}`));
 
    return (
-      <div className="w-full flex justify-between items-center border-b py-1.5 px-6 h-10">
-         <h1 className="min-w-0 truncate font-display font-medium tracking-wider text-muted-foreground uppercase">
-            {t('title')}
-         </h1>
+      <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
+         <h1 className="min-w-0 truncate">{t('title')}</h1>
 
          <DropdownMenu>
             <DropdownMenuTrigger
@@ -56,7 +54,7 @@ export default function HeaderNav() {
                {settingsNav.map((group, index) => (
                   <div key={group.labelKey}>
                      {index > 0 ? <DropdownMenuSeparator /> : null}
-                     <DropdownMenuLabel className="uppercase tracking-[0.14em] text-muted-foreground">
+                     <DropdownMenuLabel data-heading="label" className="text-muted-foreground">
                         {admin(`groups.${group.labelKey}`)}
                      </DropdownMenuLabel>
                      {group.items.map((item) => {

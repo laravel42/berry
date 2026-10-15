@@ -6,7 +6,7 @@ import { useIssueListView } from '@/components/common/issues/use-issue-list-view
 import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { canEditProduct } from '@/lib/workspace-role';
 import { cn } from '@/lib/utils';
 import { useCreateIssueStore } from '@/store/create-issue-store';
@@ -37,7 +37,7 @@ export default function Header() {
       <div className="flex w-full flex-col">
          <PageKpiHeader label={tab === 'assigned' ? t('titleMine') : t('title')}>
             <Input
-               className="h-9 w-64 max-sm:w-40"
+               className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
                placeholder={t('search')}
                value={searchQuery}
                onChange={(event) => {
@@ -48,13 +48,13 @@ export default function Header() {
                }}
             />
             {canEdit ? (
-               <Button size="xs" className="h-[34px] shrink-0" onClick={() => openModal()}>
+               <Button className="shrink-0" onClick={() => openModal()}>
                   <Plus className="size-4" aria-hidden />
                   {t('create')}
                </Button>
             ) : null}
          </PageKpiHeader>
-         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center gap-2 border-b px-6 py-[6px] [&_button]:!h-9">
+         <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
             <div
                role="group"
                aria-label={t('layout.label')}

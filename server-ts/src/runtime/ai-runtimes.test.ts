@@ -149,21 +149,23 @@ describe('personal AI runtime connections', { skip: url ? false : 'BERRY_TEST_DA
       }
    });
 
-   test('an explicit native override does not borrow the personal default', async () => {
+   test('an explicit native override is refused', async () => {
       const world = current();
       await connect();
       await repository.savePreference(world.workspaceId, world.userId, {
          runtimeId: 'kiro',
          modelId: 'auto',
       });
-      const selected = await resolveAiRuntimeSelection(sql, {
-         workspaceId: world.workspaceId,
-         userId: world.userId,
-         overrideRuntimeId: NATIVE_AI_RUNTIME,
-         overrideModelId: null,
-      });
-      assert.equal(selected.runtimeId, null);
-      assert.equal(selected.connectionId, null);
+      await assert.rejects(
+         resolveAiRuntimeSelection(sql, {
+            workspaceId: world.workspaceId,
+            userId: world.userId,
+            overrideRuntimeId: NATIVE_AI_RUNTIME,
+            overrideModelId: null,
+         }),
+         (error: unknown) =>
+            error instanceof AiRuntimeSelectionError && error.code === 'AI_RUNTIME_NOT_CONNECTED'
+      );
    });
 
    test('disconnect returns active runs and clears the personal default', async () => {

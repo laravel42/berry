@@ -13,7 +13,8 @@ import { InvalidTransition, canTransition, type IssueRepository } from '../core/
 import { withinTx, type Sql } from '../db/pool.ts';
 import { ApiError } from '../http/errors.ts';
 import { notifyApprovalRequested } from '../approvals/notify.ts';
-import { enqueueTask } from '../runs/queue.ts';
+import { enqueueTask, EnqueueRejected } from '../runs/queue.ts';
+import { AiRuntimeSelectionError } from '../runtime/ai-runtimes.ts';
 import { inheritedProject, taskOf } from '../runtime/agent-tools/core-tools.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from '../runtime/agent-tools/registry.ts';
 import { ActiveRunExists } from '../runs/repository.ts';
@@ -219,7 +220,6 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
             .max(20_000)
             .optional()
             .describe('Context for the assignee, posted on the task as your comment and given to its run.'),
-         start: z.boolean().default(true).describe('False assigns without starting a run.'),
       }),
       handler: async (context, input) => {
          const caller = await requireContract(context);
@@ -312,8 +312,7 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
 
          let runId: string | null = null;
          let note: string | null = null;
-         if (!input.start) note = 'assigned without starting';
-         else if (waiting) note = `waits for ${waitingOn.map((row) => row.identifier).join(', ')} to finish`;
+         if (waiting) note = `waits for ${waitingOn.map((row) => row.identifier).join(', ')} to finish`;
          else if (escalation) note = 'blocked on a pending escalation until a person answers it';
          else if (next !== 'todo' && next !== 'in_progress') note = `not started: the task is ${next}`;
          else {
@@ -331,8 +330,13 @@ export function registerOrganizationTools(deps: OrganizationToolDeps): void {
                   ...(requestedBy ? { requestedBy } : {}),
                }));
             } catch (error) {
-               if (!(error instanceof ActiveRunExists)) throw error;
-               note = 'a run is already in progress on this task';
+               if (error instanceof ActiveRunExists) {
+                  note = 'a run is already in progress on this task';
+               } else if (error instanceof AiRuntimeSelectionError || error instanceof EnqueueRejected) {
+                  note = error.message;
+               } else {
+                  throw error;
+               }
             }
          }
          return {

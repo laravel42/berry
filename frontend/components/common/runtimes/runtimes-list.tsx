@@ -17,29 +17,15 @@ import type { StatusLook } from '@/lib/catalog';
 import {
    connectAiRuntime,
    disconnectAiRuntime,
-   formatSeconds,
-   listRuntimes,
    loadAiRuntimeCatalog,
-   runtimeHealth,
    type AiRuntimeDefinition,
-   type Runtime,
-   type RuntimeHealth,
 } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import { Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-
-const HEALTH_LOOK: Record<RuntimeHealth, Omit<StatusLook, 'label'>> = {
-   online: { tone: 'complete', state: 'solid' },
-   unchecked: { tone: 'neutral', state: 'hollow' },
-   recentlyLost: { tone: 'attention', state: 'hollow', pulse: true },
-   offline: { tone: 'danger', state: 'solid' },
-   longOffline: { tone: 'danger', state: 'crossed' },
-   disabled: { tone: 'neutral', state: 'crossed' },
-};
+import { RuntimeProviderBadge } from './runtime-provider-badge';
 
 const CATALOG_TONE = {
    connected: { tone: 'complete', state: 'solid' },
@@ -92,6 +78,7 @@ function RuntimeRow({
       <SettingsRow
          title={
             <span className="flex flex-wrap items-center gap-2">
+               <RuntimeProviderBadge runtimeId={runtime.id} size="md" title={runtime.name} />
                {runtime.name}
                <StatusBadge look={look} />
             </span>
@@ -120,7 +107,6 @@ function ConnectionBand({
    hintNone,
    hintSome,
    availableLine,
-   hostsLine,
 }: {
    loaded: boolean;
    connected: number;
@@ -129,7 +115,6 @@ function ConnectionBand({
    hintNone: string;
    hintSome: string;
    availableLine: string;
-   hostsLine: string;
 }) {
    const waiting = loaded && connected === 0;
    const tone = !loaded ? 'neutral' : waiting ? 'warning' : 'success';
@@ -168,19 +153,15 @@ function ConnectionBand({
          </div>
          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/70 pt-2 tabular-nums text-muted-foreground">
             <span>{availableLine}</span>
-            <span>{hostsLine}</span>
          </div>
       </section>
    );
 }
 
-/** AI products inside a compute host, followed by the existing compute-host registry. */
+/** Subscription AI products a person can connect on this workstation. */
 export default function RuntimesList() {
    const t = useTranslations('areas.runtimes');
    const catalog = useSettingsResource(loadAiRuntimeCatalog);
-   const hosts = useSettingsResource<Runtime[]>(listRuntimes);
-   const { orgId } = useParams<{ orgId: string }>();
-   const router = useRouter();
    const [query, setQuery] = useState('');
    const [filter, setFilter] = useState<CatalogFilter>('all');
    const [busy, setBusy] = useState<string | null>(null);
@@ -242,7 +223,7 @@ export default function RuntimesList() {
       <SettingsShell
          compact
          title="AI Runtimes"
-         description="Choose the agent or inference product used inside Berry’s execution host. Runtime identity, model provider, authentication, and billing stay separate."
+         description="A runtime is a coding-agent CLI already signed in on this computer. Connect one to give agents that subscription."
       >
          <ConnectionBand
             loaded={Boolean(catalog.value)}
@@ -252,7 +233,6 @@ export default function RuntimesList() {
             hintNone={t('bandHintNone')}
             hintSome={t('bandHintSome')}
             availableLine={t('bandAvailable', { count: availableCount })}
-            hostsLine={t('bandHosts', { count: hosts.value?.length ?? 0 })}
          />
 
          <SettingsSection panel title={t('catalogTitle')}>
@@ -297,7 +277,7 @@ export default function RuntimesList() {
             {catalog.loading && !catalog.value ? (
                <p className="text-muted-foreground">{t('catalogLoading')}</p>
             ) : null}
-            <SettingsCard>
+            <SettingsCard className="mt-4">
                {shown.map((runtime) => {
                   const state = catalogKey(runtime);
                   return (
@@ -324,57 +304,6 @@ export default function RuntimesList() {
                {catalog.value && shown.length === 0 ? (
                   <p className="px-4 py-3 text-muted-foreground">{t('catalogEmpty')}</p>
                ) : null}
-            </SettingsCard>
-         </SettingsSection>
-
-         <SettingsSection panel title={t('hostsTitle')}>
-            <p className="text-muted-foreground">{t('hostsDescription')}</p>
-            <SettingsCard>
-               {hosts.error ? <p className="p-4 text-status-danger">{hosts.error}</p> : null}
-               {hosts.loading && !hosts.value ? (
-                  <p className="p-4 text-muted-foreground">{t('hostsLoading')}</p>
-               ) : null}
-               {hosts.value?.length === 0 ? (
-                  <p className="p-4 text-muted-foreground">{t('hostsEmpty')}</p>
-               ) : null}
-               {hosts.value?.map((runtime) => {
-                  const health = runtimeHealth(runtime);
-                  const look = HEALTH_LOOK[health];
-                  const seen = runtime.lastHealthAt
-                     ? t('lastSeen', { when: new Date(runtime.lastHealthAt).toLocaleString() })
-                     : health === 'unchecked'
-                       ? null
-                       : t('neverSeen');
-                  return (
-                     <SettingsRow
-                        key={runtime.id}
-                        title={
-                           <span className="flex flex-wrap items-center gap-2">
-                              {runtime.name}
-                              {runtime.isDefault && runtime.name.toLowerCase() !== 'default' ? (
-                                 <span className="text-muted-foreground">{t('defaultHost')}</span>
-                              ) : null}
-                              <StatusBadge look={{ ...look, label: t(`health.${health}`) }} />
-                           </span>
-                        }
-                        description={
-                           <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                              {t('active', { count: runtime.activeRuns })}
-                              {seen ? (
-                                 <>
-                                    <span aria-hidden>·</span>
-                                    {seen}
-                                 </>
-                              ) : null}
-                              <span aria-hidden>·</span>
-                              {`idle ${formatSeconds(runtime.idleTimeoutS)} · life ${formatSeconds(runtime.maxLifetimeS)}`}
-                           </span>
-                        }
-                        chevron
-                        onClick={() => router.push(`/${orgId}/settings/runtimes/${runtime.id}`)}
-                     />
-                  );
-               })}
             </SettingsCard>
          </SettingsSection>
 

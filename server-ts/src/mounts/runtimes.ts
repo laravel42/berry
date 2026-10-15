@@ -17,7 +17,6 @@ import {
    AiRuntimeRepository,
    AiRuntimeSelectionError,
    emptyAgentTiers,
-   NATIVE_AI_RUNTIME,
    RUNTIME_AGENT_TIERS,
 } from '../runtime/ai-runtimes.ts';
 import {
@@ -280,12 +279,6 @@ export function runtimeMounts(options: {
             connection: byRuntime.get(definition.id) ?? null,
          })),
          preference,
-         native: {
-            id: NATIVE_AI_RUNTIME,
-            name: 'Berry managed',
-            billing: 'api_billing',
-            description: 'The deployment’s existing Bedrock or Kilo model path.',
-         },
       });
    });
 

@@ -279,8 +279,10 @@ export class AiRuntimeRepository {
          // Migration 220 permits only one active connection per runtime. Until
          // distinct companion rows are supported, reject cross-host replacement
          // instead of silently retargeting Settings or cancelling its active runs.
-         const incomingCompanion = input.metadata?.companionId;
-         if (current.some(row => row.metadata.companionId !== incomingCompanion)) {
+         const isCompanion = (metadata: Record<string, unknown> | undefined): boolean =>
+            metadata?.host === 'vscode' || typeof metadata?.companionId === 'string';
+         const incomingCompanion = isCompanion(input.metadata);
+         if (current.some(row => isCompanion(row.metadata) !== incomingCompanion)) {
             throw new AiRuntimeSelectionError('AI_RUNTIME_UNAVAILABLE',
                'A separate companion connection is required. This runtime is already connected on another host; it has not been replaced.');
          }
@@ -720,8 +722,8 @@ export function firstConnectedPlacement(
 
 /**
  * The runtime a completion should use: the first connected model on the
- * Orchestrator's selected tier. Empty when the tier has none, so the call
- * stays on the deployment model.
+ * agent's selected tier. Throws when the tier has none: completions do not
+ * fall back to a native model.
  */
 export async function resolveCompletionRuntime(
    sql: Sql,
@@ -731,7 +733,7 @@ export async function resolveCompletionRuntime(
    const [row] = await sql<Array<Record<string, string[]>>>`
       SELECT berry_max, berry_xhigh, berry_high, berry_mid, berry_low FROM workspace_tier_models
        WHERE workspace_id = ${input.workspaceId}`;
-   if (!row) return emptySelection();
+   if (!row) requireSubscription();
    for (const entry of stringList(row[tier])) {
       const placed = splitPlacedModel(entry);
       if (!placed) continue;
@@ -739,7 +741,7 @@ export async function resolveCompletionRuntime(
       if (!picked) continue;
       return snapshot(picked, placed.modelId, null);
    }
-   return emptySelection();
+   requireSubscription();
 }
 
 function agentName(value: string | null | undefined): string | null {
@@ -838,13 +840,11 @@ export const SUBSCRIPTION_DEFAULT_MODEL = 'default';
 /**
  * Resolves and snapshots the AI runtime an agent run will execute on.
  *
- * `berry-native` opts this one task back onto Bedrock or Kilo. Otherwise a
- * connected subscription wins: the task override, then the project's
- * runtime, then that person's preference, then the first connected model
- * on the agent's tier, then their newest connection, then any connected
- * runtime in the workspace. Agent work therefore stays off the deployment's
- * API bill once someone has connected a runtime. A missing connection still
- * does not fall through to Kilo after a subscription was selected.
+ * `berry-native` is refused: there is no native model provider. A connected
+ * subscription wins: the task override, then the project's runtime, then
+ * that person's preference, then the first connected model on the agent's
+ * tier, then their newest connection, then any connected runtime in the
+ * workspace. A missing connection does not fall through to a native model.
  */
 export async function resolveAiRuntimeSelection(
    sql: Sql,
@@ -889,7 +889,7 @@ export async function resolveAiRuntimeSelection(
       }
    }
    if (runtimeId === NATIVE_AI_RUNTIME) {
-      return emptySelection();
+      requireSubscription();
    }
    if (runtimeId !== null && !isAiRuntimeId(runtimeId)) {
       throw new AiRuntimeSelectionError('AI_RUNTIME_UNKNOWN', `Unknown AI runtime ${runtimeId}.`);
@@ -918,7 +918,7 @@ export async function resolveAiRuntimeSelection(
             `Connect ${requireRuntime(runtimeId).name} before running this task.`
          );
       }
-      return emptySelection();
+      requireSubscription();
    }
    return snapshot(
       picked,
@@ -947,16 +947,11 @@ async function projectRuntimeForIssue(
    return { runtimeId: row.ai_runtime_key, modelId: row.ai_model_id, agentId: row.ai_runtime_agent };
 }
 
-function emptySelection(): ResolvedAiRuntimeSelection {
-   return {
-      runtimeId: null,
-      modelId: null,
-      agentId: null,
-      connectionId: null,
-      userId: null,
-      accountId: null,
-      accountName: null,
-   };
+function requireSubscription(): never {
+   throw new AiRuntimeSelectionError(
+      'AI_RUNTIME_NOT_CONNECTED',
+      'Connect a subscription AI runtime before running this task.'
+   );
 }
 
 function snapshot(
@@ -997,7 +992,7 @@ function modelOf(metadata: unknown, definition: AiRuntimeDefinition): string {
 }
 
 /**
- * The connection that should take agent work off Bedrock/Kilo.
+ * The connection that should take agent work.
  *
  * The authorizing person's own connection comes first. Unattended and
  * delegated work then uses the workspace's newest connected runtime, so a

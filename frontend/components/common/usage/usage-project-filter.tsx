@@ -47,11 +47,10 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
             {/* The list toolbars' button (Projects: Filter, Sort, Display), with
                 the Projects rail icon. */}
             <Button
-               size="xs"
                variant="outline"
                role="combobox"
                aria-label={`${t('project')}: ${chosen ? chosen.name : t('allProjects')}`}
-               className="h-9 max-w-56 border-muted-foreground/15"
+               className="max-w-56 border-muted-foreground/15"
             >
                <Box className="size-4" />
                <span className="truncate">{chosen ? chosen.name : t('allProjects')}</span>

@@ -78,7 +78,7 @@ export async function seedWorkspaceDefaults(
             ${workspaceId}, ${skill.name}, ${skill.description}, ${skill.content}, ${skill.labels},
             'zip', 'seed://berry-agentcore-deep-skills-100', ${now}, NULL, ${now}, ${now}
          )
-         ON CONFLICT (workspace_id, name) DO NOTHING
+         ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO NOTHING
          RETURNING 1`;
       added += inserted.length;
    }
@@ -175,7 +175,7 @@ export async function ensureCapabilitySkills(
                ${workspaceId}, ${capability}, ${description}, ${content}, ${[agent.name]},
                'manual', 'seed://role-capability', ${now}, NULL, ${now}, ${now}
             )
-            ON CONFLICT (workspace_id, name) DO NOTHING`;
+            ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO NOTHING`;
          const [skill] = await q<Array<{ id: string }>>`
             SELECT id FROM skills WHERE workspace_id = ${workspaceId} AND name = ${capability}`;
          if (!skill) continue;

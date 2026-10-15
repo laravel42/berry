@@ -69,7 +69,7 @@ describe('organization limits', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
 
    test('a task sent back once is ordinary; two roles passing it back and forth are stopped', async () => {
       const bounced = await task('Bounced', 'backend-engineer');
-      const assign = (from: string, to: string) => getAgentTool('assign_task')!.run(context(from, bounced.id), { task: bounced.identifier, role: to, start: false });
+      const assign = (from: string, to: string) => getAgentTool('assign_task')!.run(context(from, bounced.id), { task: bounced.identifier, role: to });
       assert.equal((await assign('backend-engineer', 'qa-engineer')).ok, true);
       assert.equal((await assign('qa-engineer', 'backend-engineer')).ok, true, 'sent back once');
       await assert.rejects(assign('backend-engineer', 'qa-engineer'), /back and forth between the same roles/);

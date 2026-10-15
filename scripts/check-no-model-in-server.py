@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Fail when the Berry server process could reach a model provider.
 
-Bedrock is reached only from inside AgentCore Runtime (ADR-0014). The loop and
-its tools live under server-ts/src/agents/runtime/, which is what the runtime
-image ships; nothing else in server-ts/src may import a model SDK, and no
-package.json in the repository may depend on a provider SDK at all.
+Berry is the control plane (ADR-0014). Model calls belong to subscription
+CLIs on the workstation. The Strands loop lives under
+server-ts/src/agents/runtime/ for the AgentCore / HTTP image; nothing else
+in server-ts/src may import a model SDK, and no package.json in the
+repository may depend on a provider SDK at all.
 """
 
 from __future__ import annotations
@@ -33,14 +34,12 @@ FORBIDDEN_IMPORTS = (
     "groq-sdk",
     "ollama",
 )
-# The model catalogue lists foundation models (a control-plane read); it never
-# invokes one. Anything else under the bedrock control plane is refused.
-CONTROL_PLANE_ALLOWED = {"server-ts/src/agents/catalog.ts": ("@aws-sdk/client-bedrock",)}
-# The runtime image reaches the Kilo gateway through the agent SDK's OpenAI
-# model and GitHub Copilot through its official agent-process SDK. Both stay
-# in the runtime tree; the image is built from server-ts/package.json.
+# No control-plane file may import a model SDK.
+CONTROL_PLANE_ALLOWED: dict[str, tuple[str, ...]] = {}
+# GitHub Copilot's agent-process SDK stays in the runtime tree when present;
+# the image is built from server-ts/package.json.
 RUNTIME_PROVIDER_ALLOWED = {
-    "server-ts/package.json": {"dependencies": ("@github/copilot-sdk", "openai")}
+    "server-ts/package.json": {"dependencies": ("@github/copilot-sdk",)}
 }
 PROVIDER_PACKAGES = re.compile(
     r"^(openai|ai|@anthropic-ai/.*|@github/copilot-sdk|@ai-sdk/.*|@google/genai|@google/generative-ai|"

@@ -10,7 +10,7 @@ import {
 import { toAgentName } from './agent-name.ts';
 import { BerryRetryStrategy } from './failure.ts';
 import { FallbackModel } from './fallback-model.ts';
-import { bedrockModel, type AwsCredentials, type ModelFactory, type ModelSpec } from './model.ts';
+import { nativeModelUnavailable, type AwsCredentials, type ModelFactory, type ModelSpec } from './model.ts';
 
 /**
  * The agent for one run, built in one place.
@@ -80,7 +80,7 @@ export class DeepCutConversationManager extends SlidingWindowConversationManager
    }
 }
 
-export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = bedrockModel): Agent {
+export function buildRunAgent(spec: RunAgentSpec, modelFactory: ModelFactory = nativeModelUnavailable): Agent {
    const modelSpec: ModelSpec = {
       model: spec.model,
       region: spec.region,

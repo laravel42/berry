@@ -194,7 +194,7 @@ export function ReviewDecisionBar({
       <Button
          size="xs"
          variant="default"
-         className="h-9 w-[42px] px-0"
+         className="w-[42px] px-0"
          disabled={pending !== null}
          aria-busy={pending === 'approve' || undefined}
          aria-label={t('decision.approve')}
@@ -212,7 +212,7 @@ export function ReviewDecisionBar({
       <Button
          size="xs"
          variant="secondary"
-         className="h-9 w-[42px] px-0"
+         className="w-[42px] px-0"
          disabled={pending !== null}
          aria-busy={pending === 'send-back' || undefined}
          aria-label={t('decision.sendBack')}

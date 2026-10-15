@@ -116,11 +116,12 @@ streams lifecycle events (`task.started`, `task.message`, `task.usage`, `task.co
 Berry exclusively through `/api/v1/agent-tools/*` with a short-lived, task-scoped token —
 never through the database directly.
 
-For native/API agent execution, you need:
+For agent execution, connect a subscription AI runtime (Kiro, Claude Code,
+Codex, or another workstation CLI) and place its models on Berry tiers in
+Settings → Model tiers. AgentCore is the AWS compute host for the
+runtime image, not a model provider:
 
-- AWS credentials for Bedrock and AgentCore — either a `BERRY_BEDROCK_*` /
-  `BERRY_AGENTCORE_*` key pair, or the default AWS credential chain, plus a region.
-- A deployed runtime image. `server-ts/sandbox/agentcore/deploy.sh` builds it, pushes it
+- A deployed runtime image, if you use AgentCore. `server-ts/sandbox/agentcore/deploy.sh` builds it, pushes it
   to ECR and publishes it as an AgentCore Runtime; it needs account-owner AWS credentials
   and Docker buildx on the machine running it. Point `BERRY_AGENTCORE_RUNTIME_ARN` at the
   ARN it prints. (Alternatively, set `BERRY_AGENT_RUNTIME_URL` to call the same image over
@@ -130,24 +131,11 @@ For native/API agent execution, you need:
 - `S3_BUCKET` so a run's files have somewhere to land, and `INTEGRATION_ENCRYPTION_KEY`
   if the run needs GitHub or plugin credentials.
 
-By default the runtime calls Bedrock itself, on the agent's model or
-`BERRY_AGENT_DEFAULT_MODEL` (a Bedrock inference profile). To go through the Kilo AI
-gateway instead ([ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md)), set
-`BERRY_MODEL_PROVIDER=kilo` and `BERRY_KILO_API_KEY` on both the server and the runtime
-(`deploy.sh` passes them to AgentCore). Agents then run on a Berry tier rather than a
-fixed model: BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow, three models each. Each role has a
-default tier, and an agent can be moved to another tier on its page. Berry refills the
-tiers hourly from Terminal-Bench ratings and Kilo's prices, so which models a tier holds
-changes over time; `BERRY_KILO_MAX`, `_XHIGH`, `_HIGH`, `_MID` and `_LOW` fix a tier's models instead. The
-tiers use the models your own provider key added to the Kilo account serves, such as
-your Bedrock key, unless `BERRY_KILO_ANY_PROVIDER=true` — and a run's cost is exactly
-what Kilo reports for it. The
-`BERRY_BEDROCK_*` settings stay in use for speech and video either way.
-When a Kiro subscription is connected, agent runs use that instead, and
-Settings → Model tiers places Kiro's models on the same tiers. The
-same model may sit on more than one tier. Kiro runs as `kiro-cli` on this
-workstation; it does not run in the runtime image and it does not give Berry
-a container per model.
+There is no native Bedrock or Kilo model path. Completions and agent runs
+fail until a subscription is connected. Tiers remain: each agent is on
+BerryMax, BerryXHigh, BerryHigh, BerryMid or BerryLow, and a run uses the
+first connected model on that tier unless the task names one. Kiro runs as
+`kiro-cli` on this workstation; it does not run in the runtime image.
 
 Without a runtime target, `agentExecution` reports `false` in `GET /api/v1/config` and
 the dispatcher, scheduler and review gate simply do not start — the rest of Berry works

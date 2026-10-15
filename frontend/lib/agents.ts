@@ -336,7 +336,7 @@ export const RETIRED_TIER_NAMES: Record<string, string> = {
 
 /** A tier's chip colours, from the same status tokens as the autonomy level chips. */
 export const TIER_STYLE: Record<Tier, string> = {
-   berry_max: 'border-primary/40 bg-primary/10 text-primary',
+   berry_max: 'border-primary/40 bg-primary/10 text-primary-text',
    berry_xhigh: 'border-status-warning/40 bg-status-warning/10 text-status-warning',
    berry_high: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
    berry_mid: 'border-status-info/40 bg-status-info/10 text-status-info',
@@ -355,7 +355,7 @@ export const MAIN_TIERS = [
 /**
  * How a tier spreads its tasks over its models, best first: each task (an
  * agent on an issue) keeps one of the top three, picked 3:2:1 by rank.
- * Mirrors `RANK_WEIGHTS` in server-ts/src/agents/kilo/tiers.ts.
+ * How a tier used to spread tasks over leaderboard models. Kept for the Usage page.
  */
 const RANK_WEIGHTS = [3, 2, 1] as const;
 

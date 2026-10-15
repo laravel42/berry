@@ -22,7 +22,7 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 7. **The product server does not call a model.** Model and agent SDK imports remain under `server-ts/src/agents/runtime/`. The product server stores catalog facts and selections, creates envelopes, and records normalized lifecycle events. Kiro is started on the workstation by that server; the runtime image's adapter registry stays empty.
 8. **Preserve agent semantics.** A direct-inference adapter and an agent-process adapter implement different interfaces. Agent-process adapters stream tool and execution events and retain their own session/cancellation semantics instead of being flattened into text generation.
 9. **Executable adapter: Kiro.** Kiro's official headless credential is a paid-plan API key. Berry seals that key, gives each run an empty CLI home, and passes the key only into that process. Kiro's own shell and file tools are denied. Berry tools are the only MCP server it may call. `kiro-cli` runs on the user workstation, started by the Berry server as its own process, with `acp --agent-engine=v3`. It is not bundled and it is not started inside the runtime container. GitHub Copilot is not a Berry runtime. GitHub sign-in and the GitHub App stay for identity and repository access.
-10. **Catalog unavailable honestly.** Every requested product appears in the catalog. An item without a supported Berry execution/authentication boundary is unavailable with a concrete reason and official evidence. A known protocol with no safe credential path is not a working integration.
+10. **Catalog lists only connectable runtimes.** Settings shows a product when Berry can start its official child on a CLI-owned login. A known protocol with no safe credential path is omitted until that adapter is live, not shown as a blocked placeholder.
 
 ## Current state (2026-10-14)
 
@@ -33,6 +33,9 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 - `cwd` is the unique open folder whose remote matches the task project's `githubRepo`, case-insensitively. Without a repository, exactly one open folder is required. Ambiguity fails with instructions to open the project folder. The companion never clones, zips or creates another checkout; changes stay in the person's folder for review. See [the transport contract](../api/gateway-v1.md#desktop-companion-pull-transport).
 
 - Distinct simultaneous Settings and companion connections remain unsupported by migration 220's unique active-connection index. Cross-host connection attempts fail without replacing the existing connection. Changing that index requires a forward migration outside the current no-migration scope.
+- Native Bedrock and Kilo are gone. Agent runs and completions require a connected subscription. `berry-native` is refused.
+- Completions use the first connected model on the agent's selected tier. With none placed, they fail.
+- The catalog is Kiro, Claude, Codex, Cursor, Kimi, Grok, and Qoder. OpenCode, OpenClaw, Hermes, Pi, Antigravity, Trae, and Qwen are omitted until their adapters ship.
 
 ## Historical current state (2026-10-08)
 
@@ -45,14 +48,14 @@ A consumer subscription also is not an API entitlement. Several official CLIs ca
 
 For an agent run:
 
-1. task or conversation override, including an explicit Berry-managed (`berry-native`) opt-out;
+1. task or conversation override (`berry-native` is refused);
 2. the task's project runtime, when the task itself has none;
 3. the authorizing person's workspace preference;
-4. that person's newest connected subscription runtime;
-5. the workspace's newest connected subscription runtime;
-6. Berry's native Strands runtime on the deployment's Bedrock or Kilo configuration, only when nothing is connected.
+4. the first connected model on the agent's tier;
+5. that person's newest connected subscription runtime;
+6. the workspace's newest connected subscription runtime.
 
-An explicit non-native selection must have a connected runtime in the workspace. Step 6 is the absence of a subscription, not a fallback after one fails.
+An explicit selection must have a connected runtime in the workspace. There is no native fallback.
 
 ## Adapter contract
 

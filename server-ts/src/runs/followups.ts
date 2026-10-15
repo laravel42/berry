@@ -7,8 +7,8 @@ import { ActiveRunExists } from './repository.ts';
 export async function scheduleReview(sql: Sql, runId: string): Promise<void> {
    // A task without AutoGate waits for a person. Scheduling the review and
    // then skipping it still showed up as a peer review on a task whose gate
-   // had been turned off. A task its agent blocked during the run stays
-   // blocked when the run succeeds, so there is nothing to review.
+   // had been turned off. A task still held (dependency, escalation, child)
+   // stays blocked when the run succeeds, so there is nothing to review.
    const [issue] = await sql<Array<{ auto_gate: boolean; status: string }>>`
       SELECT issue.auto_gate, issue.status::text AS status
         FROM runs AS run

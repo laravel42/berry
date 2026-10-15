@@ -1,6 +1,7 @@
 import { withinTx, type Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import { retryAfterFault } from './continuation.ts';
+import { pickupReadyAgentTasks } from './pickup.ts';
 
 /**
  * What turns a queued run into a running one.
@@ -256,9 +257,26 @@ export class Dispatcher {
     */
    async tick(): Promise<void> {
       await this.sweep();
+      await this.#pickup();
       const free = this.#concurrency - this.#inflight.size;
       if (free > 0) {
          for (const runId of await this.#claim(free)) this.#start(runId);
+      }
+   }
+
+   /**
+    * An agent-assigned task in todo with no run is work that was handed over
+    * and never admitted. Assignment is supposed to start it; this is what
+    * starts it when that step was skipped, so the claim below has a row.
+    */
+   async #pickup(): Promise<void> {
+      try {
+         await pickupReadyAgentTasks(this.#sql, {
+            workspaceIds: this.#workspaceIds,
+            limit: this.#concurrency,
+         });
+      } catch (error) {
+         this.#logger.error('could not admit ready assigned tasks', { error: message(error) });
       }
    }
 

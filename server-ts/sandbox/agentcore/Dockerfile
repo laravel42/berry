@@ -128,20 +128,17 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /opt/berry
 COPY package.json pnpm-lock.yaml ./
-# The loop loads the SDK, zod, the OpenAI client and three AWS clients. The
-# rest of this manifest is the API (database, auth, control-plane clients).
-# pnpm would also install the SDK's optional peers, including a local model
-# runtime and its parsers, which this process never imports. Required peers
-# stay; the lockfile still pins every version.
+# The loop loads the Strands SDK, zod, and S3 for artifacts. The rest of this
+# manifest is the API (database, auth, control-plane clients). Native Bedrock
+# and Kilo clients are gone. pnpm would also install the SDK's optional peers,
+# including a local model runtime and its parsers, which this process never
+# imports. Required peers stay; the lockfile still pins every version.
 RUN node <<'EOF'
 const fs = require('node:fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const keep = [
-   '@aws-sdk/client-bedrock-runtime',
-   '@aws-sdk/client-polly',
    '@aws-sdk/client-s3',
    '@strands-agents/sdk',
-   'openai',
    'zod',
 ];
 const dependencies = {};

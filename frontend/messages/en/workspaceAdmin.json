@@ -170,7 +170,7 @@
    },
    "modelTiers": {
       "title": "Model tiers",
-      "description": "The models each tier runs in this workspace, first choice first. A task starts on a tier's first model and moves down the list only when its work is rejected. The leaderboard fills any place left empty.",
+      "description": "The models each tier runs in this workspace, first choice first. Connect a subscription AI runtime, then place its models on each tier.",
       "subscriptionDescription": "Choose models from {runtimes} for each tier. The tiers are the same for the whole workspace.",
       "agentsTitle": "Agents",
       "agentsHint": "An agent is on one tier. Several agents can share a tier.",
@@ -180,7 +180,7 @@
       "agentsSaved": "Tier agents saved.",
       "modelsTitle": "Models",
       "noAgents": "This runtime has not reported any agents.",
-      "gatewayOff": "Tiers apply when agents run through the Kilo gateway. This server calls Bedrock directly, so each agent runs on its own model or the server default. Set BERRY_MODEL_PROVIDER=kilo and BERRY_KILO_API_KEY to use tiers.",
+      "gatewayOff": "Connect a subscription AI runtime in Settings → AI Runtimes, then place its models on each tier. Agent runs and completions use those subscriptions only.",
       "loading": "Loading…",
       "sourceWorkspace": "This workspace uses its own placement.",
       "sourceDeployment": "This workspace uses the server's default placement.",

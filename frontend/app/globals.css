@@ -12,40 +12,50 @@
    /* The body size. 13px with 1.2 line spacing, per the house style; every
       other step below keeps its own measure. */
    --text-xs: 0.8125rem;
-   --text-xs--line-height: 1.2;
+   --text-xs--line-height: 1.45;
    --text-sm: 0.8125rem;
-   --text-sm--line-height: 1.25rem;
-   --text-base: 0.875rem;
-   --text-base--line-height: 1.25rem;
-   --text-lg: 1rem;
-   --text-lg--line-height: 1.5rem;
-   --text-xl: 1.125rem;
-   --text-xl--line-height: 1.5rem;
-   --text-2xl: 1.25rem;
-   --text-2xl--line-height: 1.625rem;
-   --text-3xl: 1.5rem;
-   --text-3xl--line-height: 1.75rem;
+   --text-sm--line-height: 1.45;
+   --text-base: 0.9375rem;
+   --text-base--line-height: 1.4;
+   --text-lg: 1.0625rem;
+   --text-lg--line-height: 1.35;
+   --text-xl: 1.375rem;
+   --text-xl--line-height: 1.3;
+   --text-2xl: 1.375rem;
+   --text-2xl--line-height: 1.3;
+   --text-3xl: 1.75rem;
+   --text-3xl--line-height: 1.2;
    --text-4xl: 1.75rem;
-   --text-4xl--line-height: 2rem;
+   --text-4xl--line-height: 1.2;
 }
 
 :root {
    color-scheme: light;
 
-   --brand-void: #18181b;
-   --brand-base: #1a1a1d;
+   /* Surfaces, text, accent and status from Berry components v1. */
+   --brand-void: #111113;
+   --brand-base: #19191c;
    --brand-ember: #1c1811;
    --brand-thicket: #151917;
    --brand-deep: #121820;
    --brand-ripe: oklch(70% 0.13 85);
-   --brand-chalk: #f8f8f4;
-   --brand-ash: #a8a6a6;
-   --brand-slate: #6a6767;
-   --brand-hairline: #26262b;
+   --brand-chalk: #f2f0ed;
+   --brand-body: #d6d4d1;
+   --brand-ash: #a9a7ad;
+   --brand-slate: #76747b;
+   --brand-hairline: #2a2a2f;
    --brand-berry: #c74a5e;
-   --brand-amber: #d9a441;
-   --brand-verdant: #4f9f7a;
-   --brand-azure: #5a92c9;
+   --brand-berry-hover: #d55a6e;
+   --brand-amber: #e0a84a;
+   --brand-verdant: #5fb08a;
+   --brand-azure: #6ea0d8;
+   --brand-danger: #e0645a;
+   --brand-urgent: #d9584f;
+   --control-height: 30px;
+   --row-height: 40px;
+   --toolbar-height: 52px;
+   --subtoolbar-height: 44px;
+   --radius-control: 7px;
 
    /* --- Application shell (Berry Prototype.dc.html) -------------------------
       The shell is dark in both themes. It is chrome, not content: the tab
@@ -57,19 +67,18 @@
       take the darker value and the content canvas the lighter one, so the
       workspace reads as lit and its chrome recedes. */
    --shell-rail: #111113;
-   --shell-canvas: #18181b;
-   --shell-surface: #1a1a1d;
-   --shell-hover: #222226;
-   --shell-line: #26262b;
-   --shell-line-strong: #3a3a40;
-   --shell-text: #f0edea;
-   --shell-text-muted: #a8a6ac;
-   /* Section headings and quiet captions on the rail. 5.4:1 on --shell-rail
-      and 5.0:1 on --shell-surface; the prototype's #6b6a70 read at 3.5:1,
-      which is below the 4.5:1 floor for text at this size. */
-   --shell-text-dim: #8a898f;
-   --shell-text-faint: #4a4a50;
+   --shell-canvas: #19191c;
+   --shell-surface: #19191c;
+   --shell-hover: #1f1f23;
+   --shell-line: #242428;
+   --shell-line-strong: #2e2e33;
+   --shell-text: #f2f0ed;
+   --shell-text-muted: #a9a7ad;
+   --shell-text-dim: #76747b;
+   --shell-text-faint: #55545a;
    --shell-accent: var(--brand-berry);
+   --segment-track: #222226;
+   --segment-selected: #303035;
 
    /* Detail drawers never exceed this, regardless of viewport. Past roughly
       this width a drawer stops reading as a panel over the workspace and
@@ -80,14 +89,17 @@
 
    --background: #f4f2ec;
    --foreground: var(--brand-void);
-   /* Default placeholder colour; see the unlayered input rules below. */
-   --placeholder-default: color-mix(in oklab, var(--foreground) 40%, transparent);
+   /* Solid ink, not a faded --foreground: a 40% mix sat at 2.5:1 on this card. */
+   --placeholder: var(--brand-slate);
    --container: #fdfcf8;
    --card: #fdfcf8;
    --card-foreground: var(--brand-void);
    --popover: #ffffff;
    --popover-foreground: var(--brand-void);
    --primary: var(--brand-berry);
+   --primary-hover: var(--brand-berry-hover);
+   /* Darker berry for links and chips; #C74A5E on this card is 4.5:1. */
+   --primary-text: #9b3344;
    --primary-foreground: #ffffff;
    --secondary: #e9e6de;
    --secondary-foreground: var(--brand-void);
@@ -117,12 +129,12 @@
    --chart-3: var(--brand-verdant);
    --chart-4: var(--brand-amber);
    --chart-5: var(--brand-slate);
-   --radius: 0.625rem;
+   --radius: 10px;
    /* Flat and theme-independent, like the shell: the board's cards are dark in
       both themes, and the column previously resolved 80% zinc over the page,
       which put mid-grey behind dark cards in light mode. Stated once here with
       no `.dark` counterpart, so the two cannot drift. */
-   --board-column-body: #19191d;
+   --board-column-body: #19191c;
    /* Edge of a card sitting in a board column: the column lifted a step, so it
       reads as a seam rather than a line of its own. White goes last on
       purpose -- where `color-mix` is unsupported the declaration degrades to
@@ -159,50 +171,48 @@
 .dark {
    color-scheme: dark;
 
-   --background: var(--brand-void);
-   --foreground: var(--brand-chalk);
-   --container: var(--brand-base);
-   --card: var(--brand-base);
-   --card-foreground: var(--brand-chalk);
-   --popover: #1e1e21;
-   --popover-foreground: var(--brand-chalk);
+   --background: #111113;
+   --foreground: #f2f0ed;
+   --container: #19191c;
+   --card: #202024;
+   --card-foreground: #f2f0ed;
+   --popover: #19191c;
+   --popover-foreground: #f2f0ed;
    --primary: var(--brand-berry);
+   --primary-hover: var(--brand-berry-hover);
    --primary-foreground: #ffffff;
-   --secondary: var(--brand-hairline);
-   --secondary-foreground: var(--brand-chalk);
+   --placeholder: #6a6970;
+   --primary-text: #e07a8b;
+   --secondary: #26262b;
+   --secondary-foreground: #f2f0ed;
    --muted: #202024;
-   --muted-foreground: var(--brand-ash);
-   --subtle-foreground: var(--brand-ash);
-   --accent: #252529;
-   --accent-foreground: var(--brand-chalk);
-   /* A filled destructive button carries chalk text; 0.62 lightness put that
-      pair at 3.7:1, this sits at 4.9:1. Danger *text* on dark surfaces uses
-      --status-danger below, which stays lighter. */
-   --destructive: oklch(0.55 0.16 28);
-   --destructive-foreground: var(--brand-chalk);
-   --border: var(--brand-hairline);
-   --input: #35353b;
-   --ring: var(--brand-azure);
+   --muted-foreground: #a9a7ad;
+   --subtle-foreground: #76747b;
+   --accent: #1f1f23;
+   --accent-foreground: #f2f0ed;
+   --destructive: var(--brand-danger);
+   --destructive-foreground: #ffffff;
+   --border: #242428;
+   --input: #2e2e33;
+   --ring: var(--brand-berry);
    --status-success: var(--brand-verdant);
    --status-warning: var(--brand-amber);
-   --status-danger: oklch(0.68 0.15 28);
+   --status-danger: var(--brand-danger);
    --status-info: var(--brand-azure);
-   /* Ash, not slate: neutral state is used as running text (cancelled runs,
-      paused autopilots) and slate on base is 3.1:1. */
-   --status-neutral: var(--brand-ash);
+   --status-neutral: #8e8c93;
    --actor-human: var(--brand-amber);
    --actor-agent: var(--brand-azure);
    --review-pending: var(--brand-amber);
    --review-approved: var(--brand-verdant);
-   --review-changes: oklch(0.68 0.15 28);
-   --sidebar: var(--brand-base);
-   --sidebar-foreground: var(--brand-chalk);
+   --review-changes: var(--brand-danger);
+   --sidebar: #111113;
+   --sidebar-foreground: #f2f0ed;
    --sidebar-primary: var(--brand-berry);
    --sidebar-primary-foreground: #ffffff;
-   --sidebar-accent: #252529;
-   --sidebar-accent-foreground: var(--brand-chalk);
-   --sidebar-border: var(--brand-hairline);
-   --sidebar-ring: var(--brand-azure);
+   --sidebar-accent: #1e1e22;
+   --sidebar-accent-foreground: #f2f0ed;
+   --sidebar-border: #222226;
+   --sidebar-ring: var(--brand-berry);
 }
 
 @theme inline {
@@ -213,7 +223,10 @@
    --color-popover: var(--popover);
    --color-popover-foreground: var(--popover-foreground);
    --color-primary: var(--primary);
+   --color-primary-hover: var(--primary-hover);
+   --color-primary-text: var(--primary-text);
    --color-primary-foreground: var(--primary-foreground);
+   --color-placeholder: var(--placeholder);
    --color-secondary: var(--secondary);
    --color-secondary-foreground: var(--secondary-foreground);
    --color-muted: var(--muted);
@@ -267,6 +280,8 @@
    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
    --color-sidebar-border: var(--sidebar-border);
    --color-sidebar-ring: var(--sidebar-ring);
+   --color-segment-track: var(--segment-track);
+   --color-segment-selected: var(--segment-selected);
    --color-container: var(--container);
    --color-board-column-body: var(--board-column-body);
    --color-column-tint-neutral: var(--column-tint-neutral);
@@ -286,6 +301,18 @@
       @apply border-border outline-ring/50;
    }
 
+   [data-chrome='toolbar'] {
+      height: var(--toolbar-height);
+   }
+
+   [data-chrome='subtoolbar'] {
+      height: var(--subtoolbar-height);
+   }
+
+   [data-chrome='row'] {
+      min-height: var(--row-height);
+   }
+
    /* --- Type scale ---------------------------------------------------------
       The element decides its size; a utility class never does. h1–h4 step
       down through the named scale and everything else — h5 and h6 included —
@@ -299,10 +326,7 @@
       --font-sans: var(--font-jetbrains-mono);
       --font-mono: var(--font-jetbrains-mono);
       --font-display: var(--font-jetbrains-mono);
-      /* 400, not the 300 that `font-normal` resolves to: this weight used to
-         ride along with `.text-xs` (below) on the elements that opted into the
-         small size. Now that text-xs is the body default, the weight it was
-         paired with has to move with it or every label in the app thins out. */
+      /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
       font-weight: 400;
       min-height: 100vh;
    }
@@ -314,18 +338,18 @@
       `color: var(--brand-base)`. Reading the tokens directly sidesteps the
       collision here and keeps all four rules in one shape. */
    h1 {
-      font-size: var(--text-xl);
-      line-height: var(--text-xl--line-height);
-   }
-
-   h2 {
       font-size: var(--text-lg);
       line-height: var(--text-lg--line-height);
    }
 
-   h3 {
+   h2 {
       font-size: var(--text-base);
       line-height: var(--text-base--line-height);
+   }
+
+   h3 {
+      font-size: var(--text-sm);
+      line-height: var(--text-sm--line-height);
    }
 
    h4 {
@@ -338,18 +362,18 @@
       step down, but an <input> cannot be an <h1>. The attribute borrows the
       size so the scale still has one home. */
    [data-heading='h1'] {
-      font-size: var(--text-xl);
-      line-height: var(--text-xl--line-height);
-   }
-
-   [data-heading='h2'] {
       font-size: var(--text-lg);
       line-height: var(--text-lg--line-height);
    }
 
-   [data-heading='h3'] {
+   [data-heading='h2'] {
       font-size: var(--text-base);
       line-height: var(--text-base--line-height);
+   }
+
+   [data-heading='h3'] {
+      font-size: var(--text-sm);
+      line-height: var(--text-sm--line-height);
    }
 
    /* Page display titles (task title, and the rare overview emphasis). */
@@ -358,28 +382,9 @@
       line-height: var(--text-3xl--line-height);
    }
 
-   /* Titles stay on the interface face. Each word of a title is capitalized;
-      section labels stay in tracked caps. */
-   h1,
-   h2,
-   h3,
-   h4,
-   h5,
-   h6,
-   [data-heading='h1'],
-   [data-heading='h2'],
-   [data-heading='h3'],
-   [data-heading='h4'],
-   [data-heading='display'] {
-      text-transform: capitalize;
-   }
-
-   /* The user agent sets text-transform: none on buttons and fields, so a
-      title written as a control would stay in sentence case. Inherit the
-      heading's capitalization instead. */
-   :is(h1, h2, h3, h4, h5, h6) :is(button, input, textarea) {
-      text-transform: inherit;
-   }
+   /* Titles stay on the interface face. Write the words as they should read;
+      do not capitalize here — that rewrites identifiers (BER-286, API).
+      Section labels are 11.5 / 600 in sentence case. */
 
    /* Headings carry one step of weight over the 400 body so a page title, a
       dialog title and a section title read as a different role from the row
@@ -390,8 +395,9 @@
    h3,
    [data-heading='h1'],
    [data-heading='h2'],
-   [data-heading='h3'] {
-      font-weight: 500;
+   [data-heading='h3'],
+   [data-heading='display'] {
+      font-weight: 600;
    }
 
    /* A secondary line under a menu title, one step below the body. */
@@ -404,11 +410,11 @@
       caps one step below the body, so they read as labels for a group and
       not as the rail's section headings, which are a shell element. */
    [data-heading='label'] {
-      font-size: 0.75rem;
+      font-size: 0.71875rem;
       line-height: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0;
+      text-transform: none;
    }
 
    /* Reasoning in a run transcript. Body size with a loose line height fills
@@ -621,10 +627,8 @@ body {
  * follows the page theme. Such a field opts out by setting --input-color and
  * --placeholder-color on itself; the defaults keep the page behaviour.
  *
- * The default mix lives in --placeholder-default rather than inline: the CSS
- * minifier adds a plain-colour fallback beside any color-mix() it sees, and
- * because var() declarations cannot be rejected at parse time that fallback
- * out-cascades the mix in every browser, leaving placeholders at 100%.
+ * --placeholder is a solid colour that clears 4.5:1. Do not fade --foreground
+ * here: a 40% mix on void was 3.7:1.
  */
 input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
 textarea,
@@ -638,8 +642,8 @@ input:not([type='checkbox']):not([type='radio']):not([type='range']):not(
       [type='file']
    )::placeholder,
 textarea::placeholder {
-   color: var(--placeholder-color, var(--placeholder-default));
-   -webkit-text-fill-color: var(--placeholder-color, var(--placeholder-default));
+   color: var(--placeholder-color, var(--placeholder));
+   -webkit-text-fill-color: var(--placeholder-color, var(--placeholder));
 }
 
 input::-webkit-search-cancel-button {
@@ -695,7 +699,9 @@ input[type='search'] {
 
 /* Berry scrollbars. Hidden by default so lists and the canvas read as one
    surface inside the framed shell; overflow still scrolls. `.no-scrollbar`
-   and `.tabstrip` stay as explicit aliases for the same treatment. */
+   and `.tabstrip` stay as explicit aliases for the same treatment.
+   `.show-scrollbar` opts a scroller back in, used where overflow must be
+   obvious (the board's horizontal strip). */
 * {
    scrollbar-width: none;
 }
@@ -713,6 +719,23 @@ input[type='search'] {
 .tabstrip::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {
    display: none;
+}
+
+.show-scrollbar {
+   scrollbar-width: thin;
+   scrollbar-color: var(--border) transparent;
+}
+.show-scrollbar::-webkit-scrollbar {
+   display: block;
+   width: 8px;
+   height: 8px;
+}
+.show-scrollbar::-webkit-scrollbar-track {
+   background: transparent;
+}
+.show-scrollbar::-webkit-scrollbar-thumb {
+   background: var(--border);
+   border-radius: 999px;
 }
 
 /* Pending-reply pulse, from the prototype's `berrypulse`. Honoured only when
@@ -774,6 +797,10 @@ input[type='search'] {
    color: var(--foreground);
    -webkit-text-fill-color: var(--foreground);
    white-space: pre-wrap;
+   /* Body chrome stays at 1.2. Description prose is a paragraph you read,
+      and JetBrains Mono at that spacing stacks wrapped lines on top of
+      each other. */
+   line-height: 1.6;
 }
 
 .tiptap-ai-editor .ProseMirror p + p {
@@ -853,13 +880,13 @@ input[type='search'] {
 }
 
 .tiptap-ai-editor .ProseMirror a {
-   color: var(--primary);
+   color: var(--primary-text);
    text-decoration: underline;
    text-underline-offset: 2px;
 }
 
 .tiptap-ai-editor .ProseMirror p.is-editor-empty:first-child::before {
-   color: var(--placeholder-default);
+   color: var(--placeholder);
    content: attr(data-placeholder);
    float: left;
    height: 0;

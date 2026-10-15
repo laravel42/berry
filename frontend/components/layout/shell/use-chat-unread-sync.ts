@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect } from 'react';
 
-import { listThreads } from '@/lib/chat';
+import { CHAT_UNREAD_CHANGED, listThreads, unreadAcrossThreads } from '@/lib/chat';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
@@ -26,11 +26,16 @@ export function useChatUnreadSync(): void {
    const refresh = useCallback(() => {
       if (!workspaceId) return;
       void listThreads()
-         .then((threads) => setChatUnread(threads.reduce((sum, thread) => sum + thread.unread, 0)))
+         .then((threads) => setChatUnread(unreadAcrossThreads(threads)))
          .catch(() => setChatUnread(0));
    }, [workspaceId, setChatUnread]);
 
    useEffect(refresh, [refresh]);
+
+   useEffect(() => {
+      window.addEventListener(CHAT_UNREAD_CHANGED, refresh);
+      return () => window.removeEventListener(CHAT_UNREAD_CHANGED, refresh);
+   }, [refresh]);
 
    useEffect(() => {
       if (!workspaceId) return;

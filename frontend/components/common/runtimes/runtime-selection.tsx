@@ -22,12 +22,12 @@ import {
    type AiRuntimeSelection,
 } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
-import { ChevronDown, Cpu } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+import { RuntimeProviderBadge } from './runtime-provider-badge';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const INHERIT = 'inherit';
-const NATIVE = 'berry-native';
 
 export function RuntimeSelectionControl({
    target,
@@ -76,9 +76,7 @@ export function RuntimeSelectionControl({
    const label =
       selectedRuntime === INHERIT
          ? (connected[0]?.name ?? 'Workspace default')
-         : selectedRuntime === NATIVE
-           ? (catalog?.native.name ?? 'Berry managed')
-           : (definition?.name ?? selectedRuntime);
+         : (definition?.name ?? selectedRuntime);
 
    const save = async (next: AiRuntimeSelection) => {
       setSaving(true);
@@ -103,8 +101,6 @@ export function RuntimeSelectionControl({
       if (runtimeId === selectedRuntime) return;
       if (runtimeId === INHERIT)
          return void save({ runtimeId: null, modelId: null, agentId: null });
-      if (runtimeId === NATIVE)
-         return void save({ runtimeId: NATIVE, modelId: null, agentId: null });
       const runtime = connected.find((candidate) => candidate.id === runtimeId);
       if (!runtime) return;
       const first = aiRuntimeModelsFrom(runtime)[0];
@@ -130,7 +126,7 @@ export function RuntimeSelectionControl({
                   aria-label="AI runtime for this work"
                   className="inline-flex h-8 max-w-64 items-center gap-1.5 rounded-md border border-border/60 bg-container px-2.5 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-60 max-sm:size-8 max-sm:px-0 max-sm:justify-center"
                >
-                  <Cpu className="size-3.5 shrink-0" aria-hidden />
+                  <RuntimeProviderBadge runtimeId={effective?.id} bare title={label} />
                   <span className="min-w-0 truncate max-sm:sr-only">{label}</span>
                   <ChevronDown className="size-3.5 shrink-0 max-sm:hidden" aria-hidden />
                </button>
@@ -139,7 +135,6 @@ export function RuntimeSelectionControl({
                <DropdownMenuLabel>Run with</DropdownMenuLabel>
                <DropdownMenuRadioGroup value={selectedRuntime} onValueChange={chooseRuntime}>
                   <DropdownMenuRadioItem value={INHERIT}>Workspace default</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={NATIVE}>Berry managed</DropdownMenuRadioItem>
                   {connected.map((runtime) => (
                      <DropdownMenuRadioItem key={runtime.id} value={runtime.id}>
                         {runtime.name}

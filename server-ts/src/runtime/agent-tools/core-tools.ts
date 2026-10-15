@@ -9,6 +9,7 @@ import { postRunResult } from '../../runs/result-comment.ts';
 import { enqueueTask } from '../../runs/queue.ts';
 import { ApiError } from '../../http/errors.ts';
 import { InvalidTransition, canTransition } from '../../core/issues.ts';
+import { issueHasOpenHold } from '../../work/holds.ts';
 import { defaultBoardId } from '../../work/batch.ts';
 import { setParent } from '../../work/hierarchy.ts';
 import { ActiveRunExists } from '../../runs/repository.ts';
@@ -397,7 +398,9 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('set_status', {
       description:
-         'Move a task (this run\'s, or another named by `task`) to todo, in progress or blocked. ' +
+         'Move a task (this run\'s, or another named by `task`) to todo or in progress. ' +
+         'Blocked is only for a hold Berry can release: an unfinished dependency, a pending escalation, or an open child. ' +
+         'A busy port, a failed check or missing local evidence is not a hold — finish the run. ' +
          'Do not move it to in review: Berry merges the repository\'s default branch into the task branch when the run delivers, and moves the task to review after that merge. ' +
          'Never done or cancelled: a person always makes the final release decision.',
       scope: 'task:write',
@@ -411,6 +414,13 @@ export function registerCoreAgentTools(): void {
                409,
                'INVALID_STATE_TRANSITION',
                'The default branch is merged into this branch when the run finishes, and the task moves to review after that. Finish the run instead of moving it to review.'
+            );
+         }
+         if (input.status === 'blocked' && !(await issueHasOpenHold(context.sql, issueId))) {
+            throw new ApiError(
+               409,
+               'INVALID_STATE_TRANSITION',
+               'Blocked is waiting on another task, a decision, or a person. Link what you need, escalate, or finish the run. A local problem is not a hold.'
             );
          }
          const move = (status: (typeof AGENT_STATUSES)[number]) =>

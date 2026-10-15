@@ -538,7 +538,7 @@ Assignment through this general-purpose resource endpoint records assignment but
 
 #### `PATCH /api/v1/issues/{issueId}`
 
-Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, `assignee`, and `autoGate` (boolean). Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. Status transitions MUST follow the configured workflow; invalid transitions return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
+Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, `assignee`, and `autoGate` (boolean). Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
 
 - `200`: updated `Issue`
 - `404`: issue or assignee `NOT_FOUND`
@@ -972,7 +972,7 @@ connection, and the connection id is part of the provider session identity.
 | `GET`, `PUT /api/v1/projects/{projectId}/runtime-selection` | Read / replace the project's runtime, used when the task has none |
 | `GET`, `PUT /api/v1/conversations/{id}/runtime-selection` | Read / replace a conversation override under participant authorization |
 
-An agent run resolves its subscription in this order: the task override, the project's runtime, the authorizing person's preference, that person's newest connection, then the workspace's newest connection. Native Bedrock or Kilo is used only when nothing is connected. A run with no explicit model uses the first model on the Berry agent's tier that the chosen runtime offers.
+An agent run resolves its subscription in this order: the task override, the project's runtime, the authorizing person's preference, the first connected model on the agent's tier, that person's newest connection, then the workspace's newest connection. Native Bedrock or Kilo is refused. A run with no explicit model uses the first model on the Berry agent's tier that the chosen runtime offers.
 
 A selected subscription runtime never falls back to Bedrock, Kilo, an API
 key, another model, or another user's account. Expected failures use stable

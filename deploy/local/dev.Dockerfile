@@ -16,6 +16,6 @@ RUN apt-get update \
    && apt-get install -y --no-install-recommends docker-ce-cli docker-buildx-plugin \
    && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /repo

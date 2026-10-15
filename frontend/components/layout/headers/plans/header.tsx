@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePlansListStore, type PlansScope } from '@/store/plans-list-store';
 
@@ -18,7 +18,7 @@ function HeaderOptions() {
    };
 
    return (
-      <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px]">
+      <div className="flex h-[44px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5">
          <div className="flex shrink-0 items-center gap-3">
             <Tabs value={scope} onValueChange={(value) => setScope(value as PlansScope)}>
                <TabsList aria-label={t('header.title')}>
@@ -37,7 +37,7 @@ function HeaderOptions() {
          </div>
 
          <Input
-            className="h-9 min-w-0 flex-1 basis-40"
+            className={`${searchFieldClass} min-w-0 flex-1 basis-40`}
             placeholder={t('list.search')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

@@ -267,7 +267,7 @@ export default function Inbox() {
                line={t('statement.line', { count: unread })}
                sub={t('statement.sub')}
             />
-            <div className="flex shrink-0 items-center gap-1.5 border-b px-4 py-[6px] [&_button]:!h-9">
+            <div className="flex h-[44px] shrink-0 items-center gap-1.5 border-b px-5 [&_button]:!h-[30px]">
                <InboxFilterBar
                   filter={filter}
                   show={show}

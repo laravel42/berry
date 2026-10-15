@@ -18,6 +18,7 @@ import {
 import { CodeEditor } from '@/components/ui/code-editor';
 import { Input } from '@/components/ui/input';
 import { BerryLoading } from '@/components/brand/berry-mark';
+import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { BerryApiError } from '@/lib/api';
 import {
    getRun,
@@ -337,7 +338,8 @@ export function foldRunEvent(steps: TranscriptStep[], event: RunEvent): Transcri
          };
          return next;
       }
-      case 'run.completed': {
+      case 'run.completed':
+      case 'run.cancelled': {
          if (!isOpenPassage(last)) return steps;
          next[next.length - 1] = closeThinking(last, event.occurredAt);
          return next;
@@ -574,11 +576,85 @@ function isProse(kind: StepKind): boolean {
    return kind === 'thinking' || kind === 'reasoning';
 }
 
+function parseJsonValue(text: string): unknown {
+   const trimmed = text.trim();
+   if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return undefined;
+   try {
+      return JSON.parse(trimmed) as unknown;
+   } catch {
+      return undefined;
+   }
+}
+
+function reviewFromJson(value: unknown): { status: string; reason: string } | null {
+   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+   const body = value as Record<string, unknown>;
+   const reason = typeof body.reason === 'string' ? body.reason : '';
+   if (typeof body.status === 'string' && body.status.trim()) {
+      return { status: body.status.trim(), reason };
+   }
+   if (typeof body.approved === 'boolean') {
+      return { status: body.approved ? 'approved' : 'changes_requested', reason };
+   }
+   return null;
+}
+
+function reviewStatusTone(status: string): string {
+   switch (status) {
+      case 'approved':
+         return 'text-status-success';
+      case 'changes_requested':
+         return 'text-status-danger';
+      case 'inconclusive':
+      case 'needs_context':
+         return 'text-status-warning';
+      default:
+         return 'text-muted-foreground';
+   }
+}
+
+/**
+ * A finished thinking passage is often a structured completion (review JSON)
+ * dumped as one line. While it is still arriving the parse fails and the
+ * tokens show as they are.
+ */
+function ThinkingProse({ text, query }: { text: string; query: string }) {
+   const parsed = parseJsonValue(text);
+   const review = reviewFromJson(parsed);
+   const searchable =
+      review && review.reason
+         ? `${review.status.replace(/_/g, ' ')} ${review.reason}`
+         : parsed === undefined
+           ? text
+           : JSON.stringify(parsed, null, 2);
+   if (query.trim()) {
+      return <Highlighted text={searchable} query={query} tone="prose" />;
+   }
+   if (review) {
+      return (
+         <div className="flex flex-col gap-2">
+            <span className={cn('capitalize', reviewStatusTone(review.status))}>
+               {review.status.replace(/_/g, ' ')}
+            </span>
+            {review.reason.trim() ? <AgentMarkdown body={review.reason} compact /> : null}
+         </div>
+      );
+   }
+   if (parsed !== undefined) {
+      return (
+         <pre className="whitespace-pre-wrap break-words font-mono">
+            {JSON.stringify(parsed, null, 2)}
+         </pre>
+      );
+   }
+   return <AgentMarkdown body={text} compact />;
+}
+
 /**
  * Shell-coloured code when the search is idle; a marked block while searching
  * so the match still lights up inside long output (CodeMirror does not carry
  * the transcript's own highlight marks). A thinking or reasoning passage is
- * plain text either way: it is not a command.
+ * prose: markdown, or a verdict once a structured answer has arrived whole.
  */
 function StepBody({
    text,
@@ -593,20 +669,28 @@ function StepBody({
    className?: string;
    prose?: boolean;
 }) {
-   if (prose || query.trim()) {
+   if (prose) {
       return (
          <div
-            data-step-body={prose ? 'prose' : 'code'}
+            data-step-body="prose"
+            className={cn('overflow-auto break-words rounded text-foreground', className)}
+            style={{ maxHeight }}
+         >
+            <ThinkingProse text={text} query={query} />
+         </div>
+      );
+   }
+   if (query.trim()) {
+      return (
+         <div
+            data-step-body="code"
             className={cn(
-               'overflow-auto whitespace-pre-wrap break-words rounded',
-               prose
-                  ? 'text-foreground'
-                  : 'bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
+               'overflow-auto whitespace-pre-wrap break-words rounded bg-[var(--brand-void)] p-2 font-mono leading-6 text-[var(--brand-chalk)]',
                className
             )}
             style={{ maxHeight }}
          >
-            <Highlighted text={text} query={query} tone={prose ? 'prose' : 'code'} />
+            <Highlighted text={text} query={query} tone="code" />
          </div>
       );
    }
@@ -724,7 +808,9 @@ export interface RunTranscriptProps {
    footerInfo?: ReactNode;
    /**
     * Load the newest page and follow from there. Scrolling up asks for the
-    * page before it. The dialog leaves this off and reads the whole run.
+    * page before it. A log that does not yet fill the pane keeps pulling
+    * older pages until it can be scrolled. The dialog leaves this off and
+    * reads the whole run.
     */
    paged?: boolean;
 }
@@ -978,41 +1064,49 @@ export function RunTranscript({
 
    // An earlier page is inserted above the window. Remember the scroll height
    // first, then put that growth back into scrollTop so the lines in view stay.
-   const loadEarlier = useCallback(async () => {
-      if (!paged || loadingEarlierRef.current || !hasOlder) return;
-      const oldest = eventsRef.current[0]?.sequence;
-      if (typeof oldest !== 'number' || oldest <= 0) {
-         setHasOlder(false);
-         return;
-      }
-      loadingEarlierRef.current = true;
-      setLoadingEarlier(true);
-      setFollowing(false);
-      try {
-         const page = await loadRunEvents(runId, { before: oldest });
-         const current = eventsRef.current;
-         const seen = new Set(current.map((event) => event.id));
-         const fresh = page.filter((event) => !seen.has(event.id));
-         if (fresh.length === 0) {
+   // Filling a short pane keeps following: the newest end stays pinned.
+   const loadEarlier = useCallback(
+      async (keepFollowing = false) => {
+         if (!paged || loadingEarlierRef.current || !hasOlder) return;
+         const oldest = eventsRef.current[0]?.sequence;
+         if (typeof oldest !== 'number' || oldest <= 0) {
             setHasOlder(false);
             return;
          }
-         const element = scroller.current;
-         anchor.current = element ? { height: element.scrollHeight, top: element.scrollTop } : null;
-         eventsRef.current = [...fresh, ...current];
-         setSteps(foldEvents(eventsRef.current));
-         const nextOldest = fresh[0]?.sequence ?? page[0]?.sequence;
-         setHasOlder(
-            page.length >= RUN_EVENT_PAGE && typeof nextOldest === 'number' && nextOldest > 0
-         );
-         setEpoch((value) => value + 1);
-      } catch {
-         anchor.current = null;
-      } finally {
-         loadingEarlierRef.current = false;
-         setLoadingEarlier(false);
-      }
-   }, [hasOlder, paged, runId]);
+         loadingEarlierRef.current = true;
+         setLoadingEarlier(true);
+         if (!keepFollowing) setFollowing(false);
+         try {
+            const page = await loadRunEvents(runId, { before: oldest });
+            const current = eventsRef.current;
+            const seen = new Set(current.map((event) => event.id));
+            const fresh = page.filter((event) => !seen.has(event.id));
+            if (fresh.length === 0) {
+               setHasOlder(false);
+               return;
+            }
+            const element = scroller.current;
+            if (!keepFollowing) {
+               anchor.current = element
+                  ? { height: element.scrollHeight, top: element.scrollTop }
+                  : null;
+            }
+            eventsRef.current = [...fresh, ...current];
+            setSteps(foldEvents(eventsRef.current));
+            const nextOldest = fresh[0]?.sequence ?? page[0]?.sequence;
+            setHasOlder(
+               page.length >= RUN_EVENT_PAGE && typeof nextOldest === 'number' && nextOldest > 0
+            );
+            setEpoch((value) => value + 1);
+         } catch {
+            anchor.current = null;
+         } finally {
+            loadingEarlierRef.current = false;
+            setLoadingEarlier(false);
+         }
+      },
+      [hasOlder, paged, runId]
+   );
 
    useLayoutEffect(() => {
       const element = scroller.current;
@@ -1021,6 +1115,29 @@ export function RunTranscript({
       anchor.current = null;
       element.scrollTop = saved.top + (element.scrollHeight - saved.height);
    }, [epoch]);
+
+   // No Earlier control: older pages arrive when the reader reaches the top,
+   // or when the newest page is too short to scroll.
+   useLayoutEffect(() => {
+      if (!paged || !oldestFirst || !hasOlder || loadingEarlier || booting) return;
+      const element = scroller.current;
+      if (!element) return;
+      if (element.scrollHeight <= element.clientHeight + 8) {
+         void loadEarlier(true);
+         return;
+      }
+      if (!following && element.scrollTop < 48) void loadEarlier();
+   }, [
+      booting,
+      epoch,
+      following,
+      hasOlder,
+      loadEarlier,
+      loadingEarlier,
+      oldestFirst,
+      paged,
+      visible.length,
+   ]);
 
    const onScroll = useCallback(() => {
       const element = scroller.current;
@@ -1032,7 +1149,7 @@ export function RunTranscript({
          const atFoot = element.scrollHeight - top - element.clientHeight < 24;
          if (movedUp && !atFoot && following) setFollowing(false);
          else if (atFoot && !following) setFollowing(true);
-         if (paged && movedUp && top < 48) void loadEarlier();
+         if (paged && top < 48 && (movedUp || !following)) void loadEarlier();
          return;
       }
       if (top > 8 && !movedUp && following) setFollowing(false);
@@ -1194,18 +1311,6 @@ export function RunTranscript({
             aria-label={oldestFirst ? t('oldestFirst') : t('newestFirst')}
          >
             <div ref={content} className={booting && visible.length === 0 ? 'h-full' : undefined}>
-               {paged && oldestFirst && hasOlder ? (
-                  <div className="flex justify-center py-2">
-                     <Button
-                        variant="ghost"
-                        size="xs"
-                        disabled={loadingEarlier}
-                        onClick={() => void loadEarlier()}
-                     >
-                        {loadingEarlier ? t('loading') : t('earlier')}
-                     </Button>
-                  </div>
-               ) : null}
                {booting && visible.length === 0 ? (
                   <BerryLoading label={t('loading')} className="min-h-full" />
                ) : visible.length === 0 && !thinkingRow ? (

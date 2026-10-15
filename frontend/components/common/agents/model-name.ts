@@ -116,7 +116,7 @@ export const MODEL_TIER_STYLE: Record<ModelTier, string> = {
    low: 'border-status-info/40 bg-status-info/10 text-status-info',
    mid: 'border-status-success/40 bg-status-success/10 text-status-success',
    midHigh: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
-   high: 'border-primary/40 bg-primary/10 text-primary',
+   high: 'border-primary/40 bg-primary/10 text-primary-text',
 };
 
 export const MODEL_TIER_NEUTRAL =

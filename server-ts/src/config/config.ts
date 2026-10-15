@@ -36,14 +36,7 @@ export interface Config {
    docker: DockerAddressing;
    organization: OrganizationLimits;
    storage: StorageConfig | null;
-   agents: AgentConfig | null;
-   /**
-    * The Kilo model gateway (ADR-0017), when `BERRY_MODEL_PROVIDER=kilo`. The
-    * server only reads with it — which models the account's own keys serve,
-    * the account's usage and balance — and never calls a model: model calls
-    * stay in the runtime image, which reads the same variables.
-    */
-   modelGateway: ModelGatewayConfig | null;
+   agents: AgentConfig;
    /** Where tasks run and how they are bounded (ADR-0014). */
    runtime: RuntimeConfig;
    /**
@@ -121,13 +114,6 @@ export interface ExecutionConfig {
    token: string;
 }
 
-/**
- * Amazon Bedrock AgentCore, when the deployment uses it.
- *
- * Separate from `AgentConfig` because these are different decisions: Bedrock
- * is where a model is called, AgentCore is where an agent's *work* happens.
- * A deployment can want the first without the second, and most will.
- */
 /**
  * AgentCore Gateway and Identity, when GitHub is reached through them.
  *
@@ -260,27 +246,8 @@ export interface AuthConfig {
    devLogin: boolean;
 }
 
-/** What agents run on. Null when no model credential is configured. */
+/** Planner and run bounds. Not a model credential: those live on a subscription runtime. */
 export interface AgentConfig {
-   /**
-    * The AWS region Bedrock is called in.
-    *
-    * There is no API key beside it. Bedrock authenticates with SigV4 through
-    * the AWS credential chain — environment, profile, or the instance's own
-    * role — so a deployment on EC2, ECS or Lambda holds no long-lived secret
-    * at all, which is the security difference from an API-key provider.
-    */
-   region: string;
-   /**
-    * Explicit Bedrock credentials, when the deployment supplies them.
-    *
-    * Null means the AWS default chain — a role on EC2, ECS or Lambda, or a
-    * profile locally. They are *not* read from `AWS_ACCESS_KEY_ID`, because
-    * that variable already belongs to Berry's object storage: MinIO is
-    * S3-compatible and its `minioadmin` credentials live there. Sharing the
-    * name would send MinIO's credentials to AWS and AWS's to MinIO.
-    */
-   credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null;
    /** Used when an agent row names no model of its own. */
    defaultModel: string;
    /**
@@ -308,12 +275,6 @@ export interface AgentConfig {
    maxTokens: number | null;
    /** How many times AutoGate sends a task back before leaving it to a person. */
    autoGateMaxAttempts: number;
-   /**
-    * `s3://bucket/prefix` where Nova Reel writes a rendered video before Berry
-    * copies it into an artifact. A real S3 bucket the credential can read and
-    * write; null means agents can make speech but not video.
-    */
-   mediaVideoS3Uri: string | null;
 }
 
 export class ConfigError extends Error {
@@ -433,7 +394,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       docker: dockerAddressing(env),
       storage: storage(env),
       agents: agents(env),
-      modelGateway: modelGateway(env),
       runtime: runtime(env),
       // Trimmed and required to be non-empty: a variable set to whitespace is
       // an operator who meant to set it, and treating that as "configured"
@@ -529,107 +489,17 @@ function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
 }
 
 /**
- * Where models are called.
- *
- * A region rather than a credential: Bedrock is reached with SigV4 through the
- * AWS credential chain, so what a deployment configures is *where*, not *who*.
- * A region with no usable credentials fails at the first call with an AWS
- * error that names the problem, which is a better failure than this file
- * inventing its own check for a chain it does not own.
+ * Planner and run bounds. Always present: they do not need a model provider.
  */
-function agents(env: NodeJS.ProcessEnv): AgentConfig | null {
-   const region = (env.BERRY_BEDROCK_REGION ?? env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? '').trim();
-   if (!region) return null;
-   const accessKeyId = (env.BERRY_BEDROCK_ACCESS_KEY_ID ?? '').trim();
-   const secretAccessKey = (env.BERRY_BEDROCK_SECRET_ACCESS_KEY ?? '').trim();
-   const sessionToken = (env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
+function agents(env: NodeJS.ProcessEnv): AgentConfig {
    return {
-      region,
-      credentials:
-         accessKeyId && secretAccessKey
-            ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
-            : null,
-      // An inference profile id, not a bare model id. Anthropic models on
-      // Bedrock are only invocable through a cross-region profile in most
-      // regions, and the `us.` prefix is what makes the difference between a
-      // call that works and a ValidationException that reads like a typo.
-      //
-      // Haiku 4.5 rather than Sonnet: a third of Sonnet's price ($1/$5 per
-      // million against $3/$15) and still reliable at the tool-calling loop a
-      // run is. This is the fallback for an agent that names no model, so it is
-      // the one paid most often by deployments that never touch the picker.
-      defaultModel: (
-         env.BERRY_AGENT_DEFAULT_MODEL ?? 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
-      ).trim(),
+      defaultModel: (env.BERRY_AGENT_DEFAULT_MODEL ?? '').trim(),
       concurrency: positive(env.BERRY_RUN_CONCURRENCY, 2),
       maxRepairs: positive(env.PLANNER_MAX_REPAIRS, 2),
       maxCriticRounds: positive(env.PLANNER_MAX_CRITIC_ROUNDS, 1),
       maxTokens: env.BERRY_AGENT_MAX_TOKENS ? positive(env.BERRY_AGENT_MAX_TOKENS, 32_000) : null,
       autoGateMaxAttempts: positive(env.BERRY_AUTOGATE_MAX_ATTEMPTS, 2),
-      mediaVideoS3Uri: /^s3:\/\/[^/]+/.test((env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim())
-         ? (env.BERRY_MEDIA_VIDEO_S3_URI ?? '').trim()
-         : null,
    };
-}
-
-export interface ModelGatewayConfig {
-   provider: 'kilo';
-   apiKey: string;
-   /** The OpenAI-compatible gateway, e.g. `https://api.kilo.ai/api/gateway`. */
-   baseUrl: string;
-   /** Where the account routes live (`/api/profile/*`). */
-   appUrl: string;
-   /** A credit balance below this is logged: models billed to Kilo credits spend it (ADR-0017). */
-   minBalanceUsd: number;
-   /** Model ids or id prefixes (`z-ai/`) no tier offers (`BERRY_KILO_EXCLUDE`). */
-   exclude: string[];
-   /** Model ids or id prefixes ranked first within the tier they reach (`BERRY_KILO_PREFER`). */
-   prefer: string[];
-   /** Paid tiers also take models billed to Kilo credits (`BERRY_KILO_ANY_PROVIDER=true`); off, only the deployment's own keys'. */
-   anyProvider: boolean;
-   /** Model ids or id prefixes a person placed in a tier (`BERRY_KILO_MAX`, `_XHIGH`, `_HIGH`, `_MID`, `_LOW`). */
-   place: { berry_max: string[]; berry_xhigh: string[]; berry_high: string[]; berry_mid: string[]; berry_low: string[] };
-}
-
-/**
- * The model gateway, read the same way the runtime reads it
- * (`modelProviderFromEnv` in agents/runtime/model.ts). Kilo without a key is
- * an operator error, so it fails the boot rather than quietly serving the
- * Bedrock picker to a deployment whose runs go through Kilo.
- */
-function nonNegative(value: string | undefined, fallback: number): number {
-   const parsed = Number((value ?? '').trim());
-   return (value ?? '').trim() !== '' && Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function modelGateway(env: NodeJS.ProcessEnv): ModelGatewayConfig | null {
-   const provider = (env.BERRY_MODEL_PROVIDER ?? 'bedrock').trim().toLowerCase();
-   if (provider === 'bedrock' || provider === '') return null;
-   if (provider !== 'kilo') throw new Error(`BERRY_MODEL_PROVIDER must be 'bedrock' or 'kilo', not '${provider}'`);
-   const apiKey = (env.BERRY_KILO_API_KEY ?? '').trim();
-   if (!apiKey) throw new Error('BERRY_MODEL_PROVIDER=kilo needs BERRY_KILO_API_KEY');
-   return {
-      provider: 'kilo',
-      apiKey,
-      baseUrl: (env.BERRY_KILO_BASE_URL ?? '').trim() || 'https://api.kilo.ai/api/gateway',
-      appUrl: (env.BERRY_KILO_APP_URL ?? '').trim() || 'https://app.kilo.ai',
-      minBalanceUsd: nonNegative(env.BERRY_KILO_MIN_BALANCE_USD, 2),
-      exclude: idList(env.BERRY_KILO_EXCLUDE),
-      prefer: idList(env.BERRY_KILO_PREFER),
-      anyProvider: (env.BERRY_KILO_ANY_PROVIDER ?? '').trim().toLowerCase() === 'true',
-      place: {
-         berry_max: idList(env.BERRY_KILO_MAX),
-         berry_xhigh: idList(env.BERRY_KILO_XHIGH),
-         berry_high: idList(env.BERRY_KILO_HIGH),
-         berry_mid: idList(env.BERRY_KILO_MID),
-         berry_low: idList(env.BERRY_KILO_LOW),
-      },
-   };
-}
-
-/** A comma-separated list of model ids or id prefixes, lower-cased, blanks dropped. */
-function idList(value: string | undefined): string[] {
-   return (value ?? '').split(',').map((entry) => entry.trim().toLowerCase()).filter(Boolean);
 }
 
 /**
@@ -927,7 +797,7 @@ function runtime(env: NodeJS.ProcessEnv): RuntimeConfig {
       agentRuntimeUrl: /^https?:\/\//.test(url) ? url : null,
       authToken: (env.BERRY_RUNTIME_AUTH_TOKEN ?? '').trim() || null,
       maxTokens: env.BERRY_AGENT_MAX_TOKENS ? positive(env.BERRY_AGENT_MAX_TOKENS, 32_000) : null,
-      defaultModel: (env.BERRY_AGENT_DEFAULT_MODEL ?? '').trim() || 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+      defaultModel: (env.BERRY_AGENT_DEFAULT_MODEL ?? '').trim(),
       concurrency: positive(env.BERRY_RUN_CONCURRENCY, 2),
       maxContinuations: continuations(env.BERRY_RUN_MAX_CONTINUATIONS),
       tokenTtlSeconds: Math.min(positive(env.BERRY_TASK_TOKEN_TTL_SECONDS, 28_800), 28_800),

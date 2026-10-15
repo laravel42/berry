@@ -5,8 +5,9 @@
 # Two things differ in a container, and both are put right here rather than by
 # asking anyone to keep a second .env:
 #
-#   * "localhost" is the container. What the .env reaches on the Mac (Postgres)
-#     is reached at host.docker.internal instead.
+#   * DATABASE_URL is set by compose to the postgres service. A leftover
+#     localhost in S3_ENDPOINT still means the Mac, reached at
+#     host.docker.internal.
 #   * The containers the API and the router start are published on the Mac's
 #     loopback, which from in here is host.docker.internal too. It is given as
 #     an address, not a name: it becomes the Host header a preview's server
@@ -23,12 +24,11 @@ onto_host() { printf '%s' "$1" | sed -E 's#(://([^/@]*@)?)(localhost|127\.0\.0\.
 case "${1:-}" in
    api)
       cd /repo/server-ts
-      pnpm install --frozen-lockfile --ignore-workspace
-      export DATABASE_URL="$(onto_host "${DATABASE_URL:?DATABASE_URL is not set in .env}")"
+      # server-ts/pnpm-workspace.yaml is the workspace root in here, so this
+      # does not walk up to the repo and install the frontend.
+      pnpm install --frozen-lockfile
+      export DATABASE_URL="$(onto_host "${DATABASE_URL:?DATABASE_URL is not set}")"
       [ -z "${S3_ENDPOINT:-}" ] || export S3_ENDPOINT="$(onto_host "$S3_ENDPOINT")"
-      # The database is the Mac's own, and it is the thing most often not
-      # started. Said in words, once, rather than as a refused connection from
-      # an address nobody recognises.
       if ! node -e '
          const url = new URL(process.env.DATABASE_URL);
          const socket = require("net").connect(Number(url.port || 5432), url.hostname);
@@ -36,8 +36,8 @@ case "${1:-}" in
          socket.on("connect", () => process.exit(0));
          for (const event of ["error", "timeout"]) socket.on(event, () => process.exit(1));
       '; then
-         echo "PostgreSQL is not answering on the Mac (DATABASE_URL in .env points at it)." >&2
-         echo "Start it (DBngin, Postgres.app or brew services), then: docker compose -f deploy/local/docker-compose.yml restart api" >&2
+         echo "PostgreSQL is not answering (the compose postgres service)." >&2
+         echo "Check: docker compose -f deploy/local/docker-compose.yml logs postgres" >&2
          exit 1
       fi
       # Forward-only and checksummed: a pull that brought a migration does not
@@ -54,7 +54,7 @@ case "${1:-}" in
       # an agent's commands run in these containers and have no business near
       # the database URL, the auth secret or the integration key.
       umask 077
-      printenv | grep -E '^(BERRY_BEDROCK_REGION|BERRY_BEDROCK_ACCESS_KEY_ID|BERRY_BEDROCK_SECRET_ACCESS_KEY|BERRY_BEDROCK_SESSION_TOKEN|BERRY_MODEL_PROVIDER|BERRY_KILO_API_KEY|BERRY_KILO_BASE_URL|BERRY_KILO_ORG_ID|AWS_REGION|BERRY_RUNTIME_AUTH_MODE|BERRY_RUNTIME_AUTH_TOKEN|BERRY_RUNTIME_LOCAL_CONTROL|BERRY_MEDIA_VIDEO_S3_URI|OTEL_[A-Z0-9_]+)=' > /run/runtime.env || true
+      printenv | grep -E '^(BERRY_AGENTCORE_REGION|BERRY_AGENTCORE_ACCESS_KEY_ID|BERRY_AGENTCORE_SECRET_ACCESS_KEY|BERRY_AGENTCORE_SESSION_TOKEN|BERRY_BEDROCK_REGION|BERRY_BEDROCK_ACCESS_KEY_ID|BERRY_BEDROCK_SECRET_ACCESS_KEY|BERRY_BEDROCK_SESSION_TOKEN|AWS_REGION|BERRY_RUNTIME_AUTH_MODE|BERRY_RUNTIME_AUTH_TOKEN|BERRY_RUNTIME_LOCAL_CONTROL|OTEL_[A-Z0-9_]+)=' > /run/runtime.env || true
       export BERRY_ROUTER_ENV_FILE=/run/runtime.env
       exec node --experimental-strip-types --no-warnings src/runtime/local-router/main.ts
       ;;

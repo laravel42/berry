@@ -70,29 +70,11 @@ services:
          BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
          BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
-         BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-us.anthropic.claude-haiku-4-5-20251001-v1:0}
+         BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-}
          BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
-         # Optional: `kilo` sends model calls through the Kilo AI gateway, in Berry tiers
-         # (ADR-0017). The sessions below get the same provider and key.
-         BERRY_MODEL_PROVIDER: ${BERRY_MODEL_PROVIDER:-bedrock}
-         BERRY_KILO_API_KEY: ${BERRY_KILO_API_KEY:-}
-         BERRY_KILO_BASE_URL: ${BERRY_KILO_BASE_URL:-}
-         BERRY_KILO_APP_URL: ${BERRY_KILO_APP_URL:-}
-         BERRY_KILO_MIN_BALANCE_USD: ${BERRY_KILO_MIN_BALANCE_USD:-}
-         # The server fills the tiers. A variable set only in the Environment tab
-         # never reaches this container unless it is named here.
-         BERRY_KILO_ANY_PROVIDER: ${BERRY_KILO_ANY_PROVIDER:-}
-         BERRY_KILO_EXCLUDE: ${BERRY_KILO_EXCLUDE:-}
-         BERRY_KILO_PREFER: ${BERRY_KILO_PREFER:-}
-         BERRY_KILO_MAX: ${BERRY_KILO_MAX:-}
-         BERRY_KILO_XHIGH: ${BERRY_KILO_XHIGH:-}
-         BERRY_KILO_HIGH: ${BERRY_KILO_HIGH:-}
-         BERRY_KILO_MID: ${BERRY_KILO_MID:-}
-         BERRY_KILO_LOW: ${BERRY_KILO_LOW:-}
-         # Optional: cross-run recall (AgentCore Memory) and where Nova Reel renders video.
+         # Optional: AgentCore Memory for cross-run recall.
          BERRY_AGENTCORE_REGION: ${BERRY_AGENTCORE_REGION:-}
          BERRY_AGENTCORE_MEMORY_ID: ${BERRY_AGENTCORE_MEMORY_ID:-}
-         BERRY_MEDIA_VIDEO_S3_URI: ${BERRY_MEDIA_VIDEO_S3_URI:-}
          # Previews, each at p-<id>-<app>.<preview domain>.
          BERRY_PREVIEW_DOMAIN: ${BERRY_PREVIEW_DOMAIN:?set BERRY_PREVIEW_DOMAIN}
          BERRY_PREVIEW_SCHEME: ${BERRY_SCHEME:-http}
@@ -148,7 +130,7 @@ services:
          - -c
          - >-
            umask 077 &&
-           printenv | grep -E '^(BERRY_BEDROCK_|AWS_REGION=|BERRY_RUNTIME_AUTH_TOKEN=|BERRY_MODEL_PROVIDER=|BERRY_KILO_)' > /run/runtime.env &&
+           printenv | grep -E '^(BERRY_BEDROCK_|BERRY_AGENTCORE_|AWS_REGION=|BERRY_RUNTIME_AUTH_TOKEN=)' > /run/runtime.env &&
            exec node --experimental-strip-types --no-warnings src/runtime/local-router/main.ts
       environment:
          <<: *docker-host
@@ -162,11 +144,6 @@ services:
          AWS_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
          BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
-         # The runtime calls the model, so it reads the provider and the Kilo key itself.
-         BERRY_MODEL_PROVIDER: ${BERRY_MODEL_PROVIDER:-bedrock}
-         BERRY_KILO_API_KEY: ${BERRY_KILO_API_KEY:-}
-         BERRY_KILO_BASE_URL: ${BERRY_KILO_BASE_URL:-}
-         BERRY_KILO_ORG_ID: ${BERRY_KILO_ORG_ID:-}
       volumes:
          - /var/run/docker.sock:/var/run/docker.sock
       extra_hosts:

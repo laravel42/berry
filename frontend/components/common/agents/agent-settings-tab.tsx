@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
-import { AgentModelPicker } from '@/components/common/agents/agent-model-picker';
 import { AgentTierSection } from '@/components/common/agents/agent-tier-section';
 import { FormRow } from '@/components/common/settings/form-row';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
@@ -12,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { BerryApiError } from '@/lib/api';
 import { isTier, updateAgentConfig, type Agent, type Tier } from '@/lib/agents';
-import { useModelGateway } from '@/hooks/use-model-gateway';
 
 const reason = (error: unknown, fallback: string) =>
    error instanceof BerryApiError ? error.message : fallback;
@@ -51,8 +49,6 @@ export default function AgentSettingsTab({
       if (error instanceof BerryApiError && error.status === 403) onForbidden();
       toast.error(reason(error, t('failureUnknown')));
    };
-   const modelGateway = useModelGateway();
-
    const [name, setName] = useState(agent.name);
    const [description, setDescription] = useState(agent.description ?? '');
    const [provider, setProvider] = useState(agent.modelProvider ?? null);
@@ -147,37 +143,21 @@ export default function AgentSettingsTab({
                      onChange={(event) => setDescription(event.target.value)}
                   />
                </FormRow>
-               {modelGateway === true ? (
-                  <FormRow label={t('tiers.title')} caption={t('setTierHint')}>
-                     <AgentTierSection
-                        bare
-                        agent={agent}
-                        tier={tier}
-                        model={model}
-                        disabled={readOnly}
-                        onTierChange={setTier}
-                        onUnpin={() => {
-                           setProvider(null);
-                           setModel(null);
-                        }}
-                     />
-                  </FormRow>
-               ) : null}
-            </div>
-
-            {modelGateway === false ? (
-               <section className="flex flex-col gap-2 border-t border-border/70 pt-6">
-                  <AgentModelPicker
-                     provider={provider}
+               <FormRow label={t('tiers.title')} caption={t('setTierHint')}>
+                  <AgentTierSection
+                     bare
+                     agent={agent}
+                     tier={tier}
                      model={model}
                      disabled={readOnly}
-                     onChange={(nextProvider, nextModel) => {
-                        setProvider(nextProvider);
-                        setModel(nextModel);
+                     onTierChange={setTier}
+                     onUnpin={() => {
+                        setProvider(null);
+                        setModel(null);
                      }}
                   />
-               </section>
-            ) : null}
+               </FormRow>
+            </div>
 
             {children ? <div className="border-t border-border/70 pt-4">{children}</div> : null}
          </div>

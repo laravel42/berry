@@ -263,7 +263,10 @@ export default function Views() {
             </div>
          </div>
 
-         <div className="flex items-center gap-1 border-b px-6 py-1.5 font-medium tracking-wider text-muted-foreground uppercase">
+         <div
+            data-heading="label"
+            className="flex h-9 items-center gap-1 border-b px-5 text-subtle-foreground"
+         >
             {t('views.name')}
             <ArrowDown className="size-3" />
          </div>

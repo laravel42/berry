@@ -32,10 +32,7 @@ import {
    resolveModel,
    type ModelSource,
 } from '../agents/catalog.ts';
-import { classifierFeesByDay, type KiloAccount } from '../agents/kilo/account.ts';
-import type { KiloCatalog } from '../agents/kilo/catalog.ts';
-import { stepCost, type StepMix, type TierPlacements } from '../agents/kilo/placements.ts';
-import { isGatewayModelId, tierCandidates, TIER_NAMES, TIER_SIZE, TIERS, type GatewayModel, type Tier } from '../agents/kilo/tiers.ts';
+import { TIERS, type Tier } from '../agents/model-tiers.ts';
 import { catalogRole, toolsForLevel } from '../organization/catalog.ts';
 import { deriveReviewRequirements, effectiveContract } from '../organization/derived.ts';
 import type { RoleKey } from '../organization/contract.ts';
@@ -110,14 +107,8 @@ export interface AgentOptions {
    /** Null when no model credential is configured; the picker then 503s. */
    catalog: ModelSource | null;
    /**
-    * The Kilo gateway's tiers and account (ADR-0017), when the deployment
-    * calls models through it. Their routes 503 without it.
-    */
-   gateway?: { catalog: KiloCatalog; account: KiloAccount; placements?: TierPlacements };
-   /**
     * Optional: records why the catalogue was unreachable. The client only ever
-    * sees an opaque 502, so without this the underlying Bedrock cause (bad
-    * credentials, a missing IAM permission, a region with no profiles) is lost
+    * sees an opaque 502, so without this the underlying cause is lost
     * — which is exactly what makes an empty model picker hard to diagnose.
     */
    logger?: Logger;
@@ -230,86 +221,6 @@ export function agentMounts(options: AgentOptions): Mount[] {
       return json({ nodes: await agents.roster(workspaceId, days) });
    });
 
-   /**
-    * The model tiers as the leaderboards rank them today (ADR-0017): what
-    * each tier would choose between, the numbers that placed each model, and
-    * the leaderboard whose scale the ratings are on.
-    */
-   route.get('/tiers', async (context) => {
-      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
-      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
-         .catch(rethrowWorkspace);
-      return json(await tiersView(requireGateway(options.gateway), workspaceId, logger));
-   });
-
-   /**
-    * What a workspace admin can place in a tier: every model the tiers may
-    * hold, with its rating and prices, and what one agent step costs on it at
-    * this workspace's own token mix. The mix is why: a model without a cache
-    * price looks cheap per token and is not, when every step re-sends the
-    * whole conversation.
-    */
-   route.get('/tiers/candidates', async (context) => {
-      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
-      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
-         .catch(rethrowWorkspace);
-      const gateway = requireGateway(options.gateway);
-      const [snapshot, mix] = await Promise.all([gatewaySnapshot(gateway.catalog, logger), gateway.placements?.stepMix(workspaceId) ?? null]);
-      const models = tierCandidates(snapshot.models, gateway.catalog.policy)
-         .map((model) => serializeCandidate(model, mix))
-         .sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || a.name.localeCompare(b.name));
-      return json({ models, mix });
-   });
-
-   /**
-    * The models this workspace runs each tier on, best first. Admin-only:
-    * it decides what every agent in the workspace costs.
-    */
-   route.put('/tiers/placement', async (context) => {
-      const user = context.get('user');
-      const workspaceId = currentWorkspace(user.currentWorkspaceId);
-      await agents.authorizeWorkspace(user.id, workspaceId, 'workspace.admin').catch(rethrowWorkspace);
-      const gateway = requireGateway(options.gateway);
-      if (!gateway.placements) throw new ApiError(503, 'MODEL_GATEWAY_UNAVAILABLE', 'Tier placement is not served here.');
-      const { placement } = await readJson(context, placementSchema);
-      const snapshot = await gatewaySnapshot(gateway.catalog, logger);
-      const allowed = new Set(tierCandidates(snapshot.models, gateway.catalog.policy).map((model) => model.id));
-      const seen = new Set<string>();
-      assertValid(
-         TIERS.flatMap((tier) =>
-            placement[tier].flatMap((id, index) => {
-               const pointer = `/placement/${tier}/${index}`;
-               if (seen.has(id)) return [fieldError(pointer, 'duplicate', `${id} is placed in more than one place.`)];
-               seen.add(id);
-               return allowed.has(id) ? [] : [fieldError(pointer, 'unknown_model', `${id} is not a model the tiers can hold.`)];
-            })
-         )
-      );
-      await gateway.placements.set(workspaceId, user.id, placement);
-      return json(await tiersView(gateway, workspaceId, logger));
-   });
-
-   /**
-    * The gateway account as Kilo reports it: balance, this week's usage per
-    * model, and the auto-routing classifier's fees per day. Deployment-wide
-    * spend, so it is for workspace admins.
-    */
-   route.get('/model-gateway', async (context) => {
-      const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
-      await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'workspace.admin')
-         .catch(rethrowWorkspace);
-      const gateway = requireGateway(options.gateway);
-      const [balance, usage] = await Promise.all([gateway.account.balance(), gateway.account.dailyUsage()]);
-      const fees = usage ? classifierFeesByDay(usage.rows) : new Map();
-      return json({
-         balance: balance
-            ? { usd: balance.usd, isDepleted: balance.isDepleted, readAt: new Date(balance.readAt).toISOString(), stale: balance.stale }
-            : null,
-         usage: usage ? { rows: usage.rows, readAt: new Date(usage.readAt).toISOString(), stale: usage.stale } : null,
-         classifierFees: [...fees.entries()].map(([date, fee]) => ({ date, ...fee })),
-      });
-   });
-
    route.get('/models', async (context) => {
       const workspaceId = currentWorkspace(context.get('user').currentWorkspaceId);
       await agents.authorizeWorkspace(context.get('user').id, workspaceId, 'product.read')
@@ -397,7 +308,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
          'maxConcurrency' in body ? parseConcurrency(body.maxConcurrency) : undefined;
       const pair = await parseModelPair(body, catalog, logger);
       const tier = 'tier' in body ? parseTier(body.tier) : undefined;
-      const fallbackModel = 'fallbackModel' in body ? await parseFallbackModel(body.fallbackModel, catalog, logger) : undefined;
+      const fallbackModel = 'fallbackModel' in body ? parseFallbackModel(body.fallbackModel) : undefined;
 
       if (
          name === undefined &&
@@ -1082,83 +993,10 @@ function parseTier(value: unknown): Tier | null {
    throw new ApiError(400, 'TIER_INVALID', `A tier is one of ${TIERS.join(', ')}, or null.`);
 }
 
-/**
- * The model a run falls back to: a gateway id the catalogue lists, or null.
- * Checked like a model pair, so a fallback that cannot run is refused when it
- * is set rather than discovered when the tier's choice has already failed.
- */
-async function parseFallbackModel(value: unknown, catalog: ModelSource | null, logger?: Logger): Promise<string | null> {
+/** The model a run falls back to, or null. */
+function parseFallbackModel(value: unknown): string | null {
    if (value === null) return null;
-   const model = text(value, 'fallbackModel', 200, true)!;
-   if (!isGatewayModelId(model)) {
-      throw new ApiError(400, 'FALLBACK_MODEL_INVALID', 'A fallback model is a gateway model id, such as vendor/model.');
-   }
-   const models = await listModels(catalog, logger);
-   if (!models.some((candidate) => candidate.id === model)) {
-      throw new ApiError(400, 'MODEL_UNAVAILABLE', 'That model is not available on this runtime.');
-   }
-   return model;
-}
-
-const placedSchema = z.array(z.string().trim().min(1).max(300)).max(TIER_SIZE);
-const placementSchema = z.strictObject({
-   placement: z.strictObject({
-      berry_max: placedSchema,
-      berry_xhigh: placedSchema.default([]),
-      berry_high: placedSchema.default([]),
-      berry_mid: placedSchema,
-      berry_low: placedSchema,
-   }),
-});
-
-/** Each tier's models for this workspace, and whose placement put them there. */
-async function tiersView(gateway: NonNullable<AgentOptions['gateway']>, workspaceId: string, logger?: Logger) {
-   const snapshot = await gatewaySnapshot(gateway.catalog, logger);
-   const own = (await gateway.placements?.get(workspaceId)) ?? null;
-   const pools = await gateway.catalog.poolsFor(own);
-   return {
-      tiers: TIERS.map((tier) => ({ tier, name: TIER_NAMES[tier], models: pools[tier] })),
-      placement: { source: own ? 'workspace' : 'deployment', tiers: own ?? gateway.catalog.deploymentPlacement },
-      deploymentPlacement: gateway.catalog.deploymentPlacement,
-      refreshedAt: new Date(snapshot.fetchedAt).toISOString(),
-      stale: snapshot.stale,
-      usageStale: snapshot.usageStale,
-      ratingScale: snapshot.ratingScale,
-      ratingsStale: snapshot.ratingsStale,
-   };
-}
-
-function serializeCandidate(model: GatewayModel, mix: StepMix | null) {
-   const cacheRead = model.price.cacheRead !== null && model.price.cacheRead >= 0 ? model.price.cacheRead : null;
-   return {
-      id: model.id,
-      name: model.name,
-      rating: model.bench?.completion ?? null,
-      estimatedFrom: model.bench?.estimatedFrom ?? null,
-      inputPricePerM: model.price.input,
-      outputPricePerM: model.price.output,
-      cacheReadPricePerM: cacheRead,
-      stepCostUsd: mix ? stepCost(model, mix) : null,
-   };
-}
-
-function requireGateway(gateway: AgentOptions['gateway']): NonNullable<AgentOptions['gateway']> {
-   if (!gateway) {
-      throw new ApiError(503, 'MODEL_GATEWAY_UNAVAILABLE', 'This server does not call models through a gateway.');
-   }
-   return gateway;
-}
-
-async function gatewaySnapshot(catalog: KiloCatalog, logger?: Logger) {
-   try {
-      return await catalog.snapshot();
-   } catch (error) {
-      if (error instanceof CatalogUnavailable) {
-         logger?.error('model gateway catalogue unavailable', { error: error.message });
-         throw new ApiError(502, 'DEPENDENCY_UNAVAILABLE', 'The model gateway could not be reached.');
-      }
-      throw error;
-   }
+   return text(value, 'fallbackModel', 200, true) ?? null;
 }
 
 /** Not being in a workspace and not being allowed in it read the same way. */

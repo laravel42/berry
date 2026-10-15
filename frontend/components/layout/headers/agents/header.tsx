@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { useAgentsListStore } from '@/store/agents-list-store';
 
 import HeaderOptions from './header-options';
@@ -22,13 +22,13 @@ export default function Header() {
       <div className="flex w-full flex-col">
          <PageKpiHeader label={t('title')}>
             <Input
-               className="h-9 w-64 max-sm:w-40"
+               className={`${searchFieldClass} w-64 max-sm:w-40`}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('search')}
                aria-label={t('search')}
             />
-            <Button size="xs" className="h-[34px] shrink-0" asChild>
+            <Button className="shrink-0" asChild>
                <Link href={`/${orgId}/agents/new`}>
                   <Plus className="size-4" aria-hidden />
                   {t('newAgent')}

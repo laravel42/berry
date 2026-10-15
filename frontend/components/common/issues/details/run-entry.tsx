@@ -2,6 +2,9 @@
 
 import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
 import { readableModelName } from '@/components/common/agents/model-name';
+import { MetaBadge } from '@/components/common/meta-badge';
+import { RuntimeProviderBadge } from '@/components/common/runtimes/runtime-provider-badge';
+import { colorForAgent } from '@/lib/agent-color';
 import {
    formatRunDuration,
    isReviewGateRun,
@@ -12,8 +15,18 @@ import {
 import { timeAgo } from '@/lib/time-ago';
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
+import {
+   AtSign,
+   CornerDownRight,
+   GitMerge,
+   MessageSquare,
+   ShieldCheck,
+   Timer,
+   Wand2,
+   Zap,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export function statusTone(status: RunRecord['status']): string {
    switch (status) {
@@ -27,6 +40,30 @@ export function statusTone(status: RunRecord['status']): string {
          return 'text-status-info';
       default:
          return 'text-muted-foreground';
+   }
+}
+
+function triggerIcon(key: string): ReactNode {
+   const className = 'size-3.5 shrink-0';
+   switch (key) {
+      case 'review':
+         return <ShieldCheck className={className} aria-hidden />;
+      case 'mention':
+         return <AtSign className={className} aria-hidden />;
+      case 'chat':
+         return <MessageSquare className={className} aria-hidden />;
+      case 'autopilot':
+         return <Timer className={className} aria-hidden />;
+      case 'quickAction':
+         return <Zap className={className} aria-hidden />;
+      case 'builder':
+         return <Wand2 className={className} aria-hidden />;
+      case 'completion':
+         return <CornerDownRight className={className} aria-hidden />;
+      case 'mergeFix':
+         return <GitMerge className={className} aria-hidden />;
+      default:
+         return <Zap className={className} aria-hidden />;
    }
 }
 
@@ -44,17 +81,14 @@ export function markTone(status: RunRecord['status']): BerryMarkTone {
 }
 
 /**
- * A run in one line, in the console's bottom bar: its mark, status, and agent
- * on the left, and the model it is running on at the right.
+ * A run in one line, in the console's bottom bar: which run, status, agent,
+ * why it ran, and how long — one phrase, not a tab beside a summary.
  */
-export function RunSummary({ run }: { run: RunRecord }) {
+export function RunSummary({ run, runs }: { run: RunRecord; runs: readonly RunRecord[] }) {
    const t = useTranslations('issueDetail.log');
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const agent = getAgentById(run.agentId);
    const name = agent?.name ?? t('agent');
-   const modelId = run.aiModelId?.trim() || agent?.modelName?.trim() || '';
-   // Why it ran, when it says something: being assigned is how every run
-   // starts unless something else started it, so that one goes unsaid.
    const triggerKey = runTriggerKey(run.source);
    const trigger = isReviewGateRun(run)
       ? t('trigger.review')
@@ -62,28 +96,73 @@ export function RunSummary({ run }: { run: RunRecord }) {
         ? null
         : t(`trigger.${triggerKey}` as 'trigger.mention');
    const live = !isTerminalRunStatus(run.status);
+   const duration = useRunDuration(run);
+   const title = runConsoleTabLabel(run, runs, {
+      run: (n) => t('tab', { n }),
+      review: t('tabReview'),
+      reviewN: (n) => t('tabReviewN', { n }),
+   });
    return (
       <>
          <span className="flex size-5 shrink-0 items-center justify-center bg-accent">
             <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={name} />
          </span>
-         <span className="min-w-0 flex-1 truncate">
-            <span className={cn('capitalize', statusTone(run.status))}>{run.status}</span>
-            <span aria-hidden> · </span>
-            <span className="text-actor-agent">{name}</span>
+         <span className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate">
+               <span>{title}</span>
+               <span aria-hidden> · </span>
+               <span className={cn('capitalize', statusTone(run.status))}>{run.status}</span>
+            </span>
+            <span className={cn('shrink-0 tabular-nums', statusTone(run.status))}>
+               {formatRunDuration(duration)}
+            </span>
+            <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
+            <MetaBadge
+               className="text-actor-agent"
+               truncate={false}
+               icon={
+                  <BerryMark
+                     size="sm"
+                     tone="working"
+                     dotColor={colorForAgent(run.agentId)}
+                     className="size-3.5"
+                     label={name}
+                  />
+               }
+            >
+               {name}
+            </MetaBadge>
+            <RunModel run={run} />
             {trigger ? (
-               <>
-                  <span aria-hidden> · </span>
-                  <span>{trigger}</span>
-               </>
+               <MetaBadge
+                  truncate={false}
+                  className={
+                     isReviewGateRun(run)
+                        ? 'border-status-warning/40 bg-status-warning/10 text-status-warning'
+                        : undefined
+                  }
+                  icon={triggerIcon(isReviewGateRun(run) ? 'review' : triggerKey)}
+               >
+                  {trigger}
+               </MetaBadge>
             ) : null}
          </span>
-         {modelId ? (
-            <span className="ml-auto max-w-[45%] shrink-0 truncate text-foreground" title={modelId}>
-               {readableModelName(modelId)}
-            </span>
-         ) : null}
       </>
+   );
+}
+
+export function RunModel({ run }: { run: RunRecord }) {
+   const getAgentById = useAgentsStore((state) => state.getAgentById);
+   const agent = getAgentById(run.agentId);
+   const modelId = run.aiModelId?.trim() || agent?.modelName?.trim() || '';
+   if (!modelId) return null;
+   return (
+      <RuntimeProviderBadge
+         runtimeId={run.aiRuntimeId}
+         label={readableModelName(modelId)}
+         title={modelId}
+         truncate={false}
+      />
    );
 }
 
@@ -106,8 +185,8 @@ export function useRunDuration(run: RunRecord): number {
 
 /**
  * A run as a tab of the task's console: "Run 3" or "Review", and how long it
- * took, after its mark in the status' colour. The whole line is its tooltip,
- * and the console's bottom bar shows it.
+ * took, after its mark in the status' colour. The whole line is its tooltip.
+ * Lives in the console's bottom bar with the rest of the run's controls.
  */
 export function runConsoleTabLabel(
    run: RunRecord,
@@ -154,13 +233,7 @@ export function RunTab({
         ? null
         : t(`trigger.${triggerKey}` as 'trigger.mention');
    const duration = useRunDuration(run);
-   const live = !isTerminalRunStatus(run.status);
    const when = timeAgo(run.completedAt ?? run.startedAt ?? run.createdAt, 'recently');
-   const title = runConsoleTabLabel(run, runs, {
-      run: (n) => t('tab', { n }),
-      review: t('tabReview'),
-      reviewN: (n) => t('tabReviewN', { n }),
-   });
    return (
       <button
          type="button"
@@ -173,19 +246,12 @@ export function RunTab({
             .filter(Boolean)
             .join(' · ')}
          onClick={onSelect}
-         // Editor tabs: flat, edge to edge, split by thin lines; the shown one
-         // takes the panel's background.
          className={cn(
-            'flex h-full shrink-0 items-center gap-1.5 border-r border-r-status-neutral/20 px-3 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
-            selected ? 'bg-container text-foreground' : 'hover:bg-status-neutral/15'
+            'flex h-full min-w-0 items-center gap-1.5 rounded px-1 transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+            selected ? 'text-foreground' : 'hover:bg-muted'
          )}
       >
-         <BerryMark size="sm" tone={markTone(run.status)} pulse={live} label={run.status} />
-         <span>{title}</span>
-         <span aria-hidden className="h-3 w-px shrink-0 bg-current opacity-30" />
-         <span className={cn('tabular-nums', statusTone(run.status))}>
-            {formatRunDuration(duration)}
-         </span>
+         <RunSummary run={run} runs={runs} />
       </button>
    );
 }

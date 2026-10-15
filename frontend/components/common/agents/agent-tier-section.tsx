@@ -1,20 +1,10 @@
 'use client';
 
 import { Check } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
-import {
-   gatewayPin,
-   isTier,
-   getModelTiers,
-   MAIN_TIERS,
-   TIER_NAMES,
-   type Agent,
-   type ModelTiers,
-   type Tier,
-} from '@/lib/agents';
+import { gatewayPin, isTier, MAIN_TIERS, TIER_NAMES, type Agent, type Tier } from '@/lib/agents';
 import { cn } from '@/lib/utils';
 
 /** The list's order: the paid tiers, best first. */
@@ -29,7 +19,7 @@ const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> =
    berry_max: {
       idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
       chosen: 'border-primary bg-primary/15',
-      check: 'text-primary',
+      check: 'text-primary-text',
    },
    berry_xhigh: {
       idle: 'border-status-warning/30 bg-status-warning/5 enabled:hover:bg-status-warning/10',
@@ -77,20 +67,10 @@ interface AgentTierSectionProps {
    bare?: boolean;
 }
 
-type Leaderboard =
-   { status: 'loading' } | { status: 'ready'; data: ModelTiers } | { status: 'unavailable' };
-
-/** A model's name without Kilo's vendor prefix and price marker: "Anthropic: Claude Opus 5 ($$$$)" → "Claude Opus 5". */
-function modelName(name: string): string {
-   return name.replace(/\s*\(\$+\)\s*$/, '').replace(/^[^:]+:\s*/, '');
-}
-
 /**
- * Which Berry tier an agent runs on (ADR-0017), for a deployment whose models
- * go through the gateway: the paid tiers in one row, each only its name.
- * Choosing the role's own tier stores
- * none, so the agent follows its role. Every change is a draft the settings
- * tab saves.
+ * Which Berry tier an agent runs on: the paid tiers in one row, each only
+ * its name. Choosing the role's own tier stores none, so the agent follows
+ * its role. Every change is a draft the settings tab saves.
  */
 export function AgentTierSection({
    agent,
@@ -102,34 +82,11 @@ export function AgentTierSection({
    bare = false,
 }: AgentTierSectionProps) {
    const t = useTranslations('agentsChat.detail.tiers');
-   const [board, setBoard] = useState<Leaderboard>({ status: 'loading' });
 
    const recommended = roleDefaultTier(agent);
    const effective = tier ?? recommended;
 
-   useEffect(() => {
-      let alive = true;
-      getModelTiers().then(
-         (data) => {
-            if (alive) setBoard(data.stale ? { status: 'unavailable' } : { status: 'ready', data });
-         },
-         () => {
-            if (alive) setBoard({ status: 'unavailable' });
-         }
-      );
-      return () => {
-         alive = false;
-      };
-   }, []);
-
-   const data = board.status === 'ready' ? board.data : null;
-   const nameOf = (id: string): string => {
-      for (const entry of data?.tiers ?? []) {
-         const found = entry.models.find((candidate) => candidate.id === id);
-         if (found) return modelName(found.name);
-      }
-      return id;
-   };
+   const nameOf = (id: string): string => id;
 
    const choose = (next: Tier) => {
       if (disabled) return;
@@ -164,12 +121,9 @@ export function AgentTierSection({
 
    return (
       <section className="flex flex-col gap-3">
-         {bare && board.status !== 'unavailable' ? null : (
+         {bare ? null : (
             <div className="flex flex-wrap items-baseline gap-2">
-               {bare ? null : <h3 className="font-medium">{t('title')}</h3>}
-               {board.status === 'unavailable' ? (
-                  <p className="text-muted-foreground">{t('leaderboardUnavailable')}</p>
-               ) : null}
+               <h3 className="font-medium">{t('title')}</h3>
             </div>
          )}
 
@@ -177,7 +131,6 @@ export function AgentTierSection({
             {TIER_ORDER.map(option)}
          </div>
 
-         {/* An old Bedrock pair is ignored under the gateway, so only a gateway pin is shown. */}
          {pinned && pinnedModel ? (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                <span>{t('pinned', { model: nameOf(pinnedModel) })}</span>

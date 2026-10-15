@@ -275,7 +275,10 @@ export function ShellRail({
                      return (
                         <div key={section.heading ?? 'primary'}>
                            {heading ? (
-                              <div className="px-6 pt-3 pb-1 uppercase tracking-[0.14em] text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]">
+                              <div
+                                 data-heading="label"
+                                 className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
+                              >
                                  {heading}
                               </div>
                            ) : null}
@@ -306,7 +309,8 @@ export function ShellRail({
                                   under a screen reader as it opens and closes. */}
                               <button
                                  type="button"
-                                 className="group/fold flex min-h-11 w-full cursor-pointer items-center gap-1 rounded px-3 py-[7px] text-left uppercase tracking-[0.14em] text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text-muted)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:min-h-0"
+                                 data-heading="label"
+                                 className="group/fold flex min-h-11 w-full cursor-pointer items-center gap-1 rounded px-3 py-[7px] text-left text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text-muted)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:min-h-0"
                               >
                                  {heading}
                                  <ChevronRight

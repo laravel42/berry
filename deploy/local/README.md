@@ -11,8 +11,9 @@ pnpm dev:docker          # Ctrl+C stops it; pnpm dev:docker:down removes the con
 | `web` | `next dev` | http://localhost:3000 |
 | `api` | migrations, then `node --watch` | http://localhost:4000 (previews at `*.preview.localhost:4000`) |
 | `sessions` | the session router (what `pnpm runtime:sessions` runs) | inside the compose network |
+| `postgres` | PostgreSQL 16 | inside the compose network (volume `postgres`) |
 
-All three run from the working tree, mounted into the containers, so an edit on the Mac restarts the API or reloads the page as it does today. It reads the repository's `.env` as it is and uses the PostgreSQL already on the Mac; the dev database is not moved into a container.
+`web`, `api` and `sessions` run from the working tree, mounted into the containers, so an edit on the Mac restarts the API or reloads the page as it does today. It reads the repository's `.env` except `DATABASE_URL`, which compose points at this stack's `postgres`. The Mac database is not used. `pnpm dev:server` on the host still uses `.env` as before.
 
 ## Hot reload, and Colima
 
@@ -33,7 +34,7 @@ Until events arrive, restart a service to pick up edits: `docker compose -f depl
 
 ## Before the first run
 
-- A Docker engine running (Docker Desktop, Colima or OrbStack), and **PostgreSQL running on the Mac** as usual. The API says so and stops when it is not.
+- A Docker engine running (Docker Desktop, Colima or OrbStack). PostgreSQL runs in this stack; the Mac database is not required.
 - Nothing else on ports 3000 and 4000: stop `pnpm dev:server`, `pnpm dev:frontend` and `pnpm runtime:sessions` first. Run Berry one way or the other, not both.
 - An Intel Mac: `BERRY_RUNTIME_PLATFORM=linux/amd64 pnpm dev:docker`.
 
@@ -43,7 +44,7 @@ The first run builds the dev image and the agent runtime image and installs depe
 
 `start.sh` adjusts two things instead of asking for a second `.env`:
 
-- `localhost` and `127.0.0.1` in `DATABASE_URL` (and `S3_ENDPOINT`) become `host.docker.internal`, which is the Mac as seen from a container.
+- `localhost` and `127.0.0.1` in `S3_ENDPOINT` become `host.docker.internal`, which is the Mac as seen from a container. `DATABASE_URL` already names the compose `postgres` service.
 - The containers the API and the router start (previews, agent sessions) are published on the Mac's loopback and reached through `host.docker.internal`, resolved to its address at start.
 
 Also:
@@ -60,6 +61,6 @@ docker compose -f deploy/local/docker-compose.yml logs -f api
 docker compose -f deploy/local/docker-compose.yml restart web
 ```
 
-- **The API says PostgreSQL is not answering:** start it on the Mac (DBngin, Postgres.app, `brew services`), then restart `api`. It only has to listen on the Mac's loopback, which they all do by default.
+- **The API says PostgreSQL is not answering:** `docker compose -f deploy/local/docker-compose.yml logs postgres`, then restart `api`. To wipe this stack's database: `pnpm dev:docker:down -v`.
 - **Sign-in with GitHub fails, or the page shows API errors:** the `api` container is not up. Its log says why.
 - **Page reloads feel slow:** file events cross the Mac-to-container boundary. If that bothers you, run `web` on the Mac (`pnpm dev:frontend`) and keep `api` and `sessions` in Docker: `docker compose -f deploy/local/docker-compose.yml up api sessions`, with `BERRY_API_ORIGIN=http://localhost:4000` as it is in `.env`.

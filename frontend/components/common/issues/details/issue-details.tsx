@@ -229,110 +229,108 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    );
 
    return (
-      <div
-         ref={pane}
-         className={cn(
-            'relative h-full min-h-0 w-full overflow-hidden bg-container',
-            inDrawer ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto]' : 'flex'
-         )}
-      >
+      <div ref={pane} className="relative h-full min-h-0 w-full overflow-hidden bg-container">
          <FindInIssue scope={pane} />
 
-         <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
-            <div
-               ref={scroller}
-               onScroll={(event) => rememberScroll(scrollKey, event.currentTarget.scrollTop)}
-               className="min-h-0 flex-1 overflow-y-auto"
-            >
-               <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
-                  <div className="flex flex-col gap-3">
-                     <IssueTitle issue={issue} />
-                     {/* Below `lg` the side panel has no room, so the same
+         <div
+            className={cn(
+               'h-full min-h-0',
+               inDrawer ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_auto]' : 'flex'
+            )}
+         >
+            <div className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+               <div
+                  ref={scroller}
+                  onScroll={(event) => rememberScroll(scrollKey, event.currentTarget.scrollTop)}
+                  className="min-h-0 flex-1 overflow-y-auto"
+               >
+                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
+                     <div className="flex flex-col gap-3">
+                        <IssueTitle issue={issue} />
+                        {/* Below `lg` the side panel has no room, so the same
                          panel opens in a sheet from here instead. Mounted only
                          while open, so it fetches nothing on a phone until
                          someone asks for it. */}
-                     <Sheet open={propertiesOpen && isMobile} onOpenChange={setPropertiesOpen}>
-                        <SheetTrigger asChild>
-                           <Button variant="outline" size="sm" className="self-start lg:hidden">
-                              <SlidersHorizontal aria-hidden />
-                              {tProperties('open')}
-                           </Button>
-                        </SheetTrigger>
-                        <SheetContent
-                           side="right"
-                           className="w-[min(320px,90vw)] gap-3 bg-container px-5 pt-4 pb-3.5 lg:hidden"
-                           overlayClassName="lg:hidden"
-                           aria-describedby={undefined}
-                        >
-                           <div className="flex items-center justify-between gap-2 pr-8">
-                              <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
-                              <IssueQuickActions issueRef={issue.identifier} />
-                           </div>
-                           <div className="min-h-0 flex-1">
-                              <IssuePropertiesPanel
-                                 issue={issue}
-                                 detail={detail ?? getIssueDetail(issue)}
-                              />
-                           </div>
-                        </SheetContent>
-                     </Sheet>
-                     <IssueDescription
-                        issueId={issue.id}
+                        <Sheet open={propertiesOpen && isMobile} onOpenChange={setPropertiesOpen}>
+                           <SheetTrigger asChild>
+                              <Button variant="outline" size="sm" className="self-start lg:hidden">
+                                 <SlidersHorizontal aria-hidden />
+                                 {tProperties('open')}
+                              </Button>
+                           </SheetTrigger>
+                           <SheetContent
+                              side="right"
+                              className="w-[min(320px,90vw)] gap-3 bg-container px-5 pt-4 pb-3.5 lg:hidden"
+                              overlayClassName="lg:hidden"
+                              aria-describedby={undefined}
+                           >
+                              <div className="flex items-center justify-between gap-2 pr-8">
+                                 <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
+                                 <IssueQuickActions issueRef={issue.identifier} />
+                              </div>
+                              <div className="min-h-0 flex-1">
+                                 <IssuePropertiesPanel
+                                    issue={issue}
+                                    detail={detail ?? getIssueDetail(issue)}
+                                 />
+                              </div>
+                           </SheetContent>
+                        </Sheet>
+                        <IssueDescription
+                           issueId={issue.id}
+                           issueRef={issue.identifier}
+                           description={issue.description}
+                        />
+                     </div>
+
+                     <SubIssues issue={issue} />
+
+                     <ActivityFeedList
+                        comments={activity.comments}
+                        events={activity.events}
+                        error={activity.error}
                         issueRef={issue.identifier}
-                        description={issue.description}
+                        highlightedCommentId={highlighted}
+                        onCommentChanged={activity.replaceComment}
+                        onCommentDeleted={activity.removeComment}
+                        onCommentPosted={activity.addComment}
+                        onRunChanged={activity.upsertRun}
+                        inReview={issue.status.id === 'in-review'}
+                        autoGate={issue.autoGate}
                      />
+
+                     {stickyCommentBar || agentManaged ? null : (
+                        <ActivityCommentComposer
+                           issueRef={issue.identifier}
+                           onPosted={activity.addComment}
+                        />
+                     )}
                   </div>
-
-                  <SubIssues issue={issue} />
-
-                  <ActivityFeedList
-                     comments={activity.comments}
-                     events={activity.events}
-                     error={activity.error}
-                     issueRef={issue.identifier}
-                     highlightedCommentId={highlighted}
-                     onCommentChanged={activity.replaceComment}
-                     onCommentDeleted={activity.removeComment}
-                     onCommentPosted={activity.addComment}
-                     onRunChanged={activity.upsertRun}
-                     issueId={issue.id}
-                     inReview={issue.status.id === 'in-review'}
-                     autoGate={issue.autoGate}
-                  />
-
-                  {stickyCommentBar || agentManaged ? null : (
-                     <ActivityCommentComposer
-                        issueRef={issue.identifier}
-                        onPosted={activity.addComment}
-                     />
-                  )}
                </div>
+
+               {stickyCommentBar && !agentManaged ? (
+                  <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
+                     <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
+                        <ActivityCommentComposer
+                           issueRef={issue.identifier}
+                           onPosted={activity.addComment}
+                        />
+                     </div>
+                  </div>
+               ) : null}
             </div>
 
-            {/* Between the task and its comment bar: docked there when open,
-                and a button floating just above that edge when folded. */}
-            <RunConsole issueId={issue.id} />
-
-            {stickyCommentBar && !agentManaged ? (
-               <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-                  <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
-                     <ActivityCommentComposer
-                        issueRef={issue.identifier}
-                        onPosted={activity.addComment}
-                     />
+            {sidebarOpen ? (
+               <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex">
+                  <div className="mb-3 flex justify-end">
+                     <IssueQuickActions issueRef={issue.identifier} />
                   </div>
-               </div>
+                  <IssuePropertiesPanel issue={issue} detail={detail ?? getIssueDetail(issue)} />
+               </aside>
             ) : null}
          </div>
 
-         {sidebarOpen ? (
-            <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex">
-               <div className="mb-3 flex justify-end">
-                  <IssueQuickActions issueRef={issue.identifier} />
-               </div>
-               <IssuePropertiesPanel issue={issue} detail={detail ?? getIssueDetail(issue)} />
-            </aside>
-         ) : null}
+         <RunConsole issueId={issue.id} />
       </div>
    );
 }

@@ -31,7 +31,6 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
-import { useModelGateway } from '@/hooks/use-model-gateway';
 import { BerryApiError } from '@/lib/api';
 import {
    archiveAgent,
@@ -97,7 +96,6 @@ export default function Agents() {
    const t = useTranslations('agentsChat.list');
    const common = useTranslations('agentsChat.common');
    const tiers = useTranslations('agentsChat.detail.tiers');
-   const modelGateway = useModelGateway();
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
 
@@ -361,7 +359,10 @@ export default function Agents() {
                </EmptyState>
             ) : (
                <>
-                  <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-container px-4 py-[6px] font-medium tracking-wider text-muted-foreground uppercase">
+                  <div
+                     data-heading="label"
+                     className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b bg-container px-4 text-subtle-foreground"
+                  >
                      <Checkbox
                         checked={allSelected}
                         onCheckedChange={() =>
@@ -462,16 +463,14 @@ export default function Agents() {
                   </Button>
                ) : (
                   <>
-                     {modelGateway === true ? (
-                        <Button
-                           size="xs"
-                           variant="secondary"
-                           disabled={busy}
-                           onClick={() => setBulkTierOpen(true)}
-                        >
-                           {t('bulkTier')}
-                        </Button>
-                     ) : null}
+                     <Button
+                        size="xs"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => setBulkTierOpen(true)}
+                     >
+                        {t('bulkTier')}
+                     </Button>
                      <Button
                         size="xs"
                         variant="secondary"
