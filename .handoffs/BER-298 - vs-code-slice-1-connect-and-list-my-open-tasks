@@ -1,0 +1,36 @@
+.handoffs/BER-298 - vs-code-slice-1-connect-and-list-my-open-tasks
+
+# Handoff from BER-298
+
+VS Code slice 1: connect and list my open tasks
+
+I’ll read the scaffold, repository guidance, and mounted API routes to confirm the task list can be built with the existing contract.
+The existing API supports this: discover boards, then query each board with the person’s user ID and open-status filters. Projects expose the repository as `githubRepo`. I’m applying the authentication and adapter guidance to keep credentials in SecretStorage and requests on the configured Berry origin.
+The tree, commands, credential storage, and API client are implemented; tests and strict typechecking pass. I’m checking the hosted task URL and adding coverage for pagination, connection states, and repository matching before writing the handoff.
+All 10 automated tests and strict typechecking pass. Coverage includes SecretStorage, request restrictions, pagination, recovery states, task links, and repository matching. I’m finishing the README and handoff using the developer-documentation guidance. Desktop F5 interaction and a live hosted Berry connection remain unverified.
+Implemented BER-298 using the BER-297 scaffold in `apps/vscode`.
+
+- Added Connect, Refresh, Disconnect and hosted task links.
+- Stored origin and PAT in SecretStorage.
+- Listed real assigned open tasks across paginated boards.
+- Added GitHub remote matching and usable loading, empty and error states.
+- Updated README and required handoff.
+
+Validation: all 10 tests, build, strict typecheck and diff checks pass.
+
+Desktop F5 interaction and a live hosted connection remain unverified. No backend routes or migrations changed.
+
+## Files
+- apps/vscode/README.md
+- apps/vscode/media/berry.svg
+- apps/vscode/package.json
+- apps/vscode/src/client.ts
+- apps/vscode/src/extension.ts
+- apps/vscode/src/host.ts
+- apps/vscode/test/client.test.cjs
+- apps/vscode/test/extension.test.cjs
+- apps/vscode/test/scaffold.test.cjs
+- apps/vscode/tsconfig.json
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-298-vs-code-slice-1-connect-and

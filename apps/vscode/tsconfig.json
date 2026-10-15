@@ -10,7 +10,12 @@
       "erasableSyntaxOnly": true,
       "sourceMap": true,
       "types": [],
-      "lib": ["ES2022"]
+      "lib": [
+         "ES2022",
+         "DOM"
+      ]
    },
-   "include": ["src/**/*.ts"]
+   "include": [
+      "src/**/*.ts"
+   ]
 }

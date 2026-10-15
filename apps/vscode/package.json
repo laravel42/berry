@@ -3,14 +3,18 @@
    "displayName": "Berry Companion",
    "version": "0.0.1",
    "private": true,
-   "description": "Desktop VS Code companion scaffold for hosted Berry.",
+   "description": "Connect to hosted Berry and browse your open tasks.",
    "license": "AGPL-3.0-only",
    "engines": {
       "vscode": "^1.95.0"
    },
-   "extensionKind": ["workspace"],
+   "extensionKind": [
+      "workspace"
+   ],
    "main": "./dist/extension.js",
-   "activationEvents": ["onStartupFinished"],
+   "activationEvents": [
+      "onStartupFinished"
+   ],
    "scripts": {
       "build": "tsc -p tsconfig.json",
       "watch": "tsc -p tsconfig.json --watch",
@@ -19,5 +23,61 @@
    },
    "devDependencies": {
       "typescript": "^7.0.2"
+   },
+   "contributes": {
+      "commands": [
+         {
+            "command": "berry.connect",
+            "title": "Berry: Connect"
+         },
+         {
+            "command": "berry.refresh",
+            "title": "Berry: Refresh"
+         },
+         {
+            "command": "berry.openTask",
+            "title": "Berry: Open task"
+         },
+         {
+            "command": "berry.disconnect",
+            "title": "Berry: Disconnect"
+         }
+      ],
+      "viewsContainers": {
+         "activitybar": [
+            {
+               "id": "berry",
+               "title": "Berry",
+               "icon": "media/berry.svg"
+            }
+         ]
+      },
+      "views": {
+         "berry": [
+            {
+               "id": "berry.tasks",
+               "name": "My open tasks"
+            }
+         ]
+      },
+      "menus": {
+         "view/title": [
+            {
+               "command": "berry.connect",
+               "when": "view == berry.tasks",
+               "group": "navigation"
+            },
+            {
+               "command": "berry.refresh",
+               "when": "view == berry.tasks",
+               "group": "navigation"
+            },
+            {
+               "command": "berry.disconnect",
+               "when": "view == berry.tasks",
+               "group": "navigation"
+            }
+         ]
+      }
    }
 }
