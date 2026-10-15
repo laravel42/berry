@@ -30,6 +30,7 @@ import {
    MessageSquare,
    ScrollText,
    Sparkles,
+   Target,
    Timer,
 } from 'lucide-react';
 import { Fragment, useRef, useState, type PointerEvent } from 'react';
@@ -46,6 +47,7 @@ export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
    { key: 'reviews', label: 'Reviews', icon: GitPullRequest, badged: true },
    { key: 'chat', label: 'Chat', icon: MessageSquare },
+   { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
    { key: 'plans', label: 'Plans', icon: ListChecks },
 ];
