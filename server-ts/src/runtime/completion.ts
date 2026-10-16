@@ -145,7 +145,12 @@ async function runOnce(
    const spec: CompletionSpec = {
       purpose: input.purpose,
       system: input.system,
-      jsonSchema: input.schema ? (z.toJSONSchema(input.schema) as Record<string, unknown>) : null,
+      // Input shape: a field with a default is optional. The output shape lists
+      // those fields as required, so a reply Zod would accept was rejected for
+      // leaving an empty array out.
+      jsonSchema: input.schema
+         ? (z.toJSONSchema(input.schema, { io: 'input' }) as Record<string, unknown>)
+         : null,
       model,
       ...(input.transcript ? { transcript: input.transcript } : {}),
       ...(input.subject?.planId ? { planId: input.subject.planId } : {}),

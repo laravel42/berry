@@ -76,6 +76,31 @@ test('a trailing comma or comment still yields the object', () => {
    });
 });
 
+test('a required key with a default may be omitted', () => {
+   const schema = {
+      type: 'object',
+      required: ['reason', 'read', 'missingEvidence', 'findings'],
+      properties: {
+         status: { type: 'string' },
+         reason: { default: '', type: 'string' },
+         read: { default: [], type: 'array' },
+         missingEvidence: { default: [], type: 'array' },
+         findings: { default: [], type: 'array' },
+      },
+   };
+   const text =
+      'I need the lockfile.\n```json\n' +
+      '{"status":"needs_context","approved":false,"reason":"need the lockfile","read":["pnpm-lock.yaml"],"missingEvidence":["lockfile completeness"]}\n' +
+      '```';
+   assert.deepEqual(structuredAnswer(text, schema), {
+      status: 'needs_context',
+      approved: false,
+      reason: 'need the lockfile',
+      read: ['pnpm-lock.yaml'],
+      missingEvidence: ['lockfile completeness'],
+   });
+});
+
 test('a required schema refuses a nested finding that is not the verdict', () => {
    const text = 'Notes. {"path":"src/a.ts","message":"noise","severity":"low"}';
    assert.equal(structuredAnswer(text, verdictSchema), undefined);

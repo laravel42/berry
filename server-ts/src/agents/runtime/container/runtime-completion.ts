@@ -111,7 +111,9 @@ export function completionPrompt(envelope: TaskEnvelope): string {
  * (`export type { X }`), the first fence is often a sample, and the verdict
  * sits last — sometimes with a trailing comma. Walk every balanced object,
  * repair the usual damage, and keep the last one that matches `schema`
- * (required keys, then property overlap). Without a schema, the last object.
+ * (required keys, then property overlap). A required key that declares a
+ * default is optional: Zod fills it, so omitting an empty array is still the
+ * answer. Without a schema, the last object.
  */
 export function structuredAnswer(text: string, schema?: unknown): unknown | undefined {
    const candidates = jsonObjects(text);
@@ -225,7 +227,7 @@ function stripJsonComments(source: string): string {
 
 function pickStructured(candidates: readonly object[], schema: unknown): object | undefined {
    if (candidates.length === 0) return undefined;
-   const required = schemaKeys(schema, 'required');
+   const required = schemaKeys(schema, 'required').filter((key) => !propertyHasDefault(schema, key));
    if (required.length > 0) {
       const matched = candidates.filter((candidate) => required.every((key) => key in candidate));
       return matched.at(-1);
@@ -244,6 +246,17 @@ function pickStructured(candidates: readonly object[], schema: unknown): object 
       if (best) return best;
    }
    return candidates.at(-1);
+}
+
+/** A JSON Schema property that carries `default` is filled when the key is absent. */
+function propertyHasDefault(schema: unknown, key: string): boolean {
+   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return false;
+   const properties = (schema as Record<string, unknown>).properties;
+   if (!properties || typeof properties !== 'object' || Array.isArray(properties)) return false;
+   const property = (properties as Record<string, unknown>)[key];
+   return (
+      property !== null && typeof property === 'object' && !Array.isArray(property) && 'default' in property
+   );
 }
 
 function schemaKeys(schema: unknown, field: 'required' | 'properties'): string[] {
