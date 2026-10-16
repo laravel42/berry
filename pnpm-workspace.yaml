@@ -42,7 +42,7 @@ minimumReleaseAgeExclude:
   - '@github/copilot-sdk@1.0.18'
 
 patchedDependencies:
-  '@electric-sql/pglite-socket@0.2.11': patches/@electric-sql__pglite-socket@0.2.11.patch
+   '@electric-sql/pglite-socket@0.2.11': patches/@electric-sql__pglite-socket@0.2.11.patch
 
 peerDependencyRules:
    allowedVersions:

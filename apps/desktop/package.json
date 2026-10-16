@@ -3,14 +3,15 @@
    "version": "0.0.1",
    "private": true,
    "type": "module",
-   "description": "Electron window onto Berry. Starts the server with a PGlite database.",
+   "description": "Electron window onto Berry. Starts the server against PGlite (or host Postgres).",
    "main": "dist/main.js",
    "scripts": {
-      "build:js": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs",
+      "build:js": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs && cp build/icon.png dist/icon.png",
       "dev": "pnpm build:js && node --env-file-if-exists=.env node_modules/electron/cli.js .",
       "typecheck": "tsc -p tsconfig.json --noEmit",
       "test": "node --experimental-strip-types --test test/*.test.ts",
-      "package": "pnpm build:js && electron-builder --dir"
+      "stage-bundle": "node --experimental-strip-types scripts/stage-bundle.ts",
+      "package": "pnpm build:js && pnpm run stage-bundle && electron-builder --dir"
    },
    "build": {
       "appId": "pm.berry.desktop",
@@ -18,9 +19,24 @@
       "directories": {
          "output": "release"
       },
+      "icon": "build/icon.svg",
+      "asarUnpack": [
+         "**/*.node"
+      ],
       "files": [
          "dist/**/*",
          "package.json"
+      ],
+      "afterPack": "./scripts/after-pack.cjs",
+      "extraResources": [
+         {
+            "from": "resources/berry",
+            "to": "berry"
+         },
+         {
+            "from": "../../server-ts/migrations",
+            "to": "berry/server/migrations"
+         }
       ],
       "mac": {
          "category": "public.app-category.productivity",

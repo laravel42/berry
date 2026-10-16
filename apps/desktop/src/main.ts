@@ -5,7 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cliRequestFrom, runCli } from './cli.js';
-import { findRepoRoot, localStack, startLocalStack, type RunningStack } from './stack.js';
+import {
+   applyEnvFile,
+   bundledNodeBin,
+   findRepoRoot,
+   localStack,
+   REPO_DESKTOP_ENV_KEYS,
+   resolveStack,
+   startLocalStack,
+   type RunningStack,
+} from './stack.js';
 import { externalHttpUrl, inAppNavigation, parseStartUrl, type StartUrl } from './url.js';
 
 const RETRY_CHANNEL = 'berry-desktop:retry';
@@ -113,6 +122,10 @@ function showOffline(contents: WebContents, detail: string): void {
    void contents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(offlineHtml(detail))}`);
 }
 
+function appIconPath(): string {
+   return path.join(path.dirname(fileURLToPath(import.meta.url)), 'icon.png');
+}
+
 function createWindow(): void {
    const preload = path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs');
    const created = new BrowserWindow({
@@ -122,6 +135,7 @@ function createWindow(): void {
       minHeight: 640,
       title: 'Berry',
       backgroundColor: '#18181b',
+      icon: appIconPath(),
       show: false,
       webPreferences: {
          preload,
@@ -238,19 +252,41 @@ if (gotLock) {
    });
 
    void app.whenReady().then(async () => {
+      if (process.platform === 'darwin') app.dock?.setIcon(appIconPath());
       installMenu();
+      applyEnvFile(path.join(app.getPath('userData'), 'desktop.env'), process.env);
+      const here = path.dirname(fileURLToPath(import.meta.url));
+      for (const start of [process.cwd(), process.resourcesPath, here]) {
+         if (start === undefined || start === '') continue;
+         const root = findRepoRoot(start);
+         if (root === null) continue;
+         applyEnvFile(path.join(root, '.env'), process.env, REPO_DESKTOP_ENV_KEYS);
+         break;
+      }
       const explicit = readExplicitStart();
       if (explicit !== null) {
          session.start = explicit;
       } else {
-         const repoRoot = findRepoRoot(path.dirname(fileURLToPath(import.meta.url)));
-         if (repoRoot === null) {
-            dialog.showErrorBox('Berry', 'The desktop app could not find the Berry repo, so it cannot start PGlite.');
+         const layout = resolveStack({
+            start: here,
+            resourcesPath: process.resourcesPath,
+            cwd: process.cwd(),
+            env: process.env,
+         });
+         if (layout === null) {
+            dialog.showErrorBox(
+               'Berry',
+               'The desktop app could not find a Berry server bundle or a git checkout.',
+            );
             app.quit();
             return;
          }
          try {
-            local = await startLocalStack(repoRoot, localStack(path.join(app.getPath('userData'), 'pglite')));
+            const nodeBin = bundledNodeBin(layout, app.isPackaged ? process.execPath : 'node');
+            local = await startLocalStack(layout, localStack(app.getPath('userData')), {
+               nodeBin,
+               electronAsNode: app.isPackaged && nodeBin === process.execPath,
+            });
             session.start = parseStartUrl(local.webOrigin);
          } catch (error) {
             const message = error instanceof Error ? error.message : 'The local server did not start.';
