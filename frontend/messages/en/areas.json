@@ -636,7 +636,7 @@
    },
    "runtimes": {
       "bandNone": "No runtime connected",
-      "bandSome": "{count, plural, =1 {1 runtime connected} other {# runtimes connected}}",
+      "bandSome": "Runtimes connected",
       "bandHintNone": "A runtime is a coding-agent CLI already signed in on this computer. Connect one so agents can run on that subscription.",
       "bandHintSome": "A runtime is a coding-agent CLI already signed in on this computer. Agents run on a connected subscription.",
       "bandAvailable": "{count} available",

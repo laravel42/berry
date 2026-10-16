@@ -21,7 +21,7 @@ export const Defaults: Story = {
       const dialog = within(await body.findByRole('dialog', { name: 'Customize sidebar' }));
       await expect(dialog.getByText('Work')).toBeVisible();
       await expect(dialog.getByText('Manage')).toBeVisible();
-      await expect(dialog.getByLabelText('Reorder Reviews')).toBeInTheDocument();
+      await expect(dialog.getByLabelText('Reorder Projects')).toBeInTheDocument();
    },
 };
 
@@ -36,11 +36,9 @@ export const DotBadges: Story = {
    },
 };
 
-/** Reviews shown only while something waits; usage hidden. */
+/** Usage hidden from Manage. */
 export const Trimmed: Story = {
    beforeEach: () => {
-      const { setVisibility } = useSidebarPrefsStore.getState();
-      setVisibility('reviews', 'badged');
-      setVisibility('usage', 'never');
+      useSidebarPrefsStore.getState().setVisibility('usage', 'never');
    },
 };

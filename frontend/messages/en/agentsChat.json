@@ -303,7 +303,7 @@
       "aiUnavailable": "The builder needs the agent runtime. Set the agent up yourself instead."
    },
    "chat": {
-      "title": "Chat",
+      "title": "Agent",
       "newChat": "New chat",
       "agents": "Agents",
       "sessions": "Sessions",

@@ -7,6 +7,7 @@ import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
 import { priorities as PRIORITIES } from '@/data/priorities';
 import { pinTarget } from '@/lib/pins';
+import { loadWorkspaceProjects } from '@/lib/projects';
 import { useIssuesStore } from '@/store/issues-store';
 import { usePinsStore } from '@/store/pins-store';
 import { useProjectsStore } from '@/store/projects-store';
@@ -16,7 +17,7 @@ import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
 import { BarChart3, Box, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -136,10 +137,25 @@ export default function Projects() {
       useProjectsDisplayStore();
    const { openPanel, togglePanel } = useRightPanelStore();
    const allProjects = useProjectsStore((state) => state.projects);
+   const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
    const issues = useIssuesStore((state) => state.issues);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   const sessionStatus = useSessionStore((state) => state.status);
    const { pins, add: addPin } = usePinsStore();
    const [selected, setSelected] = useState<string[]>([]);
+
+   // The list is a session snapshot. An agent-created project is already in
+   // the database; opening this page reads it even if the stream missed it.
+   useEffect(() => {
+      if (sessionStatus !== 'ready' || !workspaceId) return;
+      let cancelled = false;
+      void loadWorkspaceProjects(workspaceId).then((projects) => {
+         if (!cancelled) hydrateProjects(projects);
+      });
+      return () => {
+         cancelled = true;
+      };
+   }, [sessionStatus, workspaceId, hydrateProjects]);
 
    const enriched = useMemo(
       () =>

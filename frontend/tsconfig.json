@@ -33,7 +33,9 @@
       ".next-docker/types/**/*.ts",
       ".next-docker/dev/types/**/*.ts",
       ".next-desktop/types/**/*.ts",
-      ".next-desktop/dev/types/**/*.ts"
+      ".next-desktop/dev/types/**/*.ts",
+      ".next-desktop-bundle/types/**/*.ts",
+      ".next-desktop-bundle/dev/types/**/*.ts"
    ],
    "exclude": ["node_modules"]
 }

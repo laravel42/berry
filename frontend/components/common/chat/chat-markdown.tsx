@@ -12,9 +12,10 @@ import { cn } from '@/lib/utils';
  * that were written, which is the right failure for a chat message — a stray
  * asterisk should look like a stray asterisk, not swallow a paragraph.
  *
- * Deliberately not a full implementation. Tables, footnotes and reference
- * links do not appear in replies often enough to justify the parser they need,
- * and a half-working table is worse than a visible pipe character.
+ * Deliberately not a full implementation. Footnotes and reference links stay
+ * as the characters that were written. Tables follow GitHub flavoured
+ * markdown: a header row, a delimiter of dashes, then body rows. A pipe in
+ * prose is not a table. Raw HTML is never interpreted.
  */
 
 const FENCE = /^```(\w+)?\s*$/;
@@ -83,10 +84,44 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
    return nodes;
 }
 
+type Align = 'left' | 'center' | 'right';
+
 interface Block {
-   kind: 'code' | 'heading' | 'list' | 'ordered' | 'quote' | 'paragraph';
+   kind: 'code' | 'heading' | 'list' | 'ordered' | 'quote' | 'paragraph' | 'table';
    lines: string[];
    level?: number;
+   header?: string[];
+   rows?: string[][];
+   align?: Array<Align | undefined>;
+}
+
+/** Split a GFM table row. A `\|` in a cell stays a pipe. */
+function tableCells(line: string): string[] {
+   let inner = line.trim();
+   if (inner.startsWith('|')) inner = inner.slice(1);
+   if (inner.endsWith('|')) inner = inner.slice(0, -1);
+   return inner.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, '|').trim());
+}
+
+function isTableDelimiter(line: string): boolean {
+   if (!line.includes('|')) return false;
+   const parts = tableCells(line);
+   return parts.length > 0 && parts.every((part) => /^:?-+:?$/.test(part));
+}
+
+function alignOf(cell: string): Align | undefined {
+   const left = cell.startsWith(':');
+   const right = cell.endsWith(':');
+   if (left && right) return 'center';
+   if (right) return 'right';
+   if (left) return 'left';
+   return undefined;
+}
+
+function textAlign(align: Align | undefined): string {
+   if (align === 'center') return 'text-center';
+   if (align === 'right') return 'text-right';
+   return 'text-left';
 }
 
 /** One pass over the lines, grouping them into the blocks above. */
@@ -94,8 +129,10 @@ function parse(source: string): Block[] {
    const blocks: Block[] = [];
    const lines = source.replace(/\r\n/g, '\n').split('\n');
    let fenced: Block | null = null;
+   let i = 0;
 
-   for (const line of lines) {
+   while (i < lines.length) {
+      const line = lines[i] ?? '';
       if (fenced) {
          if (FENCE.test(line)) {
             blocks.push(fenced);
@@ -103,10 +140,28 @@ function parse(source: string): Block[] {
          } else {
             fenced.lines.push(line);
          }
+         i += 1;
          continue;
       }
       if (FENCE.test(line)) {
          fenced = { kind: 'code', lines: [] };
+         i += 1;
+         continue;
+      }
+
+      const next = lines[i + 1];
+      if (next !== undefined && line.includes('|') && isTableDelimiter(next)) {
+         const header = tableCells(line);
+         const align = tableCells(next).map(alignOf);
+         i += 2;
+         const rows: string[][] = [];
+         while (i < lines.length) {
+            const body = lines[i] ?? '';
+            if (body.trim() === '' || !body.includes('|') || isTableDelimiter(body)) break;
+            rows.push(tableCells(body));
+            i += 1;
+         }
+         blocks.push({ kind: 'table', lines: [], header, rows, align });
          continue;
       }
 
@@ -117,6 +172,7 @@ function parse(source: string): Block[] {
             lines: [heading[2] ?? ''],
             level: heading[1]?.length ?? 1,
          });
+         i += 1;
          continue;
       }
 
@@ -125,6 +181,7 @@ function parse(source: string): Block[] {
          const last = blocks.at(-1);
          if (last?.kind === 'list') last.lines.push(bullet[1] ?? '');
          else blocks.push({ kind: 'list', lines: [bullet[1] ?? ''] });
+         i += 1;
          continue;
       }
 
@@ -133,6 +190,7 @@ function parse(source: string): Block[] {
          const last = blocks.at(-1);
          if (last?.kind === 'ordered') last.lines.push(numbered[1] ?? '');
          else blocks.push({ kind: 'ordered', lines: [numbered[1] ?? ''] });
+         i += 1;
          continue;
       }
 
@@ -141,22 +199,27 @@ function parse(source: string): Block[] {
          const last = blocks.at(-1);
          if (last?.kind === 'quote') last.lines.push(quote[1] ?? '');
          else blocks.push({ kind: 'quote', lines: [quote[1] ?? ''] });
+         i += 1;
          continue;
       }
 
       if (line.trim() === '') {
          // A blank line ends whatever was open; the next line starts fresh.
          blocks.push({ kind: 'paragraph', lines: [] });
+         i += 1;
          continue;
       }
 
       const last = blocks.at(-1);
       if (last?.kind === 'paragraph' && last.lines.length > 0) last.lines.push(line);
       else blocks.push({ kind: 'paragraph', lines: [line] });
+      i += 1;
    }
 
    if (fenced) blocks.push(fenced);
-   return blocks.filter((block) => block.kind === 'code' || block.lines.length > 0);
+   return blocks.filter(
+      (block) => block.kind === 'code' || block.kind === 'table' || block.lines.length > 0
+   );
 }
 
 /**
@@ -170,10 +233,14 @@ const TONE = {
    shell: {
       code: 'bg-[var(--shell-line)]',
       quote: 'border-[var(--shell-line-strong)] text-[var(--shell-text-dim)]',
+      table: 'border-[var(--shell-line)]',
+      tableHead: 'bg-[var(--shell-line)]',
    },
    page: {
       code: 'bg-muted',
       quote: 'border-border text-muted-foreground',
+      table: 'border-border',
+      tableHead: 'bg-muted',
    },
 } as const;
 
@@ -244,6 +311,44 @@ export function ChatMarkdown({
                         </Fragment>
                      ))}
                   </blockquote>
+               );
+            }
+            if (block.kind === 'table') {
+               const header = block.header ?? [];
+               const rows = block.rows ?? [];
+               const align = block.align ?? [];
+               const cell = `border px-2.5 py-1.5 ${tones.table}`;
+               return (
+                  <div key={key} className="w-full min-w-0 overflow-x-auto">
+                     <table className="w-full border-collapse">
+                        <thead>
+                           <tr>
+                              {header.map((item, at) => (
+                                 <th
+                                    key={`${key}-h-${at}`}
+                                    className={`${cell} font-medium ${tones.tableHead} ${textAlign(align[at])}`}
+                                 >
+                                    {inline(item, `${key}-h-${at}`)}
+                                 </th>
+                              ))}
+                           </tr>
+                        </thead>
+                        <tbody>
+                           {rows.map((row, rowAt) => (
+                              <tr key={`${key}-r-${rowAt}`}>
+                                 {header.map((_, at) => (
+                                    <td
+                                       key={`${key}-${rowAt}-${at}`}
+                                       className={`${cell} ${textAlign(align[at])}`}
+                                    >
+                                       {inline(row[at] ?? '', `${key}-${rowAt}-${at}`)}
+                                    </td>
+                                 ))}
+                              </tr>
+                           ))}
+                        </tbody>
+                     </table>
+                  </div>
                );
             }
             return (

@@ -38,7 +38,7 @@ export const InNavRows: Story = {
          </span>
          <span className={shellNavRow(false)}>
             <ShellIcon path={CHAT_ICON} />
-            Chat
+            Agent
          </span>
       </div>
    ),

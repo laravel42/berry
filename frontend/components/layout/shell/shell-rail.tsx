@@ -19,12 +19,10 @@ import {
    type SidebarSection,
 } from '@/store/sidebar-prefs-store';
 import { isTerminalRunStatus } from '@/lib/runs';
-import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
-import { ShellBadge } from './shell-badge';
 import { ShellIcon, BerryMark, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
@@ -83,16 +81,6 @@ export function ShellRail({
    const runsLive = useRunsStore((state) =>
       state.runs.some((run) => !isTerminalRunStatus(run.status))
    );
-   // Reviews badge only — approvals land in Inbox, so the rail no longer
-   // reads the approvals store. Kept current by `useOpenReviewsSync`; null
-   // until the first load, and a count nobody has yet is not worth showing.
-   const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
-
-   /** What a route's badge currently says, for the badge and for "show when badged". */
-   const badgeCount = (route: ShellRouteDef): number => {
-      if (route.badge === 'reviews') return openReviews;
-      return 0;
-   };
 
    // The preference store is persisted, so its first client value differs from
    // what the server rendered. Rendering the unfiltered list until mount keeps
@@ -116,7 +104,7 @@ export function ShellRail({
       )
          .map((key) => pinnable.find((route) => route.prefsKey === key))
          .filter((route): route is PinnableRoute => Boolean(route))
-         .filter((route) => isSidebarItemVisible(visibility[route.prefsKey], badgeCount(route)));
+         .filter((route) => isSidebarItemVisible(visibility[route.prefsKey], 0));
 
       // Placeholders have no prefsKey and always show. Pinnable items keep the
       // user's order in the slots they occupy; hidden pins drop out.
@@ -129,7 +117,7 @@ export function ShellRail({
             shown.push(route);
             continue;
          }
-         if (!isSidebarItemVisible(visibility[route.prefsKey], badgeCount(route))) continue;
+         if (!isSidebarItemVisible(visibility[route.prefsKey], 0)) continue;
          const next = queue.shift();
          if (next) shown.push(next);
       }
@@ -229,7 +217,6 @@ export function ShellRail({
                         {shown.map((route) => {
                            const on = Boolean(route.href) && route.id === active;
                            const className = shellNavRow(on);
-                           const count = badgeCount(route);
                            const inner = (
                               <>
                                  <ShellIcon path={route.icon} />
@@ -239,12 +226,6 @@ export function ShellRail({
                                        aria-label={t('rail.runsInProgress')}
                                        title={t('rail.runsInProgress')}
                                        className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
-                                    />
-                                 ) : null}
-                                 {route.badge === 'reviews' ? (
-                                    <ShellBadge
-                                       count={count}
-                                       label={t('rail.reviewsWaiting', { count })}
                                     />
                                  ) : null}
                               </>

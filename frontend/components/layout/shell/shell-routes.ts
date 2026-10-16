@@ -96,15 +96,6 @@ const WORK: ShellRouteDef[] = [
       icon: '<path d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z" />',
    },
    {
-      id: 'reviews',
-      label: 'reviews',
-      labelKey: 'reviews',
-      href: '/reviews',
-      prefsKey: 'reviews',
-      badge: 'reviews',
-      icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
-   },
-   {
       id: 'goals',
       label: 'goals',
       labelKey: 'goals',
@@ -122,6 +113,20 @@ const WORK: ShellRouteDef[] = [
       prefsKey: 'projects',
       icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
    },
+];
+
+// Routes with a page but no rail entry: they still resolve the active route
+// and label their tabs, and are reached from the command palette.
+const OFF_RAIL: ShellRouteDef[] = [
+   {
+      // Waiting on you, so Personal renders this above Agent rather than in Work.
+      id: 'reviews',
+      label: 'reviews',
+      labelKey: 'reviews',
+      href: '/reviews',
+      match: ['/review/'],
+      icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
+   },
    {
       // Every open plan: generating, waiting on answers or approval, or
       // started and still working through its tasks.
@@ -130,7 +135,6 @@ const WORK: ShellRouteDef[] = [
       labelKey: 'plans',
       href: '/plans',
       match: ['/plan/'],
-      prefsKey: 'plans',
       icon: '<path d="M8 4h8M8 4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2" /><path d="M9.5 10l1.5 1.5 3-3M9.5 15.5h5" />',
    },
 ];
@@ -199,17 +203,20 @@ export const SHELL_SECTIONS: {
 ];
 
 /** Every rail destination, for surfaces that label a path by its rail entry. */
-export const SHELL_ROUTES: ShellRouteDef[] = [...WORK, ...MANAGE];
+export const SHELL_ROUTES: ShellRouteDef[] = [...WORK, ...MANAGE, ...OFF_RAIL];
 
-const BY_ID = new Map<string, ShellRouteDef>(
-   [...WORK, ...MANAGE].map((route) => [route.id, route])
-);
+const BY_ID = new Map<string, ShellRouteDef>(SHELL_ROUTES.map((route) => [route.id, route]));
 
 /** The tasks page filtered to what is assigned to the person: Personal's view of it. */
 export const MY_TASKS_HREF = '/tasks?tab=assigned';
 
 export function isMyTasks(pathname: string, search?: string): boolean {
    return pathname.includes('/tasks') && /(?:^|[?&])tab=assigned(?:&|$)/.test(search ?? '');
+}
+
+/** The reviews list and a single review: Personal's Reviews, not Work. */
+export function isReviews(pathname: string, orgId: string): boolean {
+   return pathname.startsWith(`/${orgId}/review`);
 }
 
 export function shellRoute(id: string): ShellRouteDef | undefined {

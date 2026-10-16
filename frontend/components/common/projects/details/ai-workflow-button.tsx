@@ -38,7 +38,7 @@ const STEPS: { title: string; detail: string }[] = [
    },
    {
       title: 'Plan generation',
-      detail: 'It proposes the milestones, tasks and approvals the project would take.',
+      detail: 'It proposes the goals, tasks and approvals the project would take.',
    },
    {
       title: 'Plan approval',

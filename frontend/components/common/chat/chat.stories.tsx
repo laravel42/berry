@@ -28,13 +28,14 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Nothing open yet: the sidebar lists the conversations and the pane invites a new one. */
+/** With no session in the URL the page opens a conversation with the Orchestrator. */
 export const NoConversationOpen: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Project health migration')).toBeVisible();
-      await expect(canvas.getByRole('heading', { name: 'Talk to an agent' })).toBeVisible();
-      await expect(await canvas.findByRole('button', { name: 'Orchestrator' })).toBeVisible();
-      await expect(canvas.getByRole('textbox', { name: 'Message an agent…' })).toBeDisabled();
+      await expect(canvas.queryByRole('heading', { name: 'Orchestrator' })).toBeNull();
+      await expect(canvas.queryByRole('button', { name: 'New chat' })).toBeNull();
+      await expect(
+         await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
+      ).toBeEnabled();
    },
 };
 
@@ -51,8 +52,9 @@ export const OpenConversation: Story = {
    },
    play: async ({ canvas, userEvent }) => {
       await expect(
-         await canvas.findByRole('heading', { level: 2, name: 'Backend Engineer' })
+         await canvas.findByRole('textbox', { name: 'Message Backend Engineer…' })
       ).toBeVisible();
+      await expect(canvas.queryByRole('heading', { name: 'Backend Engineer' })).toBeNull();
       await expect(await canvas.findByText('Suggested next')).toBeVisible();
       const composer = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
       await userEvent.type(composer, 'Open the pull request please{Enter}');

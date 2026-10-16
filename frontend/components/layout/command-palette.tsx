@@ -207,8 +207,8 @@ const PAGES: PalettePage[] = [
    },
    {
       id: 'chat',
-      label: 'Chat',
-      keywords: ['conversations', 'threads', 'messages', 'ask'],
+      label: 'Agent',
+      keywords: ['chat', 'conversations', 'threads', 'messages', 'ask'],
       icon: MessageSquare,
       href: '/chat',
       shortcutId: 'goto.chat',

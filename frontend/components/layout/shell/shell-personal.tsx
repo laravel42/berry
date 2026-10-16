@@ -5,15 +5,18 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { useNotificationsStore } from '@/store/notifications-store';
+import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useShellStore } from '@/store/shell-store';
 import { ShellBadge, badgeText } from './shell-badge';
 import { ShellIcon, shellNavRow } from './shell-icon';
-import { isMyTasks, MY_TASKS_HREF } from './shell-routes';
+import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
 const TASKS_ICON =
    '<path d="M5 7l2 2 4-4" /><path d="M5 16l2 2 4-4" /><path d="M13 7h6M13 17h6" />';
 const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
+const REVIEWS_ICON =
+   '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />';
 
 /**
  * The rail's "personal" section: the places that are about you rather than
@@ -24,6 +27,7 @@ const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
  * workspace event stream, so a task assigned to you while you are reading
  * something else shows up without a refresh. Chat's figure is kept by
  * `useChatUnreadSync` in the shell, which the floating chat button reads too.
+ * Reviews sit above Agent: they are waiting on you, not on the workspace.
  */
 export function ShellPersonal({ orgId }: { orgId: string }) {
    const t = useTranslations('navigation.sidebar');
@@ -31,6 +35,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const notifications = useNotificationsStore((state) => state.notifications);
    const serverUnreadCount = useNotificationsStore((state) => state.serverUnreadCount);
    const chatUnread = useShellStore((state) => state.chatUnread);
+   const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
 
    // The loaded list is what Inbox shows, so it is what the badge counts;
    // the server figure stands in until the first load arrives.
@@ -43,6 +48,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const onInbox = pathname.startsWith(`/${orgId}/inbox`);
    const onIssues = pathname.startsWith(`/${orgId}/tasks`) && isMyTasks(pathname, search);
    const onChat = pathname.startsWith(`/${orgId}/chat`);
+   const onReviews = isReviews(pathname, orgId);
 
    return (
       <div>
@@ -77,6 +83,21 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                >
                   <ShellIcon path={TASKS_ICON} />
                   {t('myIssues')}
+               </Link>
+            </li>
+            <li>
+               <Link
+                  data-shell-nav
+                  href={`/${orgId}/reviews`}
+                  aria-current={onReviews ? 'page' : undefined}
+                  className={shellNavRow(onReviews)}
+               >
+                  <ShellIcon path={REVIEWS_ICON} />
+                  {t('reviews')}
+                  <ShellBadge
+                     count={openReviews}
+                     label={t('reviewsWaiting', { count: openReviews })}
+                  />
                </Link>
             </li>
             <li>

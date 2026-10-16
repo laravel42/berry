@@ -90,6 +90,22 @@ export const chatRoster = new Map<string, AgentRoster>(
 
 export const chatThreads: ChatThread[] = [
    {
+      id: 'conv-orch',
+      kind: 'agent',
+      topic: 'Orchestrator',
+      agentId: 'agent-orchestrator',
+      agentName: 'Orchestrator',
+      messageCount: 0,
+      updatedAt: '2026-09-18T12:00:00Z',
+      pinned: false,
+      archived: false,
+      unread: 0,
+      activeRunId: null,
+      draft: '',
+      lastMessage: null,
+      lastMessageAuthor: null,
+   },
+   {
       id: 'conv-1',
       kind: 'agent',
       topic: 'Project health migration',
@@ -282,7 +298,11 @@ export const chatHandlers = [
    http.get('*/api/v1/conversations/:id/tasks', () => HttpResponse.json({ nodes: [] })),
    http.post('*/api/v1/conversations/:id/read', () => new HttpResponse(null, { status: 204 })),
    http.put('*/api/v1/conversations/:id/draft', () => new HttpResponse(null, { status: 204 })),
-   http.post('*/api/v1/conversations/agents/:agentId', () => HttpResponse.json({ id: 'conv-1' })),
+   http.post('*/api/v1/conversations/agents/:agentId', ({ params }) => {
+      const agentId = String(params.agentId);
+      const existing = chatThreads.find((thread) => thread.agentId === agentId);
+      return HttpResponse.json({ id: existing?.id ?? 'conv-1' });
+   }),
    http.post('*/api/v1/conversations/:id/messages', () =>
       HttpResponse.json({ messageId: 'msg-new', runId: 'run-90', queued: true }, { status: 202 })
    ),

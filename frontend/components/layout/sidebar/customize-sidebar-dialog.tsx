@@ -23,9 +23,7 @@ import {
    ChevronDown,
    Coins,
    FolderKanban,
-   GitPullRequest,
    GripVertical,
-   ListChecks,
    LucideIcon,
    MessageSquare,
    ScrollText,
@@ -45,11 +43,9 @@ interface ItemConfig {
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
-   { key: 'reviews', label: 'Reviews', icon: GitPullRequest, badged: true },
-   { key: 'chat', label: 'Chat', icon: MessageSquare },
+   { key: 'chat', label: 'Agent', icon: MessageSquare },
    { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
-   { key: 'plans', label: 'Plans', icon: ListChecks },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [

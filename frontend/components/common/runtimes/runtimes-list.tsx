@@ -1,6 +1,5 @@
 'use client';
 
-import { BerryMark } from '@/components/brand/berry-mark';
 import { ConfirmAction } from '@/components/common/confirm-action';
 import { Figure } from '@/components/common/page/page-parts';
 import {
@@ -39,13 +38,13 @@ const FILTERS: CatalogFilter[] = ['all', 'connected', 'available'];
 
 function catalogKey(runtime: AiRuntimeDefinition): keyof typeof CATALOG_TONE {
    if (runtime.connection?.status === 'connected') return 'connected';
-   if (runtime.availability === 'available') return 'available';
+   if (runtime.installed === true) return 'available';
    return 'unavailable';
 }
 
 function catalogRank(runtime: AiRuntimeDefinition): number {
    if (runtime.connection?.status === 'connected') return 0;
-   if (runtime.availability === 'available') return 1;
+   if (runtime.installed === true) return 1;
    return 2;
 }
 
@@ -71,7 +70,7 @@ function RuntimeRow({
    onDisconnect: () => void;
 }) {
    const connected = runtime.connection?.status === 'connected';
-   const available = runtime.availability === 'available';
+   const available = runtime.installed === true;
    const look: StatusLook = { ...CATALOG_TONE[catalogKey(runtime)], label: statusLabel };
 
    return (
@@ -80,7 +79,7 @@ function RuntimeRow({
             <span className="flex flex-wrap items-center gap-2">
                <RuntimeProviderBadge runtimeId={runtime.id} size="md" title={runtime.name} />
                {runtime.name}
-               <StatusBadge look={look} />
+               {connected || available ? <StatusBadge look={look} /> : null}
             </span>
          }
          description={runtime.unavailableReason ?? runtime.description}
@@ -136,13 +135,6 @@ function ConnectionBand({
          )}
       >
          <div className="flex items-end gap-4">
-            <BerryMark
-               size="md"
-               tone={waiting ? 'attention' : loaded ? 'complete' : 'neutral'}
-               state={waiting ? 'hollow' : 'solid'}
-               pulse={waiting}
-               className="mb-1.5 shrink-0"
-            />
             <Figure size="xl" className={cn('tabular-nums', figureColor)}>
                {loaded ? connected : '–'}
             </Figure>
@@ -171,14 +163,14 @@ export default function RuntimesList() {
    const connectedCount = nodes.filter(
       (runtime) => runtime.connection?.status === 'connected'
    ).length;
-   const availableCount = nodes.filter((runtime) => runtime.availability === 'available').length;
+   const availableCount = nodes.filter((runtime) => runtime.installed === true).length;
 
    const shown = useMemo(() => {
       const needle = query.trim().toLowerCase();
       return (catalog.value?.nodes ?? [])
          .filter((runtime) => {
             if (filter === 'connected' && runtime.connection?.status !== 'connected') return false;
-            if (filter === 'available' && runtime.availability !== 'available') return false;
+            if (filter === 'available' && runtime.installed !== true) return false;
             if (needle === '') return true;
             return [runtime.name, runtime.publisher, runtime.product, runtime.provider]
                .join(' ')
@@ -229,13 +221,13 @@ export default function RuntimesList() {
             loaded={Boolean(catalog.value)}
             connected={connectedCount}
             none={t('bandNone')}
-            some={t('bandSome', { count: connectedCount })}
+            some={t('bandSome')}
             hintNone={t('bandHintNone')}
             hintSome={t('bandHintSome')}
             availableLine={t('bandAvailable', { count: availableCount })}
          />
 
-         <SettingsSection panel title={t('catalogTitle')}>
+         <SettingsSection panel title={t('catalogTitle')} className="mt-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                <div className="relative min-w-0 flex-1">
                   <Search

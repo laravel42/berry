@@ -22,6 +22,8 @@
 /.next-docker/
 # Electron's local stack, so it does not share .next with `next dev`.
 /.next-desktop/
+# Production standalone copy for `pnpm package:desktop`.
+/.next-desktop-bundle/
 /out/
 
 # production

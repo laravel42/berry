@@ -70,6 +70,7 @@ export function SettingsSection({
    description,
    action,
    children,
+   className,
    /** Match agent capability panel titles (`h3.font-medium`) instead of settings page `h2`. */
    panel,
 }: {
@@ -77,10 +78,11 @@ export function SettingsSection({
    description?: React.ReactNode;
    action?: React.ReactNode;
    children: React.ReactNode;
+   className?: string;
    panel?: boolean;
 }) {
    return (
-      <section className={panel ? 'flex flex-col gap-2' : undefined}>
+      <section className={cn(panel ? 'flex flex-col gap-2' : undefined, className)}>
          {(title || action || (panel && description)) &&
             (panel ? (
                <div className="flex items-baseline gap-2">

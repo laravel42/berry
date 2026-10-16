@@ -569,9 +569,9 @@ export function planCounts(plan: Plan | null | undefined): PlanCounts {
 export function describePlanCounts(counts: PlanCounts): string {
    const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
    const parts = [plural(counts.tasks, 'task'), plural(counts.approvals, 'approval')];
-   // Said only when the plan is actually split: "1 milestone" is the goal
-   // restated, and not worth a word.
-   if ((counts.milestones ?? 0) > 1) parts.unshift(plural(counts.milestones ?? 0, 'milestone'));
+   // Said only when the plan is actually split: "1 goal" restates the plan,
+   // and is not worth a word.
+   if ((counts.milestones ?? 0) > 1) parts.unshift(plural(counts.milestones ?? 0, 'goal'));
    return parts.join(' · ');
 }
 

@@ -44,7 +44,7 @@ const STARTERS: { label: string; prompt: string }[] = [
    {
       label: 'Plan the timeline',
       prompt:
-         'Propose a start date and a target date for this project, and the milestones between them.',
+         'Propose a start date and a target date for this project, and the goals between them.',
    },
    {
       label: 'Suggest a name',

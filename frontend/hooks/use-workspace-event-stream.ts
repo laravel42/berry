@@ -6,10 +6,12 @@ import { loadWorkspaceApprovals } from '@/lib/approvals';
 import { publishWorkspaceEvent, streamWorkspaceEvents, type EventEnvelope } from '@/lib/events';
 import { loadWorkspaceGoals } from '@/lib/goals';
 import { loadInboxUnreadCount, loadWorkspaceInbox } from '@/lib/inbox';
+import { loadWorkspaceProjects } from '@/lib/projects';
 import { useApprovalsStore } from '@/store/approvals-store';
 import { useEventStreamStore } from '@/store/event-stream-store';
 import { useGoalsStore } from '@/store/goals-store';
 import { useNotificationsStore } from '@/store/notifications-store';
+import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { useEffect } from 'react';
 
@@ -20,12 +22,13 @@ const REFRESH_DEBOUNCE_MS = 400;
 const RECONNECT_MIN_MS = 3000;
 const RECONNECT_MAX_MS = 30_000;
 
-type Family = 'goals' | 'approvals' | 'inbox';
+type Family = 'goals' | 'approvals' | 'inbox' | 'projects';
 
 /** Which stores a frame makes stale. Events are invalidation signals only. */
 function familiesFor(event: EventEnvelope): Family[] {
    const type = event.type;
    if (type.startsWith('goal.')) return ['goals'];
+   if (type.startsWith('project.')) return ['projects'];
    if (type.startsWith('approval.')) return ['approvals', 'goals', 'inbox'];
    if (type.startsWith('plan.')) return ['inbox', 'goals'];
    if (type.startsWith('issue.')) return ['goals'];
@@ -33,7 +36,7 @@ function familiesFor(event: EventEnvelope): Family[] {
 }
 
 /**
- * Keeps goals, approvals and the inbox live.
+ * Keeps goals, projects, approvals and the inbox live.
  *
  * One connection per page over `GET /api/v1/events?workspaceId=`; every
  * frame is fanned out to in-page subscribers (a plan page refetches its
@@ -46,6 +49,7 @@ export function useWorkspaceEventStream(): void {
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const user = useSessionStore((state) => state.user);
    const hydrateGoals = useGoalsStore((state) => state.hydrateGoals);
+   const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
    const hydrateApprovals = useApprovalsStore((state) => state.hydrateApprovals);
    const hydrateNotifications = useNotificationsStore((state) => state.hydrateNotifications);
    const setServerUnreadCount = useNotificationsStore((state) => state.setServerUnreadCount);
@@ -70,6 +74,11 @@ export function useWorkspaceEventStream(): void {
          if (families.includes('goals')) {
             void loadWorkspaceGoals(workspaceId).then((goals) => {
                if (!cancelled) hydrateGoals(goals);
+            });
+         }
+         if (families.includes('projects')) {
+            void loadWorkspaceProjects(workspaceId).then((projects) => {
+               if (!cancelled) hydrateProjects(projects);
             });
          }
          if (families.includes('approvals')) {
@@ -121,7 +130,7 @@ export function useWorkspaceEventStream(): void {
          if (cancelled) return;
          setConnected(false);
          // Whatever happened while the stream was down is not in the stores.
-         scheduleRefresh(['goals', 'approvals', 'inbox']);
+         scheduleRefresh(['goals', 'approvals', 'inbox', 'projects']);
          reconnectTimer = setTimeout(() => {
             if (!cancelled) void consume();
          }, reconnectDelay);
@@ -142,6 +151,7 @@ export function useWorkspaceEventStream(): void {
       workspaceId,
       user,
       hydrateGoals,
+      hydrateProjects,
       hydrateApprovals,
       hydrateNotifications,
       setServerUnreadCount,

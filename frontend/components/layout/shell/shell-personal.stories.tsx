@@ -33,7 +33,9 @@ export const OnInbox: Story = {
          'page'
       );
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Chat, 2 unread')).toBeInTheDocument();
+      await expect(canvas.getByText('Agent, 2 unread')).toBeInTheDocument();
+      const links = canvas.getAllByRole('link').map((link) => link.getAttribute('href'));
+      expect(links.indexOf('/elian/reviews')).toBeLessThan(links.indexOf('/elian/chat'));
    },
 };
 
@@ -45,7 +47,7 @@ export const ServerCountOnly: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('99+')).toBeInTheDocument();
-      await expect(canvas.queryByText(/^Chat, /)).toBeNull();
+      await expect(canvas.queryByText(/^Agent, /)).toBeNull();
    },
 };
 

@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, MoreHorizontal, Pin } from 'lucide-react';
+import { MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { useAgentCoverage } from '@/hooks/use-agent-coverage';
-import { agentHasRuntime, loadAiRuntimeCatalog } from '@/lib/runtimes';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
@@ -18,10 +16,9 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import { loadAgentRoster, loadWorkspaceAgents, type Agent, type AgentRoster } from '@/lib/agents';
+import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import {
    cancelSessionTask,
-   createSession,
    deleteSession,
    listMessages,
    listSessionTasks,
@@ -41,13 +38,11 @@ import {
 } from '@/lib/chat';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
-import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
 import { chatRepositoryToSend } from './chat-repository-select';
-import { ChatSidebar } from './chat-sidebar';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
 
@@ -78,21 +73,14 @@ function withPendingTopics(
  */
 export function Chat() {
    const t = useTranslations('agentsChat.chat');
-   const coverage = useAgentCoverage();
-   // Null until the catalog answers. A connected Kiro or Claude login runs on
-   // this machine, so a missing compute host is not "no runtime".
-   const [workstationRuntime, setWorkstationRuntime] = useState<boolean | null>(null);
    const router = useRouter();
    const pathname = usePathname();
    const searchParams = useSearchParams();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
-   const sessionUserId = useSessionStore((state) => state.user?.id);
 
    const [agents, setAgents] = useState<Agent[]>([]);
-   const [roster, setRoster] = useState<Map<string, AgentRoster>>(new Map());
    const [threads, setThreads] = useState<ChatThread[]>([]);
-   const [archived, setArchived] = useState<ChatThread[] | null>(null);
-   const [showArchived, setShowArchived] = useState(false);
+   const [loaded, setLoaded] = useState(false);
    const [active, setActive] = useState<ChatThread | null>(null);
    const [messages, setMessages] = useState<ChatMessage[]>([]);
    const [hasEarlier, setHasEarlier] = useState(false);
@@ -111,15 +99,12 @@ export function Chat() {
    const [offline, setOffline] = useState(false);
    const [renaming, setRenaming] = useState(false);
    const [title, setTitle] = useState('');
-   /** The conversation whose running reply is about to be stopped. */
-   const [stopping, setStopping] = useState<ChatThread | null>(null);
    const [deleting, setDeleting] = useState(false);
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const pendingRenames = useRef(new Map<string, PendingRename>());
    // A list response that started earlier must not paint over a newer one.
    const threadsEpoch = useRef(0);
-   const archivedEpoch = useRef(0);
    const activeId = active?.id ?? null;
    const activeAgent = active?.agentId ? agents.find((a) => a.id === active.agentId) : undefined;
 
@@ -134,21 +119,11 @@ export function Chat() {
       return found;
    }, [setChatUnread]);
 
-   const refreshArchived = useCallback(async () => {
-      const epoch = ++archivedEpoch.current;
-      const found = withPendingTopics(
-         await listThreads({ archived: true }).catch(() => []),
-         pendingRenames.current
-      );
-      if (epoch === archivedEpoch.current) setArchived(found);
-   }, []);
-
-   /** Writes one conversation's title into the open pane and both lists. */
+   /** Writes one conversation's title into the open pane and the list. */
    const writeTopic = useCallback((id: string, topic: string) => {
       const withTopic = (list: ChatThread[]) =>
          list.map((thread) => (thread.id === id ? { ...thread, topic } : thread));
       setThreads(withTopic);
-      setArchived((current) => (current === null ? current : withTopic(current)));
       setActive((current) => (current?.id === id ? { ...current, topic } : current));
    }, []);
 
@@ -165,8 +140,7 @@ export function Chat() {
          const shown =
             pending?.topic ??
             (active?.id === id ? active.topic : undefined) ??
-            threads.find((thread) => thread.id === id)?.topic ??
-            archived?.find((thread) => thread.id === id)?.topic;
+            threads.find((thread) => thread.id === id)?.topic;
          if (shown === undefined || shown === topic) return;
          pendingRenames.current.set(id, { topic, baseline: pending?.baseline ?? shown });
          writeTopic(id, topic);
@@ -185,7 +159,6 @@ export function Chat() {
                   if (still?.topic === topic) pendingRenames.current.delete(id);
                };
                void refreshThreads().then(settle, settle);
-               if (archived !== null) void refreshArchived().then(settle, settle);
             },
             (cause: unknown) => {
                const current = pendingRenames.current.get(id);
@@ -196,7 +169,7 @@ export function Chat() {
             }
          );
       },
-      [active, archived, refreshArchived, refreshThreads, t, threads, writeTopic]
+      [active, refreshThreads, t, threads, writeTopic]
    );
 
    /** Re-reads the open conversation's newest page and its queue. */
@@ -213,14 +186,8 @@ export function Chat() {
       setTasks(queue);
    }, []);
 
-   // The conversation just closed with the back button (below `md`). Until
-   // the URL catches up it still names it, and the effect that follows the
-   // URL must not open it again in that gap.
-   const closed = useRef<string | null>(null);
-
    const select = useCallback(
       async (thread: ChatThread) => {
-         closed.current = null;
          setActive(thread);
          setTitle(thread.topic);
          setError(null);
@@ -276,29 +243,6 @@ export function Chat() {
           ? `${suggestIn}:${lastMessage.id}`
           : null;
    useEffect(() => {
-      let cancelled = false;
-      void loadAiRuntimeCatalog().then(
-         (catalog) => {
-            if (cancelled) return;
-            setWorkstationRuntime(
-               catalog.nodes.some(
-                  (runtime) =>
-                     runtime.localProcess &&
-                     runtime.availability === 'available' &&
-                     runtime.connection?.status === 'connected'
-               )
-            );
-         },
-         () => {
-            if (!cancelled) setWorkstationRuntime(false);
-         }
-      );
-      return () => {
-         cancelled = true;
-      };
-   }, []);
-
-   useEffect(() => {
       if (!suggestIn || !suggestFor) {
          setSuggestions([]);
          return;
@@ -319,17 +263,17 @@ export function Chat() {
       let cancelled = false;
       void (async () => {
          try {
-            const [loadedAgents, loadedThreads, entries] = await Promise.all([
+            const [loadedAgents, loadedThreads] = await Promise.all([
                loadWorkspaceAgents(),
                listThreads(),
-               loadAgentRoster(7).catch(() => new Map<string, AgentRoster>()),
             ]);
             if (cancelled) return;
             setAgents(loadedAgents.filter((agent) => !agent.archivedAt));
             setThreads(withPendingTopics(loadedThreads, pendingRenames.current));
-            setRoster(entries);
          } catch (cause) {
             if (!cancelled) setError(cause instanceof Error ? cause.message : t('rowFailed'));
+         } finally {
+            if (!cancelled) setLoaded(true);
          }
       })();
       return () => {
@@ -339,15 +283,12 @@ export function Chat() {
 
    // The URL is the source of truth for which conversation is open: a link
    // with `?session=`, and `?agent=` from anywhere that knows an agent but not
-   // a conversation, both land here.
+   // a conversation, both land here. With neither, this page talks to the
+   // Orchestrator — the person does not pick an agent first.
    const requestedSession = searchParams?.get('session') ?? null;
    const requestedAgent = searchParams?.get('agent') ?? null;
    useEffect(() => {
-      if (
-         requestedSession &&
-         requestedSession !== activeId &&
-         requestedSession !== closed.current
-      ) {
+      if (requestedSession && requestedSession !== activeId) {
          let cancelled = false;
          void refreshThreads()
             .then(async (found) => {
@@ -385,7 +326,32 @@ export function Chat() {
             cancelled = true;
          };
       }
+      if (loaded && !requestedSession && !requestedAgent && !activeId) {
+         const home = agents.find((agent) => isOrchestrator(agent)) ?? agents[0];
+         if (!home) return;
+         let cancelled = false;
+         void openAgentThread(home.id)
+            .then(async (id) => {
+               if (cancelled) return;
+               const found = await refreshThreads();
+               const thread = found.find((entry) => entry.id === id);
+               if (thread) {
+                  await select(thread);
+                  show(thread);
+               }
+            })
+            .catch((cause: unknown) => {
+               if (!cancelled) {
+                  setError(cause instanceof Error ? cause.message : t('rowFailed'));
+               }
+            });
+         return () => {
+            cancelled = true;
+         };
+      }
    }, [
+      loaded,
+      agents,
       requestedSession,
       requestedAgent,
       activeId,
@@ -487,20 +453,6 @@ export function Chat() {
       }, 600);
    };
 
-   const newChat = async (agent: Agent) => {
-      try {
-         const id = await createSession(agent.id);
-         const found = await refreshThreads();
-         const thread = found.find((entry) => entry.id === id);
-         if (thread) {
-            await select(thread);
-            show(thread);
-         }
-      } catch (cause) {
-         setError(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
-      }
-   };
-
    const loadEarlier = async () => {
       if (!activeId || messages.length === 0 || loadingEarlier) return;
       setLoadingEarlier(true);
@@ -543,11 +495,6 @@ export function Chat() {
       }
    };
 
-   const stop = (thread: ChatThread) => {
-      if (!thread.activeRunId) return;
-      setStopping(thread);
-   };
-
    /** Stops the reply being written, without a confirmation. */
    const stopReply = async (runId: string) => {
       if (!activeId) return;
@@ -559,20 +506,6 @@ export function Chat() {
       }
       await refreshThreads().catch(() => undefined);
       await refreshSession(activeId).catch(() => undefined);
-   };
-
-   /** Runs once the stop is confirmed; a failure keeps the dialog open. */
-   const confirmStop = async () => {
-      const thread = stopping;
-      if (!thread?.activeRunId) return;
-      try {
-         await cancelSessionTask(thread.id, thread.activeRunId);
-      } catch (cause) {
-         toast.error(cause instanceof BerryApiError ? cause.message : t('rowFailed'));
-         throw cause;
-      }
-      await refreshThreads().catch(() => undefined);
-      if (thread.id === activeId) await refreshSession(thread.id).catch(() => undefined);
    };
 
    /** Runs once the delete is confirmed; a failure keeps the dialog open. */
@@ -596,12 +529,6 @@ export function Chat() {
       agentName !== null &&
       active !== null &&
       active.topic.trim().toLowerCase() === agentName.trim().toLowerCase();
-   const noRuntime =
-      workstationRuntime !== true &&
-      active?.agentId !== undefined &&
-      active?.agentId !== null &&
-      roster.get(active.agentId) !== undefined &&
-      !agentHasRuntime(coverage, active.agentId);
 
    const banner = offline
       ? t('bannerOffline')
@@ -611,233 +538,169 @@ export function Chat() {
           ? t('bannerNoPermission')
           : active?.archived
             ? t('bannerArchived')
-            : noRuntime
-              ? t('bannerNoRuntime')
-              : null;
+            : null;
 
    return (
       <div className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]">
-         {/* Below `md` there is room for one column: the conversations, or
-             the open one with a way back to them — the Inbox's pattern. */}
-         <div className="flex min-h-0 flex-1">
-            <ChatSidebar
-               className={cn('max-md:w-full', active && 'max-md:hidden')}
-               agents={agents}
-               roster={roster}
-               sessionUserId={sessionUserId}
-               threads={threads}
-               archived={archived}
-               showArchived={showArchived}
-               onToggleArchived={() => {
-                  const next = !showArchived;
-                  setShowArchived(next);
-                  if (next) void refreshArchived();
-               }}
-               activeId={activeId}
-               onNewChat={(agent) => void newChat(agent)}
-               onSelect={(thread) => {
-                  void select(thread);
-                  show(thread);
-               }}
-               onChanged={() => {
-                  void refreshThreads().catch(() => undefined);
-                  if (showArchived) void refreshArchived();
-               }}
-               onRename={commitRename}
-               onStop={stop}
-            />
-
-            <section className={cn('min-w-0 flex-1 flex-col', active ? 'flex' : 'hidden md:flex')}>
-               {/* The pane is named by who you are talking to. The page is
-                already called Chat three times over — rail, tab, sidebar —
-                so with nothing open the pane says nothing at all. */}
-               {active ? (
-                  <header className="flex flex-none items-center gap-3 px-6 py-3 max-md:pl-3">
+         <h1 className="sr-only">{t('title')}</h1>
+         <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* The rail already says Agent; a renamed topic is the only title. */}
+            {active ? (
+               <header className="flex flex-none items-center gap-3 px-6 py-3">
+                  {renaming ? (
+                     <input
+                        autoFocus
+                        value={title}
+                        aria-label={t('rename')}
+                        onChange={(event) => setTitle(event.target.value)}
+                        onBlur={() => setRenaming(false)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Escape') {
+                              setRenaming(false);
+                              setTitle(active.topic);
+                           }
+                           if (event.key === 'Enter' && title.trim()) {
+                              setRenaming(false);
+                              commitRename(active.id, title);
+                           }
+                        }}
+                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
+                     />
+                  ) : agentName && !topicIsAgentName ? (
+                     // The conversation's own name, one step back from the
+                     // agent's; the click is how it is renamed in place.
                      <button
                         type="button"
                         onClick={() => {
-                           closed.current = active.id;
-                           setActive(null);
-                           show(null);
+                           setTitle(active.topic);
+                           setRenaming(true);
                         }}
-                        aria-label={t('backToChats')}
-                        title={t('backToChats')}
-                        className="flex size-11 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] md:hidden"
+                        title={t('rename')}
+                        className="min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
                      >
-                        <ArrowLeft className="size-4" aria-hidden />
+                        {active.topic}
                      </button>
-                     <div className="flex min-w-0 flex-none items-center gap-1.5">
-                        <h2 className="min-w-0 truncate text-[var(--shell-text)]">
-                           {agentName ?? active.topic}
-                        </h2>
-                        {active.pinned ? (
-                           <Pin
-                              className="size-3.5 flex-none fill-current text-[var(--shell-text-dim)]"
-                              aria-label={t('pin')}
-                           />
-                        ) : null}
-                     </div>
+                  ) : (
+                     <span className="min-w-0 flex-1" aria-hidden />
+                  )}
 
-                     {renaming ? (
-                        <input
-                           autoFocus
-                           value={title}
-                           aria-label={t('rename')}
-                           onChange={(event) => setTitle(event.target.value)}
-                           onBlur={() => setRenaming(false)}
-                           onKeyDown={(event) => {
-                              if (event.key === 'Escape') {
-                                 setRenaming(false);
-                                 setTitle(active.topic);
-                              }
-                              if (event.key === 'Enter' && title.trim()) {
-                                 setRenaming(false);
-                                 commitRename(active.id, title);
-                              }
-                           }}
-                           className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
-                        />
-                     ) : agentName && !topicIsAgentName ? (
-                        // The conversation's own name, one step back from the
-                        // agent's; the click is how it is renamed in place.
+                  {active.pinned ? (
+                     <Pin
+                        className="size-3.5 flex-none fill-current text-[var(--shell-text-dim)]"
+                        aria-label={t('pin')}
+                     />
+                  ) : null}
+
+                  <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
                         <button
                            type="button"
-                           onClick={() => {
+                           aria-label={t('headerMenu')}
+                           className="flex size-8 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] max-lg:size-11"
+                        >
+                           <MoreHorizontal className="size-4" />
+                        </button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                           onSelect={() => {
                               setTitle(active.topic);
                               setRenaming(true);
                            }}
-                           title={t('rename')}
-                           className="min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
                         >
-                           {active.topic}
-                        </button>
-                     ) : (
-                        <span className="min-w-0 flex-1" aria-hidden />
-                     )}
+                           {t('rename')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                           onSelect={() =>
+                              void setSessionArchived(active.id, !active.archived)
+                                 .then(() => {
+                                    setActive(null);
+                                    show(null);
+                                    return refreshThreads();
+                                 })
+                                 .catch(() => undefined)
+                           }
+                        >
+                           {active.archived ? t('unarchive') : t('archive')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                           className="text-destructive focus:text-destructive"
+                           onSelect={() => setDeleting(true)}
+                        >
+                           {t('delete')}
+                        </DropdownMenuItem>
+                     </DropdownMenuContent>
+                  </DropdownMenu>
+               </header>
+            ) : null}
 
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <button
-                              type="button"
-                              aria-label={t('headerMenu')}
-                              className="flex size-8 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] max-lg:size-11"
-                           >
-                              <MoreHorizontal className="size-4" />
-                           </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                           <DropdownMenuItem
-                              onSelect={() => {
-                                 setTitle(active.topic);
-                                 setRenaming(true);
-                              }}
-                           >
-                              {t('rename')}
-                           </DropdownMenuItem>
-                           <DropdownMenuItem
-                              onSelect={() =>
-                                 void setSessionArchived(active.id, !active.archived)
-                                    .then(() => {
-                                       setActive(null);
-                                       show(null);
-                                       return refreshThreads();
-                                    })
-                                    .catch(() => undefined)
-                              }
-                           >
-                              {active.archived ? t('unarchive') : t('archive')}
-                           </DropdownMenuItem>
-                           <DropdownMenuSeparator />
-                           <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onSelect={() => setDeleting(true)}
-                           >
-                              {t('delete')}
-                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                     </DropdownMenu>
-                  </header>
-               ) : null}
-
-               {active ? (
-                  <ConfirmAction
-                     open={deleting}
-                     onOpenChange={setDeleting}
-                     title={t('deleteTitle', { name: active.topic })}
-                     description={t('deleteBody')}
-                     confirmLabel={t('delete')}
-                     pendingLabel={t('deleting')}
-                     destructive
-                     onConfirm={confirmDelete}
-                  />
-               ) : null}
-
+            {active ? (
                <ConfirmAction
-                  open={stopping !== null}
-                  onOpenChange={(open) => {
-                     if (!open) setStopping(null);
-                  }}
-                  title={t('stopTitle', { name: stopping?.topic ?? '' })}
-                  description={t('stopBody')}
-                  confirmLabel={t('stop')}
-                  pendingLabel={t('stopping')}
-                  onConfirm={confirmStop}
+                  open={deleting}
+                  onOpenChange={setDeleting}
+                  title={t('deleteTitle', { name: active.topic })}
+                  description={t('deleteBody')}
+                  confirmLabel={t('delete')}
+                  pendingLabel={t('deleting')}
+                  destructive
+                  onConfirm={confirmDelete}
                />
+            ) : null}
 
-               {banner ? (
-                  <p className="flex-none border-b border-[var(--shell-line)] bg-[var(--shell-surface)] px-6 py-2 text-[var(--shell-text-muted)]">
-                     {banner}
-                  </p>
-               ) : null}
+            {banner ? (
+               <p className="flex-none border-b border-[var(--shell-line)] bg-[var(--shell-surface)] px-6 py-2 text-[var(--shell-text-muted)]">
+                  {banner}
+               </p>
+            ) : null}
 
-               <ThreadView
-                  messages={messages}
-                  agentName={agentName}
-                  starters={activeAgent?.conversationStarters ?? []}
-                  suggestions={suggestions}
-                  onUseSuggestion={changeComposer}
-                  hasEarlier={hasEarlier}
-                  loadingEarlier={loadingEarlier}
-                  onLoadEarlier={() => void loadEarlier()}
-                  stage={stage}
-                  streamingText={streamingText}
-               />
+            <ThreadView
+               messages={messages}
+               agentName={agentName}
+               starters={activeAgent?.conversationStarters ?? []}
+               suggestions={suggestions}
+               onUseSuggestion={changeComposer}
+               hasEarlier={hasEarlier}
+               loadingEarlier={loadingEarlier}
+               onLoadEarlier={() => void loadEarlier()}
+               stage={stage}
+               streamingText={streamingText}
+            />
 
-               {error ? (
-                  <p
-                     role="alert"
-                     className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-[var(--shell-accent)]"
-                  >
-                     {error}
-                  </p>
-               ) : null}
+            {error ? (
+               <p
+                  role="alert"
+                  className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-[var(--shell-accent)]"
+               >
+                  {error}
+               </p>
+            ) : null}
 
-               {activeId ? (
-                  <div className="mx-auto w-full max-w-3xl">
-                     <ChatDelegatedWork tasks={delegatedTasks} />
-                     <ChatQueue
-                        conversationId={activeId}
-                        tasks={ownTasks}
-                        onChanged={() => void refreshSession(activeId).catch(() => undefined)}
-                     />
-                  </div>
-               ) : null}
+            {activeId ? (
+               <div className="mx-auto w-full max-w-3xl">
+                  <ChatDelegatedWork tasks={delegatedTasks} />
+                  <ChatQueue
+                     conversationId={activeId}
+                     tasks={ownTasks}
+                     onChanged={() => void refreshSession(activeId).catch(() => undefined)}
+                  />
+               </div>
+            ) : null}
 
-               <ChatComposer
-                  value={composer}
-                  onChange={changeComposer}
-                  onSend={() => void send()}
-                  onStop={active && replyRun ? () => void stopReply(replyRun) : null}
-                  queueing={ownTasks.length > 0}
-                  disabled={!activeId || sending}
-                  workspaceId={workspaceId}
-                  chatOpen={Boolean(activeId)}
-                  {...(activeId ? { conversationId: activeId } : {})}
-                  {...(activeAgent ? { agent: activeAgent } : {})}
-                  answering={stage !== null}
-               />
-            </section>
-         </div>
+            <ChatComposer
+               value={composer}
+               onChange={changeComposer}
+               onSend={() => void send()}
+               onStop={active && replyRun ? () => void stopReply(replyRun) : null}
+               queueing={ownTasks.length > 0}
+               disabled={!activeId || sending}
+               workspaceId={workspaceId}
+               chatOpen={Boolean(activeId)}
+               {...(activeId ? { conversationId: activeId } : {})}
+               {...(activeAgent ? { agent: activeAgent } : {})}
+               answering={stage !== null}
+            />
+         </section>
       </div>
    );
 }

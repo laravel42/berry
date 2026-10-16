@@ -266,6 +266,8 @@ const aiRuntimeDefinitionSchema = z.object({
       usage: aiRuntimeCapabilitySchema,
    }),
    availability: z.enum(['available', 'blocked']),
+   /** True only when the adapter found this CLI on the workstation PATH. */
+   installed: z.boolean().optional(),
    unavailableReason: z.string().nullable(),
    officialSources: z.array(z.string()),
    connection: aiRuntimeConnectionSchema.nullable(),

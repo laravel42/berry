@@ -45,6 +45,80 @@ function isLive(plan: PlanSummary): boolean {
    );
 }
 
+/**
+ * What a plan row shows: its mark, status, title and progress. Inside a
+ * project the project line and the age are dropped, progress takes the age's
+ * place, and the title reads as one line, like the project's task rows.
+ */
+export function PlanRowBody({
+   plan,
+   showProject = true,
+}: {
+   plan: PlanSummary;
+   showProject?: boolean;
+}) {
+   const t = useTranslations('goals.plans');
+   const look = planSummaryLook(plan);
+   const started = plan.createdTasks > 0;
+   const percent = started ? Math.round((plan.finishedTasks / plan.createdTasks) * 100) : 0;
+   const progress = started ? (
+      <span className="ml-auto flex shrink-0 items-center gap-2">
+         <span className="h-1 w-20 overflow-hidden rounded-full bg-muted">
+            <span
+               className="block h-full rounded-full bg-primary"
+               style={{ width: `${percent}%` }}
+            />
+         </span>
+         <span className="shrink-0 text-muted-foreground tabular-nums">
+            {t('tasks', {
+               finished: plan.finishedTasks,
+               created: plan.createdTasks,
+            })}
+         </span>
+      </span>
+   ) : plan.plannedTasks > 0 ? (
+      <span className="ml-auto shrink-0 text-muted-foreground">
+         {t('planned', { count: plan.plannedTasks })}
+      </span>
+   ) : null;
+   return (
+      <>
+         <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">
+            <BerryMark
+               size="sm"
+               tone={look.tone}
+               state={look.state}
+               pulse={look.pulse}
+               label={look.label}
+            />
+         </span>
+         <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span className="flex items-center gap-2">
+               <StatusBadge look={look} />
+               {showProject ? (
+                  <span className="ml-auto shrink-0 text-muted-foreground">
+                     {timeAgo(plan.updatedAt)}
+                  </span>
+               ) : (
+                  progress
+               )}
+            </span>
+            <span className={showProject ? 'line-clamp-2' : 'min-w-0 truncate font-normal'}>
+               {plan.title}
+            </span>
+            {showProject ? (
+               <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                     {plan.projectName ?? t('list.noProject')}
+                  </span>
+                  {progress}
+               </span>
+            ) : null}
+         </span>
+      </>
+   );
+}
+
 /** One plan in the rail. Selecting it opens the plan beside the list. */
 function PlanRow({
    plan,
@@ -57,10 +131,6 @@ function PlanRow({
    onSelect: (planId: string) => void;
    onChanged: () => void;
 }) {
-   const t = useTranslations('goals.plans');
-   const look = planSummaryLook(plan);
-   const started = plan.createdTasks > 0;
-   const percent = started ? Math.round((plan.finishedTasks / plan.createdTasks) * 100) : 0;
    return (
       <PlanContextMenu plan={plan} onChanged={onChanged}>
          <button
@@ -72,49 +142,7 @@ function PlanRow({
                selected ? 'bg-accent' : 'hover:bg-sidebar/50'
             )}
          >
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">
-               <BerryMark
-                  size="sm"
-                  tone={look.tone}
-                  state={look.state}
-                  pulse={look.pulse}
-                  label={look.label}
-               />
-            </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-               <span className="flex items-center gap-2">
-                  <StatusBadge look={look} />
-                  <span className="ml-auto shrink-0 text-muted-foreground">
-                     {timeAgo(plan.updatedAt)}
-                  </span>
-               </span>
-               <span className="line-clamp-2">{plan.title}</span>
-               <span className="flex min-w-0 items-center gap-2">
-                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                     {plan.projectName ?? t('list.noProject')}
-                  </span>
-                  {started ? (
-                     <span className="ml-auto flex shrink-0 items-center gap-2">
-                        <span className="h-1 w-20 overflow-hidden rounded-full bg-muted">
-                           <span
-                              className="block h-full rounded-full bg-primary"
-                              style={{ width: `${percent}%` }}
-                           />
-                        </span>
-                        <span className="shrink-0 text-muted-foreground tabular-nums">
-                           {t('tasks', {
-                              finished: plan.finishedTasks,
-                              created: plan.createdTasks,
-                           })}
-                        </span>
-                     </span>
-                  ) : plan.plannedTasks > 0 ? (
-                     <span className="ml-auto shrink-0 text-muted-foreground">
-                        {t('planned', { count: plan.plannedTasks })}
-                     </span>
-                  ) : null}
-               </span>
-            </span>
+            <PlanRowBody plan={plan} />
          </button>
       </PlanContextMenu>
    );

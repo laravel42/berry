@@ -185,7 +185,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
    const placed = new Set(groups.flatMap((group) => group.issues.map((issue) => issue.tempId)));
    const stray = plan.issues.filter((issue) => !placed.has(issue.tempId));
    if (stray.length > 0 && plan.milestones.length > 0) {
-      groups.push({ key: 'stray', title: 'Not in a milestone', description: null, issues: stray });
+      groups.push({ key: 'stray', title: 'Not in a goal', description: null, issues: stray });
    }
 
    return (
@@ -193,7 +193,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
          <SectionHeading title="Work" count={plan.issues.length} />
          {plan.milestones.length > 1 && (
             <p className="mt-1 text-muted-foreground">
-               {plan.milestones.length} milestones, each a goal on the board once the plan starts.
+               {plan.milestones.length} goals, each on the board once the plan starts.
             </p>
          )}
          {groups.map((group) => (

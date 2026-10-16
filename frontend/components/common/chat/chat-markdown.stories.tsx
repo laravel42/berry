@@ -54,17 +54,23 @@ export const InlineOnly: Story = {
    },
 };
 
-/** Tables are deliberately unsupported: the pipes stay visible rather than half-rendering. */
-export const UnsupportedTable: Story = {
+/** A résumé of work: header, delimiter, body. Pipes in prose without a delimiter stay text. */
+export const Table: Story = {
    args: {
-      body: `Check results:
+      body: `Incoming tasks:
 
-| command | result |
-| --- | --- |
-| pnpm typecheck:server | passed |
-| pnpm test:server | failed (exit 1) |`,
+| key | title | status |
+| --- | --- | ---: |
+| ABC-1 | Incoming brief | todo |
+| ABC-2 | **Blocked** on review | in_review |
+
+A pipe in a sentence | is not a table.`,
    },
    play: async ({ canvas }) => {
-      await expect(canvas.queryByRole('table')).toBeNull();
+      await expect(canvas.getByRole('table')).toBeVisible();
+      await expect(canvas.getByRole('columnheader', { name: 'key' })).toBeVisible();
+      await expect(canvas.getByRole('cell', { name: 'ABC-1' })).toBeVisible();
+      await expect(canvas.getByText('Blocked').tagName).toBe('STRONG');
+      await expect(canvas.getByText(/A pipe in a sentence/)).toBeVisible();
    },
 };

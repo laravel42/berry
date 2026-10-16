@@ -41,6 +41,10 @@ const SEND_VARIANT = {
    secondary: 'bg-[var(--shell-line)] text-[var(--shell-text)] hover:bg-[var(--shell-line-strong)]',
 } as const;
 
+/** Empty box is three lines of `leading-6`; it grows to `max-h-48`. */
+const INPUT_MIN = 72;
+const INPUT_MAX = 192;
+
 /**
  * The message box.
  *
@@ -77,12 +81,12 @@ export function ChatComposer({
       listClassName: 'left-6 right-6 w-auto',
    });
 
-   // Grow with the message, up to the same max the className allows.
+   // Grow with the message, between the empty three-line floor and max-h-48.
    useEffect(() => {
       const element = input.current;
       if (!element) return;
       element.style.height = '0px';
-      element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+      element.style.height = `${Math.min(Math.max(element.scrollHeight, INPUT_MIN), INPUT_MAX)}px`;
    }, [value]);
    const canSend = !disabled && value.trim() !== '';
    const sendLabel = queueing ? t('queue') : t('send');
@@ -101,7 +105,7 @@ export function ChatComposer({
             <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-[var(--shell-line-strong)] bg-[var(--shell-surface)] px-3 py-2 shadow-lg shadow-black/20 focus-within:border-[var(--shell-text-dim)]">
                <textarea
                   ref={input}
-                  rows={1}
+                  rows={3}
                   value={value}
                   disabled={disabled}
                   placeholder={placeholder}
@@ -132,7 +136,7 @@ export function ChatComposer({
                         if (canSend) onSend();
                      }
                   }}
-                  className="max-h-48 min-h-8 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
+                  className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
                {/* Mode, model and repository sit under the text. While a reply

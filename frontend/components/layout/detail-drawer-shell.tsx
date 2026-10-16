@@ -81,7 +81,10 @@ export default function DetailDrawerShell({
             hideClose
             className={cn(
                'flex h-full w-auto inset-y-0 right-0 left-auto flex-col gap-0 border-l bg-container p-0',
-               'max-w-none sm:max-w-none'
+               'max-w-none sm:max-w-none',
+               // The drawer appears in place; the Sheet's slide-in is for the
+               // other sheets.
+               'data-[state=open]:!animate-none'
             )}
             style={{
                width: drawerWidth,

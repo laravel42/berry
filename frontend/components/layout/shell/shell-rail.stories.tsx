@@ -92,6 +92,9 @@ export const Member: Story = {
 
 export const WithBadges: Story = {
    args: { active: 'reviews' },
+   parameters: {
+      nextjs: { navigation: workspaceRoute('/elian/reviews') },
+   },
    beforeEach: () => {
       useReviewsStore.setState({ open: openReviews });
       useShellStore.setState({ chatUnread: 4 });
@@ -99,7 +102,13 @@ export const WithBadges: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('2 reviews waiting')).toBeInTheDocument();
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Chat, 4 unread')).toBeInTheDocument();
+      await expect(canvas.getByText('Agent, 4 unread')).toBeInTheDocument();
+      await expect(canvas.getByRole('link', { name: /^Reviews/ })).toHaveAttribute(
+         'aria-current',
+         'page'
+      );
+      const personal = canvas.getByRole('link', { name: /^Agent/ }).closest('ul');
+      expect(personal?.querySelector('a[href="/elian/reviews"]')).not.toBeNull();
    },
 };
 
