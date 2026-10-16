@@ -52,6 +52,7 @@
       "members": "People",
       "newIssue": "New task",
       "newProject": "New project",
+      "newGoal": "New goal",
       "copyLink": "Copy link",
       "copyIdentifier": "Copy task ID",
       "foldComments": "Fold all comments",

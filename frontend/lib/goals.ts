@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { BerryApiError, apiFetch } from './api';
-import { actorRefSchema, connectionSchema } from './api-schemas';
+import { actorRefSchema, connectionSchema, newIdempotencyKey } from './api-schemas';
 
 /**
- * Goals: the tasks one plan compile produced, inside one project. Nothing
- * authors a goal — not its title, not its membership, not its status, which is
- * a function of the tasks under it. See
- * `docs/adr/0010-goals-as-derived-task-groups.md`.
+ * Goals: an outcome inside one project. A person (or `create_goal`) can file
+ * one from the project; compiling a plan still mints the goals that group its
+ * tasks. Status after that is a function of the work under it.
  */
 
 export const goalStatusSchema = z.enum(['planned', 'active', 'blocked', 'completed']);
@@ -148,11 +147,43 @@ export async function getGoal(goalId: string, signal?: AbortSignal): Promise<Goa
 }
 
 /**
+ * Title and description. Status stays a function of the work under the goal;
+ * this does not send it. Needs `product.write`.
+ */
+export async function updateWorkspaceGoal(
+   goalId: string,
+   patch: { title?: string; description?: string | null }
+): Promise<Goal> {
+   const json: unknown = await apiFetch(`/api/v1/goals/${encodeURIComponent(goalId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+   });
+   return parseGoal(json);
+}
+
+/** Files a draft goal on a project. Needs `product.write` and `Idempotency-Key`. */
+export async function createWorkspaceGoal(input: {
+   workspaceId: string;
+   title: string;
+   description?: string;
+   projectId: string;
+}): Promise<Goal> {
+   const body: Record<string, unknown> = {
+      workspaceId: input.workspaceId,
+      title: input.title,
+      projectId: input.projectId,
+   };
+   if (input.description) body.description = input.description;
+   const json: unknown = await apiFetch('/api/v1/goals', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
+      body: JSON.stringify(body),
+   });
+   return parseGoal(json);
+}
+
+/**
  * Archives the goal; its tasks keep their links. Needs `settings.write`.
- *
- * The only write left. A goal is not created, renamed or moved from here —
- * compiling a plan makes one — but a grouping that has outlived its use should
- * still be retirable.
  */
 export async function archiveGoal(goalId: string): Promise<void> {
    await apiFetch(`/api/v1/goals/${encodeURIComponent(goalId)}`, { method: 'DELETE' });

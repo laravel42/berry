@@ -49,6 +49,7 @@ export const Overview: Story = {
          'href',
          '/elian/projects'
       );
+      await expect(canvas.queryByRole('button', { name: 'New goal' })).not.toBeInTheDocument();
    },
 };
 

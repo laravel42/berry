@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { SendHorizonal } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
+import { ProjectGoalsSection } from './project-goals-section';
 import { ProjectPlanSection } from './project-plan-section';
 import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -93,6 +94,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   />
 
                   <div className="mt-4">
+                     <ProjectGoalsSection projectId={projectId} />
                      <ProjectActivityFeedList projectId={projectId} />
                      <ProjectPlanSection projectId={projectId} />
                   </div>

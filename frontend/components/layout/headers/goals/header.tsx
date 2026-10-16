@@ -23,9 +23,9 @@ function HeaderOptions() {
 }
 
 /**
- * Goals list header. No action, deliberately: planning is what makes a goal and
- * it starts in a project, so the button lives there. Offering it here would
- * invite a goal with no project to hang off.
+ * Goals list header. No create action here: a goal belongs to a project, so
+ * New goal lives on the project (and the command palette, which still requires
+ * one). Offering it here would invite a goal with nowhere to hang off.
  */
 export default function Header() {
    return (

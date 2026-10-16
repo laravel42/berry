@@ -1,4 +1,14 @@
 {
+   "title": {
+      "edit": "Edit the title",
+      "empty": "A goal needs a title.",
+      "failed": "The title could not be saved."
+   },
+   "description": {
+      "label": "Goal description",
+      "placeholder": "Add a description…",
+      "failed": "The description could not be saved."
+   },
    "list": {
       "search": "Search goals",
       "noneMatch": "No goal matches this search.",
@@ -9,10 +19,23 @@
       "loading": "Loading goals…",
       "back": "All goals"
    },
+   "menu": {
+      "actions": "Goal actions",
+      "openInNewTab": "Open in a new tab",
+      "copyLink": "Copy link",
+      "copied": "Link copied",
+      "copyFailed": "The link could not be copied.",
+      "remove": "Remove",
+      "removeTitle": "Remove “{title}”?",
+      "removeBody": "The goal leaves the list. Its tasks keep their links and stay on the board.",
+      "keep": "Keep",
+      "confirmRemove": "Remove",
+      "removed": "Removed {title}"
+   },
    "empty": {
       "mark": "No goals",
       "title": "No goals yet.",
-      "body": "A goal is the group of tasks one plan produced. Plan work in a project and the goal arrives with the tasks."
+      "body": "A goal belongs to a project. Create one from a project's page, or start a plan there and the goal arrives with the tasks."
    },
    "plans": {
       "header": {

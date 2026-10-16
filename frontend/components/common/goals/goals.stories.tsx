@@ -65,9 +65,8 @@ export const Empty: Story = {
       useGoalsStore.setState({ goals: [], loaded: true, error: null });
    },
    play: async ({ canvas }) => {
-      // The empty state explains that planning in a project makes goals.
       await expect(canvas.getByText('No goals yet.')).toBeVisible();
-      await expect(canvas.getByText(/Plan work in a project/)).toBeVisible();
+      await expect(canvas.getByText(/Create one from a project's page/)).toBeVisible();
       await expect(goalRows(canvas)).toHaveLength(0);
    },
 };

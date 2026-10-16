@@ -1,5 +1,6 @@
 'use client';
 
+import { CreateGoalModalProvider } from '@/components/common/goals/create-goal-modal-provider';
 import { CreateIssueModalProvider } from '@/components/common/issues/create-issue-modal-provider';
 import { IssuesHydrator } from '@/components/common/issues/issues-hydrator';
 import { CreatePlanModalProvider } from '@/components/common/plans/create-plan-modal-provider';
@@ -17,6 +18,7 @@ export function WorkspaceRuntime() {
       <>
          <IssuesHydrator />
          <CreateIssueModalProvider />
+         <CreateGoalModalProvider />
          <CreatePlanModalProvider />
          <CommandPalette />
       </>

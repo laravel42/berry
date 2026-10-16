@@ -36,7 +36,7 @@ export const Compact: Story = {
    },
 };
 
-/** A row for a goal with no tasks shows a dash rather than an empty bar. */
+/** A row for a goal with no tasks draws nothing rather than an empty bar. */
 export const CompactNoTasks: Story = {
    args: {
       compact: true,

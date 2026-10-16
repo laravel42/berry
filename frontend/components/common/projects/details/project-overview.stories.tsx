@@ -9,9 +9,11 @@ import {
    apiProject,
    apiProjectUpdates,
    apiRepositories,
+   goalActive,
    projectHealth,
    projectInbox,
    projectPatchHandler,
+   seedGoalStores,
    seedProjectStores,
 } from '../stories-fixtures';
 import ProjectOverview from './project-overview';
@@ -26,6 +28,7 @@ const meta = {
    },
    beforeEach: ({ msw }) => {
       seedProjectStores({ sessionReady: true });
+      seedGoalStores();
       useProjectUpdatesStore.setState({ updatesByProject: {} });
       const posted: (typeof apiProjectUpdates.nodes)[number][] = [];
       msw.use(
@@ -75,6 +78,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText(/Updates API is merged/)).toBeVisible();
+      await expect(canvas.getByText(goalActive.title)).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'New goal' })).toBeVisible();
    },
 };
 

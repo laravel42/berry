@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
+import { useCreateGoalStore } from '@/store/create-goal-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useCreatePlanStore } from '@/store/create-plan-store';
@@ -289,6 +290,7 @@ export function CommandPalette() {
    } = useIssuesStore();
    const { openModal } = useCreateIssueStore();
    const openProjectModal = useCreateProjectStore((state) => state.openModal);
+   const openGoalModal = useCreateGoalStore((state) => state.openModal);
    const openPlanModal = useCreatePlanStore((state) => state.openModal);
    const allProjects = useProjectsStore((state) => state.projects);
    const members = useMembersStore((state) => state.members);
@@ -741,6 +743,18 @@ export function CommandPalette() {
                            >
                               <Box className="text-muted-foreground" />
                               {t('newProject')}
+                           </CommandItem>
+                        ) : null}
+                        {matches(trimmed, t('newGoal'), 'goal', 'create') ? (
+                           <CommandItem
+                              value="command-new-goal"
+                              onSelect={() => {
+                                 openGoalModal();
+                                 close();
+                              }}
+                           >
+                              <Target className="text-muted-foreground" />
+                              {t('newGoal')}
                            </CommandItem>
                         ) : null}
                         {matches(trimmed, 'plan', 'planning') ? (
