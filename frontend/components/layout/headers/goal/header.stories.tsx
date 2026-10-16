@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw';
 import { expect, within } from 'storybook/test';
 import type { Goal } from '@/lib/goals';
 import { useGoalsStore } from '@/store/goals-store';
+import { useSessionStore } from '@/store/session-store';
 import { workspaceRoute } from '../../stories-fixtures';
 import Header from './header';
 
@@ -31,6 +32,9 @@ const meta = {
    },
    beforeEach: ({ msw }) => {
       useGoalsStore.setState({ goals: [goal], loaded: true, error: null });
+      useSessionStore.setState({
+         workspace: { id: 'ws-1', name: 'Berry', slug: 'elian', role: 'admin' },
+      });
       msw.use(http.delete('*/api/v1/goals/:id', () => new HttpResponse(null, { status: 204 })));
    },
 } satisfies Meta<typeof Header>;
@@ -46,15 +50,15 @@ export const Blocked: Story = {
    },
 };
 
-/** Archiving asks first, then drops the goal from the store. */
+/** Removing asks first, then drops the goal from the store. */
 export const Archive: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Goal actions' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Archive' }));
-      const confirm = await body.findByRole('alertdialog', { name: 'Archive “Ship the inbox”?' });
-      await userEvent.click(within(confirm).getByRole('button', { name: 'Archive' }));
-      await expect(await body.findByText('Goal archived')).toBeVisible();
+      await userEvent.click(await body.findByRole('menuitem', { name: 'Remove' }));
+      const confirm = await body.findByRole('alertdialog', { name: 'Remove “Ship the inbox”?' });
+      await userEvent.click(within(confirm).getByRole('button', { name: 'Remove' }));
+      await expect(await body.findByText('Removed Ship the inbox')).toBeVisible();
       await expect(useGoalsStore.getState().goals).toHaveLength(0);
    },
 };

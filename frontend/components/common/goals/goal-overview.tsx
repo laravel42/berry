@@ -2,6 +2,7 @@
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { ApprovalCard } from '@/components/common/approvals/approval-card';
+import { DescriptionTextarea } from '@/components/common/editor/description-textarea';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueLine } from '@/components/common/issues/issue-line';
 import { Pill, SectionHeading } from '@/components/common/plans/plan-sections';
@@ -15,23 +16,30 @@ import {
    listGoalApprovals,
    listGoalIssues,
    listGoalPlans,
+   updateWorkspaceGoal,
    type Goal,
    type GoalApprovalRef,
    type GoalIssueRef,
    type GoalPlanRef,
 } from '@/lib/goals';
 import { cn } from '@/lib/utils';
+import { canEditProduct } from '@/lib/workspace-role';
 import { useApprovalsStore } from '@/store/approvals-store';
+import { useGoalsStore } from '@/store/goals-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { toast } from 'sonner';
+import { GoalActionsMenu } from './goal-context-menu';
 import { GoalProgress } from './goal-progress';
 import { GoalStatusBadge } from './goal-status-badge';
+import { GoalTitle } from './goal-title';
 
 function whenText(iso: string | null | undefined): string {
    if (!iso) return '—';
@@ -102,8 +110,7 @@ function WorkSection({ refs, orgId }: { refs: GoalIssueRef[]; orgId: string }) {
          <SectionHeading title="Work" count={refs.length} />
          {refs.length === 0 ? (
             <p className="mt-2 text-muted-foreground">
-               This goal groups no tasks. A goal is made from the tasks a plan compiled, so this one
-               has outlived them — it can be archived.
+               This goal groups no tasks yet. Link work to it, or start a plan from its project.
             </p>
          ) : (
             <div className="mt-2 overflow-hidden rounded-md border border-border/60 bg-background">
@@ -261,6 +268,42 @@ function Properties({ goal }: { goal: Goal }) {
    );
 }
 
+function GoalDescription({ goal, readOnly }: { goal: Goal; readOnly: boolean }) {
+   const t = useTranslations('goals.description');
+   const upsertGoal = useGoalsStore((state) => state.upsertGoal);
+   const text = goal.description ?? '';
+
+   if (readOnly && !text) return null;
+   if (readOnly) {
+      return (
+         <section className="mt-6">
+            <p className="whitespace-pre-line">{text}</p>
+         </section>
+      );
+   }
+
+   return (
+      <DescriptionTextarea
+         value={text}
+         aria-label={t('label')}
+         placeholder={t('placeholder')}
+         className="mt-6 min-h-24 placeholder:text-placeholder"
+         onCommit={(next) => {
+            const description = next === '' ? null : next;
+            if (description === (goal.description ?? null)) return;
+            const previous = goal.description ?? null;
+            upsertGoal({ ...goal, description });
+            void updateWorkspaceGoal(goal.id, { description })
+               .then((updated) => upsertGoal(updated))
+               .catch(() => {
+                  upsertGoal({ ...goal, description: previous });
+                  toast.error(t('failed'));
+               });
+         }}
+      />
+   );
+}
+
 /**
  * A goal and everything that serves it: the tasks, the approvals it waits
  * on and the plans that proposed it, with the progress the server counts
@@ -269,7 +312,12 @@ function Properties({ goal }: { goal: Goal }) {
 export default function GoalOverview({ goalId }: { goalId: string }) {
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
+   const pathname = usePathname();
    const inDrawer = useInDetailDrawer();
+   // The goal page header already carries this button. The list pane does not.
+   const menuInHeader = pathname?.includes('/goal/') ?? false;
+   const role = useSessionStore((state) => state.workspace?.role);
+   const canEdit = canEditProduct(role);
    const { goal, error, loading } = useGoal(goalId);
    const { lists } = useGoalLists(goalId);
 
@@ -296,9 +344,12 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
                <div className="w-full px-6 py-6 sm:px-8 sm:py-8">
-                  <h1 className="text-balance font-display leading-[1.08] tracking-[-0.025em]">
-                     {goal.title}
-                  </h1>
+                  <div className="flex items-start justify-between gap-3">
+                     <div className="min-w-0 flex-1">
+                        <GoalTitle goal={goal} readOnly={!canEdit} />
+                     </div>
+                     {menuInHeader ? null : <GoalActionsMenu goal={goal} />}
+                  </div>
                   <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
                      <span className="inline-flex items-center gap-1.5">
                         <BerryMark size="sm" tone={look.tone} state={look.state} />
@@ -310,12 +361,7 @@ export default function GoalOverview({ goalId }: { goalId: string }) {
 
                   <GoalProgress progress={goal.progress} className="mt-5" />
 
-                  {goal.description && (
-                     <section className="mt-6">
-                        <p>Description</p>
-                        <p className="mt-1.5 whitespace-pre-line">{goal.description}</p>
-                     </section>
-                  )}
+                  <GoalDescription goal={goal} readOnly={!canEdit} />
 
                   <WorkSection refs={lists.issues} orgId={orgId} />
                   <ApprovalsSection refs={lists.approvals} goalId={goal.id} orgId={orgId} />

@@ -42,6 +42,16 @@ const goalPlans = [
 function goalHandlers(options: { empty?: boolean } = {}) {
    const goals = [goalActive, goalCompleted];
    return [
+      http.patch('*/api/v1/goals/:id', async ({ request, params }) => {
+         const body = (await request.json()) as { title?: string; description?: string | null };
+         const goal = goals.find((candidate) => candidate.id === params.id);
+         return goal
+            ? HttpResponse.json({ ...goal, ...body })
+            : HttpResponse.json(
+                 { error: { code: 'GOAL_NOT_FOUND', message: 'Goal not found' } },
+                 { status: 404 }
+              );
+      }),
       http.get('*/api/v1/goals/:id', ({ params }) => {
          const goal = goals.find((candidate) => candidate.id === params.id);
          return goal
@@ -94,7 +104,8 @@ export const Active: Story = {
       });
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('heading', { name: goalActive.title })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Edit the title' })).toBeVisible();
+      await expect(canvas.getByText(goalActive.title)).toBeVisible();
       // The plan list arrives from /api/v1/goals/:id/plans.
       await expect(await canvas.findByText('Plan v2')).toBeVisible();
    },
@@ -102,14 +113,14 @@ export const Active: Story = {
 
 export const Completed: Story = { args: { goalId: goalCompleted.id } };
 
-/** A goal whose tasks and plan have gone: the page says it can be archived. */
+/** A goal with no tasks or plan yet. */
 export const NothingLinked: Story = {
    args: { goalId: goalCompleted.id },
    beforeEach: ({ msw }) => {
       msw.use(...goalHandlers({ empty: true }));
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText(/it can be archived/)).toBeVisible();
+      await expect(await canvas.findByText(/groups no tasks yet/)).toBeVisible();
    },
 };
 
