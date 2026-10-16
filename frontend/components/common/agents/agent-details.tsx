@@ -251,15 +251,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   </p>
                ) : null}
                {needsRuntime ? (
-                  <p className="flex flex-wrap items-center gap-2 rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2">
+                  <p className="rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2 text-center">
                      {t('bannerNoRuntime')}
-                     <button
-                        type="button"
-                        onClick={() => requestTab('settings')}
-                        className="underline underline-offset-2"
-                     >
-                        {t('bannerNoRuntimeLink')}
-                     </button>
                   </p>
                ) : null}
             </div>

@@ -223,7 +223,10 @@ export function AssigneeUser({
          <PopoverContent
             align="start"
             collisionPadding={12}
-            className="flex max-h-(--radix-popover-content-available-height) w-[240px] flex-col overflow-hidden p-0"
+            className={cn(
+               'flex max-h-(--radix-popover-content-available-height) flex-col overflow-hidden p-0',
+               row ? 'w-full min-w-[var(--radix-popper-anchor-width)]' : 'w-[240px]'
+            )}
          >
             <Command className="h-auto max-h-full">
                {searchable ? (

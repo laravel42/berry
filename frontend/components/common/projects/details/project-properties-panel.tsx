@@ -149,6 +149,7 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                         lead={project.lead}
                         candidates={leadCandidates(members, project.lead)}
                         onChange={(member) => updateProjectLead(project.id, member)}
+                        menuWidth="trigger"
                      >
                         <Button
                            type="button"

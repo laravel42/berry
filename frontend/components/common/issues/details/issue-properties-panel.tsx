@@ -1,15 +1,13 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { IssueDetail } from '@/data/issue-details';
 import { Issue } from '@/data/issues';
 import { describePatchFailure, patchBoardIssue } from '@/lib/issues';
 import { useIssuesStore } from '@/store/issues-store';
-import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
-import { CalendarClock, GitPullRequestArrow } from 'lucide-react';
+import { parseISO } from 'date-fns';
+import { GitPullRequestArrow } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useRef } from 'react';
 import { toast } from 'sonner';
 import { AssigneeUser } from '../assignee-user';
 import { AutoGateProperty } from './auto-gate-property';
@@ -42,34 +40,20 @@ interface IssuePropertiesPanelProps {
 export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProps) {
    const t = useTranslations('issueDetail.properties');
    const updateIssue = useIssuesStore((state) => state.updateIssue);
-   const duePicker = useRef<HTMLInputElement>(null);
-   const dueValue = issue.dueDate ? issue.dueDate.slice(0, 10) : '';
-   const dueLabel = (() => {
-      if (!issue.dueDate) return null;
-      try {
-         return format(parseISO(issue.dueDate), 'd MMM yyyy');
-      } catch {
-         return dueValue;
-      }
+   const dueDate = (() => {
+      if (!issue.dueDate) return undefined;
+      const parsed = parseISO(issue.dueDate);
+      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
    })();
 
-   const openDuePicker = () => {
-      const element = duePicker.current;
-      if (!element) return;
-      try {
-         element.showPicker();
-      } catch {
-         element.focus();
-         element.click();
-      }
-   };
-
-   const saveDueDate = (value: string) => {
-      // The date input yields YYYY-MM-DD; the API insists on RFC 3339.
-      const dueDate = value === '' ? null : new Date(`${value}T12:00:00.000Z`).toISOString();
+   const saveDueDate = (date: Date | undefined) => {
+      // Noon UTC keeps the calendar day the person picked. The API wants RFC 3339.
+      const next = date
+         ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString()
+         : null;
       const previous = issue.dueDate;
-      updateIssue(issue.id, { dueDate: dueDate ?? undefined });
-      void patchBoardIssue(issue.id, { dueDate }).catch((cause: unknown) => {
+      updateIssue(issue.id, { dueDate: next ?? undefined });
+      void patchBoardIssue(issue.id, { dueDate: next }).catch((cause: unknown) => {
          updateIssue(issue.id, { dueDate: previous });
          toast.error(describePatchFailure(cause) || t('saveFailed'));
       });
@@ -96,33 +80,13 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                      autoGate={issue.autoGate}
                   />
 
-                  <div className="relative">
-                     <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="w-full min-w-0 justify-start gap-2 px-1.5"
-                        onClick={openDuePicker}
-                     >
-                        <CalendarClock className="size-4 text-status-info" aria-hidden />
-                        <span
-                           className={cn(
-                              'truncate',
-                              dueLabel ? 'tabular-nums' : 'text-muted-foreground'
-                           )}
-                        >
-                           {dueLabel ?? t('setDate')}
-                        </span>
-                     </Button>
-                     <input
-                        ref={duePicker}
-                        type="date"
-                        aria-label={t('dueDate')}
-                        value={dueValue}
-                        onChange={(event) => saveDueDate(event.target.value)}
-                        className="sr-only"
-                     />
-                  </div>
+                  <ProjectDateSelector
+                     layout="row"
+                     label={t('dueDate')}
+                     emptyLabel={t('setDate')}
+                     date={dueDate}
+                     onChange={saveDueDate}
+                  />
 
                   <IssueProjectProperty issue={issue} />
                   <AutoGateProperty issue={issue} />

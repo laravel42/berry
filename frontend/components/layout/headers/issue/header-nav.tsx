@@ -93,10 +93,6 @@ export default function HeaderNav() {
          </div>
 
          <div className="flex shrink-0 items-center gap-1">
-            {issue ? (
-               <IssueHeaderMenu issue={issue} onDeleted={() => router.push(`/${orgId}/tasks`)} />
-            ) : null}
-
             {index >= 0 && (
                <span className="mr-1 text-muted-foreground">
                   {index + 1} / {issues.length}
@@ -135,6 +131,9 @@ export default function HeaderNav() {
                   <ChevronDown className="size-4" />
                )}
             </Button>
+            {issue ? (
+               <IssueHeaderMenu issue={issue} onDeleted={() => router.push(`/${orgId}/tasks`)} />
+            ) : null}
          </div>
       </div>
    );

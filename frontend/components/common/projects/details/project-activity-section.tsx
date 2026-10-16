@@ -29,7 +29,7 @@ function HealthDot({ health }: { health: ProjectUpdateHealth }) {
 
 function UpdateRow({ update }: { update: ProjectUpdate }) {
    return (
-      <div className="rounded-sm border border-border/60 bg-container p-3.5">
+      <div className="rounded-sm border border-border/60 bg-card p-2">
          <div className="mb-1.5 flex items-center gap-2">
             <Avatar className="size-5">
                <AvatarImage src={update.author.avatarUrl} alt={update.author.name} />
@@ -61,7 +61,7 @@ export function ProjectActivityFeedList({ projectId }: { projectId: string }) {
    }, [project, loadUpdates]);
 
    return (
-      <div className="border-t border-border/60 pt-4">
+      <div className="mt-4 border-t border-border/60 pt-4">
          <DetailSectionLabel>Updates</DetailSectionLabel>
          <div className="flex flex-col gap-1.5">
             {updates.length > 0 ? (

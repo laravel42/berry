@@ -54,7 +54,7 @@ export const UnassignedNoDueDate: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('Assign')).toBeInTheDocument();
-      await expect(canvas.getByRole('button', { name: 'Set date' })).toBeInTheDocument();
+      await expect(canvas.getByRole('button', { name: 'Due' })).toHaveTextContent('Set date');
    },
 };
 

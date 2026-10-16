@@ -1,7 +1,7 @@
 'use client';
 
 import { ActorAvatar, isAgentUser } from '@/components/common/issues/actor-avatar';
-import { OptionPicker } from '@/components/common/pickers/option-picker';
+import { OptionPicker, type PickerMenuWidth } from '@/components/common/pickers/option-picker';
 import { statusUserColors, type User } from '@/data/users';
 import { cn } from '@/lib/utils';
 import type { ComponentProps, ReactElement } from 'react';
@@ -22,12 +22,23 @@ interface LeadPickerProps {
    /** The people on offer, usually `leadCandidates(members, lead)`. */
    candidates: readonly User[];
    onChange: (lead: User) => void;
+   /**
+    * `menu` (default) is a fixed width for a small trigger such as an avatar.
+    * `trigger` matches the button, for a full property row.
+    */
+   menuWidth?: PickerMenuWidth;
    /** The trigger: `LeadAvatarButton`, `PickerChipButton`, or a row button. */
    children: ReactElement;
 }
 
 /** Choose a project's lead. Each person is drawn through `ActorAvatar`. */
-export function LeadPicker({ lead, candidates, onChange, children }: LeadPickerProps) {
+export function LeadPicker({
+   lead,
+   candidates,
+   onChange,
+   menuWidth = 'menu',
+   children,
+}: LeadPickerProps) {
    const choose = (id: string) => {
       const next = candidates.find((member) => member.id === id);
       if (next) onChange(next);
@@ -43,7 +54,7 @@ export function LeadPicker({ lead, candidates, onChange, children }: LeadPickerP
          value={lead?.id}
          onValueChange={choose}
          emptyLabel="No user found."
-         menuWidth="menu"
+         menuWidth={menuWidth}
       >
          {children}
       </OptionPicker>
