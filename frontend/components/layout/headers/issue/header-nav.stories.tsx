@@ -4,6 +4,7 @@ import { expect } from 'storybook/test';
 import { useAgentsStore } from '@/store/agents-store';
 import { useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useRunConsoleStore } from '@/store/run-console-store';
 import { usePinsStore } from '@/store/pins-store';
 import { useReviewsStore } from '@/store/reviews-store';
 import {
@@ -25,6 +26,7 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedSession();
       useIssuesStore.getState().hydrateIssues(issues);
+      useRunConsoleStore.setState({ openIssueId: null });
       useIssueRunsStore.setState(useIssueRunsStore.getInitialState());
       useAgentsStore.setState({ agents });
       usePinsStore.setState({ pins: [] });

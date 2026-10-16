@@ -57,8 +57,8 @@ function FoldedRunActions({ children }: { children: ReactNode }) {
 }
 
 /**
- * The task's console, docked at the foot of the drawer like the build
- * terminal: a run's transcript beside the work it produced. It follows the
+ * The task's console. Open, it covers the task and its bar takes the header's
+ * place. It follows the
  * live agent run, or the latest one when nothing is running. Past runs open
  * from the history control as a list. AutoGate reviews are not listed here:
  * they sit on the task's activity with their transcript.
@@ -86,6 +86,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const request = useRunConsoleStore((state) => state.request);
    const follow = useRunConsoleStore((state) => state.follow);
    const show = useRunConsoleStore((state) => state.show);
+   const setOpenIssueId = useRunConsoleStore((state) => state.setOpenIssueId);
    const [toggled, setToggled] = useState<boolean | null>(null);
    const [filtersOpen, setFiltersOpen] = useState(false);
    const [filtersActive, setFiltersActive] = useState(false);
@@ -147,6 +148,17 @@ export function RunConsole({ issueId }: { issueId: string }) {
       observer.observe(tab);
       return () => observer.disconnect();
    }, [shownId]);
+
+   // Before paint, so the task header is already gone when the bar takes its place.
+   const consoleOpen = toggled === true && run !== null;
+   useLayoutEffect(() => {
+      if (!consoleOpen) {
+         setOpenIssueId(null);
+         return;
+      }
+      setOpenIssueId(issueId);
+      return () => setOpenIssueId(null);
+   }, [consoleOpen, issueId, setOpenIssueId]);
 
    if (!run) {
       if (!canRestart) return null;
@@ -234,26 +246,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
 
    return (
       <section className="absolute inset-0 z-30 flex flex-col bg-container" aria-label={t('title')}>
-         <div
-            id={bodyId}
-            role="tabpanel"
-            aria-labelledby={`run-tab-${run.id}`}
-            className="flex min-h-0 flex-1 flex-col"
-         >
-            <RunTranscript
-               key={run.id}
-               runId={run.id}
-               className="min-h-0 flex-1"
-               order="oldest-first"
-               paged
-               filtersOpen={filtersOpen}
-               onFiltersOpenChange={setFiltersOpen}
-               onFiltersActiveChange={setFiltersActive}
-               onRunLoaded={upsert}
-               listClassName="bg-muted font-thin [&_*]:font-thin"
-            />
-         </div>
-         <div className="flex min-h-8 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-t px-2 py-1 text-muted-foreground">
+         <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-5 py-1 text-muted-foreground">
             <div
                ref={strip}
                role="tablist"
@@ -382,6 +375,25 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <ChevronDown className="size-4" aria-hidden />
                <span className="sr-only">{t('collapse')}</span>
             </Button>
+         </div>
+         <div
+            id={bodyId}
+            role="tabpanel"
+            aria-labelledby={`run-tab-${run.id}`}
+            className="flex min-h-0 flex-1 flex-col"
+         >
+            <RunTranscript
+               key={run.id}
+               runId={run.id}
+               className="min-h-0 flex-1"
+               order="oldest-first"
+               paged
+               filtersOpen={filtersOpen}
+               onFiltersOpenChange={setFiltersOpen}
+               onFiltersActiveChange={setFiltersActive}
+               onRunLoaded={upsert}
+               listClassName="bg-muted font-thin [&_*]:font-thin"
+            />
          </div>
          <AlertDialog open={confirmingStop} onOpenChange={setConfirmingStop}>
             <AlertDialogContent>

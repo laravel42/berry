@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { getBoardIssue } from '@/lib/issues';
 import { useIssuesStore } from '@/store/issues-store';
+import { useRunConsoleStore } from '@/store/run-console-store';
 import { ChevronDown, ChevronUp, CornerUpLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -26,6 +27,7 @@ export default function HeaderNav() {
    const { orgId, issueId } = useParams<{ orgId: string; issueId: string }>();
    const router = useRouter();
    const { issues } = useIssuesStore();
+   const consoleFor = useRunConsoleStore((state) => state.openIssueId);
 
    const index = issues.findIndex(
       (candidate) => candidate.identifier === issueId || candidate.id === issueId
@@ -49,6 +51,9 @@ export default function HeaderNav() {
          cancelled = true;
       };
    }, [issue?.parentId]);
+
+   // The open console puts its own bar in this slot.
+   if (issue && consoleFor === issue.id) return null;
 
    return (
       <div className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-5 py-1.5">

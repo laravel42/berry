@@ -636,7 +636,9 @@ function ThinkingProse({ text, query }: { text: string; query: string }) {
             <span className={cn('capitalize', reviewStatusTone(review.status))}>
                {review.status.replace(/_/g, ' ')}
             </span>
-            {review.reason.trim() ? <AgentMarkdown body={review.reason} compact /> : null}
+            {review.reason.trim() ? (
+               <AgentMarkdown body={review.reason} compact className="max-w-none" />
+            ) : null}
          </div>
       );
    }
@@ -647,7 +649,7 @@ function ThinkingProse({ text, query }: { text: string; query: string }) {
          </pre>
       );
    }
-   return <AgentMarkdown body={text} compact />;
+   return <AgentMarkdown body={text} compact className="max-w-none" />;
 }
 
 /**
@@ -1217,10 +1219,11 @@ export function RunTranscript({
                   <Search className="size-3.5 shrink-0 text-muted-foreground" />
                   <Input
                      ref={searchInput}
+                     plain
                      value={query}
                      aria-label={t('search')}
                      placeholder={t('searchPlaceholder')}
-                     className="h-8 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+                     className="h-8 border-0 bg-transparent px-2 shadow-none focus-visible:border-transparent focus-visible:shadow-none focus-visible:ring-0"
                      onChange={(event) => {
                         setQuery(event.target.value);
                         setMatchIndex(0);

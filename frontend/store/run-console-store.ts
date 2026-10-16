@@ -10,13 +10,17 @@ interface RunConsoleState {
    chosen: Record<string, string>;
    /** Bumped by `show`, so the console scrolls into view and opens even when the run was already chosen. */
    request: number;
+   /** The task whose console is covering the page, so its header can step aside. */
+   openIssueId: string | null;
    show: (issueId: string, runId: string) => void;
    follow: (issueId: string) => void;
+   setOpenIssueId: (issueId: string | null) => void;
 }
 
 export const useRunConsoleStore = create<RunConsoleState>((set) => ({
    chosen: {},
    request: 0,
+   openIssueId: null,
    show: (issueId, runId) =>
       set((state) => ({
          chosen: { ...state.chosen, [issueId]: runId },
@@ -28,4 +32,5 @@ export const useRunConsoleStore = create<RunConsoleState>((set) => ({
             Object.entries(state.chosen).filter(([key]) => key !== issueId)
          ),
       })),
+   setOpenIssueId: (issueId) => set({ openIssueId: issueId }),
 }));
