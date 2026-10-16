@@ -4,6 +4,8 @@ import { BerryMark, type BerryMarkTone } from '@/components/brand/berry-mark';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { MetaBadge } from '@/components/common/meta-badge';
 import { RuntimeProviderBadge } from '@/components/common/runtimes/runtime-provider-badge';
+import { aiRuntimeModelsFrom, loadAiRuntimeCatalog } from '@/lib/runtimes';
+import type { AiRuntimeCatalog } from '@/lib/runtimes';
 import { colorForAgent } from '@/lib/agent-color';
 import {
    formatRunDuration,
@@ -151,16 +153,66 @@ export function RunSummary({ run, runs }: { run: RunRecord; runs: readonly RunRe
    );
 }
 
+/** Berry stores `default` when the subscription CLI picks its own model. */
+const CLI_DEFAULT_MODEL = 'default';
+
+let modelCatalog: Promise<AiRuntimeCatalog | null> | null = null;
+
+function modelCatalogOnce(): Promise<AiRuntimeCatalog | null> {
+   modelCatalog ??= loadAiRuntimeCatalog().catch(() => null);
+   return modelCatalog;
+}
+
+/**
+ * The name a person would read for this run's model.
+ *
+ * A catalog entry wins over the id. The `default` sentinel is the CLI's own
+ * choice, which Kiro advertises as Auto.
+ */
+export function runModelLabel(
+   catalog: AiRuntimeCatalog | null,
+   runtimeId: string | null | undefined,
+   modelId: string
+): string | null {
+   const runtime = catalog?.nodes.find((node) => node.id === runtimeId);
+   const models = runtime ? aiRuntimeModelsFrom(runtime) : [];
+   const named = models.find((model) => model.id === modelId);
+   if (named && modelId !== CLI_DEFAULT_MODEL) return named.name;
+   if (modelId === CLI_DEFAULT_MODEL) {
+      const chosen =
+         models.find((model) => model.id === 'auto') ??
+         models.find((model) => model.id !== CLI_DEFAULT_MODEL);
+      return chosen?.name ?? null;
+   }
+   return readableModelName(modelId);
+}
+
 export function RunModel({ run }: { run: RunRecord }) {
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const agent = getAgentById(run.agentId);
    const modelId = run.aiModelId?.trim() || agent?.modelName?.trim() || '';
-   if (!modelId) return null;
+   const [label, setLabel] = useState<string | null>(() =>
+      modelId && modelId !== CLI_DEFAULT_MODEL ? readableModelName(modelId) : null
+   );
+
+   useEffect(() => {
+      if (!modelId) return;
+      let cancelled = false;
+      void modelCatalogOnce().then((catalog) => {
+         if (cancelled) return;
+         setLabel(runModelLabel(catalog, run.aiRuntimeId, modelId));
+      });
+      return () => {
+         cancelled = true;
+      };
+   }, [modelId, run.aiRuntimeId]);
+
+   if (!modelId || !label) return null;
    return (
       <RuntimeProviderBadge
          runtimeId={run.aiRuntimeId}
-         label={readableModelName(modelId)}
-         title={modelId}
+         label={label}
+         title={label}
          truncate={false}
       />
    );
