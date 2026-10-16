@@ -18,6 +18,16 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- A goal's actions sit on the three-dot button at the top-right of its page:
+  open it in a new tab, copy its link, or archive it.
+- Create a goal from a project. The project header and the Goals block on the
+  project page open a New goal dialog that `POST /api/v1/goals` with that
+  `projectId`; the command palette offers the same with a project picker.
+  `POST /api/v1/goals` and `create_goal` now need `product.write` (members),
+  matching the documented contract; archive stays `settings.write`.
+- Edit a goal's title and description on its page. Click the title to rename
+  it; the description is a plain-text field that `PATCH /api/v1/goals/{id}`
+  on blur. Status stays derived from the work under the goal.
 - PGlite again for local development (`DATABASE_URL=pglite:./.berry`). The
   process serves a loopback Postgres socket; one process owns the data
   directory. `postgres://` and Aurora IAM remain for a host or remote database.
