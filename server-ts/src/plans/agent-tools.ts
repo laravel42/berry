@@ -79,7 +79,7 @@ export function registerPlanningTools(deps: PlanningToolDeps): void {
       handler: async (context, input) => {
          const workspaceId = context.task.workspaceId;
          const userId = await requester(context, 'goal');
-         await authorize(deps, userId, workspaceId, 'settings.write', 'goal');
+         await authorize(deps, userId, workspaceId, 'product.write', 'goal');
          const projectId = await projectIn(context, input.projectId);
          const { goal } = await deps.goals.create({
             workspaceId,

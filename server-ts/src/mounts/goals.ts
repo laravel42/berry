@@ -100,7 +100,7 @@ export function goalMounts(options: GoalOptions): Mount[] {
       const body = await readBody(context.req.raw, CREATE_FIELDS);
       const workspaceId = requiredBodyUUID(body.workspaceId, 'workspaceId');
       await goals
-         .authorizeWorkspace(context.get('user').id, workspaceId, 'settings.write')
+         .authorizeWorkspace(context.get('user').id, workspaceId, 'product.write')
          .catch(rethrow('Workspace'));
 
       const title = requiredText(body.title, 'title', MAX_TITLE);
