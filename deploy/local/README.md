@@ -49,7 +49,7 @@ The first run builds the dev image and the agent runtime image and installs depe
 
 Also:
 
-- The API applies pending migrations when it starts. On the Mac that is a separate `pnpm migrate:server`.
+- The API applies pending migrations when it starts. On the Mac that is a separate `pnpm db:migrate`.
 - `node_modules` live in Docker volumes, not in the working tree, because some packages ship per-platform binaries. After changing dependencies, restart the service; to start clean, `pnpm dev:docker:down -v`.
 - The web app builds into `frontend/.next-docker`, apart from the Mac's `.next`.
 - Editing a file the API imports restarts it, which abandons agent runs in flight, exactly as `node --watch` does on the Mac.

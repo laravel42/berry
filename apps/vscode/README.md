@@ -26,7 +26,7 @@ Network, permission and rate-limit failures offer reconnect/refresh; they do
 not silently show partial lists or retry automatically. No credentials or
 response bodies are logged. Use a trusted Berry origin: it receives your PAT.
 
-The companion does not run Berry or PGlite, embed the web app, or support
+The companion does not run Berry, embed the web app, or support
 vscode.dev. Desktop VS Code is the supported host; Remote
 SSH and WSL are deferred.
 

@@ -57,14 +57,27 @@ write code. Never run one workspace's tools over another.
 
 `apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
 With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
-with `DATABASE_URL=pglite:<userData>/pglite`, migrates that directory, stores
-artifacts under `<userData>/artifacts`, and serves the web app on `127.0.0.1:4174`. Set `BERRY_DESKTOP_URL` to open an
+against PGlite in the app data directory, or a `postgres://` `DATABASE_URL` /
+`BERRY_DESKTOP_DATABASE_URL` when you point it at host Postgres. Aurora / RDS
+IAM auth is `DATABASE_IAM_AUTH=true` (tokens minted per connection; not a static
+URL password; not used with `pglite:`). Artifacts go under
+`<userData>/artifacts`, and the web app is served on `127.0.0.1:4174`.
+`pnpm dev:desktop` walks to this checkout and runs `next dev`.
+`pnpm package:desktop` copies `@berry/server` and the Next standalone build
+into Electron `extraResources` (`Resources/berry`) with a Node binary, so the
+`.app` does not need the git repo. A bundled start merges a login-shell
+`PATH` onto the GUI default so subscription CLIs on Homebrew are visible.
+Set `BERRY_DESKTOP_URL` to open an
 existing server instead. Navigation stays on that origin plus GitHub sign-in.
-`pnpm dev:desktop`.
 
-Also in the repo: `docs/` and `scripts/` (Python repository checks). Berry can run on the host against PostgreSQL 16 and object storage, with
+Also in the repo: `docs/` and `scripts/` (Python repository checks). Local
+development uses PGlite (`DATABASE_URL=pglite:./.berry`). Host PostgreSQL 16
+and object storage remain for a shared or remote database, with
 subscription CLIs or a native compute host. Optional Docker development and
-Dokploy stacks live in `deploy/local/` and `deploy/dokploy/`.
+Dokploy stacks live in `deploy/local/` and `deploy/dokploy/`. ECS Fargate for
+the control plane (existing Aurora with IAM auth, no Docker socket) is
+`deploy/aws/cloudformation/`. The CDK app in `deploy/aws` remains the one-EC2
+Docker host for previews and in-process sessions.
 
 The server runs its `.ts` sources directly under `--experimental-strip-types`.
 There is no build step, so nothing that emits code — enums, namespaces,
@@ -170,6 +183,11 @@ does, and never touch `.git` or `.handoffs/`. Agents can `propose_work` and
 `delegate_to_agent`, and escalate to a role or to a human — but never to
 `done`, and never through a merge tool.
 
+Chat has no task of its own; the envelope carries an open-work snapshot.
+`list_tasks`, `list_plans`, `list_goals`, `list_projects` and `read_task` fill
+in what that snapshot does not. Replies are markdown (headings, lists, tables),
+parsed to elements — never raw HTML.
+
 **GitHub is an App Berry creates, not a credential it is given.** The manifest
 flow posts what the App may do, and the conversion returns the id, both halves
 of the OAuth credential, the private key and the webhook secret at once — which
@@ -222,7 +240,7 @@ record what is in scope.
 ## Commands
 
 ```bash
-# Setup (from repo root; needs your own PostgreSQL 16)
+# Setup (from repo root; local default is PGlite)
 cp .env.example .env && pnpm install
 
 # Repository checks

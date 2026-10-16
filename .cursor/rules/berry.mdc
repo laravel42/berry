@@ -48,7 +48,8 @@ format one with another.
 
 ## No longer true
 
-No Docker Compose stack — it was removed; bring your own host PostgreSQL.
+No Docker Compose stack — it was removed. Local development uses PGlite
+(`DATABASE_URL=pglite:./.berry`); host PostgreSQL remains optional.
 There is no in-process run orchestration debate: `src/runs/dispatcher.ts`
 claims and runs tasks under `SKIP LOCKED` leases. `/metrics` and `/catalogs`
 are served, not 404.

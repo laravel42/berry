@@ -1,5 +1,13 @@
 # Berry on AWS: one EC2 Docker host, with CDK
 
+For the **control plane only** (API + web on Fargate, existing Aurora with IAM
+auth, no Docker socket) use [`cloudformation/`](cloudformation/). That path is
+what a hosted or sold app runs: the task role mints database tokens, and
+customers do not run `aws login`. Keep this CDK stack when you still need the
+API to start preview and session containers on one Docker host.
+
+## EC2 Docker host (CDK)
+
 `cdk deploy` builds Berry's images, brings up the AWS resources and applies the release on the host. There is no separate release step.
 
 ```

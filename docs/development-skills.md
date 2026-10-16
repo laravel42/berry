@@ -13,7 +13,7 @@ These are repository development skills, not automatically imported into Berry's
 - Preserve human release decisions, task-scoped tools, immutable migrations, and exact description bytes.
 - Skills do not authorize merges, releases, deployments, messages, or destructive actions.
 - Tiptap guidance applies to designated rich-text views; it must not replace exact-byte description inputs.
-- PostgreSQL guidance applies to hosted Postgres and desktop PGlite only where their capabilities match.
+- PostgreSQL guidance applies to hosted Postgres.
 - AWS examples may use Python or Terraform; use Berry's TypeScript Strands runtime and existing infrastructure conventions.
 - Upstream scripts are included as supporting source. Review them and install their documented dependencies only when a task calls for them.
 

@@ -21,14 +21,14 @@ Never run one workspace's formatter or linter over another. The server enables `
 ## Commands (from repo root unless noted)
 
 ```bash
-cp .env.example .env && pnpm install   # no container stack: bring your own PostgreSQL 16
+cp .env.example .env && pnpm install   # local default is PGlite (`pglite:./.berry`)
 
 pnpm typecheck:server
 pnpm test:server                 # DB tests self-skip without BERRY_TEST_DATABASE_URL
 pnpm dev:server                  # node --watch, reads ../.env
-pnpm migrate:server              # needs DATABASE_URL
-pnpm seed:server                 # idempotent dev dataset
-pnpm reset:server                # development/test database reset
+pnpm db:migrate                  # needs DATABASE_URL
+pnpm db:seed                     # idempotent dev dataset
+pnpm db:reset                    # development/test database reset
 
 # single server test file / single test
 cd server-ts && node --test --experimental-strip-types src/runs/dispatcher.test.ts

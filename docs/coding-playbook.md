@@ -25,7 +25,14 @@ Know which workspace you are in before you write code.
 
 `apps/desktop` compiles TypeScript to `dist/` and runs Electron. Match the
 server style (3-space, single quotes). It loads the frontend and does not
-import the server.
+import the server. `pnpm --filter @berry/desktop package` stages
+`resources/berry` (server sources + production `node_modules`, Next
+`output: 'standalone'`, a Node binary) and packs it with electron-builder
+`extraResources`; the packaged main process starts from that tree,
+not from a git checkout. It uses PGlite under `userData`, or a `postgres://`
+`DATABASE_URL` from the checkout `.env` (`DATABASE_IAM_AUTH=true` for Aurora/RDS
+IAM tokens). It merges a login-shell `PATH`
+so workstation CLIs remain visible when the `.app` is opened from Finder.
 
 **Never run one workspace's formatter or linter over another.** Berry is the
 control plane for agent execution and imports no model SDK outside

@@ -4,7 +4,7 @@ The parser in `server-ts/src/config/config.ts` and the composition in `server-ts
 ## Product server
 | Variable | Purpose |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection for product state. |
+| `DATABASE_URL` | Product state: `pglite:<directory>` locally, or a `postgres://` URL for host/Aurora Postgres. |
 | `API_ADDR` | API listening address. |
 | `APP_ENV` | Deployment environment. |
 | `BERRY_AUTH_SECRET` | Authentication secret. |

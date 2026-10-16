@@ -1,0 +1,15 @@
+{
+  "Parameters": {
+    "DatabaseUrl": "postgres://postgres@YOUR_CLUSTER.cluster-xxxx.us-east-1.rds.amazonaws.com:5432/postgres",
+    "DbClusterResourceId": "cluster-XXXXXXXX",
+    "DatabaseUser": "postgres",
+    "CpuArchitecture": "ARM64",
+    "DesiredCount": "0",
+    "DomainName": "",
+    "CertificateArn": "",
+    "AgentCoreRuntimeArn": "",
+    "ApiImage": "",
+    "WebImage": "",
+    "VpcCidr": "10.0.0.0/16"
+  }
+}

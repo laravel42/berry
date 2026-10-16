@@ -18,6 +18,27 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- PGlite again for local development (`DATABASE_URL=pglite:./.berry`). The
+  process serves a loopback Postgres socket; one process owns the data
+  directory. `postgres://` and Aurora IAM remain for a host or remote database.
+- CloudFormation for the control plane on ECS Fargate
+  (`deploy/aws/cloudformation/berry-fargate.yaml`): ALB, API+web in one task,
+  existing Aurora/RDS with IAM database authentication on the task role, S3
+  artifacts, and Secrets Manager for `BERRY_AUTH_SECRET`. Desired count starts
+  at 0 so ECR can be filled before the service runs.
+- Aurora / RDS IAM database authentication. `DATABASE_IAM_AUTH=true` mints a
+  15-minute token per connection with `@aws-sdk/rds-signer` (the Node equivalent
+  of `aws rds generate-db-auth-token`) and uses it as the Postgres password for
+  both postgres.js and Better Auth's `pg` pool. Region is `DATABASE_IAM_REGION`,
+  `AWS_REGION`, or an `*.rds.amazonaws.com` hostname. SSL is required;
+  `DATABASE_SSL_REJECT_UNAUTHORIZED=false` skips certificate verification.
+  IAM connections wait 60s for Aurora Serverless v2 to resume from 0 ACU.
+- Packaged desktop app starts from Electron `extraResources` (`Resources/berry`:
+  `@berry/server` via `pnpm deploy`, Next standalone, a Node binary) instead of walking
+  up to a git checkout. `pnpm package:desktop` stages that tree. `BERRY_DESKTOP_ROOT`
+  overrides the lookup. The window's server uses PGlite under `userData`, or a
+  `postgres://` checkout `DATABASE_URL` / `BERRY_DESKTOP_DATABASE_URL`. Auth and
+  integration keys for a bundled run persist under `userData/secrets`.
 - Conflict-resolution runs. When a task's branch and the default branch changed the same
   file, the next run on the task is built to merge them: `EnvelopeBuilder` plans the merge
   from three Git trees (`src/runtime/merge-plan.ts`), records `merge_parent` and
@@ -278,6 +299,23 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Changed
 
+- Reviews sits in Personal, above Agent, instead of in Work.
+- Agent chat can see the workspace. The chat envelope carries an open-work
+  snapshot (tasks, plans, goals, projects) so a summary does not spend the run
+  listing, and a chat turn is not told to call `list_run_tools` first.
+  `list_tasks`, `list_plans`, `list_goals` and `list_projects` remain
+  for a filter, another page, or a full `read_task`. Catalog 28.
+- Agent chat replies render markdown tables. The turn is told to write
+  markdown (headings, lists, tables), not HTML.
+- Settings → AI runtimes prints **Available** only when that CLI is on the
+  workstation PATH. `GET /api/v1/runtimes/catalog` adds `installed` from the
+  adapter availability probe; an uninstalled CLI has no Available badge or
+  Connect button.
+- The rail's Personal conversation page is labelled **Agent**. The page no
+  longer lists chats and agents in a left pane; it opens a conversation with
+  the Orchestrator (or `?agent=` / `?session=` when those are in the URL). The
+  header does not repeat the agent name.
+- The Agent chat composer starts three lines tall.
 - A workspace reaches repositories in several GitHub accounts at once — a personal account
   and any number of organisations. `github_installations` is keyed by workspace *and*
   installation (migration `182`), with a unique index on `installation_id` making
@@ -337,6 +375,9 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Removed
 
+- PGlite (`@electric-sql/pglite`, `@electric-sql/pglite-socket`, `DATABASE_URL=pglite:<dir>`).
+  The server and the desktop window talk only to host Postgres. `pnpm package:desktop` no
+  longer patches pglite-socket.
 - The New goal dialog, its store and provider, and the goal create, patch, link and
   unlink clients. Archive is the only goal write left.
 - The "Plan something" buttons from the goals and projects surfaces, and the project
@@ -377,6 +418,18 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Fixed
 
+- Creating a project from Agent chat wrote the row and then left the Projects
+  page empty. `ProjectRepository` now records `project.created`,
+  `project.updated` and `project.archived` on the workspace stream, and the
+  browser refetches the list from that and when Projects opens.
+- Packaged desktop copied Next CSS/JS into `.next/static` while the production `distDir` is
+  `.next-desktop-bundle`, so `/_next/static/chunks/*.css` 404ed, the Berry mark filled the
+  window, and the session gate never left "Loading Berry". Staging and `afterPack` now put
+  static files in that distDir. Developer frontend `.env` files are stripped from the bundle.
+- Packaged desktop started the server with the Finder GUI `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`),
+  so Settings → AI runtimes reported CLIs as not installed when they were on the login-shell
+  PATH. The local stack now merges a login-shell PATH (and existing Homebrew / `~/.local/bin`
+  directories) into the server child.
 - A refused merge no longer shows transport text ("GitHub PUT /repos/…/merge failed: 405").
   `mergePullRequest` returns GitHub's sentence alone, and the AutoGate passes the reason to
   the author's next run as its instructions; before, an approved-then-refused task was sent

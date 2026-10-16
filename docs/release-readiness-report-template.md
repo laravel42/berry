@@ -75,7 +75,7 @@ cannot be filled, write `Unknown` or `N/A` and say why; do not leave it blank.
 | Plugin SDK | `pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk` | Pass / Fail / N/A | `<log>` |
 | Frontend build | `cd frontend && pnpm build:check` | Pass / Fail / N/A | `<log>` |
 | Frontend lint | `cd frontend && pnpm lint` | Pass / Fail / N/A | `<log>` |
-| Migrations applied | `pnpm migrate:server` against the target database, then confirm `berry_schema_migrations` is at the latest version with no checksum drift | Pass / Fail / N/A | `<log>` |
+| Migrations applied | `pnpm db:migrate` against the target database, then confirm `berry_schema_migrations` is at the latest version with no checksum drift | Pass / Fail / N/A | `<log>` |
 | Host PostgreSQL reachable | `DATABASE_URL` points at a reachable PostgreSQL 16+ instance (no container stack) | Pass / Fail / N/A | `<log>` |
 | AgentCore runtime deployed | The target AgentCore Runtime image is built and published (`server-ts/sandbox/agentcore/deploy.sh`) and `BERRY_AGENTCORE_RUNTIME_ARN` (or `BERRY_AGENT_RUNTIME_URL`) points at it | Pass / Fail / N/A | `<log>` |
 | Runtime callback URL reachable | The runtime can reach `BERRY_RUNTIME_CALLBACK_URL` (or `BERRY_PUBLIC_URL`) back to this deployment | Pass / Fail / N/A | `<log>` |

@@ -1,5 +1,6 @@
 # Conventions
 
+- 2026-10-15 — Root migrate command is `pnpm db:migrate` (not `pnpm migrate:server`). Seed and reset are `pnpm db:seed` and `pnpm db:reset`.
 - 2026-09-14 — **Supersedes entries below.** Gates: `pnpm typecheck:server` +
   `pnpm test:server`; frontend `pnpm lint` + `pnpm build:check` (never plain
   `build` while `next dev` runs); `pnpm check:models`;
