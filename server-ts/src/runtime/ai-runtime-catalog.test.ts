@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { AI_RUNTIME_CATALOG, AI_RUNTIME_IDS } from './ai-runtime-catalog.ts';
+import { AI_RUNTIME_CATALOG, AI_RUNTIME_IDS, withWorkstationCliPresence } from './ai-runtime-catalog.ts';
 
 describe('AI runtime catalog', () => {
    test('lists only connectable runtimes, each exactly once', () => {
@@ -42,5 +42,22 @@ describe('AI runtime catalog', () => {
       for (const id of ['opencode', 'openclaw', 'hermes', 'pi', 'antigravity', 'trae-cli', 'qwen']) {
          assert.equal(AI_RUNTIME_CATALOG.find((runtime) => runtime.id === id), undefined, id);
       }
+   });
+
+   test('installed is the CLI on PATH, not product connectability', () => {
+      const grok = AI_RUNTIME_CATALOG.find((runtime) => runtime.id === 'grok');
+      assert.ok(grok);
+      const present = withWorkstationCliPresence(grok, { available: true, reason: null });
+      assert.equal(present.installed, true);
+      assert.equal(present.availability, 'available');
+      const missing = withWorkstationCliPresence(grok, {
+         available: false,
+         reason: 'grok is not installed on this workstation.',
+      });
+      assert.equal(missing.installed, false);
+      assert.equal(missing.availability, 'available');
+      assert.equal(withWorkstationCliPresence(grok, undefined).installed, false);
+      const blocked = { ...grok, availability: 'blocked' as const, unavailableReason: 'not shipped' };
+      assert.equal(withWorkstationCliPresence(blocked, { available: true, reason: null }).installed, false);
    });
 });

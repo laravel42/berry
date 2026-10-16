@@ -1,4 +1,10 @@
+import pg from 'pg';
 import postgres from 'postgres';
+import {
+   iamPassword,
+   parsePostgresEndpoint,
+   type DatabaseIamAuth,
+} from './rds-iam.ts';
 
 /**
  * The database.
@@ -95,12 +101,21 @@ export interface DatabaseOptions {
    /** Mirrors pgxpool's default ceiling closely enough for one API process. */
    max?: number;
    connectTimeoutSeconds?: number;
+   /**
+    * When set, the password is an RDS IAM auth token minted per connection
+    * (`@aws-sdk/rds-signer`). SSL is required. The URL password is ignored.
+    */
+   iam?: DatabaseIamAuth & { getAuthToken?: () => Promise<string> };
 }
 
-export function openDatabase(options: DatabaseOptions): Sql {
-   return postgres(options.url, {
+function driverOptions(options: DatabaseOptions) {
+   return {
       max: options.max ?? 10,
-      connect_timeout: options.connectTimeoutSeconds ?? 10,
+      // Local Postgres answers in milliseconds. Aurora Serverless v2 can sit
+      // at 0 ACU and spend 15–30s on TLS plus IAM before ReadyForQuery; 10s
+      // then surfaces as `write CONNECT_TIMEOUT undefined:undefined` because
+      // postgres.js reads host/port off the TLS socket, which does not have them.
+      connect_timeout: options.connectTimeoutSeconds ?? (options.iam ? 60 : 10),
       // Timestamps come back as strings, not Dates, and that is a contract
       // requirement rather than a preference. PostgreSQL stores microseconds
       // and Go renders every digit — `2026-08-23T05:47:19.652293Z`. A
@@ -122,6 +137,56 @@ export function openDatabase(options: DatabaseOptions): Sql {
       // should have.
       connection: { TimeZone: 'UTC' },
       onnotice: () => {},
+   };
+}
+
+export function databaseOptionsFromConfig(config: {
+   databaseUrl: string;
+   databaseIamAuth: DatabaseIamAuth | null;
+   max?: number;
+   connectTimeoutSeconds?: number;
+}): DatabaseOptions {
+   const options: DatabaseOptions = { url: config.databaseUrl };
+   if (config.max !== undefined) options.max = config.max;
+   if (config.connectTimeoutSeconds !== undefined) {
+      options.connectTimeoutSeconds = config.connectTimeoutSeconds;
+   }
+   if (config.databaseIamAuth) options.iam = config.databaseIamAuth;
+   return options;
+}
+
+export function openDatabase(options: DatabaseOptions): Sql {
+   const common = driverOptions(options);
+   if (!options.iam) {
+      return postgres(options.url, common);
+   }
+   const endpoint = parsePostgresEndpoint(options.url);
+   return postgres({
+      ...common,
+      host: endpoint.hostname,
+      port: endpoint.port,
+      database: endpoint.database,
+      username: endpoint.username,
+      password: iamPassword(endpoint, options.iam, options.iam.getAuthToken),
+      ssl: { rejectUnauthorized: options.iam.sslRejectUnauthorized },
+   });
+}
+
+/** Better Auth's `pg` pool, with the same IAM token path as postgres.js. */
+export function openPgPool(options: DatabaseOptions): pg.Pool {
+   const max = options.max ?? 10;
+   if (!options.iam) {
+      return new pg.Pool({ connectionString: options.url, max });
+   }
+   const endpoint = parsePostgresEndpoint(options.url);
+   return new pg.Pool({
+      host: endpoint.hostname,
+      port: endpoint.port,
+      user: endpoint.username,
+      database: endpoint.database,
+      password: iamPassword(endpoint, options.iam, options.iam.getAuthToken),
+      ssl: { rejectUnauthorized: options.iam.sslRejectUnauthorized },
+      max,
    });
 }
 

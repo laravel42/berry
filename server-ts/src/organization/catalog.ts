@@ -30,7 +30,9 @@ import type { RoleTier } from '../agents/model-tiers.ts';
 // 24: a Planner writes plans. Plan calls run on that agent's tier.
 // 25: the Planner's instructions speak of goals, not a goal and milestones.
 // 26: reviews start by themselves only under AutoGate; otherwise a person asks.
-export const CATALOG_VERSION = 26;
+// 27: every role can list the workspace (tasks, plans, goals, projects) from chat.
+// 28: chat answers from an open-work snapshot; list tools are for more, not first.
+export const CATALOG_VERSION = 28;
 
 /**
  * Specialists written before this version were given to every workspace.
@@ -144,6 +146,7 @@ const SPECS: RoleSpec[] = [
       mission: 'Take in every piece of incoming work, select the workflow it needs and hand it to the first responsible role.',
       responsibilities: [
          'Read incoming tasks, plans and requests and identify the kind of work.',
+         'A conversation looks at the whole workspace, not only the message. Incoming work is already in the turn; do not spend the run listing it unless you need more than that snapshot.',
          'Select the named workflow that fits, without requiring every role.',
          'Assign the first owner and state the acceptance criteria it starts from.',
          'Pick up work nobody else holds and route it, rather than doing it.',

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { GROK_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
-import { runtimeTurnNote } from '../tool-note.ts';
+import { runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
    RuntimeAdapterError,
@@ -521,7 +521,7 @@ function promptFor(input: AgentProcessRun): string {
       .map((message) => `${message.role}: ${message.text}`)
       .join('\n');
    const restored = transcript === '' ? '' : `Conversation restored by Berry before this turn:\n${transcript}\n\n`;
-   return `${restored}${input.envelope.agent.instructions}\n\n${input.envelope.task.prompt}${runtimeTurnNote(input.envelope.kind, 'berry__list_run_tools', input.envelope.completion?.jsonSchema)}`;
+   return `${restored}${input.envelope.agent.instructions}\n\n${input.envelope.task.prompt}${runtimeTurnNoteFor(input.envelope, 'berry__list_run_tools')}`;
 }
 
 function tomlString(value: string): string {

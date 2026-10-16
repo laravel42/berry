@@ -1,5 +1,6 @@
 import { loadConfig } from '../config/config.ts';
 import { openFromUrl } from '../db/embedded.ts';
+import { databaseOptionsFromConfig } from '../db/pool.ts';
 import { createLogger } from '../observability/log.ts';
 import { apply, assertBerryDatabase } from './reset.ts';
 
@@ -30,7 +31,7 @@ const confirmed = process.argv.slice(2).some((argument) => CONSENT.has(argument)
 
 const config = loadConfig();
 const logger = createLogger(`${config.serviceName}-reset`);
-const database = await openFromUrl(config.databaseUrl);
+const database = await openFromUrl(databaseOptionsFromConfig(config));
 const sql = database.sql;
 
 try {

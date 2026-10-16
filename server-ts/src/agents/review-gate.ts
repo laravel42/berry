@@ -626,9 +626,9 @@ export class ReviewGate {
     *
     * The lock transaction only reads. The comment, the status change and the
     * merge run after it commits, each on its own connection. Holding the
-    * transaction open across those writes deadlocks the embedded database,
-    * which runs one query at a time: the close waits on a connection that
-    * cannot start until this transaction ends.
+    * transaction open across those writes deadlocks a single-connection
+    * database: the close waits on a connection that cannot start until this
+    * transaction ends.
     */
    async #settleRequired(
       runId: string,

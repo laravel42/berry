@@ -215,49 +215,60 @@ export class ProjectRepository {
    }): Promise<Project> {
       const now = this.now();
       const lead = leadColumns(params.lead ?? null);
-      const rows = await this.sql`
-         INSERT INTO projects AS project (
-            id, workspace_id, name, description, status, priority, health,
-            start_date, target_date, github_repo_id, github_repo_full_name,
-            created_by, lead_type, lead_user_id, created_at, updated_at
-         ) VALUES (
-            ${this.newId()}, ${params.workspaceId}, ${params.name}, ${params.description},
-            ${params.status}, ${params.priority}, ${params.health ?? 'no_update'},
-            ${params.startDate}, ${params.targetDate},
-            ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy},
-            ${lead.type}, ${lead.userId}, ${now}, ${now}
-         )
-         RETURNING ${this.sql.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
-      return toProject(rows[0]!);
+      return this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const rows = await tx`
+            INSERT INTO projects AS project (
+               id, workspace_id, name, description, status, priority, health,
+               start_date, target_date, github_repo_id, github_repo_full_name,
+               created_by, lead_type, lead_user_id, created_at, updated_at
+            ) VALUES (
+               ${this.newId()}, ${params.workspaceId}, ${params.name}, ${params.description},
+               ${params.status}, ${params.priority}, ${params.health ?? 'no_update'},
+               ${params.startDate}, ${params.targetDate},
+               ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy},
+               ${lead.type}, ${lead.userId}, ${now}, ${now}
+            )
+            RETURNING ${tx.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
+         const project = toProject(rows[0]!);
+         await this.writeEvent(tx, 'project.created', project, [], params.createdBy, now);
+         return project;
+      }) as Promise<Project>;
    }
 
    async update(workspaceId: string, projectId: string, patch: ProjectPatch): Promise<Project> {
-      const rows = await this.sql`
-         UPDATE projects AS project
-            SET name = CASE WHEN ${patch.name !== undefined} THEN ${patch.name ?? null}::text ELSE project.name END,
-                description = CASE WHEN ${patch.descriptionSet} THEN ${patch.description ?? null}::text ELSE project.description END,
-                status = CASE WHEN ${patch.status !== undefined} THEN ${patch.status ?? null}::text ELSE project.status END,
-                priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::text ELSE project.priority END,
-                health = CASE WHEN ${patch.health !== undefined} THEN ${patch.health ?? null}::text ELSE project.health END,
-                start_date = CASE WHEN ${patch.startDateSet} THEN ${patch.startDate ?? null}::date ELSE project.start_date END,
-                target_date = CASE WHEN ${patch.targetDateSet} THEN ${patch.targetDate ?? null}::date ELSE project.target_date END,
-                -- Both columns move together or neither does, which is what the
-                -- pair constraint requires: a project carrying half a reference
-                -- looks linked and cannot be used.
-                github_repo_id = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoId ?? null}::bigint ELSE project.github_repo_id END,
-                github_repo_full_name = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoFullName ?? null}::text ELSE project.github_repo_full_name END,
-                -- The lead pair moves together for the same reason the
-                -- repository pair does: projects_lead_ck refuses a half, be it
-                -- a type with no user or a user with no type.
-                lead_type = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).type}::text ELSE project.lead_type END,
-                lead_user_id = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).userId}::uuid ELSE project.lead_user_id END,
-                updated_at = ${this.now()}
-          WHERE project.workspace_id = ${workspaceId}
-            AND project.id = ${projectId}
-            AND project.deleted_at IS NULL
-          RETURNING ${this.sql.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
-      if (rows.length === 0) throw new NotFound();
-      return toProject(rows[0]!);
+      const now = this.now();
+      return this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const rows = await tx`
+            UPDATE projects AS project
+               SET name = CASE WHEN ${patch.name !== undefined} THEN ${patch.name ?? null}::text ELSE project.name END,
+                   description = CASE WHEN ${patch.descriptionSet} THEN ${patch.description ?? null}::text ELSE project.description END,
+                   status = CASE WHEN ${patch.status !== undefined} THEN ${patch.status ?? null}::text ELSE project.status END,
+                   priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::text ELSE project.priority END,
+                   health = CASE WHEN ${patch.health !== undefined} THEN ${patch.health ?? null}::text ELSE project.health END,
+                   start_date = CASE WHEN ${patch.startDateSet} THEN ${patch.startDate ?? null}::date ELSE project.start_date END,
+                   target_date = CASE WHEN ${patch.targetDateSet} THEN ${patch.targetDate ?? null}::date ELSE project.target_date END,
+                   -- Both columns move together or neither does, which is what the
+                   -- pair constraint requires: a project carrying half a reference
+                   -- looks linked and cannot be used.
+                   github_repo_id = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoId ?? null}::bigint ELSE project.github_repo_id END,
+                   github_repo_full_name = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoFullName ?? null}::text ELSE project.github_repo_full_name END,
+                   -- The lead pair moves together for the same reason the
+                   -- repository pair does: projects_lead_ck refuses a half, be it
+                   -- a type with no user or a user with no type.
+                   lead_type = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).type}::text ELSE project.lead_type END,
+                   lead_user_id = CASE WHEN ${patch.leadSet} THEN ${leadColumns(patch.lead ?? null).userId}::uuid ELSE project.lead_user_id END,
+                   updated_at = ${now}
+             WHERE project.workspace_id = ${workspaceId}
+               AND project.id = ${projectId}
+               AND project.deleted_at IS NULL
+             RETURNING ${tx.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
+         if (rows.length === 0) throw new NotFound();
+         const project = toProject(rows[0]!);
+         await this.writeEvent(tx, 'project.updated', project, patchChanges(patch), null, now);
+         return project;
+      }) as Promise<Project>;
    }
 
    /**
@@ -268,10 +279,61 @@ export class ProjectRepository {
     */
    async archive(workspaceId: string, projectId: string): Promise<void> {
       const now = this.now();
-      const archived = await this.sql`
-         UPDATE projects SET deleted_at = ${now}, updated_at = ${now}
-          WHERE workspace_id = ${workspaceId} AND id = ${projectId} AND deleted_at IS NULL`;
-      if (archived.count !== 1) throw new NotFound();
+      await this.sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const [row] = await tx`
+            SELECT ${tx.unsafe(PROJECT_COLUMNS)}
+              FROM projects AS project
+             WHERE project.workspace_id = ${workspaceId}
+               AND project.id = ${projectId}
+               AND project.deleted_at IS NULL
+               FOR UPDATE`;
+         if (!row) throw new NotFound();
+         const project = toProject(row);
+         await tx`
+            UPDATE projects SET deleted_at = ${now}, updated_at = ${now}
+             WHERE workspace_id = ${workspaceId} AND id = ${projectId} AND deleted_at IS NULL`;
+         await this.writeEvent(tx, 'project.archived', project, [], null, now);
+      });
+   }
+
+   /**
+    * One project fact on the workspace stream. A project has no board, so it
+    * never appears on a board replay: without this row the Projects page
+    * keeps the snapshot it loaded at session start.
+    */
+   private async writeEvent(
+      tx: Sql,
+      topic: string,
+      project: Project,
+      changed: string[],
+      actorId: string | null,
+      occurredAt: string
+   ): Promise<void> {
+      const eventId = this.newId();
+      const payload = {
+         project: serializeProjectEvent(project),
+         changedFields: changed,
+         ...(actorId ? { actor: { type: 'user', id: actorId } } : {}),
+      };
+      const envelope = {
+         id: eventId,
+         type: topic,
+         occurredAt: toRFC3339(occurredAt),
+         workspaceId: project.workspaceId,
+         boardId: null,
+         aggregateType: 'project',
+         aggregateId: project.id,
+         payload,
+      };
+      await tx`
+         INSERT INTO outbox_events (
+            id, topic, aggregate_type, aggregate_id, workspace_id, board_id,
+            payload, occurred_at, available_at
+         ) VALUES (
+            ${eventId}, ${topic}, 'project', ${project.id}, ${project.workspaceId}, NULL,
+            ${tx.json(envelope as never)}, ${occurredAt}, ${occurredAt}
+         )`;
    }
 
    /** Resources of a live project, ascending by the order the caller chose. */
@@ -489,6 +551,38 @@ function classifyWrite(error: unknown): never {
    if (code === '23505' || code === '23P01') throw new Conflict();
    if (code === '23503') throw new NotFound();
    throw error;
+}
+
+function patchChanges(patch: ProjectPatch): string[] {
+   const changed: string[] = [];
+   if (patch.name !== undefined) changed.push('name');
+   if (patch.descriptionSet) changed.push('description');
+   if (patch.status !== undefined) changed.push('status');
+   if (patch.priority !== undefined) changed.push('priority');
+   if (patch.health !== undefined) changed.push('health');
+   if (patch.startDateSet) changed.push('startDate');
+   if (patch.targetDateSet) changed.push('targetDate');
+   if (patch.githubRepoSet) changed.push('githubRepo');
+   if (patch.gitRepo !== undefined) changed.push('gitRepo');
+   if (patch.leadSet) changed.push('lead');
+   return changed;
+}
+
+function serializeProjectEvent(project: Project): Record<string, unknown> {
+   return {
+      id: project.id,
+      workspaceId: project.workspaceId,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      priority: project.priority,
+      health: project.health,
+      startDate: project.startDate,
+      targetDate: project.targetDate,
+      createdBy: project.createdBy,
+      createdAt: project.createdAt,
+      updatedAt: project.updatedAt,
+   };
 }
 
 function toProject(row: Record<string, unknown>): Project {

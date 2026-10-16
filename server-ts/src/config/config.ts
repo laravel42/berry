@@ -6,12 +6,22 @@
  */
 
 import { isIP } from 'node:net';
+import {
+   parsePostgresEndpoint,
+   rdsRegionFromHostname,
+   type DatabaseIamAuth,
+} from '../db/rds-iam.ts';
 
 export interface Config {
    appEnv: string;
    serviceName: string;
    apiAddr: { host: string; port: number };
    databaseUrl: string;
+   /**
+    * When set, connections use an RDS IAM auth token instead of a URL password
+    * (Aurora Serverless / RDS IAM database authentication).
+    */
+   databaseIamAuth: DatabaseIamAuth | null;
    metricsEnabled: boolean;
    sessionTtlMs: number;
    allowPasswordlessLogin: boolean;
@@ -360,6 +370,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
    const databaseUrl = (env.DATABASE_URL ?? '').trim();
    if (!databaseUrl) problems.push('DATABASE_URL is required');
+   else if (databaseUrl.startsWith('pglite:')) {
+      if (!databaseUrl.slice('pglite:'.length).trim()) {
+         problems.push('DATABASE_URL=pglite: needs a data directory, for example pglite:./.berry');
+      }
+   } else if (!(databaseUrl.startsWith('postgres:') || databaseUrl.startsWith('postgresql:'))) {
+      problems.push('DATABASE_URL must be a postgres:// URL or pglite:<directory>');
+   }
 
    // The Dockerfile sets this; the default matches it so a bare `node` run agrees.
    const addr = (env.API_ADDR ?? '0.0.0.0:4000').trim();
@@ -375,6 +392,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const executionConfig = execution(env, problems);
    const appEnv = (env.APP_ENV ?? 'development').trim();
    const authConfig = auth(env, appEnv, problems);
+   const databaseIamAuth = iamDatabaseAuth(env, databaseUrl, problems);
 
    if (problems.length > 0) throw new ConfigError(problems);
 
@@ -383,6 +401,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       serviceName: (env.SERVICE_NAME ?? 'berry-server').trim(),
       apiAddr: { host, port },
       databaseUrl,
+      databaseIamAuth,
       metricsEnabled: boolean(env.METRICS_ENABLED, true),
       sessionTtlMs: duration(env.SESSION_TTL, 30 * 24 * 60 * 60 * 1000),
       allowPasswordlessLogin: boolean(env.AUTH_ALLOW_PASSWORDLESS_LOGIN, true),
@@ -837,6 +856,50 @@ function duration(value: string | undefined, fallback: number): number {
       matched = true;
    }
    return matched ? total : fallback;
+}
+
+/**
+ * RDS / Aurora IAM database authentication.
+ *
+ * Tokens last 15 minutes and must be minted per connection, so they cannot
+ * live in DATABASE_URL as a static password. Region comes from
+ * DATABASE_IAM_REGION, AWS_REGION, or an `*.rds.amazonaws.com` hostname.
+ */
+function iamDatabaseAuth(
+   env: NodeJS.ProcessEnv,
+   databaseUrl: string,
+   problems: string[]
+): DatabaseIamAuth | null {
+   if (!boolean(env.DATABASE_IAM_AUTH, false)) return null;
+   if (databaseUrl.startsWith('pglite:')) {
+      problems.push('DATABASE_IAM_AUTH cannot be used with a pglite: DATABASE_URL');
+      return null;
+   }
+   let inferred: string | null = null;
+   if (databaseUrl.startsWith('postgres:') || databaseUrl.startsWith('postgresql:')) {
+      try {
+         inferred = rdsRegionFromHostname(parsePostgresEndpoint(databaseUrl).hostname);
+      } catch {
+         inferred = null;
+      }
+   }
+   const region = (
+      env.DATABASE_IAM_REGION ??
+      env.AWS_REGION ??
+      env.AWS_DEFAULT_REGION ??
+      inferred ??
+      ''
+   ).trim();
+   if (!region) {
+      problems.push(
+         'DATABASE_IAM_AUTH requires DATABASE_IAM_REGION or AWS_REGION, or an *.rds.amazonaws.com hostname'
+      );
+      return null;
+   }
+   return {
+      region,
+      sslRejectUnauthorized: boolean(env.DATABASE_SSL_REJECT_UNAUTHORIZED, true),
+   };
 }
 
 function boolean(value: string | undefined, fallback: boolean): boolean {

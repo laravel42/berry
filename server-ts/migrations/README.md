@@ -1,7 +1,7 @@
 # Migrations
 
 Migrations are forward-only, run by `src/migrate` (invoked via `src/migrate/index.ts`,
-`pnpm migrate:server`), applied one file per transaction while a PostgreSQL
+`pnpm db:migrate`), applied one file per transaction while a PostgreSQL
 advisory lock is held. Never edit an applied migration; add a new one.
 
 ## Numbering
@@ -30,7 +30,7 @@ only.
 
 ```sh
 export DATABASE_URL=postgres://<user>@127.0.0.1:5432/berry?sslmode=disable
-pnpm migrate:server
+pnpm db:migrate
 ```
 
 Idempotent: already-applied migrations are skipped (by version), and the

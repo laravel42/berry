@@ -39,15 +39,17 @@ parameter properties — is allowed. `erasableSyntaxOnly` enforces that.
 ## Migrations and seed
 
 ```
-export DATABASE_URL=postgres://<user>@127.0.0.1:5432/berry?sslmode=disable
+export DATABASE_URL=pglite:./.berry
+# or a host database:
+# export DATABASE_URL=postgres://<user>@127.0.0.1:5432/berry?sslmode=disable
 
-pnpm migrate:server   # forward-only, idempotent, exits non-zero on checksum drift
-pnpm seed:server      # local development dataset, idempotent
+pnpm db:migrate   # forward-only, idempotent, exits non-zero on checksum drift
+pnpm db:seed      # local development dataset, idempotent
 ```
 
 Run both before starting the server on a fresh database, so it comes up
-migrated and with something to log into. There is no container stack — bring
-your own PostgreSQL 16+.
+migrated and with something to log into. Local development uses PGlite; host
+PostgreSQL 16+ remains for a shared or remote database.
 
 ## Database-backed tests
 

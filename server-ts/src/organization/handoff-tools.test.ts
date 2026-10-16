@@ -145,6 +145,42 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal(done.ok, false, 'no agent can mark a task done');
    });
 
+   test('list_tasks shows this workspace from chat, not another, and hides done by default', async () => {
+      const open = await task(mine, 'Summarize incoming work', 'todo');
+      const done = await task(mine, 'Already shipped', 'done');
+      const foreign = await task(theirs, 'Not yours', 'todo');
+      const listed = await ok('list_tasks', unbound('orchestrator'), {});
+      const tasks = listed.tasks as Array<{ identifier: string; title: string; status: string }>;
+      assert.equal(tasks.some((row) => row.identifier === open.key), true);
+      assert.equal(tasks.some((row) => row.identifier === done.key), false);
+      assert.equal(tasks.some((row) => row.identifier === foreign.key), false);
+      const all = await ok('list_tasks', unbound('orchestrator'), { status: 'all' });
+      const allTasks = all.tasks as Array<{ identifier: string }>;
+      assert.equal(allTasks.some((row) => row.identifier === done.key), true);
+   });
+
+   test('list_projects and list_goals stay inside this workspace', async () => {
+      const [project] = await sql`
+         INSERT INTO projects (workspace_id, name, created_by)
+         VALUES (${mine.workspaceId}, 'Workspace visibility', ${mine.userId}) RETURNING id`;
+      await sql`
+         INSERT INTO goals (workspace_id, title, status, source, created_by)
+         VALUES (${mine.workspaceId}, 'See the board', 'active', 'manual', ${mine.userId})`;
+      const [foreign] = await sql`
+         INSERT INTO projects (workspace_id, name, created_by)
+         VALUES (${theirs.workspaceId}, 'Other workspace', ${theirs.userId}) RETURNING id`;
+      const projects = (await ok('list_projects', unbound('orchestrator'), {})).projects as Array<{
+         id: string;
+         name: string;
+      }>;
+      assert.equal(projects.some((row) => row.id === project!.id), true);
+      assert.equal(projects.some((row) => row.id === foreign!.id), false);
+      const goals = (await ok('list_goals', unbound('orchestrator'), {})).goals as Array<{ title: string }>;
+      assert.equal(goals.some((row) => row.title === 'See the board'), true);
+      const plans = await ok('list_plans', unbound('orchestrator'), {});
+      assert.ok(Array.isArray(plans.plans));
+   });
+
    test('list_agents names every agent with the id and role key the other tools take', async () => {
       const listed = await ok('list_agents', unbound('orchestrator'), {});
       const agents = listed.agents as Array<{ id: string; roleKey: string | null; self: boolean }>;

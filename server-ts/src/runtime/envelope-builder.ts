@@ -27,6 +27,7 @@ import { invokedSkillNames, requiredSkillsContract } from '../skills/invoke.ts';
 import { findAiRuntime, type AiRuntimeId } from './ai-runtime-catalog.ts';
 import type { RuntimeCredential } from '../agents/runtime/adapters/types.ts';
 import { handoffPath } from '../runs/handoff.ts';
+import { chatWorkspaceNote, loadWorkspaceOverview } from './workspace-overview.ts';
 
 /** How much of the tasks around a task goes into its prompt: enough to know the goal and the answers, not their history. */
 const RELATED_PARENT_CHARS = 1500;
@@ -35,6 +36,8 @@ const RELATED_CHILDREN = 12;
 
 /** How much of a blocking task's handoff is carried into the next prompt. */
 const HANDOFF_CHARS = 2500;
+
+export { chatWorkspaceNote } from './workspace-overview.ts';
 
 export interface BlockerHandoff {
    identifier: string;
@@ -374,12 +377,15 @@ export class EnvelopeBuilder {
            });
 
       if (!task.issueId) {
-         // A chat task: the prompt is the message. A skill the message names
-         // is carried on this run and the prompt requires the agent to follow it.
-         // A chosen repository is checked out read-only, so the answer is about
-         // that codebase.
+         // A chat task: the prompt is the message, plus an open-work snapshot
+         // so a summary does not spend the run listing. A skill the message
+         // names is carried on this run. A chosen repository is checked out
+         // read-only, so the answer is about that codebase.
          const chat = await this.#chatSkills(task.workspaceId, task.prompt ?? '', extensions?.skills ?? []);
-         const repo = await this.#chatRepository(task, agent);
+         const [repo, overview] = await Promise.all([
+            this.#chatRepository(task, agent),
+            loadWorkspaceOverview(this.#deps.sql, task.workspaceId),
+         ]);
          return {
             model,
             tier,
@@ -389,7 +395,7 @@ export class EnvelopeBuilder {
                agent: { ...base.agent, skills: chat.skills },
                kind: 'agent',
                task: {
-                  prompt: chat.prompt,
+                  prompt: `${chat.prompt}\n\n${chatWorkspaceNote(overview)}`,
                   issue: null,
                   comments: [],
                   dependencies: [],

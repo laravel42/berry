@@ -42,7 +42,7 @@ export interface Capabilities {
    passwordlessLogin?: boolean;
    /**
     * Email and password registration (`POST /api/auth/sign-up/email`). True
-    * when Better Auth is serving, including a PGlite desktop database.
+    * when Better Auth is serving.
     */
    emailRegistration?: boolean;
 }

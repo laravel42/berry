@@ -647,7 +647,7 @@ export function registerCoreAgentTools(): void {
             githubRepoFullName: null,
             createdBy: await requesterOf(context),
          });
-         return { id: project.id, name: project.name };
+         return { id: project.id, name: project.name, status: project.status };
       },
    });
 
@@ -780,6 +780,153 @@ export function registerCoreAgentTools(): void {
                working: row.working,
                self: row.id === context.task.agentId,
             })),
+         };
+      },
+   });
+
+   const LIST_LIMIT = 80;
+   const OPEN_TASK_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review', 'blocked'] as const;
+
+   registerAgentTool('list_tasks', {
+      description:
+         'List tasks in this workspace: key, title, status, priority, assignee and project. ' +
+         'Defaults to open work (not done or cancelled). Use read_task with a key for the full task.',
+      scope: 'task:read',
+      inputSchema: z.object({
+         status: z
+            .enum(['open', 'all', 'backlog', 'todo', 'in_progress', 'in_review', 'blocked', 'done', 'cancelled'])
+            .default('open')
+            .describe('open is everything except done and cancelled.'),
+         query: z.string().trim().max(200).optional().describe('Match a title or a task key like ABC-123.'),
+      }),
+      handler: async (context, input) => {
+         const statuses =
+            input.status === 'all' ? null : input.status === 'open' ? [...OPEN_TASK_STATUSES] : [input.status];
+         const needle = input.query ? `%${input.query.replace(/[%_\\]/g, '\\$&')}%` : null;
+         const rows = await context.sql`
+            SELECT berry_issue_identifier(b.workspace_id, i.number) AS identifier,
+                   i.title, i.status::text AS status, i.priority::text AS priority,
+                   i.assignee_type::text AS assignee_type,
+                   COALESCE(a.name, u.name) AS assignee_name,
+                   p.name AS project
+              FROM issues AS i
+              JOIN boards AS b ON b.id = i.board_id
+              LEFT JOIN agents AS a ON i.assignee_type = 'agent' AND a.id = i.assignee_id
+              LEFT JOIN users AS u ON i.assignee_type = 'user' AND u.id = i.assignee_id
+              LEFT JOIN issue_project_links AS link ON link.issue_id = i.id
+              LEFT JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
+             WHERE b.workspace_id = ${context.task.workspaceId}
+               AND i.deleted_at IS NULL
+               AND (COALESCE(cardinality(${statuses}::text[]), 0) = 0 OR i.status::text = ANY(${statuses}::text[]))
+               AND (NOT ${needle !== null}::boolean OR (
+                    i.title ILIKE ${needle}::text ESCAPE E'\\\\' OR
+                    berry_issue_identifier(b.workspace_id, i.number) ILIKE ${needle}::text ESCAPE E'\\\\'))
+             ORDER BY i.updated_at DESC, i.id DESC
+             LIMIT ${LIST_LIMIT + 1}`;
+         const truncated = rows.length > LIST_LIMIT;
+         const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
+         return {
+            tasks: page.map((row) => ({
+               identifier: row.identifier,
+               title: row.title,
+               status: row.status,
+               priority: row.priority,
+               assigneeType: row.assignee_type,
+               assigneeName: row.assignee_name,
+               project: row.project,
+            })),
+            truncated,
+         };
+      },
+   });
+
+   registerAgentTool('list_plans', {
+      description:
+         'List plans in this workspace: id, title, status, generation and how many tasks each has created.',
+      scope: 'task:read',
+      inputSchema: z.object({}),
+      handler: async (context) => {
+         const rows = await context.sql`
+            SELECT p.id::text AS id, p.status,
+                   COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
+                   p.generation_status,
+                   COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
+                   (SELECT COUNT(*)::int FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created
+              FROM plans AS p
+              LEFT JOIN goals AS g ON g.id = p.goal_id
+             WHERE p.workspace_id = ${context.task.workspaceId}
+               AND p.deleted_at IS NULL
+               AND p.archived_at IS NULL
+             ORDER BY p.updated_at DESC, p.id DESC
+             LIMIT ${LIST_LIMIT + 1}`;
+         const truncated = rows.length > LIST_LIMIT;
+         const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
+         return {
+            plans: page.map((row) => ({
+               id: row.id,
+               title: row.title,
+               status: row.status,
+               generation: row.generation_status,
+               plannedTasks: Number(row.planned),
+               createdTasks: Number(row.created),
+            })),
+            truncated,
+         };
+      },
+   });
+
+   registerAgentTool('list_goals', {
+      description: 'List goals in this workspace: id, title, status and project. Defaults to goals that are not finished.',
+      scope: 'task:read',
+      inputSchema: z.object({
+         status: z.enum(['open', 'all']).default('open').describe('open excludes completed and cancelled.'),
+      }),
+      handler: async (context, input) => {
+         const rows = await context.sql`
+            SELECT g.id::text AS id, g.title, g.status, p.name AS project
+              FROM goals AS g
+              LEFT JOIN projects AS p ON p.id = g.project_id AND p.deleted_at IS NULL
+             WHERE g.workspace_id = ${context.task.workspaceId}
+               AND g.deleted_at IS NULL
+               AND (${input.status === 'all'} OR g.status NOT IN ('completed', 'cancelled'))
+             ORDER BY g.updated_at DESC, g.id DESC
+             LIMIT ${LIST_LIMIT + 1}`;
+         const truncated = rows.length > LIST_LIMIT;
+         const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
+         return {
+            goals: page.map((row) => ({
+               id: row.id,
+               title: row.title,
+               status: row.status,
+               project: row.project,
+            })),
+            truncated,
+         };
+      },
+   });
+
+   registerAgentTool('list_projects', {
+      description: 'List projects in this workspace: id, name, status, priority and repository.',
+      scope: 'task:read',
+      inputSchema: z.object({}),
+      handler: async (context) => {
+         const rows = await context.sql`
+            SELECT id::text AS id, name, status, priority, github_repo_full_name AS repository
+              FROM projects
+             WHERE workspace_id = ${context.task.workspaceId} AND deleted_at IS NULL
+             ORDER BY updated_at DESC, id DESC
+             LIMIT ${LIST_LIMIT + 1}`;
+         const truncated = rows.length > LIST_LIMIT;
+         const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
+         return {
+            projects: page.map((row) => ({
+               id: row.id,
+               name: row.name,
+               status: row.status,
+               priority: row.priority,
+               repository: row.repository,
+            })),
+            truncated,
          };
       },
    });

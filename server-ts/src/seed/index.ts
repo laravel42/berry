@@ -1,5 +1,6 @@
 import { loadConfig } from '../config/config.ts';
 import { openFromUrl } from '../db/embedded.ts';
+import { databaseOptionsFromConfig } from '../db/pool.ts';
 import { createLogger } from '../observability/log.ts';
 import { BoardSlug, UserEmail, WorkspaceSlug } from './ids.ts';
 import { apply } from './seed.ts';
@@ -8,7 +9,7 @@ import { apply } from './seed.ts';
 
 const config = loadConfig();
 const logger = createLogger(`${config.serviceName}-seed`);
-const database = await openFromUrl(config.databaseUrl);
+const database = await openFromUrl(databaseOptionsFromConfig(config));
 const sql = database.sql;
 
 // `BERRY_SEED_DEMO_WORK=false` keeps the identity and the board and skips the

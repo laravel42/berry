@@ -2,7 +2,7 @@ import { mkdir, open, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket';
-import { closeDatabase, openDatabase, type Sql } from './pool.ts';
+import { closeDatabase, openDatabase, type DatabaseOptions, type Sql } from './pool.ts';
 
 /**
  * Postgres inside this process.
@@ -96,13 +96,16 @@ export interface RunningDatabase {
 }
 
 /** Opens whatever `DATABASE_URL` names, including an embedded PGlite directory. */
-export async function openFromUrl(url: string): Promise<RunningDatabase> {
-   if (!isEmbeddedDatabase(url)) {
-      const sql = openDatabase({ url });
-      return { sql, url, close: () => closeDatabase(sql) };
+export async function openFromUrl(options: DatabaseOptions): Promise<RunningDatabase> {
+   if (!isEmbeddedDatabase(options.url)) {
+      const sql = openDatabase(options);
+      return { sql, url: options.url, close: () => closeDatabase(sql) };
+   }
+   if (options.iam) {
+      throw new Error('DATABASE_IAM_AUTH cannot be used with a pglite: DATABASE_URL');
    }
 
-   const embedded = await startEmbeddedDatabase(embeddedDataDir(url));
+   const embedded = await startEmbeddedDatabase(embeddedDataDir(options.url));
    const sql = openDatabase({ url: embedded.url, max: 1 });
    return {
       sql,

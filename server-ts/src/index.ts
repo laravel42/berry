@@ -25,7 +25,7 @@ import {
 } from './runs/execution-policy.ts';
 import { loadConfig } from './config/config.ts';
 import { isEmbeddedDatabase, openFromUrl } from './db/embedded.ts';
-import { checkDatabase } from './db/pool.ts';
+import { checkDatabase, databaseOptionsFromConfig, openPgPool } from './db/pool.ts';
 import { pending as pendingMigrations } from './migrate/migrations.ts';
 import { createApp } from './http/app.ts';
 import { Registry } from './http/registry.ts';
@@ -142,7 +142,6 @@ import { PluginRepository } from './plugins/repository.ts';
 import { createPluginNetwork } from './plugins/net.ts';
 import { pluginMounts } from './mounts/plugins.ts';
 import { PluginCaller, PluginHookRunner } from './plugins/hooks.ts';
-import pg from 'pg';
 import { createBerryAuth, devSessionCookies } from './auth/better-auth.ts';
 import { drain } from './http/drain.ts';
 import { FirstRunSetup, databaseWorld } from './auth/first-run-setup.ts';
@@ -200,7 +199,8 @@ import { SkillRepository } from './skills/repository.ts';
 
 const config = loadConfig();
 const logger = createLogger(config.serviceName);
-const database = await openFromUrl(config.databaseUrl);
+const dbOptions = databaseOptionsFromConfig(config);
+const database = await openFromUrl(dbOptions);
 const sql = database.sql;
 
 // The server does not migrate by itself. On a database that is behind, say so
@@ -209,7 +209,7 @@ const unapplied = await pendingMigrations(sql);
 if (unapplied > 0) {
    logger.error('the database schema is behind; run the migrations, then start again', {
       pending: unapplied,
-      command: 'pnpm migrate:server',
+      command: 'pnpm db:migrate',
    });
    await database.close();
    process.exit(1);
@@ -222,9 +222,10 @@ if (unapplied > 0) {
  */
 const authPool =
    config.auth.secret && config.auth.baseUrl
-      ? new pg.Pool({
-           connectionString: database.url,
+      ? openPgPool({
+           url: database.url,
            max: isEmbeddedDatabase(config.databaseUrl) ? 1 : 5,
+           ...(dbOptions.iam ? { iam: dbOptions.iam } : {}),
         })
       : null;
 
@@ -1122,7 +1123,7 @@ registry.registerAll(
       sql,
       sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
       cancelRun: cancelPersonalRuntimeRun,
-      runtimeControl: (request: RuntimeControlRequest) => {
+      runtimeControl: (request: RuntimeControlRequest, signal) => {
          if (
             request.runtimeId === 'kiro' ||
             request.runtimeId === 'claude' ||
@@ -1132,14 +1133,14 @@ registry.registerAll(
             request.runtimeId === 'grok' ||
             request.runtimeId === 'qoder'
          ) {
-            return kiroOnWorkstation.control(request, AbortSignal.timeout(120_000));
+            return kiroOnWorkstation.control(request, signal ?? AbortSignal.timeout(120_000));
          }
          const control = transport.control;
          if (!defaultTarget || !control) throw new Error('runtime control is unavailable');
          return control({
             target: defaultTarget,
             request,
-            signal: AbortSignal.timeout(30_000),
+            signal: signal ?? AbortSignal.timeout(30_000),
          });
       },
       defaultTarget,

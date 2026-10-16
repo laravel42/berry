@@ -64,7 +64,9 @@ test('the two streams carry different topics, and both carry issue moments', () 
    assert.ok(BOARD_TOPICS.includes('comment.created'));
    assert.ok(!(BOARD_TOPICS as readonly string[]).includes('goal.created'));
    assert.ok(WORKSPACE_TOPICS.includes('goal.created'));
+   assert.ok(WORKSPACE_TOPICS.includes('project.created'));
    assert.ok(WORKSPACE_TOPICS.includes('approval.requested'));
+   assert.ok(!(BOARD_TOPICS as readonly string[]).includes('project.created'));
    assert.ok(!(WORKSPACE_TOPICS as readonly string[]).includes('run.output.delta'));
    // Both carry issue.created: a board shows the card, a workspace counts it.
    assert.ok(BOARD_TOPICS.includes('issue.created'));

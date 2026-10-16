@@ -61,6 +61,74 @@ test('an unset APP_ENV gets neither the fallback secret nor dev login', () => {
    assert.equal(config.auth.devLogin, false);
 });
 
+test('DATABASE_IAM_AUTH infers the region from an Aurora hostname', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      DATABASE_URL: 'postgres://postgres@berry-1.cluster-example.us-east-1.rds.amazonaws.com:5432/postgres',
+      DATABASE_IAM_AUTH: 'true',
+   });
+   assert.deepEqual(config.databaseIamAuth, {
+      region: 'us-east-1',
+      sslRejectUnauthorized: true,
+   });
+});
+
+test('DATABASE_IAM_AUTH=false is off even when the host is RDS', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      DATABASE_URL: 'postgres://postgres@berry-1.cluster-example.us-east-1.rds.amazonaws.com/postgres',
+      DATABASE_IAM_AUTH: 'false',
+   });
+   assert.equal(config.databaseIamAuth, null);
+});
+
+test('DATABASE_IAM_AUTH without a region is refused', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            DATABASE_URL: 'postgres://postgres@127.0.0.1:5432/berry',
+            DATABASE_IAM_AUTH: 'true',
+         }),
+      (error: unknown) => error instanceof ConfigError && /DATABASE_IAM_AUTH/.test(error.message)
+   );
+});
+
+test('DATABASE_SSL_REJECT_UNAUTHORIZED=false is honoured for IAM auth', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      DATABASE_URL: 'postgres://postgres@berry-1.cluster-example.us-east-1.rds.amazonaws.com/postgres',
+      DATABASE_IAM_AUTH: 'true',
+      DATABASE_SSL_REJECT_UNAUTHORIZED: 'false',
+   });
+   assert.equal(config.databaseIamAuth?.sslRejectUnauthorized, false);
+});
+
+test('a pglite DATABASE_URL is accepted at boot', () => {
+   const config = loadConfig({ DATABASE_URL: 'pglite:./.berry' });
+   assert.equal(config.databaseUrl, 'pglite:./.berry');
+   assert.equal(config.databaseIamAuth, null);
+});
+
+test('an empty pglite directory is refused at boot', () => {
+   assert.throws(
+      () => loadConfig({ DATABASE_URL: 'pglite:' }),
+      (error: unknown) => error instanceof ConfigError && /pglite:/.test(error.message)
+   );
+});
+
+test('IAM auth is refused with a pglite DATABASE_URL', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            DATABASE_URL: 'pglite:./.berry',
+            DATABASE_IAM_AUTH: 'true',
+            AWS_REGION: 'us-east-1',
+         }),
+      (error: unknown) => error instanceof ConfigError && /DATABASE_IAM_AUTH/.test(error.message)
+   );
+});
+
 test('a short auth secret is refused at boot', () => {
    assert.throws(
       () => loadConfig({ ...BASE_ENV, BERRY_AUTH_SECRET: 'too-short' }),

@@ -1,38 +1,33 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { after, test } from 'node:test';
+import { after, describe, test } from 'node:test';
 
 import pg from 'pg';
 
-import { startEmbeddedDatabase } from '../db/embedded.ts';
-import { closeDatabase, openDatabase } from '../db/pool.ts';
-import { apply, type Logger } from '../migrate/migrations.ts';
+import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { createBerryAuth } from './better-auth.ts';
 
 /**
- * Email registration against PGlite, the database the desktop app starts.
- * Host Postgres tests stay on BERRY_TEST_DATABASE_URL.
+ * Email registration against host Postgres. Gated like every database test:
+ * without BERRY_TEST_DATABASE_URL this skips and the default suite stays offline.
  */
 
+const url = process.env.BERRY_TEST_DATABASE_URL;
 const BASE = 'http://127.0.0.1:4174';
-const quiet: Logger = { info() {}, error() {} };
-const directories: string[] = [];
 
-after(async () => {
-   await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
-});
+describe('email registration', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {
+   let sql: Sql | undefined;
+   let pool: pg.Pool | undefined;
 
-test('a person can register and sign in on PGlite', { timeout: 120_000 }, async () => {
-   const directory = await mkdtemp(path.join(tmpdir(), 'berry-register-'));
-   directories.push(directory);
-   const embedded = await startEmbeddedDatabase(directory);
-   const sql = openDatabase({ url: embedded.url, max: 1 });
-   const pool = new pg.Pool({ connectionString: embedded.url, max: 1 });
-   try {
-      await apply(sql, quiet);
+   after(async () => {
+      await pool?.end();
+      if (sql !== undefined) await closeDatabase(sql);
+   });
+
+   test('a person can register and sign in', async () => {
+      const db = openDatabase({ url: url as string });
+      sql = db;
+      pool = new pg.Pool({ connectionString: url, max: 1 });
       const auth = createBerryAuth({
          pool,
          secret: 'test-secret-that-is-at-least-32-characters',
@@ -53,7 +48,7 @@ test('a person can register and sign in on PGlite', { timeout: 120_000 }, async 
       assert.equal(created.status, 200, await created.clone().text());
       assert.match(created.headers.getSetCookie().join('\n'), /berry\.session_token=/);
 
-      const [account] = await sql`
+      const [account] = await db`
          SELECT provider_id, password IS NOT NULL AS has_password
          FROM auth_accounts
          WHERE user_id = (SELECT id FROM users WHERE email = ${email})`;
@@ -77,9 +72,5 @@ test('a person can register and sign in on PGlite', { timeout: 120_000 }, async 
          })
       );
       assert.ok(refused.status >= 400);
-   } finally {
-      await pool.end();
-      await closeDatabase(sql);
-      await embedded.close();
-   }
+   });
 });

@@ -4,12 +4,29 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { nullRunMemory } from '../agentcore/memory.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { enqueueTask } from '../runs/queue.ts';
-import { dependencyHandoffs, dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
+import { chatWorkspaceNote, dependencyHandoffs, dependencyNote, EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import { buildTranscript } from './transcript.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
+
+test('a chat is told the workspace is visible and the message is not the board', () => {
+   const note = chatWorkspaceNote({
+      tasks: [{ identifier: 'ABC-1', title: 'Incoming brief', status: 'todo', assigneeName: null, project: null }],
+      plans: [],
+      goals: [],
+      projects: [],
+      truncated: false,
+   });
+   assert.match(note, /ABC-1 \(todo\): Incoming brief/);
+   assert.match(note, /Answer from that snapshot/);
+   assert.match(note, /Do not list the workspace before answering/);
+   assert.match(note, /To create a project, call create_project/);
+   assert.match(note, /Write markdown \(headings, lists, tables\)/);
+   assert.match(note, /Do not emit HTML/);
+   assert.doesNotMatch(note, /before answering what work is incoming/);
+});
 
 test('a task that waits on others is told their unmerged work is not in its checkout', () => {
    const note = dependencyNote([

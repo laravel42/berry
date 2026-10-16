@@ -57,6 +57,20 @@ describe('the Berry organization catalog', () => {
       }
    });
 
+   test('every role can list the workspace from chat', () => {
+      for (const role of CATALOG) {
+         for (const tool of ['list_tasks', 'list_plans', 'list_goals', 'list_projects']) {
+            assert.ok(role.allowed_tools.includes(tool), `${role.id}: ${tool}`);
+         }
+      }
+   });
+
+   test('the Orchestrator answers chat from the snapshot instead of listing first', () => {
+      const prompt = catalogRole('orchestrator')!.system_prompt;
+      assert.match(prompt, /Incoming work is already in the turn/);
+      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_goals and list_projects before answering/);
+   });
+
    test('tools exist and sit inside each role’s ceiling', () => {
       for (const role of CATALOG) {
          const ceiling = toolCeiling(role.autonomy_level);

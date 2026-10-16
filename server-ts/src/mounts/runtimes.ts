@@ -8,7 +8,13 @@ import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
-import { isAiRuntimeId, findAiRuntime } from '../runtime/ai-runtime-catalog.ts';
+import {
+   isAiRuntimeId,
+   findAiRuntime,
+   withWorkstationCliPresence,
+   type AiRuntimeId,
+   type WorkstationCliPresence,
+} from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
@@ -49,6 +55,50 @@ const WORKSTATION_CLI_LOGINS = {
    grok: { label: 'Grok', token: GROK_CLI_LOGIN, authMethod: 'grok_cli', defaultAccountName: 'Grok' },
    qoder: { label: 'Qoder', token: QODER_CLI_LOGIN, authMethod: 'qoder_cli', defaultAccountName: 'Qoder' },
 } as const;
+
+/** `--version` is quick; the workstation host spawn is the cost. Don't stall Settings. */
+const CLI_PRESENCE_MS = 8_000;
+
+function notInstalled(id: AiRuntimeId, reason: string | null): WorkstationCliPresence {
+   const trimmed = reason?.trim();
+   return {
+      available: false,
+      reason: trimmed && trimmed.length > 0 ? trimmed : `${id} is not installed on this workstation.`,
+   };
+}
+
+type RuntimeControl = (
+   request: RuntimeControlRequest,
+   signal?: AbortSignal
+) => Promise<RuntimeControlResponse>;
+
+async function probeWorkstationCliPresence(
+   control: RuntimeControl | undefined
+): Promise<Map<AiRuntimeId, WorkstationCliPresence>> {
+   const ids = (Object.keys(WORKSTATION_CLI_LOGINS) as string[]).filter(isAiRuntimeId);
+   if (!control) return new Map(ids.map((id) => [id, notInstalled(id, null)]));
+   const found = await Promise.all(
+      ids.map(async (runtimeId): Promise<[AiRuntimeId, WorkstationCliPresence]> => {
+         try {
+            const result = await control(
+               {
+                  runtimeSessionId: runtimeSessionIdFor(`ai-runtime-catalog:${runtimeId}`),
+                  operation: 'availability',
+                  runtimeId,
+                  credential: null,
+               },
+               AbortSignal.timeout(CLI_PRESENCE_MS)
+            );
+            if ('error' in result) return [runtimeId, notInstalled(runtimeId, result.error.message)];
+            if (result.availability?.available) return [runtimeId, { available: true, reason: null }];
+            return [runtimeId, notInstalled(runtimeId, result.availability?.reason ?? null)];
+         } catch (error) {
+            return [runtimeId, notInstalled(runtimeId, error instanceof Error ? error.message : null)];
+         }
+      })
+   );
+   return new Map(found);
+}
 
 const seconds = z.number().int().min(60).max(28_800);
 const runtimeBody = z.object({
@@ -128,7 +178,7 @@ export function runtimeMounts(options: {
    /** Cancels an active run after its personal runtime connection is removed. */
    cancelRun?: (runId: string) => Promise<void>;
    /** Runs adapter control operations inside the configured runtime image. */
-   runtimeControl?: (request: RuntimeControlRequest) => Promise<RuntimeControlResponse>;
+   runtimeControl?: RuntimeControl;
 }): Mount[] {
    const repository = new RuntimeRepository(options.sql, options.sealer);
    const aiRuntimes = new AiRuntimeRepository(options.sql);
@@ -273,9 +323,10 @@ export function runtimeMounts(options: {
          }
       }
       const byRuntime = new Map(connections.map((connection) => [connection.runtimeId, connection]));
+      const presence = await probeWorkstationCliPresence(options.runtimeControl);
       return json({
          nodes: aiRuntimes.catalog().map((definition) => ({
-            ...definition,
+            ...withWorkstationCliPresence(definition, presence.get(definition.id)),
             connection: byRuntime.get(definition.id) ?? null,
          })),
          preference,

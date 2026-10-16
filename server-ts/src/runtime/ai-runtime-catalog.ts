@@ -254,3 +254,26 @@ export function findAiRuntime(id: string): AiRuntimeDefinition | undefined {
 export function isAiRuntimeId(value: string): value is AiRuntimeId {
    return (AI_RUNTIME_IDS as readonly string[]).includes(value);
 }
+
+/** Adapter `checkAvailability` for a workstation CLI, or nothing when it was not probed. */
+export type WorkstationCliPresence = {
+   available: boolean;
+   reason: string | null;
+};
+
+/**
+ * Settings prints Available only when the CLI is on PATH. Static `availability`
+ * stays product connectability so a missed probe cannot hide a connected runtime.
+ */
+export function withWorkstationCliPresence(
+   definition: AiRuntimeDefinition,
+   presence: WorkstationCliPresence | undefined,
+): AiRuntimeDefinition & { installed: boolean } {
+   return {
+      ...definition,
+      installed:
+         definition.availability === 'available' &&
+         definition.localProcess &&
+         presence?.available === true,
+   };
+}

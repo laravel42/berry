@@ -17,6 +17,10 @@ const LEVEL_1 = [
    'escalate',
    // Read-only: who is in the workspace, and what a public page says.
    'list_agents',
+   'list_tasks',
+   'list_plans',
+   'list_goals',
+   'list_projects',
    'fetch_url',
    // The project's repository, read in place. A checkout is unpacked for any
    // agent that may read the repository; these are how a role without a shell
@@ -79,12 +83,22 @@ export const KNOWN_TOOLS: readonly string[] = [...LEVEL_5];
 
 /**
  * What a row whose contract failed validation may still do: read the task and
- * its files, comment, escalate. Not `fetch_url`, `list_agents`, the repository
- * or its skills: an agent nobody can vouch for gets no new reach, outbound,
- * across the workspace, into the code or into instructions a contract was
- * meant to govern.
+ * its files, comment, escalate. Not `fetch_url`, `list_agents`, the workspace
+ * lists, the repository or its skills: an agent nobody can vouch for gets no
+ * new reach, outbound, across the workspace, into the code or into
+ * instructions a contract was meant to govern.
  */
-const UNVOUCHED_REACH = ['fetch_url', 'list_agents', 'browse_repository', 'read_repository_file', 'read_skill'];
+const UNVOUCHED_REACH = [
+   'fetch_url',
+   'list_agents',
+   'list_tasks',
+   'list_plans',
+   'list_goals',
+   'list_projects',
+   'browse_repository',
+   'read_repository_file',
+   'read_skill',
+];
 export const INVALID_CONTRACT_TOOLS: readonly string[] = LEVEL_1.filter(
    (tool) => !UNVOUCHED_REACH.includes(tool)
 );

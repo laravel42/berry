@@ -45,6 +45,25 @@ describe('/api/v1/runtimes', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
             health: async (target) => void healthChecked.push(target.endpointUrl ?? target.arn ?? ''),
             applyLifecycle: async (arn, lifecycle) =>
                void lifecycles.push({ arn, idle: lifecycle.idleRuntimeSessionTimeout }),
+            runtimeControl: async (request) => {
+               if (request.operation !== 'availability') {
+                  return {
+                     ok: false as const,
+                     error: { code: 'RUNTIME_ERROR', message: 'not in this test', retryable: false },
+                  };
+               }
+               const installed = request.runtimeId === 'claude' || request.runtimeId === 'codex';
+               return {
+                  ok: true as const,
+                  availability: {
+                     available: installed,
+                     version: installed ? request.runtimeId : null,
+                     reason: installed ? null : `${request.runtimeId} is not installed on this workstation.`,
+                     protocolVersion: 1 as const,
+                     principalIsolation: 'workstation' as const,
+                  },
+               };
+            },
          })
       );
       app = createApp(registry);
@@ -260,5 +279,20 @@ describe('/api/v1/runtimes', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
 
    test('without a session nothing answers', async () => {
       assert.equal((await app.request('/api/v1/runtimes')).status, 401);
+   });
+
+   test('catalog installed is only a CLI the workstation probe found', async () => {
+      const response = await call('/catalog');
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+         nodes: Array<{ id: string; availability: string; installed: boolean }>;
+      };
+      const byId = new Map(body.nodes.map((node) => [node.id, node]));
+      assert.equal(byId.get('claude')?.installed, true);
+      assert.equal(byId.get('codex')?.installed, true);
+      assert.equal(byId.get('claude')?.availability, 'available');
+      assert.equal(byId.get('grok')?.installed, false);
+      assert.equal(byId.get('qoder')?.installed, false);
+      assert.equal(byId.get('kimi')?.installed, false);
    });
 });

@@ -36,6 +36,7 @@ export const BOARD_TOPICS = [
  */
 export const WORKSPACE_TOPICS = [
    'goal.created', 'goal.updated', 'goal.started', 'goal.completed', 'goal.cancelled', 'goal.archived',
+   'project.created', 'project.updated', 'project.archived',
    'approval.requested', 'approval.approved', 'approval.rejected', 'approval.expired',
    'plan.generated', 'plan.updated', 'plan.blocked', 'plan.patched',
    'plan.approved', 'plan.compiled', 'plan.compile_failed',

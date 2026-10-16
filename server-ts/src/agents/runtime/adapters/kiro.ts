@@ -8,7 +8,7 @@ import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
 import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
-import { runtimeToolNote, runtimeTurnNote } from '../tool-note.ts';
+import { runtimeToolNote, runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
    AgentProcessAdapter,
@@ -302,7 +302,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
             'session/prompt',
             {
                sessionId,
-               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${turnNote(input.envelope.kind, allowed, input.envelope.completion?.jsonSchema)}` }],
+               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${turnNote(input.envelope, allowed)}` }],
             },
             this.#deadlineMs
          );
@@ -464,9 +464,13 @@ function initializeParams(): unknown {
 }
 
 /** What a Kiro agent turn is told. Completions stay on the shared no-tools note. */
-function turnNote(kind: string, _allowed: ReadonlySet<string>, schema?: unknown): string {
-   if (kind === 'completion') return runtimeTurnNote(kind, '', schema);
-   return kiroToolNote();
+function turnNote(
+   envelope: { kind: string; task: { issue: unknown }; completion?: { jsonSchema?: unknown } | null },
+   _allowed: ReadonlySet<string>
+): string {
+   const note = runtimeTurnNoteFor(envelope, 'list_run_tools');
+   if (envelope.kind === 'completion') return note;
+   return note.endsWith('\n') ? `${note.slice(0, -1)} Do not delegate to a subagent.\n` : `${note} Do not delegate to a subagent.\n`;
 }
 
 /**

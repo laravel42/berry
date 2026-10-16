@@ -214,7 +214,8 @@ describe('Kiro adapter', () => {
             params?: { prompt?: Array<{ text?: string }> };
          };
          const text = prompt.params?.prompt?.[0]?.text ?? '';
-         assert.match(text, /Call list_run_tools to list every tool you may use/);
+         assert.match(text, /Do not call list_run_tools or list the workspace first/);
+         assert.doesNotMatch(text, /Call list_run_tools to list every tool you may use/);
          assert.doesNotMatch(text, /built-ins stay refused/);
          const admitted = kiroToolNote(new Set(['write_file', 'edit_file', 'run_command', 'read_repository_file', 'fetch_url', 'browse_repository']));
          assert.match(admitted, /list_run_tools/);
