@@ -1,0 +1,32 @@
+.handoffs/BER-289 - qwen-subscription-runtime-ship-acp-adapter-if-coding-plan-login-is-cli-owned-els
+
+# Handoff from BER-289
+
+Qwen subscription runtime: ship ACP adapter if Coding Plan login is CLI-owned, else freshen the blocked reason (BER-288)
+
+This is a resumed run. The run instructions say to first check what's already saved in the checkout, one command at a time, then do only what's missing. Let me check git status.Let me use the Berry run_command interface instead, since that is the proper tool for this runtime's checkout.The Berry-specific tools (run_command, read_task, list_files, write_file, etc.) described in the task framing are not actually exposed in this runtime. The tools I have are the standard IDE tools, and the shell tool was just rejected for the checkout directory. Let me check what git state exists using read-only inspection that was previously allowed.The shell command was rejected. Earlier in this session (before the resume) the same working directory was accessible for shell commands. Since I can't run shell commands now, let me inspect prior work through the file tools, which were allowed. Let me check whether a qwen.ts adapter already exists from a prior run.No qwen adapter exists. Let me check the current state of the three files most likely to have been edited by a prior run: the catalog (qwen row), the ADR current-state section, and ai-runtimes.md. I already read all three earlier in this session and they are in the ORIGINAL (unmodified) state. Let me re-read the catalog's qwen row and the ADR current-state section to confirm no prior edits were persisted.No prior-run edits persisted (no `2026-10-14` anywhere). The checkout is in its original state. So nothing from a prior run survived — I need to do the full task now.
+
+The gate is settled from my research earlier this session. Let me restate the decisive evidence:
+
+**Gate verdict: Qwen STAYS BLOCKED.**
+
+The current first-party Qwen Code auth docs (`docs/users/configuration/auth.md`, main branch) show the Alibaba ModelStudio Coding Plan is authenticated by a **subscription API key** (`sk-sp-xxxxxxxxx`) plus a dedicated endpoint, not by a CLI-owned interactive login:
+- Interactive `/auth` → Alibaba ModelStudio → Coding Plan → choose region → **"enter your `sk-sp-xxxxxxxxx` key."** The CLI just stores that pasted key into `~/.qwen/settings.json`; it performs no browser/device login of its own for Coding Plan.
+- Headless: `export BAILIAN_CODING_PLAN_API_KEY="sk-sp-..."` + `OPENAI_BASE_URL`.
+- The only CLI-owned login Qwen ever had was Qwen OAuth, **discontinued 2026-04-15** and no longer a selectable `/auth` entry.
+- `qwen serve` daemon is "trusted loopback mode ... full API access without bearer authentication, including code execution as the daemon user" and deploy templates are v0.16-alpha / "dogfooding developers" — explicitly local/single-principal and experimental.
+
+This matches the issue's blocked branch exactly: "Key/endpoint env var only, or only the experimental daemon → it STAYS blocked ... Presenting a key as subscription access is forbidden." Even though the `qwen --acp` ACP child is "the right shape," its credential comes from the stored API key — Berry would have to forward a key (forbidden by ADR-0019) since there is no CLI-owned Coding Plan login to lean on.
+
+So I deliver: a freshened `unavailableReason` + `officialSources` in the catalog, the matching docs/ai-runtimes.md updates, and the ADR-0019 "Current state" refresh (items 5, 6, 7). No adapter, no host.ts/execution-policy change, no alias dictionary. This is a documentation-and-catalog change.
+
+A documentation skill applies here. Let me read the documentation-audit skill since the core deliverable is correcting stale/blocked documentation and keeping the catalog honest.Understood, skipping the skill read. I have what I need. Let me make the edits.
+
+First, the catalog qwen row — freshen `unavailableReason`, `description`, `billingDetail`, `installation`, and `officialSources` to reflect the 2026-10-14 re-read (ACP path now exists but Coding Plan is key-based). Let me update the top-of-file evidence-date comment too, scoped to the qwen re-read.It appears edits are being rejected as well. The run has lost its ability to modify the checkout or run commands — the only tools responding are the read/search ones, and even some reads are now rejected. 
+
+Let me confirm the situation: this is a resumed run whose checkout and skill files are no longer writable or executable in this session. I cannot deliver the file changes through these tools. Rather than keep attempting rejected calls, I'll report precisely: the gate decision (which is the substantive deliverable the issue hinges on), the exact edits required, and the fact that I was blocked from writing them.
+
+Let me make one more attempt to confirm whether writing is possible at all, via the write path, since that is the mechanism the task framing says persists into the checkout.All write and execute tools are being rejected in this resumed session. I cannot persist any changes to the checkout or write the handoff file. I'll report the complete, self-contained result now — the gate decision is the substantive outcome the issue hinges on,
+
+Repository: laravel42/berry
+Branch: software-engineer/ber-289-qwen-subscription-runtime-ship-acp-adapter
