@@ -6,8 +6,9 @@ import { toast } from 'sonner';
 
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
+import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
+import { PageTitleBar } from '@/components/layout/headers/page-title-bar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { createSkill, type Skill } from '@/lib/skills';
@@ -81,20 +82,19 @@ export default function NewSkillDialog({
       }
    };
 
+   if (!open) return null;
+
    return (
-      <Dialog
-         open={open}
-         onOpenChange={(next) => {
-            if (!next) reset();
-            onOpenChange(next);
+      <DetailDrawerShell
+         header={<PageTitleBar title={t('create.title')} />}
+         onClose={() => {
+            reset();
+            onOpenChange(false);
          }}
       >
-         <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-               <DialogTitle>{t('create.title')}</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-3">
-               <label className="flex flex-col gap-1.5">
+         <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 py-4">
+               <label className="flex shrink-0 flex-col gap-1.5">
                   <span className="text-muted-foreground">{t('create.name')}</span>
                   <Input
                      value={name}
@@ -105,43 +105,45 @@ export default function NewSkillDialog({
                      {nameProblem ?? t('create.nameHint')}
                   </span>
                </label>
-               <label className="flex flex-col gap-1.5">
+               <label className="flex shrink-0 flex-col gap-1.5">
                   <span className="text-muted-foreground">{t('create.description')}</span>
                   <Input
                      value={description}
                      onChange={(event) => setDescription(event.target.value)}
                   />
                </label>
-               <SkillLabelMultiselect
-                  value={labels}
-                  options={labelOptions}
-                  colors={labelColors}
-                  onChange={setLabels}
-               />
-               <div className="flex flex-col gap-1.5">
-                  <span className="text-muted-foreground">{t('create.instructions')}</span>
-                  <div className="border-input bg-background focus-within:border-input max-h-80 min-h-48 overflow-y-auto rounded-md border px-3 py-2 shadow-xs">
+               <div className="shrink-0">
+                  <SkillLabelMultiselect
+                     value={labels}
+                     options={labelOptions}
+                     colors={labelColors}
+                     onChange={setLabels}
+                  />
+               </div>
+               <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+                  <span className="shrink-0 text-muted-foreground">{t('create.instructions')}</span>
+                  <div className="border-input bg-background focus-within:border-input flex min-h-0 flex-1 flex-col overflow-y-auto rounded-md border px-3 py-2 shadow-xs [&_.ProseMirror]:min-h-full">
                      <TiptapAiEditor
                         value={content}
                         onChange={setContent}
                         placeholder={t('create.instructionsPlaceholder')}
                         aria-label={t('create.instructions')}
-                        className="min-h-44"
+                        className="min-h-0 flex-1"
                         aiAssist={false}
                      />
                   </div>
                </div>
-               <div className="flex justify-end">
-                  <Button
-                     size="sm"
-                     disabled={busy || !shapeOk || taken || description.trim() === ''}
-                     onClick={() => void create()}
-                  >
-                     {t('create.create')}
-                  </Button>
-               </div>
             </div>
-         </DialogContent>
-      </Dialog>
+            <div className="flex shrink-0 justify-end border-t bg-container px-5 py-3">
+               <Button
+                  size="sm"
+                  disabled={busy || !shapeOk || taken || description.trim() === ''}
+                  onClick={() => void create()}
+               >
+                  {t('create.create')}
+               </Button>
+            </div>
+         </div>
+      </DetailDrawerShell>
    );
 }

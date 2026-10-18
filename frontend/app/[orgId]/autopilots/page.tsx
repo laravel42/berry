@@ -169,6 +169,7 @@ export default function AutopilotsPage() {
          <AutopilotDialog
             open={creating}
             onOpenChange={setCreating}
+            presentation="drawer"
             template={template}
             onSaved={() => {
                live.reload();

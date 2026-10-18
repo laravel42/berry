@@ -3,10 +3,12 @@
 import { ChevronDown, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import { AgentPicker } from '@/components/common/agents/agent-multiselect';
 import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
+import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
+import { PageTitleBar } from '@/components/layout/headers/page-title-bar';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -67,6 +69,60 @@ interface Props {
    /** A starting point chosen from the empty state. */
    template?: { name: string; prompt: string } | null;
    onSaved?: () => void;
+   /** Create from the list opens in the right drawer. Editing stays a dialog. */
+   presentation?: 'dialog' | 'drawer';
+}
+
+function AutopilotFrame({
+   presentation,
+   open,
+   onOpenChange,
+   title,
+   description,
+   footer,
+   children,
+}: {
+   presentation: 'dialog' | 'drawer';
+   open: boolean;
+   onOpenChange: (open: boolean) => void;
+   title: string;
+   description?: string;
+   /** Actions kept outside the scrolling fields when the form is a drawer. */
+   footer?: ReactNode;
+   children: ReactNode;
+}) {
+   if (presentation === 'drawer') {
+      if (!open) return null;
+      return (
+         <DetailDrawerShell
+            header={<PageTitleBar title={title} />}
+            onClose={() => onOpenChange(false)}
+         >
+            <div className="flex min-h-0 flex-1 flex-col">
+               <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+                  {description ? <p className="mb-4 text-muted-foreground">{description}</p> : null}
+                  {children}
+               </div>
+               {footer ? (
+                  <div className="shrink-0 border-t bg-container px-5 py-3">{footer}</div>
+               ) : null}
+            </div>
+         </DetailDrawerShell>
+      );
+   }
+
+   return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+            <DialogHeader>
+               <DialogTitle>{title}</DialogTitle>
+               {description ? <DialogDescription>{description}</DialogDescription> : null}
+            </DialogHeader>
+            {children}
+            {footer}
+         </DialogContent>
+      </Dialog>
+   );
 }
 
 function initialDraft(autopilot?: Autopilot, template?: { name: string; prompt: string } | null) {
@@ -115,6 +171,7 @@ export default function AutopilotDialog({
    autopilot,
    template,
    onSaved,
+   presentation = 'dialog',
 }: Props) {
    const t = useTranslations('areas.autopilots.dialog');
    const router = useRouter();
@@ -250,94 +307,190 @@ export default function AutopilotDialog({
 
    if (secrets) {
       return (
-         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
-               <DialogHeader>
-                  <DialogTitle>{t('created')}</DialogTitle>
-               </DialogHeader>
-               <SecretsNotice
-                  secrets={secrets.secrets}
-                  onDismiss={() => {
-                     const id = secrets.id;
-                     setSecrets(null);
-                     onOpenChange(false);
-                     router.push(`/${orgId}/autopilot/${id}`);
-                  }}
-               />
-            </DialogContent>
-         </Dialog>
+         <AutopilotFrame
+            presentation={presentation}
+            open={open}
+            onOpenChange={onOpenChange}
+            title={t('created')}
+         >
+            <SecretsNotice
+               secrets={secrets.secrets}
+               onDismiss={() => {
+                  const id = secrets.id;
+                  setSecrets(null);
+                  onOpenChange(false);
+                  router.push(`/${orgId}/autopilot/${id}`);
+               }}
+            />
+         </AutopilotFrame>
       );
    }
 
    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-            <form onSubmit={submit} className="flex flex-col gap-4">
-               <DialogHeader>
-                  <DialogTitle>{autopilot ? t('edit') : t('new')}</DialogTitle>
-                  <DialogDescription>{t('description')}</DialogDescription>
-               </DialogHeader>
+      <AutopilotFrame
+         presentation={presentation}
+         open={open}
+         onOpenChange={onOpenChange}
+         title={autopilot ? t('edit') : t('new')}
+         description={t('description')}
+         footer={
+            <DialogFooter>
+               <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+                  {t('cancel')}
+               </Button>
+               <Button type="submit" form="autopilot-form" disabled={!ready || saving}>
+                  {autopilot ? t('save') : t('create')}
+               </Button>
+            </DialogFooter>
+         }
+      >
+         <form id="autopilot-form" onSubmit={submit} className="flex flex-col gap-4">
+            <div className="grid gap-2">
+               <Label htmlFor="autopilot-name">{t('name')}</Label>
+               <Input
+                  id="autopilot-name"
+                  value={draft.name}
+                  maxLength={200}
+                  onChange={(event) => set('name', event.target.value)}
+               />
+            </div>
 
-               <div className="grid gap-2">
-                  <Label htmlFor="autopilot-name">{t('name')}</Label>
-                  <Input
-                     id="autopilot-name"
-                     value={draft.name}
-                     maxLength={200}
-                     onChange={(event) => set('name', event.target.value)}
-                  />
-               </div>
+            <div className="grid gap-2">
+               <Label>{t('assignee')}</Label>
+               <AgentPicker
+                  options={agentOptions}
+                  value={draft.assigneeId || null}
+                  multiple={false}
+                  onChange={(next) => {
+                     if (typeof next === 'string') set('assigneeId', next);
+                  }}
+                  trigger={
+                     <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-between font-normal"
+                     >
+                        <span className="truncate">{assigneeName ?? t('chooseAssignee')}</span>
+                        <ChevronDown className="size-4 shrink-0 opacity-60" />
+                     </Button>
+                  }
+               />
+               {draft.assigneeType === 'agent' && hidden > 0 ? (
+                  <p className="text-muted-foreground">{t('noRuntimeHint', { count: hidden })}</p>
+               ) : null}
+            </div>
 
-               <div className="grid gap-2">
-                  <Label>{t('assignee')}</Label>
-                  <AgentPicker
-                     options={agentOptions}
-                     value={draft.assigneeId || null}
-                     multiple={false}
-                     onChange={(next) => {
-                        if (typeof next === 'string') set('assigneeId', next);
-                     }}
-                     trigger={
-                        <Button
-                           type="button"
-                           variant="outline"
-                           className="w-full justify-between font-normal"
-                        >
-                           <span className="truncate">{assigneeName ?? t('chooseAssignee')}</span>
-                           <ChevronDown className="size-4 shrink-0 opacity-60" />
-                        </Button>
-                     }
-                  />
-                  {draft.assigneeType === 'agent' && hidden > 0 ? (
-                     <p className="text-muted-foreground">
-                        {t('noRuntimeHint', { count: hidden })}
-                     </p>
-                  ) : null}
-               </div>
+            <div className="grid gap-2">
+               <Label htmlFor="autopilot-prompt">{t('runbook')}</Label>
+               <MarkdownTextarea
+                  id="autopilot-prompt"
+                  rows={8}
+                  maxLength={20000}
+                  value={draft.promptTemplate}
+                  onChange={(value) => set('promptTemplate', value)}
+               />
+               <p className="text-muted-foreground">{t('runbookHint')}</p>
+            </div>
 
-               <div className="grid gap-2">
-                  <Label htmlFor="autopilot-prompt">{t('runbook')}</Label>
-                  <MarkdownTextarea
-                     id="autopilot-prompt"
-                     rows={8}
-                     maxLength={20000}
-                     value={draft.promptTemplate}
-                     onChange={(value) => set('promptTemplate', value)}
-                  />
-                  <p className="text-muted-foreground">{t('runbookHint')}</p>
-               </div>
+            <div className="grid gap-2">
+               <Label>{t('outputMode')}</Label>
+               <Select
+                  value={draft.executionMode}
+                  onValueChange={(value) =>
+                     setDraft((current) => ({
+                        ...current,
+                        executionMode: value === 'fixed_issue' ? 'fixed_issue' : 'create_issue',
+                        boardId: null,
+                        projectId: null,
+                        issueId: null,
+                     }))
+                  }
+               >
+                  <SelectTrigger>
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     <SelectItem value="create_issue">{t('createIssue')}</SelectItem>
+                     <SelectItem value="fixed_issue">{t('fixedIssue')}</SelectItem>
+                  </SelectContent>
+               </Select>
+            </div>
 
+            {draft.executionMode === 'create_issue' ? (
+               <>
+                  <div className="grid gap-2">
+                     <Label>{t('board')}</Label>
+                     <Select
+                        value={draft.boardId ?? ''}
+                        onValueChange={(value) => set('boardId', value)}
+                     >
+                        <SelectTrigger>
+                           <SelectValue placeholder={t('chooseBoard')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                           {boards.map((board) => (
+                              <SelectItem key={board.id} value={board.id}>
+                                 {board.name}
+                              </SelectItem>
+                           ))}
+                        </SelectContent>
+                     </Select>
+                  </div>
+                  <div className="grid gap-2">
+                     <Label>{t('project')}</Label>
+                     <Select
+                        value={draft.projectId ?? 'none'}
+                        onValueChange={(value) => set('projectId', value === 'none' ? null : value)}
+                     >
+                        <SelectTrigger>
+                           <SelectValue placeholder={t('chooseProject')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                           <SelectItem value="none">{t('projectNone')}</SelectItem>
+                           {projects.map((project) => (
+                              <SelectItem key={project.id} value={project.id}>
+                                 {project.name}
+                              </SelectItem>
+                           ))}
+                        </SelectContent>
+                     </Select>
+                     <p className="text-muted-foreground">{t('projectHint')}</p>
+                  </div>
+               </>
+            ) : (
                <div className="grid gap-2">
-                  <Label>{t('outputMode')}</Label>
+                  <Label>{t('task')}</Label>
                   <Select
-                     value={draft.executionMode}
+                     value={draft.issueId ?? ''}
+                     onValueChange={(value) => set('issueId', value)}
+                  >
+                     <SelectTrigger>
+                        <SelectValue placeholder={t('chooseTask')} />
+                     </SelectTrigger>
+                     <SelectContent>
+                        {issues.map((issue) => (
+                           <SelectItem key={issue.id} value={issue.id}>
+                              {issue.identifier} · {issue.title}
+                           </SelectItem>
+                        ))}
+                     </SelectContent>
+                  </Select>
+               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+               <div className="grid gap-2">
+                  <Label>{t('quota')}</Label>
+                  <Select
+                     value={draft.quotaPeriod}
                      onValueChange={(value) =>
                         setDraft((current) => ({
                            ...current,
-                           executionMode: value === 'fixed_issue' ? 'fixed_issue' : 'create_issue',
-                           boardId: null,
-                           projectId: null,
-                           issueId: null,
+                           quotaPeriod:
+                              value === 'hour' || value === 'day' || value === 'week'
+                                 ? value
+                                 : 'none',
+                           quotaMax: value === 'none' ? null : (current.quotaMax ?? 1),
                         }))
                      }
                   >
@@ -345,239 +498,139 @@ export default function AutopilotDialog({
                         <SelectValue />
                      </SelectTrigger>
                      <SelectContent>
-                        <SelectItem value="create_issue">{t('createIssue')}</SelectItem>
-                        <SelectItem value="fixed_issue">{t('fixedIssue')}</SelectItem>
+                        <SelectItem value="none">{t('quotaNone')}</SelectItem>
+                        <SelectItem value="hour">{t('quotaHour')}</SelectItem>
+                        <SelectItem value="day">{t('quotaDay')}</SelectItem>
+                        <SelectItem value="week">{t('quotaWeek')}</SelectItem>
                      </SelectContent>
                   </Select>
                </div>
-
-               {draft.executionMode === 'create_issue' ? (
-                  <>
-                     <div className="grid gap-2">
-                        <Label>{t('board')}</Label>
-                        <Select
-                           value={draft.boardId ?? ''}
-                           onValueChange={(value) => set('boardId', value)}
-                        >
-                           <SelectTrigger>
-                              <SelectValue placeholder={t('chooseBoard')} />
-                           </SelectTrigger>
-                           <SelectContent>
-                              {boards.map((board) => (
-                                 <SelectItem key={board.id} value={board.id}>
-                                    {board.name}
-                                 </SelectItem>
-                              ))}
-                           </SelectContent>
-                        </Select>
-                     </div>
-                     <div className="grid gap-2">
-                        <Label>{t('project')}</Label>
-                        <Select
-                           value={draft.projectId ?? 'none'}
-                           onValueChange={(value) =>
-                              set('projectId', value === 'none' ? null : value)
-                           }
-                        >
-                           <SelectTrigger>
-                              <SelectValue placeholder={t('chooseProject')} />
-                           </SelectTrigger>
-                           <SelectContent>
-                              <SelectItem value="none">{t('projectNone')}</SelectItem>
-                              {projects.map((project) => (
-                                 <SelectItem key={project.id} value={project.id}>
-                                    {project.name}
-                                 </SelectItem>
-                              ))}
-                           </SelectContent>
-                        </Select>
-                        <p className="text-muted-foreground">{t('projectHint')}</p>
-                     </div>
-                  </>
-               ) : (
+               {draft.quotaPeriod !== 'none' ? (
                   <div className="grid gap-2">
-                     <Label>{t('task')}</Label>
-                     <Select
-                        value={draft.issueId ?? ''}
-                        onValueChange={(value) => set('issueId', value)}
-                     >
-                        <SelectTrigger>
-                           <SelectValue placeholder={t('chooseTask')} />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {issues.map((issue) => (
-                              <SelectItem key={issue.id} value={issue.id}>
-                                 {issue.identifier} · {issue.title}
-                              </SelectItem>
-                           ))}
-                        </SelectContent>
-                     </Select>
-                  </div>
-               )}
-
-               <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                     <Label>{t('quota')}</Label>
-                     <Select
-                        value={draft.quotaPeriod}
-                        onValueChange={(value) =>
-                           setDraft((current) => ({
-                              ...current,
-                              quotaPeriod:
-                                 value === 'hour' || value === 'day' || value === 'week'
-                                    ? value
-                                    : 'none',
-                              quotaMax: value === 'none' ? null : (current.quotaMax ?? 1),
-                           }))
+                     <Label htmlFor="autopilot-quota">{t('quotaMax')}</Label>
+                     <Input
+                        id="autopilot-quota"
+                        type="number"
+                        min={1}
+                        max={10000}
+                        value={draft.quotaMax ?? 1}
+                        onChange={(event) =>
+                           set('quotaMax', Math.max(1, Number(event.target.value) || 1))
                         }
-                     >
-                        <SelectTrigger>
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           <SelectItem value="none">{t('quotaNone')}</SelectItem>
-                           <SelectItem value="hour">{t('quotaHour')}</SelectItem>
-                           <SelectItem value="day">{t('quotaDay')}</SelectItem>
-                           <SelectItem value="week">{t('quotaWeek')}</SelectItem>
-                        </SelectContent>
-                     </Select>
+                     />
                   </div>
-                  {draft.quotaPeriod !== 'none' ? (
-                     <div className="grid gap-2">
-                        <Label htmlFor="autopilot-quota">{t('quotaMax')}</Label>
-                        <Input
-                           id="autopilot-quota"
-                           type="number"
-                           min={1}
-                           max={10000}
-                           value={draft.quotaMax ?? 1}
-                           onChange={(event) =>
-                              set('quotaMax', Math.max(1, Number(event.target.value) || 1))
-                           }
+               ) : null}
+            </div>
+
+            <div className="grid gap-2">
+               <Label>{t('subscribers')}</Label>
+               {subscribers.length > 0 ? (
+                  <ul className="flex flex-wrap gap-2">
+                     {subscribers.map((userId) => {
+                        const person = people.find((entry) => entry.id === userId);
+                        return (
+                           <li
+                              key={userId}
+                              className="flex items-center gap-1 rounded border px-2 py-0.5"
+                           >
+                              {person?.name ?? userId}
+                              <button
+                                 type="button"
+                                 className="cursor-pointer"
+                                 aria-label={t('removeSubscriber', {
+                                    name: person?.name ?? userId,
+                                 })}
+                                 onClick={() =>
+                                    setSubscribers((current) =>
+                                       current.filter((entry) => entry !== userId)
+                                    )
+                                 }
+                              >
+                                 <X className="size-3" />
+                              </button>
+                           </li>
+                        );
+                     })}
+                  </ul>
+               ) : null}
+               <Popover>
+                  <PopoverTrigger asChild>
+                     <Button type="button" size="xs" variant="secondary" className="w-fit">
+                        {t('addSubscriber')}
+                     </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-0" align="start">
+                     <Command>
+                        <CommandInput placeholder={t('searchPeople')} />
+                        <CommandList>
+                           <CommandEmpty>{t('noneFound')}</CommandEmpty>
+                           <CommandGroup>
+                              {people
+                                 .filter((person) => !subscribers.includes(person.id))
+                                 .map((person) => (
+                                    <CommandItem
+                                       key={person.id}
+                                       value={person.name}
+                                       onSelect={() =>
+                                          setSubscribers((current) => [...current, person.id])
+                                       }
+                                    >
+                                       {person.name}
+                                    </CommandItem>
+                                 ))}
+                           </CommandGroup>
+                        </CommandList>
+                     </Command>
+                  </PopoverContent>
+               </Popover>
+               <p className="text-muted-foreground">{t('subscribersHint')}</p>
+            </div>
+
+            {!autopilot ? (
+               <div className="grid gap-2">
+                  <Label>{t('firstTrigger')}</Label>
+                  <div className="flex flex-wrap items-center gap-1">
+                     {(['none', 'cron', 'webhook'] as const).map((kind) => (
+                        <Button
+                           key={kind}
+                           type="button"
+                           size="xs"
+                           variant={trigger === kind ? 'secondary' : 'ghost'}
+                           onClick={() => setTrigger(kind)}
+                        >
+                           {t(`trigger_${kind}`)}
+                        </Button>
+                     ))}
+                  </div>
+                  {trigger === 'cron' ? (
+                     <div className="rounded-md border p-3">
+                        <ScheduleEditor
+                           expression={schedule.expression}
+                           timezone={schedule.timezone}
+                           onChange={setSchedule}
                         />
                      </div>
                   ) : null}
-               </div>
-
-               <div className="grid gap-2">
-                  <Label>{t('subscribers')}</Label>
-                  {subscribers.length > 0 ? (
-                     <ul className="flex flex-wrap gap-2">
-                        {subscribers.map((userId) => {
-                           const person = people.find((entry) => entry.id === userId);
-                           return (
-                              <li
-                                 key={userId}
-                                 className="flex items-center gap-1 rounded border px-2 py-0.5"
-                              >
-                                 {person?.name ?? userId}
-                                 <button
-                                    type="button"
-                                    className="cursor-pointer"
-                                    aria-label={t('removeSubscriber', {
-                                       name: person?.name ?? userId,
-                                    })}
-                                    onClick={() =>
-                                       setSubscribers((current) =>
-                                          current.filter((entry) => entry !== userId)
-                                       )
-                                    }
-                                 >
-                                    <X className="size-3" />
-                                 </button>
-                              </li>
-                           );
-                        })}
-                     </ul>
-                  ) : null}
-                  <Popover>
-                     <PopoverTrigger asChild>
-                        <Button type="button" size="xs" variant="secondary" className="w-fit">
-                           {t('addSubscriber')}
-                        </Button>
-                     </PopoverTrigger>
-                     <PopoverContent className="w-64 p-0" align="start">
-                        <Command>
-                           <CommandInput placeholder={t('searchPeople')} />
-                           <CommandList>
-                              <CommandEmpty>{t('noneFound')}</CommandEmpty>
-                              <CommandGroup>
-                                 {people
-                                    .filter((person) => !subscribers.includes(person.id))
-                                    .map((person) => (
-                                       <CommandItem
-                                          key={person.id}
-                                          value={person.name}
-                                          onSelect={() =>
-                                             setSubscribers((current) => [...current, person.id])
-                                          }
-                                       >
-                                          {person.name}
-                                       </CommandItem>
-                                    ))}
-                              </CommandGroup>
-                           </CommandList>
-                        </Command>
-                     </PopoverContent>
-                  </Popover>
-                  <p className="text-muted-foreground">{t('subscribersHint')}</p>
-               </div>
-
-               {!autopilot ? (
-                  <div className="grid gap-2">
-                     <Label>{t('firstTrigger')}</Label>
-                     <div className="flex flex-wrap items-center gap-1">
-                        {(['none', 'cron', 'webhook'] as const).map((kind) => (
-                           <Button
-                              key={kind}
-                              type="button"
-                              size="xs"
-                              variant={trigger === kind ? 'secondary' : 'ghost'}
-                              onClick={() => setTrigger(kind)}
-                           >
-                              {t(`trigger_${kind}`)}
-                           </Button>
-                        ))}
+                  {trigger === 'webhook' ? (
+                     <div className="grid gap-1.5">
+                        <Label htmlFor="autopilot-events">{t('eventFilters')}</Label>
+                        <Input
+                           id="autopilot-events"
+                           value={eventFilters}
+                           onChange={(event) => setEventFilters(event.target.value)}
+                        />
+                        <p className="text-muted-foreground">{t('eventFiltersHint')}</p>
                      </div>
-                     {trigger === 'cron' ? (
-                        <div className="rounded-md border p-3">
-                           <ScheduleEditor
-                              expression={schedule.expression}
-                              timezone={schedule.timezone}
-                              onChange={setSchedule}
-                           />
-                        </div>
-                     ) : null}
-                     {trigger === 'webhook' ? (
-                        <div className="grid gap-1.5">
-                           <Label htmlFor="autopilot-events">{t('eventFilters')}</Label>
-                           <Input
-                              id="autopilot-events"
-                              value={eventFilters}
-                              onChange={(event) => setEventFilters(event.target.value)}
-                           />
-                           <p className="text-muted-foreground">{t('eventFiltersHint')}</p>
-                        </div>
-                     ) : null}
-                  </div>
-               ) : null}
+                  ) : null}
+               </div>
+            ) : null}
 
-               {error ? (
-                  <p className="text-destructive" role="alert">
-                     {error}
-                  </p>
-               ) : null}
-
-               <DialogFooter>
-                  <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-                     {t('cancel')}
-                  </Button>
-                  <Button type="submit" disabled={!ready || saving}>
-                     {autopilot ? t('save') : t('create')}
-                  </Button>
-               </DialogFooter>
-            </form>
-         </DialogContent>
-      </Dialog>
+            {error ? (
+               <p className="text-destructive" role="alert">
+                  {error}
+               </p>
+            ) : null}
+         </form>
+      </AutopilotFrame>
    );
 }

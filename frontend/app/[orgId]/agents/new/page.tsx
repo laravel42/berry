@@ -1,48 +1,21 @@
 'use client';
 
-import { Suspense, useState } from 'react';
-import Link from 'next/link';
-import { useParams, useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import NewAgentManual from '@/components/common/agents/new-agent-manual';
 import { PageTitleBar } from '@/components/layout/headers/page-title-bar';
 import MainLayout from '@/components/layout/main-layout';
-import { Button } from '@/components/ui/button';
 
 /**
- * Two ways to make an agent: describe it, or set it up.
- *
- * The AI builder is a route of its own (`/agents/new/ai`) rather than a tab,
- * because a builder session is a thing with a lifetime — it can be left and
- * come back to — and a tab cannot be linked to or resumed.
+ * A new agent starts on the same fields as editing one, left blank.
+ * Describing one is still `/agents/new/ai`, a session that can be left and resumed.
  */
-function NewAgentChoice() {
-   const { orgId } = useParams<{ orgId: string }>();
-   const t = useTranslations('agentsChat.create');
+export function NewAgentForm() {
    const searchParams = useSearchParams();
    const duplicateId = searchParams?.get('duplicate') ?? null;
-   const [manual, setManual] = useState(false);
-
-   // Duplicating goes straight to the form: the drafted agent already exists
-   // and the person asked for a copy of it, not for a conversation about one.
-   if (manual || duplicateId) {
-      return <NewAgentManual duplicateId={duplicateId} />;
-   }
-
-   return (
-      <div className="flex max-w-2xl flex-col gap-4">
-         <p className="text-muted-foreground">{t('subtitle')}</p>
-         <div className="flex flex-wrap gap-3">
-            <Button size="sm" asChild>
-               <Link href={`/${orgId}/agents/new/ai`}>{t('ai')}</Link>
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setManual(true)}>
-               {t('manual')}
-            </Button>
-         </div>
-      </div>
-   );
+   return <NewAgentManual duplicateId={duplicateId} />;
 }
 
 export default function NewAgentPage() {
@@ -56,7 +29,7 @@ export default function NewAgentPage() {
             {/* `?duplicate=` is a query parameter, which Next requires to sit
                 under a Suspense boundary. */}
             <Suspense fallback={null}>
-               <NewAgentChoice />
+               <NewAgentForm />
             </Suspense>
          </div>
       </MainLayout>

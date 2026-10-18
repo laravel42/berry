@@ -42,8 +42,11 @@ export const Blank: Story = {
       await expect(create).toBeDisabled();
       await userEvent.type(canvas.getByRole('textbox', { name: 'Name' }), 'changelog-writer');
       await expect(create).toBeEnabled();
-      // Skills, runtimes and models are offered once MSW answers.
-      await expect(await canvas.findByRole('checkbox', { name: 'design-tokens' })).toBeVisible();
+      await expect(canvas.getByRole('textbox', { name: 'Description' })).toBeVisible();
+      await expect(await canvas.findByRole('button', { name: 'No runtime' })).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: 'Instructions' })).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: 'Role and Permissions' })).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: 'Skills' })).toBeVisible();
    },
 };
 
