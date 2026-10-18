@@ -6,6 +6,10 @@ export const AI_RUNTIME_IDS = [
    'kiro',
    'qoder',
    'kimi',
+   'openai',
+   'xai',
+   'anthropic',
+   'gemini',
 ] as const;
 
 export type AiRuntimeId = (typeof AI_RUNTIME_IDS)[number];
@@ -44,7 +48,8 @@ export interface AiRuntimeDefinition {
 }
 
 /**
- * Connectable subscription CLIs. A product is omitted until Berry can start
+ * Connectable subscription CLIs, plus API-token runtimes whose official
+ * server key Berry can seal. A CLI product is omitted until Berry can start
  * its official child on a workstation login without reading a credential
  * store or forwarding a key. OpenCode, OpenClaw, Hermes, Pi, Antigravity,
  * Trae, and Qwen stay out until those adapters ship.
@@ -245,7 +250,92 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
          'https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html',
       ],
    },
+   apiTokenRuntime({
+      id: 'openai',
+      name: 'OpenAI API',
+      publisher: 'OpenAI',
+      product: 'OpenAI API',
+      description: 'OpenAI’s API. Paste an API token. Berry seals it and lists the models that token can call.',
+      provider: 'OpenAI',
+      billingDetail: 'The token is billed by OpenAI. It is not a ChatGPT subscription login.',
+      connectionMethods: ['API token'],
+      installation: 'Create an API token in the OpenAI platform and paste it here. Berry stores it sealed and does not write it into a CLI credential store.',
+      officialSources: ['https://platform.openai.com/docs/api-reference/models/list'],
+   }),
+   apiTokenRuntime({
+      id: 'xai',
+      name: 'Grok API',
+      publisher: 'xAI',
+      product: 'xAI API',
+      description: 'xAI’s API for Grok. Paste an API token. Berry seals it and lists the models that token can call.',
+      provider: 'xAI',
+      billingDetail: 'The token is billed by xAI. It is not a SuperGrok or X Premium Plus CLI login.',
+      connectionMethods: ['API token'],
+      installation: 'Create an API token in the xAI console and paste it here. Berry stores it sealed and does not write it into the Grok CLI credential store.',
+      officialSources: ['https://docs.x.ai/docs/api-reference'],
+   }),
+   apiTokenRuntime({
+      id: 'anthropic',
+      name: 'Claude API',
+      publisher: 'Anthropic',
+      product: 'Anthropic API',
+      description: 'Anthropic’s API for Claude. Paste an API token. Berry seals it and lists the models that token can call.',
+      provider: 'Anthropic',
+      billingDetail: 'The token is billed by Anthropic Console. It is not a Claude Pro or Max CLI login.',
+      connectionMethods: ['API token'],
+      installation: 'Create an API token in the Anthropic console and paste it here. Berry stores it sealed and does not write it into the Claude CLI credential store.',
+      officialSources: ['https://docs.anthropic.com/en/api/models-list'],
+   }),
+   apiTokenRuntime({
+      id: 'gemini',
+      name: 'Gemini API',
+      publisher: 'Google',
+      product: 'Gemini API',
+      description: 'Google’s Gemini API. Paste an API token. Berry seals it and lists the models that token can call.',
+      provider: 'Google Gemini',
+      billingDetail: 'The token is billed by Google AI. Berry does not use a Gemini CLI login.',
+      connectionMethods: ['API token'],
+      installation: 'Create an API token in Google AI Studio and paste it here. Berry stores it sealed.',
+      officialSources: ['https://ai.google.dev/api/models'],
+   }),
 ];
+
+/** An API-token runtime: Berry seals the token and lists models. It is not a workstation CLI. */
+function apiTokenRuntime(
+   input: Pick<
+      AiRuntimeDefinition,
+      | 'id'
+      | 'name'
+      | 'publisher'
+      | 'product'
+      | 'description'
+      | 'provider'
+      | 'billingDetail'
+      | 'connectionMethods'
+      | 'installation'
+      | 'officialSources'
+   >
+): AiRuntimeDefinition {
+   return {
+      ...input,
+      executionMode: 'direct_inference',
+      billing: 'api_billing',
+      subscriptionAccess: 'unsupported',
+      platforms: ['macOS', 'Linux', 'Windows'],
+      localProcess: false,
+      defaultModel: null,
+      capabilities: {
+         modelDiscovery: 'supported',
+         streaming: 'supported',
+         tools: 'unsupported',
+         sessions: 'unsupported',
+         cancellation: 'supported',
+         usage: 'supported',
+      },
+      availability: 'available',
+      unavailableReason: null,
+   };
+}
 
 export function findAiRuntime(id: string): AiRuntimeDefinition | undefined {
    return AI_RUNTIME_CATALOG.find((runtime) => runtime.id === id);
@@ -253,6 +343,11 @@ export function findAiRuntime(id: string): AiRuntimeDefinition | undefined {
 
 export function isAiRuntimeId(value: string): value is AiRuntimeId {
    return (AI_RUNTIME_IDS as readonly string[]).includes(value);
+}
+
+/** A runtime that connects with a pasted API token rather than a CLI login. */
+export function isApiTokenRuntime(id: string): boolean {
+   return findAiRuntime(id)?.billing === 'api_billing';
 }
 
 /** Adapter `checkAvailability` for a workstation CLI, or nothing when it was not probed. */

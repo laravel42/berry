@@ -8,8 +8,10 @@ import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
 import type { Sealer } from '../integrations/sealing.ts';
 import { lifecycleFor } from '../runtime/runtime-control.ts';
+import { ApiTokenError, listApiTokenModels } from '../runtime/api-token-runtimes.ts';
 import {
    isAiRuntimeId,
+   isApiTokenRuntime,
    findAiRuntime,
    withWorkstationCliPresence,
    type AiRuntimeId,
@@ -344,10 +346,41 @@ export function runtimeMounts(options: {
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const runtimeId = aiRuntimeId(context.req.param('runtimeId'));
       const body = await parse(context.req.raw, z.strictObject({
-         apiKey: z.string().trim().min(1).max(300).optional(),
+         apiKey: z.string().trim().min(1).max(512).optional(),
          name: z.string().trim().min(1).max(80).optional(),
          host: z.string().trim().min(1).max(253).optional(),
       }));
+      if (isApiTokenRuntime(runtimeId)) {
+         if (!body.apiKey) throw ApiError.badRequest('Paste an API token.');
+         if (!options.sealer) {
+            throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot store an API token.');
+         }
+         const models = await listApiTokenModels(runtimeId, body.apiKey).catch((error: unknown) => {
+            if (error instanceof ApiTokenError) {
+               const status = error.code === 'AI_RUNTIME_AUTH_FAILED' ? 409 : 503;
+               throw new ApiError(status, error.code, error.message);
+            }
+            throw error;
+         });
+         const connected = await aiRuntimes
+            .connect({
+               workspaceId,
+               userId: user.id,
+               runtimeId,
+               authMethod: 'api_token',
+               accountId: null,
+               accountName: 'API token',
+               metadata: {
+                  models,
+                  modelCatalogComplete: true,
+                  ...(body.name ? { connectionName: body.name } : {}),
+               },
+               credentialSealed: options.sealer.seal(body.apiKey),
+            })
+            .catch(aiError);
+         await cancelRuns(connected.replacedActiveRunIds);
+         return json(connected.connection, 201);
+      }
       const host = body.host === undefined ? 'localhost' : computerHost(body.host);
       if (host === null) {
          throw ApiError.badRequest('Host must be localhost or a fully qualified domain name.');

@@ -24,7 +24,7 @@ to API billing. An existing Settings CLI connection prevents connecting the same
 
 When Kiro is connected, Settings → Model tiers places Kiro's models on BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow. The same model may be on more than one tier, at most three per tier, and only once inside a tier. A task or project can pin a model. Otherwise the run uses the first model on the Berry agent's tier that Kiro offers. Token counts come from Kiro's context breakdown and are stored unpriced; a credit total is not a dollar cost.
 
-Settings → AI Runtimes lists only those seven. A product without a shippable workstation login and child contract (OpenCode, OpenClaw, Hermes, Pi, Antigravity, Trae, Qwen) is omitted until its adapter is live. A documented local CLI is not listed when Berry cannot start it on a CLI-owned login.
+Settings → AI Runtimes lists those seven, plus OpenAI, Grok, Claude, and Gemini API-token connections. A pasted token is sealed and used to list models. Agent runs still use a CLI runtime. A product without a shippable workstation login and child contract (OpenCode, OpenClaw, Hermes, Pi, Antigravity, Trae, Qwen) is omitted until its adapter is live. A documented local CLI is not listed when Berry cannot start it on a CLI-owned login.
 
 ## Provider matrix
 

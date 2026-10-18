@@ -558,6 +558,13 @@ export class EnvelopeBuilder {
             false
          );
       }
+      if (definition.executionMode !== 'agent_process') {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_UNAVAILABLE',
+            `${definition.name} is connected with an API token. Agent runs use a CLI runtime.`,
+            false
+         );
+      }
       if (!task.aiRuntimeConnectionId || !task.aiRuntimeUserId || !this.#deps.runtimeCredential) {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_AUTH_REQUIRED',

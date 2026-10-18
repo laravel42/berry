@@ -1024,9 +1024,10 @@ async function pickConnectedRuntime(
    accountName: string | null;
    metadata: unknown;
 } | null> {
-   const executable = AI_RUNTIME_CATALOG.filter((runtime) => runtime.availability === 'available').map(
-      (runtime) => runtime.id
-   );
+   // API-token connections list models. Agent work stays on a CLI runtime.
+   const executable = AI_RUNTIME_CATALOG.filter(
+      (runtime) => runtime.availability === 'available' && runtime.executionMode === 'agent_process'
+   ).map((runtime) => runtime.id);
    const [connection] = await sql<Array<{
       id: string;
       user_id: string;

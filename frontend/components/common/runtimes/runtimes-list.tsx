@@ -12,6 +12,14 @@ import {
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import { StatusBadge } from '@/components/common/status-badge';
 import { Button } from '@/components/ui/button';
+import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogFooter,
+   DialogHeader,
+   DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import type { StatusLook } from '@/lib/catalog';
 import {
@@ -37,15 +45,20 @@ type CatalogFilter = 'all' | 'connected' | 'available';
 
 const FILTERS: CatalogFilter[] = ['all', 'connected', 'available'];
 
+/** A CLI on PATH, or an API-token runtime, which needs no local binary. */
+function connectable(runtime: AiRuntimeDefinition): boolean {
+   return runtime.installed === true || runtime.billing === 'api_billing';
+}
+
 function catalogKey(runtime: AiRuntimeDefinition): keyof typeof CATALOG_TONE {
    if (runtime.connection?.status === 'connected') return 'connected';
-   if (runtime.installed === true) return 'available';
+   if (connectable(runtime)) return 'available';
    return 'unavailable';
 }
 
 function catalogRank(runtime: AiRuntimeDefinition): number {
    if (runtime.connection?.status === 'connected') return 0;
-   if (runtime.installed === true) return 1;
+   if (connectable(runtime)) return 1;
    return 2;
 }
 
@@ -71,7 +84,7 @@ function RuntimeRow({
    onDisconnect: () => void;
 }) {
    const connected = runtime.connection?.status === 'connected';
-   const available = runtime.installed === true;
+   const available = connectable(runtime);
    const look: StatusLook = { ...CATALOG_TONE[catalogKey(runtime)], label: statusLabel };
 
    return (
@@ -159,12 +172,14 @@ export default function RuntimesList() {
    const [filter, setFilter] = useState<CatalogFilter>('all');
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
+   const [tokenRuntime, setTokenRuntime] = useState<AiRuntimeDefinition | null>(null);
+   const [token, setToken] = useState('');
 
    const nodes = catalog.value?.nodes ?? [];
    const connectedCount = nodes.filter(
       (runtime) => runtime.connection?.status === 'connected'
    ).length;
-   const availableCount = nodes.filter((runtime) => runtime.installed === true).length;
+   const availableCount = nodes.filter((runtime) => connectable(runtime)).length;
 
    const shown = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -181,17 +196,39 @@ export default function RuntimesList() {
          .toSorted((left, right) => catalogRank(left) - catalogRank(right));
    }, [catalog.value?.nodes, filter, query]);
 
-   const connect = async (runtime: AiRuntimeDefinition) => {
+   const connect = async (runtime: AiRuntimeDefinition, apiKey?: string) => {
       setBusy(runtime.id);
       try {
-         await connectAiRuntime(runtime.id, { name: runtime.name, host: 'localhost' });
+         await connectAiRuntime(
+            runtime.id,
+            runtime.billing === 'api_billing'
+               ? { name: runtime.name, apiKey }
+               : { name: runtime.name, host: 'localhost' }
+         );
          toast.success(`${runtime.name} connected`);
+         setToken('');
+         setTokenRuntime(null);
          catalog.reload();
       } catch (error) {
          toast.error(error instanceof Error ? error.message : `${runtime.name} could not connect.`);
       } finally {
          setBusy(null);
       }
+   };
+
+   const askConnect = (runtime: AiRuntimeDefinition) => {
+      if (runtime.billing === 'api_billing') {
+         setToken('');
+         setTokenRuntime(runtime);
+         return;
+      }
+      void connect(runtime);
+   };
+
+   const closeToken = () => {
+      if (busy !== null) return;
+      setToken('');
+      setTokenRuntime(null);
    };
 
    const disconnect = async () => {
@@ -289,7 +326,7 @@ export default function RuntimesList() {
                         connectingLabel={t('connecting')}
                         disconnectLabel={t('disconnect')}
                         disconnectingLabel={t('disconnecting')}
-                        onConnect={() => void connect(runtime)}
+                        onConnect={() => askConnect(runtime)}
                         onDisconnect={() => setDisconnecting(runtime)}
                      />
                   );
@@ -299,6 +336,53 @@ export default function RuntimesList() {
                ) : null}
             </SettingsCard>
          </SettingsSection>
+
+         <Dialog open={tokenRuntime !== null} onOpenChange={(open) => !open && closeToken()}>
+            <DialogContent className="sm:max-w-md">
+               <form
+                  className="grid gap-4"
+                  onSubmit={(event) => {
+                     event.preventDefault();
+                     if (!tokenRuntime) return;
+                     const apiKey = token.trim();
+                     if (!apiKey) return;
+                     void connect(tokenRuntime, apiKey);
+                  }}
+               >
+                  <DialogHeader>
+                     <DialogTitle>
+                        {t('connect')} {tokenRuntime?.name}
+                     </DialogTitle>
+                     <DialogDescription>{t('tokenHint')}</DialogDescription>
+                  </DialogHeader>
+                  <label className="flex flex-col gap-1" htmlFor="runtime-api-token">
+                     <span>{t('tokenLabel')}</span>
+                     <Input
+                        id="runtime-api-token"
+                        type="password"
+                        autoComplete="off"
+                        autoFocus
+                        spellCheck={false}
+                        value={token}
+                        placeholder={t('tokenPlaceholder')}
+                        onChange={(event) => setToken(event.target.value)}
+                     />
+                  </label>
+                  <DialogFooter>
+                     <Button type="button" variant="ghost" size="sm" onClick={closeToken}>
+                        {t('tokenCancel')}
+                     </Button>
+                     <Button
+                        type="submit"
+                        size="sm"
+                        disabled={busy !== null || token.trim() === ''}
+                     >
+                        {busy === tokenRuntime?.id ? t('connecting') : t('connect')}
+                     </Button>
+                  </DialogFooter>
+               </form>
+            </DialogContent>
+         </Dialog>
 
          <ConfirmAction
             open={disconnecting !== null}

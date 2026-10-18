@@ -4,24 +4,33 @@ import { AI_RUNTIME_CATALOG, AI_RUNTIME_IDS, withWorkstationCliPresence } from '
 
 describe('AI runtime catalog', () => {
    test('lists only connectable runtimes, each exactly once', () => {
-      assert.equal(AI_RUNTIME_CATALOG.length, 7);
+      assert.equal(AI_RUNTIME_CATALOG.length, 11);
       assert.deepEqual(
          [...AI_RUNTIME_CATALOG.map((runtime) => runtime.id)].sort(),
          [...AI_RUNTIME_IDS].sort()
       );
-      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 7);
+      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 11);
    });
 
    test('advertises only a fully implemented integration', () => {
       assert.deepEqual(
          AI_RUNTIME_CATALOG.map((runtime) => runtime.id),
-         ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi']
+         ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi', 'openai', 'xai', 'anthropic', 'gemini']
       );
       for (const runtime of AI_RUNTIME_CATALOG) {
          assert.equal(runtime.availability, 'available', runtime.id);
          assert.equal(runtime.unavailableReason, null, runtime.id);
-         assert.equal(runtime.executionMode, 'agent_process', runtime.id);
-         assert.equal(runtime.billing, 'subscription', runtime.id);
+      }
+      for (const id of ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi']) {
+         const runtime = AI_RUNTIME_CATALOG.find((entry) => entry.id === id);
+         assert.equal(runtime?.executionMode, 'agent_process', id);
+         assert.equal(runtime?.billing, 'subscription', id);
+      }
+      for (const id of ['openai', 'xai', 'anthropic', 'gemini']) {
+         const runtime = AI_RUNTIME_CATALOG.find((entry) => entry.id === id);
+         assert.equal(runtime?.executionMode, 'direct_inference', id);
+         assert.equal(runtime?.billing, 'api_billing', id);
+         assert.equal(runtime?.localProcess, false, id);
       }
    });
 
