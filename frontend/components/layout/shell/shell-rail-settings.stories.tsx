@@ -10,7 +10,7 @@ const meta = {
    parameters: { nextjs: { navigation: workspaceRoute('/elian/settings/members') } },
    decorators: [
       (Story) => (
-         <nav className="w-[218px] bg-[var(--shell-rail)] pb-4 font-mono font-light text-[var(--shell-text)]">
+         <nav className="w-[262px] bg-[var(--shell-rail)] pb-4 font-mono font-light text-[var(--shell-text)]">
             <Story />
          </nav>
       ),
