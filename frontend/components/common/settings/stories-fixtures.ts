@@ -373,7 +373,8 @@ export const integrationProviders = [
       id: 'gitlab',
       include: 'oauth',
       name: 'GitLab',
-      description: 'Connect a GitLab account for this workspace.',
+      description:
+         'The projects a GitLab account can reach for this workspace. Sign in with GitLab to grant that access, so agents can work inside the repositories that account can open.',
       configured: true,
       connected: true,
       status: 'connected',

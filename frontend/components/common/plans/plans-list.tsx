@@ -45,11 +45,7 @@ function isLive(plan: PlanSummary): boolean {
    );
 }
 
-/**
- * What a plan row shows: its mark, status, title and progress. Inside a
- * project the project line and the age are dropped, progress takes the age's
- * place, and the title reads as one line, like the project's task rows.
- */
+/** What a plan row shows: its mark, status, title and progress. */
 export function PlanRowBody({
    plan,
    showProject = true,

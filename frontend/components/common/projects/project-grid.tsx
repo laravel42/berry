@@ -5,6 +5,10 @@ import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { HealthPopover } from '@/components/common/projects/health-popover';
 import { LeadPicker, leadCandidates } from '@/components/common/projects/lead-picker';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
+import {
+   openContextMenuOnClick,
+   ProjectContextMenuContent,
+} from '@/components/common/projects/project-context-menu';
 import type { Project } from '@/data/projects';
 import { useResolvedProjectLead } from '@/lib/use-resolved-project-lead';
 import { cn } from '@/lib/utils';
@@ -162,6 +166,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                      isOver && dropEdge === 'bottom' && 'mb-1'
                   )}
                   style={{ opacity: isDragging ? 0.45 : 1 }}
+                  onClick={openContextMenuOnClick}
                >
                   <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                      <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
@@ -180,7 +185,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                      </div>
                      <Link
                         href={`/${orgId}/project/${project.id}/overview`}
-                        className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                        className="relative z-10 block rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                         draggable={false}
                         onClick={(event) => {
                            if (isDragging) event.preventDefault();
@@ -241,6 +246,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                   </div>
                </div>
             </ContextMenuTrigger>
+            <ProjectContextMenuContent project={project} />
          </ContextMenu>
       </div>
    );

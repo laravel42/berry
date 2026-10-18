@@ -140,7 +140,6 @@ export function IssueHeaderMenu({ issue, onDeleted }: { issue: Issue; onDeleted?
                <DropdownMenuSeparator />
                <DropdownMenuItem
                   variant="destructive"
-                  className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
                   onSelect={(event) => {
                      event.preventDefault();
                      deletion.request(issue);

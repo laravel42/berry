@@ -52,7 +52,7 @@ export const Working: Story = {
 export const Protected: Story = {
    args: { agent: orchestratorAgent, roster: rosterMap.get(orchestratorAgent.id) },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Actions for Orchestrator' }));
+      await userEvent.click(canvas.getByText('Workspace'));
       const body = within(canvasElement.ownerDocument.body);
       const archive = await body.findByRole('menuitem', { name: 'Archive' });
       await expect(archive).toHaveAttribute('aria-disabled', 'true');
@@ -77,7 +77,7 @@ export const RosterLoading: Story = { args: { roster: undefined } };
 export const Archived: Story = {
    args: { agent: archivedAgent, roster: undefined },
    play: async ({ args, canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Actions for standup-bot' }));
+      await userEvent.click(canvas.getByText('Workspace'));
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('menuitem', { name: 'Restore' }));
       await expect(args.actions.onRestore).toHaveBeenCalledWith(archivedAgent);

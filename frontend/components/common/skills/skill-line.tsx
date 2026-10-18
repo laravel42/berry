@@ -239,11 +239,7 @@ export default function SkillLine({
                            {t('refresh.action')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                           variant="destructive"
-                           className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
-                           onClick={() => onConfirmDelete(skill)}
-                        >
+                        <DropdownMenuItem onClick={() => onConfirmDelete(skill)}>
                            {t('row.delete')}
                         </DropdownMenuItem>
                      </>

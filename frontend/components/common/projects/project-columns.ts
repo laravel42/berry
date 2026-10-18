@@ -22,6 +22,3 @@ export const PROJECT_CELL_PAD = 'pl-2';
 
 /** The checkbox slot: a size-4 box and its gap, reserved in the header as well. */
 export const PROJECT_SELECT_SLOT = 'mr-2 flex w-4 shrink-0 items-center';
-
-/** The row's hover actions (pin, menu): two size-8 buttons, reserved in the header too. */
-export const PROJECT_ACTIONS_SLOT = 'ml-1 flex w-16 shrink-0 items-center justify-end';

@@ -25,7 +25,7 @@ interface HealthPopoverProps {
    row?: boolean;
 }
 
-function HealthIcon({ healthId, className }: { healthId: string; className?: string }) {
+export function HealthIcon({ healthId, className }: { healthId: string; className?: string }) {
    const iconClass = cn('size-4', className);
    switch (healthId) {
       case 'on-track':

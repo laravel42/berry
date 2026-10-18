@@ -118,11 +118,7 @@ export function CommentActions({
                {mayDelete ? (
                   <>
                      <DropdownMenuSeparator />
-                     <DropdownMenuItem
-                        variant="destructive"
-                        className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
-                        onClick={() => setConfirming(true)}
-                     >
+                     <DropdownMenuItem variant="destructive" onClick={() => setConfirming(true)}>
                         {t('delete')}
                      </DropdownMenuItem>
                   </>

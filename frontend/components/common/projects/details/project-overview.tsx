@@ -93,10 +93,10 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                      aiAssist={false}
                   />
 
-                  <div className="mt-4">
+                  <div className="mt-4 [&>*:first-child]:mt-0">
+                     <ProjectPlanSection projectId={projectId} />
                      <ProjectGoalsSection projectId={projectId} />
                      <ProjectActivityFeedList projectId={projectId} />
-                     <ProjectPlanSection projectId={projectId} />
                   </div>
 
                   <div className="mt-6 border-t border-border/60 pt-4 pb-2">

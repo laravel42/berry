@@ -1,13 +1,6 @@
 'use client';
 
-import {
-   ChevronDown,
-   ChevronRight,
-   ChevronUp,
-   MoreHorizontal,
-   RefreshCw,
-   Trash2,
-} from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, MoreHorizontal, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -257,6 +250,45 @@ export default function SkillDetailHeader({ skillId }: SkillDetailHeaderProps) {
             </nav>
 
             <div className="flex shrink-0 items-center gap-1">
+               {index >= 0 ? (
+                  <span className="mr-1 text-muted-foreground">
+                     {index + 1} / {orderedIds.length}
+                  </span>
+               ) : null}
+               <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  disabled={!previousId}
+                  asChild={!!previousId}
+               >
+                  {previousId ? (
+                     <Link
+                        href={hrefFor(previousId)}
+                        aria-label={t('detail.previous')}
+                        scroll={false}
+                     >
+                        <ChevronUp className="size-4" />
+                     </Link>
+                  ) : (
+                     <ChevronUp className="size-4" />
+                  )}
+               </Button>
+               <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  disabled={!nextId}
+                  asChild={!!nextId}
+               >
+                  {nextId ? (
+                     <Link href={hrefFor(nextId)} aria-label={t('detail.next')} scroll={false}>
+                        <ChevronDown className="size-4" />
+                     </Link>
+                  ) : (
+                     <ChevronDown className="size-4" />
+                  )}
+               </Button>
                {canEdit ? (
                   <DropdownMenu
                      onOpenChange={(open) => {
@@ -366,59 +398,16 @@ export default function SkillDetailHeader({ skillId }: SkillDetailHeaderProps) {
                         ) : null}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                           variant="destructive"
-                           className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
                            onSelect={(event) => {
                               event.preventDefault();
                               setConfirmDelete(true);
                            }}
                         >
-                           <Trash2 className="size-4" />
                            {t('row.delete')}
                         </DropdownMenuItem>
                      </DropdownMenuContent>
                   </DropdownMenu>
                ) : null}
-
-               {index >= 0 ? (
-                  <span className="mr-1 text-muted-foreground">
-                     {index + 1} / {orderedIds.length}
-                  </span>
-               ) : null}
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  disabled={!previousId}
-                  asChild={!!previousId}
-               >
-                  {previousId ? (
-                     <Link
-                        href={hrefFor(previousId)}
-                        aria-label={t('detail.previous')}
-                        scroll={false}
-                     >
-                        <ChevronUp className="size-4" />
-                     </Link>
-                  ) : (
-                     <ChevronUp className="size-4" />
-                  )}
-               </Button>
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-6"
-                  disabled={!nextId}
-                  asChild={!!nextId}
-               >
-                  {nextId ? (
-                     <Link href={hrefFor(nextId)} aria-label={t('detail.next')} scroll={false}>
-                        <ChevronDown className="size-4" />
-                     </Link>
-                  ) : (
-                     <ChevronDown className="size-4" />
-                  )}
-               </Button>
             </div>
          </div>
 

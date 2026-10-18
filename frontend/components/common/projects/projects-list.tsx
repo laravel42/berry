@@ -3,7 +3,6 @@
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { cn } from '@/lib/utils';
 import {
-   PROJECT_ACTIONS_SLOT,
    PROJECT_CELL_PAD,
    PROJECT_COLUMN,
    PROJECT_NAME_SLOT,
@@ -44,7 +43,6 @@ export default function ProjectsList({ groups, selected, onToggleSelected }: Pro
                {displayProperties.status && (
                   <div className={cn(PROJECT_COLUMN.status, PROJECT_CELL_PAD)}>Status</div>
                )}
-               <span className={cn(PROJECT_ACTIONS_SLOT, 'h-px')} aria-hidden />
             </div>
          </div>
 

@@ -68,7 +68,7 @@ export type Provider = z.infer<typeof providerSchema>;
 export type ProviderConnection = z.infer<typeof providerConnectionSchema>;
 export type ToolGrant = z.infer<typeof toolGrantSchema>;
 
-/** Berry's own provider: its tools run inside the product and need no connection. */
+/** Berry's own catalog entry. Settings does not show it: those tools run inside the product. */
 export const BUILT_IN_PROVIDER = 'berry';
 
 // ---------------------------------------------------------------------------
@@ -172,12 +172,11 @@ export function describeToolEffect(effect: string): string {
    }
 }
 
-/** "Connected", "Not connected", "Built in", or the connection's own trouble. */
+/** "Connected", "Not connected", or the connection's own trouble. */
 export function describeProviderState(provider: Provider): {
    label: string;
    tone: 'complete' | 'attention' | 'neutral' | 'danger';
 } {
-   if (provider.id === BUILT_IN_PROVIDER) return { label: 'Built in', tone: 'neutral' };
    // A status that says what went wrong is read before the generic "not
    // connected". An expired connection is not unconnected — it worked until it
    // lapsed, and the two want different things from the reader.

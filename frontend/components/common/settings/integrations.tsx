@@ -1,6 +1,5 @@
 'use client';
 
-import { BerryMark } from '@/components/brand/berry-mark';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -24,14 +23,11 @@ import {
    describeToolEffect,
    disconnectProvider,
    listConnections,
-   listGrants,
    listProviders,
    startAuthorize,
    toolOperation,
    type Provider,
    type ProviderConnection,
-   type ProviderTool,
-   type ToolGrant,
 } from '@/lib/integrations';
 import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
@@ -45,13 +41,6 @@ import { INTEGRATION_LOGOS } from './integration-logos';
 import { SettingsCard, SettingsRow, SettingsShell } from './shared';
 
 function ProviderIcon({ provider }: { provider: Provider }) {
-   if (provider.id === BUILT_IN_PROVIDER) {
-      return (
-         <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border bg-background">
-            <BerryMark size="sm" />
-         </span>
-      );
-   }
    const Logo = INTEGRATION_LOGOS[provider.id];
    if (Logo) {
       return (
@@ -116,17 +105,7 @@ function visibleFailure(failure: unknown): string {
    return describeIntegrationFailure(failure);
 }
 
-function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGrant[] }) {
-   const granted = (tool: ProviderTool): string | null => {
-      const match = grants.find(
-         (grant) =>
-            grant.provider === provider.id &&
-            !grant.agentId &&
-            (grant.tool === tool.name || grant.tool === '*')
-      );
-      return match ? match.maxEffect : null;
-   };
-   const external = provider.id !== BUILT_IN_PROVIDER;
+function ToolsTable({ provider }: { provider: Provider }) {
    return (
       <div className="min-w-0">
          <table className="w-full table-fixed border-t border-border/60">
@@ -135,77 +114,44 @@ function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGran
                   <th className="w-[40%] px-3 py-1.5 font-medium">Tool</th>
                   <th className="px-1.5 py-1.5 font-medium break-words">Effect</th>
                   <th className="px-1.5 py-1.5 font-medium break-words">Approval</th>
-                  <th className="px-1.5 py-1.5 font-medium break-words">Default</th>
-                  {external && (
-                     <>
-                        <th className="px-1.5 py-1.5 font-medium break-words">Granted</th>
-                        <th className="px-1.5 py-1.5 pr-3 font-medium break-words">Allowed</th>
-                     </>
-                  )}
+                  <th className="px-1.5 py-1.5 pr-3 font-medium break-words">Default</th>
                </tr>
             </thead>
             <tbody>
-               {provider.tools.map((tool) => {
-                  const grant = granted(tool);
-                  return (
-                     <tr key={tool.name} className="border-t border-border/40 align-top">
-                        <td className="px-3 py-1.5">
-                           <span className="font-mono break-all">{toolOperation(tool.name)}</span>
-                           {tool.description && (
-                              <span className="block text-muted-foreground break-words">
-                                 {tool.description}
-                              </span>
-                           )}
-                        </td>
-                        <td
-                           className={cn(
-                              'px-1.5 py-1.5 break-words',
-                              tool.effect === 'destructive'
-                                 ? 'text-status-danger'
-                                 : tool.effect === 'external_side_effect'
-                                   ? 'text-status-warning'
-                                   : 'text-muted-foreground'
-                           )}
-                        >
-                           {describeToolEffect(tool.effect)}
-                        </td>
-                        <td className="px-1.5 py-1.5 break-words">
-                           {tool.requiresApproval ? (
-                              <span className="text-status-warning">required</span>
-                           ) : (
-                              <span className="text-muted-foreground">—</span>
-                           )}
-                        </td>
-                        <td className="px-1.5 py-1.5 break-words text-muted-foreground">
-                           {tool.enabledByDefault === false ? 'opt-in' : 'on'}
-                        </td>
-                        {external && (
-                           <>
-                              <td className="px-1.5 py-1.5 break-words text-muted-foreground">
-                                 {grant ? (
-                                    <>
-                                       <span className="block">every agent</span>
-                                       <span className="block">{describeToolEffect(grant)}</span>
-                                    </>
-                                 ) : (
-                                    '—'
-                                 )}
-                              </td>
-                              {/* Connected and granted: what an agent can reach right now. */}
-                              <td className="px-1.5 py-1.5 pr-3 break-words">
-                                 {tool.allowed === true ? (
-                                    <span className="text-status-success">allowed</span>
-                                 ) : tool.allowed === false ? (
-                                    <span className="text-muted-foreground">not allowed</span>
-                                 ) : (
-                                    <span className="text-muted-foreground">—</span>
-                                 )}
-                              </td>
-                           </>
+               {provider.tools.map((tool) => (
+                  <tr key={tool.name} className="border-t border-border/40 align-top">
+                     <td className="px-3 py-1.5">
+                        <span className="font-mono break-all">{toolOperation(tool.name)}</span>
+                        {tool.description && (
+                           <span className="block text-muted-foreground break-words">
+                              {tool.description}
+                           </span>
                         )}
-                     </tr>
-                  );
-               })}
+                     </td>
+                     <td
+                        className={cn(
+                           'px-1.5 py-1.5 break-words',
+                           tool.effect === 'destructive'
+                              ? 'text-status-danger'
+                              : tool.effect === 'external_side_effect'
+                                ? 'text-status-warning'
+                                : 'text-muted-foreground'
+                        )}
+                     >
+                        {describeToolEffect(tool.effect)}
+                     </td>
+                     <td className="px-1.5 py-1.5 break-words">
+                        {tool.requiresApproval ? (
+                           <span className="text-status-warning">required</span>
+                        ) : (
+                           <span className="text-muted-foreground">—</span>
+                        )}
+                     </td>
+                     <td className="px-1.5 py-1.5 pr-3 break-words text-muted-foreground">
+                        {tool.enabledByDefault === false ? 'opt-in' : 'on'}
+                     </td>
+                  </tr>
+               ))}
             </tbody>
          </table>
       </div>
@@ -215,7 +161,6 @@ function ToolsTable({ provider, grants }: { provider: Provider; grants: ToolGran
 function ProviderCard({
    provider,
    connection,
-   grants,
    highlighted,
    busy,
    onConnect,
@@ -224,7 +169,6 @@ function ProviderCard({
 }: {
    provider: Provider;
    connection: ProviderConnection | undefined;
-   grants: ToolGrant[];
    highlighted: boolean;
    busy: boolean;
    onConnect: () => void;
@@ -234,7 +178,6 @@ function ProviderCard({
 }) {
    const [toolsOpen, setToolsOpen] = useState(false);
    const state = describeProviderState(provider);
-   const builtIn = provider.id === BUILT_IN_PROVIDER;
    const approvals = provider.tools.filter((tool) => tool.requiresApproval).length;
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
@@ -242,8 +185,8 @@ function ProviderCard({
    // GitHub and GitLab disconnect from their drawers. The row has no
    // second column once that account is connected.
    const inDrawer = drawerProviderId(provider.id) !== null;
-   const showDisconnect = !builtIn && !inDrawer && provider.connected;
-   const showConnect = !builtIn && !provider.connected;
+   const showDisconnect = !inDrawer && provider.connected;
+   const showConnect = !provider.connected;
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
    // dates, so a provider with neither does not repeat the word.
@@ -263,7 +206,12 @@ function ProviderCard({
       <>
          <ProviderIcon provider={provider} />
          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <div
+               className={cn(
+                  'flex flex-wrap items-center gap-x-2 gap-y-1',
+                  (showConnect || showDisconnect) && 'pr-24'
+               )}
+            >
                <h3 className="font-medium">{visibleProviderName(provider)}</h3>
                <StatusBadge
                   look={{
@@ -288,11 +236,6 @@ function ProviderCard({
                <p className="mt-1 text-muted-foreground">
                   {publicDetail(connection?.statusDetail)}
                   {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-               </p>
-            )}
-            {!builtIn && !provider.configured && (
-               <p className="mt-1 text-muted-foreground">
-                  {`Not configured on this deployment: set the ${visibleProviderName(provider)} credentials to enable Connect.`}
                </p>
             )}
             {provider.id === 'github' &&
@@ -338,7 +281,7 @@ function ProviderCard({
          )}
          aria-label={visibleProviderName(provider)}
       >
-         <div className="flex items-start">
+         <div className="relative flex items-start">
             {onOpen ? (
                <button
                   type="button"
@@ -351,7 +294,7 @@ function ProviderCard({
                <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">{identity}</div>
             )}
             {showDisconnect || showConnect ? (
-               <div className="flex shrink-0 items-center gap-2 px-4 py-3">
+               <div className="absolute top-3 right-4 flex items-center gap-2">
                   {showDisconnect ? (
                      <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
                         {busy ? 'Working…' : 'Disconnect'}
@@ -387,13 +330,13 @@ function ProviderCard({
                )}
             />
             {provider.tools.length} tool{provider.tools.length === 1 ? '' : 's'}
-            {!builtIn && provider.connected && ` · ${allowedCount} allowed`}
+            {provider.connected && ` · ${allowedCount} allowed`}
             {approvals > 0 && ` · ${approvals} need${approvals === 1 ? 's' : ''} approval`}
             {destructive > 0 && (
                <span className="text-status-danger"> · {destructive} destructive</span>
             )}
          </button>
-         {toolsOpen && <ToolsTable provider={provider} grants={grants} />}
+         {toolsOpen && <ToolsTable provider={provider} />}
       </section>
    );
 }
@@ -480,7 +423,6 @@ function IntegrationsDirectory() {
 
    const [providers, setProviders] = useState<Provider[]>([]);
    const [connections, setConnections] = useState<ProviderConnection[]>([]);
-   const [grants, setGrants] = useState<ToolGrant[]>([]);
    const [loaded, setLoaded] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState<string | null>(null);
@@ -490,17 +432,16 @@ function IntegrationsDirectory() {
    const load = useCallback(async (): Promise<Provider[]> => {
       if (!workspace) return [];
       try {
-         const [providerList, connectionList, grantList] = await Promise.all([
+         const [providerList, connectionList] = await Promise.all([
             listProviders(workspace.id),
             listConnections().catch(() => [] as ProviderConnection[]),
-            listGrants().catch(() => [] as ToolGrant[]),
          ]);
-         setProviders(providerList);
+         const connected = providerList.filter((provider) => provider.id !== BUILT_IN_PROVIDER);
+         setProviders(connected);
          setConnections(connectionList);
-         setGrants(grantList);
-         hydrateProviders(providerList);
+         hydrateProviders(connected);
          setError(null);
-         return providerList;
+         return connected;
       } catch (failure) {
          setError(visibleFailure(failure));
          return [];
@@ -579,7 +520,7 @@ function IntegrationsDirectory() {
    return (
       <SettingsShell
          title="Integrations"
-         description="Connect the tools your agents may reach. Berry's own tools need no connection; an agent cannot reach another provider until it is connected."
+         description="Connect the tools your agents may reach. An agent cannot reach a provider until it is connected."
       >
          {error && (
             <p role="alert" className="text-status-danger">
@@ -592,13 +533,12 @@ function IntegrationsDirectory() {
             </p>
          )}
 
-         <div className="flex flex-col gap-3">
+         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
             {providers.map((provider) => (
                <ProviderCard
                   key={provider.id}
                   provider={provider}
                   connection={connections.find((entry) => entry.provider === provider.id)}
-                  grants={grants}
                   highlighted={highlighted === provider.id}
                   busy={busy === provider.id}
                   onConnect={() => void connect(provider)}

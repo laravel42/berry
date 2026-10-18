@@ -450,7 +450,6 @@ export default function SkillsList({
             description={t('row.confirmDeleteBody')}
             cancelLabel={t('cancel')}
             confirmLabel={t('row.delete')}
-            destructive
             onConfirm={() => {
                // Closes at once: the row reports its own progress and failure.
                if (confirming) void remove(confirming);

@@ -322,7 +322,7 @@ export default function Agents() {
          <div className="w-full shrink-0">
             <ListFilterBar filter={filter} />
          </div>
-         <div className="min-h-0 flex-1 overflow-y-auto">
+         <div className="min-h-0 w-full flex-1 overflow-y-auto">
             {loading ? (
                <EmptyStateLoading label={common('loading')} />
             ) : storedError ? (
@@ -361,7 +361,7 @@ export default function Agents() {
                <>
                   <div
                      data-heading="label"
-                     className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b bg-container px-4 text-subtle-foreground"
+                     className="sticky top-0 z-10 flex h-9 w-full items-center gap-3 border-b bg-container px-6 text-subtle-foreground"
                   >
                      <Checkbox
                         checked={allSelected}
@@ -386,9 +386,8 @@ export default function Agents() {
                      </button>
                      {header('activity', t('colActivity'))}
                      {header('lastActive', t('colLastActive'))}
-                     {header('model', t('colModel'))}
-                     {header('access', t('colAccess'))}
-                     <span className="size-6 shrink-0" aria-hidden />
+                     {header('model', t('colModel'), 'justify-end')}
+                     {header('access', t('colAccess'), 'justify-end')}
                   </div>
 
                   {bulkReport ? (

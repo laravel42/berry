@@ -195,7 +195,6 @@ export default function SkillBulkBar({
             description={t('bulk.confirmDeleteBody')}
             cancelLabel={t('cancel')}
             confirmLabel={t('bulk.delete')}
-            destructive
             // `remove` starts the walk and returns: the dialog closes at once,
             // and the bar shows the walk's progress.
             onConfirm={remove}

@@ -99,7 +99,7 @@ export const GitLabSettingsDrawer: Story = {
       const gitlab = await canvas.findByRole('region', { name: 'GitLab' });
       await expect(canvas.queryByText('Use GitLab in this workspace')).not.toBeInTheDocument();
       await userEvent.click(
-         within(gitlab).getByRole('button', { name: /Connect a GitLab account/ })
+         within(gitlab).getByRole('button', { name: /The projects a GitLab account/ })
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');

@@ -2,23 +2,24 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { MoreHorizontal } from 'lucide-react';
+import { Archive, ArchiveRestore, Ban, Copy, ExternalLink } from 'lucide-react';
 import { useFormatter, useTranslations } from 'next-intl';
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuSeparator,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+   ContextMenu,
+   ContextMenuContent,
+   ContextMenuItem,
+   ContextMenuSeparator,
+   ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 import { colorForAgent } from '@/lib/agent-color';
 import { cn } from '@/lib/utils';
 import { useAgentAvatarSrc, type Agent, type AgentRoster } from '@/lib/agents';
 import type { AgentColumn } from '@/store/agents-list-store';
 import { AgentModelChip } from './agent-model-chip';
+import { AgentRowFields } from './agent-row-fields';
 import { AgentSparkline } from './agent-sparkline';
 import { AgentWorkloadChip } from './agent-workload-chip';
 
@@ -111,128 +112,139 @@ export default function AgentLine({
    const weekFailRate = weekRuns === 0 ? 0 : Math.round((weekFailed / weekRuns) * 100);
 
    return (
-      <div
-         className={cn(
-            'group flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
-            'last:border-b-0 hover:bg-sidebar/50',
-            selected && 'bg-sidebar/60'
-         )}
-      >
-         <Checkbox
-            checked={selected}
-            onCheckedChange={() => onToggleSelected(agent.id)}
-            aria-label={t('select', { name: agent.name })}
-            className="shrink-0"
-         />
-
-         <Link href={href} className="flex min-w-0 flex-1 items-center gap-2.5">
-            <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/40">
-               {avatarSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
-                  <img src={avatarSrc} alt="" className="size-full object-cover" />
-               ) : (
-                  <BerryMark
-                     size="sm"
-                     tone="working"
-                     dotColor={colorForAgent(agent.id)}
-                     label={agent.name}
-                  />
+      <ContextMenu>
+         <ContextMenuTrigger asChild>
+            <div
+               className={cn(
+                  'group flex w-full min-w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
+                  'last:border-b-0 hover:bg-sidebar/50',
+                  selected && 'bg-sidebar/60'
                )}
-            </span>
-            <div className="min-w-0 flex-1 overflow-hidden">
-               <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="min-w-0 max-w-full truncate font-medium leading-none">
-                     {agent.name}
-                  </span>
-                  <AgentWorkloadChip roster={roster} className="px-1.5 py-px" />
-               </span>
-               {agent.description ? (
-                  <p className="mt-0.5 truncate text-muted-foreground" title={agent.description}>
-                     {agent.description}
-                  </p>
-               ) : null}
-            </div>
-         </Link>
-
-         <Cell column="activity" columns={columns}>
-            {roster ? (
-               <AgentSparkline
-                  activity={roster.activity}
-                  emptyLabel={t('sparkEmptyShort')}
-                  weekTitle={t('sparkWeekTitle')}
-                  weekSummary={t('sparkWeekSummary', {
-                     runs: weekRuns,
-                     failed: weekFailed,
-                     percent: weekFailRate,
-                  })}
-                  describe={(point) =>
-                     t('sparkTooltip', {
-                        day: point.day,
-                        runs: point.runs,
-                        failed: point.failed,
-                        percent: point.percent,
+               onClick={(event) => {
+                  const target = event.target;
+                  if (!(target instanceof Element)) return;
+                  if (target.closest('a, button, input, [role="checkbox"]')) return;
+                  event.currentTarget.dispatchEvent(
+                     new MouseEvent('contextmenu', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window,
+                        clientX: event.clientX,
+                        clientY: event.clientY,
                      })
-                  }
+                  );
+               }}
+            >
+               <Checkbox
+                  checked={selected}
+                  onCheckedChange={() => onToggleSelected(agent.id)}
+                  aria-label={t('select', { name: agent.name })}
+                  className="shrink-0"
                />
-            ) : null}
-         </Cell>
 
-         <Cell column="lastActive" columns={columns}>
-            <span className="truncate">
-               {roster?.lastActiveAt
-                  ? format.relativeTime(new Date(roster.lastActiveAt))
-                  : roster
-                    ? t('lastActiveNever')
-                    : ''}
-            </span>
-         </Cell>
+               <Link href={href} className="flex min-w-0 flex-1 items-center gap-2.5">
+                  <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted/40">
+                     {avatarSrc ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
+                        <img src={avatarSrc} alt="" className="size-full object-cover" />
+                     ) : (
+                        <BerryMark
+                           size="sm"
+                           tone="working"
+                           dotColor={colorForAgent(agent.id)}
+                           label={agent.name}
+                        />
+                     )}
+                  </span>
+                  <div className="min-w-0 flex-1 overflow-hidden">
+                     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="min-w-0 max-w-full truncate font-medium leading-none">
+                           {agent.name}
+                        </span>
+                        <AgentWorkloadChip roster={roster} className="px-1.5 py-px" />
+                     </span>
+                     {agent.description ? (
+                        <p
+                           className="mt-0.5 truncate text-muted-foreground"
+                           title={agent.description}
+                        >
+                           {agent.description}
+                        </p>
+                     ) : null}
+                  </div>
+               </Link>
 
-         <Cell column="model" columns={columns}>
-            <AgentModelChip agent={agent} className="max-w-full truncate" />
-         </Cell>
+               <Cell column="activity" columns={columns}>
+                  {roster ? (
+                     <AgentSparkline
+                        activity={roster.activity}
+                        emptyLabel={t('sparkEmptyShort')}
+                        weekTitle={t('sparkWeekTitle')}
+                        weekSummary={t('sparkWeekSummary', {
+                           runs: weekRuns,
+                           failed: weekFailed,
+                           percent: weekFailRate,
+                        })}
+                        describe={(point) =>
+                           t('sparkTooltip', {
+                              day: point.day,
+                              runs: point.runs,
+                              failed: point.failed,
+                              percent: point.percent,
+                           })
+                        }
+                     />
+                  ) : null}
+               </Cell>
 
-         <Cell column="access" columns={columns}>
-            <span className="truncate">{accessLabel}</span>
-         </Cell>
+               <Cell column="lastActive" columns={columns}>
+                  <span className="truncate">
+                     {roster?.lastActiveAt
+                        ? format.relativeTime(new Date(roster.lastActiveAt))
+                        : roster
+                          ? t('lastActiveNever')
+                          : ''}
+                  </span>
+               </Cell>
 
-         <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-               <button
-                  type="button"
-                  aria-label={t('menuActions', { name: agent.name })}
-                  className="shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-colors hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 data-[state=open]:opacity-100"
-               >
-                  <MoreHorizontal className="size-4" />
-               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-52">
-               <DropdownMenuItem onSelect={() => window.open(href, '_blank', 'noopener')}>
-                  {t('menuOpenNewTab')}
-               </DropdownMenuItem>
-               <DropdownMenuItem onSelect={() => actions.onDuplicate(agent)}>
-                  {t('menuDuplicate')}
-               </DropdownMenuItem>
-               <DropdownMenuSeparator />
-               {archived ? (
-                  <DropdownMenuItem onSelect={() => actions.onRestore(agent)}>
-                     {t('menuRestore')}
-                  </DropdownMenuItem>
-               ) : (
-                  <>
-                     <DropdownMenuItem onSelect={() => actions.onCancelRuns(agent)}>
-                        {t('menuCancelRuns')}
-                     </DropdownMenuItem>
-                     <DropdownMenuItem
-                        disabled={isProtected}
-                        title={isProtected ? t('protectedAgent') : undefined}
-                        onSelect={() => actions.onArchive(agent)}
-                     >
-                        {t('menuArchive')}
-                     </DropdownMenuItem>
-                  </>
-               )}
-            </DropdownMenuContent>
-         </DropdownMenu>
-      </div>
+               <Cell column="model" columns={columns} className="justify-end">
+                  <AgentModelChip agent={agent} className="max-w-full truncate" />
+               </Cell>
+
+               <Cell column="access" columns={columns} className="justify-end">
+                  <span className="truncate">{accessLabel}</span>
+               </Cell>
+            </div>
+         </ContextMenuTrigger>
+         <ContextMenuContent className="min-w-52">
+            <AgentRowFields agent={agent} roster={roster} />
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => window.open(href, '_blank', 'noopener')}>
+               <ExternalLink className="size-4" /> {t('menuOpenNewTab')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => actions.onDuplicate(agent)}>
+               <Copy className="size-4" /> {t('menuDuplicate')}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            {archived ? (
+               <ContextMenuItem onSelect={() => actions.onRestore(agent)}>
+                  <ArchiveRestore className="size-4" /> {t('menuRestore')}
+               </ContextMenuItem>
+            ) : (
+               <>
+                  <ContextMenuItem onSelect={() => actions.onCancelRuns(agent)}>
+                     <Ban className="size-4" /> {t('menuCancelRuns')}
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                     disabled={isProtected}
+                     title={isProtected ? t('protectedAgent') : undefined}
+                     onSelect={() => actions.onArchive(agent)}
+                  >
+                     <Archive className="size-4" /> {t('menuArchive')}
+                  </ContextMenuItem>
+               </>
+            )}
+         </ContextMenuContent>
+      </ContextMenu>
    );
 }

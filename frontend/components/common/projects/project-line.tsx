@@ -1,10 +1,10 @@
 'use client';
 
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
-import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Issue } from '@/data/issues';
 import { Project } from '@/data/projects';
 import { useIssuesStore } from '@/store/issues-store';
@@ -18,7 +18,6 @@ import { useMemo } from 'react';
 import { format } from 'date-fns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import {
-   PROJECT_ACTIONS_SLOT,
    PROJECT_CELL_PAD,
    PROJECT_COLUMN,
    PROJECT_NAME_SLOT,
@@ -28,6 +27,7 @@ import { HealthPopover } from './health-popover';
 import { LeadPicker, leadCandidates } from './lead-picker';
 import { StatusWithPercent } from './status-with-percent';
 import { DatePicker } from './date-picker';
+import { openContextMenuOnClick, ProjectContextMenuContent } from './project-context-menu';
 import { cn } from '@/lib/utils';
 
 interface ProjectLineProps {
@@ -54,151 +54,151 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
    const issueCount = useMemo(() => countIssues(issues, project.id), [issues, project.id]);
 
    return (
-      <div
-         className={cn(
-            'group relative flex w-full items-center border-b border-border/45 px-6 py-3 transition-colors',
-            'hover:bg-accent/45 focus-within:bg-accent/45'
-         )}
-      >
-         <Link
-            href={`/${orgId}/project/${project.id}/overview`}
-            className="absolute inset-0 z-0 cursor-pointer"
-            aria-label={project.name}
-         />
-
-         {onToggleSelected ? (
-            <span
-               className={cn(PROJECT_SELECT_SLOT, 'relative z-10')}
-               onClick={(event) => event.stopPropagation()}
-               role="presentation"
-            >
-               <Checkbox
-                  checked={selected}
-                  onCheckedChange={onToggleSelected}
-                  aria-label={`Select ${project.name}`}
-               />
-            </span>
-         ) : null}
-
-         <div
-            className={cn(
-               PROJECT_NAME_SLOT,
-               'relative z-10 flex items-center gap-2 pointer-events-none'
-            )}
-         >
-            {displayProperties.priority ? (
-               <span className="relative z-10 shrink-0 pointer-events-auto">
-                  <PriorityPicker
-                     variant="icon"
-                     priority={project.priority}
-                     onChange={(next) => updateProjectPriority(project.id, next)}
-                  />
-               </span>
-            ) : null}
-            <div className="flex min-w-0 flex-col items-start overflow-hidden">
-               <span className="w-full truncate font-medium transition-colors group-hover:text-foreground">
-                  {project.name}
-               </span>
-            </div>
-         </div>
-
-         <div className="ml-auto flex min-w-0 items-center">
-            {displayProperties.health && (
-               <div className={cn(PROJECT_COLUMN.health, 'relative z-10 pointer-events-auto')}>
-                  <HealthPopover project={project} />
-               </div>
-            )}
-            {displayProperties.lead && (
-               <div
-                  className={cn(
-                     PROJECT_COLUMN.lead,
-                     'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
-                  )}
-               >
-                  <LeadPicker
-                     lead={project.lead}
-                     candidates={leadCandidates(members, project.lead)}
-                     onChange={(member) => updateProjectLead(project.id, member)}
-                  >
-                     <Button
-                        className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
-                        size="sm"
-                        variant="ghost"
-                        role="combobox"
-                        aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
-                     >
-                        {project.lead ? (
-                           <>
-                              <ActorAvatar user={project.lead} size="sm" className="mr-1" />
-                              <span className="hidden min-w-0 truncate md:inline">
-                                 {project.lead.name}
-                              </span>
-                           </>
-                        ) : (
-                           <>
-                              <UserIcon className="size-3.5 text-muted-foreground" />
-                              <span className="hidden min-w-0 truncate text-muted-foreground md:inline">
-                                 Project lead
-                              </span>
-                           </>
-                        )}
-                     </Button>
-                  </LeadPicker>
-               </div>
-            )}
-            {displayProperties.targetDate && (
-               <div
-                  className={cn(
-                     PROJECT_COLUMN.targetDate,
-                     'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
-                  )}
-               >
-                  <DatePicker
-                     date={project.targetDate ? new Date(project.targetDate) : undefined}
-                     onDateChange={(date) => {
-                        updateProjectTargetDate(
-                           project.id,
-                           date ? format(date, 'yyyy-MM-dd') : undefined
-                        );
-                     }}
-                  />
-               </div>
-            )}
-            {displayProperties.issues && (
-               <div
-                  className={cn(
-                     PROJECT_COLUMN.issues,
-                     PROJECT_CELL_PAD,
-                     'relative z-10 pointer-events-none tabular-nums text-muted-foreground'
-                  )}
-               >
-                  {issueCount}
-               </div>
-            )}
-            {displayProperties.status && (
-               <div className={cn(PROJECT_COLUMN.status, 'relative z-10 pointer-events-auto')}>
-                  <StatusWithPercent
-                     status={project.status}
-                     percentComplete={project.percentComplete}
-                     onStatusChange={(statusId) => {
-                        const match = projectCreateStatusOptions.find(
-                           (option) => option.status.id === statusId
-                        );
-                        if (match) updateProjectStatus(project.id, match.status);
-                     }}
-                  />
-               </div>
-            )}
-
+      <ContextMenu>
+         <ContextMenuTrigger asChild>
             <div
                className={cn(
-                  PROJECT_ACTIONS_SLOT,
-                  'relative z-10 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100'
+                  'group relative flex w-full items-center border-b border-border/45 px-6 py-3 transition-colors',
+                  'hover:bg-accent/45 focus-within:bg-accent/45'
                )}
+               onClick={openContextMenuOnClick}
             >
-               <PinToggle targetType="project" targetId={project.id} />
+               {onToggleSelected ? (
+                  <span
+                     className={cn(PROJECT_SELECT_SLOT, 'relative z-10')}
+                     onClick={(event) => event.stopPropagation()}
+                     role="presentation"
+                  >
+                     <Checkbox
+                        checked={selected}
+                        onCheckedChange={onToggleSelected}
+                        aria-label={`Select ${project.name}`}
+                     />
+                  </span>
+               ) : null}
+
+               <div
+                  className={cn(
+                     PROJECT_NAME_SLOT,
+                     'relative z-10 flex items-center gap-2 pointer-events-none'
+                  )}
+               >
+                  {displayProperties.priority ? (
+                     <span className="relative z-10 shrink-0 pointer-events-auto">
+                        <PriorityPicker
+                           variant="icon"
+                           priority={project.priority}
+                           onChange={(next) => updateProjectPriority(project.id, next)}
+                        />
+                     </span>
+                  ) : null}
+                  <div className="flex min-w-0 flex-col items-start overflow-hidden">
+                     <Link
+                        href={`/${orgId}/project/${project.id}/overview`}
+                        className="relative z-10 w-full truncate font-medium transition-colors pointer-events-auto group-hover:text-foreground"
+                     >
+                        {project.name}
+                     </Link>
+                  </div>
+               </div>
+
+               <div className="ml-auto flex min-w-0 items-center">
+                  {displayProperties.health && (
+                     <div
+                        className={cn(PROJECT_COLUMN.health, 'relative z-10 pointer-events-auto')}
+                     >
+                        <HealthPopover project={project} />
+                     </div>
+                  )}
+                  {displayProperties.lead && (
+                     <div
+                        className={cn(
+                           PROJECT_COLUMN.lead,
+                           'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
+                        )}
+                     >
+                        <LeadPicker
+                           lead={project.lead}
+                           candidates={leadCandidates(members, project.lead)}
+                           onChange={(member) => updateProjectLead(project.id, member)}
+                        >
+                           <Button
+                              className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                              size="sm"
+                              variant="ghost"
+                              role="combobox"
+                              aria-label={
+                                 project.lead ? `Lead: ${project.lead.name}` : 'Project lead'
+                              }
+                           >
+                              {project.lead ? (
+                                 <>
+                                    <ActorAvatar user={project.lead} size="sm" className="mr-1" />
+                                    <span className="hidden min-w-0 truncate md:inline">
+                                       {project.lead.name}
+                                    </span>
+                                 </>
+                              ) : (
+                                 <>
+                                    <UserIcon className="size-3.5 text-muted-foreground" />
+                                    <span className="hidden min-w-0 truncate text-muted-foreground md:inline">
+                                       Project lead
+                                    </span>
+                                 </>
+                              )}
+                           </Button>
+                        </LeadPicker>
+                     </div>
+                  )}
+                  {displayProperties.targetDate && (
+                     <div
+                        className={cn(
+                           PROJECT_COLUMN.targetDate,
+                           'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
+                        )}
+                     >
+                        <DatePicker
+                           date={project.targetDate ? new Date(project.targetDate) : undefined}
+                           onDateChange={(date) => {
+                              updateProjectTargetDate(
+                                 project.id,
+                                 date ? format(date, 'yyyy-MM-dd') : undefined
+                              );
+                           }}
+                        />
+                     </div>
+                  )}
+                  {displayProperties.issues && (
+                     <div
+                        className={cn(
+                           PROJECT_COLUMN.issues,
+                           PROJECT_CELL_PAD,
+                           'relative z-10 pointer-events-none tabular-nums text-muted-foreground'
+                        )}
+                     >
+                        {issueCount}
+                     </div>
+                  )}
+                  {displayProperties.status && (
+                     <div
+                        className={cn(PROJECT_COLUMN.status, 'relative z-10 pointer-events-auto')}
+                     >
+                        <StatusWithPercent
+                           status={project.status}
+                           percentComplete={project.percentComplete}
+                           onStatusChange={(statusId) => {
+                              const match = projectCreateStatusOptions.find(
+                                 (option) => option.status.id === statusId
+                              );
+                              if (match) updateProjectStatus(project.id, match.status);
+                           }}
+                        />
+                     </div>
+                  )}
+               </div>
             </div>
-         </div>
-      </div>
+         </ContextMenuTrigger>
+         <ProjectContextMenuContent project={project} />
+      </ContextMenu>
    );
 }

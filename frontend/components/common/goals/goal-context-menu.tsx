@@ -98,7 +98,6 @@ export function GoalActionsMenu({ goal }: { goal: Goal | undefined }) {
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                            variant="destructive"
-                           className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
                            onSelect={() => setConfirmOpen(true)}
                         >
                            <Trash2 className="size-4" /> {t('remove')}

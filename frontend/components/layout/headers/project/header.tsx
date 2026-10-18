@@ -125,7 +125,6 @@ export default function Header({
                      <DropdownMenuSeparator />
                      <DropdownMenuItem
                         variant="destructive"
-                        className="text-destructive focus:text-destructive data-[variant=destructive]:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive"
                         onClick={() => deletion.request(project)}
                      >
                         <Trash2 className="size-4" />
