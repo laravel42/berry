@@ -14,6 +14,7 @@ import {
 } from 'react';
 
 import { TierChip } from '@/components/common/agents/tier-chip';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -297,7 +298,7 @@ export default function ModelTiersSettings() {
          }
       >
          {subscriptions === null ? (
-            <p className="text-muted-foreground">{t('loading')}</p>
+            <EmptyStateLoading label={t('loading')} />
          ) : usingSubscription ? (
             <SubscriptionRoster runtimes={subscriptions} />
          ) : (

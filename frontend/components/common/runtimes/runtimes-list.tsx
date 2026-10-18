@@ -1,6 +1,7 @@
 'use client';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
+import { EmptyStateLoading } from '@/components/common/empty-state';
 import { Figure } from '@/components/common/page/page-parts';
 import {
    SettingsCard,
@@ -267,7 +268,7 @@ export default function RuntimesList() {
             </div>
             {catalog.error ? <p className="text-status-danger">{catalog.error}</p> : null}
             {catalog.loading && !catalog.value ? (
-               <p className="text-muted-foreground">{t('catalogLoading')}</p>
+               <EmptyStateLoading label={t('catalogLoading')} />
             ) : null}
             <SettingsCard className="mt-4">
                {shown.map((runtime) => {

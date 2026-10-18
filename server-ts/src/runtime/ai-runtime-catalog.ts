@@ -52,7 +52,7 @@ export interface AiRuntimeDefinition {
 export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    {
       id: 'claude',
-      name: 'Claude',
+      name: 'Claude CLI',
       publisher: 'Anthropic',
       product: 'Claude Code CLI',
       description: 'Anthropic’s coding agent. Berry starts the Claude Code CLI already signed in on this workstation.',
@@ -79,7 +79,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'codex',
-      name: 'Codex',
+      name: 'Codex CLI',
       publisher: 'OpenAI',
       product: 'Codex CLI',
       description: 'OpenAI’s coding agent. Berry starts the Codex CLI already signed in with ChatGPT on this workstation.',
@@ -106,7 +106,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'cursor',
-      name: 'Cursor',
+      name: 'Cursor CLI',
       publisher: 'Cursor',
       product: 'Cursor Agent CLI',
       description: 'Cursor’s coding agent. Berry starts the Cursor Agent CLI already signed in with a Cursor account on this workstation.',
@@ -134,7 +134,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'grok',
-      name: 'Grok',
+      name: 'Grok CLI',
       publisher: 'xAI',
       product: 'Grok Build CLI',
       description: 'xAI’s coding-agent CLI. Berry starts the Grok Build CLI already signed in on this workstation.',
@@ -164,7 +164,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'kiro',
-      name: 'Kiro',
+      name: 'Kiro CLI',
       publisher: 'AWS',
       product: 'Kiro CLI V3 ACP server',
       description: 'Kiro’s coding-agent harness exposed over ACP, with negotiated models, tool approvals, sessions, streaming, cancellation, and usage extensions.',
@@ -192,7 +192,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'qoder',
-      name: 'Qoder',
+      name: 'Qoder CLI',
       publisher: 'Qoder',
       product: 'Qoder CLI and Agent SDK',
       description: 'Qoder’s coding agent. Berry starts the Qoder CLI already signed in on this workstation and drives it over ACP.',
@@ -220,7 +220,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
    },
    {
       id: 'kimi',
-      name: 'Kimi',
+      name: 'Kimi CLI',
       publisher: 'Moonshot AI',
       product: 'Kimi Code CLI',
       description: 'Moonshot’s coding agent. Berry starts the Kimi Code CLI already signed in on this workstation over its ACP server.',
