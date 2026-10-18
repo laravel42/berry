@@ -9,9 +9,9 @@ import {
    bareModelName,
    gatewayPin,
    loadWorkspaceAgents,
-   TIER_NAMES,
    type Agent,
 } from '@/lib/agents';
+import { useTierNames } from '@/lib/tier-names';
 import { Bot, ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
@@ -31,6 +31,7 @@ export default function AiAgents() {
    const { orgId } = useParams<{ orgId: string }>();
    const agents = useSettingsResource<Agent[]>(loadWorkspaceAgents);
    const [query, setQuery] = useState('');
+   const tierNames = useTierNames();
 
    const roster = useMemo(() => {
       const needle = query.trim().toLowerCase();
@@ -41,7 +42,7 @@ export default function AiAgents() {
 
    const runsOn = (agent: Agent): string => {
       const pin = gatewayPin(agent);
-      return pin ? bareModelName(pin) || pin : TIER_NAMES[agentTier(agent)];
+      return pin ? bareModelName(pin) || pin : tierNames[agentTier(agent)];
    };
 
    return (

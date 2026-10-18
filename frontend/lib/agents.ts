@@ -337,7 +337,7 @@ export const RETIRED_TIER_NAMES: Record<string, string> = {
 /** A tier's chip colours, from the same status tokens as the autonomy level chips. */
 export const TIER_STYLE: Record<Tier, string> = {
    berry_max: 'border-primary/40 bg-primary/10 text-primary-text',
-   berry_xhigh: 'border-status-warning/40 bg-status-warning/10 text-status-warning',
+   berry_xhigh: 'border-iris/40 bg-iris/10 text-iris',
    berry_high: 'border-review-pending/40 bg-review-pending/10 text-review-pending',
    berry_mid: 'border-status-info/40 bg-status-info/10 text-status-info',
    berry_low: 'border-status-success/40 bg-status-success/10 text-status-success',

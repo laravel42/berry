@@ -49,6 +49,7 @@
    --brand-amber: #e0a84a;
    --brand-verdant: #5fb08a;
    --brand-azure: #6ea0d8;
+   --brand-iris: #5c4a86;
    --brand-danger: #e0645a;
    --brand-urgent: #d9584f;
    --control-height: 30px;
@@ -200,6 +201,7 @@
    --status-danger: var(--brand-danger);
    --status-info: var(--brand-azure);
    --status-neutral: #8e8c93;
+   --brand-iris: #c4b4e8;
    --actor-human: var(--brand-amber);
    --actor-agent: var(--brand-azure);
    --review-pending: var(--brand-amber);
@@ -257,6 +259,7 @@
    --color-amber: var(--brand-amber);
    --color-verdant: var(--brand-verdant);
    --color-azure: var(--brand-azure);
+   --color-iris: var(--brand-iris);
    --color-subtle-foreground: var(--subtle-foreground);
    --color-status-success: var(--status-success);
    --color-status-warning: var(--status-warning);

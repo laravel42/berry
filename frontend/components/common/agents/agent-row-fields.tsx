@@ -22,13 +22,13 @@ import {
    loadAgentRoster,
    MAIN_TIERS,
    setAgentAccess,
-   TIER_NAMES,
    updateAgentConfig,
    type Agent,
    type AgentAccess,
    type AgentRoster,
 } from '@/lib/agents';
 import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
+import { useTierNames } from '@/lib/tier-names';
 import { useSessionStore } from '@/store/session-store';
 import { useAgentsStore } from '@/store/agents-store';
 import { roleDefaultTier } from './agent-tier-section';
@@ -48,6 +48,7 @@ export function AgentRowFields({
    roster: AgentRoster | undefined;
 }) {
    const detail = useTranslations('agentsChat.detail');
+   const tierNames = useTierNames();
    const list = useTranslations('agentsChat.list');
    const sessionUserId = useSessionStore((state) => state.user?.id);
    const upsertAgent = useAgentsStore((state) => state.upsertAgent);
@@ -139,7 +140,7 @@ export function AgentRowFields({
          >
             {MAIN_TIERS.map((id) => (
                <ContextMenuRadioItem key={id} value={id}>
-                  <Gauge className="size-4" /> {TIER_NAMES[id]}
+                  <Gauge className="size-4" /> {tierNames[id]}
                </ContextMenuRadioItem>
             ))}
          </Field>

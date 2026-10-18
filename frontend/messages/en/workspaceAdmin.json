@@ -179,6 +179,7 @@
       "noAgentMatch": "No agents left to add.",
       "agentsSaved": "Tier agents saved.",
       "modelsTitle": "Models",
+      "renameTier": "Tier name",
       "noAgents": "This runtime has not reported any agents.",
       "gatewayOff": "Connect a subscription AI runtime in Settings → AI Runtimes, then place its models on each tier. Agent runs and completions use those subscriptions only.",
       "loading": "Loading…",

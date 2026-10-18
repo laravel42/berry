@@ -4,7 +4,8 @@ import { byLabel, memberFilterOption } from '@/components/common/filters/filter-
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import type { ColumnOption } from '@/components/data-table-filter/core/types';
 import { useModelGateway } from '@/hooks/use-model-gateway';
-import { agentTier, gatewayPin, modelPairKey, TIER_NAMES, type Agent } from '@/lib/agents';
+import { agentTier, gatewayPin, modelPairKey, type Agent } from '@/lib/agents';
+import { useTierNames } from '@/lib/tier-names';
 import { useAgentsStore } from '@/store/agents-store';
 import { useMembersStore } from '@/store/members-store';
 import { Activity, Cpu, KeyRound, Server, UserRound } from 'lucide-react';
@@ -27,6 +28,7 @@ export function useAgentFilterColumns() {
    const roster = useAgentsStore((state) => state.roster);
    const members = useMembersStore((state) => state.members);
    const gateway = useModelGateway();
+   const tierNames = useTierNames();
 
    return useMemo(() => {
       // What an agent runs on, as a filter value: under a gateway its tier, or
@@ -37,7 +39,7 @@ export function useAgentFilterColumns() {
             const pin = gatewayPin(agent);
             if (pin) return { key: pin, label: readableModelName(pin) };
             const tier = agentTier(agent);
-            return { key: `tier:${tier}`, label: TIER_NAMES[tier] };
+            return { key: `tier:${tier}`, label: tierNames[tier] };
          }
          const key = modelPairKey(agent);
          return key ? { key, label: agentModelName(agent) } : null;
@@ -129,5 +131,5 @@ export function useAgentFilterColumns() {
             .options(named(models, <Cpu className={muted} />))
             .build(),
       ] as const;
-   }, [agents, roster, members, gateway, t]);
+   }, [agents, roster, members, gateway, t, tierNames]);
 }

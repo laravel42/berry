@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Tier } from './agents';
 import { apiFetch } from './api';
 
 /**
@@ -343,9 +344,21 @@ const runtimeAgentTiersSchema = z.object({
    source: z.enum(['workspace', 'unset']),
    tiers: runtimeAgentTierPlacementSchema,
 });
+const tierNamesSchema = z.object({
+   berry_max: z.string(),
+   berry_xhigh: z.string(),
+   berry_high: z.string(),
+   berry_mid: z.string(),
+   berry_low: z.string(),
+});
+const tierModelsResponseSchema = runtimeAgentTiersSchema.extend({
+   names: tierNamesSchema,
+});
 
 export type RuntimeAgentTierPlacement = z.infer<typeof runtimeAgentTierPlacementSchema>;
 export type RuntimeAgentTiers = z.infer<typeof runtimeAgentTiersSchema>;
+export type TierNames = z.infer<typeof tierNamesSchema>;
+export type TierModels = z.infer<typeof tierModelsResponseSchema>;
 
 export const EMPTY_AGENT_TIERS: RuntimeAgentTierPlacement = {
    berry_max: [],
@@ -374,13 +387,23 @@ export async function saveRuntimeAgentTiers(
    );
 }
 
-/** Models placed in the workspace's tiers. Each id is `runtime/model`. */
-export async function getTierModels(): Promise<RuntimeAgentTiers> {
+/** Models placed in the workspace's tiers, plus each tier's display name. */
+export async function getTierModels(): Promise<TierModels> {
    return parse(
-      runtimeAgentTiersSchema,
+      tierModelsResponseSchema,
       await apiFetch<unknown>('/api/v1/runtimes/tier-models'),
       'Tier models'
    );
+}
+
+/** Renames one tier for this workspace. The product name clears a custom name. */
+export async function saveTierName(tier: Tier, name: string): Promise<TierNames> {
+   const saved = parse(
+      z.object({ names: tierNamesSchema }),
+      await apiFetch<unknown>('/api/v1/runtimes/tier-names', send('PUT', { tier, name })),
+      'Tier name'
+   );
+   return saved.names;
 }
 
 export async function saveTierModels(

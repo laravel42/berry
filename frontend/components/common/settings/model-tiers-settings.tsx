@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, GripVertical, Plus, Save, Trash2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
    useCallback,
@@ -26,18 +26,22 @@ import {
 } from '@/components/ui/command';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MAIN_TIERS, TIER_PLACES, type Tier } from '@/lib/agents';
+import { MAIN_TIERS, TIER_NAMES, TIER_PLACES, TIER_STYLE, type Tier } from '@/lib/agents';
 import {
    aiRuntimeModelsFrom,
    connectedAiRuntimes,
    EMPTY_AGENT_TIERS,
    getTierModels,
    saveTierModels,
+   saveTierName,
    type AiRuntimeDefinition,
    type RuntimeAgentTierPlacement,
+   type TierNames,
 } from '@/lib/runtimes';
+import { publishTierNames } from '@/lib/tier-names';
 import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
+import { toast } from 'sonner';
 import { SaveIndicator } from './save-indicator';
 import { SETTINGS_PILL, SettingsCard, SettingsSection, SettingsShell } from './shared';
 import type { SaveState } from './use-autosave';
@@ -56,6 +60,15 @@ import type { SaveState } from './use-autosave';
  *
  * Owners and admins edit; the server refuses anyone else.
  */
+/** Typed text. Inputs ignore text-* and read --input-color instead. */
+const TIER_INK: Record<Tier, string> = {
+   berry_max: 'var(--primary-text)',
+   berry_xhigh: 'var(--brand-iris)',
+   berry_high: 'var(--review-pending)',
+   berry_mid: 'var(--status-info)',
+   berry_low: 'var(--status-success)',
+};
+
 function listed(names: string[]): string {
    return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
 }
@@ -338,12 +351,15 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
    const byKey = useMemo(() => new Map(choices.map((choice) => [choice.key, choice])), [choices]);
    const [saved, setSaved] = useState<RuntimeAgentTierPlacement>(EMPTY_AGENT_TIERS);
    const [draft, setDraft] = useState<RuntimeAgentTierPlacement | null>(null);
+   const [names, setNames] = useState<TierNames>({ ...TIER_NAMES });
+   const [nameDraft, setNameDraft] = useState<TierNames>({ ...TIER_NAMES });
    const [loading, setLoading] = useState(true);
    const placement = draft ?? saved;
    const shownRef = useRef(placement);
    shownRef.current = placement;
    const readyRef = useRef(false);
    readyRef.current = !loading;
+   const skipNameBlur = useRef(false);
 
    const autosave = useQueuedSave({
       run: (next: RuntimeAgentTierPlacement) => saveTierModels(next),
@@ -362,6 +378,9 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
          (stored) => {
             if (!alive) return;
             setSaved(stored.tiers);
+            setNames(stored.names);
+            setNameDraft(stored.names);
+            publishTierNames(stored.names);
             setLoading(false);
          },
          () => {
@@ -385,26 +404,133 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
       if (readyRef.current) autosave.commit(full);
    };
 
+   const nameChanged = (tier: Tier) => nameDraft[tier].trim().replace(/\s+/g, ' ') !== names[tier];
+
+   const cancelName = (tier: Tier) => {
+      skipNameBlur.current = true;
+      setNameDraft((current) => ({ ...current, [tier]: names[tier] }));
+   };
+
+   const rename = async (tier: Tier) => {
+      const next = nameDraft[tier].trim().replace(/\s+/g, ' ');
+      if (next.length > 32) {
+         setNameDraft((current) => ({ ...current, [tier]: names[tier] }));
+         return;
+      }
+      if (next === names[tier]) {
+         setNameDraft((current) => ({ ...current, [tier]: names[tier] }));
+         return;
+      }
+      try {
+         const stored = await saveTierName(tier, next);
+         setNames(stored);
+         setNameDraft(stored);
+         publishTierNames(stored);
+      } catch (error) {
+         setNameDraft((current) => ({ ...current, [tier]: names[tier] }));
+         toast.error(error instanceof Error ? error.message : 'The tier name could not be saved.');
+      }
+   };
+
    const card = (tier: Tier) => {
       const list = placement[tier];
       return (
          <Collapsible key={tier} defaultOpen className="group/tier">
-            <div className="h-10 w-full">
+            <div className="w-full">
                <div
                   data-column-tint="neutral"
-                  className="flex h-full w-full items-center bg-group-tint-neutral px-4"
+                  className="flex min-h-10 w-full items-center gap-2 bg-group-tint-neutral px-4 py-2"
                >
                   <CollapsibleTrigger asChild>
                      <button
                         type="button"
-                        className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        className="flex h-full shrink-0 cursor-pointer items-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        aria-label={names[tier]}
                      >
                         <ChevronDown
                            aria-hidden
-                           className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/tier:-rotate-90"
+                           className="size-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/tier:-rotate-90"
                         />
-                        <TierChip tier={tier} className="w-[5.75rem] justify-center" />
                      </button>
+                  </CollapsibleTrigger>
+                  {canEdit ? (
+                     <>
+                        <input
+                           aria-label={t('renameTier')}
+                           value={nameDraft[tier]}
+                           maxLength={32}
+                           disabled={loading}
+                           spellCheck={false}
+                           onChange={(event) =>
+                              setNameDraft((current) => ({
+                                 ...current,
+                                 [tier]: event.target.value,
+                              }))
+                           }
+                           onBlur={() => {
+                              if (skipNameBlur.current) {
+                                 skipNameBlur.current = false;
+                                 return;
+                              }
+                              void rename(tier);
+                           }}
+                           onKeyDown={(event) => {
+                              if (event.key === 'Enter') event.currentTarget.blur();
+                              if (event.key === 'Escape') {
+                                 cancelName(tier);
+                                 event.currentTarget.blur();
+                              }
+                           }}
+                           className={cn(
+                              'h-7 w-40 rounded border px-2 text-left leading-none outline-none focus-visible:ring-0 disabled:opacity-50',
+                              TIER_STYLE[tier]
+                           )}
+                           style={{ '--input-color': TIER_INK[tier] }}
+                        />
+                        <div className="flex items-center gap-0">
+                           <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                 'size-7 p-0 text-muted-foreground focus-visible:ring-0 disabled:opacity-100',
+                                 nameChanged(tier) &&
+                                    'text-primary-text hover:bg-primary/10 hover:text-primary-text'
+                              )}
+                              aria-label={t('save')}
+                              disabled={loading || !nameChanged(tier)}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => void rename(tier)}
+                           >
+                              <Save className="size-5" strokeWidth={1.6} aria-hidden />
+                           </Button>
+                           <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              className={cn(
+                                 '-ml-1 size-7 p-0 text-muted-foreground focus-visible:ring-0 disabled:opacity-100',
+                                 nameChanged(tier) && 'hover:text-foreground'
+                              )}
+                              aria-label={t('discard')}
+                              disabled={loading || !nameChanged(tier)}
+                              onMouseDown={(event) => event.preventDefault()}
+                              onClick={() => cancelName(tier)}
+                           >
+                              <X className="size-5" strokeWidth={1.6} aria-hidden />
+                           </Button>
+                        </div>
+                     </>
+                  ) : (
+                     <TierChip tier={tier} className="justify-start" />
+                  )}
+                  <CollapsibleTrigger asChild>
+                     <button
+                        type="button"
+                        className="h-full min-w-0 flex-1"
+                        aria-hidden
+                        tabIndex={-1}
+                     />
                   </CollapsibleTrigger>
                   {canEdit && list.length < TIER_PLACES ? (
                      <AddRuntimeModel

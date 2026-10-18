@@ -1,8 +1,12 @@
-import { TIER_NAMES, TIER_STYLE, type Tier } from '@/lib/agents';
+'use client';
+
+import { TIER_STYLE, type Tier } from '@/lib/agents';
+import { useTierNames } from '@/lib/tier-names';
 import { cn } from '@/lib/utils';
 
 /** A Berry tier's name as a coloured chip, styled like the autonomy level chip. */
 export function TierChip({ tier, className }: { tier: Tier; className?: string }) {
+   const names = useTierNames();
    return (
       <span
          className={cn(
@@ -12,7 +16,7 @@ export function TierChip({ tier, className }: { tier: Tier; className?: string }
             className
          )}
       >
-         {TIER_NAMES[tier]}
+         {names[tier]}
       </span>
    );
 }

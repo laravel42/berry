@@ -4,7 +4,8 @@ import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
-import { gatewayPin, isTier, MAIN_TIERS, TIER_NAMES, type Agent, type Tier } from '@/lib/agents';
+import { gatewayPin, isTier, MAIN_TIERS, type Agent, type Tier } from '@/lib/agents';
+import { useTierNames } from '@/lib/tier-names';
 import { cn } from '@/lib/utils';
 
 /** The list's order: the paid tiers, best first. */
@@ -22,9 +23,9 @@ const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> =
       check: 'text-primary-text',
    },
    berry_xhigh: {
-      idle: 'border-status-warning/30 bg-status-warning/5 enabled:hover:bg-status-warning/10',
-      chosen: 'border-status-warning bg-status-warning/15',
-      check: 'text-status-warning',
+      idle: 'border-iris/30 bg-iris/5 enabled:hover:bg-iris/10',
+      chosen: 'border-iris bg-iris/15',
+      check: 'text-iris',
    },
    berry_high: {
       idle: 'border-review-pending/30 bg-review-pending/5 enabled:hover:bg-review-pending/10',
@@ -88,6 +89,8 @@ export function AgentTierSection({
 
    const nameOf = (id: string): string => id;
 
+   const names = useTierNames();
+
    const choose = (next: Tier) => {
       if (disabled) return;
       onTierChange(next === recommended ? null : next);
@@ -108,7 +111,7 @@ export function AgentTierSection({
                selected ? TIER_CARD[name].chosen : TIER_CARD[name].idle
             )}
          >
-            <span className="truncate">{TIER_NAMES[name]}</span>
+            <span className="truncate">{names[name]}</span>
             {selected ? (
                <Check aria-hidden className={cn('size-4 shrink-0', TIER_CARD[name].check)} />
             ) : null}
