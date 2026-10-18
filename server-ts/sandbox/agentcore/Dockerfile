@@ -36,7 +36,8 @@ RUN set -eu; \
       if apt-get update \
          && apt-get install -y --no-install-recommends \
             git ffmpeg ca-certificates openssh-client curl tar unzip gcc g++ make procps file \
-            python3 python3-pip python3-venv python-is-python3; then \
+            python3 python3-pip python3-venv python-is-python3 \
+            xvfb xdotool scrot openbox x11-utils; then \
          installed=1; \
          break; \
       fi; \

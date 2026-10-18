@@ -1,4 +1,5 @@
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { handleSessionMcp, type SandboxHost } from './session-tools.ts';
 
 /**
  * One runtime container per session, for a machine without AgentCore.
@@ -12,8 +13,9 @@ import { createServer, request as httpRequest, type IncomingMessage, type Server
  * if it is not up, and passes the request through untouched — the lifecycle
  * stream included. The API and the runtime image are unchanged and unaware.
  *
- * It holds no credentials and reads no bodies: authorisation is the
- * container's, exactly as before.
+ * It holds no credentials. An invocation is passed through unread;
+ * authorisation is the container's, exactly as before. `POST /mcp` is the
+ * session toolbox, and that body is read here.
  */
 
 export const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
@@ -34,6 +36,11 @@ export interface SessionContainers {
    running(): Promise<string[]>;
    /** Whether the session's container is still working on a run, with or without a caller. */
    busy?(session: string): Promise<boolean>;
+   /**
+    * One command inside the session container, from its workspace.
+    * A non-zero exit is a result, not a failure to run.
+    */
+   exec?(session: string, argv: string[], stdin?: string): Promise<{ stdout: string; stderr: string; exitCode: number }>;
 }
 
 export interface RouterOptions {
@@ -49,6 +56,8 @@ export interface RouterOptions {
 interface Tracked {
    active: number;
    lastUsed: number;
+   /** Idle limit for this session. `0` is never reaped. Unset uses the router's limit. */
+   idleMs?: number;
 }
 
 export class SessionRouter {
@@ -96,6 +105,7 @@ export class SessionRouter {
    async #handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
       const path = (request.url ?? '/').split('?')[0]!;
       if (request.method === 'GET' && path === '/ping') return reply(response, 200, { status: 'Healthy', sessions: this.#sessions.size });
+      if (request.method === 'POST' && path === '/mcp') return this.#mcp(request, response);
 
       let session: unknown = request.headers[SESSION_HEADER];
       if (request.method === 'DELETE' && path.startsWith('/sessions/')) {
@@ -151,10 +161,11 @@ export class SessionRouter {
     * its API went away mid-run and will come back to collect it.
     */
    async reap(): Promise<number> {
-      const cutoff = this.#clock() - this.#idleMs;
       let stopped = 0;
       for (const [session, tracked] of [...this.#sessions.entries()]) {
-         if (tracked.active > 0 || tracked.lastUsed > cutoff || this.#starting.has(session)) continue;
+         const limit = tracked.idleMs ?? this.#idleMs;
+         if (limit === 0) continue;
+         if (tracked.active > 0 || tracked.lastUsed > this.#clock() - limit || this.#starting.has(session)) continue;
          if (await this.#containers.busy?.(session).catch(() => false)) {
             tracked.lastUsed = this.#clock();
             continue;
@@ -169,6 +180,55 @@ export class SessionRouter {
       await Promise.all([...this.#sessions.keys()].map((session) => this.#stop(session, 'router shutting down')));
    }
 
+   async #mcp(request: IncomingMessage, response: ServerResponse): Promise<void> {
+      const raw = await readBody(request);
+      let message: unknown;
+      try {
+         message = JSON.parse(raw);
+      } catch {
+         return reply(response, 400, { error: 'the MCP message was not JSON' });
+      }
+      const result = await handleSessionMcp(message, this.#sandbox());
+      if (result === null) {
+         response.writeHead(202);
+         response.end();
+         return;
+      }
+      reply(response, 200, result);
+   }
+
+   /** The session containers, as the sandbox tools see them. */
+   #sandbox(): SandboxHost {
+      return {
+         running: async (id) => this.#sessions.has(id),
+         start: async (id, idleMs) => {
+            const tracked = this.#sessions.get(id) ?? { active: 0, lastUsed: this.#clock() };
+            if (idleMs !== undefined) tracked.idleMs = idleMs;
+            this.#sessions.set(id, tracked);
+            tracked.active += 1;
+            try {
+               await this.#origin(id);
+            } catch (error) {
+               this.#sessions.delete(id);
+               throw error;
+            } finally {
+               if (this.#sessions.has(id)) {
+                  tracked.active -= 1;
+                  tracked.lastUsed = this.#clock();
+               }
+            }
+         },
+         destroy: async (id) => {
+            await this.#stop(id, 'destroyed');
+         },
+         exec: async (id, argv, stdin) => {
+            if (!this.#containers.exec) throw new Error('this session host cannot run a command');
+            return this.#containers.exec(id, argv, stdin);
+         },
+         previewUrl: async (id, port) => (port === 8080 ? this.#origin(id) : null),
+      };
+   }
+
    async #stop(session: string, why: string): Promise<void> {
       this.#sessions.delete(session);
       this.#log('stopping session container', { session, why });
@@ -176,6 +236,15 @@ export class SessionRouter {
          this.#log('container did not stop cleanly', { session, error: error instanceof Error ? error.message : String(error) });
       });
    }
+}
+
+function readBody(request: IncomingMessage): Promise<string> {
+   return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => chunks.push(chunk));
+      request.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      request.on('error', reject);
+   });
 }
 
 function reply(response: ServerResponse, status: number, body: unknown): void {

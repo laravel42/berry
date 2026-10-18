@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import type { ExecFileException } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { SessionContainers } from './router.ts';
 
@@ -127,14 +128,36 @@ export function dockerContainers(options: DockerContainersOptions): SessionConta
          const out = await docker(['ps', '--filter', `label=${SESSION_LABEL}`, '--format', `{{.Label "${SESSION_LABEL}"}}`]);
          return out.split('\n').map((line) => line.trim()).filter((line) => line !== '');
       },
+      async exec(session, argv, stdin) {
+         const args = ['exec', '-w', `/mnt/workspace/${session}`, containerName(session), ...argv];
+         if (stdin !== undefined) args.splice(1, 0, '-i');
+         return run(args, stdin);
+      },
    };
 }
 
 function cli(args: string[]): Promise<string> {
-   return new Promise((resolve, reject) => {
-      execFile('docker', args, { maxBuffer: 4 * 1024 * 1024 }, (error, stdout, stderr) => {
-         if (error) reject(new Error(`docker ${args[0]}: ${(stderr || error.message).trim().slice(0, 400)}`));
-         else resolve(stdout);
+   return run(args).then((result) => {
+      if (result.exitCode !== 0) {
+         throw new Error(`docker ${args[0]}: ${(result.stderr || result.stdout).trim().slice(0, 400)}`);
+      }
+      return result.stdout;
+   });
+}
+
+/** Unlike `cli`, a command that exits non-zero is still an answer. */
+function run(args: string[], stdin?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+   return new Promise((resolve) => {
+      const child = execFile('docker', args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+         const status = (error as ExecFileException | null)?.status;
+         resolve({
+            stdout: stdout ?? '',
+            stderr: stderr ?? '',
+            exitCode: typeof status === 'number' ? status : error ? 1 : 0,
+         });
       });
+      if (stdin !== undefined) {
+         child.stdin?.end(stdin);
+      }
    });
 }
