@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { GROK_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -274,7 +275,9 @@ export class GrokAgentAdapter implements AgentProcessAdapter {
       // The prompt can be large; `-p` would overflow the argv limit, and Grok
       // does not read a piped prompt from stdin, so pass it as a file.
       const promptPath = join(input.stateDirectory, 'prompt.txt');
-      await writeFile(promptPath, promptFor(input));
+      const prompt = promptFor(input);
+      logRuntimePrompt(input.emit, 'user', prompt);
+      await writeFile(promptPath, prompt);
       const model = runtime.model;
       const args = [
          '--prompt-file',

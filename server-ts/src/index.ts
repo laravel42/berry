@@ -655,6 +655,7 @@ const kiroOnWorkstation = workstationKiro({
 // Built even when no AgentCore or HTTP host is configured. Kiro, Claude,
 // Codex, and Cursor run in a process beside this server; native tasks still need `defaultTarget`.
 const executor = new RuntimeTaskExecutor({
+        logger,
         workstation: kiroOnWorkstation,
         sql,
         transport,

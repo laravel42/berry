@@ -179,6 +179,14 @@ export const taskModelResponseSchema = z.object({
 
 export const lifecycleEventSchema = z.discriminatedUnion('type', [
    z.object({ type: z.literal('task.started') }),
+   /**
+    * The text just handed to the model. A system prompt and a user turn are
+    * separate events. The server log keeps them; the ledger does not.
+    */
+   z.object({
+      type: z.literal('task.prompt'),
+      prompt: z.object({ role: z.enum(['system', 'user']), text: z.string() }),
+   }),
    z.object({ type: z.literal('task.model'), response: taskModelResponseSchema }),
    z.object({ type: z.literal('task.message'), message: taskMessageSchema }),
    z.object({ type: z.literal('task.usage'), usage: taskUsageSchema }),

@@ -20,6 +20,8 @@ async function collect(chunks: Array<Uint8Array | string>): Promise<LifecycleEve
 
 const events: LifecycleEvent[] = [
    { type: 'task.started' },
+   { type: 'task.prompt', prompt: { role: 'system', text: 'You are the engineer.' } },
+   { type: 'task.prompt', prompt: { role: 'user', text: 'Berry issue BER-1' } },
    { type: 'task.message', message: { kind: 'output', channel: 'progress', text: 'héllo ✓' } },
    { type: 'task.message', message: { kind: 'tool.started', toolCallId: 'c1', name: 'run_command' } },
    {
@@ -54,7 +56,7 @@ test('a malformed frame is an error, not a silent skip', async () => {
 test('only completed and failed are terminal', () => {
    assert.equal(isTerminal({ type: 'task.started' }), false);
    assert.equal(isTerminal({ type: 'task.failed', failure: { code: 'X', message: 'm', retryable: true } }), true);
-   assert.equal(isTerminal(events[4]!), true);
+   assert.equal(isTerminal(events.find((event) => event.type === 'task.completed')!), true);
 });
 
 test('a failure may carry a checkpoint of the work already done, and need not', () => {

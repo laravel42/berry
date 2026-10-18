@@ -8,6 +8,7 @@ import { CLAUDE_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { leakedInvokes, MAX_LEAKED_TOOL_ROUNDS, proseBesideInvokes, resumeAfterLeakedInvokes } from './claude-invokes.ts';
 import { ledgerToolName } from '../runtime-aliases.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -270,7 +271,9 @@ export class ClaudeAgentAdapter implements AgentProcessAdapter {
          // calls and send Claude back in with the results.
          let resumeId = resume;
          let stdin = promptFor(input);
+         logRuntimePrompt(input.emit, 'system', input.envelope.agent.instructions);
          for (let round = 0; round < MAX_LEAKED_TOOL_ROUNDS; round++) {
+            logRuntimePrompt(input.emit, 'user', stdin);
             const turn = await this.#turn(input, args, model ?? 'claude', stdin, resumeId);
             const invokes = leakedInvokes(turn.text);
             if (invokes.length === 0) {

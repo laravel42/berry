@@ -8,6 +8,7 @@ import { KIRO_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { KiroAcpClient, classifyKiroText, redactSecret, spawnKiroProcess, type KiroChild, type KiroSpawn } from './kiro-acp.ts';
 import { acpToolName, ledgerToolName } from '../runtime-aliases.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { runtimeToolNote, runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import type {
@@ -298,11 +299,13 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          }, this.#deadlineMs);
          deadline.unref?.();
          const cold = loaded ? '' : transcriptContext(input.envelope.transcript);
+         const prompt = `${cold}${input.envelope.task.prompt}${turnNote(input.envelope, allowed)}`;
+         logRuntimePrompt(input.emit, 'user', prompt);
          const result = await client.request(
             'session/prompt',
             {
                sessionId,
-               prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${turnNote(input.envelope, allowed)}` }],
+               prompt: [{ type: 'text', text: prompt }],
             },
             this.#deadlineMs
          );

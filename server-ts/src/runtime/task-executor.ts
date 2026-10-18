@@ -1,3 +1,4 @@
+import type { Logger } from '../observability/log.ts';
 import { usageEventIdentity } from './usage-identity.ts';
 import type { Tier } from '../agents/model-tiers.ts';
 import { randomUUID } from 'node:crypto';
@@ -81,6 +82,8 @@ export interface RuntimeTaskExecutorOptions {
    onContinuationError?: (error: unknown) => void;
    clock?: () => Date;
    newId?: () => string;
+   /** Writes each prompt the runtime hands a model. Absent in tests. */
+   logger?: Logger;
 }
 
 /** What finishing a run needs that only its envelope build knew; kept on the row for a resume. */
@@ -476,6 +479,8 @@ export class RuntimeTaskExecutor implements Executor {
          if (event.type === 'task.started') {
             // A resumed run started long ago; only a fresh one is moved to running.
             if (!run.resumed) await recorder.started();
+         } else if (event.type === 'task.prompt') {
+            this.#o.logger?.info('runtime prompt', { runId, role: event.prompt.role, prompt: event.prompt.text });
          } else if (event.type === 'task.message') {
             if (event.message.kind === 'verified') verified = event.message;
             await recorder.message(event.message);

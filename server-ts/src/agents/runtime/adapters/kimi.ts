@@ -8,6 +8,7 @@ import { KIMI_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { classifyKimiText, KimiAcpClient, spawnKimiProcess, type KimiChild, type KimiSpawn } from './kimi-acp.ts';
 import { acpToolName, hasBerryQualifier, isNativeToolName, ledgerToolName, stripBerryQualifier } from '../runtime-aliases.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -264,9 +265,11 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
          }, this.#deadlineMs);
          deadline.unref?.();
          const cold = loaded ? '' : promptContext(input);
+         const prompt = `${cold}${input.envelope.task.prompt}${runtimeTurnNoteFor(input.envelope, 'list_run_tools')}`;
+         logRuntimePrompt(input.emit, 'user', prompt);
          const result = await client.request(
             'session/prompt',
-            { sessionId, prompt: [{ type: 'text', text: `${cold}${input.envelope.task.prompt}${runtimeTurnNoteFor(input.envelope, 'list_run_tools')}` }] },
+            { sessionId, prompt: [{ type: 'text', text: prompt }] },
             this.#deadlineMs
          );
          const reported = kimiUsageEvent(result, model) ?? pendingUsage;

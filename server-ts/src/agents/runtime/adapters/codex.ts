@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CODEX_CLI_LOGIN } from '../../../runtime/envelope.ts';
 import type { LifecycleEvent } from '../../../runtime/lifecycle.ts';
 import { ledgerToolName } from '../runtime-aliases.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { runtimeTurnNoteFor } from '../tool-note.ts';
 import { BerryMcpHost } from './kiro-mcp.ts';
 import {
@@ -259,12 +260,14 @@ export class CodexAgentAdapter implements AgentProcessAdapter {
       if (!resume) args.push('--ephemeral');
       if (model && model !== 'default') args.push('--model', model);
       if (resume) args.push('resume', resume);
+      const prompt = promptFor(input);
+      logRuntimePrompt(input.emit, 'user', prompt);
       const child = this.#launch({
          command: this.#command,
          args,
          cwd: input.workingDirectory,
          env: childEnvironment(),
-         stdin: promptFor(input),
+         stdin: prompt,
       });
       const tracked = resume ?? input.envelope.runId;
       this.#active.set(tracked, child);

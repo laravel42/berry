@@ -13,6 +13,7 @@ import { repositoryTools } from '../repository-tools.ts';
 import { readSkillTool } from '../skill-tool.ts';
 import { permissionsOf, type Permission } from '../../permissions.ts';
 import { buildRunAgent } from '../agent.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 import { classify } from '../failure.ts';
 import type { ModelFactory } from '../model.ts';
 import { AccountingPlugin } from '../plugins/accounting.ts';
@@ -460,7 +461,10 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             ? await deps.repository.describe({ session: workspace, directory }).catch(() => '')
             : '';
 
-      const result = await agent.invoke(envelope.task.prompt + restoredNote(restored) + toolchain + budgetContract(envelope.agent.maxTurns), {
+      const prompt = envelope.task.prompt + restoredNote(restored) + toolchain + budgetContract(envelope.agent.maxTurns);
+      logRuntimePrompt(emit, 'system', envelope.agent.instructions);
+      logRuntimePrompt(emit, 'user', prompt);
+      const result = await agent.invoke(prompt, {
          cancelSignal: signal,
          limits: {
             ...(envelope.agent.maxTurns ? { turns: envelope.agent.maxTurns } : {}),

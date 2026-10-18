@@ -18,6 +18,7 @@ import type { Emit } from './emitter.ts';
 import { toConversation } from './conversation.ts';
 import { emitModelUsage } from './usage.ts';
 import { withFallback } from '../agent.ts';
+import { logRuntimePrompt } from '../prompt-log.ts';
 
 /**
  * One model call for the parts of Berry that are not an agent — the planner,
@@ -87,6 +88,8 @@ export async function runCompletionTask(
    });
    const reportModel = () => emit({ type: 'task.model', response: modelResponse(added, stopReason) });
    try {
+      logRuntimePrompt(emit, 'system', spec.system);
+      logRuntimePrompt(emit, 'user', envelope.task.prompt);
       const result = await agent.invoke(envelope.task.prompt, { ...(signal ? { cancelSignal: signal } : {}) });
       reportModel();
       if (signal?.aborted || result.stopReason === 'cancelled') {
