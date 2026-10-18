@@ -23,3 +23,25 @@ export const TIER_NAMES: Record<Tier, string> = {
 export function isTier(value: unknown): value is Tier {
    return typeof value === 'string' && (TIERS as readonly string[]).includes(value);
 }
+
+/** A display name, or null when the workspace should keep the product name. */
+export function normalizeTierName(tier: Tier, name: string): string | null {
+   const trimmed = name.trim().replace(/\s+/g, ' ');
+   if (trimmed.length === 0 || trimmed === TIER_NAMES[tier]) return null;
+   if (trimmed.length > 32 || /[\u0000-\u001f]/.test(trimmed)) return null;
+   return trimmed;
+}
+
+/** Product names, with a workspace's saved names written over them. */
+export function resolveTierNames(stored: unknown): Record<Tier, string> {
+   const names: Record<Tier, string> = { ...TIER_NAMES };
+   if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return names;
+   const record = stored as Record<string, unknown>;
+   for (const tier of TIERS) {
+      const value = record[tier];
+      if (typeof value !== 'string') continue;
+      const normalized = normalizeTierName(tier, value);
+      if (normalized) names[tier] = normalized;
+   }
+   return names;
+}

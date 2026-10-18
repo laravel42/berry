@@ -1,3 +1,4 @@
+import { resolveTierNames } from '../agents/model-tiers.ts';
 import type { Sql } from '../db/pool.ts';
 import { catalogRole } from '../organization/catalog.ts';
 import type { RoleKey } from '../organization/contract.ts';
@@ -219,6 +220,52 @@ export class AiRuntimeRepository {
                 berry_mid = EXCLUDED.berry_mid, berry_low = EXCLUDED.berry_low,
                 updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`;
       return copyTierPlacement(placement);
+   }
+
+   /** Display names for the five tiers. Missing names stay the product names. */
+   async tierNames(workspaceId: string): Promise<Record<RuntimeAgentTier, string>> {
+      const [row] = await this.#sql<Array<{ tier_names: unknown }>>`
+         SELECT tier_names FROM workspace_tier_models WHERE workspace_id = ${workspaceId}`;
+      return resolveTierNames(row?.tier_names);
+   }
+
+   /**
+    * Saves one display name. `name` null clears it, so the product name shows again.
+    * A workspace with no model placement still gets a row, with empty model lists.
+    */
+   async saveTierName(
+      workspaceId: string,
+      userId: string,
+      tier: RuntimeAgentTier,
+      name: string | null
+   ): Promise<Record<RuntimeAgentTier, string>> {
+      return this.#sql.begin(async (tx) => {
+         const [row] = await tx<Array<{ tier_names: unknown }>>`
+            SELECT tier_names FROM workspace_tier_models
+             WHERE workspace_id = ${workspaceId}
+             FOR UPDATE`;
+         const stored: Record<string, string> = {};
+         const current = row?.tier_names;
+         if (current && typeof current === 'object' && !Array.isArray(current)) {
+            for (const key of RUNTIME_AGENT_TIERS) {
+               const value = (current as Record<string, unknown>)[key];
+               if (typeof value === 'string') stored[key] = value;
+            }
+         }
+         if (name === null) delete stored[tier];
+         else stored[tier] = name;
+         if (!row) {
+            await tx`
+               INSERT INTO workspace_tier_models (workspace_id, tier_names, updated_by, updated_at)
+               VALUES (${workspaceId}, ${tx.json(stored as never)}, ${userId}, now())`;
+         } else {
+            await tx`
+               UPDATE workspace_tier_models
+                  SET tier_names = ${tx.json(stored as never)}, updated_by = ${userId}, updated_at = now()
+                WHERE workspace_id = ${workspaceId}`;
+         }
+         return resolveTierNames(stored);
+      });
    }
 
    /** Merges agent names onto a connection so the assignee list can show them. */

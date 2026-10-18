@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { normalizeTierName, TIER_NAMES } from '../agents/model-tiers.ts';
 import { requireSession, type AuthVariables } from '../auth/middleware.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import type { Sql } from '../db/pool.ts';
@@ -533,7 +534,26 @@ export function runtimeMounts(options: {
       const user = context.get('user');
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const tiers = await aiRuntimes.tierModels(workspaceId);
-      return json({ source: tiers ? 'workspace' : 'unset', tiers: tiers ?? emptyAgentTiers() });
+      const names = await aiRuntimes.tierNames(workspaceId);
+      return json({ source: tiers ? 'workspace' : 'unset', tiers: tiers ?? emptyAgentTiers(), names });
+   });
+
+   const tierNameBody = z.strictObject({
+      tier: z.enum(RUNTIME_AGENT_TIERS),
+      name: z.string().max(40),
+   });
+
+   route.put('/tier-names', async (context) => {
+      const user = context.get('user');
+      const workspaceId = await scope(user.id, user.currentWorkspaceId, true);
+      const body = await parse(context.req.raw, tierNameBody);
+      const normalized = normalizeTierName(body.tier, body.name);
+      const trimmed = body.name.trim().replace(/\s+/g, ' ');
+      if (normalized === null && trimmed.length > 0 && trimmed !== TIER_NAMES[body.tier]) {
+         throw ApiError.badRequest('A tier name is 1 to 32 characters.');
+      }
+      const names = await aiRuntimes.saveTierName(workspaceId, user.id, body.tier, normalized);
+      return json({ names });
    });
 
    route.put('/tier-models', async (context) => {
