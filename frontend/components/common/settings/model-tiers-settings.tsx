@@ -8,6 +8,7 @@ import {
    useMemo,
    useRef,
    useState,
+   type CSSProperties,
    type KeyboardEvent,
    type PointerEvent,
    type ReactNode,
@@ -485,7 +486,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                               'h-7 w-40 rounded border px-2 text-left leading-none outline-none focus-visible:ring-0 disabled:opacity-50',
                               TIER_STYLE[tier]
                            )}
-                           style={{ '--input-color': TIER_INK[tier] }}
+                           style={{ '--input-color': TIER_INK[tier] } as CSSProperties}
                         />
                         <div className="flex items-center gap-0">
                            <Button
