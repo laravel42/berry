@@ -39,6 +39,80 @@ interface Props {
 /** The preview is a promise about the future; thirty seconds is close enough. */
 const TICK_MS = 30_000;
 
+const HOUR_STEPS = [1, 2, 3, 4, 6, 8, 12];
+const MINUTE_STEPS = [5, 10, 15, 20, 30];
+
+const PRESET_LABEL = {
+   weekdayMorning: 'presetWeekdayMorning',
+   daily: 'presetDaily',
+   hourly: 'presetHourly',
+   quarter: 'presetQuarter',
+} as const;
+
+const PRESETS: Array<{ id: keyof typeof PRESET_LABEL; schedule: VisualSchedule }> = [
+   {
+      id: 'weekdayMorning',
+      schedule: {
+         mode: 'time',
+         hour: 9,
+         minute: 0,
+         every: 1,
+         window: null,
+         days: { kind: 'weekdays', days: [1, 2, 3, 4, 5] },
+      },
+   },
+   {
+      id: 'daily',
+      schedule: {
+         mode: 'time',
+         hour: 9,
+         minute: 0,
+         every: 1,
+         window: null,
+         days: { kind: 'every' },
+      },
+   },
+   {
+      id: 'hourly',
+      schedule: {
+         mode: 'everyHours',
+         hour: 9,
+         minute: 0,
+         every: 1,
+         window: null,
+         days: { kind: 'every' },
+      },
+   },
+   {
+      id: 'quarter',
+      schedule: {
+         mode: 'everyMinutes',
+         hour: 9,
+         minute: 0,
+         every: 15,
+         window: null,
+         days: { kind: 'every' },
+      },
+   },
+];
+
+function clock(hour: number, minute: number): string {
+   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function readClock(value: string, fallback: { hour: number; minute: number }) {
+   const match = /^(\d{2}):(\d{2})/.exec(value);
+   if (!match) return fallback;
+   const hour = Number(match[1]);
+   const minute = Number(match[2]);
+   if (hour > 23 || minute > 59) return fallback;
+   return { hour, minute };
+}
+
+function sameDays(days: number[], expected: number[]): boolean {
+   return days.length === expected.length && expected.every((day) => days.includes(day));
+}
+
 /**
  * Says when an autopilot runs, in the words people use.
  *
@@ -86,11 +160,59 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
    const set = (patch: Partial<VisualSchedule>) =>
       onChange({ expression: toCron({ ...schedule, ...patch }), timezone });
 
+   const apply = (next: VisualSchedule) => onChange({ expression: toCron(next), timezone });
+
    const number = (value: string, min: number, max: number, fallback: number) => {
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) return fallback;
       return Math.min(max, Math.max(min, Math.round(parsed)));
    };
+
+   const hourName = (hour: number) =>
+      new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(2000, 0, 1, hour));
+
+   const timeName = (hour: number, minute: number) =>
+      new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
+         new Date(2000, 0, 1, hour, minute)
+      );
+
+   const dayPhrase = (selection: VisualSchedule['days']): string => {
+      if (selection.kind === 'every') return t('namedEveryDay');
+      if (selection.kind === 'monthDay') return t('namedMonthDay', { day: selection.day });
+      if (sameDays(selection.days, [1, 2, 3, 4, 5])) return t('namedWeekdays');
+      if (sameDays(selection.days, [0, 6])) return t('namedWeekends');
+      return [...selection.days]
+         .sort((left, right) => left - right)
+         .map((day) => days[day] ?? '')
+         .filter((label) => label !== '')
+         .join(', ');
+   };
+
+   const lead = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+   const summary = (() => {
+      const when = dayPhrase(schedule.days);
+      if (schedule.mode === 'time') {
+         return t('summaryTime', {
+            days: lead(when),
+            time: timeName(schedule.hour, schedule.minute),
+         });
+      }
+      const interval =
+         schedule.mode === 'everyHours'
+            ? t('intervalHours', { count: schedule.every })
+            : t('intervalMinutes', { count: schedule.every });
+      const base =
+         schedule.days.kind === 'every'
+            ? t('summaryRepeat', { interval })
+            : t('summaryRepeatDays', { interval, days: when });
+      if (!schedule.window) return base;
+      return t('summaryWindow', {
+         summary: base,
+         from: hourName(schedule.window.from),
+         to: hourName(schedule.window.to),
+      });
+   })();
 
    return (
       <div className="flex flex-col gap-3">
@@ -120,11 +242,31 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                   id="cron-expression"
                   className="font-mono"
                   value={expression}
+                  placeholder="0 9 * * 1-5"
                   onChange={(event) => onChange({ expression: event.target.value, timezone })}
                />
+               <p className="text-muted-foreground">{t('expressionHint')}</p>
             </div>
          ) : (
             <div className="flex flex-col gap-3">
+               <p className="font-medium">{summary}</p>
+               <div className="flex flex-wrap items-center gap-1">
+                  {PRESETS.map((preset) => {
+                     const chosen = toCron(schedule) === toCron(preset.schedule);
+                     return (
+                        <Button
+                           key={preset.id}
+                           type="button"
+                           size="xs"
+                           variant={chosen ? 'secondary' : 'ghost'}
+                           aria-pressed={chosen}
+                           onClick={() => apply(preset.schedule)}
+                        >
+                           {t(PRESET_LABEL[preset.id])}
+                        </Button>
+                     );
+                  })}
+               </div>
                <div className="flex flex-wrap items-center gap-1">
                   {(['time', 'everyHours', 'everyMinutes'] as const).map((mode) => (
                      <Button
@@ -140,59 +282,34 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                </div>
 
                {schedule.mode === 'time' ? (
-                  <div className="flex flex-wrap items-end gap-2">
-                     <label className="grid gap-1.5">
-                        <span className="text-muted-foreground">{t('hour')}</span>
-                        <Input
-                           className="h-7 w-20"
-                           type="number"
-                           min={0}
-                           max={23}
-                           value={schedule.hour}
-                           onChange={(event) =>
-                              set({ hour: number(event.target.value, 0, 23, schedule.hour) })
-                           }
-                        />
-                     </label>
-                     <label className="grid gap-1.5">
-                        <span className="text-muted-foreground">{t('minute')}</span>
-                        <Input
-                           className="h-7 w-20"
-                           type="number"
-                           min={0}
-                           max={59}
-                           value={schedule.minute}
-                           onChange={(event) =>
-                              set({ minute: number(event.target.value, 0, 59, schedule.minute) })
-                           }
-                        />
-                     </label>
-                  </div>
+                  <label className="grid w-36 gap-1.5">
+                     <span className="text-muted-foreground">{t('time')}</span>
+                     <Input
+                        type="time"
+                        className="h-[30px]"
+                        value={clock(schedule.hour, schedule.minute)}
+                        onChange={(event) => set(readClock(event.target.value, schedule))}
+                     />
+                  </label>
                ) : (
                   <div className="flex flex-col gap-2">
-                     <label className="flex flex-wrap items-center gap-2">
-                        <span className="text-muted-foreground">{t('every')}</span>
-                        <Input
-                           className="h-7 w-20"
-                           type="number"
-                           min={1}
-                           max={schedule.mode === 'everyHours' ? 23 : 59}
-                           value={schedule.every}
-                           onChange={(event) =>
-                              set({
-                                 every: number(
-                                    event.target.value,
-                                    1,
-                                    schedule.mode === 'everyHours' ? 23 : 59,
-                                    schedule.every
-                                 ),
-                              })
-                           }
-                        />
-                        <span className="text-muted-foreground">
-                           {schedule.mode === 'everyHours' ? t('hours') : t('minutes')}
-                        </span>
-                     </label>
+                     <div className="flex flex-wrap items-center gap-1">
+                        {(schedule.mode === 'everyHours' ? HOUR_STEPS : MINUTE_STEPS).map(
+                           (step) => (
+                              <Button
+                                 key={step}
+                                 type="button"
+                                 size="xs"
+                                 variant={schedule.every === step ? 'secondary' : 'ghost'}
+                                 onClick={() => set({ every: step })}
+                              >
+                                 {schedule.mode === 'everyHours'
+                                    ? t('intervalHours', { count: step })
+                                    : t('intervalMinutes', { count: step })}
+                              </Button>
+                           )
+                        )}
+                     </div>
                      <label className="flex items-center gap-2">
                         <Switch
                            checked={schedule.window !== null}
@@ -205,52 +322,30 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                      </label>
                      {schedule.window ? (
                         <div className="flex flex-wrap items-end gap-2">
-                           <label className="grid gap-1.5">
-                              <span className="text-muted-foreground">{t('from')}</span>
-                              <Input
-                                 className="h-7 w-20"
-                                 type="number"
-                                 min={0}
-                                 max={23}
-                                 value={schedule.window.from}
-                                 onChange={(event) =>
-                                    set({
-                                       window: {
-                                          from: number(
-                                             event.target.value,
-                                             0,
-                                             23,
-                                             schedule.window?.from ?? 9
-                                          ),
-                                          to: schedule.window?.to ?? 17,
-                                       },
-                                    })
-                                 }
-                              />
-                           </label>
-                           <label className="grid gap-1.5">
-                              <span className="text-muted-foreground">{t('to')}</span>
-                              <Input
-                                 className="h-7 w-20"
-                                 type="number"
-                                 min={0}
-                                 max={23}
-                                 value={schedule.window.to}
-                                 onChange={(event) =>
-                                    set({
-                                       window: {
-                                          from: schedule.window?.from ?? 9,
-                                          to: number(
-                                             event.target.value,
-                                             0,
-                                             23,
-                                             schedule.window?.to ?? 17
-                                          ),
-                                       },
-                                    })
-                                 }
-                              />
-                           </label>
+                           {(['from', 'to'] as const).map((edge) => (
+                              <label key={edge} className="grid gap-1.5">
+                                 <span className="text-muted-foreground">{t(edge)}</span>
+                                 <select
+                                    className="h-[30px] rounded-[7px] border bg-card px-2 text-foreground"
+                                    value={schedule.window?.[edge] ?? (edge === 'from' ? 9 : 17)}
+                                    onChange={(event) =>
+                                       set({
+                                          window: {
+                                             from: schedule.window?.from ?? 9,
+                                             to: schedule.window?.to ?? 17,
+                                             [edge]: number(event.target.value, 0, 23, 0),
+                                          },
+                                       })
+                                    }
+                                 >
+                                    {Array.from({ length: 24 }, (_, hour) => (
+                                       <option key={hour} value={hour}>
+                                          {hourName(hour)}
+                                       </option>
+                                    ))}
+                                 </select>
+                              </label>
+                           ))}
                         </div>
                      ) : null}
                   </div>

@@ -71,10 +71,30 @@ const STEP = /^\*\/(\d{1,2})$/;
 const RANGE_STEP = /^(\d{1,2})-(\d{1,2})\/(\d{1,2})$/;
 const RANGE = /^(\d{1,2})-(\d{1,2})$/;
 
+/** `1`, `1,3,5`, and `1-5` are the same kind of choice. A backwards range is not. */
+function readWeekdays(field: string): number[] | null {
+   const days: number[] = [];
+   for (const part of field.split(',')) {
+      const range = /^([0-6])-([0-6])$/.exec(part);
+      if (range) {
+         const from = Number(range[1]);
+         const to = Number(range[2]);
+         if (from > to) return null;
+         for (let day = from; day <= to; day += 1) days.push(day);
+         continue;
+      }
+      if (!/^[0-6]$/.test(part)) return null;
+      days.push(Number(part));
+   }
+   const unique = [...new Set(days)].sort((a, b) => a - b);
+   return unique.length === 0 ? null : unique;
+}
+
 function readDays(dayOfMonth: string, weekday: string): DaySelection | null {
    if (dayOfMonth === '*' && weekday === '*') return { kind: 'every' };
-   if (dayOfMonth === '*' && /^[0-6](,[0-6])*$/.test(weekday)) {
-      return { kind: 'weekdays', days: [...new Set(weekday.split(',').map(Number))] };
+   if (dayOfMonth === '*') {
+      const days = readWeekdays(weekday);
+      if (days) return { kind: 'weekdays', days };
    }
    if (weekday === '*' && NUMBER.test(dayOfMonth)) {
       const day = Number(dayOfMonth);
@@ -175,7 +195,7 @@ export function localTimezone(): string {
 
 /** Weekday names in the reader's own language, Sunday first as cron counts. */
 export function weekdayNames(locale: string): string[] {
-   const format = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+   const format = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
    // 2024-01-07 was a Sunday; seven days from it name the week in order.
    return Array.from({ length: 7 }, (_, index) =>
       format.format(new Date(Date.UTC(2024, 0, 7 + index)))

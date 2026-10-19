@@ -40,9 +40,7 @@ export const WeekdayMornings: Story = {
 };
 
 /**
- * Weekdays written as a list, which the visual controls can draw. The range
- * form `1-5` (the dialog's own default) locks them: see `readDays` in
- * lib/cron-schedule.ts.
+ * Weekdays written as a list. A range such as `1-5` draws the same controls.
  */
 export const SwitchToHourly: Story = {
    args: { expression: '0 9 * * 1,2,3,4,5' },
