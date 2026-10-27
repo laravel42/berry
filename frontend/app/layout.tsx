@@ -12,6 +12,23 @@ const jetBrainsMono = localFont({
    display: 'swap',
 });
 
+// The prose face. Shipped rather than fetched for the same reason, and because
+// until now the stack fell through to -apple-system, so the redesign's type
+// only looked right on a Mac. Upright only: `italic` is synthesised, as it
+// already is for the mono above.
+//
+// Both variables go on <html>, not <body>: next/font emits a class name, and
+// :root is <html>, so binding them there is what lets @theme resolve
+// `--font-sans: var(--font-inter)` on the same element. Bound on <body> the
+// @theme declaration resolves against an undefined value and silently
+// computes to nothing.
+const inter = localFont({
+   src: './fonts/inter-variable.woff2',
+   variable: '--font-inter',
+   weight: '100 900',
+   display: 'swap',
+});
+
 export const metadata: Metadata = {
    title: {
       template: '%s | Berry',
@@ -42,10 +59,10 @@ export default async function RootLayout({
    return (
       <html
          lang={locale}
-         className={theme === 'dark' ? 'dark' : undefined}
+         className={`${inter.variable} ${jetBrainsMono.variable} ${theme === 'dark' ? 'dark' : ''}`}
          suppressHydrationWarning
       >
-         <body className={`${jetBrainsMono.variable} antialiased`} suppressHydrationWarning>
+         <body className="antialiased" suppressHydrationWarning>
             <NextIntlClientProvider>
                <NuqsAdapter>
                   <SessionGate>

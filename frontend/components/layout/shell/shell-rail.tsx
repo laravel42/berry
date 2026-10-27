@@ -177,12 +177,12 @@ export function ShellRail({
                            aria-label={t('rail.workspaceMenu')}
                            className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
-                           <BerryMark size={24} />
+                           <BerryMark size={20} />
                            <span
                               data-wordmark="md"
                               className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
                            >
-                              Berry<span className="text-[var(--shell-accent)]">.</span>
+                              Berry
                            </span>
                            <svg
                               width="18"

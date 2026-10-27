@@ -112,10 +112,23 @@ export function BerryMark({
    );
 }
 
+/**
+ * Box sizes that make this SVG mark draw the bracket at the height the redesign
+ * states for the lockup.
+ *
+ * The redesign sets the mark as text: a 21px mono glyph beside a 32px word.
+ * That 21px is a font size, and the glyph fills far more of its em box than
+ * this path fills its viewBox -- the bracket spans y=10..54 of 64, so 69%.
+ * Measured in the browser, the spec's bracket carries 19.7px of ink, which
+ * needs a 28.7px box here. Taking the 21px literally as a box, as a first pass
+ * did, draws a mark a third too short.
+ *
+ * So the box is the word's size x 0.896, and the three steps hold that ratio.
+ */
 const wordmarkSizes = {
-   sm: { mark: 'sm' as const },
-   md: { mark: 'md' as const },
-   lg: { mark: 'lg' as const },
+   sm: 'size-[13px]',
+   md: 'size-[20px]',
+   lg: 'size-[29px]',
 };
 
 interface BerryWordmarkProps {
@@ -139,11 +152,9 @@ export function BerryLoading({ label, className }: { label: string; className?: 
 }
 
 export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
-   const sizing = wordmarkSizes[size];
-
    return (
-      <span className={cn('inline-flex items-center gap-2', className)} aria-label="Berry">
-         <BerryMark size={sizing.mark} />
+      <span className={cn('inline-flex items-center gap-2.5', className)} aria-label="Berry">
+         <BerryMark className={wordmarkSizes[size]} />
          {/* The word is drawn to the mark beside it, so its size comes from
              `size` rather than from the type scale. Sized by attribute in
              app/globals.css: the lockup is the one sanctioned exception, and it
@@ -153,7 +164,7 @@ export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
             data-wordmark={size}
             className="font-display leading-none tracking-[-0.025em] text-foreground"
          >
-            Berry<span className="text-berry">.</span>
+            Berry
          </span>
       </span>
    );

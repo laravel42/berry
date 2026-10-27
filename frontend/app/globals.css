@@ -24,10 +24,11 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-   --font-sans: 'Inter', -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+   --font-sans:
+      var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-mono: var(--font-jetbrains-mono);
    --font-display:
-      'Inter', -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+      var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-weight-normal: 300;
    /* The body size. 13px with 1.2 line spacing, per the house style; every
       other step below keeps its own measure. */
@@ -398,10 +399,6 @@
       than merely the default. */
    body {
       @apply text-foreground font-sans text-xs;
-      /* Rebound here, not only in @theme: `next/font` declares the font
-         variable on this element, so at :root it resolves to nothing and
-         every identifier inherits that emptiness. */
-      --font-mono: var(--font-jetbrains-mono);
       /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
       font-weight: 400;
       min-height: 100vh;
@@ -472,7 +469,8 @@
    [data-heading='h1'],
    [data-heading='h2'],
    [data-heading='h3'],
-   [data-heading='display'] {
+   [data-heading='display'],
+   [data-wordmark] {
       font-weight: 600;
    }
 
@@ -531,8 +529,9 @@
       font-size: var(--text-2xl);
    }
 
+   /* The lockup word, at the size the redesign states for it. */
    [data-wordmark='lg'] {
-      font-size: var(--text-4xl);
+      font-size: 2rem;
    }
 
    /* The second exception: a headline figure. A page opens with the one number
