@@ -8,6 +8,7 @@
       "build:check": "NEXT_DIST_DIR=.next-verify next build",
       "start": "next start",
       "lint": "eslint .",
+      "test": "vitest run",
       "format": "prettier --write .",
       "storybook": "storybook dev -p 6006",
       "build-storybook": "storybook build"

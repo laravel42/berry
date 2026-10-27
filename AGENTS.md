@@ -52,7 +52,7 @@ write code. Never run one workspace's tools over another.
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 | Paths | relative, `.ts` extensions kept | `@/*` → frontend root | relative, `.ts` extensions kept |
 | Format + lint | none configured; match surrounding style | Prettier **3-space**, single quotes + ESLint | match server |
-| Tests | `node --test` | none — lint + build | `node --test` |
+| Tests | `node --test` | `pnpm test` (stories in Chromium) | `node --test` |
 | Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
 
 `apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
@@ -259,6 +259,8 @@ pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
 
 # Frontend
 cd frontend && pnpm lint && pnpm build:check
+pnpm test:frontend          # story suite; takes a path to narrow it
+pnpm storybook              # browse the same stories on :6006
 ```
 
 `pnpm build` in `frontend/` and `next dev` share `.next/`, so a build while the
@@ -279,8 +281,8 @@ type(scope): imperative summary (BERR-NN)
 - Scopes: `server-ts`, `frontend`, or omit for docs-only.
 - One issue per branch and PR.
 
-Definition of done: server typecheck and tests; frontend lint + `build:check`
-and a manual check of the changed view. No secrets or `.env` files.
+Definition of done: server typecheck and tests; frontend lint + `build:check`,
+the stories for what you touched, and a manual check of the changed view. No secrets or `.env` files.
 
 ## Domain reminders
 

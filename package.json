@@ -1,40 +1,43 @@
 {
-   "name": "berry-circle",
-   "version": "0.9.4",
-   "private": false,
-   "license": "AGPL-3.0-only",
-   "description": "A self-hosted issue tracker whose assignees can be people or coding agents.",
-   "repository": {
-      "type": "git",
-      "url": "git+https://github.com/laravel42/berry.git"
-   },
-   "packageManager": "pnpm@12.5.1",
-   "scripts": {
-      "prepare": "husky",
-      "dev": "concurrently -n server,frontend -c blue,magenta \"pnpm:dev:server\" \"pnpm:dev:frontend\"",
-      "dev:frontend": "pnpm --filter berry-frontend dev",
-      "dev:mobile": "pnpm --filter @berry/mobile start",
-      "dev:desktop": "pnpm --filter @berry/desktop dev",
-      "package:desktop": "pnpm --filter @berry/desktop package",
-      "lint:frontend": "pnpm --filter berry-frontend lint",
-      "build:frontend": "pnpm --filter berry-frontend build",
-      "dev:server": "pnpm --filter @berry/server dev",
-      "dev:docker": "docker compose -f deploy/local/docker-compose.yml up --build",
-      "dev:docker:down": "docker compose -f deploy/local/docker-compose.yml down",
-      "typecheck:server": "pnpm --filter @berry/server typecheck",
-      "test:server": "pnpm --filter @berry/server test",
-      "db:migrate": "pnpm --filter @berry/server migrate",
-      "db:seed": "pnpm --filter @berry/server seed",
-      "db:reset": "pnpm --filter @berry/server reset",
-      "runtime:build": "docker build -f server-ts/sandbox/agentcore/Dockerfile -t berry-agent-runtime server-ts",
-      "runtime:docker": "bash scripts/runtime-docker.sh",
-      "runtime:sessions": "bash scripts/runtime-docker.sh --per-session",
-      "check:models": "python3 scripts/test_check_no_model_in_server.py && python3 scripts/check-no-model-in-server.py",
-      "test:plugin-sdk": "pnpm --filter @berry/plugin-sdk test",
-      "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
-   },
-   "devDependencies": {
-      "concurrently": "9.2.1",
-      "husky": "^9.1.7"
-   }
+  "name": "berry-circle",
+  "version": "0.9.4",
+  "private": false,
+  "license": "AGPL-3.0-only",
+  "description": "A self-hosted issue tracker whose assignees can be people or coding agents.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laravel42/berry.git"
+  },
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "prepare": "husky",
+    "dev": "concurrently -n server,frontend -c blue,magenta \"pnpm:dev:server\" \"pnpm:dev:frontend\"",
+    "dev:frontend": "pnpm --filter berry-frontend dev",
+    "dev:mobile": "pnpm --filter @berry/mobile start",
+    "dev:desktop": "pnpm --filter @berry/desktop dev",
+    "package:desktop": "pnpm --filter @berry/desktop package",
+    "lint:frontend": "pnpm --filter berry-frontend lint",
+    "test:frontend": "pnpm --filter berry-frontend test",
+    "build:frontend": "pnpm --filter berry-frontend build",
+    "storybook": "pnpm --filter berry-frontend storybook",
+    "build:storybook": "pnpm --filter berry-frontend build-storybook",
+    "dev:server": "pnpm --filter @berry/server dev",
+    "dev:docker": "docker compose -f deploy/local/docker-compose.yml up --build",
+    "dev:docker:down": "docker compose -f deploy/local/docker-compose.yml down",
+    "typecheck:server": "pnpm --filter @berry/server typecheck",
+    "test:server": "pnpm --filter @berry/server test",
+    "db:migrate": "pnpm --filter @berry/server migrate",
+    "db:seed": "pnpm --filter @berry/server seed",
+    "db:reset": "pnpm --filter @berry/server reset",
+    "runtime:build": "docker build -f server-ts/sandbox/agentcore/Dockerfile -t berry-agent-runtime server-ts",
+    "runtime:docker": "bash scripts/runtime-docker.sh",
+    "runtime:sessions": "bash scripts/runtime-docker.sh --per-session",
+    "check:models": "python3 scripts/test_check_no_model_in_server.py && python3 scripts/check-no-model-in-server.py",
+    "test:plugin-sdk": "pnpm --filter @berry/plugin-sdk test",
+    "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
+  },
+  "devDependencies": {
+    "concurrently": "9.2.1",
+    "husky": "^9.1.7"
+  }
 }
