@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { useState } from 'react';
-import { expect, within } from 'storybook/test';
+import { expect, waitFor, within } from 'storybook/test';
 
 import { RevealToggle } from './reveal-toggle';
 
@@ -72,16 +72,17 @@ export const MorphsOneIconRatherThanSwappingTwo: Story = {
       const before = svg?.innerHTML;
 
       await userEvent.click(button);
-      const after = canvas
-         .getByRole('button', { name: 'Hide password' })
-         .querySelector('svg')?.innerHTML;
 
-      // Same element, redrawn geometry: the slash is interpolated on, so the
-      // paths must differ while the node stays put.
+      // Same <svg> node, redrawn geometry: the slash is interpolated onto the
+      // existing paths rather than a second icon being mounted.
       await expect(canvas.getByRole('button', { name: 'Hide password' }).querySelector('svg')).toBe(
          svg
       );
-      await expect(after).not.toBe(before);
+      // The spring advances on animation frames, so the geometry is still at
+      // the start immediately after the click -- which is the proof it is a
+      // morph and not a swap, and the reason this has to wait rather than
+      // assert straight away.
+      await waitFor(() => expect(svg?.innerHTML).not.toBe(before));
    },
 };
 

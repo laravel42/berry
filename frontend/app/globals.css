@@ -101,7 +101,7 @@
    --shell-text-muted: #a9a7ad;
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
-   --shell-accent: #e85075;
+   --shell-accent: var(--brand-berry);
    --segment-track: #222226;
    --segment-selected: #303035;
 
@@ -126,7 +126,15 @@
    --primary-hover: #d14868;
    --primary-text: #a8123f;
    --primary-foreground: #ffffff;
-   --berry: #c41e4b;
+   /* The brand palette already held the official berry; this had drifted to a
+      hardcoded per-theme pair, so app/icon.svg and the product disagreed about
+      the accent. Pointing at the palette is what stops that happening again. */
+   --berry: var(--brand-berry);
+   /* The isotipo's other tone: the colour of its brackets, and so of the
+      lockup's word beside them. Warmer than --foreground, and kept separate
+      from it so the lockup can be exactly the brand asset without repainting
+      every word of body copy. */
+   --lockup-ink: #161616;
    --secondary: #f5f5f5;
    --secondary-foreground: #010101;
    --muted: #f0f0f0;
@@ -138,7 +146,7 @@
    --destructive-foreground: #ffffff;
    --border: #e6e6e6;
    --input: #d4d4d4;
-   --ring: #c41e4b;
+   --ring: var(--brand-berry);
    --status-success: #2e2e2e;
    --status-warning: #a8123f;
    --status-danger: #1f1f1f;
@@ -222,7 +230,8 @@
    --primary-foreground: #ffffff;
    --placeholder: #8a8a93;
    --primary-text: #f0738f;
-   --berry: #e85075;
+   --berry: var(--brand-berry);
+   --lockup-ink: #f0edea;
    --secondary: #1a1a1d;
    --secondary-foreground: #f6f6f7;
    --muted: #17171a;
@@ -234,7 +243,7 @@
    --destructive-foreground: #1a0a10;
    --border: #262629;
    --input: #333338;
-   --ring: #e85075;
+   --ring: var(--brand-berry);
    --status-success: #e4e4e8;
    --status-warning: #f0738f;
    --status-danger: #f2f2f4;
@@ -309,6 +318,7 @@
    --color-slate: var(--brand-slate);
    --color-hairline: var(--brand-hairline);
    --color-berry: var(--berry);
+   --color-lockup-ink: var(--lockup-ink);
    --color-amber: var(--brand-amber);
    --color-verdant: var(--brand-verdant);
    --color-azure: var(--brand-azure);

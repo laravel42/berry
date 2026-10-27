@@ -4,6 +4,26 @@ import type { ComponentProps } from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * The official isotipo, drawn from `public/isotipo.svg` rather than approximated.
+ *
+ * Two things differ from the mark this replaces, and both are visible: the
+ * brackets fill the full height of the box instead of about 78% of it, and the
+ * dot is half the box across instead of a third. Measured off the asset, not
+ * guessed -- the brackets are 100x100 on a 100 grid, and the dot is 50.32.
+ *
+ * The asset fills its shapes; the mark this replaces stroked them. Filling is
+ * what makes the bracket a shape with a bevelled inner step rather than a line
+ * of even weight, which is the part an approximation cannot reach. It also
+ * means `fill="currentColor"`, so every tone and state below still works by
+ * setting `color`.
+ */
+const BRACKETS =
+   'M18.75,10.42V0H0v100h18.75v-10.42h-8.33V10.42h8.33ZM81.25,0v10.42h8.33v79.17h-8.33v10.42h18.75V0h-18.75Z';
+
+/** The dot, as the asset places it: centred, radius 25.16 of 100. */
+const DOT = 25.16;
+
 export type BerryMarkTone = 'brand' | 'neutral' | 'working' | 'attention' | 'complete' | 'danger';
 
 /**
@@ -60,7 +80,7 @@ export function BerryMark({
 
    return (
       <svg
-         viewBox="0 0 64 64"
+         viewBox="0 0 100 100"
          fill="none"
          focusable="false"
          className={cn('shrink-0 overflow-visible', sizeClasses[size], className)}
@@ -68,42 +88,41 @@ export function BerryMark({
          {...props}
       >
          <path
-            d="M20 10H10V54H20M44 10H54V54H44"
-            className={cn('text-foreground', bracketClassName)}
-            stroke="currentColor"
-            strokeWidth="6"
-            strokeLinecap="butt"
-            strokeLinejoin="miter"
+            d={BRACKETS}
+            className={cn('text-lockup-ink', bracketClassName)}
+            fill="currentColor"
          />
          {state === 'empty' ? null : state === 'crossed' ? (
             <path
-               d="M24 24L40 40M40 24L24 40"
+               d="M37.5 37.5L62.5 62.5M62.5 37.5L37.5 62.5"
                className={dotTone}
                style={dotStyle}
                stroke="currentColor"
-               strokeWidth="6"
+               strokeWidth="9.4"
                strokeLinecap="butt"
             />
          ) : (
             <>
                {pulse && (
                   <circle
-                     cx="32"
-                     cy="32"
-                     r="14"
+                     cx="50"
+                     cy="50"
+                     r="35"
                      className={cn(
                         'origin-center fill-none stroke-current',
                         dotTone,
                         'animate-[berry-working_2s_ease-in-out_infinite]'
                      )}
                      style={dotStyle}
-                     strokeWidth="3"
+                     strokeWidth="4.7"
                   />
                )}
                <circle
-                  cx="32"
-                  cy="32"
-                  r="10"
+                  cx="50"
+                  cy="50"
+                  /* A ring has to sit inside the dot's own edge, so it gives up
+                     half its stroke width in radius to land there. */
+                  r={state === 'hollow' ? DOT - 4 : DOT}
                   className={cn(
                      'origin-center stroke-current',
                      state === 'hollow' ? 'fill-none' : 'fill-current',
@@ -111,7 +130,7 @@ export function BerryMark({
                      pulse && 'animate-[berry-working_2s_ease-in-out_infinite]'
                   )}
                   style={dotStyle}
-                  strokeWidth={state === 'hollow' ? 4 : 0}
+                  strokeWidth={state === 'hollow' ? 8 : 0}
                />
             </>
          )}
@@ -120,27 +139,27 @@ export function BerryMark({
 }
 
 /**
- * Box sizes that make this SVG mark draw the bracket at the height the redesign
- * states for the lockup.
+ * The lockup's proportions, measured off `public/logotipo.svg`.
  *
- * The redesign sets the mark as text: a 21px mono glyph beside a 32px word.
- * That 21px is a font size, and the glyph fills far more of its em box than
- * this path fills its viewBox -- the bracket spans y=10..54 of 64, so 69%.
- * Measured in the browser, the spec's bracket carries 19.7px of ink, which
- * needs a 28.7px box here. Taking the 21px literally as a box, as a first pass
- * did, draws a mark a third too short.
+ * In the official lockup the mark is 100 tall where the word's capitals are
+ * 61.3, and the gap between them is 25.1. So the mark is *taller* than the
+ * text, closing over the line above and below it, and the ratios against the
+ * word's font size come out at 1.186 for the mark and 0.297 for the gap.
  *
- * So the box is the word's size x 0.896, and the three steps hold that ratio.
+ * This is where the official asset and the Ledger spec disagree, and the asset
+ * wins: the spec sets the mark as a 21px mono glyph against a 32px word, which
+ * makes it two thirds of the word rather than larger than it. The spec was
+ * standing a text character in for artwork it did not have.
+ *
+ * Both ratios are in `em`, which is why `data-wordmark` sits on the wrapper
+ * rather than on the word: the font size has to be set above both children for
+ * them to scale off it. That also keeps the lockup correct inside the sidebar,
+ * which rewrites the --text-* scale under itself.
  */
-const wordmarkSizes = {
-   sm: 'size-[13px]',
-   md: 'size-[20px]',
-   lg: 'size-[29px]',
-};
 
 interface BerryWordmarkProps {
    className?: string;
-   size?: keyof typeof wordmarkSizes;
+   size?: 'sm' | 'md' | 'lg';
 }
 
 /** The pulsing mark and a line, centred, while a pane is still fetching. */
@@ -160,18 +179,21 @@ export function BerryLoading({ label, className }: { label: string; className?: 
 
 export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
    return (
-      <span className={cn('inline-flex items-center gap-2.5', className)} aria-label="Berry">
-         <BerryMark className={wordmarkSizes[size]} />
-         {/* The word is drawn to the mark beside it, so its size comes from
-             `size` rather than from the type scale. Sized by attribute in
-             app/globals.css: the lockup is the one sanctioned exception, and it
-             is easier to keep honest sitting next to the rule it departs from
-             than as a lone text-* utility out here. */}
-         <span
-            data-wordmark={size}
-            className="font-display leading-none tracking-[-0.025em] text-foreground"
-         >
-            Berry
+      <span
+         role="img"
+         aria-label="Berry"
+         /* Sized by attribute in app/globals.css: the lockup is the one
+            sanctioned departure from the type scale, and it is easier to keep
+            honest sitting next to the rule it departs from than as a lone
+            text-* utility out here. */
+         data-wordmark={size}
+         className={cn('inline-flex items-center gap-[0.297em] leading-none', className)}
+      >
+         <BerryMark className="size-[1.186em]" />
+         <span className="font-display tracking-[-0.025em] text-lockup-ink">
+            {/* The official lockup ends on a berry period. An earlier pass
+                removed it on the Ledger spec's authority; the asset has it. */}
+            Berry<span className="text-berry">.</span>
          </span>
       </span>
    );

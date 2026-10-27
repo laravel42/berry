@@ -30,14 +30,30 @@ export function ShellIcon({ path, size = 15, className }: ShellIconProps) {
 }
 
 /** The Berry mark: brackets around a berry. */
+/**
+ * The shell's own copy of the isotipo, on --shell-* rather than theme tokens.
+ *
+ * The shell is dark whatever the rest of the app is doing, so it always wants
+ * the asset's dark colourway -- which is what --shell-text and --shell-accent
+ * already are. Same official geometry as components/brand/berry-mark.tsx; this
+ * stays a separate component only because its colours come from a palette the
+ * theme does not reach.
+ */
 export function BerryMark({ size = 17, muted = false }: { size?: number; muted?: boolean }) {
    const bracket = muted ? 'var(--shell-text-dim)' : 'var(--shell-text)';
-   const weight = muted ? 7 : 6;
    return (
-      <svg width={size} height={size} viewBox="0 0 64 64" className="flex-none" aria-hidden="true">
-         <path d="M14 8H8v48h6" stroke={bracket} strokeWidth={weight} fill="none" />
-         <path d="M50 8h6v48h-6" stroke={bracket} strokeWidth={weight} fill="none" />
-         <circle cx="32" cy="32" r={muted ? 14 : 13} fill="var(--shell-accent)" />
+      <svg
+         width={size}
+         height={size}
+         viewBox="0 0 100 100"
+         className="flex-none"
+         aria-hidden="true"
+      >
+         <path
+            d="M18.75,10.42V0H0v100h18.75v-10.42h-8.33V10.42h8.33ZM81.25,0v10.42h8.33v79.17h-8.33v10.42h18.75V0h-18.75Z"
+            fill={bracket}
+         />
+         <circle cx="50" cy="50" r="25.16" fill="var(--shell-accent)" />
       </svg>
    );
 }

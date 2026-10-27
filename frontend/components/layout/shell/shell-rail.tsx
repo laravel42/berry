@@ -177,12 +177,20 @@ export function ShellRail({
                            aria-label={t('rail.workspaceMenu')}
                            className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
-                           <BerryMark size={20} />
+                           {/* The lockup keeps the official mark-to-word gap of
+                               its own, so the button's gap is left to space the
+                               chevron. Same ratios as BerryWordmark, which this
+                               cannot use directly: the rail stays dark whatever
+                               the theme is doing, so its colours come from
+                               --shell-* rather than --lockup-ink. */}
                            <span
                               data-wordmark="md"
-                              className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
+                              className="inline-flex items-center gap-[0.297em] leading-none"
                            >
-                              Berry
+                              <BerryMark size={26} />
+                              <span className="font-display tracking-[-0.025em] text-[var(--shell-text)]">
+                                 Berry<span className="text-[var(--shell-accent)]">.</span>
+                              </span>
                            </span>
                            <svg
                               width="18"
