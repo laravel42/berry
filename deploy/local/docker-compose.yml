@@ -52,6 +52,10 @@ services:
          # Overrides .env so this stack does not share the Mac's database.
          DATABASE_URL: postgres://berry:berry@postgres:5432/berry?sslmode=disable
          BERRY_AGENT_RUNTIME_URL: http://sessions:8080
+         # This stack's web container is published on :3000 regardless of the
+         # host .env's BERRY_APP_URL (which defaults to :3100 for `pnpm
+         # dev:frontend`), so sign-in redirects land on the right origin.
+         BERRY_APP_URL: http://localhost:3000
          # A preview's checkout is mounted into its containers by the Mac's
          # Docker, so it has to be at the same path in here as it is out there.
          BERRY_PREVIEW_ROOT: ${HOME}/.cache/berry/previews
@@ -104,6 +108,10 @@ services:
       environment:
          <<: *dev-env
          BERRY_API_ORIGIN: http://api:4000
+         # The host's `pnpm dev:frontend` binds :3100 by default (PORT env var)
+         # so it does not collide with other local projects; this container
+         # keeps :3000 since nothing else shares its network namespace.
+         PORT: '3000'
          # Its own build folder: the Mac's .next holds files built for macOS.
          NEXT_DIST_DIR: .next-docker
          NEXT_TELEMETRY_DISABLED: '1'

@@ -11,6 +11,7 @@
    "packageManager": "pnpm@12.5.1",
    "scripts": {
       "prepare": "husky",
+      "dev": "concurrently -n server,frontend -c blue,magenta \"pnpm:dev:server\" \"pnpm:dev:frontend\"",
       "dev:frontend": "pnpm --filter berry-frontend dev",
       "dev:mobile": "pnpm --filter @berry/mobile start",
       "dev:desktop": "pnpm --filter @berry/desktop dev",
@@ -33,6 +34,7 @@
       "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
    },
    "devDependencies": {
+      "concurrently": "9.2.1",
       "husky": "^9.1.7"
    }
 }

@@ -76,7 +76,13 @@ pnpm dev:server       # http://127.0.0.1:4000
 
 ```sh
 cd frontend && cp .env.example .env.local && cd ..
-pnpm dev:frontend     # http://127.0.0.1:3000
+pnpm dev:frontend     # http://127.0.0.1:3100
+```
+
+Or start both together:
+
+```sh
+pnpm dev              # server on :4000, frontend on :3100
 ```
 
 Check the server is up:
