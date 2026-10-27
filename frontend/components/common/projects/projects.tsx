@@ -324,7 +324,7 @@ export default function Projects() {
                <CreateProjectButton />
             </PageKpiHeader>
          </div>
-         <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
+         <div className="mb-1 flex h-[52px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5">
             <div
                role="group"
                aria-label={lists('projects.layout.label')}

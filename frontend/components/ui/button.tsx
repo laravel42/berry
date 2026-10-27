@@ -7,9 +7,13 @@ import { cn } from '@/lib/utils';
 /**
  * Buttons under the "Ledger" redesign: pilled, bold, and the filled primary a
  * gradient rather than a flat berry. `gate` is the review gate, the one action
- * the monochrome palette still spends colour on. Sizes other than `lg` keep
- * their old heights until the density decision in docs/redesign/ledger-plan.md
- * lands; `lg` is already the redesign's 48px.
+ * the monochrome palette still spends colour on.
+ *
+ * `default` carries the 44px target floor (WCAG 2.5.8) as a MIN height, so a
+ * button that has to wrap grows instead of clipping, and so it agrees with
+ * `Input`, which takes the same floor. The compact sizes below are explicit
+ * opt-ins for dense chrome and deliberately sit under the floor; a toolbar
+ * asking for `xs` is asking for that tradeoff by name.
  */
 const buttonVariants = cva(
    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-pill font-bold cursor-pointer transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -28,11 +32,11 @@ const buttonVariants = cva(
             gate: 'bg-gate text-gate-foreground shadow-xs hover:brightness-110',
          },
          size: {
-            default: 'h-[30px] px-3 has-[>svg]:px-2.5',
+            default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
             xxs: 'h-6 gap-1.5 px-2.5 has-[>svg]:px-2',
             xs: 'h-7 gap-1.5 px-2.5 has-[>svg]:px-2',
             sm: 'h-[30px] gap-1.5 px-3 has-[>svg]:px-2.5',
-            lg: 'h-(--ctl-h-lg) px-(--ctl-px) min-w-(--ctl-h-lg)',
+            lg: 'min-h-(--ctl-h-lg) min-w-(--ctl-h-lg) px-(--ctl-px)',
             icon: 'size-7',
          },
       },

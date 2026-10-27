@@ -65,7 +65,7 @@ export default function HeaderOptions() {
    };
 
    return (
-      <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 [&_button]:!h-[30px] [&_a]:!h-[30px]">
+      <div className="mb-1 flex h-[52px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5">
          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Tabs value={scope} onValueChange={(value) => setScope(value as AgentsScope)}>
                <TabsList aria-label={tHeader('title')}>

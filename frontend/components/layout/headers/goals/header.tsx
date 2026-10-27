@@ -11,7 +11,7 @@ function HeaderOptions() {
    const setQuery = useGoalsListStore((state) => state.setQuery);
 
    return (
-      <div className="flex h-[44px] w-full items-center border-b px-5">
+      <div className="flex h-[52px] w-full items-center border-b px-5">
          <Input
             className={`${searchFieldClass} min-w-0 flex-1`}
             placeholder={t('list.search')}
