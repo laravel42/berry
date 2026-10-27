@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Eye, EyeOff } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ConfirmAction } from '@/components/common/confirm-action';
+import { RevealToggle } from '@/components/common/reveal-toggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,15 +77,13 @@ export function SecretsNotice({
             <Label>{t('endpoint')}</Label>
             <div className="flex gap-2">
                <Input readOnly value={mask(endpoint)} className="font-mono" />
-               <Button
-                  type="button"
-                  size="icon"
+               <RevealToggle
                   variant="outline"
-                  aria-label={shown ? t('hide') : t('show')}
-                  onClick={() => setShown(!shown)}
-               >
-                  {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-               </Button>
+                  revealed={shown}
+                  onRevealedChange={setShown}
+                  showLabel={t('show')}
+                  hideLabel={t('hide')}
+               />
                <Button
                   type="button"
                   size="icon"

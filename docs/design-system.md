@@ -195,6 +195,26 @@ Keep their Radix behavior, semantic slots, focus rings, disabled treatment, inva
 portal behavior, and keyboard support. Visual changes should happen through semantic tokens
 and CVA variants, not through feature-local forks.
 
+Two additions to `Popover` are worth knowing, because they are what a popover needs to be
+*feedback* rather than a menu:
+
+- `PopoverArrow` ties the popover to what it is about. A menu needs no arrow — the user just
+  clicked the thing it belongs to. A popover that appears on its own does, or it reads as a
+  card that happens to be nearby.
+- `pointerThrough` lets clicks pass through content that holds nothing interactive, so it
+  cannot stand in front of the form it describes. Radix positions the content inside a
+  wrapper it owns and keeps that wrapper clickable, so this pairs with a `:has()` rule in
+  `app/globals.css`; a class on the content alone does not do it.
+
+Anchor such a popover with `PopoverAnchor` rather than `PopoverTrigger`, and prevent
+`onOpenAutoFocus`: a field is not a button, and feedback must never take the focus it is
+pointing at. `PasswordField` is the worked example.
+
+The Berry bracket is also the product's checkmark. `BerryMark` with `state="empty"` draws
+`[ ]` and `state="solid"` draws `[*]`, so a satisfied condition is marked by a **shape**
+appearing rather than by a colour changing — which is what the accessibility contract below
+requires. State the condition in words alongside it; the dot is never the only signal.
+
 ### Product components and patterns
 
 | Area | Current modules | Reuse decision |

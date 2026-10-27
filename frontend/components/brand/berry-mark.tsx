@@ -6,7 +6,14 @@ import { cn } from '@/lib/utils';
 
 export type BerryMarkTone = 'brand' | 'neutral' | 'working' | 'attention' | 'complete' | 'danger';
 
-export type BerryMarkState = 'solid' | 'hollow' | 'crossed';
+/**
+ * `empty` draws the brackets with nothing between them. It is the unmet half of
+ * a checklist: `[ ]` becomes `[*]` once the rule is satisfied, so the change is
+ * a shape and not only a colour -- which the accessibility contract in
+ * docs/design-system.md requires. `hollow` is not that: it draws a ring, which
+ * reads as a state the mark is IN rather than as an absence.
+ */
+export type BerryMarkState = 'solid' | 'hollow' | 'crossed' | 'empty';
 
 const toneClasses: Record<BerryMarkTone, string> = {
    brand: 'text-berry',
@@ -68,7 +75,7 @@ export function BerryMark({
             strokeLinecap="butt"
             strokeLinejoin="miter"
          />
-         {state === 'crossed' ? (
+         {state === 'empty' ? null : state === 'crossed' ? (
             <path
                d="M24 24L40 40M40 24L24 40"
                className={dotTone}

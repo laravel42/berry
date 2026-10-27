@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
+import {
+   PasswordField,
+   passwordMeetsRules,
+   passwordRules,
+} from '@/components/common/password-field';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -312,15 +317,17 @@ function EmailRegistration({ onBack }: { onBack?: () => void }) {
             </div>
             <div className="grid gap-1.5 text-left">
                <Label htmlFor="register-password">Password</Label>
-               <Input
+               <PasswordField
                   id="register-password"
-                  type="password"
                   autoComplete={registering ? 'new-password' : 'current-password'}
                   required
                   minLength={12}
                   maxLength={256}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  // Only while creating one. Signing in, the password already
+                  // exists and its rules are not the user's problem.
+                  rules={registering ? passwordRules : undefined}
                />
             </div>
             <Button
@@ -330,7 +337,7 @@ function EmailRegistration({ onBack }: { onBack?: () => void }) {
                disabled={
                   pending ||
                   email.trim() === '' ||
-                  password.length < 12 ||
+                  !passwordMeetsRules(password) ||
                   (registering && name.trim() === '')
                }
             >

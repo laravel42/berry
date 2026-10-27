@@ -579,6 +579,19 @@
       letter-spacing: -0.01em;
    }
 
+   /* A popover that only reports something -- no buttons, no links -- must not
+      stand in front of the form it reports on. The password checklist sits
+      under its field, which on the sign-in card is exactly where the submit
+      button is, and it swallowed the click that finally passed the rules.
+
+      Radix puts the content inside a positioning wrapper it owns, and that
+      wrapper keeps `pointer-events: auto`, so a class on the content alone
+      does not let a click through. This reaches the wrapper by what it holds.
+      Opt in with `pointerThrough` on PopoverContent. */
+   [data-radix-popper-content-wrapper]:has(> [data-slot='popover-content'][data-pointer-through]) {
+      pointer-events: none;
+   }
+
    /* Keep the already-compacted sidebar menu on the previous type scale. */
    [data-slot='sidebar'] {
       --text-xs: 0.75rem;

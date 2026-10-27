@@ -23,6 +23,8 @@ for, and what replaced it.
 | [`SegmentedControl`](#segmentedcontrol)                                              | `common/segmented-control.tsx`                                                                | Switching one view setting (a range, a metric)          |
 | [`StatusBadge`](#statusbadge)                                                        | `common/status-badge.tsx`                                                                     | A status mark and word in a pill                        |
 | [`ConfirmAction`](#confirmaction)                                                    | `common/confirm-action.tsx`                                                                   | Confirming anything irreversible                        |
+| [`PasswordField`](#passwordfield)                                                    | `common/password-field.tsx`                                                                   | Any password a person is choosing                       |
+| [`RevealToggle`](#revealtoggle)                                                      | `common/reveal-toggle.tsx`                                                                    | Showing or hiding a masked value                        |
 | [`PageTitleBar`](#pagetitlebar)                                                      | `layout/headers/page-title-bar.tsx`                                                           | A list page's title row                                 |
 | [`Section`, `DetailSectionLabel`](#section-labels)                                   | `common/issues/details/panel-section.tsx`, `common/projects/details/detail-section-label.tsx` | Labelled blocks on detail pages                         |
 | [`StatTile`](#stattile)                                                              | `common/usage/usage-tiles.tsx`                                                                | One figure in a usage summary                           |
@@ -310,6 +312,99 @@ tracked-caps label on the project detail page and its sidebar. It accepts native
 props, so you can pass `className="mb-2"` for more room below. Write the text in sentence
 case, because CSS applies the caps. Before this change, three project blocks inlined the
 same classes and lower-cased their text in JS.
+
+## `PasswordField`
+
+`PasswordField` is the password input for anywhere a person is **choosing** a password. It
+wraps `Input`, puts a `RevealToggle` inside the field, and hangs the requirements off it in a
+popover with an arrow.
+
+```tsx
+import {
+   PasswordField,
+   passwordMeetsRules,
+   passwordRules,
+} from '@/components/common/password-field';
+
+const [password, setPassword] = useState('');
+
+<Label htmlFor="register-password">Password</Label>
+<PasswordField
+   id="register-password"
+   autoComplete="new-password"
+   value={password}
+   onChange={(event) => setPassword(event.target.value)}
+   rules={passwordRules}
+/>
+<Button disabled={!passwordMeetsRules(password)}>Create account</Button>
+```
+
+| Prop                     | Type                      | Notes                                                                                   |
+| ------------------------ | ------------------------- | --------------------------------------------------------------------------------------- |
+| `value`                  | `string`                  | Required. The checklist is computed from it, so the field is controlled.                |
+| `rules`                  | `readonly PasswordRule[]` | Pass `passwordRules` to show the checklist. **Omit it to hide the checklist entirely.** |
+| `showLabel`, `hideLabel` | `string`                  | Accessible names for the eye. Default to "Show password" / "Hide password".             |
+| …                        | everything `Input` takes  | Except `type`, which the reveal toggle owns.                                            |
+
+**Pass `rules` only when the password is being created.** Signing in, the password already
+exists and its requirements are not the user's problem, so `app/sign-in/page.tsx` passes
+`rules={registering ? passwordRules : undefined}`.
+
+**Gate the submit button with `passwordMeetsRules`, never with a length of your own.** The
+checklist and the gate have to be the same sentence, or the form will refuse a password it
+told the user was fine. That is the whole reason the rules are exported as data.
+
+**`passwordRules` mirrors the server and nothing else.** `emailAndPassword` in
+`server-ts/src/auth/better-auth.ts` sets `minPasswordLength: 12` and `maxPasswordLength: 256`,
+and there is no complexity check anywhere in `src/auth`. Do not add a rule here about
+capitals, digits or symbols: the API would still accept the password, so the form would be
+holding back something `POST /sign-up/email` allows, and curl would walk straight past the
+advice. If the product wants complexity rules, change `better-auth.ts` first and then add
+them here — the popover needs no other change.
+
+Behaviour worth knowing before you reuse it:
+
+- The popover is **anchored, not triggered**. A field is not a button, so there is nothing to
+  click; it opens when focus enters the field and closes when focus leaves. Focus moving to
+  the reveal toggle does not count as leaving.
+- It never takes focus (`onOpenAutoFocus` is prevented), and Escape dismisses it until focus
+  leaves and returns.
+- It is `pointerThrough`, so it cannot block what it floats over. On the sign-in card the
+  checklist lands exactly on top of the submit button; without this the click that finally
+  passed the rules was swallowed.
+- Each rule is marked with the Berry bracket: `[ ]` unmet, `[*]` once satisfied, with the dot
+  in berry. The marker carries the state as a **shape**, and the row also states "met" /
+  "not met yet" for a screen reader, so neither colour nor the dot is doing the job alone.
+
+## `RevealToggle`
+
+`RevealToggle` shows or hides a masked value. It is the eye button, and it **morphs** between
+the two eyes rather than swapping them.
+
+```tsx
+<RevealToggle
+   revealed={shown}
+   onRevealedChange={setShown}
+   showLabel={t('show')}
+   hideLabel={t('hide')}
+/>
+```
+
+It takes everything `Button` takes except `children` and `onClick`, so `variant` and `size`
+are yours — the autopilot secrets field passes `variant="outline"` to sit beside its copy
+button, and `PasswordField` keeps the ghost default because it sits inside the field.
+
+- The accessible name states the next action and changes with the state ("Show password" →
+  "Hide password"), rather than a fixed name with `aria-pressed`. Both are correct; the
+  product uses this one everywhere.
+- It is a real tab stop. Do not pass `tabIndex={-1}` to tuck it out of the way: revealing a
+  password must not need a mouse.
+- The morph is drawn by `morphicons` and honours `prefers-reduced-motion`, degrading to an
+  instant swap.
+- The eye outlines are **icon data, not components**, because the morph engine interpolates
+  geometry and `lucide-react` only hands out rendered components. They are copied from
+  lucide's `eye` and `eye-off`, so if lucide redraws them, refresh these in step or the
+  toggle stops matching every other eye in the product.
 
 ## `StatTile`
 
