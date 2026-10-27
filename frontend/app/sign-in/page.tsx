@@ -70,7 +70,12 @@ function PasswordlessSignIn() {
                   onChange={(event) => setEmail(event.target.value)}
                />
             </div>
-            <Button type="submit" className="w-full" disabled={pending || email.trim() === ''}>
+            <Button
+               type="submit"
+               size="lg"
+               className="w-full"
+               disabled={pending || email.trim() === ''}
+            >
                {pending ? 'Signing in…' : 'Continue'}
             </Button>
             {error ? (
@@ -80,6 +85,36 @@ function PasswordlessSignIn() {
             ) : null}
          </form>
       </AuthCard>
+   );
+}
+
+/**
+ * What GitHub is actually being asked for, stated before it is granted. These
+ * are the scopes the server really requests, in
+ * `server-ts/src/auth/better-auth.ts`; keep the two in step in the same commit.
+ */
+function GitHubScopeNote() {
+   return (
+      <p className="text-subtle-foreground text-left leading-relaxed">
+         Berry asks GitHub for{' '}
+         <b data-identifier className="text-muted-foreground">
+            repo
+         </b>
+         ,{' '}
+         <b data-identifier className="text-muted-foreground">
+            workflow
+         </b>{' '}
+         and{' '}
+         <b data-identifier className="text-muted-foreground">
+            read:org
+         </b>
+         , plus your profile and email.{' '}
+         <b data-identifier className="text-muted-foreground">
+            repo
+         </b>{' '}
+         is read and write access to every repository on the account, private ones included — Berry
+         needs it to push branches and open pull requests for you.
+      </p>
    );
 }
 
@@ -136,22 +171,28 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
    return (
       <AuthCard
          title="Sign in to Berry"
-         description="Berry uses your GitHub account to sign you in."
+         description="Berry uses your GitHub account. Signing up and signing in are the same step."
          footer={
-            onUseEmail ? (
-               <button
-                  type="button"
-                  className="underline-offset-4 hover:underline"
-                  onClick={onUseEmail}
-               >
-                  Use email instead
-               </button>
-            ) : undefined
+            <div className="grid max-w-[44ch] justify-items-center gap-3 text-center">
+               {onUseEmail ? (
+                  <button
+                     type="button"
+                     className="underline-offset-4 hover:underline"
+                     onClick={onUseEmail}
+                  >
+                     Use email instead
+                  </button>
+               ) : null}
+               <p className="text-subtle-foreground leading-relaxed">
+                  By continuing you agree to the terms and the privacy notice.
+               </p>
+            </div>
          }
       >
          <div className="grid gap-4">
             <Button
                type="button"
+               size="lg"
                className="w-full"
                onClick={() => void start()}
                disabled={pending || available !== true}
@@ -159,6 +200,7 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
                <RiGithubFill aria-hidden className="size-4" />
                {pending ? 'Opening GitHub…' : 'Continue with GitHub'}
             </Button>
+            <GitHubScopeNote />
             {available === false ? (
                <div role="status" className="grid gap-1.5 text-muted-foreground">
                   <p>
@@ -283,6 +325,7 @@ function EmailRegistration({ onBack }: { onBack?: () => void }) {
             </div>
             <Button
                type="submit"
+               size="lg"
                className="w-full"
                disabled={
                   pending ||

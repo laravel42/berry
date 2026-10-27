@@ -18,18 +18,24 @@ interface AuthCardProps {
  * screen's language — `bg-background`, the Berry mark up top — so moving from
  * "loading" to "sign in" does not feel like a different app. The page keeps its
  * own form logic; this only owns the frame.
+ *
+ * Geometry is the redesign's `.authpage` / `.authcol` / `.authcard`: a 470px
+ * column centred in the viewport, the lockup above the card, and the card at
+ * R20 with 24px padding. See docs/redesign/ledger-plan.md §4.
  */
 export function AuthCard({ title, description, children, footer }: AuthCardProps) {
    return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-6 bg-background px-4 py-10">
+      <div className="flex min-h-full flex-col items-center justify-center gap-5 bg-background px-5 py-10">
          <BerryWordmark size="lg" />
-         <Card className="w-full max-w-sm">
+         <Card className="w-full max-w-[470px]">
             <CardHeader className="text-center">
                <CardTitle>
-                  <h1>{title}</h1>
+                  <h1 data-auth-title>{title}</h1>
                </CardTitle>
                {description ? (
-                  <CardDescription className="text-balance">{description}</CardDescription>
+                  <CardDescription className="text-balance leading-relaxed">
+                     {description}
+                  </CardDescription>
                ) : null}
             </CardHeader>
             <CardContent>{children}</CardContent>

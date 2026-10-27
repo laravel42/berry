@@ -25,6 +25,9 @@ import { SessionGate } from '@/components/layout/session-gate';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale } from 'next-intl/server';
+import { cookies } from 'next/headers';
+
+import { THEME_COOKIE, resolveTheme } from '@/lib/theme/theme';
 
 export default async function RootLayout({
    children,
@@ -32,10 +35,16 @@ export default async function RootLayout({
    children: React.ReactNode;
 }>) {
    const locale = await getLocale();
+   // Decided on the server from a cookie, exactly as the locale is: the class
+   // is in the first byte, so light mode needs no inline script and has
+   // nothing to reconcile during hydration. ThemeSync maintains the cookie.
+   const theme = resolveTheme((await cookies()).get(THEME_COOKIE)?.value);
    return (
-      // Berry is dark only, so the theme is a static class rather than a
-      // provider: next-themes injected an inline script React 19 refuses to run.
-      <html lang={locale} className="dark" suppressHydrationWarning>
+      <html
+         lang={locale}
+         className={theme === 'dark' ? 'dark' : undefined}
+         suppressHydrationWarning
+      >
          <body className={`${jetBrainsMono.variable} antialiased`} suppressHydrationWarning>
             <NextIntlClientProvider>
                <NuqsAdapter>

@@ -1,3 +1,22 @@
+/* Berry's one stylesheet: the design tokens, then the base layer.
+
+   The palette, the two type faces and the pilled geometry below are the
+   "Ledger" redesign. This file is its implementation; the reasoning, the
+   measured contrast ratios behind every value, and the decisions still open
+   live in docs/redesign/ledger-plan.md and are not repeated here.
+
+   Three things a reader will not infer from the values alone:
+   - The shell is chrome, not content, and stays dark in both themes, so
+     `--shell-*` has no `.dark` counterpart on purpose. Same for
+     `--board-column-body`. Giving either one would be the bug.
+   - `--ctl-h` (the 44px target floor) is declared but is NOT yet the default
+     control height: that density change is still open, so only `--ctl-h-lg`
+     is wired, on the sign-in primary action.
+   - State is monochromatic deliberately. The accent is spent on the primary
+     action and on the one state that needs a person; a green "done" or a blue
+     "running" must not come back, because the old six-hue set collapsed to a
+     single grey in greyscale and for most colour vision differences. */
+
 @import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
@@ -5,9 +24,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-   --font-sans: var(--font-jetbrains-mono);
+   --font-sans: 'Inter', -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-mono: var(--font-jetbrains-mono);
-   --font-display: var(--font-jetbrains-mono);
+   --font-display:
+      'Inter', -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-weight-normal: 300;
    /* The body size. 13px with 1.2 line spacing, per the house style; every
       other step below keeps its own measure. */
@@ -57,6 +77,9 @@
    --toolbar-height: 52px;
    --subtoolbar-height: 44px;
    --radius-control: 7px;
+   --ctl-h: 44px;
+   --ctl-h-lg: 48px;
+   --ctl-px: 14px;
 
    /* --- Application shell (Berry Prototype.dc.html) -------------------------
       The shell is dark in both themes. It is chrome, not content: the tab
@@ -77,7 +100,7 @@
    --shell-text-muted: #a9a7ad;
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
-   --shell-accent: var(--brand-berry);
+   --shell-accent: #e85075;
    --segment-track: #222226;
    --segment-selected: #303035;
 
@@ -88,43 +111,57 @@
       this token rather than each passing their own number. */
    --drawer-max-width: 1024px;
 
-   --background: #f4f2ec;
-   --foreground: var(--brand-void);
-   /* Solid ink, not a faded --foreground: a 40% mix sat at 2.5:1 on this card. */
-   --placeholder: var(--brand-slate);
-   --container: #fdfcf8;
-   --card: #fdfcf8;
-   --card-foreground: var(--brand-void);
+   --background: #fafafa;
+   --foreground: #010101;
+   --placeholder: #6a6a6e;
+   --container: #ffffff;
+   --card: #ffffff;
+   --card-foreground: #010101;
    --popover: #ffffff;
-   --popover-foreground: var(--brand-void);
-   --primary: var(--brand-berry);
-   --primary-hover: var(--brand-berry-hover);
-   /* Darker berry for links and chips; #C74A5E on this card is 4.5:1. */
-   --primary-text: #9b3344;
+   --popover-foreground: #010101;
+   --pri-a: #c9325c;
+   --pri-b: #9e1138;
+   --primary: var(--pri-a);
+   --primary-hover: #d14868;
+   --primary-text: #a8123f;
    --primary-foreground: #ffffff;
-   --secondary: #e9e6de;
-   --secondary-foreground: var(--brand-void);
-   --muted: #ece9e2;
-   --muted-foreground: #5d5a5a;
-   --subtle-foreground: var(--brand-slate);
-   --accent: #e7e4dc;
-   --accent-foreground: var(--brand-void);
-   --destructive: oklch(0.54 0.17 28);
+   --berry: #c41e4b;
+   --secondary: #f5f5f5;
+   --secondary-foreground: #010101;
+   --muted: #f0f0f0;
+   --muted-foreground: #4d4d4d;
+   --subtle-foreground: #6a6a6e;
+   --accent: #f0f0f0;
+   --accent-foreground: #010101;
+   --destructive: #a01c16;
    --destructive-foreground: #ffffff;
-   --border: #d7d4cc;
-   --input: #cac6bd;
-   --ring: var(--brand-azure);
-   --status-success: #347b5a;
-   --status-warning: #9b6715;
-   --status-danger: oklch(0.54 0.17 28);
-   /* 5.2:1 on the light card surface; #397caf sat at 4.4:1 as running text. */
-   --status-info: #31709f;
-   --status-neutral: var(--brand-slate);
-   --actor-human: #9b6715;
-   --actor-agent: #31709f;
-   --review-pending: #9b6715;
-   --review-approved: #347b5a;
-   --review-changes: oklch(0.54 0.17 28);
+   --border: #e6e6e6;
+   --input: #d4d4d4;
+   --ring: #c41e4b;
+   --status-success: #2e2e2e;
+   --status-warning: #a8123f;
+   --status-danger: #1f1f1f;
+   --status-info: #56565a;
+   --status-neutral: #6a6a6e;
+   --actor-human: #a8123f;
+   --actor-agent: #4d4d4d;
+   --review-pending: #a8123f;
+   --review-approved: #2e2e2e;
+   --review-changes: #1f1f1f;
+   --status-success-soft: #ececec;
+   --status-warning-soft: #fdeff3;
+   --status-danger-soft: #ffffff;
+   --status-info-soft: #f2f2f2;
+   --actor-agent-soft: #f2f2f2;
+   --gate: #a8123f;
+   --gate-foreground: #ffffff;
+   --avatar-agent: #3d3d3d;
+   --avatar-person: #6a6a6e;
+   --avatar-foreground: #ffffff;
+   --diff-add: #177034;
+   --diff-del: #a01c16;
+   --mine: #f3e2ea;
+   --mine-border: #e6ceda;
    --chart-1: var(--brand-berry);
    --chart-2: var(--brand-azure);
    --chart-3: var(--brand-verdant);
@@ -172,41 +209,56 @@
 .dark {
    color-scheme: dark;
 
-   --background: #111113;
-   --foreground: #f2f0ed;
-   --container: #19191c;
-   --card: #202024;
-   --card-foreground: #f2f0ed;
-   --popover: #19191c;
-   --popover-foreground: #f2f0ed;
-   --primary: var(--brand-berry);
-   --primary-hover: var(--brand-berry-hover);
+   --background: #0a0a0b;
+   --foreground: #f6f6f7;
+   --container: #121214;
+   --card: #121214;
+   --card-foreground: #f6f6f7;
+   --popover: #121214;
+   --popover-foreground: #f6f6f7;
+   --primary: var(--pri-a);
+   --primary-hover: #d14868;
    --primary-foreground: #ffffff;
-   --placeholder: #6a6970;
-   --primary-text: #e07a8b;
-   --secondary: #26262b;
-   --secondary-foreground: #f2f0ed;
-   --muted: #202024;
-   --muted-foreground: #a9a7ad;
-   --subtle-foreground: #76747b;
-   --accent: #1f1f23;
-   --accent-foreground: #f2f0ed;
-   --destructive: var(--brand-danger);
-   --destructive-foreground: #ffffff;
-   --border: #242428;
-   --input: #2e2e33;
-   --ring: var(--brand-berry);
-   --status-success: var(--brand-verdant);
-   --status-warning: var(--brand-amber);
-   --status-danger: var(--brand-danger);
-   --status-info: var(--brand-azure);
-   --status-neutral: #8e8c93;
+   --placeholder: #8a8a93;
+   --primary-text: #f0738f;
+   --berry: #e85075;
+   --secondary: #1a1a1d;
+   --secondary-foreground: #f6f6f7;
+   --muted: #17171a;
+   --muted-foreground: #a8a8ae;
+   --subtle-foreground: #8a8a93;
+   --accent: #17171a;
+   --accent-foreground: #f6f6f7;
+   --destructive: #ff8a8a;
+   --destructive-foreground: #1a0a10;
+   --border: #262629;
+   --input: #333338;
+   --ring: #e85075;
+   --status-success: #e4e4e8;
+   --status-warning: #f0738f;
+   --status-danger: #f2f2f4;
+   --status-info: #a8a8ae;
+   --status-neutral: #8a8a93;
    --brand-iris: #c4b4e8;
-   --actor-human: var(--brand-amber);
-   --actor-agent: var(--brand-azure);
-   --review-pending: var(--brand-amber);
-   --review-approved: var(--brand-verdant);
-   --review-changes: var(--brand-danger);
+   --actor-human: #f0738f;
+   --actor-agent: #a8a8ae;
+   --review-pending: #f0738f;
+   --review-approved: #e4e4e8;
+   --review-changes: #f2f2f4;
+   --status-success-soft: #26262a;
+   --status-warning-soft: #2a1018;
+   --status-danger-soft: #121214;
+   --status-info-soft: #1e1e22;
+   --actor-agent-soft: #1e1e22;
+   --gate: #f0738f;
+   --gate-foreground: #1a0a10;
+   --avatar-agent: #c8c8ce;
+   --avatar-person: #8a8a93;
+   --avatar-foreground: #0a0a0b;
+   --diff-add: #5bd98a;
+   --diff-del: #ff8a8a;
+   --mine: #2a1a22;
+   --mine-border: #3c2630;
    --sidebar: #111113;
    --sidebar-foreground: #f2f0ed;
    --sidebar-primary: var(--brand-berry);
@@ -255,7 +307,7 @@
    --color-ash: var(--brand-ash);
    --color-slate: var(--brand-slate);
    --color-hairline: var(--brand-hairline);
-   --color-berry: var(--brand-berry);
+   --color-berry: var(--berry);
    --color-amber: var(--brand-amber);
    --color-verdant: var(--brand-verdant);
    --color-azure: var(--brand-azure);
@@ -275,6 +327,9 @@
    --radius-md: calc(var(--radius) - 2px);
    --radius-lg: var(--radius);
    --radius-xl: calc(var(--radius) + 4px);
+   /* Ledger shape: controls are pilled, cards take R20. */
+   --radius-pill: 999px;
+   --radius-card: 20px;
    --color-sidebar: var(--sidebar);
    --color-sidebar-foreground: var(--sidebar-foreground);
    --color-sidebar-primary: var(--sidebar-primary);
@@ -297,6 +352,23 @@
    --color-group-tint-warning: var(--group-tint-warning);
    --color-group-tint-success: var(--group-tint-success);
    --color-group-tint-danger: var(--group-tint-danger);
+   /* Ledger additions. */
+   --color-status-success-soft: var(--status-success-soft);
+   --color-status-warning-soft: var(--status-warning-soft);
+   --color-status-danger-soft: var(--status-danger-soft);
+   --color-status-info-soft: var(--status-info-soft);
+   --color-actor-agent-soft: var(--actor-agent-soft);
+   --color-gate: var(--gate);
+   --color-gate-foreground: var(--gate-foreground);
+   --color-avatar-agent: var(--avatar-agent);
+   --color-avatar-person: var(--avatar-person);
+   --color-avatar-foreground: var(--avatar-foreground);
+   --color-diff-add: var(--diff-add);
+   --color-diff-del: var(--diff-del);
+   --color-mine: var(--mine);
+   --color-mine-border: var(--mine-border);
+   --color-pri-a: var(--pri-a);
+   --color-pri-b: var(--pri-b);
 }
 
 @layer base {
@@ -326,9 +398,10 @@
       than merely the default. */
    body {
       @apply text-foreground font-sans text-xs;
-      --font-sans: var(--font-jetbrains-mono);
+      /* Rebound here, not only in @theme: `next/font` declares the font
+         variable on this element, so at :root it resolves to nothing and
+         every identifier inherits that emptiness. */
       --font-mono: var(--font-jetbrains-mono);
-      --font-display: var(--font-jetbrains-mono);
       /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
       font-weight: 400;
       min-height: 100vh;
@@ -468,9 +541,16 @@
       here rather than utilities in the components, for the same reason as the
       wordmark: the departure stays next to the rule. */
    [data-figure] {
-      font-weight: 400;
+      font-family: var(--font-mono);
+      font-weight: 700;
       line-height: 1;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+   }
+
+   [data-identifier] {
+      font-family: var(--font-mono);
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
    }
 
@@ -492,6 +572,12 @@
 
    [data-figure='sm'] {
       font-size: 1.25rem;
+   }
+
+   [data-auth-title] {
+      font-size: 1.875rem;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
    }
 
    /* Keep the already-compacted sidebar menu on the previous type scale. */
