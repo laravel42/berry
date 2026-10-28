@@ -137,10 +137,25 @@ const OFF_RAIL: ShellRouteDef[] = [
       match: ['/plan/'],
       icon: '<path d="M8 4h8M8 4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2" /><path d="M9.5 10l1.5 1.5 3-3M9.5 15.5h5" />',
    },
+   {
+      id: 'usage',
+      label: 'usage',
+      labelKey: 'usage',
+      href: '/settings/usage',
+      icon: '<circle cx="12" cy="12" r="8.5" /><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7c0 2.6-5 1.3-5 4 0 1.1 1 1.8 2.5 1.8s2.5-.5 2.5-1.5" />',
+   },
+   {
+      // Every model call Berry made: the structured prompt it sent and what
+      // came back. Settings, because it is where a person goes to debug.
+      id: 'logs',
+      label: 'logs',
+      labelKey: 'logs',
+      href: '/settings/logs',
+      icon: '<path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" />',
+   },
 ];
 
-// Runtimes is not a rail destination: it lives in Settings (Workspace →
-// Runtimes, /settings/runtimes), beside the other workspace configuration.
+// Runtimes, Usage and Logs are not rail destinations: they live in Settings.
 const MANAGE: ShellRouteDef[] = [
    {
       id: 'members',
@@ -167,24 +182,6 @@ const MANAGE: ShellRouteDef[] = [
       match: ['/autopilot/'],
       prefsKey: 'autopilot',
       icon: '<circle cx="12" cy="13" r="7.5" /><path d="M12 9v4l2.5 2.5" /><path d="M9.5 3h5" />',
-   },
-   {
-      id: 'usage',
-      label: 'usage',
-      labelKey: 'usage',
-      href: '/usage',
-      prefsKey: 'usage',
-      icon: '<circle cx="12" cy="12" r="8.5" /><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7c0 2.6-5 1.3-5 4 0 1.1 1 1.8 2.5 1.8s2.5-.5 2.5-1.5" />',
-   },
-   {
-      // Every model call Berry made: the structured prompt it sent and what
-      // came back. Last, because it is where a person goes to debug, not to work.
-      id: 'logs',
-      label: 'logs',
-      labelKey: 'logs',
-      href: '/logs',
-      prefsKey: 'logs',
-      icon: '<path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" />',
    },
 ];
 

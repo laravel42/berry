@@ -21,12 +21,10 @@ import {
    Box,
    Check,
    ChevronDown,
-   Coins,
    FolderKanban,
    GripVertical,
    LucideIcon,
    MessageSquare,
-   ScrollText,
    Sparkles,
    Target,
    Timer,
@@ -52,8 +50,6 @@ export const CONFIGURE_ITEMS: ItemConfig[] = [
    { key: 'agents', label: 'Agents', icon: Sparkles },
    { key: 'skills', label: 'Skills', icon: BookOpen },
    { key: 'autopilot', label: 'Autopilots', icon: Timer },
-   { key: 'usage', label: 'Usage', icon: Coins },
-   { key: 'logs', label: 'Logs', icon: ScrollText },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

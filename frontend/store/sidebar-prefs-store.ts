@@ -15,9 +15,7 @@ export type SidebarItemKey =
    | 'projects'
    | 'views'
    | 'agents'
-   | 'skills'
-   | 'usage'
-   | 'logs';
+   | 'skills';
 
 export type SidebarSection = 'personal' | 'workspace' | 'automate' | 'configure';
 
@@ -60,8 +58,6 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'views': 'always',
    'agents': 'always',
    'skills': 'always',
-   'usage': 'always',
-   'logs': 'always',
 };
 
 /**
@@ -77,11 +73,10 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    // proposals land in Inbox now, not as their own Work rail entries.
    workspace: ['projects', 'goals', 'my-issues', 'chat'],
    automate: [],
-   // No runtimes entry: Runtimes lives in Settings. A stored `agent` key from
-   // before the move is dropped by resolveOrder, which keeps only known keys.
-   // No dashboard entry: it merged into Usage. A stored `dashboard` key is
-   // dropped by resolveOrder like the old `agent` one.
-   configure: ['agents', 'skills', 'autopilot', 'usage', 'logs'],
+   // No runtimes, usage, or logs entry: those live in Settings. A stored
+   // `agent`, `usage`, `logs`, or `dashboard` key is dropped by resolveOrder,
+   // which keeps only known keys.
+   configure: ['agents', 'skills', 'autopilot'],
 };
 
 /** The key the previous shape was persisted under; read once, when v7 has nothing. */

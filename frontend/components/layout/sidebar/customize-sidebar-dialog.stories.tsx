@@ -36,9 +36,9 @@ export const DotBadges: Story = {
    },
 };
 
-/** Usage hidden from Manage. */
+/** Autopilots hidden from Manage. */
 export const Trimmed: Story = {
    beforeEach: () => {
-      useSidebarPrefsStore.getState().setVisibility('usage', 'never');
+      useSidebarPrefsStore.getState().setVisibility('autopilot', 'never');
    },
 };

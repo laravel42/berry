@@ -20,6 +20,8 @@
       "skillLabels": "Skill labels",
       "properties": "Task fields",
       "quickActions": "Quick actions",
+      "usage": "Usage",
+      "logs": "Logs",
       "repositories": "Repositories",
       "integrations": "Integrations",
       "mcp": "MCP servers",
