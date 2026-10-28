@@ -9,7 +9,7 @@ export type BerryMarkTone = 'brand' | 'neutral' | 'working' | 'attention' | 'com
 export type BerryMarkState = 'solid' | 'hollow' | 'crossed';
 
 const toneClasses: Record<BerryMarkTone, string> = {
-   brand: 'text-berry',
+   brand: 'text-primary',
    neutral: 'text-status-neutral',
    working: 'text-status-info',
    attention: 'text-status-warning',
@@ -153,7 +153,7 @@ export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
             data-wordmark={size}
             className="font-display leading-none tracking-[-0.025em] text-foreground"
          >
-            Berry<span className="text-berry">.</span>
+            Berry<span className="text-primary">.</span>
          </span>
       </span>
    );

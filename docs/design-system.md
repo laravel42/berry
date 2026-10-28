@@ -40,9 +40,9 @@ consume semantic state names rather than raw colors.
 | `ash` | `#A9A7AD` | Secondary text |
 | `slate` | `#76747B` | Tertiary labels |
 | `hairline` | `#2A2A2F` | Separators; never body text |
-| `berry` | `#C74A5E` | Brand mark and one filled primary action per view |
-| `berry-hover` | `#D55A6E` | Primary hover |
-| `primary-text` | `#E07A8B` | Berry as ink: links, selected chips. Fill stays `berry`. |
+| `berry` | `#B84355` | Brand mark and one filled primary action per view |
+| `berry-hover` | `#C65062` | Primary hover |
+| `primary-text` | `var(--berry)` / `#B84355` | Berry as ink (`.text-primary`). Same red as the filled primary button. |
 | `amber` | `#E0A84A` | In review, waiting |
 | `verdant` | `#5FB08A` | Done, accepted |
 | `azure` | `#6EA0D8` | Agent activity |
@@ -111,9 +111,10 @@ and tone. `font-normal` resolves to 300 (`--font-weight-normal`); do not use it
 to "reset" page text.
 
 Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` in
-`globals.css`. Placeholders use `#6A6970`. Berry as ink uses `--primary-text`
-(`#E07A8B`). Filled primary actions stay `--primary` / `--brand-berry` with a
-white label; hover is `--primary-hover` (`#D55A6E`).
+`globals.css`. Placeholders use `#6A6970`. Berry as ink is `.text-primary`
+(`--berry`, `#B84355`), the same red as a filled primary button. Filled primary
+actions stay `--primary` / `--brand-berry` with a white label; hover is
+`--primary-hover` (`#C65062`).
 
 Titles stay on JetBrains Mono. Write them as they should read; do not
 `text-transform: capitalize` headings — that rewrites identifiers (`BER-286`,

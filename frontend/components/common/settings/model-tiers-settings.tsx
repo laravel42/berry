@@ -63,7 +63,7 @@ import type { SaveState } from './use-autosave';
  */
 /** Typed text. Inputs ignore text-* and read --input-color instead. */
 const TIER_INK: Record<Tier, string> = {
-   berry_max: 'var(--primary-text)',
+   berry_max: 'var(--berry)',
    berry_xhigh: 'var(--brand-iris)',
    berry_high: 'var(--review-pending)',
    berry_mid: 'var(--status-info)',
@@ -496,7 +496,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                               className={cn(
                                  'size-7 p-0 text-muted-foreground focus-visible:ring-0 disabled:opacity-100',
                                  nameChanged(tier) &&
-                                    'text-primary-text hover:bg-primary/10 hover:text-primary-text'
+                                    'text-primary hover:bg-primary/10 hover:text-primary'
                               )}
                               aria-label={t('save')}
                               disabled={loading || !nameChanged(tier)}

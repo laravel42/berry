@@ -62,7 +62,7 @@ function inviteRolesFor(role: string | undefined): readonly InviteRole[] {
 }
 
 const ROLE_STYLE: Record<WorkspaceRole, string> = {
-   owner: 'border-primary/40 bg-primary/10 text-primary-text',
+   owner: 'border-primary/40 bg-primary/10 text-primary',
    admin: 'border-status-info/40 bg-status-info/10 text-status-info',
    member: 'border-border text-muted-foreground',
    viewer: 'border-border text-muted-foreground',

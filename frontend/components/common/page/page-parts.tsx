@@ -67,7 +67,7 @@ export function PageStatement({
    label,
    heading = 'h1',
    figure,
-   tone = 'text-primary-text',
+   tone = 'text-primary',
    line,
    sub,
    children,

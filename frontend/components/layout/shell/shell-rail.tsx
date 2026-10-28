@@ -182,7 +182,7 @@ export function ShellRail({
                               data-wordmark="md"
                               className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
                            >
-                              Berry<span className="text-[var(--shell-accent)]">.</span>
+                              Berry<span className="text-primary">.</span>
                            </span>
                            <svg
                               width="18"

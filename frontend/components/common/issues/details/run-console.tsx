@@ -168,13 +168,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                target={{ kind: 'issue', id: issueId }}
                disabled={restarting}
             />
-            <Button
-               variant="outline"
-               size="sm"
-               disabled={restarting}
-               onClick={() => void restart()}
-               className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
-            >
+            <Button disabled={restarting} onClick={() => void restart()}>
                <RotateCcw className="size-4" aria-hidden />
                {t('restart')}
             </Button>
@@ -211,13 +205,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
       return (
          <FoldedRunActions>
             {canRestart ? (
-               <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={restarting}
-                  onClick={() => void restart()}
-                  className="gap-1.5 rounded-full border-transparent bg-berry text-chalk shadow-sm hover:bg-berry hover:text-chalk hover:brightness-110"
-               >
+               <Button disabled={restarting} onClick={() => void restart()}>
                   <RotateCcw className="size-4" aria-hidden />
                   {t('restart')}
                </Button>
@@ -287,7 +275,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
                <Button
                   variant="ghost"
                   size="xs"
-                  className="shrink-0 text-berry hover:bg-berry/15 hover:text-berry"
+                  className="shrink-0 text-primary hover:bg-berry/15 hover:text-primary"
                   disabled={restarting}
                   onClick={() => void restart()}
                >

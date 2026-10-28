@@ -207,7 +207,7 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
                         type="button"
                         disabled={busyInvitation === invitation.id}
                         onClick={() => void onJoin(invitation)}
-                        className="rounded bg-primary px-2 py-0.5 text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                        className="btn-primary"
                      >
                         {t('join')}
                      </button>

@@ -670,7 +670,7 @@ export function Chat() {
             {error ? (
                <p
                   role="alert"
-                  className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-[var(--shell-accent)]"
+                  className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-primary"
                >
                   {error}
                </p>

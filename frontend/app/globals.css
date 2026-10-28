@@ -44,8 +44,11 @@
    --brand-ash: #a9a7ad;
    --brand-slate: #76747b;
    --brand-hairline: #2a2a2f;
-   --brand-berry: #c74a5e;
-   --brand-berry-hover: #d55a6e;
+   /* The mark's red. Primary buttons use bg-berry, which reads this token. */
+   --berry: #b84355;
+   --berry-hover: #c65062;
+   --brand-berry: var(--berry);
+   --brand-berry-hover: var(--berry-hover);
    --brand-amber: #e0a84a;
    --brand-verdant: #5fb08a;
    --brand-azure: #6ea0d8;
@@ -77,7 +80,7 @@
    --shell-text-muted: #a9a7ad;
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
-   --shell-accent: var(--brand-berry);
+   --shell-accent: var(--berry);
    --segment-track: #222226;
    --segment-selected: #303035;
 
@@ -99,8 +102,8 @@
    --popover-foreground: var(--brand-void);
    --primary: var(--brand-berry);
    --primary-hover: var(--brand-berry-hover);
-   /* Darker berry for links and chips; #C74A5E on this card is 4.5:1. */
-   --primary-text: #9b3344;
+   /* Berry as text. The same red as `.btn-primary` (`bg-berry`). */
+   --primary-text: var(--berry);
    --primary-foreground: #ffffff;
    --secondary: #e9e6de;
    --secondary-foreground: var(--brand-void);
@@ -183,7 +186,6 @@
    --primary-hover: var(--brand-berry-hover);
    --primary-foreground: #ffffff;
    --placeholder: #6a6970;
-   --primary-text: #e07a8b;
    --secondary: #26262b;
    --secondary-foreground: #f2f0ed;
    --muted: #202024;
@@ -255,7 +257,8 @@
    --color-ash: var(--brand-ash);
    --color-slate: var(--brand-slate);
    --color-hairline: var(--brand-hairline);
-   --color-berry: var(--brand-berry);
+   --color-berry: var(--berry);
+   --color-berry-hover: var(--berry-hover);
    --color-amber: var(--brand-amber);
    --color-verdant: var(--brand-verdant);
    --color-azure: var(--brand-azure);
@@ -297,6 +300,37 @@
    --color-group-tint-warning: var(--group-tint-warning);
    --color-group-tint-success: var(--group-tint-success);
    --color-group-tint-danger: var(--group-tint-danger);
+}
+
+@layer components {
+   /* The filled primary action. Default buttons carry this name and nothing
+      else from the recipe; a non-default size may add a size utility, which
+      wins because utilities sit above this layer. */
+   .btn-primary {
+      @apply inline-flex cursor-pointer items-center justify-center gap-2 font-medium whitespace-nowrap bg-berry text-primary-foreground shadow-xs outline-none transition-[color,box-shadow] hover:bg-berry-hover focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 h-[30px] rounded-[7px] px-3;
+   }
+
+   .btn-primary svg {
+      pointer-events: none;
+      flex-shrink: 0;
+   }
+
+   .btn-primary svg:not([class*='size-']) {
+      width: 1rem;
+      height: 1rem;
+   }
+
+   .btn-primary:has(> svg) {
+      padding-inline: 0.625rem;
+   }
+}
+
+@layer utilities {
+   /* The button's red as text. Utilities layer so this replaces the generated
+      `text-primary` colour utility and stays on `--berry`, the fill `.btn-primary` uses. */
+   .text-primary {
+      color: var(--berry);
+   }
 }
 
 @layer base {
@@ -883,7 +917,7 @@ input[type='search'] {
 }
 
 .tiptap-ai-editor .ProseMirror a {
-   color: var(--primary-text);
+   color: var(--berry);
    text-decoration: underline;
    text-underline-offset: 2px;
 }

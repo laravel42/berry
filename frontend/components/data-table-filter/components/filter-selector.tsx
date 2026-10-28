@@ -298,7 +298,7 @@ function __QuickSearchFilters<TData>({
                         (isValidElement(v.icon) ? (
                           v.icon
                         ) : (
-                          <v.icon className="size-4 text-primary-text" />
+                          <v.icon className="size-4 text-primary" />
                         ))}
                     </div>
                     <div className="flex items-center gap-0.5">

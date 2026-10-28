@@ -20,7 +20,7 @@ const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> =
    berry_max: {
       idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
       chosen: 'border-primary bg-primary/15',
-      check: 'text-primary-text',
+      check: 'text-primary',
    },
    berry_xhigh: {
       idle: 'border-iris/30 bg-iris/5 enabled:hover:bg-iris/10',
