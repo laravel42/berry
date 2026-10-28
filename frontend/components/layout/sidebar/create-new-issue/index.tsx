@@ -4,7 +4,7 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
-import { ISSUE_STATUS_OPTIONS, StatusPicker } from '@/components/common/pickers/status-picker';
+import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -27,16 +27,20 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
-import { status } from '@/data/status';
+import { status, type Status } from '@/data/status';
 import { BerryApiError } from '@/lib/api';
-import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
+import { WORKSPACE_NAME } from '@/lib/config';
+import { agentToUser } from '@/lib/agents';
 import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
 import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
 import { loadWorkspaceLabels } from '@/lib/labels';
 import { loadProperties, setIssueProperty, type PropertyDefinition } from '@/lib/properties';
+import { useAgentsStore } from '@/store/agents-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useMembersStore } from '@/store/members-store';
+import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
@@ -69,6 +73,20 @@ function toDraftDate(date?: Date): string {
    return date ? format(date, 'yyyy-MM-dd') : '';
 }
 
+/** Statuses a task may be created in. In review and done are later states. */
+const CREATABLE_STATUS_IDS = new Set(['backlog', 'to-do', 'in-progress', 'blocked', 'cancelled']);
+
+const CREATE_STATUS_OPTIONS: readonly StatusOption[] = status
+   .filter((entry) => CREATABLE_STATUS_IDS.has(entry.id))
+   .map((entry) => ({ status: entry, label: entry.name }));
+
+function creatableStatus(draftId: string | null, fallback: Status | null): Status {
+   const picked = status.find((entry) => entry.id === draftId);
+   if (picked && CREATABLE_STATUS_IDS.has(picked.id)) return picked;
+   if (fallback && CREATABLE_STATUS_IDS.has(fallback.id)) return fallback;
+   return status.find((entry) => entry.id === 'to-do')!;
+}
+
 export function CreateNewIssue() {
    const t = useTranslations('issueDetail.create');
    const tp = useTranslations('issueDetail.properties');
@@ -98,13 +116,27 @@ export function CreateNewIssue() {
    const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
    const [revealedFields, setRevealedFields] = useState<string[]>([]);
 
-   const uiStatus =
-      status.find((entry) => entry.id === draft.statusId) ??
-      context.defaultStatus ??
-      status.find((entry) => entry.id === 'to-do')!;
+   // In review and done mean work already happened, so the server refuses
+   // them as a task's first status. A draft saved with one of those would
+   // otherwise fail every create.
+   const uiStatus = creatableStatus(draft.statusId, context.defaultStatus);
    const uiPriority =
       priorities.find((entry) => entry.id === draft.priorityId) ??
       priorities.find((entry) => entry.id === 'no-priority')!;
+   const projects = useProjectsStore((state) => state.projects);
+   const members = useMembersStore((state) => state.members);
+   const agents = useAgentsStore((state) => state.agents);
+   const selectedProject =
+      projects.find((project) => project.id === (draft.projectId ?? context.projectId)) ??
+      undefined;
+   const selectedAssignee = useMemo(() => {
+      if (!draft.assignee) return null;
+      if (draft.assignee.type === 'agent') {
+         const agent = agents.find((entry) => entry.id === draft.assignee?.id && !entry.archivedAt);
+         return agent ? agentToUser(agent) : null;
+      }
+      return members.find((member) => member.id === draft.assignee?.id) ?? null;
+   }, [agents, draft.assignee, members]);
 
    useEffect(() => {
       if (!isOpen || !workspaceId) return;
@@ -151,10 +183,9 @@ export function CreateNewIssue() {
 
    /** Everything that can only be done once the task has an id. */
    const applyExtras = async (created: Issue) => {
-      if (draft.labelIds.length > 0) {
-         await setIssueLabels(created.identifier, draft.labelIds).catch(() =>
-            toast.error(t('failed'))
-         );
+      const labelIds = draft.labelIds.filter((id) => labels.some((label) => label.id === id));
+      if (labelIds.length > 0) {
+         await setIssueLabels(created.identifier, labelIds).catch(() => toast.error(t('failed')));
       }
       for (const [propertyId, value] of Object.entries(draft.properties)) {
          if (value === null || value === '' || value === undefined) continue;
@@ -178,26 +209,6 @@ export function CreateNewIssue() {
       closeModal();
    };
 
-   const duplicateToast = (error: BerryApiError) => {
-      const details = (error.details ?? {}) as { identifier?: unknown; issueId?: unknown };
-      const identifier =
-         typeof details.identifier === 'string'
-            ? details.identifier
-            : typeof details.issueId === 'string'
-              ? details.issueId
-              : null;
-      toast.error(t('duplicate'), {
-         action: identifier
-            ? {
-                 label: t('viewExisting'),
-                 onClick: () => {
-                    window.location.href = `/${WORKSPACE_SLUG}/issue/${identifier}`;
-                 },
-              }
-            : undefined,
-      });
-   };
-
    const create = async () => {
       const title = draft.title.trim();
       if (!title) {
@@ -205,12 +216,19 @@ export function CreateNewIssue() {
          return;
       }
       const description = draft.description || undefined;
-      const assignee = draft.assignee;
+      const assignee = selectedAssignee
+         ? {
+              type:
+                 selectedAssignee.role === 'Application' ? ('agent' as const) : ('user' as const),
+              id: selectedAssignee.id,
+              name: selectedAssignee.name,
+           }
+         : null;
       if (!boardId) {
          toast.error('Board is not ready');
          return;
       }
-      const projectId = draft.projectId ?? context.projectId ?? undefined;
+      const projectId = selectedProject?.id;
       const willStart = assignee?.type === 'agent';
 
       // Handing work to an agent is two decisions: assign, and start. Asked
@@ -257,9 +275,7 @@ export function CreateNewIssue() {
          }
          finish();
       } catch (error) {
-         if (error instanceof BerryApiError && error.status === 409) duplicateToast(error);
-         else
-            toast.error(error instanceof BerryApiError ? describePatchFailure(error) : t('failed'));
+         toast.error(error instanceof BerryApiError ? describePatchFailure(error) : t('failed'));
       } finally {
          setPending(false);
       }
@@ -333,7 +349,7 @@ export function CreateNewIssue() {
                      <StatusPicker
                         variant="chip"
                         status={uiStatus}
-                        options={ISSUE_STATUS_OPTIONS}
+                        options={CREATE_STATUS_OPTIONS}
                         onChange={(next) => setDraft({ statusId: next.id })}
                         countFor={(id) => filterByStatus(id).length}
                      />
@@ -348,7 +364,7 @@ export function CreateNewIssue() {
                   ) : null}
                   {createFields.assignee ? (
                      <AssigneeSelector
-                        assignee={null}
+                        assignee={selectedAssignee}
                         onChange={(next) =>
                            setDraft({
                               assignee: next
@@ -364,7 +380,7 @@ export function CreateNewIssue() {
                   ) : null}
                   {createFields.project ? (
                      <ProjectSelector
-                        project={undefined}
+                        project={selectedProject}
                         onChange={(next) => setDraft({ projectId: next?.id ?? null })}
                      />
                   ) : null}
