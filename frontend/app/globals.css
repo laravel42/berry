@@ -421,20 +421,23 @@
 
    /* Titles stay on the interface face. Write the words as they should read;
       do not capitalize here — that rewrites identifiers (BER-286, API).
-      Section labels are 11.5 / 600 in sentence case. */
+      Section labels are 11.5 / 700 in sentence case. */
 
-   /* Headings carry one step of weight over the 400 body so a page title, a
-      dialog title and a section title read as a different role from the row
-      text beside them, not merely a different size. This is the one weight
-      step the scale spends. */
+   /* Headings carry weight over the 400 body so a page title, a dialog title
+      and a section title read as a different role from the row text beside
+      them, not merely a different size. h2 is the heavier step. */
    h1,
-   h2,
    h3,
    [data-heading='h1'],
-   [data-heading='h2'],
    [data-heading='h3'],
    [data-heading='display'] {
       font-weight: 600;
+   }
+
+   h2,
+   [data-heading='h2'],
+   h2[data-heading='label'] {
+      font-weight: 700;
    }
 
    /* A secondary line under a menu title, one step below the body. */

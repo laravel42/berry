@@ -89,12 +89,12 @@ The app ships one face, loaded in `app/layout.tsx`: JetBrains Mono (100-800).
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
 | Interface | JetBrains Mono 400, 13 px / 1.45 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | JetBrains Mono 600 | Every `h1`–`h3` title and the `data-heading` stand-ins |
+| Display | JetBrains Mono 600, `h2` at 700 | Page titles and the `data-heading` stand-ins; section titles are 700 |
 | Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here |
 | Page title | `h1` = 17 px / 600 | Index and detail page names |
-| Section | `h2` = 15 px / 600 | Groups inside a page |
+| Section | `h2` = 15 px / 700 | Groups inside a page |
 | Callout | 12 px | Identifiers, timestamps |
-| Label | `data-heading="label"` = 11.5 px / 600 | "Properties", "Status": labels, not tracked caps |
+| Label | `data-heading="label"` on an `h2` = 11.5 px / 700 | "Properties", "Status": labels, not tracked caps |
 | Display size | `data-heading="display"` = 28 px / 600 | Page display titles |
 | Sidebar menu | `[data-slot='sidebar']` keeps the inherited scale | Already compacted; do not inherit the workspace scale |
 
@@ -106,7 +106,7 @@ with `data-heading="h1|h2|h3"`; `data-heading="display"` is the page display siz
 `data-heading="label"` is the section-label role. Only the wordmark sizes outside the scale,
 through `data-wordmark`.
 
-**Weight.** The body is 400. Titles are 600. Hierarchy otherwise comes from size
+**Weight.** The body is 400. Page titles are 600. Section titles (`h2`) are 700. Hierarchy otherwise comes from size
 and tone. `font-normal` resolves to 300 (`--font-weight-normal`); do not use it
 to "reset" page text.
 
