@@ -58,7 +58,9 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
                aria-label={t('project')}
                className="w-full min-w-0 justify-start gap-2 px-1.5"
             >
-               <Icon className="size-4 text-status-warning" aria-hidden />
+               <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-status-warning">
+                  <Icon className="size-4" aria-hidden />
+               </span>
                <span className={cn('min-w-0 truncate', !issue.project && 'text-muted-foreground')}>
                   {issue.project?.name ?? t('noProject')}
                </span>

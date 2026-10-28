@@ -72,16 +72,19 @@ export function ReviewerProperty({
          : `${tPeer('by', { reviewer: review.reviewer })} · ${tPeer('attempt', { attempt: review.attempt })}`;
 
    return (
-      <div
-         className="flex h-8 w-full min-w-0 items-center gap-2 px-1.5 has-[>svg]:px-2.5"
-         title={title}
-      >
+      <div className="flex h-[30px] w-full min-w-0 items-center gap-2 px-1.5" title={title}>
          {approved === null ? (
-            <Loader2 className="size-4 shrink-0 animate-spin text-review-pending" aria-hidden />
+            <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-review-pending">
+               <Loader2 className="size-4 animate-spin" aria-hidden />
+            </span>
          ) : approved ? (
-            <CircleCheck className="size-4 shrink-0 text-review-approved" aria-hidden />
+            <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-review-approved">
+               <CircleCheck className="size-4" aria-hidden />
+            </span>
          ) : (
-            <AlertTriangle className="size-4 shrink-0 text-status-warning" aria-hidden />
+            <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-status-warning">
+               <AlertTriangle className="size-4" aria-hidden />
+            </span>
          )}
          {approved === false ? null : <span className="min-w-0 truncate">{review.reviewer}</span>}
          <PeerVerdictChip verdict={{ approved, reviewer: review.reviewer }} />

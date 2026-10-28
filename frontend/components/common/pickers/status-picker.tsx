@@ -1,7 +1,13 @@
 'use client';
 
 import { status as issueStatuses, type Status } from '@/data/status';
-import { OptionPicker, PickerChipButton, PickerIconButton, PickerRowButton } from './option-picker';
+import {
+   OptionPicker,
+   PickerChipButton,
+   PickerIconButton,
+   PickerRowButton,
+   PickerRowIcon,
+} from './option-picker';
 
 /** A status and the word this surface uses for it (a project says "Planned" for Todo). */
 export interface StatusOption {
@@ -60,7 +66,9 @@ export function StatusPicker({ status, options, onChange, variant, countFor }: S
             </PickerIconButton>
          ) : variant === 'row' ? (
             <PickerRowButton aria-label={`Change status, current ${status.name}`}>
-               <status.icon />
+               <PickerRowIcon>
+                  <status.icon />
+               </PickerRowIcon>
                <span className="truncate">{chipLabel}</span>
             </PickerRowButton>
          ) : (

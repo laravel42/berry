@@ -77,7 +77,9 @@ export function ProjectDateSelector({
                   aria-expanded={open}
                   aria-label={ariaLabel}
                >
-                  <CalendarClock className="size-4 text-status-info" aria-hidden />
+                  <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-status-info">
+                     <CalendarClock className="size-4" aria-hidden />
+                  </span>
                   <span
                      className={cn(
                         'truncate',

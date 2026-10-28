@@ -3,7 +3,13 @@
 import { priorities, type Priority } from '@/data/priorities';
 import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
-import { OptionPicker, PickerChipButton, PickerIconButton, PickerRowButton } from './option-picker';
+import {
+   OptionPicker,
+   PickerChipButton,
+   PickerIconButton,
+   PickerRowButton,
+   PickerRowIcon,
+} from './option-picker';
 
 interface PriorityPickerProps {
    priority: Priority;
@@ -50,7 +56,9 @@ export function PriorityPicker({ priority, onChange, variant, countFor }: Priori
             </PickerIconButton>
          ) : variant === 'row' ? (
             <PickerRowButton aria-label={label} title={label}>
-               <priority.icon className="size-4" />
+               <PickerRowIcon>
+                  <priority.icon />
+               </PickerRowIcon>
                <span className="truncate">{priority.name}</span>
             </PickerRowButton>
          ) : (

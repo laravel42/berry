@@ -149,6 +149,18 @@ export function PickerIconButton({
 }
 
 /**
+ * The mark on a property row. Same box as a person's photo, so the label
+ * beside it starts on the same line as a name.
+ */
+export function PickerRowIcon({ children }: { children: ReactNode }) {
+   return (
+      <span className="flex size-5 shrink-0 items-center justify-center p-0.5 [&>svg]:size-4">
+         {children}
+      </span>
+   );
+}
+
+/**
  * Icon and label across the whole property row. Same ghost hover as the
  * repository row in the project sidebar.
  */

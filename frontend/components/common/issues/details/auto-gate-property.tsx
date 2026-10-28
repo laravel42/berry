@@ -57,7 +57,9 @@ export function AutoGateProperty({ issue }: { issue: Issue }) {
                   enabled && 'text-status-warning hover:text-status-warning'
                )}
             >
-               <ShieldCheck className="size-4 shrink-0" aria-hidden />
+               <span className="flex size-5 shrink-0 items-center justify-center p-0.5">
+                  <ShieldCheck className="size-4" aria-hidden />
+               </span>
                <span className="truncate">{t('autoGate')}</span>
             </Button>
          </TooltipTrigger>
