@@ -129,7 +129,8 @@ export function IssueLabelPicker({ issueRef }: { issueRef: string }) {
                      disabled={busy}
                      onClick={() => toggle(label.id)}
                      title={label.name}
-                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
+                     data-label-chip
+                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-1.5 py-px"
                      style={{ borderColor: label.color, color: label.color }}
                   >
                      <span className="max-w-[110px] truncate">{label.name}</span>
