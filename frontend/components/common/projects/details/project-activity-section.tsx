@@ -31,7 +31,7 @@ function UpdateRow({ update }: { update: ProjectUpdate }) {
    return (
       <div className="rounded-sm border border-border/60 bg-card p-2">
          <div className="mb-1.5 flex items-center gap-2">
-            <Avatar className="size-5">
+            <Avatar className="size-4">
                <AvatarImage src={update.author.avatarUrl} alt={update.author.name} />
                <AvatarFallback>{update.author.name[0]}</AvatarFallback>
             </Avatar>

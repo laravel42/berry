@@ -85,7 +85,7 @@ export function MemberHoverCard({
             onPointerLeave={() => schedule(false)}
          >
             <div className="flex items-center gap-3">
-               <Avatar className="size-9">
+               <Avatar className="size-7">
                   <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
                   <AvatarFallback>{member.name[0] ?? '·'}</AvatarFallback>
                </Avatar>

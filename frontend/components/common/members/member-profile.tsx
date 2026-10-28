@@ -210,7 +210,7 @@ export default function MemberProfile({ member }: { member: User }) {
                   <div className="px-5 pt-5 pb-4 border-b">
                      <div className="flex items-center gap-3">
                         <div className="relative">
-                           <Avatar className="size-11">
+                           <Avatar className="size-9">
                               <AvatarImage src={member.avatarUrl} alt={member.name} />
                               <AvatarFallback>{member.name[0]}</AvatarFallback>
                            </Avatar>

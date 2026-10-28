@@ -668,7 +668,7 @@ export function CommandPalette() {
                                  if (event.metaKey || event.ctrlKey) modifierDown.current = true;
                               }}
                            >
-                              <Avatar className="size-5">
+                              <Avatar className="size-4">
                                  <AvatarImage src={member.avatarUrl} alt={member.name} />
                                  <AvatarFallback>{member.name[0]}</AvatarFallback>
                               </Avatar>
@@ -972,7 +972,7 @@ export function CommandPalette() {
                                     close();
                                  }}
                               >
-                                 <Avatar className="size-5">
+                                 <Avatar className="size-4">
                                     <AvatarImage src={user.avatarUrl} alt={user.name} />
                                     <AvatarFallback>{user.name[0]}</AvatarFallback>
                                  </Avatar>

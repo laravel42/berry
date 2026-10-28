@@ -135,7 +135,7 @@ export default function Header({ member }: { member: User }) {
                      Members
                   </Link>
                   <ChevronRight className="size-3.5 text-muted-foreground shrink-0" />
-                  <Avatar className="size-5 shrink-0">
+                  <Avatar className="size-4 shrink-0">
                      <AvatarImage src={member.avatarUrl} alt={member.name} />
                      <AvatarFallback>{member.name[0]}</AvatarFallback>
                   </Avatar>

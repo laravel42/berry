@@ -259,7 +259,7 @@ export function ProjectPropertiesPanel({
                        key: String(key),
                        label: sample.assignee.name,
                        leading: (
-                          <Avatar className="size-5 shrink-0">
+                          <Avatar className="size-4 shrink-0">
                              <AvatarImage
                                 src={sample.assignee.avatarUrl}
                                 alt={sample.assignee.name}
@@ -327,7 +327,7 @@ export function ProjectPropertiesPanel({
                <PropertyRow label="Lead">
                   {project.lead ? (
                      <>
-                        <Avatar className="size-5">
+                        <Avatar className="size-4">
                            <AvatarImage src={project.lead.avatarUrl} alt={project.lead.name} />
                            <AvatarFallback>{project.lead.name[0]}</AvatarFallback>
                         </Avatar>
@@ -342,7 +342,7 @@ export function ProjectPropertiesPanel({
                      <span className="inline-flex items-center gap-1.5">
                         <span className="flex -space-x-1.5">
                            {members.slice(0, 3).map((member) => (
-                              <Avatar key={member.id} className="size-5 border-2 border-container">
+                              <Avatar key={member.id} className="size-4 border-2 border-container">
                                  <AvatarImage src={member.avatarUrl} alt={member.name} />
                                  <AvatarFallback>{member.name[0]}</AvatarFallback>
                               </Avatar>

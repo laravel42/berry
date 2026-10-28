@@ -309,7 +309,7 @@ export default function Members() {
                         <SettingsRow
                            key={member.userId}
                            icon={
-                              <Avatar className="size-8">
+                              <Avatar className="size-6">
                                  <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
                                  <AvatarFallback>{member.name[0] ?? '·'}</AvatarFallback>
                               </Avatar>

@@ -108,7 +108,7 @@ export function IssueSubscription({
                               key={subscriber.userId}
                               className="flex min-w-0 items-center gap-2 py-1"
                            >
-                              <Avatar className="size-5 shrink-0">
+                              <Avatar className="size-4 shrink-0">
                                  <AvatarImage
                                     src={subscriber.avatarUrl ?? undefined}
                                     alt={subscriber.name ?? ''}

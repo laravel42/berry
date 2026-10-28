@@ -103,8 +103,8 @@ function initials(name: string): string {
 }
 
 const BOX = {
-   sm: 'size-5',
-   md: 'size-6',
+   sm: 'size-4',
+   md: 'size-5',
 } as const;
 
 interface ActorAvatarProps {

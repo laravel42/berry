@@ -95,7 +95,7 @@ export default function ProjectsInsightsPanel({ projects }: ProjectsInsightsPane
                key: user.id,
                label: user.name,
                leading: (
-                  <Avatar className="size-5 shrink-0">
+                  <Avatar className="size-4 shrink-0">
                      <AvatarImage src={user.avatarUrl} alt={user.name} />
                      <AvatarFallback>{user.name[0]}</AvatarFallback>
                   </Avatar>

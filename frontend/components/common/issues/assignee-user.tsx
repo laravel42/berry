@@ -197,7 +197,7 @@ export function AssigneeUser({
                            <ActorAvatar user={currentAssignee} monogram={monogram} />
                            {currentAssignee.role !== 'Application' ? (
                               <span
-                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
+                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2 rounded-full border-2"
                                  style={{
                                     backgroundColor: statusUserColors[currentAssignee.status],
                                  }}
