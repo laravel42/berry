@@ -12,3 +12,5 @@ overrides:
   'undici@>=8.0.0 <8.12.2': 8.12.2
   # GHSA-587h-7wmj-h5pm: launch-editor via Vite 8.2.2.
   'vite@>=8.2.0 <=8.2.3': 8.2.4
+  # GHSA-68fv-2mgg-jv7q
+  'source-map-js@<1.2.2': 1.2.2
