@@ -26,7 +26,7 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 - Hosted MCP plugins under `plugins/` for the public services in the catalog. Each one proxies that service's MCP server and offers every tool it lists. A `{placeholder}` in the server URL is filled from the string setting of the same name; underscores and hyphens match. The PostHog server URL is `https://mcp.posthog.com/mcp?mode=tools`, so Settings and an agent run receive that server's full tool catalog.
 - Settings → Plugins lists the tools its MCP server offers on the plugin detail. `GET /api/v1/plugins/{workspaceId}/catalog/{key}/tools` asks that server. A server that requires a bearer says so until an API key is saved. The list is capped at 20rem and scrolls.
 - When that tools request sends a saved API key and the MCP server refuses it, the fold says the key was rejected and includes the server's reason. A server that signs in with OAuth says an API key cannot list its tools.
-- A new task assigned to an agent picks installed plugins from the create bar. Each choice is stored as `[@Name](mention://plugin/<id>)` on the description. An agent run on that task receives those plugins' MCP servers and every tool they offer, and is told the tool-name prefix. A task that names no plugin receives none. Typing `@` does not open the list.
+- A new task assigned to an agent picks installed plugins from the create bar Connect control. Each choice is stored as `[@Name](mention://plugin/<id>)` on the description so the run can attach those tools. The task editor hides those links. A task that names no plugin receives none. Typing `@` does not open the list.
 
 - A goal's actions sit on the three-dot button at the top-right of its page:
   open it in a new tab, copy its link, or archive it.

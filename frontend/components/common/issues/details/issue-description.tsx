@@ -9,6 +9,7 @@ import {
    uploadIssueAttachment,
    type ApiAttachment,
 } from '@/lib/attachments';
+import { keepPluginMentions, stripPluginMentions } from '@/lib/plugins';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
@@ -152,11 +153,12 @@ export function IssueDescription({
             )}
          >
             <TiptapAiEditor
-               value={description}
+               value={stripPluginMentions(description)}
                onChange={() => undefined}
                onBlur={(markdown) => {
-                  if (markdown.trim() === description.trim()) return;
-                  updateIssueDescription(issueId, markdown);
+                  const next = keepPluginMentions(markdown, description);
+                  if (next.trim() === description.trim()) return;
+                  updateIssueDescription(issueId, next);
                }}
                placeholder={dragging ? t('dropHere') : 'Add description…'}
                aria-label="Task description"

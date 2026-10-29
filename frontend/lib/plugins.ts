@@ -158,6 +158,39 @@ export async function loadPluginCatalog(workspaceId: string): Promise<CatalogPlu
    ).nodes;
 }
 
+/**
+ * Plugin attachments live on the description as mention links so a run can
+ * read them. The task editor does not show those links.
+ */
+const PLUGIN_MENTION =
+   /\[@[^\]\n]{1,100}\]\(mention:\/\/plugin\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\)/gi;
+
+export function pluginMentionTokens(body: string): string[] {
+   return [...body.matchAll(PLUGIN_MENTION)].map((match) => match[0]);
+}
+
+export function stripPluginMentions(body: string): string {
+   return body
+      .replace(PLUGIN_MENTION, '')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+}
+
+/** Puts the stored plugin mentions back after an edit of the visible text. */
+export function keepPluginMentions(visible: string, stored: string): string {
+   const body = visible.trim();
+   const seen = new Set<string>();
+   const links = pluginMentionTokens(stored).filter((token) => {
+      const key = token.toLowerCase();
+      if (body.toLowerCase().includes(token.toLowerCase()) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+   });
+   if (links.length === 0) return body;
+   return body ? `${body}\n\n${links.join(' ')}` : links.join(' ');
+}
+
 export async function loadPlugins(workspaceId: string): Promise<PluginInstallation[]> {
    return parse(
       z.object({ nodes: z.array(installationSchema) }),
