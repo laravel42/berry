@@ -150,12 +150,17 @@
          "archived": "Nothing is archived."
       },
       "scopeAll": "All",
+      "scopeActive": "Active",
+      "scopePaused": "Paused",
       "scopeArchived": "Archived",
       "noMatch": "No autopilot matches that.",
+      "noMatchQuery": "No autopilots match “{query}”.",
       "cancel": "Cancel",
       "columns": {
          "autopilot": "Autopilot",
-         "status": "Status",
+         "agent": "Agent",
+         "lastRun": "Last run",
+         "nextRun": "Next run",
          "mode": "Each run",
          "quota": "Quota",
          "updated": "Updated"
@@ -175,6 +180,29 @@
          "hour": "hour",
          "day": "day",
          "week": "week"
+      },
+      "trigger": {
+         "schedule": "On a schedule",
+         "webhook": "On webhook",
+         "webhookEvents": "When {events} arrives",
+         "manual": "Run manually"
+      },
+      "next": {
+         "webhook": "On next delivery",
+         "manual": "Manual"
+      },
+      "last": {
+         "text": "{when} · {outcome}",
+         "never": "Not yet run"
+      },
+      "outcome": {
+         "succeeded": "passed",
+         "failed": "failed",
+         "cancelled": "cancelled",
+         "running": "running",
+         "queued": "queued",
+         "skipped": "skipped",
+         "notQueued": "not queued"
       },
       "filters": {
          "button": "Filter",
@@ -198,6 +226,7 @@
       },
       "row": {
          "menu": "Autopilot actions",
+         "toggle": "{name} is active",
          "open": "Open autopilot",
          "pause": "Pause",
          "resume": "Resume",
@@ -233,18 +262,25 @@
       "templates": {
          "title": "Start from one of these",
          "hint": "Each is a runbook you can change before saving.",
+         "use": "Use template",
          "standup_name": "Daily standup",
          "standup_prompt": "Summarise what changed on this project since yesterday: tasks moved, reviews opened, runs that failed. Post it as one short update.",
+         "standup_when": "Every weekday",
          "triage_name": "Triage the inbox",
          "triage_prompt": "Look at every task with no assignee and no priority. Give each one a priority, a label and a first comment saying what it will take.",
+         "triage_when": "Every hour",
          "sweep_name": "Sweep stale tasks",
          "sweep_prompt": "Find tasks that have not moved in two weeks. On each, say what is blocking it and either propose a next step or propose closing it.",
+         "sweep_when": "Every Monday",
          "digest_name": "Weekly digest",
          "digest_prompt": "Write the week in one page: what shipped, what slipped, what failed and what needs a decision.",
+         "digest_when": "Every Friday",
          "release_name": "Release notes",
          "release_prompt": "Read what merged since the last release and draft the notes: what changed, who it affects, and anything that needs care on upgrade.",
+         "release_when": "On webhook",
          "watch_name": "Watch the failures",
-         "watch_prompt": "Look at the runs that failed since the last firing. Group them by cause and open one task for any cause that appears more than twice."
+         "watch_prompt": "Look at the runs that failed since the last firing. Group them by cause and open one task for any cause that appears more than twice.",
+         "watch_when": "Every hour"
       },
       "schedule": {
          "title": "When it runs",

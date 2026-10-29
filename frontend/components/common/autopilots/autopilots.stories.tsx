@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, waitFor, within } from 'storybook/test';
+import { expect, fn, waitFor } from 'storybook/test';
 import {
    autopilots,
    liveAgents,
@@ -25,7 +25,9 @@ const meta = {
       assigneeName,
       canEdit: true,
       onChanged: fn(),
+      onStatusChange: fn(),
       narrowed: false,
+      empty: false,
       onUseTemplate: fn(),
    },
    beforeEach: ({ msw }) => {
@@ -47,7 +49,7 @@ export const List: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('link', { name: /Morning triage/ })).toHaveAttribute(
          'href',
-         '/berry/autopilot/ap-triage'
+         '/berry/autopilots/ap-triage'
       );
    },
 };
@@ -55,40 +57,35 @@ export const List: Story = {
 /** Every column, newest first. */
 export const AllColumns: Story = {
    args: {
-      criteria: { sort: 'created', sortDescending: true, columns: ['status', 'mode', 'quota', 'updated'] },
+      criteria: {
+         sort: 'created',
+         sortDescending: true,
+         columns: ['agent', 'lastRun', 'nextRun', 'mode', 'quota', 'updated'],
+      },
    },
 };
 
-export const PauseFromMenu: Story = {
-   play: async ({ args, canvas, canvasElement, userEvent }) => {
-      const [firstMenu] = canvas.getAllByRole('button', { name: 'Autopilot actions' });
-      await userEvent.click(firstMenu!);
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Pause' }));
-      // PATCH /api/v1/autopilots/:id answers from MSW; then the page re-reads.
+export const PauseFromSwitch: Story = {
+   play: async ({ args, canvas, userEvent }) => {
+      await userEvent.click(canvas.getByRole('switch', { name: 'Morning triage is active' }));
+      // Optimistic first, then PATCH /api/v1/autopilots/:id answers from MSW.
+      await expect(args.onStatusChange).toHaveBeenCalledWith('ap-triage', 'paused');
       await waitFor(() => expect(args.onChanged).toHaveBeenCalled());
-   },
-};
-
-export const BulkSelection: Story = {
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('checkbox', { name: 'Select every autopilot' }));
-      await expect(canvas.getByText('3 selected')).toBeVisible();
    },
 };
 
 /** An empty workspace offers templates to start from. */
 export const EmptyWithTemplates: Story = {
-   args: { autopilots: [] },
+   args: { autopilots: [], empty: true },
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: /Weekly digest/ }));
-      await expect(args.onUseTemplate).toHaveBeenCalledWith(
-         expect.objectContaining({ name: 'Weekly digest' })
-      );
+      await expect(canvas.getByText('Every Friday')).toBeVisible();
+      const [, , , digest] = canvas.getAllByRole('button', { name: 'Use template' });
+      await userEvent.click(digest!);
+      await expect(args.onUseTemplate).toHaveBeenCalledWith('digest');
    },
 };
 
-export const NoMatch: Story = { args: { autopilots: [], narrowed: true } };
+export const NoMatch: Story = { args: { autopilots: [], narrowed: true, query: 'deploy' } };
 
 export const ReadOnly: Story = { args: { canEdit: false } };
 

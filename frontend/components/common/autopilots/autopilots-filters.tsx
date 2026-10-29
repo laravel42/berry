@@ -17,13 +17,20 @@ import { createColumnConfigHelper } from '@/components/data-table-filter/core/fi
 import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 
-export const AUTOPILOT_SCOPES = ['all', 'archived'] as const;
+export const AUTOPILOT_SCOPES = ['all', 'active', 'paused', 'archived'] as const;
 export type AutopilotScope = (typeof AUTOPILOT_SCOPES)[number];
 
-export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
+export const AUTOPILOT_COLUMNS = [
+   'agent',
+   'lastRun',
+   'nextRun',
+   'mode',
+   'quota',
+   'updated',
+] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 
 export const AUTOPILOT_SORTS = ['name', 'status', 'mode', 'quota', 'updated', 'created'] as const;
@@ -40,7 +47,7 @@ export interface AutopilotCriteria {
 export const DEFAULT_AUTOPILOT_CRITERIA: AutopilotCriteria = {
    sort: 'name',
    sortDescending: false,
-   columns: ['status', 'mode', 'updated'],
+   columns: ['agent', 'lastRun', 'nextRun'],
 };
 
 /** Trigger value for an autopilot that only runs by hand. */
@@ -121,7 +128,10 @@ interface Props {
    counts?: Record<AutopilotScope, number | null>;
 }
 
-/** Filter and column controls for the autopilot list. Search sits on the page statement. */
+/**
+ * The list toolbar: scope tabs with counts on the left, Filter and Columns on
+ * the right. Search and the create action sit on the header bar above.
+ */
 export default function AutopilotsFilters({
    criteria,
    onChange,
@@ -129,39 +139,41 @@ export default function AutopilotsFilters({
    action,
    scope = 'all',
    onScopeChange,
-   counts = { all: 0, archived: null },
+   counts = { all: 0, active: 0, paused: 0, archived: null },
 }: Props) {
    const t = useTranslations('areas.autopilots');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
    const scopeLabel: Record<AutopilotScope, string> = {
       all: t('scopeAll'),
+      active: t('scopeActive'),
+      paused: t('scopePaused'),
       archived: t('scopeArchived'),
    };
 
    return (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
-         <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <Tabs value={scope} onValueChange={(value) => onScopeChange?.(value as AutopilotScope)}>
-               <TabsList aria-label={t('title')}>
-                  {AUTOPILOT_SCOPES.map((entry) => (
-                     <TabsTrigger key={entry} value={entry}>
-                        {scopeLabel[entry]}
-                        {counts[entry] === null ? null : (
-                           <span className="tabular-nums text-muted-foreground">
-                              {counts[entry]}
-                           </span>
-                        )}
-                     </TabsTrigger>
-                  ))}
-               </TabsList>
-            </Tabs>
-         </div>
-         <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="flex h-[46px] w-full shrink-0 items-center gap-2 overflow-x-auto border-b px-5">
+         <SegmentedControl
+            aria-label={t('title')}
+            value={scope}
+            onValueChange={(next) => onScopeChange?.(next)}
+            options={AUTOPILOT_SCOPES.map((entry) => ({
+               value: entry,
+               label: (
+                  <span data-settings-type="segment" className="flex items-center gap-1.5 px-0.5">
+                     {scopeLabel[entry]}
+                     {counts[entry] === null ? null : (
+                        <span className="tabular-nums text-subtle-foreground">{counts[entry]}</span>
+                     )}
+                  </span>
+               ),
+            }))}
+         />
+         <div className="ml-auto flex shrink-0 items-center gap-2">
             <ListFilterTrigger filter={filter} />
             <Popover>
                <PopoverTrigger asChild>
                   <Button size="xs" variant="track">
-                     <Columns3 className="size-4" />
+                     <Columns3 className="size-[13px]" />
                      {t('filters.columns')}
                   </Button>
                </PopoverTrigger>
@@ -176,7 +188,11 @@ export default function AutopilotsFilters({
                                     set({
                                        columns: criteria.columns.includes(column)
                                           ? criteria.columns.filter((entry) => entry !== column)
-                                          : [...criteria.columns, column],
+                                          : AUTOPILOT_COLUMNS.filter(
+                                               (entry) =>
+                                                  entry === column ||
+                                                  criteria.columns.includes(entry)
+                                            ),
                                     })
                                  }
                                  className="justify-between"
