@@ -56,7 +56,7 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
                aria-haspopup="listbox"
                aria-expanded={open}
                aria-label={t('project')}
-               className="w-full min-w-0 justify-start gap-2 px-1.5"
+               className="w-full min-w-0 justify-start gap-2 px-0"
             >
                <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-status-warning">
                   <Icon className="size-4" aria-hidden />

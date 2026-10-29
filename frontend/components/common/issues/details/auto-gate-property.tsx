@@ -53,7 +53,7 @@ export function AutoGateProperty({ issue }: { issue: Issue }) {
                aria-pressed={enabled}
                onClick={() => change(!enabled)}
                className={cn(
-                  'w-full min-w-0 justify-start gap-2 px-1.5',
+                  'w-full min-w-0 justify-start gap-2 px-0',
                   enabled && 'text-status-warning hover:text-status-warning'
                )}
             >
