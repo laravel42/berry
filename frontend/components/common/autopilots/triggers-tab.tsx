@@ -77,6 +77,10 @@ export function SecretsNotice({
             <Label>{t('endpoint')}</Label>
             <div className="flex gap-2">
                <Input readOnly value={mask(endpoint)} className="font-mono" />
+               {/* MERGE CONFLICT WARNING: feat/autopilots-redesign also rewrites this file
+                  (triggers-tab.tsx). Resolve by keeping this RevealToggle swap and re-applying
+                  it on top of that branch's restructured markup. Delete this comment once both
+                  branches are merged. */}
                <RevealToggle
                   variant="outline"
                   revealed={shown}
