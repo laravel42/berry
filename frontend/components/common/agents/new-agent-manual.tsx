@@ -390,7 +390,6 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                            <div className="flex flex-wrap gap-2">
                               <Button
                                  type="button"
-                                 size="xs"
                                  variant={draft.runtimeId === NO_RUNTIME ? 'default' : 'secondary'}
                                  onClick={() => set({ runtimeId: NO_RUNTIME })}
                               >
@@ -400,7 +399,6 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={runtime.id}
                                     type="button"
-                                    size="xs"
                                     variant={
                                        draft.runtimeId === runtime.id ? 'default' : 'secondary'
                                     }
@@ -423,7 +421,6 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={level}
                                     type="button"
-                                    size="xs"
                                     variant={draft.concurrency === level ? 'default' : 'secondary'}
                                     onClick={() => set({ concurrency: level })}
                                  >
@@ -443,7 +440,6 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={mode}
                                     type="button"
-                                    size="xs"
                                     variant={draft.access === mode ? 'default' : 'secondary'}
                                     onClick={() => set({ access: mode })}
                                  >
@@ -640,7 +636,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
          </Tabs>
 
          <div className="flex shrink-0 justify-end border-t bg-container px-5 py-3">
-            <Button type="submit" size="sm" disabled={busy || !draft.name.trim()}>
+            <Button type="submit" disabled={busy || !draft.name.trim()}>
                {busy ? t('creating') : t('create')}
             </Button>
          </div>
