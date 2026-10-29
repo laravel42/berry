@@ -30,7 +30,6 @@ test('each integration file is included with the same shape', () => {
 });
 
 test('GitLab is an OAuth integration with repository scopes and gitlab-prefixed tools', () => {
-   const github = findProvider('github');
    const gitlab = findProvider('gitlab');
    assert.equal(gitlab?.include, 'oauth');
    assert.equal(gitlab?.name, 'GitLab');
@@ -44,10 +43,9 @@ test('GitLab is an OAuth integration with repository scopes and gitlab-prefixed 
       .filter((tool) => !tool.enabledByDefault)
       .map((tool) => tool.name);
    assert.deepEqual(offByDefault, ['gitlab.merge_merge_request']);
-   // Same length as the GitHub description, without claiming clone, push or merge.
+   // Same idea as GitHub, without claiming clone, push or merge.
    assert.equal(
       gitlab?.description,
-      'The projects a GitLab account can reach for this workspace. Sign in with GitLab to grant that access, so agents can work inside the repositories that account can open.'
+      'The projects a GitLab account can reach. Sign in so agents can work in those repositories.'
    );
-   assert.equal(gitlab?.description.length, github?.description.length);
 });

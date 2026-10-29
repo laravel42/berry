@@ -1,7 +1,7 @@
 {
    "id": "gitlab",
    "name": "GitLab",
-   "description": "The projects a GitLab account can reach for this workspace. Sign in with GitLab to grant that access, so agents can work inside the repositories that account can open.",
+   "description": "The projects a GitLab account can reach. Sign in so agents can work in those repositories.",
    "include": "oauth",
    "scopes": ["read_repository", "write_repository"],
    "tools": [
