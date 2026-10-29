@@ -16,7 +16,9 @@ import {
    installPlugin,
    loadPluginCatalog,
    loadPlugins,
+   pluginOauthSetupSecrets,
    setPluginSecret,
+   startPluginOAuth,
    type CatalogPlugin,
    type PluginConfigValue,
    type PluginInstallation,
@@ -28,7 +30,8 @@ import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import { useSessionStore } from '@/store/session-store';
 import { ChevronRight, Loader2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import PluginDetail from './plugin-detail';
 import { PluginConfigForm } from './plugin-config-form';
@@ -55,6 +58,10 @@ const FILTER_LABEL: Record<PluginFilter, string> = {
 export default function PluginsSettings() {
    const workspace = useSessionStore((state) => state.workspace);
    const workspaceId = workspace?.id ?? '';
+   const searchParams = useSearchParams();
+   const router = useRouter();
+   const pathname = usePathname();
+   const announced = useRef<string | null>(null);
    const plugins = useSettingsResource<PluginInstallation[]>(
       () =>
          workspaceId
@@ -67,7 +74,10 @@ export default function PluginsSettings() {
       [workspaceId]
    );
    const installedKeys = new Set((plugins.value ?? []).map((plugin) => plugin.key));
-   const available = (catalog.value ?? []).filter((item) => !installedKeys.has(item.preview.key));
+   const catalogOpen = (catalog.value ?? []).filter((item) => item.preview.available !== false);
+   const catalogClosed = (catalog.value ?? []).filter((item) => item.preview.available === false);
+   const available = catalogOpen.filter((item) => !installedKeys.has(item.preview.key));
+   const unavailable = catalogClosed.filter((item) => !installedKeys.has(item.preview.key));
    const [query, setQuery] = useState('');
    const [filter, setFilter] = useState<PluginFilter>('all');
    const needle = query.trim().toLowerCase();
@@ -82,13 +92,18 @@ export default function PluginsSettings() {
    const visibleAvailable = available.filter((item) =>
       matches(item.preview.name, item.preview.key, item.preview.description)
    );
+   const visibleUnavailable = unavailable.filter((item) =>
+      matches(item.preview.name, item.preview.key, item.preview.description)
+   );
    const visibleInstalled = (plugins.value ?? []).filter((plugin) =>
       matches(plugin.name, plugin.key, catalogDescription.get(plugin.key) || plugin.description)
    );
    const shownAvailable = filter === 'installed' ? [] : visibleAvailable;
+   const shownUnavailable =
+      filter === 'installed' || filter === 'available' ? [] : visibleUnavailable;
    const shownInstalled = filter === 'available' ? [] : visibleInstalled;
    const filterCount: Record<PluginFilter, number> = {
-      all: available.length + (plugins.value ?? []).length,
+      all: available.length + unavailable.length + (plugins.value ?? []).length,
       installed: (plugins.value ?? []).length,
       available: available.length,
    };
@@ -105,8 +120,28 @@ export default function PluginsSettings() {
       plugins.reload();
    };
 
+   const oauthCallback = searchParams.get('plugin');
+   const oauthStatus = searchParams.get('status');
+   useEffect(() => {
+      if (!oauthCallback || !oauthStatus) return;
+      const key = `${oauthCallback}:${oauthStatus}`;
+      if (announced.current === key) return;
+      announced.current = key;
+      const name =
+         (catalog.value ?? []).find((item) => item.preview.key === oauthCallback)?.preview.name ??
+         oauthCallback;
+      if (oauthStatus === 'connected') toast.success(`${name} is connected.`);
+      else toast.error(`${name} could not connect. Try again.`);
+      router.replace(pathname);
+   }, [oauthCallback, oauthStatus, catalog.value, router, pathname]);
+
+   const connectOAuth = async (installationId: string) => {
+      const { authorizeUrl } = await startPluginOAuth(workspaceId, installationId);
+      window.location.assign(authorizeUrl);
+   };
+
    const install = async () => {
-      if (!source) return;
+      if (!source || !preview) return;
       setBusy(true);
       try {
          const created = await installPlugin(workspaceId, source, config);
@@ -116,6 +151,14 @@ export default function PluginsSettings() {
                setPluginSecret(workspaceId, created.installation.id, name, value.trim())
             )
          );
+         if (preview.mcpAuth === 'oauth') {
+            plugins.set([...(plugins.value ?? []), created.installation]);
+            setPreview(null);
+            setSource(null);
+            setSecretDrafts({});
+            await connectOAuth(created.installation.id);
+            return;
+         }
          plugins.set([...(plugins.value ?? []), created.installation]);
          setSigningSecret(created.signingSecret);
          setPreview(null);
@@ -169,20 +212,26 @@ export default function PluginsSettings() {
                   <SettingsEmpty title="Loading…" />
                </SettingsCard>
             ) : null}
-            {!plugins.loading && (plugins.value ?? []).length === 0 && available.length === 0 ? (
+            {!plugins.loading &&
+            (plugins.value ?? []).length === 0 &&
+            available.length === 0 &&
+            unavailable.length === 0 ? (
                <SettingsCard>
                   <SettingsEmpty title="No plugins yet" />
                </SettingsCard>
             ) : null}
             {!plugins.loading &&
             shownAvailable.length === 0 &&
+            shownUnavailable.length === 0 &&
             shownInstalled.length === 0 &&
-            ((plugins.value ?? []).length > 0 || available.length > 0) ? (
+            ((plugins.value ?? []).length > 0 || available.length > 0 || unavailable.length > 0) ? (
                <SettingsCard>
                   <SettingsEmpty title="Nothing matches." />
                </SettingsCard>
             ) : null}
-            {shownAvailable.length > 0 || shownInstalled.length > 0 ? (
+            {shownAvailable.length > 0 ||
+            shownUnavailable.length > 0 ||
+            shownInstalled.length > 0 ? (
                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {shownInstalled.map((plugin) => (
                      <PluginCard
@@ -211,6 +260,16 @@ export default function PluginsSettings() {
                            setConfig({});
                            setSecretDrafts({});
                         }}
+                     />
+                  ))}
+                  {shownUnavailable.map((item) => (
+                     <PluginCard
+                        key={item.preview.key}
+                        pluginKey={item.preview.key}
+                        title={item.preview.name}
+                        description={item.preview.description || item.preview.key}
+                        unavailable
+                        status={<StatusIndicator status="off">Unavailable</StatusIndicator>}
                      />
                   ))}
                </div>
@@ -263,9 +322,9 @@ export default function PluginsSettings() {
                         onChange={setConfig}
                         disabled={busy}
                      />
-                     {preview.secrets.length > 0 ? (
+                     {pluginOauthSetupSecrets(preview.secrets).length > 0 ? (
                         <SettingsCard>
-                           {preview.secrets.map((secret) => (
+                           {pluginOauthSetupSecrets(preview.secrets).map((secret) => (
                               <SettingsRow
                                  key={secret.name}
                                  title={secret.title ?? secret.name}
@@ -290,14 +349,26 @@ export default function PluginsSettings() {
                            ))}
                         </SettingsCard>
                      ) : null}
-                     {preview.config.length === 0 && preview.secrets.length === 0 ? (
+                     {preview.mcpAuth === 'oauth' ? (
+                        <p data-settings-type="caption" className="text-subtle-foreground">
+                           {pluginOauthSetupSecrets(preview.secrets).length > 0
+                              ? 'Save the OAuth client, then Berry opens this service so you can sign in.'
+                              : 'After install, Berry opens this service so you can sign in. No API key is pasted here.'}
+                        </p>
+                     ) : preview.config.length === 0 && preview.secrets.length === 0 ? (
                         <p data-settings-type="caption" className="text-subtle-foreground">
                            This plugin does not ask for any settings.
                         </p>
                      ) : null}
                      <DialogFooter>
                         <Button disabled={busy} onClick={() => void install()}>
-                           {busy ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
+                           {busy ? (
+                              <Loader2 className="size-3.5 animate-spin" />
+                           ) : preview.mcpAuth === 'oauth' ? (
+                              'Install and connect'
+                           ) : (
+                              'Install'
+                           )}
                         </Button>
                      </DialogFooter>
                   </DialogContent>
@@ -375,12 +446,14 @@ function PluginCard({
    description,
    status,
    onOpen,
+   unavailable,
 }: {
    pluginKey: string;
    title: string;
    description: string;
    status?: ReactNode;
    onOpen?: () => void;
+   unavailable?: boolean;
 }) {
    const identity = (
       <>
@@ -404,8 +477,12 @@ function PluginCard({
 
    return (
       <section
-         className="flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group"
+         className={cn(
+            'flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group',
+            unavailable && 'opacity-60'
+         )}
          aria-label={title}
+         aria-disabled={unavailable || undefined}
       >
          {onOpen ? (
             <button

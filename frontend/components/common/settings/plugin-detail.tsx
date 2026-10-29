@@ -9,11 +9,15 @@ import {
    loadPlugin,
    loadPluginInvocations,
    loadPluginTools,
+   pluginOauthConnected,
+   pluginOauthSetupSecrets,
    setPluginSecret,
    setPluginTool,
+   startPluginOAuth,
    toolSummary,
    uninstallPlugin,
    updatePlugin,
+   type PluginConfigValue,
    type PluginInstallation,
    type PluginInvocation,
 } from '@/lib/plugins';
@@ -23,6 +27,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { PluginConfigForm } from './plugin-config-form';
 import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -65,7 +70,9 @@ export default function PluginDetail({
    );
 
    const [secretDrafts, setSecretDrafts] = useState<Record<string, string>>({});
+   const [configDraft, setConfigDraft] = useState<Record<string, PluginConfigValue> | null>(null);
    const [confirmingUninstall, setConfirmingUninstall] = useState(false);
+   const [connecting, setConnecting] = useState(false);
 
    const current = plugin.value;
    if (!current) {
@@ -80,11 +87,22 @@ export default function PluginDetail({
    }
 
    const keep = (next: PluginInstallation): Detail => ({ ...next, files: current.files });
+   const config = configDraft ?? current.config;
+   const setupSecrets = pluginOauthSetupSecrets(current.secrets);
+   const connected = pluginOauthConnected(current.secrets);
 
    const toggle = (enabled: boolean) =>
       plugin.mutate({ ...current, enabled }, async () =>
          keep(await updatePlugin(workspaceId, pluginId, { enabled }))
       );
+
+   const saveConfig = async () => {
+      const ok = await plugin.mutate({ ...current, config }, async () =>
+         keep(await updatePlugin(workspaceId, pluginId, { config }))
+      );
+      if (ok) setConfigDraft(null);
+      return ok;
+   };
 
    const saveSecret = async (name: string) => {
       const value = secretDrafts[name]?.trim() ?? '';
@@ -108,6 +126,31 @@ export default function PluginDetail({
       return plugin.mutate({ ...current, mcpTools }, async () =>
          keep(await setPluginTool(workspaceId, pluginId, tool, approved))
       );
+   };
+
+   const connect = async () => {
+      setConnecting(true);
+      try {
+         if (current.configFields.length > 0) {
+            const saved = await saveConfig();
+            if (!saved) {
+               setConnecting(false);
+               return;
+            }
+         }
+         await Promise.all(
+            setupSecrets
+               .filter((secret) => (secretDrafts[secret.name] ?? '').trim() !== '')
+               .map((secret) => saveSecret(secret.name))
+         );
+         const { authorizeUrl } = await startPluginOAuth(workspaceId, pluginId);
+         window.location.assign(authorizeUrl);
+      } catch (cause) {
+         setConnecting(false);
+         toast.error(
+            cause instanceof Error ? cause.message : 'This plugin could not start sign-in.'
+         );
+      }
    };
 
    const uninstall = async () => {
@@ -157,7 +200,88 @@ export default function PluginDetail({
             </SettingsCard>
          </SettingsSection>
 
-         {current.secrets.length > 0 ? (
+         {current.mcpAuth === 'oauth' ? (
+            <>
+               {current.configFields.length > 0 || setupSecrets.length > 0 ? (
+                  <SettingsSection
+                     title="Settings"
+                     description={
+                        setupSecrets.length > 0
+                           ? 'This service does not register clients. Save the OAuth client, then connect.'
+                           : undefined
+                     }
+                  >
+                     <PluginConfigForm
+                        fields={current.configFields}
+                        value={config}
+                        onChange={setConfigDraft}
+                        disabled={plugin.saving || connecting}
+                     />
+                     {setupSecrets.length > 0 ? (
+                        <SettingsCard>
+                           {setupSecrets.map((secret) => (
+                              <SettingsRow
+                                 key={secret.name}
+                                 title={secret.title ?? secret.name}
+                                 description={secret.set ? 'Set' : secret.description || 'Not set'}
+                                 trailing={
+                                    <span className="flex items-center gap-2">
+                                       <Input
+                                          variant="settings"
+                                          type="password"
+                                          autoComplete="off"
+                                          className="h-8 w-44"
+                                          placeholder={secret.set ? 'Replace…' : 'Value'}
+                                          value={secretDrafts[secret.name] ?? ''}
+                                          onChange={(event) =>
+                                             setSecretDrafts((drafts) => ({
+                                                ...drafts,
+                                                [secret.name]: event.target.value,
+                                             }))
+                                          }
+                                       />
+                                       <Button
+                                          variant="quiet"
+                                          onClick={() => void saveSecret(secret.name)}
+                                       >
+                                          Save
+                                       </Button>
+                                    </span>
+                                 }
+                              />
+                           ))}
+                        </SettingsCard>
+                     ) : null}
+                     {current.configFields.length > 0 ? (
+                        <Button
+                           variant="quiet"
+                           disabled={plugin.saving}
+                           onClick={() => void saveConfig()}
+                        >
+                           Save settings
+                        </Button>
+                     ) : null}
+                  </SettingsSection>
+               ) : null}
+               <SettingsSection title="Connection">
+                  <SettingsCard>
+                     <SettingsRow
+                        title={current.name}
+                        description={
+                           connected
+                              ? 'Connected. Agents use this account on a task that names this plugin.'
+                              : 'Not connected. Sign in to list tools and let agents call them.'
+                        }
+                        trailing={
+                           <Button disabled={connecting} onClick={() => void connect()}>
+                              {connecting ? 'Connecting…' : connected ? 'Reconnect' : 'Connect'}
+                           </Button>
+                        }
+                     />
+                  </SettingsCard>
+               </SettingsSection>
+            </>
+         ) : current.secrets.length > 0 ? (
             <SettingsSection
                title="Secrets"
                description="Stored encrypted and sent only to the plugin"

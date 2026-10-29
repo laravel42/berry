@@ -49,6 +49,7 @@ const installationSchema = z.object({
    ),
    surfaces: z.array(z.object({ key: z.string(), title: z.string() })),
    mcpOffer: z.enum(['declared', 'all']).default('declared'),
+   mcpAuth: z.enum(['bearer', 'oauth']).default('bearer'),
    mcpTools: z.array(
       z.object({ name: z.string(), description: z.string(), approved: z.boolean() })
    ),
@@ -72,6 +73,8 @@ const previewSchema = z.object({
    schedules: z.array(z.object({ key: z.string(), everyMinutes: z.number() })),
    surfaces: z.array(z.object({ key: z.string(), title: z.string() })),
    mcpOffer: z.enum(['declared', 'all']).default('declared'),
+   mcpAuth: z.enum(['bearer', 'oauth']).default('bearer'),
+   available: z.boolean().default(true),
    mcpTools: z.array(z.string()),
    files: z.array(z.object({ path: z.string(), size: z.number() })),
 });
@@ -120,6 +123,18 @@ export interface CatalogPlugin {
  * settings list gets one plain sentence, or a short stand-in when the text
  * is instructions rather than a summary.
  */
+export function isPluginOauthStoredSecret(name: string): boolean {
+   return name === 'API_KEY' || name === 'REFRESH_TOKEN';
+}
+
+export function pluginOauthSetupSecrets<T extends { name: string }>(secrets: T[]): T[] {
+   return secrets.filter((secret) => !isPluginOauthStoredSecret(secret.name));
+}
+
+export function pluginOauthConnected(secrets: { name: string; set: boolean }[]): boolean {
+   return secrets.some((secret) => secret.name === 'API_KEY' && secret.set);
+}
+
 export function toolSummary(description: string): string {
    const plain = description
       .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
@@ -255,6 +270,17 @@ export async function updatePlugin(
 
 export async function uninstallPlugin(workspaceId: string, id: string): Promise<void> {
    await apiFetch(one(workspaceId, id), { method: 'DELETE' });
+}
+
+export async function startPluginOAuth(
+   workspaceId: string,
+   id: string
+): Promise<{ authorizeUrl: string }> {
+   return parse(
+      z.object({ authorizeUrl: z.string() }),
+      await apiFetch(`${one(workspaceId, id)}/oauth`, { method: 'POST' }),
+      'Plugin OAuth'
+   );
 }
 
 export async function setPluginSecret(
