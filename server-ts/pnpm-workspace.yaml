@@ -23,3 +23,7 @@ overrides:
    body-parser: 2.4.0
    # GHSA-mrhx-c7xc-m3w5: qmd and the server resolved Zod before 4.6.6.
    'zod@>=4.0.0 <4.6.6': 4.6.7
+   # MCP SDK highs: GHSA-22jm-h49p-29qw, GHSA-46jr-4wx8-v453,
+   # GHSA-6qxp-vccf-f47h, GHSA-f897-62hf-6gxq, GHSA-jm63-cq47-j5jp.
+   '@modelcontextprotocol/sdk': 1.32.1
+   '@modelcontextprotocol/server': 2.3.0
