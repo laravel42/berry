@@ -28,9 +28,8 @@ import {
    type WorkspaceSummary,
 } from '@/lib/workspaces';
 import { useSessionStore } from '@/store/session-store';
-import { cn } from '@/lib/utils';
 import { SaveIndicator } from './save-indicator';
-import { SETTINGS_PILL, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useAutosave } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -200,95 +199,101 @@ export default function WorkspaceGeneral() {
    return (
       <SettingsShell title={t('title')} description={t('subtitle')}>
          <SettingsSection
-            title={t('name')}
-            description={workspace.error ?? (canEdit ? t('nameDescription') : t('readOnly'))}
+            title={t('section')}
+            description={workspace.error ?? (canEdit ? undefined : t('readOnly'))}
          >
-            <SettingsCard className="p-4">
-               <div className="flex items-center gap-2">
-                  <Input
-                     value={name.value ?? ''}
-                     aria-label={t('name')}
-                     disabled={!canEdit || workspace.loading}
-                     className="h-8 max-w-sm flex-1"
-                     onChange={(event) => name.change(event.target.value)}
-                     onBlur={() =>
-                        (name.value ?? '').trim() === '' ? name.revert() : name.flush()
-                     }
-                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
-                        if (event.key === 'Escape') name.revert();
-                     }}
-                  />
-                  <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
-               </div>
-            </SettingsCard>
-         </SettingsSection>
-
-         <SettingsSection title={t('description')} description={t('descriptionDescription')}>
-            <SettingsCard className="p-4">
-               <Textarea
-                  value={description.value ?? ''}
-                  rows={3}
-                  maxLength={5000}
-                  aria-label={t('description')}
-                  placeholder={t('descriptionPlaceholder')}
-                  disabled={!canEdit || workspace.loading}
-                  onChange={(event) => description.change(event.target.value)}
-                  onBlur={description.flush}
-               />
-               <div className="mt-2">
-                  <SaveIndicator
-                     state={description.state}
-                     error={description.error}
-                     onRetry={description.retry}
-                  />
-               </div>
-            </SettingsCard>
-         </SettingsSection>
-
-         <SettingsSection title={t('prefix')} description={t('prefixDescription')}>
             <SettingsCard>
                <SettingsRow
-                  title={
-                     <Input
-                        value={prefix}
-                        aria-label={t('prefix')}
-                        disabled={!canEdit || workspace.loading}
-                        maxLength={PREFIX_MAX}
-                        className="h-8 w-40 font-mono uppercase"
-                        onChange={(event) =>
-                           // Filtered as it is typed: the field only ever holds
-                           // characters the server accepts, so the example below
-                           // is always a real identifier.
-                           setPrefix(
-                              event.target.value
-                                 .toUpperCase()
-                                 .replace(/[^A-Z0-9]/g, '')
-                                 .slice(0, PREFIX_MAX)
-                           )
-                        }
+                  title={t('name')}
+                  description={t('nameDescription')}
+                  trailing={
+                     <span className="flex items-center gap-2">
+                        <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
+                        <Input
+                           variant="settings"
+                           value={name.value ?? ''}
+                           aria-label={t('name')}
+                           disabled={!canEdit || workspace.loading}
+                           className="w-[220px]"
+                           onChange={(event) => name.change(event.target.value)}
+                           onBlur={() =>
+                              (name.value ?? '').trim() === '' ? name.revert() : name.flush()
+                           }
+                           onKeyDown={(event) => {
+                              if (event.key === 'Enter') event.currentTarget.blur();
+                              if (event.key === 'Escape') name.revert();
+                           }}
+                        />
+                     </span>
+                  }
+               />
+               <SettingsRow
+                  title={t('description')}
+                  description={t('descriptionDescription')}
+                  trailing={
+                     <SaveIndicator
+                        state={description.state}
+                        error={description.error}
+                        onRetry={description.retry}
                      />
                   }
+               >
+                  <Textarea
+                     variant="settings"
+                     value={description.value ?? ''}
+                     rows={3}
+                     maxLength={5000}
+                     aria-label={t('description')}
+                     placeholder={t('descriptionPlaceholder')}
+                     disabled={!canEdit || workspace.loading}
+                     onChange={(event) => description.change(event.target.value)}
+                     onBlur={description.flush}
+                  />
+               </SettingsRow>
+               <SettingsRow
+                  title={t('prefix')}
                   description={
-                     prefix === ''
-                        ? t('prefixEmpty')
-                        : prefixValid
-                          ? t('prefixExample', { example: `${prefix}-128` })
-                          : t('prefixInvalid')
+                     prefix === '' ? (
+                        t('prefixEmpty')
+                     ) : prefixValid ? (
+                        <>
+                           {t('prefixRule')}{' '}
+                           <span className="text-muted-foreground">
+                              {t('prefixExample', { example: `${prefix}-128` })}
+                           </span>
+                        </>
+                     ) : (
+                        t('prefixInvalid')
+                     )
                   }
                   trailing={
                      <span className="flex items-center gap-2">
-                        {prefixChanged ? (
-                           <button
-                              type="button"
-                              className={cn(SETTINGS_PILL, 'h-7 min-h-7 px-2.5 py-0 lg:min-h-7')}
-                              onClick={() => setPrefix(savedPrefix)}
-                           >
-                              {t('cancel')}
-                           </button>
-                        ) : null}
+                        <Input
+                           variant="settings"
+                           value={prefix}
+                           aria-label={t('prefix')}
+                           disabled={!canEdit || workspace.loading}
+                           maxLength={PREFIX_MAX}
+                           className="w-24 font-semibold uppercase"
+                           onChange={(event) =>
+                              // Filtered as it is typed: the field only ever holds
+                              // characters the server accepts, so the example
+                              // beside it is always a real identifier.
+                              setPrefix(
+                                 event.target.value
+                                    .toUpperCase()
+                                    .replace(/[^A-Z0-9]/g, '')
+                                    .slice(0, PREFIX_MAX)
+                              )
+                           }
+                           onKeyDown={(event) => {
+                              if (event.key === 'Escape') setPrefix(savedPrefix);
+                           }}
+                        />
+                        {/* Neutral until there is a valid change to make; then
+                            it is the page's one primary action. */}
                         <Button
-                           size="xs"
+                           variant={canEdit && prefixValid && prefixChanged ? 'default' : 'soft'}
                            disabled={!canEdit || !prefixValid || !prefixChanged}
                            onClick={() => setConfirmingPrefix(true)}
                         >
@@ -307,9 +312,9 @@ export default function WorkspaceGeneral() {
                   description={soleOwner ? t('leaveSoleOwner') : t('leaveDescription')}
                   trailing={
                      <Button
-                        size="xs"
-                        className="bg-ripe text-white shadow-xs hover:bg-ripe/90 hover:text-white"
+                        variant="soft"
                         disabled={soleOwner || leaving || !workspaceId}
+                        className="disabled:pointer-events-auto disabled:cursor-not-allowed"
                         onClick={() => setConfirmingLeave(true)}
                      >
                         {t('leave')}
@@ -322,8 +327,8 @@ export default function WorkspaceGeneral() {
                      description={t('deleteDescription')}
                      trailing={
                         <Button
-                           size="xs"
-                           variant="destructive"
+                           variant="soft-destructive"
+                           className="hover:bg-settings-danger-hover"
                            disabled={!workspaceId}
                            onClick={() => {
                               setTypedName('');
@@ -356,7 +361,7 @@ export default function WorkspaceGeneral() {
                </DialogHeader>
                <DialogFooter>
                   <Button
-                     variant="secondary"
+                     variant="soft"
                      disabled={savingPrefix}
                      onClick={() => setConfirmingPrefix(false)}
                   >
@@ -398,6 +403,7 @@ export default function WorkspaceGeneral() {
             onConfirm={confirmDelete}
          >
             <Input
+               variant="settings"
                value={typedName}
                aria-label={t('deleteTypeName')}
                placeholder={record?.name ?? ''}

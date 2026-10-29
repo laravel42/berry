@@ -9,9 +9,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
-import { PageStatement } from '@/components/common/page/page-parts';
 import { JoinLinksPanel } from '@/components/common/settings/join-links-settings';
-import { SettingsCard, SettingsRow, SettingsSection } from '@/components/common/settings/shared';
+import {
+   SelectMenu,
+   SettingsCard,
+   SettingsChip,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -44,7 +51,6 @@ import {
    type WorkspaceMemberRole,
    type WorkspaceRole,
 } from '@/lib/workspaces';
-import { cn } from '@/lib/utils';
 import { useMembersFilterStore } from '@/store/members-filter-store';
 import { useSessionStore } from '@/store/session-store';
 import { MemberHoverCard } from './member-hover-card';
@@ -61,13 +67,6 @@ function inviteRolesFor(role: string | undefined): readonly InviteRole[] {
    return INVITE_ROLES.filter((candidate) => candidate !== 'admin' || role === 'owner');
 }
 
-const ROLE_STYLE: Record<WorkspaceRole, string> = {
-   owner: 'border-primary/40 bg-primary/10 text-primary',
-   admin: 'border-status-info/40 bg-status-info/10 text-status-info',
-   member: 'border-border text-muted-foreground',
-   viewer: 'border-border text-muted-foreground',
-};
-
 /**
  * The message key naming a role.
  *
@@ -76,6 +75,15 @@ const ROLE_STYLE: Record<WorkspaceRole, string> = {
  * explicitly makes it one, and an unrecognised value renders a sensible label
  * rather than surfacing a missing-key error to the reader.
  */
+/** "Andrea Lunelio" → "AL"; one name gives its first two letters. */
+function initials(name: string): string {
+   const words = name.trim().split(/\s+/).filter(Boolean);
+   const first = words[0] ?? '';
+   const last = words.length > 1 ? (words[words.length - 1] ?? '') : '';
+   const letters = last ? `${first.charAt(0)}${last.charAt(0)}` : first.slice(0, 2);
+   return letters.toUpperCase() || '·';
+}
+
 function roleKey(role: string): 'role_owner' | 'role_admin' | 'role_member' | 'role_viewer' {
    switch (role) {
       case 'owner':
@@ -113,6 +121,7 @@ export default function Members() {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const myId = useSessionStore((state) => state.user?.id ?? '');
    const sessionRole = useSessionStore((state) => state.workspace?.role);
+   const workspaceName = useSessionStore((state) => state.workspace?.name ?? '');
 
    const members = useSettingsResource<WorkspaceMemberRole[]>(
       () =>
@@ -285,171 +294,158 @@ export default function Members() {
    );
 
    return (
-      <div className="h-full w-full overflow-y-auto">
-         <PageStatement
-            figure={members.value ? members.value.length : undefined}
-            line={t('statement.line', { count: members.value?.length ?? 0 })}
-            sub={t('statement.sub')}
-         />
-         <div className="mx-auto max-w-5xl px-6 py-8 pb-20">
-            <SettingsSection>
-               <SettingsCard>
-                  {members.loading ? <SettingsRow title={t('loading')} /> : null}
-                  {/* A failed read is said here: the section has no title, so its
-                      description is not rendered, and an empty list would read
-                      as "no members". */}
-                  {!members.loading && members.error ? <SettingsRow title={members.error} /> : null}
-                  {!members.loading && !members.error && displayed.length === 0 ? (
-                     <SettingsRow title={t('empty')} />
-                  ) : null}
-                  {displayed.map((member) => {
-                     const locked = lockedReason(member);
-                     const role = member.role as WorkspaceRole;
-                     return (
-                        <SettingsRow
-                           key={member.userId}
-                           icon={
-                              <Avatar className="size-6">
-                                 <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
-                                 <AvatarFallback>{member.name[0] ?? '·'}</AvatarFallback>
-                              </Avatar>
-                           }
-                           title={
-                              <MemberHoverCard
-                                 workspaceId={workspaceId}
-                                 member={member}
-                                 role={member.role}
+      <SettingsShell
+         title={t('title')}
+         description={t('description', { workspace: workspaceName })}
+      >
+         <SettingsSection
+            title={t('people')}
+            count={members.value ? members.value.length : undefined}
+            description={members.error ?? t('statement.sub')}
+            action={
+               canManage ? (
+                  <Button onClick={() => setInviting(true)}>
+                     <Plus className="size-[13px]" strokeWidth={2.2} />
+                     {t('invite')}
+                  </Button>
+               ) : null
+            }
+         >
+            <SettingsCard>
+               {members.loading ? <SettingsEmpty title={t('loading')} /> : null}
+               {!members.loading && !members.error && displayed.length === 0 ? (
+                  <SettingsEmpty title={t('empty')} />
+               ) : null}
+               {displayed.map((member) => {
+                  const locked = lockedReason(member);
+                  const role = member.role as WorkspaceRole;
+                  return (
+                     <SettingsRow
+                        key={member.userId}
+                        className="py-3"
+                        icon={
+                           <Avatar className="-m-0 size-8">
+                              <AvatarImage src={member.avatarUrl ?? undefined} alt="" />
+                              <AvatarFallback
+                                 data-settings-type="small"
+                                 className="bg-settings-avatar font-semibold text-foreground"
                               >
-                                 <Link
-                                    href={`/${orgId}/members/${member.userId}`}
-                                    className="hover:underline"
-                                 >
-                                    {member.name}
-                                    {member.userId === myId ? (
-                                       <span className="ml-1.5 text-muted-foreground">
-                                          {t('you')}
-                                       </span>
-                                    ) : null}
-                                 </Link>
-                              </MemberHoverCard>
-                           }
-                           description={[
-                              member.email,
-                              t('joined', {
-                                 when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
-                              }),
-                              locked,
-                           ]
-                              .filter(Boolean)
-                              .join(' · ')}
-                           trailing={
-                              <span className="flex items-center gap-2">
-                                 {canManage && !locked ? (
-                                    <Select
-                                       value={role}
-                                       disabled={busy === member.userId}
-                                       onValueChange={(next) =>
-                                          void changeRole(member, next as WorkspaceRole)
-                                       }
-                                    >
-                                       <SelectTrigger
-                                          className="h-7 w-28"
-                                          aria-label={t('roleFor', { name: member.name })}
-                                       >
-                                          <SelectValue />
-                                       </SelectTrigger>
-                                       <SelectContent>
-                                          {WORKSPACE_ROLES.filter(
-                                             // Only an owner may hand out owner.
-                                             (candidate) => candidate !== 'owner' || iAmOwner
-                                          ).map((candidate) => (
-                                             <SelectItem key={candidate} value={candidate}>
-                                                {t(`role_${candidate}`)}
-                                             </SelectItem>
-                                          ))}
-                                       </SelectContent>
-                                    </Select>
-                                 ) : (
-                                    <span
-                                       className={cn(
-                                          'inline-flex items-center rounded-md border px-1.5 py-0.5',
-                                          ROLE_STYLE[role] ?? ROLE_STYLE.member
-                                       )}
-                                    >
-                                       {t(`role_${role}`)}
+                                 {initials(member.name)}
+                              </AvatarFallback>
+                           </Avatar>
+                        }
+                        title={
+                           <MemberHoverCard
+                              workspaceId={workspaceId}
+                              member={member}
+                              role={member.role}
+                           >
+                              <Link
+                                 href={`/${orgId}/members/${member.userId}`}
+                                 className="hover:underline"
+                              >
+                                 {member.name}
+                                 {member.userId === myId ? (
+                                    <span className="ml-1.5 font-normal text-subtle-foreground">
+                                       {t('you')}
                                     </span>
-                                 )}
-                                 {canManage && !locked && member.userId !== myId ? (
-                                    <Button
-                                       size="xs"
-                                       variant="ghost"
-                                       className="text-status-danger hover:text-status-danger"
-                                       disabled={busy === member.userId}
-                                       onClick={() => setRemoving(member)}
-                                    >
-                                       {t('remove')}
-                                    </Button>
                                  ) : null}
-                              </span>
-                           }
-                        />
-                     );
-                  })}
-               </SettingsCard>
-            </SettingsSection>
+                              </Link>
+                           </MemberHoverCard>
+                        }
+                        description={[
+                           member.email,
+                           t('joined', {
+                              when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
+                           }),
+                           locked,
+                        ]
+                           .filter(Boolean)
+                           .join(' · ')}
+                        trailing={
+                           <span className="flex items-center gap-2">
+                              {canManage && !locked ? (
+                                 <SelectMenu
+                                    className="w-28"
+                                    aria-label={t('roleFor', { name: member.name })}
+                                    options={WORKSPACE_ROLES.filter(
+                                       // Only an owner may hand out owner.
+                                       (candidate) => candidate !== 'owner' || iAmOwner
+                                    )}
+                                    labels={Object.fromEntries(
+                                       WORKSPACE_ROLES.map((candidate) => [
+                                          candidate,
+                                          t(`role_${candidate}`),
+                                       ])
+                                    )}
+                                    value={role}
+                                    disabled={busy === member.userId}
+                                    onChange={(next) =>
+                                       void changeRole(member, next as WorkspaceRole)
+                                    }
+                                 />
+                              ) : (
+                                 <SettingsChip className="font-medium">
+                                    {t(`role_${role}`)}
+                                 </SettingsChip>
+                              )}
+                              {canManage && !locked && member.userId !== myId ? (
+                                 <Button
+                                    variant="soft-destructive"
+                                    disabled={busy === member.userId}
+                                    onClick={() => setRemoving(member)}
+                                 >
+                                    {t('remove')}
+                                 </Button>
+                              ) : null}
+                           </span>
+                        }
+                     />
+                  );
+               })}
+            </SettingsCard>
+         </SettingsSection>
 
-            {canManage ? (
-               <div className="mt-10">
-                  <SettingsSection
-                     title={t('pending')}
-                     description={invitations.error ?? t('pendingDescription')}
-                  >
-                     <SettingsCard>
-                        {pending.length === 0 ? <SettingsRow title={t('pendingEmpty')} /> : null}
-                        {pending.map((invitation) => {
-                           const expired = new Date(invitation.expiresAt) < new Date();
-                           return (
-                              <SettingsRow
-                                 key={invitation.id}
-                                 title={invitation.email}
-                                 muted={expired}
-                                 description={[
-                                    t(roleKey(invitation.role)),
-                                    expired
-                                       ? t('expired')
-                                       : t('expires', {
-                                            when: format(
-                                               parseISO(invitation.expiresAt),
-                                               'd MMM yyyy'
-                                            ),
-                                         }),
-                                 ].join(' · ')}
-                                 trailing={
-                                    <Button
-                                       size="xs"
-                                       variant="ghost"
-                                       className="text-status-danger hover:text-status-danger"
-                                       onClick={() => setRevoking(invitation)}
-                                    >
-                                       {t('revoke')}
-                                    </Button>
-                                 }
-                              />
-                           );
-                        })}
-                     </SettingsCard>
-                     <Button size="xs" className="w-fit self-end" onClick={() => setInviting(true)}>
-                        <Plus className="size-4" />
-                        {t('invite')}
-                     </Button>
-                  </SettingsSection>
+         {canManage ? (
+            <>
+               <SettingsSection
+                  title={t('pending')}
+                  description={invitations.error ?? t('pendingDescription')}
+               >
+                  <SettingsCard>
+                     {pending.length === 0 ? <SettingsEmpty title={t('pendingEmpty')} /> : null}
+                     {pending.map((invitation) => {
+                        const expired = new Date(invitation.expiresAt) < new Date();
+                        return (
+                           <SettingsRow
+                              key={invitation.id}
+                              title={invitation.email}
+                              muted={expired}
+                              description={[
+                                 t(roleKey(invitation.role)),
+                                 expired
+                                    ? t('expired')
+                                    : t('expires', {
+                                         when: format(parseISO(invitation.expiresAt), 'd MMM yyyy'),
+                                      }),
+                              ].join(' · ')}
+                              trailing={
+                                 <Button
+                                    variant="soft-destructive"
+                                    onClick={() => setRevoking(invitation)}
+                                 >
+                                    {t('revoke')}
+                                 </Button>
+                              }
+                           />
+                        );
+                     })}
+                  </SettingsCard>
+               </SettingsSection>
 
-                  <div className="mt-10">
-                     <JoinLinksPanel />
-                  </div>
-               </div>
-            ) : null}
-         </div>
+               <JoinLinksPanel />
+            </>
+         ) : null}
 
          <Dialog open={inviting} onOpenChange={(open) => !sending && setInviting(open)}>
             <DialogContent>
@@ -459,6 +455,7 @@ export default function Members() {
                </DialogHeader>
                <div className="flex flex-col gap-3">
                   <Input
+                     variant="settings"
                      value={email}
                      type="email"
                      autoComplete="off"
@@ -484,7 +481,7 @@ export default function Members() {
                   </Select>
                </div>
                <DialogFooter>
-                  <Button variant="secondary" disabled={sending} onClick={() => setInviting(false)}>
+                  <Button variant="soft" disabled={sending} onClick={() => setInviting(false)}>
                      {t('cancel')}
                   </Button>
                   <Button disabled={sending || email.trim() === ''} onClick={() => void invite()}>
@@ -507,7 +504,7 @@ export default function Members() {
                </code>
                <DialogFooter>
                   <Button
-                     variant="secondary"
+                     variant="soft"
                      onClick={() => {
                         void navigator.clipboard?.writeText(inviteLink);
                         toast.success(t('copied'));
@@ -542,6 +539,6 @@ export default function Members() {
             destructive
             onConfirm={() => (revoking ? confirmRevoke(revoking) : undefined)}
          />
-      </div>
+      </SettingsShell>
    );
 }

@@ -183,7 +183,7 @@ export default function PromptLogs() {
                </SelectContent>
             </Select>
             <Button
-               variant="ghost"
+               variant="quiet"
                size="sm"
                className="ml-auto"
                onClick={() => setTick((value) => value + 1)}
@@ -288,7 +288,7 @@ export default function PromptLogs() {
             )}
             {cursor && (
                <div className="flex justify-center py-4">
-                  <Button variant="outline" size="sm" onClick={loadMore} disabled={loading}>
+                  <Button variant="soft" size="sm" onClick={loadMore} disabled={loading}>
                      {t('loadMore')}
                   </Button>
                </div>

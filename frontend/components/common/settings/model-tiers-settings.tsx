@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, GripVertical, Plus, Save, Trash2, X } from 'lucide-react';
+import { ChevronDown, GripVertical, Plus, Save, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import {
    useCallback,
@@ -8,13 +8,11 @@ import {
    useMemo,
    useRef,
    useState,
-   type CSSProperties,
    type KeyboardEvent,
    type PointerEvent,
    type ReactNode,
 } from 'react';
 
-import { TierChip } from '@/components/common/agents/tier-chip';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +25,7 @@ import {
 } from '@/components/ui/command';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MAIN_TIERS, TIER_NAMES, TIER_PLACES, TIER_STYLE, type Tier } from '@/lib/agents';
+import { MAIN_TIERS, TIER_NAMES, TIER_PLACES, type Tier } from '@/lib/agents';
 import {
    aiRuntimeModelsFrom,
    connectedAiRuntimes,
@@ -44,7 +42,13 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { toast } from 'sonner';
 import { SaveIndicator } from './save-indicator';
-import { SETTINGS_PILL, SettingsCard, SettingsSection, SettingsShell } from './shared';
+import {
+   SettingsCard,
+   SettingsEmpty,
+   SettingsIconButton,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import type { SaveState } from './use-autosave';
 
 /**
@@ -61,11 +65,11 @@ import type { SaveState } from './use-autosave';
  *
  * Owners and admins edit; the server refuses anyone else.
  */
-/** Typed text. Inputs ignore text-* and read --input-color instead. */
-const TIER_INK: Record<Tier, string> = {
-   berry_max: 'var(--berry)',
-   berry_xhigh: 'var(--brand-iris)',
-   berry_high: 'var(--review-pending)',
+/** Each tier's dot, in the handoff's order: development, design, reasoning, review, plan. */
+const TIER_DOT: Record<Tier, string> = {
+   berry_max: 'var(--status-danger)',
+   berry_xhigh: 'var(--settings-tier-violet)',
+   berry_high: 'var(--status-warning)',
    berry_mid: 'var(--status-info)',
    berry_low: 'var(--status-success)',
 };
@@ -256,15 +260,13 @@ function SortableModelList({
                key={id}
                data-model-row
                className={cn(
-                  'flex min-w-0 items-center gap-2 rounded-md py-1.5',
-                  dragIndex === index && 'bg-muted/60'
+                  'flex min-w-0 items-center gap-3 border-t border-settings-divider py-2.5 first:border-t-0 pr-3 pl-3.5 transition-colors hover:bg-settings-row-hover',
+                  dragIndex === index && 'bg-settings-row-hover'
                )}
             >
                {sortable ? (
-                  <Button
+                  <button
                      type="button"
-                     variant="ghost"
-                     size="xxs"
                      aria-label={t('reorder', { name: labelFor(id) })}
                      disabled={disabled || ids.length < 2}
                      onPointerDown={onGripDown(index)}
@@ -272,12 +274,15 @@ function SortableModelList({
                      onPointerUp={endDrag}
                      onPointerCancel={endDrag}
                      onKeyDown={onKeyDown(index)}
-                     className="size-6 shrink-0 cursor-grab touch-none px-0 active:cursor-grabbing"
+                     className="-mx-1 inline-flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-[4px] text-settings-field-focus outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default"
                   >
-                     <GripVertical className="size-3.5" />
-                  </Button>
+                     <GripVertical className="size-3" />
+                  </button>
                ) : null}
-               <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">
+               <span
+                  data-settings-type="caption"
+                  className="w-3.5 shrink-0 text-right text-subtle-foreground tabular-nums"
+               >
                   {index + 1}
                </span>
                {children(id)}
@@ -317,7 +322,7 @@ export default function ModelTiersSettings() {
             <SubscriptionRoster runtimes={subscriptions} />
          ) : (
             <SettingsCard>
-               <p className="text-muted-foreground">{t('gatewayOff')}</p>
+               <SettingsEmpty title={t('gatewayOff')} />
             </SettingsCard>
          )}
       </SettingsShell>
@@ -437,31 +442,37 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
       const list = placement[tier];
       return (
          <Collapsible key={tier} defaultOpen className="group/tier">
-            <div className="w-full">
-               <div
-                  data-column-tint="neutral"
-                  className="flex min-h-10 w-full items-center gap-2 bg-group-tint-neutral px-4 py-2"
-               >
+            <SettingsCard>
+               <div className="flex h-12 w-full items-center gap-2.5 pr-3 pl-2.5">
                   <CollapsibleTrigger asChild>
                      <button
                         type="button"
-                        className="flex h-full shrink-0 cursor-pointer items-center rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                        aria-label={names[tier]}
+                        className="inline-flex size-[26px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] text-subtle-foreground outline-none transition-colors hover:bg-settings-control hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={t('collapse', { name: names[tier] })}
                      >
                         <ChevronDown
                            aria-hidden
-                           className="size-3.5 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/tier:-rotate-90"
+                           strokeWidth={2.5}
+                           className="size-[11px] transition-transform duration-150 group-data-[state=closed]/tier:-rotate-90 motion-reduce:transition-none"
                         />
                      </button>
                   </CollapsibleTrigger>
+                  <span
+                     aria-hidden
+                     className="size-2 shrink-0 rounded-full"
+                     style={{ background: TIER_DOT[tier] }}
+                  />
                   {canEdit ? (
                      <>
+                        {/* The name reads as a heading until it is pointed at;
+                            it is still the field that renames the tier. */}
                         <input
                            aria-label={t('renameTier')}
                            value={nameDraft[tier]}
                            maxLength={32}
                            disabled={loading}
                            spellCheck={false}
+                           style={{ font: 'inherit', fontWeight: 600 }}
                            onChange={(event) =>
                               setNameDraft((current) => ({
                                  ...current,
@@ -482,53 +493,37 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                                  event.currentTarget.blur();
                               }
                            }}
-                           className={cn(
-                              'h-7 w-40 rounded border px-2 text-left leading-none outline-none focus-visible:ring-0 disabled:opacity-50',
-                              TIER_STYLE[tier]
-                           )}
-                           style={{ '--input-color': TIER_INK[tier] } as CSSProperties}
+                           className="-ml-1.5 h-[30px] max-w-56 min-w-12 rounded-[7px] [field-sizing:content] border border-transparent bg-transparent px-1.5 text-foreground outline-none hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field disabled:opacity-50"
                         />
-                        <div className="flex items-center gap-0">
-                           <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className={cn(
-                                 'size-7 p-0 text-muted-foreground focus-visible:ring-0 disabled:opacity-100',
-                                 nameChanged(tier) &&
-                                    'text-primary hover:bg-primary/10 hover:text-primary'
-                              )}
-                              aria-label={t('save')}
-                              disabled={loading || !nameChanged(tier)}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => void rename(tier)}
-                           >
-                              <Save className="size-5" strokeWidth={1.6} aria-hidden />
-                           </Button>
-                           <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              className={cn(
-                                 '-ml-1 size-7 p-0 text-muted-foreground focus-visible:ring-0 disabled:opacity-100',
-                                 nameChanged(tier) && 'hover:text-foreground'
-                              )}
-                              aria-label={t('discard')}
-                              disabled={loading || !nameChanged(tier)}
-                              onMouseDown={(event) => event.preventDefault()}
-                              onClick={() => cancelName(tier)}
-                           >
-                              <X className="size-5" strokeWidth={1.6} aria-hidden />
-                           </Button>
-                        </div>
+                        {nameChanged(tier) ? (
+                           <span className="flex items-center">
+                              <SettingsIconButton
+                                 label={t('save')}
+                                 disabled={loading}
+                                 onClick={() => void rename(tier)}
+                              >
+                                 <Save />
+                              </SettingsIconButton>
+                              <SettingsIconButton
+                                 label={t('discard')}
+                                 disabled={loading}
+                                 onClick={() => cancelName(tier)}
+                              >
+                                 <X />
+                              </SettingsIconButton>
+                           </span>
+                        ) : null}
                      </>
                   ) : (
-                     <TierChip tier={tier} className="justify-start" />
+                     <span className="font-semibold">{names[tier]}</span>
                   )}
+                  <span data-settings-type="caption" className="shrink-0 text-subtle-foreground">
+                     {t('modelCount', { count: list.length })}
+                  </span>
                   <CollapsibleTrigger asChild>
                      <button
                         type="button"
-                        className="h-full min-w-0 flex-1"
+                        className="h-full min-w-0 flex-1 cursor-pointer"
                         aria-hidden
                         tabIndex={-1}
                      />
@@ -541,10 +536,15 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                      />
                   ) : null}
                </div>
-            </div>
-            <CollapsibleContent>
-               {list.length > 0 ? (
-                  <div className="px-4 pb-3">
+               <CollapsibleContent>
+                  {list.length === 0 ? (
+                     <div
+                        data-settings-type="caption"
+                        className="py-3 pr-4 pl-[46px] text-subtle-foreground"
+                     >
+                        {t('emptyTier')}
+                     </div>
+                  ) : (
                      <SortableModelList
                         ids={list}
                         disabled={loading}
@@ -557,20 +557,23 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                            const choice = byKey.get(key);
                            return (
                               <>
-                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate">{choice?.name ?? key}</span>
+                                 <span className="flex min-w-0 flex-1 flex-col gap-px">
+                                    <span className="truncate font-medium">
+                                       {choice?.name ?? key}
+                                    </span>
                                     {choice ? (
-                                       <span className="block truncate text-muted-foreground">
+                                       <span
+                                          data-settings-type="caption"
+                                          className="truncate text-subtle-foreground"
+                                       >
                                           {choice.runtimeName}
                                        </span>
                                     ) : null}
                                  </span>
                                  {canEdit ? (
-                                    <Button
-                                       variant="ghost"
-                                       size="xs"
-                                       className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
-                                       aria-label={t('remove')}
+                                    <SettingsIconButton
+                                       label={t('remove')}
+                                       destructive
                                        disabled={loading}
                                        onClick={() =>
                                           commitTier(
@@ -579,16 +582,16 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                                           )
                                        }
                                     >
-                                       <Trash2 className="size-3.5" aria-hidden />
-                                    </Button>
+                                       <X />
+                                    </SettingsIconButton>
                                  ) : null}
                               </>
                            );
                         }}
                      </SortableModelList>
-                  </div>
-               ) : null}
-            </CollapsibleContent>
+                  )}
+               </CollapsibleContent>
+            </SettingsCard>
          </Collapsible>
       );
    };
@@ -606,7 +609,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
          }
       >
          {loading ? <p className="text-muted-foreground">{t('loading')}</p> : null}
-         <SettingsCard>{MAIN_TIERS.map(card)}</SettingsCard>
+         <div className="flex flex-col gap-3">{MAIN_TIERS.map(card)}</div>
       </SettingsSection>
    );
 }
@@ -625,14 +628,10 @@ function AddRuntimeModel({
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <button
-               type="button"
-               className={SETTINGS_PILL}
-               disabled={disabled || choices.length === 0}
-            >
-               <Plus className="size-4" />
+            <Button variant="quiet" className="px-2.5" disabled={disabled || choices.length === 0}>
+               <Plus className="size-3" strokeWidth={2.2} />
                {t('add')}
-            </button>
+            </Button>
          </PopoverTrigger>
          <PopoverContent align="end" className="w-80 p-0">
             <Command>

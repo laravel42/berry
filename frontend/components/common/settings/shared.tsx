@@ -64,9 +64,10 @@ export function SettingsShell({
 }
 
 /** Amber "Not yet implemented" style label. */
-export function SettingsBadge({ children }: { children: React.ReactNode }) {
+export function SettingsBadge({ children, title }: { children: React.ReactNode; title?: string }) {
    return (
       <span
+         title={title}
          data-settings-type="small"
          className="inline-flex h-[22px] items-center rounded-[6px] bg-settings-badge-warning px-2 font-medium text-status-warning"
       >
@@ -442,7 +443,10 @@ export function SettingsSearch({
       >
          <Search className="size-[13px] shrink-0" aria-hidden />
          <input
-            type="search"
+            // Not type="search": globals.css pins that type to 16px, and this
+            // field sits in a 13px row.
+            type="text"
+            role="searchbox"
             value={value}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}

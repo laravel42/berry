@@ -2,15 +2,20 @@
 
 import { ConfirmAction } from '@/components/common/confirm-action';
 import { EmptyStateLoading } from '@/components/common/empty-state';
-import { Figure } from '@/components/common/page/page-parts';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import {
    SettingsCard,
+   SettingsEmpty,
    SettingsRow,
+   SettingsSearch,
    SettingsSection,
    SettingsShell,
+   StatTile,
+   StatTileGrid,
+   StatusIndicator,
+   type SettingsStatus,
 } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
-import { StatusBadge } from '@/components/common/status-badge';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -21,25 +26,22 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import type { StatusLook } from '@/lib/catalog';
 import {
    connectAiRuntime,
    disconnectAiRuntime,
    loadAiRuntimeCatalog,
    type AiRuntimeDefinition,
 } from '@/lib/runtimes';
-import { cn } from '@/lib/utils';
-import { Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { RuntimeProviderBadge } from './runtime-provider-badge';
 
-const CATALOG_TONE = {
-   connected: { tone: 'complete', state: 'solid' },
-   available: { tone: 'working', state: 'hollow' },
-   unavailable: { tone: 'neutral', state: 'crossed' },
-} as const;
+const STATUS = {
+   connected: 'connected',
+   available: 'available',
+   unavailable: 'off',
+} as const satisfies Record<string, SettingsStatus>;
 
 type CatalogFilter = 'all' | 'connected' | 'available';
 
@@ -50,7 +52,7 @@ function connectable(runtime: AiRuntimeDefinition): boolean {
    return runtime.installed === true || runtime.billing === 'api_billing';
 }
 
-function catalogKey(runtime: AiRuntimeDefinition): keyof typeof CATALOG_TONE {
+function catalogKey(runtime: AiRuntimeDefinition): keyof typeof STATUS {
    if (runtime.connection?.status === 'connected') return 'connected';
    if (connectable(runtime)) return 'available';
    return 'unavailable';
@@ -70,6 +72,7 @@ function RuntimeRow({
    connectingLabel,
    disconnectLabel,
    disconnectingLabel,
+   installLabel,
    onConnect,
    onDisconnect,
 }: {
@@ -80,87 +83,46 @@ function RuntimeRow({
    connectingLabel: string;
    disconnectLabel: string;
    disconnectingLabel: string;
+   installLabel: string;
    onConnect: () => void;
    onDisconnect: () => void;
 }) {
-   const connected = runtime.connection?.status === 'connected';
-   const available = connectable(runtime);
-   const look: StatusLook = { ...CATALOG_TONE[catalogKey(runtime)], label: statusLabel };
+   const state = catalogKey(runtime);
+   const guide = runtime.officialSources[0];
 
    return (
       <SettingsRow
+         align="start"
+         icon={<RuntimeProviderBadge runtimeId={runtime.id} bare title={runtime.name} />}
          title={
-            <span className="flex flex-wrap items-center gap-2">
-               <RuntimeProviderBadge runtimeId={runtime.id} size="md" title={runtime.name} />
-               {runtime.name}
-               {connected || available ? <StatusBadge look={look} /> : null}
+            <>
+               <span className="font-semibold">{runtime.name}</span>
+               <StatusIndicator status={STATUS[state]}>{statusLabel}</StatusIndicator>
+            </>
+         }
+         description={
+            <span className="block leading-[1.55] text-muted-foreground">
+               {runtime.unavailableReason ?? runtime.description}
             </span>
          }
-         description={runtime.unavailableReason ?? runtime.description}
          trailing={
-            connected ? (
-               <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
+            state === 'connected' ? (
+               <Button variant="soft" disabled={busy} onClick={onDisconnect}>
                   {busy ? disconnectingLabel : disconnectLabel}
                </Button>
-            ) : available ? (
-               <Button size="xs" disabled={busy} onClick={onConnect}>
+            ) : state === 'available' ? (
+               <Button disabled={busy} onClick={onConnect}>
                   {busy ? connectingLabel : connectLabel}
+               </Button>
+            ) : guide ? (
+               <Button variant="quiet" asChild>
+                  <a href={guide} target="_blank" rel="noreferrer">
+                     {installLabel}
+                  </a>
                </Button>
             ) : null
          }
       />
-   );
-}
-
-function ConnectionBand({
-   loaded,
-   connected,
-   none,
-   some,
-   hintNone,
-   hintSome,
-   availableLine,
-}: {
-   loaded: boolean;
-   connected: number;
-   none: string;
-   some: string;
-   hintNone: string;
-   hintSome: string;
-   availableLine: string;
-}) {
-   const waiting = loaded && connected === 0;
-   const tone = !loaded ? 'neutral' : waiting ? 'warning' : 'success';
-   const figureColor =
-      tone === 'warning'
-         ? 'text-[var(--status-warning)]'
-         : tone === 'success'
-           ? 'text-[var(--status-success)]'
-           : 'text-foreground';
-
-   return (
-      <section
-         data-column-tint={tone}
-         className={cn(
-            'border border-border/70 px-4 py-3',
-            tone === 'warning' && 'bg-column-tint-warning',
-            tone === 'success' && 'bg-column-tint-success',
-            tone === 'neutral' && 'bg-column-tint-neutral'
-         )}
-      >
-         <div className="flex items-end gap-4">
-            <Figure size="xl" className={cn('tabular-nums', figureColor)}>
-               {loaded ? connected : '–'}
-            </Figure>
-            <div className="min-w-0 pb-1">
-               <p className="font-medium">{waiting ? none : some}</p>
-               <p className="text-muted-foreground">{waiting ? hintNone : hintSome}</p>
-            </div>
-         </div>
-         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-border/70 pt-2 tabular-nums text-muted-foreground">
-            <span>{availableLine}</span>
-         </div>
-      </section>
    );
 }
 
@@ -186,7 +148,11 @@ export default function RuntimesList() {
       return (catalog.value?.nodes ?? [])
          .filter((runtime) => {
             if (filter === 'connected' && runtime.connection?.status !== 'connected') return false;
-            if (filter === 'available' && runtime.installed !== true) return false;
+            if (
+               filter === 'available' &&
+               (runtime.connection?.status === 'connected' || !connectable(runtime))
+            )
+               return false;
             if (needle === '') return true;
             return [runtime.name, runtime.publisher, runtime.product, runtime.provider]
                .join(' ')
@@ -249,65 +215,63 @@ export default function RuntimesList() {
       }
    };
 
+   const missingCount = nodes.length - availableCount;
+   const filterCount: Record<CatalogFilter, number> = {
+      all: nodes.length,
+      connected: connectedCount,
+      available: availableCount - connectedCount,
+   };
+   const figure = (count: number) => (catalog.value ? count : '–');
+
    return (
       <SettingsShell
-         compact
-         title="AI Runtimes"
-         description="A runtime is a coding-agent CLI already signed in on this computer. Connect one to give agents that subscription."
+         title="AI runtimes"
+         description="A runtime is a coding-agent CLI already signed in on this computer, or a provider API. Connect one to give agents that subscription."
       >
-         <ConnectionBand
-            loaded={Boolean(catalog.value)}
-            connected={connectedCount}
-            none={t('bandNone')}
-            some={t('bandSome')}
-            hintNone={t('bandHintNone')}
-            hintSome={t('bandHintSome')}
-            availableLine={t('bandAvailable', { count: availableCount })}
-         />
+         <StatTileGrid min={160}>
+            <StatTile large label={t('stateConnected')} value={figure(connectedCount)} />
+            <StatTile
+               large
+               label={t('stateAvailable')}
+               value={figure(availableCount - connectedCount)}
+            />
+            <StatTile large label={t('stateMissing')} value={figure(missingCount)} />
+         </StatTileGrid>
 
-         <SettingsSection panel title={t('catalogTitle')} className="mt-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-               <div className="relative min-w-0 flex-1">
-                  <Search
-                     className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-                     aria-hidden
-                  />
-                  <Input
-                     value={query}
-                     onChange={(event) => setQuery(event.target.value)}
-                     placeholder={t('catalogSearch')}
-                     aria-label={t('catalogSearch')}
-                     className="pl-9"
-                  />
-               </div>
-               <div
-                  className="inline-flex w-fit shrink-0 rounded-md border p-0.5"
-                  role="group"
+         <SettingsSection title={t('catalogTitle')} description={catalog.error ?? undefined}>
+            <div className="flex flex-wrap items-center gap-2.5">
+               <SettingsSearch
+                  className="min-w-[200px]"
+                  value={query}
+                  onChange={setQuery}
+                  placeholder={t('catalogSearch')}
+               />
+               <SegmentedControl
+                  size="md"
                   aria-label={t('catalogTitle')}
-               >
-                  {FILTERS.map((value) => (
-                     <Button
-                        key={value}
-                        type="button"
-                        size="xxs"
-                        variant={filter === value ? 'secondary' : 'ghost'}
-                        aria-pressed={filter === value}
-                        onClick={() => setFilter(value)}
-                     >
-                        {value === 'all'
-                           ? t('filterAll')
-                           : value === 'connected'
-                             ? t('filterConnected')
-                             : t('filterAvailable')}
-                     </Button>
-                  ))}
-               </div>
+                  value={filter}
+                  onValueChange={setFilter}
+                  options={FILTERS.map((value) => ({
+                     value,
+                     label: (
+                        <>
+                           {value === 'all'
+                              ? t('filterAll')
+                              : value === 'connected'
+                                ? t('filterConnected')
+                                : t('filterAvailable')}
+                           {catalog.value ? (
+                              <span className="text-subtle-foreground">{filterCount[value]}</span>
+                           ) : null}
+                        </>
+                     ),
+                  }))}
+               />
             </div>
-            {catalog.error ? <p className="text-status-danger">{catalog.error}</p> : null}
             {catalog.loading && !catalog.value ? (
                <EmptyStateLoading label={t('catalogLoading')} />
             ) : null}
-            <SettingsCard className="mt-4">
+            <SettingsCard>
                {shown.map((runtime) => {
                   const state = catalogKey(runtime);
                   return (
@@ -320,19 +284,20 @@ export default function RuntimesList() {
                               ? 'stateConnected'
                               : state === 'available'
                                 ? 'stateAvailable'
-                                : 'stateUnavailable'
+                                : 'stateMissing'
                         )}
                         connectLabel={t('connect')}
                         connectingLabel={t('connecting')}
                         disconnectLabel={t('disconnect')}
                         disconnectingLabel={t('disconnecting')}
+                        installLabel={t('installGuide')}
                         onConnect={() => askConnect(runtime)}
                         onDisconnect={() => setDisconnecting(runtime)}
                      />
                   );
                })}
                {catalog.value && shown.length === 0 ? (
-                  <p className="px-4 py-3 text-muted-foreground">{t('catalogEmpty')}</p>
+                  <SettingsEmpty title={t('catalogEmpty')} />
                ) : null}
             </SettingsCard>
          </SettingsSection>
@@ -358,6 +323,7 @@ export default function RuntimesList() {
                   <label className="flex flex-col gap-1" htmlFor="runtime-api-token">
                      <span>{t('tokenLabel')}</span>
                      <Input
+                        variant="settings"
                         id="runtime-api-token"
                         type="password"
                         autoComplete="off"
@@ -369,7 +335,7 @@ export default function RuntimesList() {
                      />
                   </label>
                   <DialogFooter>
-                     <Button type="button" variant="ghost" size="sm" onClick={closeToken}>
+                     <Button type="button" variant="quiet" size="sm" onClick={closeToken}>
                         {t('tokenCancel')}
                      </Button>
                      <Button

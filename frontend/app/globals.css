@@ -198,6 +198,7 @@
    --settings-accent-hover: var(--berry-hover);
    --settings-danger-hover: color-mix(in oklab, var(--brand-danger) 18%, var(--card));
    --settings-badge-warning: color-mix(in oklab, var(--status-warning) 14%, transparent);
+   --settings-tier-violet: var(--brand-iris);
 }
 
 .dark {
@@ -271,6 +272,7 @@
    --settings-accent-hover: #d55a6e;
    --settings-danger-hover: #3a2226;
    --settings-badge-warning: rgba(217, 165, 74, 0.14);
+   --settings-tier-violet: #a48ad8;
 }
 
 @theme inline {
