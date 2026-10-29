@@ -94,10 +94,10 @@ export function TiptapAiEditor({
 
    const editor = useEditor({
       extensions: [
-         StarterKit.configure({ underline: false }),
+         StarterKit.configure({ underline: false, link: false }),
          ...formatExtensions,
          Placeholder.configure({ placeholder: placeholder ?? '' }),
-         Link.configure({ openOnClick: false, autolink: true }),
+         Link.configure({ openOnClick: false, autolink: true, protocols: ['mention'] }),
          Markdown.configure({
             html: false,
             transformPastedText: true,

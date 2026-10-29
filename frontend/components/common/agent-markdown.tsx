@@ -84,7 +84,7 @@ export function AgentMarkdown({ body, className, compact, clamp }: AgentMarkdown
             <ChatMarkdown
                body={body}
                tone="page"
-               className={compact ? 'gap-1 leading-snug' : undefined}
+               className={compact ? 'mb-1 gap-1 leading-snug' : undefined}
             />
             {hidden ? (
                <div

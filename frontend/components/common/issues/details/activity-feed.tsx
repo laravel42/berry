@@ -5,6 +5,8 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
+import { ArtifactViewer } from '@/components/common/issues/details/artifact-viewer';
+import { AttachedFileList } from '@/components/common/issues/details/file-list';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -20,11 +22,13 @@ import { describeActivity, loadIssueActivity } from '@/lib/activity';
 import { BerryApiError } from '@/lib/api';
 import {
    assignAttachmentToComment,
+   loadIssueArtifacts,
    loadIssueAttachments,
    onIssueAttachment,
    publishCommentFilesRemoved,
    uploadIssueAttachment,
    type ApiAttachment,
+   type RunArtifact,
 } from '@/lib/attachments';
 import { toUiUser } from '@/lib/catalog';
 import {
@@ -134,8 +138,8 @@ function decorateBody(body: string, origin: string, org: string): string {
  *
  * Agents write Markdown — a heading, a list of what they found, a fenced
  * diff — and people increasingly do too. Printing "## Summary" literally made
- * every agent reply look like a dump. Long ones fold after a few lines;
- * "Read the rest" opens the full transcript.
+ * every agent reply look like a dump. A short report stays open. A long one
+ * folds, and "Read the rest" opens the full transcript.
  */
 function CommentBody({
    body,
@@ -235,18 +239,76 @@ function CommentFiles({ files }: { files: ApiAttachment[] }) {
    const org = orgId ?? WORKSPACE_SLUG;
    if (files.length === 0) return null;
    return (
-      <ul className="flex flex-wrap gap-1.5">
-         {files.map((file) => (
-            <li key={file.id}>
-               <a
-                  href={`/${org}/attachments/${file.id}/preview`}
-                  className="block max-w-full truncate rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-               >
-                  {file.fileName}
-               </a>
-            </li>
-         ))}
-      </ul>
+      <AttachedFileList
+         entries={files.map((file) => ({
+            id: file.id,
+            name: file.fileName,
+            path: file.fileName,
+            sizeBytes: file.sizeBytes,
+            href: `/${org}/attachments/${file.id}/preview`,
+         }))}
+      />
+   );
+}
+
+/** A handoff note Berry used to post beside the run's report. */
+function handoffNote(body: string): boolean {
+   const first = body.trimStart();
+   return first.startsWith('.handoffs/') || first.startsWith('HANDOFF.md');
+}
+
+/** The run's handoff. It stays on the task and is not a file the comment lists. */
+function handoffFile(file: RunArtifact): boolean {
+   return (
+      file.path === 'HANDOFF.md' ||
+      file.path.startsWith('.handoffs/') ||
+      file.directory === '.handoffs' ||
+      file.directory.startsWith('.handoffs/')
+   );
+}
+
+/** Files this comment's run saved, plus any the comment names by path. */
+function artifactsOnComment(comment: ApiComment, artifacts: RunArtifact[]): RunArtifact[] {
+   const seen = new Set<string>();
+   const matched: RunArtifact[] = [];
+   const add = (file: RunArtifact) => {
+      if (seen.has(file.id) || handoffFile(file)) return;
+      seen.add(file.id);
+      matched.push(file);
+   };
+   if (comment.runId) {
+      for (const file of artifacts) {
+         if (file.runId === comment.runId) add(file);
+      }
+   }
+   for (const file of artifacts) {
+      if (comment.body.includes(file.path)) add(file);
+   }
+   return matched.sort((left, right) => {
+      const tucked = (path: string) => (path.startsWith('.') ? 1 : 0);
+      return tucked(left.path) - tucked(right.path) || left.path.localeCompare(right.path);
+   });
+}
+
+function CommentArtifacts({
+   files,
+   onOpen,
+}: {
+   files: RunArtifact[];
+   onOpen: (index: number) => void;
+}) {
+   if (files.length === 0) return null;
+   return (
+      <AttachedFileList
+         entries={files.map((file) => ({
+            id: file.id,
+            name: file.name,
+            path: file.path,
+            directory: file.directory,
+            sizeBytes: file.sizeBytes,
+         }))}
+         onOpen={onOpen}
+      />
    );
 }
 
@@ -255,21 +317,25 @@ function CommentCard({
    issueRef,
    replies,
    attachments,
+   artifacts,
    highlighted,
    onChanged,
    onDeleted,
    onRunChanged,
    onPosted,
+   onOpenArtifact,
 }: {
    comment: ApiComment;
    issueRef: string;
    replies: ApiComment[];
    attachments: ApiAttachment[];
+   artifacts: RunArtifact[];
    highlighted: boolean;
    onChanged: (comment: ApiComment) => void;
    onDeleted: (commentId: string) => void;
    onRunChanged: (run: RunRecord) => void;
    onPosted: (comment: ApiComment) => void;
+   onOpenArtifact: (files: RunArtifact[], index: number) => void;
 }) {
    const t = useTranslations('issueDetail.activity');
    const [collapsed, setCollapsed] = useState(false);
@@ -284,6 +350,7 @@ function CommentCard({
    const [resolving, setResolving] = useState(false);
    const [closingNote, setClosingNote] = useState('');
    const files = attachments.filter((file) => file.commentId === comment.id);
+   const produced = artifactsOnComment(comment, artifacts);
    const actor: User = toUiUser(comment.author);
    const isAgent = comment.author.type === 'agent';
 
@@ -334,12 +401,16 @@ function CommentCard({
                   body={comment.body}
                   thin={isAgent}
                   className="px-2"
-                  clamp={{ lines: 6, moreLabel: t('readRest'), lessLabel: t('showLess') }}
+                  clamp={{ lines: 16, moreLabel: t('readRest'), lessLabel: t('showLess') }}
                />
                <CommentFiles files={files} />
+               <CommentArtifacts
+                  files={produced}
+                  onOpen={(index) => onOpenArtifact(produced, index)}
+               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-1">
+            <div className="mt-1 flex flex-wrap items-center gap-1">
                <ReactionBar target="comment" id={comment.id} />
                <Button
                   variant="ghost"
@@ -387,11 +458,13 @@ function CommentCard({
                      issueRef={issueRef}
                      replies={[]}
                      attachments={attachments}
+                     artifacts={artifacts}
                      highlighted={false}
                      onChanged={onChanged}
                      onDeleted={onDeleted}
                      onRunChanged={onRunChanged}
                      onPosted={onPosted}
+                     onOpenArtifact={onOpenArtifact}
                   />
                ))}
             </div>
@@ -571,17 +644,27 @@ export function ActivityFeedList({
    const t = useTranslations('issueDetail.activity');
    const [showResolved, setShowResolved] = useState(false);
    const [attachments, setAttachments] = useState<ApiAttachment[]>([]);
+   const [artifacts, setArtifacts] = useState<RunArtifact[]>([]);
+   const [openArtifact, setOpenArtifact] = useState<{ files: RunArtifact[]; index: number } | null>(
+      null
+   );
    const reviews = useSettledAutoReviews(issueRef);
 
    useEffect(() => {
       if (!issueRef) {
          setAttachments([]);
+         setArtifacts([]);
          return;
       }
       let cancelled = false;
       void loadIssueAttachments(issueRef)
          .then((loaded) => {
             if (!cancelled) setAttachments(loaded);
+         })
+         .catch(() => undefined);
+      void loadIssueArtifacts(issueRef)
+         .then((loaded) => {
+            if (!cancelled) setArtifacts(loaded);
          })
          .catch(() => undefined);
       return () => {
@@ -609,13 +692,16 @@ export function ActivityFeedList({
       return map;
    }, [comments]);
 
-   const roots = useMemo(
-      () =>
-         comments
-            .filter((comment) => !comment.parentId)
-            .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-      [comments]
-   );
+   const roots = useMemo(() => {
+      const top = comments
+         .filter((comment) => !comment.parentId)
+         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      // A finished run used to post its report and then the same text again as
+      // a handoff note. The report is the comment; the note stays on the task
+      // as a file.
+      const hasReport = top.some((comment) => comment.runId && !handoffNote(comment.body));
+      return hasReport ? top.filter((comment) => !handoffNote(comment.body)) : top;
+   }, [comments]);
 
    const timeline = useMemo(() => {
       type Row =
@@ -701,6 +787,7 @@ export function ActivityFeedList({
                      issueRef={issueRef}
                      replies={repliesByParent.get(row.comment.id) ?? []}
                      attachments={attachments}
+                     artifacts={artifacts}
                      highlighted={highlightedCommentId === row.comment.id}
                      onChanged={onCommentChanged}
                      onDeleted={(commentId) => {
@@ -722,10 +809,21 @@ export function ActivityFeedList({
                      }}
                      onRunChanged={onRunChanged}
                      onPosted={onCommentPosted}
+                     onOpenArtifact={(files, index) => setOpenArtifact({ files, index })}
                   />
                )
             )}
          </div>
+         <ArtifactViewer
+            issueRef={issueRef}
+            artifacts={openArtifact?.files ?? []}
+            index={openArtifact?.index ?? null}
+            onIndexChange={(index) =>
+               setOpenArtifact((current) =>
+                  current && index !== null ? { ...current, index } : null
+               )
+            }
+         />
       </div>
    );
 }
