@@ -19,3 +19,5 @@ overrides:
    proxy-addr: 2.0.8
    simple-git: 4.0.1
    '@simple-git/argv-parser': 2.0.1
+   # GHSA-27r3-jxmh-p828: express resolved body-parser 2.3.0.
+   body-parser: 2.4.0
