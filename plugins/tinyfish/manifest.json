@@ -6,7 +6,20 @@
    "description": "Web search and browser automation. An agent can open pages and pull the content a task asks it to collect.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with TinyFish.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with TinyFish.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,13 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://agent.tinyfish.ai/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "openid",
+         "profile",
+         "email",
+         "offline_access"
+      ]
    }
 }

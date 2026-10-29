@@ -19,10 +19,17 @@
       },
       {
          "key": "API_KEY",
-         "name": "API Key",
-         "label": "Bearer token for the MCP server",
+         "name": "Access token",
+         "label": "Saved when you connect with HG Insights.",
          "type": "secret",
-         "required": true
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with HG Insights.",
+         "type": "secret",
+         "required": false
       }
    ],
    "mcp": {
@@ -32,6 +39,12 @@
       "servers": {
          "data": "https://phoenix.hginsights.com/api/mcp/v2",
          "ai": "https://phoenix.hginsights.com/api/ai/mcp/v2"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp:read",
+         "mcp:tools",
+         "offline_access"
+      ]
    }
 }

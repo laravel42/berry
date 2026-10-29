@@ -6,8 +6,32 @@
    "description": "Product analytics for events, funnels, and retention. An agent can query usage and describe what people actually did.",
    "scopes": [],
    "config": [
-      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["us", "eu", "in"], "required": true },
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "us",
+            "eu",
+            "in"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Mixpanel.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Mixpanel.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -17,6 +41,33 @@
          "us": "https://mcp.mixpanel.com/mcp",
          "eu": "https://mcp-eu.mixpanel.com/mcp",
          "in": "https://mcp-in.mixpanel.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "projects",
+         "analysis",
+         "events",
+         "insights",
+         "segmentation",
+         "retention",
+         "data:read",
+         "funnels",
+         "flows",
+         "data_definitions",
+         "alerts",
+         "annotations",
+         "bookmarks",
+         "business_context",
+         "cohorts",
+         "context",
+         "custom_alerts",
+         "custom_events",
+         "custom_properties",
+         "dashboard_reports",
+         "experiments",
+         "feature_flags",
+         "metrics",
+         "user_details"
+      ]
    }
 }

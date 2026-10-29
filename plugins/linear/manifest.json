@@ -6,8 +6,31 @@
    "description": "Reads and updates issues, projects, and comments. An agent can follow the work it was assigned and record progress on it.",
    "scopes": [],
    "config": [
-      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["default", "readonly"], "required": true },
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "default",
+            "readonly"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Linear.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Linear.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -16,6 +39,11 @@
       "servers": {
          "default": "https://mcp.linear.app/mcp",
          "readonly": "https://mcp.linear.app/mcp/readonly"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "read",
+         "write"
+      ]
    }
 }

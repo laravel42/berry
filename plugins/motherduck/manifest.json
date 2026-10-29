@@ -6,7 +6,20 @@
    "description": "Queries a MotherDuck database. An agent can run SQL, inspect tables, and summarize the rows that come back.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with MotherDuck.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with MotherDuck.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,10 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://api.motherduck.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp:connect"
+      ]
    }
 }

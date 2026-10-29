@@ -8,10 +8,17 @@
    "config": [
       {
          "key": "API_KEY",
-         "name": "API Key",
-         "label": "Bearer token for the MCP server",
+         "name": "Access token",
+         "label": "Saved when you connect with Vercel.",
          "type": "secret",
-         "required": true
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Vercel.",
+         "type": "secret",
+         "required": false
       }
    ],
    "mcp": {
@@ -20,6 +27,10 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.vercel.com"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "openid"
+      ]
    }
 }

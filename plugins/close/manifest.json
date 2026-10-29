@@ -6,7 +6,20 @@
    "description": "Reads and updates leads, contacts, and activities in Close. An agent can look up a deal and record the next step on it.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Close.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Close.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,13 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.close.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp.read",
+         "mcp.write_destructive",
+         "mcp.write_safe",
+         "offline_access"
+      ]
    }
 }

@@ -6,7 +6,20 @@
    "description": "Creates AI video from a script or brief. An agent can start a clip and check the render for the task it is on.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with HeyGen.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with HeyGen.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,12 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.heygen.com/mcp/v1/"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "openid",
+         "profile",
+         "email"
+      ]
    }
 }

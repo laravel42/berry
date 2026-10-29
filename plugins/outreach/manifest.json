@@ -6,7 +6,20 @@
    "description": "Sales sequences, prospects, and mailbox activity. An agent can look up an account and see what outreach is already in flight.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Outreach.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Outreach.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,10 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://api.outreach.io/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "prospects.all"
+      ]
    }
 }

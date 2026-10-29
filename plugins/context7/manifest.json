@@ -6,8 +6,31 @@
    "description": "Retrieves current documentation for software libraries. An agent can read the latest API notes before it writes or changes code.",
    "scopes": [],
    "config": [
-      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["default", "oauth"], "required": true },
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "default",
+            "oauth"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Context7.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Context7.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -16,6 +39,11 @@
       "servers": {
          "default": "https://mcp.context7.com/mcp",
          "oauth": "https://mcp.context7.com/mcp/oauth"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "profile",
+         "email"
+      ]
    }
 }

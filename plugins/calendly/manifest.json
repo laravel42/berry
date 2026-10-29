@@ -6,7 +6,20 @@
    "description": "Scheduling and availability for meetings. An agent can check open times and see what is already booked before it proposes a slot.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Calendly.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Calendly.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,11 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.calendly.com"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp:scheduling:write",
+         "mcp:scheduling:read"
+      ]
    }
 }

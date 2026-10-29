@@ -23,10 +23,17 @@
       },
       {
          "key": "API_KEY",
-         "name": "API Key",
-         "label": "Bearer token for the MCP server",
+         "name": "Access token",
+         "label": "Saved when you connect with Datadog.",
          "type": "secret",
-         "required": true
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Datadog.",
+         "type": "secret",
+         "required": false
       }
    ],
    "mcp": {
@@ -40,6 +47,10 @@
          "eu": "https://mcp.datadoghq.eu/v1/mcp",
          "ap1": "https://mcp.ap1.datadoghq.com/v1/mcp",
          "ap2": "https://mcp.ap2.datadoghq.com/v1/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp_all"
+      ]
    }
 }

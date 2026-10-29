@@ -6,7 +6,20 @@
    "description": "Imports media and edits projects, scripts, and transcripts. An agent can adjust a cut and update the words on the timeline.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Descript.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Descript.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,14 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://api.descript.com/v2/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "openid",
+         "profile",
+         "email",
+         "phone",
+         "offline_access"
+      ]
    }
 }

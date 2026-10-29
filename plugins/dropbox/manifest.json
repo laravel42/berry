@@ -6,7 +6,20 @@
    "description": "Finds and reads files stored in Dropbox. An agent can open a document the task names and use what is inside it.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Dropbox.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Dropbox.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,18 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.dropbox.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "account_info.read",
+         "file_requests.read",
+         "file_requests.write",
+         "files.content.read",
+         "files.content.write",
+         "files.metadata.read",
+         "files.metadata.write",
+         "sharing.read",
+         "sharing.write"
+      ]
    }
 }

@@ -6,8 +6,31 @@
    "description": "Queries analytics for events, charts, and funnels. An agent can check how a feature is used before it recommends a change.",
    "scopes": [],
    "config": [
-      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["us", "eu"], "required": true },
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "us",
+            "eu"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Amplitude.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Amplitude.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -16,6 +39,11 @@
       "servers": {
          "us": "https://mcp.amplitude.com/mcp",
          "eu": "https://mcp.eu.amplitude.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "all:read",
+         "all:write"
+      ]
    }
 }

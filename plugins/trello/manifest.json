@@ -6,7 +6,20 @@
    "description": "Boards, lists, and cards on Trello. An agent can find a card and move or update it as the task requires.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Trello.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Trello.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,21 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.trello.com/v1"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "offline_access",
+         "read:me",
+         "read:account",
+         "read:board:trello",
+         "write:board:trello",
+         "read:organization:trello",
+         "write:organization:trello",
+         "read:member:trello",
+         "read:member.inbox:trello",
+         "write:member.inbox:trello",
+         "read:member.planner:trello",
+         "write:member.planner:trello"
+      ]
    }
 }

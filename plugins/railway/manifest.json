@@ -6,7 +6,20 @@
    "description": "Creates and deploys projects and services. An agent can check a deployment and see how the project is running.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Railway.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Railway.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,10 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.railway.com"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "workspace:member"
+      ]
    }
 }

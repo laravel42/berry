@@ -6,7 +6,20 @@
    "description": "Reads and updates bases and tables. An agent can find rows, change fields, and keep a base in step with the work.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Airtable.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Airtable.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,16 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.airtable.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "data.records:read",
+         "data.records:write",
+         "schema.bases:read",
+         "schema.bases:write",
+         "data.recordComments:read",
+         "data.recordComments:write",
+         "workspacesAndBases:read"
+      ]
    }
 }

@@ -6,7 +6,20 @@
    "description": "Boards, items, and updates on monday.com. An agent can find a row and change the status the task calls for.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with monday.com.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with monday.com.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,7 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.monday.com/mcp"
-      }
+      },
+      "auth": "oauth"
    }
 }

@@ -6,7 +6,20 @@
    "description": "Reads design context from files, frames, and components. An agent can inspect a layout and follow it while it changes the product.",
    "scopes": [],
    "config": [
-      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Figma.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Figma.",
+         "type": "secret",
+         "required": false
+      }
    ],
    "mcp": {
       "path": "/mcp",
@@ -14,6 +27,10 @@
       "protocolVersion": "2025-03-26",
       "servers": {
          "default": "https://mcp.figma.com/mcp"
-      }
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp:connect"
+      ]
    }
 }
