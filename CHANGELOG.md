@@ -319,7 +319,8 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Changed
 
-- Settings → Plugins uses the same full-width card grid as Integrations. Each plugin is a card with its brand mark, a larger name, a three-line description, and status. Opening an installed plugin shows its detail and tools in a drawer, without access, install source, settings, or stored-data rows. Clicking an available plugin opens the install dialog. The search is capped at 373px, and All, Installed, and Available filter the grid, with installed plugins first in All.
+- Settings → Integrations is labelled Source control. Plugins is Connect on the main rail, under Autopilots. `/{orgId}/settings/plugins` redirects there.
+- Connect uses the same page header and filter bar as Autopilots. Each plugin is a card with its brand mark, a larger name, a three-line description, and status. Opening an installed plugin shows its detail and tools in a drawer, without access, install source, settings, or stored-data rows. Clicking an available plugin opens the install dialog. All, Installed, and Available filter the grid, with installed plugins first.
 - A finished agent run posts one comment, its report. The handoff stays a file on the task and is omitted from that comment's file list. `post_comment` on the task being worked is refused, so the run cannot add a second comment.
 - The file preview header has a Download button beside Document and Source. It saves the file the agent produced.
 - A task comment stays open through a short report. "Read the rest" appears once the comment is longer than that.
