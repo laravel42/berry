@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';
@@ -500,13 +500,15 @@ export function CreateNewIssue() {
                   ) : null}
                </div>
 
-               <div className="mt-5 min-h-40 border-t border-border/60 pt-4">
-                  <MarkdownTextarea
-                     plain
-                     className="min-h-56 resize-none border-none bg-transparent px-0 text-foreground shadow-none outline-none placeholder:text-placeholder"
-                     placeholder={t('descriptionPlaceholder')}
+               <div className="mt-2.5 min-h-40 pt-2">
+                  <TiptapAiEditor
                      value={draft.description}
                      onChange={(description) => setDraft({ description })}
+                     placeholder={t('descriptionPlaceholder')}
+                     aria-label={t('descriptionPlaceholder')}
+                     aiAssist={false}
+                     formatting
+                     className="min-h-56 [&_.ProseMirror]:!min-h-56 [&_.ProseMirror]:bg-transparent"
                   />
                </div>
             </div>
