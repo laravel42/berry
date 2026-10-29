@@ -5,6 +5,14 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
+   EmptyState,
+   EmptyStateLoading,
+   EmptyStateMark,
+   EmptyStateText,
+} from '@/components/common/empty-state';
+import { SettingsChip, SettingsGroup } from '@/components/common/settings/shared';
+import { BerryMark } from '@/components/brand/berry-mark';
+import {
    AlertDialog,
    AlertDialogAction,
    AlertDialogCancel,
@@ -15,15 +23,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Progress } from '@/components/ui/progress';
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-   EmptyStateTitle,
-} from '@/components/common/empty-state';
+import { useAutopilotActivity } from '@/hooks/use-autopilot-activity';
 import {
    archiveAutopilot,
    describeAutopilotFailure,
@@ -33,8 +33,9 @@ import {
 } from '@/lib/autopilots';
 import { cn } from '@/lib/utils';
 
-import AutopilotLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './autopilot-line';
+import AutopilotLine, { COLUMN_BREAKPOINT, gridTemplate } from './autopilot-line';
 import type { AutopilotColumn, AutopilotCriteria } from './autopilots-filters';
+import { TEMPLATE_KEYS, type TemplateKey } from './templates';
 
 interface Props {
    autopilots: Autopilot[];
@@ -45,15 +46,18 @@ interface Props {
    assigneeName: (autopilot: Autopilot) => string;
    canEdit: boolean;
    onChanged: () => void;
+   /** Pause or resume one row without waiting on a reload. */
+   onStatusChange?: (id: string, status: 'active' | 'paused') => void;
    narrowed: boolean;
-   onUseTemplate: (template: { name: string; prompt: string }) => void;
+   /** The search term, quoted back when nothing matches it. */
+   query?: string;
+   /** True when the workspace has no live autopilots at all, so the templates show. */
+   empty: boolean;
+   onUseTemplate: (template: TemplateKey) => void;
    /** Updates sort when a sortable column heading is clicked. */
    onCriteriaChange?: (criteria: AutopilotCriteria) => void;
    archived?: boolean;
 }
-
-/** Something to start from, so an empty workspace is not an empty page. */
-const TEMPLATES = ['standup', 'triage', 'sweep', 'digest', 'release', 'watch'] as const;
 
 function sortAutopilots(
    list: Autopilot[],
@@ -82,20 +86,17 @@ function sortAutopilots(
    });
 }
 
-/** Every visible column heading sorts; the Autopilot name is the flex column. */
-const SORT_FOR_COLUMN: Record<AutopilotColumn | 'autopilot', AutopilotCriteria['sort']> = {
-   autopilot: 'name',
-   status: 'status',
+/** Columns whose heading sorts the list; the run columns are read per row and do not. */
+const SORT_FOR_COLUMN: Partial<Record<AutopilotColumn, AutopilotCriteria['sort']>> = {
    mode: 'mode',
    quota: 'quota',
    updated: 'updated',
 };
 
 /**
- * The workspace's autopilots.
- *
- * Same table shape as Agents: sticky header, checkbox, name, optional cells,
- * hover menu. Pausing and deleting are offered per row and over a selection.
+ * The workspace's autopilots as one group of rows, the way Settings lists
+ * things: a heading row, then one divided row per autopilot. With nothing to
+ * list, a short explanation and a group of templates to start from.
  */
 export default function Autopilots({
    autopilots,
@@ -105,32 +106,34 @@ export default function Autopilots({
    assigneeName,
    canEdit,
    onChanged,
+   onStatusChange,
    narrowed,
+   query = '',
+   empty,
    onUseTemplate,
    onCriteriaChange,
    archived = false,
 }: Props) {
    const t = useTranslations('areas.autopilots');
-   const [selection, setSelection] = useState<string[]>([]);
    const [confirming, setConfirming] = useState<Autopilot | null>(null);
-   const [confirmingBulk, setConfirmingBulk] = useState(false);
-   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
    const rows = useMemo(
       () => sortAutopilots(autopilots, criteria.sort, criteria.sortDescending),
       [autopilots, criteria.sort, criteria.sortDescending]
    );
-   const selected = rows.filter((row) => selection.includes(row.id));
-   const allSelected = rows.length > 0 && selection.length === rows.length;
+   const activity = useAutopilotActivity(rows);
 
    const fail = (failure: unknown) => toast.error(describeAutopilotFailure(failure));
 
    const setStatus = async (autopilot: Autopilot, status: 'active' | 'paused') => {
+      // Optimistic: the switch moves at once and moves back if the write fails.
+      onStatusChange?.(autopilot.id, status);
       try {
          await updateAutopilot(autopilot.id, { status });
          toast.success(status === 'paused' ? t('row.paused') : t('row.resumed'));
          onChanged();
       } catch (failure) {
+         onStatusChange?.(autopilot.id, autopilot.status === 'paused' ? 'paused' : 'active');
          fail(failure);
       }
    };
@@ -139,7 +142,6 @@ export default function Autopilots({
       try {
          await archiveAutopilot(autopilot.id);
          toast.success(t('row.deleted', { name: autopilot.name }));
-         setSelection((current) => current.filter((id) => id !== autopilot.id));
          onChanged();
       } catch (failure) {
          fail(failure);
@@ -150,36 +152,11 @@ export default function Autopilots({
       try {
          await restoreAutopilot(autopilot.id);
          toast.success(t('row.restored', { name: autopilot.name }));
-         setSelection((current) => current.filter((id) => id !== autopilot.id));
          onChanged();
       } catch (failure) {
          fail(failure);
       }
    };
-
-   /** One request per autopilot, counted off, so a failure names itself. */
-   const walk = async (work: (autopilot: Autopilot) => Promise<unknown>, done: string) => {
-      setProgress({ done: 0, total: selected.length });
-      let failed = 0;
-      for (const [index, autopilot] of selected.entries()) {
-         try {
-            await work(autopilot);
-         } catch (failure) {
-            failed += 1;
-            if (failed === 1) fail(failure);
-         }
-         setProgress({ done: index + 1, total: selected.length });
-      }
-      setProgress(null);
-      setSelection([]);
-      toast.success(done);
-      onChanged();
-   };
-
-   const toggle = (id: string) =>
-      setSelection((current) =>
-         current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
-      );
 
    const sortBy = (sort: AutopilotCriteria['sort']) => {
       if (!onCriteriaChange) return;
@@ -195,39 +172,33 @@ export default function Autopilots({
       });
    };
 
+   // The default order (name, A→Z) goes unmarked; any other order says so.
    const sortMark = (key: AutopilotCriteria['sort']) =>
-      criteria.sort === key ? (
+      criteria.sort === key && (key !== 'name' || criteria.sortDescending) ? (
          <span aria-hidden>{criteria.sortDescending ? ' ↓' : ' ↑'}</span>
       ) : null;
 
-   const header = (column: AutopilotColumn, label: string) => {
-      if (!criteria.columns.includes(column)) return null;
-      const key = SORT_FOR_COLUMN[column];
-      const classes = cn(
-         'shrink-0 items-center gap-1',
-         COLUMN_WIDTH[column],
-         COLUMN_BREAKPOINT[column] ?? 'flex'
+   const heading = (
+      label: string,
+      key: AutopilotCriteria['sort'] | undefined,
+      className?: string
+   ) =>
+      key && onCriteriaChange ? (
+         <button
+            type="button"
+            onClick={() => sortBy(key)}
+            className={cn(
+               'min-w-0 cursor-pointer truncate text-left hover:text-foreground',
+               sortMark(key) !== null && 'text-foreground',
+               className
+            )}
+         >
+            {label}
+            {sortMark(key)}
+         </button>
+      ) : (
+         <span className={cn('min-w-0 truncate', className)}>{label}</span>
       );
-      if (!onCriteriaChange) {
-         return <div className={classes}>{label}</div>;
-      }
-      return (
-         <div className={classes}>
-            <button
-               type="button"
-               onClick={() => sortBy(key)}
-               aria-label={label}
-               className={cn(
-                  'truncate uppercase hover:text-foreground',
-                  criteria.sort === key && 'text-foreground'
-               )}
-            >
-               {label}
-               {sortMark(key)}
-            </button>
-         </div>
-      );
-   };
 
    if (!loaded && !error) {
       return <EmptyStateLoading label={t('loading')} />;
@@ -240,187 +211,73 @@ export default function Autopilots({
       );
    }
 
-   if (rows.length === 0) {
-      if (narrowed) {
-         return (
-            <EmptyState icon={<EmptyStateMark label={t('noMatch')} />}>
-               <EmptyStateText>{t('noMatch')}</EmptyStateText>
-            </EmptyState>
-         );
-      }
-      if (archived) {
-         return (
-            <EmptyState icon={<EmptyStateMark label={t('empty.archived')} />}>
-               <EmptyStateText>{t('empty.archived')}</EmptyStateText>
-            </EmptyState>
-         );
-      }
+   if (empty && !archived) {
       return (
-         <div className="flex h-full min-h-64 w-full items-center justify-center px-6 py-12">
-            <div className="flex w-full max-w-2xl flex-col items-center text-center">
-               <EmptyStateMark label={t('empty.mark')} />
-               <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>
-               <EmptyStateText>{t('empty.body')}</EmptyStateText>
-               {canEdit ? (
-                  <div className="mt-10 w-full text-left">
-                     <p className="font-medium">{t('templates.title')}</p>
-                     <p className="text-muted-foreground">{t('templates.hint')}</p>
-                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {TEMPLATES.map((key) => (
-                           <button
-                              key={key}
-                              type="button"
-                              className="cursor-pointer rounded-md border p-3 text-left hover:bg-sidebar/50"
-                              onClick={() =>
-                                 onUseTemplate({
-                                    name: t(`templates.${key}_name`),
-                                    prompt: t(`templates.${key}_prompt`),
-                                 })
-                              }
-                           >
-                              <span className="block font-medium">
-                                 {t(`templates.${key}_name`)}
-                              </span>
-                              <span className="mt-0.5 block line-clamp-2 text-muted-foreground">
-                                 {t(`templates.${key}_prompt`)}
-                              </span>
-                           </button>
-                        ))}
-                     </div>
-                  </div>
-               ) : null}
+         <Page>
+            <div className="flex flex-col items-center gap-2 px-0 pt-12 pb-3 text-center">
+               <BerryMark
+                  size="lg"
+                  tone="neutral"
+                  state="hollow"
+                  bracketClassName="text-muted-foreground"
+                  className="mb-2 size-8 text-muted-foreground"
+                  label={t('empty.mark')}
+               />
+               <h2 className="font-semibold">{t('empty.title')}</h2>
+               <p className="max-w-[560px] text-pretty text-muted-foreground">{t('empty.body')}</p>
             </div>
-         </div>
+            {canEdit ? <Templates onUse={onUseTemplate} /> : null}
+         </Page>
+      );
+   }
+
+   if (rows.length === 0 && archived && !narrowed) {
+      return (
+         <EmptyState icon={<EmptyStateMark label={t('empty.archived')} />}>
+            <EmptyStateText>{t('empty.archived')}</EmptyStateText>
+         </EmptyState>
       );
    }
 
    return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-         <div className="min-h-0 flex-1 overflow-y-auto">
+      <Page>
+         <SettingsGroup className="divide-y-0">
             <div
                data-heading="label"
-               className="sticky top-0 z-10 flex h-9 items-center gap-3 border-b bg-container px-4 text-subtle-foreground"
+               className="grid h-[34px] items-center gap-4 px-4 text-subtle-foreground"
+               style={{ gridTemplateColumns: gridTemplate(criteria.columns) }}
             >
-               {canEdit ? (
-                  <Checkbox
-                     className="shrink-0"
-                     aria-label={t('bulk.selectAll')}
-                     checked={allSelected}
-                     onCheckedChange={() =>
-                        setSelection(allSelected ? [] : rows.map((row) => row.id))
-                     }
-                  />
-               ) : null}
-               {onCriteriaChange ? (
-                  <button
-                     type="button"
-                     onClick={() => sortBy('name')}
-                     className={cn(
-                        'min-w-0 flex-1 text-left uppercase hover:text-foreground',
-                        criteria.sort === 'name' && 'text-foreground'
-                     )}
-                  >
-                     {t('columns.autopilot')}
-                     {sortMark('name')}
-                  </button>
-               ) : (
-                  <div className="min-w-0 flex-1">{t('columns.autopilot')}</div>
-               )}
-               {header('status', t('columns.status'))}
-               {header('mode', t('columns.mode'))}
-               {header('quota', t('columns.quota'))}
-               {header('updated', t('columns.updated'))}
-               <span className="size-6 shrink-0" aria-hidden />
+               {heading(t('columns.autopilot'), 'name')}
+               {criteria.columns.map((column) => (
+                  <div key={column} className={cn('flex min-w-0', COLUMN_BREAKPOINT[column])}>
+                     {heading(t(`columns.${column}`), SORT_FOR_COLUMN[column])}
+                  </div>
+               ))}
+               <span aria-hidden />
             </div>
 
             {rows.map((autopilot) => (
                <AutopilotLine
                   key={autopilot.id}
                   autopilot={autopilot}
+                  activity={activity[autopilot.id]}
                   columns={criteria.columns}
                   assigneeName={assigneeName(autopilot)}
                   canEdit={canEdit}
-                  selected={selection.includes(autopilot.id)}
-                  onToggleSelected={toggle}
                   onPauseOrResume={(row) =>
                      void setStatus(row, row.status === 'paused' ? 'active' : 'paused')
                   }
                   onConfirmDelete={setConfirming}
-                  onRestore={restore}
+                  onRestore={(row) => void restore(row)}
                />
             ))}
-         </div>
 
-         {canEdit && selected.length > 0 ? (
-            <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
-               <span className="font-medium">{t('bulk.selected', { count: selected.length })}</span>
-               {progress ? (
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                     <Progress
-                        className="w-32"
-                        value={(progress.done / Math.max(1, progress.total)) * 100}
-                     />
-                     {t('bulk.progress', { done: progress.done, total: progress.total })}
-                  </span>
-               ) : (
-                  <>
-                     {archived ? (
-                        <Button
-                           size="xs"
-                           variant="secondary"
-                           onClick={() =>
-                              void walk(
-                                 (autopilot) => restoreAutopilot(autopilot.id),
-                                 t('bulk.restoredDone')
-                              )
-                           }
-                        >
-                           {t('bulk.restore')}
-                        </Button>
-                     ) : (
-                        <>
-                           <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() =>
-                                 void walk(
-                                    (autopilot) =>
-                                       updateAutopilot(autopilot.id, { status: 'paused' }),
-                                    t('bulk.pausedDone')
-                                 )
-                              }
-                           >
-                              {t('bulk.pause')}
-                           </Button>
-                           <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() =>
-                                 void walk(
-                                    (autopilot) =>
-                                       updateAutopilot(autopilot.id, { status: 'active' }),
-                                    t('bulk.resumedDone')
-                                 )
-                              }
-                           >
-                              {t('bulk.resume')}
-                           </Button>
-                           <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => setConfirmingBulk(true)}
-                           >
-                              {t('bulk.delete')}
-                           </Button>
-                        </>
-                     )}
-                     <Button size="xs" variant="ghost" onClick={() => setSelection([])}>
-                        {t('bulk.clear')}
-                     </Button>
-                  </>
-               )}
-            </div>
-         ) : null}
+            {rows.length === 0 ? (
+               <div className="border-t border-settings-divider px-4 py-7 text-center text-subtle-foreground">
+                  {query.trim() ? t('noMatchQuery', { query: query.trim() }) : t('noMatch')}
+               </div>
+            ) : null}
+         </SettingsGroup>
 
          <AlertDialog
             open={confirming !== null}
@@ -447,30 +304,51 @@ export default function Autopilots({
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
+      </Page>
+   );
+}
 
-         <AlertDialog open={confirmingBulk} onOpenChange={setConfirmingBulk}>
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>
-                     {t('bulk.confirmDeleteTitle', { count: selected.length })}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>{t('bulk.confirmDeleteBody')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               <AlertDialogFooter>
-                  <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction
-                     onClick={() =>
-                        void walk(
-                           (autopilot) => archiveAutopilot(autopilot.id),
-                           t('bulk.deletedDone')
-                        )
-                     }
-                  >
-                     {t('bulk.delete')}
-                  </AlertDialogAction>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
+/** The scroll area: 20px padding, content centred at 1100px. */
+function Page({ children }: { children: React.ReactNode }) {
+   return (
+      <div className="h-full w-full overflow-y-auto p-5">
+         <div className="mx-auto flex max-w-[1100px] flex-col gap-5">{children}</div>
       </div>
+   );
+}
+
+/** One row per starting point; "Use template" opens the editor already filled in. */
+function Templates({ onUse }: { onUse: (template: TemplateKey) => void }) {
+   const t = useTranslations('areas.autopilots.templates');
+   return (
+      <section className="flex flex-col gap-2.5">
+         <div className="flex flex-col gap-0.5 px-1">
+            <h2 className="font-semibold">{t('title')}</h2>
+            <p className="text-subtle-foreground">{t('hint')}</p>
+         </div>
+         <SettingsGroup>
+            {TEMPLATE_KEYS.map((key) => (
+               <div
+                  key={key}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-6 px-4 py-3.5"
+               >
+                  <div className="flex min-w-0 flex-col gap-[3px]">
+                     <span className="flex flex-wrap items-center gap-2.5">
+                        <span className="font-semibold text-foreground">{t(`${key}_name`)}</span>
+                        <SettingsChip className="h-5 rounded-[5px] bg-settings-control px-[7px]">
+                           {t(`${key}_when`)}
+                        </SettingsChip>
+                     </span>
+                     <span className="max-w-[720px] text-pretty text-muted-foreground">
+                        {t(`${key}_prompt`)}
+                     </span>
+                  </div>
+                  <Button variant="soft" onClick={() => onUse(key)}>
+                     {t('use')}
+                  </Button>
+               </div>
+            ))}
+         </SettingsGroup>
+      </section>
    );
 }

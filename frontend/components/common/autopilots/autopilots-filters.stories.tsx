@@ -53,7 +53,7 @@ export const Default: Story = {
 };
 
 export const NewestFirst: Story = {
-   args: { initial: { sort: 'created', sortDescending: true, columns: ['status', 'quota'] } },
+   args: { initial: { sort: 'created', sortDescending: true, columns: ['agent', 'quota'] } },
    play: async ({ canvas }) => {
       await expect(canvas.getByTestId('criteria')).toHaveTextContent(/^created/);
    },

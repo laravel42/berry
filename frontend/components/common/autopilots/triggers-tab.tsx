@@ -1,6 +1,6 @@
 'use client';
 
-import { Copy, Eye, EyeOff } from 'lucide-react';
+import { Clock, Copy, Eye, EyeOff, Link2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -34,7 +34,7 @@ import {
 } from '@/lib/autopilots';
 import { localTimezone } from '@/lib/cron-schedule';
 
-import ScheduleEditor from './schedule-editor';
+import ScheduleEditor, { useDescribeCron } from './schedule-editor';
 
 interface Props {
    autopilot: AutopilotDetail;
@@ -69,7 +69,7 @@ export function SecretsNotice({
    const mask = (value: string) => (shown ? value : '•'.repeat(Math.min(32, value.length)));
 
    return (
-      <div className="rounded-md border border-dashed p-4" role="status">
+      <div className="rounded-[7px] border border-dashed border-input p-4" role="status">
          <p className="font-medium">{t('secretsTitle')}</p>
          <p className="text-muted-foreground">{t('secretsBody')}</p>
          <div className="mt-3 grid gap-2">
@@ -132,6 +132,7 @@ function TriggerRow({
 }) {
    const t = useTranslations('areas.autopilots.triggers');
    const tc = useTranslations('common.confirm');
+   const describeCron = useDescribeCron();
    const [rotating, setRotating] = useState(false);
    const [removing, setRemoving] = useState(false);
 
@@ -155,8 +156,54 @@ function TriggerRow({
    };
 
    return (
-      <div className="flex flex-wrap items-center gap-3 border-b py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3.5">
+         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {trigger.kind === 'cron' ? (
+               <>
+                  <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                     <Clock className="size-3 shrink-0 text-subtle-foreground" aria-hidden />
+                     <span className="truncate">
+                        {trigger.cronExpression ? describeCron(trigger.cronExpression) : '—'}
+                     </span>
+                  </span>
+                  <span data-settings-type="caption" className="text-subtle-foreground">
+                     {trigger.timezone}
+                     {' · '}
+                     {trigger.nextFireAt
+                        ? t('next', { when: new Date(trigger.nextFireAt).toLocaleString() })
+                        : t('notScheduled')}
+                  </span>
+               </>
+            ) : (
+               <>
+                  <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                     <Link2 className="size-3 shrink-0 text-subtle-foreground" aria-hidden />
+                     <span className="truncate">
+                        {t('webhookName', { hint: trigger.tokenHint ?? '' })}
+                     </span>
+                  </span>
+                  <span data-settings-type="caption" className="text-subtle-foreground">
+                     {trigger.eventFilters.length > 0
+                        ? trigger.eventFilters.join(', ')
+                        : t('everyEvent')}
+                     {' · '}
+                     {t('urlHiddenHint')}
+                  </span>
+               </>
+            )}
+         </div>
+         {canEdit && trigger.kind === 'webhook' ? (
+            <Button type="button" variant="soft" onClick={() => setRotating(true)}>
+               {t('rotate')}
+            </Button>
+         ) : null}
+         {canEdit ? (
+            <Button type="button" variant="quiet" onClick={() => setRemoving(true)}>
+               {t('remove')}
+            </Button>
+         ) : null}
          <Switch
+            variant="settings"
             checked={trigger.enabled}
             disabled={!canEdit}
             onCheckedChange={(enabled) =>
@@ -164,42 +211,6 @@ function TriggerRow({
             }
             aria-label={t('enabled')}
          />
-         <div className="min-w-0 flex-1">
-            {trigger.kind === 'cron' ? (
-               <>
-                  <div className="font-medium">
-                     <code>{trigger.cronExpression}</code> · {trigger.timezone}
-                  </div>
-                  <div className="text-muted-foreground">
-                     {trigger.nextFireAt
-                        ? t('next', { when: new Date(trigger.nextFireAt).toLocaleString() })
-                        : t('notScheduled')}
-                  </div>
-               </>
-            ) : (
-               <>
-                  <div className="font-medium">
-                     {t('webhookName', { hint: trigger.tokenHint ?? '' })}
-                  </div>
-                  <div className="text-muted-foreground">
-                     {trigger.eventFilters.length > 0
-                        ? trigger.eventFilters.join(', ')
-                        : t('everyEvent')}
-                  </div>
-                  <div className="text-muted-foreground">{t('urlHiddenHint')}</div>
-               </>
-            )}
-         </div>
-         {canEdit && trigger.kind === 'webhook' ? (
-            <Button type="button" size="xs" variant="outline" onClick={() => setRotating(true)}>
-               {t('rotate')}
-            </Button>
-         ) : null}
-         {canEdit ? (
-            <Button type="button" size="xs" variant="ghost" onClick={() => setRemoving(true)}>
-               {t('remove')}
-            </Button>
-         ) : null}
 
          <AlertDialog open={rotating} onOpenChange={setRotating}>
             <AlertDialogContent>
@@ -238,7 +249,11 @@ function TriggerRow({
    );
 }
 
-/** What makes this autopilot run, and what it would take to change that. */
+/**
+ * What makes this autopilot run, and what it would take to change that: one
+ * row per trigger, then the add actions. Rendered inside the editor's Trigger
+ * group, which draws the card and the dividers.
+ */
 export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
    const t = useTranslations('areas.autopilots.triggers');
    const [secrets, setSecrets] = useState<WebhookSecrets | null>(null);
@@ -284,106 +299,83 @@ export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
       }
    };
 
+   // Rows only: the caller's group draws the card and divides them.
    return (
-      <div className="grid gap-4 px-6 py-4">
-         {secrets ? <SecretsNotice secrets={secrets} onDismiss={() => setSecrets(null)} /> : null}
+      <>
+         {secrets ? (
+            <div className="px-4 py-3.5">
+               <SecretsNotice secrets={secrets} onDismiss={() => setSecrets(null)} />
+            </div>
+         ) : null}
 
-         <div>
-            {autopilot.triggers.length === 0 ? (
-               <p className="text-muted-foreground">{t('none')}</p>
-            ) : (
-               autopilot.triggers.map((trigger) => (
-                  <TriggerRow
-                     key={trigger.id}
-                     autopilotId={autopilot.id}
-                     trigger={trigger}
-                     canEdit={canEdit}
-                     onChanged={onChanged}
-                     onSecrets={(next) => {
-                        setSecrets(next);
-                        onChanged();
-                     }}
-                  />
-               ))
-            )}
-         </div>
+         {autopilot.triggers.length === 0 ? (
+            <div className="px-4 py-3.5 text-muted-foreground">{t('none')}</div>
+         ) : (
+            autopilot.triggers.map((trigger) => (
+               <TriggerRow
+                  key={trigger.id}
+                  autopilotId={autopilot.id}
+                  trigger={trigger}
+                  canEdit={canEdit}
+                  onChanged={onChanged}
+                  onSecrets={(next) => {
+                     setSecrets(next);
+                     onChanged();
+                  }}
+               />
+            ))
+         )}
 
          {canEdit ? (
             adding === null ? (
-               <div className="flex flex-wrap gap-2">
-                  <Button
-                     type="button"
-                     size="xs"
-                     variant="secondary"
-                     onClick={() => setAdding('cron')}
-                  >
+               <div className="flex flex-wrap gap-2 px-4 py-3">
+                  <Button type="button" variant="soft" onClick={() => setAdding('cron')}>
+                     <Clock className="size-[13px]" aria-hidden />
                      {t('addSchedule')}
                   </Button>
-                  <Button
-                     type="button"
-                     size="xs"
-                     variant="secondary"
-                     onClick={() => setAdding('webhook')}
-                  >
+                  <Button type="button" variant="soft" onClick={() => setAdding('webhook')}>
+                     <Link2 className="size-[13px]" aria-hidden />
                      {t('addWebhook')}
                   </Button>
                </div>
             ) : adding === 'cron' ? (
-               <div className="grid max-w-2xl gap-3 rounded-md border p-4">
+               <div className="flex flex-col gap-3 px-4 py-3.5">
                   <ScheduleEditor
                      expression={schedule.expression}
                      timezone={schedule.timezone}
                      onChange={setSchedule}
                   />
                   <div className="flex gap-2">
-                     <Button
-                        type="button"
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => void addSchedule()}
-                     >
+                     <Button type="button" disabled={busy} onClick={() => void addSchedule()}>
                         {t('addSchedule')}
                      </Button>
-                     <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setAdding(null)}
-                     >
+                     <Button type="button" variant="quiet" onClick={() => setAdding(null)}>
                         {t('cancel')}
                      </Button>
                   </div>
                </div>
             ) : (
-               <div className="grid max-w-2xl gap-2 rounded-md border p-4">
+               <div className="flex flex-col gap-2 px-4 py-3.5">
                   <Label htmlFor="webhook-filters">{t('filters')}</Label>
                   <Input
                      id="webhook-filters"
                      value={filters}
                      onChange={(event) => setFilters(event.target.value)}
                   />
-                  <p className="text-muted-foreground">{t('filtersHint')}</p>
+                  <p data-settings-type="caption" className="text-subtle-foreground">
+                     {t('filtersHint')}
+                  </p>
                   <div className="flex gap-2">
-                     <Button
-                        type="button"
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => void addWebhook()}
-                     >
+                     <Button type="button" disabled={busy} onClick={() => void addWebhook()}>
                         {t('addWebhook')}
                      </Button>
-                     <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setAdding(null)}
-                     >
+                     <Button type="button" variant="quiet" onClick={() => setAdding(null)}>
                         {t('cancel')}
                      </Button>
                   </div>
                </div>
             )
          ) : null}
-      </div>
+      </>
    );
 }

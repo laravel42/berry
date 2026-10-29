@@ -1,10 +1,10 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 
-import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
 import Autopilots from '@/components/common/autopilots/autopilots';
 import AutopilotsFilters, {
    DEFAULT_AUTOPILOT_CRITERIA,
@@ -17,14 +17,13 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
-import { PageKpiHeader } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
 import type { User } from '@/data/users';
 import { useAutopilots } from '@/hooks/use-autopilots';
 import type { Autopilot } from '@/lib/autopilots';
+import { WORKSPACE_SLUG } from '@/lib/config';
 import { loadWorkspaceMembers } from '@/lib/members';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
@@ -32,6 +31,9 @@ import { useSessionStore } from '@/store/session-store';
 
 export default function AutopilotsPage() {
    const t = useTranslations('areas.autopilots');
+   const router = useRouter();
+   const params = useParams<{ orgId?: string }>();
+   const orgId = params?.orgId || WORKSPACE_SLUG;
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
    const agents = useAgentsStore((state) => state.agents);
@@ -39,14 +41,29 @@ export default function AutopilotsPage() {
    const [archivedTouched, setArchivedTouched] = useState(false);
    const live = useAutopilots();
    const archived = useAutopilots({ archived: true, enabled: archivedTouched });
-   const { autopilots, error, loaded } = scope === 'archived' ? archived : live;
+   const { error, loaded } = scope === 'archived' ? archived : live;
+
+   /** Switch flips not yet confirmed by a reload, so the row moves at once. */
+   const [pending, setPending] = useState<Record<string, 'active' | 'paused'>>({});
+   const liveRows = useMemo(
+      () =>
+         live.autopilots.map((autopilot) =>
+            pending[autopilot.id] ? { ...autopilot, status: pending[autopilot.id] } : autopilot
+         ),
+      [live.autopilots, pending]
+   );
+   useEffect(() => setPending({}), [live.autopilots]);
+
+   const scoped = useMemo(() => {
+      if (scope === 'archived') return archived.autopilots;
+      if (scope === 'all') return liveRows;
+      return liveRows.filter((autopilot) => autopilot.status === scope);
+   }, [scope, archived.autopilots, liveRows]);
 
    const [people, setPeople] = useState<User[]>([]);
    const [criteria, setCriteria] = useState<AutopilotCriteria>(DEFAULT_AUTOPILOT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
    const [query, setQuery] = useState('');
-   const [creating, setCreating] = useState(false);
-   const [template, setTemplate] = useState<{ name: string; prompt: string } | null>(null);
 
    useEffect(() => {
       if (!workspaceId) return;
@@ -76,16 +93,16 @@ export default function AutopilotsPage() {
 
    const creators = useMemo(() => {
       const seen = new Set<string>();
-      for (const autopilot of autopilots) if (autopilot.createdBy) seen.add(autopilot.createdBy);
+      for (const autopilot of scoped) if (autopilot.createdBy) seen.add(autopilot.createdBy);
       return [...seen].map((id) => {
          const person = people.find((entry) => entry.id === id);
          return { id, name: person?.name ?? t('row.someone'), avatarUrl: person?.avatarUrl };
       });
-   }, [autopilots, people, t]);
+   }, [scoped, people, t]);
 
    const filterColumns = useAutopilotFilterColumns(assignees, creators);
    const filter = useListFilters({
-      data: autopilots,
+      data: scoped,
       columns: filterColumns,
       filters,
       onFiltersChange: setFilters,
@@ -93,7 +110,7 @@ export default function AutopilotsPage() {
 
    /** The list arrives whole and is short, so it is narrowed here. */
    const shown = useMemo(() => {
-      const filtered = applyListFilters(autopilots, filterColumns, filters);
+      const filtered = applyListFilters(scoped, filterColumns, filters);
       const term = query.trim().toLowerCase();
       if (!term) return filtered;
       return filtered.filter((autopilot) => {
@@ -101,31 +118,37 @@ export default function AutopilotsPage() {
          if ((autopilot.description ?? '').toLowerCase().includes(term)) return true;
          return assigneeName(autopilot).toLowerCase().includes(term);
       });
-   }, [autopilots, filterColumns, filters, query, assigneeName]);
+   }, [scoped, filterColumns, filters, query, assigneeName]);
+
+   const reload = () => {
+      live.reload();
+      archived.reload();
+   };
 
    const header = (
-      <>
-         <PageKpiHeader label={t('title')}>
-            <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('search')}
-               aria-label={t('search')}
-            />
+      <div className="settings-surface">
+         <header className="flex h-[52px] w-full items-center gap-2.5 border-b px-5">
+            <h1 className="font-semibold tracking-[-0.01em]">{t('title')}</h1>
+            <label className="ml-auto flex h-[30px] w-[clamp(160px,22vw,280px)] items-center gap-2 rounded-[7px] bg-segment-track px-2.5 text-settings-placeholder">
+               <Search className="size-[13px] shrink-0" aria-hidden />
+               <input
+                  // Not type="search": globals.css pins that type to 16px.
+                  type="text"
+                  role="searchbox"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={t('search')}
+                  aria-label={t('search')}
+                  className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] placeholder:text-placeholder"
+               />
+            </label>
             {canEdit ? (
-               <Button
-                  className="shrink-0"
-                  onClick={() => {
-                     setTemplate(null);
-                     setCreating(true);
-                  }}
-               >
-                  <Plus className="size-4" aria-hidden />
+               <Button className="shrink-0" onClick={() => router.push(`/${orgId}/autopilots/new`)}>
+                  <Plus className="size-[13px]" strokeWidth={2.2} aria-hidden />
                   {t('new')}
                </Button>
             ) : null}
-         </PageKpiHeader>
+         </header>
          <AutopilotsFilters
             criteria={criteria}
             onChange={setCriteria}
@@ -137,45 +160,38 @@ export default function AutopilotsPage() {
                if (next === 'archived') setArchivedTouched(true);
             }}
             counts={{
-               all: live.loaded ? live.autopilots.length : 0,
+               all: liveRows.length,
+               active: liveRows.filter((autopilot) => autopilot.status === 'active').length,
+               paused: liveRows.filter((autopilot) => autopilot.status === 'paused').length,
                archived: archived.loaded ? archived.autopilots.length : null,
             }}
          />
          <ListFilterBar filter={filter} />
-      </>
+      </div>
    );
 
    return (
       <MainLayout header={header}>
-         <Autopilots
-            autopilots={shown}
-            loaded={loaded}
-            error={error}
-            criteria={criteria}
-            assigneeName={assigneeName}
-            canEdit={canEdit}
-            narrowed={filter.filters.length > 0 || query.trim() !== ''}
-            onCriteriaChange={setCriteria}
-            archived={scope === 'archived'}
-            onChanged={() => {
-               live.reload();
-               archived.reload();
-            }}
-            onUseTemplate={(chosen) => {
-               setTemplate(chosen);
-               setCreating(true);
-            }}
-         />
-         <AutopilotDialog
-            open={creating}
-            onOpenChange={setCreating}
-            presentation="drawer"
-            template={template}
-            onSaved={() => {
-               live.reload();
-               archived.reload();
-            }}
-         />
+         <div className="settings-surface h-full">
+            <Autopilots
+               autopilots={shown}
+               loaded={loaded}
+               error={error}
+               criteria={criteria}
+               assigneeName={assigneeName}
+               canEdit={canEdit}
+               narrowed={filter.filters.length > 0 || query.trim() !== ''}
+               query={query}
+               empty={live.loaded && live.autopilots.length === 0}
+               onCriteriaChange={setCriteria}
+               archived={scope === 'archived'}
+               onChanged={reload}
+               onStatusChange={(id, status) =>
+                  setPending((current) => ({ ...current, [id]: status }))
+               }
+               onUseTemplate={(key) => router.push(`/${orgId}/autopilots/new?template=${key}`)}
+            />
+         </div>
       </MainLayout>
    );
 }

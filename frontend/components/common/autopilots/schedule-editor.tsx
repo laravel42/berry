@@ -114,6 +114,73 @@ function sameDays(days: number[], expected: number[]): boolean {
 }
 
 /**
+ * The sentence for a schedule ("Weekdays at 9:00 AM"), shared by the editor
+ * and the autopilot list so both say the same thing.
+ */
+export function useScheduleSummary(): (schedule: VisualSchedule) => string {
+   const t = useTranslations('areas.autopilots.schedule');
+   const locale = useLocale();
+
+   return useMemo(() => {
+      const days = weekdayNames(locale);
+      const hourName = (hour: number) =>
+         new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(2000, 0, 1, hour));
+      const timeName = (hour: number, minute: number) =>
+         new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
+            new Date(2000, 0, 1, hour, minute)
+         );
+      const dayPhrase = (selection: VisualSchedule['days']): string => {
+         if (selection.kind === 'every') return t('namedEveryDay');
+         if (selection.kind === 'monthDay') return t('namedMonthDay', { day: selection.day });
+         if (sameDays(selection.days, [1, 2, 3, 4, 5])) return t('namedWeekdays');
+         if (sameDays(selection.days, [0, 6])) return t('namedWeekends');
+         return [...selection.days]
+            .sort((left, right) => left - right)
+            .map((day) => days[day] ?? '')
+            .filter((label) => label !== '')
+            .join(', ');
+      };
+      const lead = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+      return (schedule: VisualSchedule) => {
+         const when = dayPhrase(schedule.days);
+         if (schedule.mode === 'time') {
+            return t('summaryTime', {
+               days: lead(when),
+               time: timeName(schedule.hour, schedule.minute),
+            });
+         }
+         const interval =
+            schedule.mode === 'everyHours'
+               ? t('intervalHours', { count: schedule.every })
+               : t('intervalMinutes', { count: schedule.every });
+         const base =
+            schedule.days.kind === 'every'
+               ? t('summaryRepeat', { interval })
+               : t('summaryRepeatDays', { interval, days: when });
+         if (!schedule.window) return base;
+         return t('summaryWindow', {
+            summary: base,
+            from: hourName(schedule.window.from),
+            to: hourName(schedule.window.to),
+         });
+      };
+   }, [locale, t]);
+}
+
+/** A cron expression in words, or the expression itself when it is more than the controls draw. */
+export function useDescribeCron(): (expression: string) => string {
+   const describe = useScheduleSummary();
+   return useMemo(
+      () => (expression: string) => {
+         const visual = fromCron(expression);
+         return visual ? describe(visual) : expression;
+      },
+      [describe]
+   );
+}
+
+/**
  * Says when an autopilot runs, in the words people use.
  *
  * Underneath it is still a five-field cron, and that field is one toggle away —
@@ -134,6 +201,7 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
    const schedule = visual ?? DEFAULT_SCHEDULE;
    const days = weekdayNames(locale);
    const zones = useMemo(knownTimezones, []);
+   const describe = useScheduleSummary();
 
    useEffect(() => {
       const timer = setTimeout(() => {
@@ -171,48 +239,7 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
    const hourName = (hour: number) =>
       new Intl.DateTimeFormat(locale, { hour: 'numeric' }).format(new Date(2000, 0, 1, hour));
 
-   const timeName = (hour: number, minute: number) =>
-      new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(
-         new Date(2000, 0, 1, hour, minute)
-      );
-
-   const dayPhrase = (selection: VisualSchedule['days']): string => {
-      if (selection.kind === 'every') return t('namedEveryDay');
-      if (selection.kind === 'monthDay') return t('namedMonthDay', { day: selection.day });
-      if (sameDays(selection.days, [1, 2, 3, 4, 5])) return t('namedWeekdays');
-      if (sameDays(selection.days, [0, 6])) return t('namedWeekends');
-      return [...selection.days]
-         .sort((left, right) => left - right)
-         .map((day) => days[day] ?? '')
-         .filter((label) => label !== '')
-         .join(', ');
-   };
-
-   const lead = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
-
-   const summary = (() => {
-      const when = dayPhrase(schedule.days);
-      if (schedule.mode === 'time') {
-         return t('summaryTime', {
-            days: lead(when),
-            time: timeName(schedule.hour, schedule.minute),
-         });
-      }
-      const interval =
-         schedule.mode === 'everyHours'
-            ? t('intervalHours', { count: schedule.every })
-            : t('intervalMinutes', { count: schedule.every });
-      const base =
-         schedule.days.kind === 'every'
-            ? t('summaryRepeat', { interval })
-            : t('summaryRepeatDays', { interval, days: when });
-      if (!schedule.window) return base;
-      return t('summaryWindow', {
-         summary: base,
-         from: hourName(schedule.window.from),
-         to: hourName(schedule.window.to),
-      });
-   })();
+   const summary = describe(schedule);
 
    return (
       <div className="flex flex-col gap-3">

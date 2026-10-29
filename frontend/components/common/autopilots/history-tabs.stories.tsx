@@ -5,10 +5,10 @@ import {
    deliveries,
    storyHandlers,
 } from '@/components/common/agents/stories-fixtures';
-import { DeliveriesTable, RunsTable } from './history-tabs';
+import { DeliveryRows, RunRows } from './history-tabs';
 
 const meta = {
-   component: RunsTable,
+   component: RunRows,
    tags: ['ai-generated', 'needs-work'],
    args: { runs: autopilotRuns, orgId: 'berry' },
    beforeEach: ({ msw }) => {
@@ -16,12 +16,12 @@ const meta = {
    },
    decorators: [
       (Story) => (
-         <div className="w-[1000px]">
+         <div className="w-[380px] rounded-[10px] bg-settings-group">
             <Story />
          </div>
       ),
    ],
-} satisfies Meta<typeof RunsTable>;
+} satisfies Meta<typeof RunRows>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -29,9 +29,9 @@ type Story = StoryObj<typeof meta>;
 /** Three quota skips in a row fold into one row that opens on click. */
 export const Runs: Story = {
    play: async ({ canvas, userEvent }) => {
-      await expect(canvas.getAllByRole('row')).toHaveLength(1 + 4);
+      await expect(canvas.getAllByRole('listitem')).toHaveLength(4);
       await userEvent.click(canvas.getByRole('button', { name: '3 firings skipped · Over quota' }));
-      await expect(canvas.getAllByRole('row')).toHaveLength(1 + 4 + 3);
+      await expect(canvas.getAllByRole('listitem')).toHaveLength(4 + 3);
       await expect(canvas.getAllByRole('link', { name: 'Transcript' })[0]).toHaveAttribute(
          'href',
          '/berry/runs?run=run-7f3a91c2'
@@ -43,20 +43,15 @@ export const NoRuns: Story = { args: { runs: [] } };
 
 export const Deliveries: Story = {
    render: () => (
-      <DeliveriesTable
-         autopilotId="ap-triage"
-         deliveries={deliveries}
-         canReplay
-         onReplayed={fn()}
-      />
+      <DeliveryRows autopilotId="ap-triage" deliveries={deliveries} canReplay onReplayed={fn()} />
    ),
    play: async ({ canvas, canvasElement, userEvent }) => {
-      const rows = canvas.getAllByRole('row');
+      const rows = canvas.getAllByRole('listitem');
       // A delivery refused on its signature cannot be replayed, and says why.
       const rejected = rows.find((row) => row.textContent?.includes('Signature mismatch'));
       await expect(within(rejected!).getByRole('button', { name: 'Replay' })).toBeDisabled();
       // The stored payload is fetched on demand (MSW) and shown in a dialog.
-      await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Payload' }));
+      await userEvent.click(within(rows[0]!).getByRole('button', { name: 'Payload' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText(/Goals list has no empty state/)).toBeVisible();
    },
@@ -65,7 +60,7 @@ export const Deliveries: Story = {
 /** A member reads the deliveries but cannot replay them. */
 export const DeliveriesReadOnly: Story = {
    render: () => (
-      <DeliveriesTable
+      <DeliveryRows
          autopilotId="ap-triage"
          deliveries={deliveries}
          canReplay={false}
@@ -76,6 +71,6 @@ export const DeliveriesReadOnly: Story = {
 
 export const NoDeliveries: Story = {
    render: () => (
-      <DeliveriesTable autopilotId="ap-triage" deliveries={[]} canReplay onReplayed={fn()} />
+      <DeliveryRows autopilotId="ap-triage" deliveries={[]} canReplay onReplayed={fn()} />
    ),
 };

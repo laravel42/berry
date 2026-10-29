@@ -1,11 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useTranslations } from 'next-intl';
+import { useFormatter, useTranslations } from 'next-intl';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -16,12 +15,15 @@ import {
    type AutopilotRun,
    type WebhookDelivery,
 } from '@/lib/autopilots';
+import { cn } from '@/lib/utils';
 
-function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
-   if (status === 'enqueued' || status === 'accepted') return 'default';
-   if (status === 'failed' || status === 'rejected') return 'destructive';
-   if (status === 'skipped' || status === 'filtered') return 'secondary';
-   return 'outline';
+import { DOT_TONE, runOutcome, type RunTone } from './autopilot-line';
+
+/** Rows inside a group: dividers between them, none above the first (the group draws that). */
+const LIST = 'flex flex-col [&>li+li]:border-t [&>li+li]:border-settings-divider';
+
+function Dot({ tone }: { tone: RunTone }) {
+   return <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', DOT_TONE[tone])} />;
 }
 
 /** A run of its own, or a run of skipped ones folded together. */
@@ -50,98 +52,105 @@ export function foldSkipped(runs: AutopilotRun[]): Entry[] {
    return entries;
 }
 
-export function RunsTable({ runs, orgId }: { runs: AutopilotRun[]; orgId: string }) {
+/**
+ * The run history as rows: a status dot, what happened over when and how it
+ * started, and a link to the task the run worked on. Rendered inside the
+ * editor's Runs group.
+ */
+export function RunRows({ runs, orgId }: { runs: AutopilotRun[]; orgId: string }) {
    const t = useTranslations('areas.autopilots.history');
+   const format = useFormatter();
    const [expanded, setExpanded] = useState<string[]>([]);
 
    if (runs.length === 0) {
-      return <p className="px-6 py-6 text-muted-foreground">{t('noRuns')}</p>;
+      return <p className="px-4 py-3.5 text-subtle-foreground">{t('noRuns')}</p>;
    }
    const entries = foldSkipped(runs);
 
-   const row = (run: AutopilotRun) => (
-      <tr key={run.id} className="border-b">
-         <td className="px-6 py-2">{new Date(run.createdAt).toLocaleString()}</td>
-         <td className="px-2 py-2">{run.source}</td>
-         <td className="px-2 py-2">
-            <Badge variant={statusVariant(run.status)}>{run.status}</Badge>{' '}
-            <span className="text-muted-foreground" title={run.reasonMessage ?? undefined}>
-               {describeReason(run.reasonCode)}
-               {run.taskStatus ? ` · ${run.taskStatus}` : ''}
+   const row = (run: AutopilotRun) => {
+      const outcome = runOutcome(run);
+      const reason = describeReason(run.reasonCode);
+      return (
+         <li
+            key={run.id}
+            className="grid grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-[11px]"
+         >
+            <Dot tone={outcome.tone} />
+            <div className="flex min-w-0 flex-col gap-px">
+               <span
+                  className={cn(
+                     'min-w-0 truncate',
+                     outcome.tone === 'danger' ? 'text-status-danger' : 'text-foreground'
+                  )}
+                  title={run.reasonMessage ?? undefined}
+               >
+                  {t(`result_${outcome.key}`)}
+                  {reason && outcome.key !== 'succeeded' ? ` · ${reason}` : ''}
+               </span>
+               <span data-settings-type="caption" className="truncate text-subtle-foreground">
+                  {format.relativeTime(new Date(run.createdAt))}
+                  {' · '}
+                  {t(`source_${run.source}`)}
+                  {' · '}v{run.autopilotVersion}
+               </span>
+            </div>
+            <span data-settings-type="caption" className="flex items-center gap-2">
+               {run.runId ? (
+                  <Link
+                     className="text-subtle-foreground hover:text-foreground"
+                     href={`/${orgId}/runs?run=${run.runId}`}
+                  >
+                     {t('transcript')}
+                  </Link>
+               ) : null}
+               {run.issueId ? (
+                  <Link
+                     className="text-subtle-foreground hover:text-foreground"
+                     href={`/${orgId}/issue/${run.issueId}`}
+                  >
+                     {t('openTask')}
+                  </Link>
+               ) : null}
             </span>
-         </td>
-         <td className="px-2 py-2">
-            {run.issueId ? (
-               <Link className="underline" href={`/${orgId}/issue/${run.issueId}`}>
-                  {t('openTask')}
-               </Link>
-            ) : (
-               <span className="text-muted-foreground">—</span>
-            )}
-         </td>
-         <td className="px-2 py-2">
-            {run.runId ? (
-               <Link className="underline" href={`/${orgId}/runs?run=${run.runId}`}>
-                  {t('transcript')}
-               </Link>
-            ) : (
-               <span className="text-muted-foreground">—</span>
-            )}
-         </td>
-         <td className="px-2 py-2 text-muted-foreground">v{run.autopilotVersion}</td>
-      </tr>
-   );
+         </li>
+      );
+   };
 
    return (
-      <div className="overflow-x-auto">
-         <table className="w-full">
-            <thead className="text-left text-muted-foreground">
-               <tr className="border-b">
-                  <th className="px-6 py-2 font-normal">{t('when')}</th>
-                  <th className="px-2 py-2 font-normal">{t('source')}</th>
-                  <th className="px-2 py-2 font-normal">{t('outcome')}</th>
-                  <th className="px-2 py-2 font-normal">{t('task')}</th>
-                  <th className="px-2 py-2 font-normal">{t('transcript')}</th>
-                  <th className="px-2 py-2 font-normal">{t('version')}</th>
-               </tr>
-            </thead>
-            <tbody>
-               {entries.map((entry) => {
-                  if (entry.kind === 'run') return row(entry.run);
-                  const first = entry.runs[0];
-                  if (!first) return null;
-                  if (entry.runs.length === 1) return row(first);
-                  const open = expanded.includes(first.id);
-                  return (
-                     <Fragment key={first.id}>
-                        <tr className="border-b">
-                           <td className="px-6 py-2" colSpan={6}>
-                              <Button
-                                 type="button"
-                                 size="xs"
-                                 variant="ghost"
-                                 onClick={() =>
-                                    setExpanded((current) =>
-                                       open
-                                          ? current.filter((id) => id !== first.id)
-                                          : [...current, first.id]
-                                    )
-                                 }
-                              >
-                                 {t('skippedGroup', {
-                                    count: entry.runs.length,
-                                    reason: describeReason(first.reasonCode) || t('skippedOne'),
-                                 })}
-                              </Button>
-                           </td>
-                        </tr>
-                        {open ? entry.runs.map(row) : null}
-                     </Fragment>
-                  );
-               })}
-            </tbody>
-         </table>
-      </div>
+      <ul className={LIST}>
+         {entries.map((entry) => {
+            if (entry.kind === 'run') return row(entry.run);
+            const first = entry.runs[0];
+            if (!first) return null;
+            if (entry.runs.length === 1) return row(first);
+            const open = expanded.includes(first.id);
+            return (
+               <Fragment key={first.id}>
+                  <li className="grid grid-cols-[6px_minmax(0,1fr)] items-center gap-2.5 px-4 py-[11px]">
+                     <Dot tone="neutral" />
+                     <button
+                        type="button"
+                        aria-expanded={open}
+                        className="min-w-0 cursor-pointer truncate text-left text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                           setExpanded((current) =>
+                              open
+                                 ? current.filter((id) => id !== first.id)
+                                 : [...current, first.id]
+                           )
+                        }
+                     >
+                        {t('skippedGroup', {
+                           count: entry.runs.length,
+                           reason: describeReason(first.reasonCode) || t('skippedOne'),
+                        })}
+                     </button>
+                  </li>
+                  {open ? entry.runs.map(row) : null}
+               </Fragment>
+            );
+         })}
+      </ul>
    );
 }
 
@@ -168,7 +177,7 @@ export function signatureState(delivery: WebhookDelivery): 'ok' | 'bad' {
    return delivery.status === 'rejected' && reason.includes('signature') ? 'bad' : 'ok';
 }
 
-export function DeliveriesTable({
+export function DeliveryRows({
    autopilotId,
    deliveries,
    canReplay,
@@ -180,6 +189,7 @@ export function DeliveriesTable({
    onReplayed: () => void;
 }) {
    const t = useTranslations('areas.autopilots.history');
+   const format = useFormatter();
    const [open, setOpen] = useState<{ delivery: WebhookDelivery; payload: string } | null>(null);
 
    /** How many times this delivery has been through Berry, replays included. */
@@ -212,74 +222,78 @@ export function DeliveriesTable({
    }
 
    if (deliveries.length === 0) {
-      return <p className="px-6 py-6 text-muted-foreground">{t('noDeliveries')}</p>;
+      return <p className="px-4 py-3.5 text-subtle-foreground">{t('noDeliveries')}</p>;
    }
 
+   const tone = (delivery: WebhookDelivery): RunTone =>
+      delivery.status === 'accepted'
+         ? 'success'
+         : delivery.status === 'filtered'
+           ? 'neutral'
+           : 'danger';
+
    return (
-      <div className="overflow-x-auto">
-         <table className="w-full">
-            <thead className="text-left text-muted-foreground">
-               <tr className="border-b">
-                  <th className="px-6 py-2 font-normal">{t('received')}</th>
-                  <th className="px-2 py-2 font-normal">{t('event')}</th>
-                  <th className="px-2 py-2 font-normal">{t('status')}</th>
-                  <th className="px-2 py-2 font-normal">{t('signature')}</th>
-                  <th className="px-2 py-2 font-normal">{t('attempts')}</th>
-                  <th className="px-2 py-2 font-normal" />
-               </tr>
-            </thead>
-            <tbody>
-               {deliveries.map((delivery) => {
-                  const blocked = replayBlock(delivery);
-                  const signature = signatureState(delivery);
-                  return (
-                     <tr key={delivery.id} className="border-b">
-                        <td className="px-6 py-2">
-                           {new Date(delivery.receivedAt).toLocaleString()}
-                           {delivery.replayOf ? (
-                              <span className="text-muted-foreground"> · {t('isReplay')}</span>
-                           ) : null}
-                        </td>
-                        <td className="px-2 py-2">{delivery.event ?? '—'}</td>
-                        <td className="px-2 py-2">
-                           <Badge variant={statusVariant(delivery.status)}>{delivery.status}</Badge>{' '}
-                           <span className="text-muted-foreground">
-                              {delivery.failureReason ?? ''}
-                           </span>
-                        </td>
-                        <td className="px-2 py-2 text-muted-foreground">
+      <>
+         <ul className={LIST}>
+            {deliveries.map((delivery) => {
+               const blocked = replayBlock(delivery);
+               const signature = signatureState(delivery);
+               return (
+                  <li
+                     key={delivery.id}
+                     className="grid grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-[11px]"
+                  >
+                     <Dot tone={tone(delivery)} />
+                     <div className="flex min-w-0 flex-col gap-px">
+                        <span
+                           className={cn(
+                              'min-w-0 truncate',
+                              tone(delivery) === 'danger' ? 'text-status-danger' : 'text-foreground'
+                           )}
+                        >
+                           {delivery.event ?? '—'}
+                           {' · '}
+                           {t(`delivery_${delivery.status}`)}
+                           {delivery.failureReason ? ` · ${delivery.failureReason}` : ''}
+                        </span>
+                        <span
+                           data-settings-type="caption"
+                           className="truncate text-subtle-foreground"
+                        >
+                           {format.relativeTime(new Date(delivery.receivedAt))}
+                           {delivery.replayOf ? ` · ${t('isReplay')}` : ''}
+                           {' · '}
                            {signature === 'ok' ? t('signatureOk') : t('signatureBad')}
-                        </td>
-                        <td className="px-2 py-2 tabular-nums text-muted-foreground">
-                           {attempts(delivery)}
-                        </td>
-                        <td className="px-2 py-2 text-right">
+                           {' · '}
+                           {t('attemptsCount', { count: attempts(delivery) })}
+                        </span>
+                     </div>
+                     <span className="flex items-center gap-1">
+                        <Button
+                           type="button"
+                           size="xs"
+                           variant="quiet"
+                           onClick={() => void showPayload(delivery)}
+                        >
+                           {t('payload')}
+                        </Button>
+                        {canReplay ? (
                            <Button
                               type="button"
                               size="xs"
-                              variant="ghost"
-                              onClick={() => void showPayload(delivery)}
+                              variant="soft"
+                              disabled={blocked !== null}
+                              title={blocked ? t(`replayBlocked_${blocked}`) : undefined}
+                              onClick={() => void replay(delivery)}
                            >
-                              {t('payload')}
-                           </Button>{' '}
-                           {canReplay ? (
-                              <Button
-                                 type="button"
-                                 size="xs"
-                                 variant="outline"
-                                 disabled={blocked !== null}
-                                 title={blocked ? t(`replayBlocked_${blocked}`) : undefined}
-                                 onClick={() => void replay(delivery)}
-                              >
-                                 {t('replay')}
-                              </Button>
-                           ) : null}
-                        </td>
-                     </tr>
-                  );
-               })}
-            </tbody>
-         </table>
+                              {t('replay')}
+                           </Button>
+                        ) : null}
+                     </span>
+                  </li>
+               );
+            })}
+         </ul>
 
          <Dialog open={open !== null} onOpenChange={(next) => !next && setOpen(null)}>
             <DialogContent className="sm:max-w-2xl">
@@ -288,11 +302,11 @@ export function DeliveriesTable({
                      {t('payloadTitle', { event: open?.delivery.event ?? '—' })}
                   </DialogTitle>
                </DialogHeader>
-               <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-md border p-3 font-mono">
+               <pre className="max-h-96 overflow-auto whitespace-pre-wrap rounded-[7px] border border-input bg-container p-3 font-mono">
                   {open?.payload}
                </pre>
             </DialogContent>
          </Dialog>
-      </div>
+      </>
    );
 }
