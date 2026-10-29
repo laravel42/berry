@@ -7,3 +7,6 @@ allowBuilds:
 overrides:
   devalue: 5.9.3
   sharp: 0.35.5
+  # GHSA-2m5v-pch6-74hx and the other undici highs.
+  'undici@>=7.0.0 <7.30.1': 7.30.1
+  'undici@>=8.0.0 <8.12.2': 8.12.2
