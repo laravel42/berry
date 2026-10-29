@@ -197,20 +197,42 @@ function ProviderCard({
    ]
       .filter(Boolean)
       .join(' · ');
+   const actions =
+      showDisconnect || showConnect ? (
+         <div className="flex shrink-0 items-center gap-2">
+            {showDisconnect ? (
+               <Button variant="soft" disabled={busy} onClick={onDisconnect}>
+                  {busy ? 'Working…' : 'Disconnect'}
+               </Button>
+            ) : null}
+            {showConnect ? (
+               <Button
+                  disabled={busy || !provider.configured}
+                  title={
+                     provider.configured
+                        ? `Sign in to ${visibleProviderName(provider)}`
+                        : `${visibleProviderName(provider)} is not configured on this deployment`
+                  }
+                  onClick={onConnect}
+               >
+                  {busy ? 'Opening…' : 'Connect'}
+               </Button>
+            ) : null}
+         </div>
+      ) : null;
+
    const identity = (
       <>
          <ProviderIcon provider={provider} />
          <div className="min-w-0 flex-1">
-            <div
-               className={cn(
-                  'flex flex-wrap items-center gap-x-2 gap-y-1',
-                  (showConnect || showDisconnect) && 'pr-24'
-               )}
-            >
-               <h3 className="m-0">{visibleProviderName(provider)}</h3>
-               <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
-                  {state.label}
-               </StatusIndicator>
+            <div className="flex items-start justify-between gap-3">
+               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                  <h3 className="m-0">{visibleProviderName(provider)}</h3>
+                  <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
+                     {state.label}
+                  </StatusIndicator>
+               </div>
+               {actions}
             </div>
             {visibleProviderDescription(provider) && (
                <p
@@ -271,46 +293,22 @@ function ProviderCard({
       <section
          id={`provider-${provider.id}`}
          className={cn(
-            'min-w-0 overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
+            'flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
          aria-label={visibleProviderName(provider)}
       >
-         <div className="relative flex items-start">
-            {onOpen ? (
-               <button
-                  type="button"
-                  onClick={onOpen}
-                  className="flex min-w-0 flex-1 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-               >
-                  {identity}
-               </button>
-            ) : (
-               <div className="flex min-w-0 flex-1 items-start gap-3 p-4">{identity}</div>
-            )}
-            {showDisconnect || showConnect ? (
-               <div className="absolute top-4 right-4 flex items-center gap-2">
-                  {showDisconnect ? (
-                     <Button variant="soft" disabled={busy} onClick={onDisconnect}>
-                        {busy ? 'Working…' : 'Disconnect'}
-                     </Button>
-                  ) : null}
-                  {showConnect ? (
-                     <Button
-                        disabled={busy || !provider.configured}
-                        title={
-                           provider.configured
-                              ? `Sign in to ${visibleProviderName(provider)}`
-                              : `${visibleProviderName(provider)} is not configured on this deployment`
-                        }
-                        onClick={onConnect}
-                     >
-                        {busy ? 'Opening…' : 'Connect'}
-                     </Button>
-                  ) : null}
-               </div>
-            ) : null}
-         </div>
+         {onOpen ? (
+            <button
+               type="button"
+               onClick={onOpen}
+               className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+            >
+               {identity}
+            </button>
+         ) : (
+            <div className="flex min-w-0 items-start gap-3 p-4">{identity}</div>
+         )}
          <button
             type="button"
             data-settings-type="caption"
@@ -515,6 +513,7 @@ function IntegrationsDirectory() {
 
    return (
       <SettingsShell
+         wide
          title="Integrations"
          description="Connect the tools your agents may reach. An agent cannot reach a provider until it is connected."
       >
@@ -529,7 +528,7 @@ function IntegrationsDirectory() {
             </SettingsCard>
          ) : null}
 
-         <div className="flex flex-col gap-3">
+         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {providers.map((provider) => (
                <ProviderCard
                   key={provider.id}
