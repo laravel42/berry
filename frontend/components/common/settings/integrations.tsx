@@ -514,7 +514,7 @@ function IntegrationsDirectory() {
    return (
       <SettingsShell
          wide
-         title="Integrations"
+         title="Source control"
          description="Connect the tools your agents may reach. An agent cannot reach a provider until it is connected."
       >
          {error ? (
@@ -591,7 +591,7 @@ function IntegrationsDirectory() {
                      onClick={() => setDrawer(null)}
                      className="text-muted-foreground transition-colors hover:text-foreground"
                   >
-                     Integrations
+                     Source control
                   </button>
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate font-medium">{drawer ? DRAWER_NAMES[drawer] : ''}</span>
