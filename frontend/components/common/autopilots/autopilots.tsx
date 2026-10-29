@@ -285,10 +285,8 @@ export default function Autopilots({
                <EmptyStateText>{t('empty.body')}</EmptyStateText>
             </div>
             {canEdit ? (
-               <div className="mt-[72px] w-full max-w-5xl text-center">
-                  <p className="font-medium">{t('templates.title')}</p>
-                  <p className="text-muted-foreground">{t('templates.hint')}</p>
-                  <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+               <div className="mt-[72px] w-full max-w-5xl">
+                  <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
                      {TEMPLATES.map((key) => {
                         const Icon = TEMPLATE_ICON[key];
                         const name = t(`templates.${key}_name`);

@@ -231,8 +231,6 @@
          "confirmDeleteBody": "They stop running. Their history stays, and they can be restored."
       },
       "templates": {
-         "title": "Start from one of these",
-         "hint": "Each is a runbook you can change before saving.",
          "standup_name": "Daily standup",
          "standup_prompt": "Summarise what changed on this project since yesterday: tasks moved, reviews opened, runs that failed. Post it as one short update.",
          "triage_name": "Triage the inbox",
