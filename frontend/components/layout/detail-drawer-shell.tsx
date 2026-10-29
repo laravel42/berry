@@ -90,6 +90,10 @@ export default function DetailDrawerShell({
                width: drawerWidth,
                maxWidth: drawerWidth,
             }}
+            // A file dialog moves focus out of the page. That is not the
+            // reader leaving the drawer, and dismissing here drops the input
+            // before the chosen file can upload.
+            onFocusOutside={(event) => event.preventDefault()}
          >
             <DetailDrawerProvider onClose={dismiss}>
                {header}

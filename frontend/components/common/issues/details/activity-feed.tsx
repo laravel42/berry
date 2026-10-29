@@ -18,7 +18,14 @@ import { ActivityItem } from '@/data/issue-details';
 import type { User } from '@/data/users';
 import { describeActivity, loadIssueActivity } from '@/lib/activity';
 import { BerryApiError } from '@/lib/api';
-import { uploadIssueAttachment } from '@/lib/attachments';
+import {
+   assignAttachmentToComment,
+   loadIssueAttachments,
+   onIssueAttachment,
+   publishCommentFilesRemoved,
+   uploadIssueAttachment,
+   type ApiAttachment,
+} from '@/lib/attachments';
 import { toUiUser } from '@/lib/catalog';
 import {
    createIssueComment,
@@ -221,10 +228,31 @@ function EventGroup({ items }: { items: EventItem[] }) {
    );
 }
 
+function CommentFiles({ files }: { files: ApiAttachment[] }) {
+   const { orgId } = useParams<{ orgId: string }>();
+   const org = orgId ?? WORKSPACE_SLUG;
+   if (files.length === 0) return null;
+   return (
+      <ul className="flex flex-wrap gap-1.5">
+         {files.map((file) => (
+            <li key={file.id}>
+               <a
+                  href={`/${org}/attachments/${file.id}/preview`}
+                  className="block max-w-full truncate rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+               >
+                  {file.fileName}
+               </a>
+            </li>
+         ))}
+      </ul>
+   );
+}
+
 function CommentCard({
    comment,
    issueRef,
    replies,
+   attachments,
    highlighted,
    onChanged,
    onDeleted,
@@ -234,6 +262,7 @@ function CommentCard({
    comment: ApiComment;
    issueRef: string;
    replies: ApiComment[];
+   attachments: ApiAttachment[];
    highlighted: boolean;
    onChanged: (comment: ApiComment) => void;
    onDeleted: (commentId: string) => void;
@@ -252,6 +281,7 @@ function CommentCard({
    const [replying, setReplying] = useState(false);
    const [resolving, setResolving] = useState(false);
    const [closingNote, setClosingNote] = useState('');
+   const files = attachments.filter((file) => file.commentId === comment.id);
    const actor: User = toUiUser(comment.author);
    const isAgent = comment.author.type === 'agent';
 
@@ -302,6 +332,7 @@ function CommentCard({
                thin={isAgent}
                clamp={{ lines: 6, moreLabel: t('readRest'), lessLabel: t('showLess') }}
             />
+            <CommentFiles files={files} />
 
             <div className="flex flex-wrap items-center gap-1">
                <ReactionBar target="comment" id={comment.id} />
@@ -350,6 +381,7 @@ function CommentCard({
                      comment={reply}
                      issueRef={issueRef}
                      replies={[]}
+                     attachments={attachments}
                      highlighted={false}
                      onChanged={onChanged}
                      onDeleted={onDeleted}
@@ -533,7 +565,34 @@ export function ActivityFeedList({
 }) {
    const t = useTranslations('issueDetail.activity');
    const [showResolved, setShowResolved] = useState(false);
+   const [attachments, setAttachments] = useState<ApiAttachment[]>([]);
    const reviews = useSettledAutoReviews(issueRef);
+
+   useEffect(() => {
+      if (!issueRef) {
+         setAttachments([]);
+         return;
+      }
+      let cancelled = false;
+      void loadIssueAttachments(issueRef)
+         .then((loaded) => {
+            if (!cancelled) setAttachments(loaded);
+         })
+         .catch(() => undefined);
+      return () => {
+         cancelled = true;
+      };
+   }, [issueRef]);
+
+   useEffect(() => {
+      return onIssueAttachment((ref, attachment) => {
+         if (ref !== issueRef) return;
+         setAttachments((current) => [
+            attachment,
+            ...current.filter((entry) => entry.id !== attachment.id),
+         ]);
+      });
+   }, [issueRef]);
 
    const repliesByParent = useMemo(() => {
       const map = new Map<string, ApiComment[]>();
@@ -636,9 +695,26 @@ export function ActivityFeedList({
                      comment={row.comment}
                      issueRef={issueRef}
                      replies={repliesByParent.get(row.comment.id) ?? []}
+                     attachments={attachments}
                      highlighted={highlightedCommentId === row.comment.id}
                      onChanged={onCommentChanged}
-                     onDeleted={onCommentDeleted}
+                     onDeleted={(commentId) => {
+                        const gone = [
+                           commentId,
+                           ...comments
+                              .filter((entry) => entry.parentId === commentId)
+                              .map((entry) => entry.id),
+                        ];
+                        const removed = new Set(gone);
+                        const fileIds = attachments
+                           .filter((file) => file.commentId && removed.has(file.commentId))
+                           .map((file) => file.id);
+                        setAttachments((current) =>
+                           current.filter((file) => !file.commentId || !removed.has(file.commentId))
+                        );
+                        publishCommentFilesRemoved(gone, fileIds);
+                        onCommentDeleted(commentId);
+                     }}
                      onRunChanged={onRunChanged}
                      onPosted={onCommentPosted}
                   />
@@ -699,6 +775,7 @@ export function ActivityCommentComposer({
    const [note, setNote] = useState(false);
    const [sending, setSending] = useState(false);
    const [uploading, setUploading] = useState(0);
+   const [attached, setAttached] = useState<ApiAttachment[]>([]);
    const [focused, setFocused] = useState(false);
    const filePicker = useRef<HTMLInputElement>(null);
    const slashExtras = useMemo(
@@ -757,9 +834,12 @@ export function ActivityCommentComposer({
       if (list.length === 0) return;
       setUploading((count) => count + list.length);
       for (const file of list) {
-         await uploadIssueAttachment(issueRef, file).catch(() => {
-            toast.error(t('sendFailed'));
-         });
+         try {
+            const saved = await uploadIssueAttachment(issueRef, file);
+            setAttached((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
+         } catch (cause) {
+            toast.error(cause instanceof BerryApiError ? cause.message : t('uploadFailed'));
+         }
          setUploading((count) => Math.max(0, count - 1));
       }
       if (filePicker.current) filePicker.current.value = '';
@@ -782,8 +862,18 @@ export function ActivityCommentComposer({
          : withoutMentions(text, removed);
 
       setSending(true);
+      const pending = attached;
       void createIssueComment(issueRef, body, parentId)
-         .then((comment) => {
+         .then(async (comment) => {
+            const linked = await Promise.all(
+               pending.map((file) =>
+                  assignAttachmentToComment(issueRef, file.id, comment.id).then(
+                     () => true,
+                     () => false
+                  )
+               )
+            );
+            setAttached(pending.filter((_, index) => !linked[index]));
             onPosted(comment);
             if (isReply) setReplyDraft('');
             else clearStoredDraft(issueRef);
@@ -818,6 +908,7 @@ export function ActivityCommentComposer({
          <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
             <div className="flex items-end gap-2">
                <Button
+                  type="button"
                   variant="ghost"
                   size="icon"
                   className="mb-0.5 size-8 flex-none"
@@ -834,7 +925,8 @@ export function ActivityCommentComposer({
                   ref={filePicker}
                   type="file"
                   multiple
-                  className="hidden"
+                  tabIndex={-1}
+                  className="sr-only"
                   onChange={(event) => void upload(event.target.files)}
                />
                <div className="relative min-w-0 flex-1">
@@ -886,6 +978,19 @@ export function ActivityCommentComposer({
                   <SendHorizonal className="size-3.5" aria-hidden />
                </Button>
             </div>
+
+            {attached.length > 0 ? (
+               <ul className="flex flex-wrap gap-1.5">
+                  {attached.map((file) => (
+                     <li
+                        key={file.id}
+                        className="max-w-full truncate rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground"
+                     >
+                        {file.fileName}
+                     </li>
+                  ))}
+               </ul>
+            ) : null}
 
             {note ? (
                <p className="text-muted-foreground">

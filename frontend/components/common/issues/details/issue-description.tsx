@@ -4,6 +4,8 @@ import {
    attachmentObjectUrl,
    isImageAttachment,
    loadIssueAttachments,
+   onCommentFilesRemoved,
+   onIssueAttachment,
    uploadIssueAttachment,
    type ApiAttachment,
 } from '@/lib/attachments';
@@ -59,6 +61,30 @@ export function IssueDescription({
       };
    }, [issueRef]);
 
+   useEffect(() => {
+      return onIssueAttachment((ref, attachment) => {
+         if (ref !== issueRef) return;
+         setAttachments((current) => [
+            attachment,
+            ...current.filter((entry) => entry.id !== attachment.id),
+         ]);
+      });
+   }, [issueRef]);
+
+   useEffect(() => {
+      return onCommentFilesRemoved((commentIds, attachmentIds) => {
+         const goneComments = new Set(commentIds);
+         const goneFiles = new Set(attachmentIds);
+         setAttachments((current) =>
+            current.filter(
+               (entry) =>
+                  !goneFiles.has(entry.id) &&
+                  (!entry.commentId || !goneComments.has(entry.commentId))
+            )
+         );
+      });
+   }, []);
+
    // Blob URLs are made once per image and revoked when this unmounts; each
    // one holds the whole file, so leaking them leaks the pictures.
    useEffect(() => {
@@ -98,11 +124,7 @@ export function IssueDescription({
          if (list.length === 0) return;
          try {
             for (const file of list) {
-               const saved = await uploadIssueAttachment(issueRef, file);
-               setAttachments((current) => [
-                  saved,
-                  ...current.filter((entry) => entry.id !== saved.id),
-               ]);
+               await uploadIssueAttachment(issueRef, file);
             }
          } catch (cause) {
             toast.error(cause instanceof Error ? cause.message : t('uploadFailed'));

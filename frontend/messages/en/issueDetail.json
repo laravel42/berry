@@ -275,6 +275,7 @@
       "sending": "sending…",
       "draft": "Draft saved",
       "uploadsPending": "Wait for the upload to finish.",
+      "uploadFailed": "The file could not be attached.",
       "attach": "Attach a file",
       "mentionAll": "all",
       "mentionAllHint": "everyone following this task",

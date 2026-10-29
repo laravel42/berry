@@ -473,11 +473,13 @@ function execution(env: NodeJS.ProcessEnv, problems: string[]): ExecutionConfig 
  *
  * Only the bucket is required. Credentials may be absent on purpose — the AWS
  * SDK then uses the workload's credential chain, which is how this runs
- * outside development.
+ * outside development. A development or test process with neither a bucket
+ * nor `BERRY_STORAGE_DIR` keeps files in a directory beside the local
+ * database, so an attachment has somewhere to land.
  */
 function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
    const maxBytes = positiveInt(env.STORAGE_MAX_BYTES, 25 * 1024 * 1024);
-   const directory = (env.BERRY_STORAGE_DIR ?? '').trim();
+   const directory = (env.BERRY_STORAGE_DIR ?? '').trim() || localArtifactDirectory(env);
    if (directory) {
       return {
          bucket: '',
@@ -505,6 +507,24 @@ function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
       maxBytes,
       directory: null,
    };
+}
+
+/**
+ * Where a local process keeps files when nobody named a bucket or a directory.
+ *
+ * Production stays without storage until it is configured: a forgotten bucket
+ * must not start writing into the container. The directory sits next to a
+ * PGlite database (`pglite:./.berry` → `./.berry/artifacts`) and otherwise
+ * under `.berry/artifacts`, resolved from the server's working directory.
+ */
+function localArtifactDirectory(env: NodeJS.ProcessEnv): string {
+   const development = ['development', 'test'].includes((env.APP_ENV ?? '').trim().toLowerCase());
+   if (!development || (env.S3_BUCKET ?? '').trim()) return '';
+   const database = (env.DATABASE_URL ?? '').trim();
+   if (database.startsWith('pglite:')) {
+      return `${database.slice('pglite:'.length).replace(/\/$/, '')}/artifacts`;
+   }
+   return '.berry/artifacts';
 }
 
 /**

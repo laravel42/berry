@@ -18,6 +18,36 @@ const attachmentConnectionSchema = connectionSchema(attachmentSchema);
 
 export type ApiAttachment = z.infer<typeof attachmentSchema>;
 
+const attachmentListeners = new Set<(issueRef: string, attachment: ApiAttachment) => void>();
+const commentFileListeners = new Set<(commentIds: string[], attachmentIds: string[]) => void>();
+
+/** Told when a file has been stored on an issue, so open views can show it. */
+export function onIssueAttachment(
+   listener: (issueRef: string, attachment: ApiAttachment) => void
+): () => void {
+   attachmentListeners.add(listener);
+   return () => attachmentListeners.delete(listener);
+}
+
+/**
+ * Told when a comment is gone, so a file that belonged to it leaves every
+ * open view. The row goes with the comment; this is the picture of it.
+ */
+export function onCommentFilesRemoved(
+   listener: (commentIds: string[], attachmentIds: string[]) => void
+): () => void {
+   commentFileListeners.add(listener);
+   return () => commentFileListeners.delete(listener);
+}
+
+export function publishCommentFilesRemoved(
+   commentIds: string[],
+   attachmentIds: string[] = []
+): void {
+   if (commentIds.length === 0 && attachmentIds.length === 0) return;
+   for (const listener of commentFileListeners) listener(commentIds, attachmentIds);
+}
+
 /**
  * One attachment by its own id, for the preview page, which is reached by
  * link and so knows nothing but the id. Null when it is not there or not
@@ -113,7 +143,34 @@ export async function uploadIssueAttachment(
    );
    const parsed = attachmentSchema.safeParse(json);
    if (!parsed.success) throw new Error('Upload response was not recognized');
+   publishIssueAttachment(issueRef, parsed.data);
    return parsed.data;
+}
+
+/**
+ * The file was uploaded before the comment existed. Once the comment is
+ * posted, it belongs to that comment and stays on it.
+ */
+export async function assignAttachmentToComment(
+   issueRef: string,
+   attachmentId: string,
+   commentId: string
+): Promise<ApiAttachment> {
+   const json: unknown = await apiFetch(
+      `/api/v1/issues/${encodeURIComponent(issueRef)}/attachments/${encodeURIComponent(attachmentId)}`,
+      {
+         method: 'PATCH',
+         body: JSON.stringify({ commentId }),
+      }
+   );
+   const parsed = attachmentSchema.safeParse(json);
+   if (!parsed.success) throw new Error('Attachment response was not recognized');
+   publishIssueAttachment(issueRef, parsed.data);
+   return parsed.data;
+}
+
+function publishIssueAttachment(issueRef: string, attachment: ApiAttachment): void {
+   for (const listener of attachmentListeners) listener(issueRef, attachment);
 }
 
 /** Is this something the image viewer can show? */

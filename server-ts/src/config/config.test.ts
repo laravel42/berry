@@ -55,6 +55,20 @@ test('development gets a stable fallback secret so a fresh checkout can sign in'
    assert.equal(first.auth.secret, second.auth.secret);
 });
 
+test('development without a bucket stores files beside the local database', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      DATABASE_URL: 'pglite:./.berry',
+   });
+   assert.equal(config.storage?.directory, './.berry/artifacts');
+});
+
+test('production without a bucket holds no files', () => {
+   const config = loadConfig({ ...BASE_ENV, APP_ENV: 'production' });
+   assert.equal(config.storage, null);
+});
+
 test('an unset APP_ENV gets neither the fallback secret nor dev login', () => {
    const config = loadConfig({ ...BASE_ENV, AUTH_ALLOW_PASSWORDLESS_LOGIN: 'true' });
    assert.equal(config.auth.secret, null);

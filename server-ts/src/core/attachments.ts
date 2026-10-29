@@ -165,6 +165,51 @@ export class AttachmentRepository {
    }
 
    /**
+    * Object keys for the files on a comment and its replies.
+    *
+    * Read before the comment is deleted: the attachment rows go with it, and
+    * the caller still has to remove the bytes.
+    */
+   async storageKeysForComment(commentId: string): Promise<string[]> {
+      const rows = await this.sql`
+         SELECT storage_key FROM attachments
+          WHERE comment_id = ${commentId}
+             OR comment_id IN (SELECT id FROM comments WHERE parent_id = ${commentId})`;
+      return rows.map((row) => row.storage_key as string);
+   }
+
+   /**
+    * Puts an already-uploaded file on a comment of the same task.
+    *
+    * The file is stored before the comment exists, so the comment id arrives
+    * afterwards. A file already on this comment is left as it is. A comment
+    * that is not on this task matches nothing, which is not found.
+    */
+   async attachToComment(
+      actorId: string,
+      issueId: string,
+      attachmentId: string,
+      commentId: string
+   ): Promise<Attachment> {
+      const current = await this.get(actorId, attachmentId, 'product.write');
+      if (current.issueId !== issueId) throw new NotFound();
+      if (current.commentId === commentId) return current;
+      const [updated] = await this.sql`
+         UPDATE attachments AS attachment
+            SET comment_id = ${commentId}
+           FROM comments AS comment
+          WHERE attachment.id = ${attachmentId}
+            AND attachment.issue_id = ${issueId}
+            AND comment.id = ${commentId}
+            AND comment.issue_id = attachment.issue_id
+            AND attachment.state = 'ready'
+            AND (attachment.comment_id IS NULL OR attachment.comment_id = ${commentId})
+         RETURNING attachment.id`;
+      if (!updated) throw new NotFound();
+      return this.get(actorId, attachmentId, 'product.write');
+   }
+
+   /**
     * Removes the row and reports the object to delete.
     *
     * The row goes first and the object after, deliberately: an object left

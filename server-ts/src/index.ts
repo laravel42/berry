@@ -883,6 +883,8 @@ const commentOptions = {
    issues,
    idempotency,
    broadcaster,
+   attachments,
+   storage,
    hooks: workHooks,
    extensions: commentTrackingRoutes({ sql, comments, broadcaster }),
    // A person's comment that mentions an agent (or replies to the assignee)
