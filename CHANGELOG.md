@@ -18,6 +18,16 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- Settings → Plugins lists the plugins that ship in `plugins/` (Customer.io) so they can be installed from the page. `GET /api/v1/plugins/{workspaceId}/catalog` returns them.
+- `GET /v1/self` lets a plugin token read its own config and secrets. An agent run calls the plugin's approved MCP tools at the address saved on the installation, and sends `Berry-Api-Url` so the plugin can read those values back. Personal tokens receive `403 PLUGIN_TOKEN_REQUIRED`. `PATCH` on an installation accepts `baseUrl`.
+- Customer.io plugin (`plugins/customerio`). It connects to the Customer.io MCP server and offers every tool that server lists. Berry starts its container when an agent run needs it. The region and bearer token are the values saved on the installation; Berry sends its own API address on each call. A plugin manifest can set `mcp.offer` to `all` so the run admits the server's full tool list.
+- A plugin config field may set `name` as its settings title and `type` to `array` with `options`. The saved value is the one option the admin picks. A secret field's `name` is the title; its `key` is still the sealed name.
+- A bundled plugin with a Dockerfile may omit `port`. Berry assigns the listen port when it starts the container and publishes a free host port.
+- Hosted MCP plugins under `plugins/` for the public services in the catalog. Each one proxies that service's MCP server and offers every tool it lists. A `{placeholder}` in the server URL is filled from the string setting of the same name; underscores and hyphens match. The PostHog server URL is `https://mcp.posthog.com/mcp?mode=tools`, so Settings and an agent run receive that server's full tool catalog.
+- Settings → Plugins lists the tools its MCP server offers on the plugin detail. `GET /api/v1/plugins/{workspaceId}/catalog/{key}/tools` asks that server. A server that requires a bearer says so until an API key is saved. The list is capped at 20rem and scrolls.
+- When that tools request sends a saved API key and the MCP server refuses it, the fold says the key was rejected and includes the server's reason. A server that signs in with OAuth says an API key cannot list its tools.
+- A new task assigned to an agent picks installed plugins from the create bar. Each choice is stored as `[@Name](mention://plugin/<id>)` on the description. An agent run on that task receives those plugins' MCP servers and every tool they offer, and is told the tool-name prefix. A task that names no plugin receives none. Typing `@` does not open the list.
+
 - A goal's actions sit on the three-dot button at the top-right of its page:
   open it in a new tab, copy its link, or archive it.
 - Create a goal from a project. The project header and the Goals block on the
@@ -309,6 +319,10 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Changed
 
+- Settings → Plugins uses the same full-width card grid as Integrations. Each plugin is a card with its brand mark, a larger name, a three-line description, and status. Opening an installed plugin shows its detail and tools in a drawer, without access, install source, settings, or stored-data rows. Clicking an available plugin opens the install dialog. The search is capped at 373px, and All, Installed, and Available filter the grid, with installed plugins first in All.
+- A finished agent run posts one comment, its report. The handoff stays a file on the task and is omitted from that comment's file list. `post_comment` on the task being worked is refused, so the run cannot add a second comment.
+- The file preview header has a Download button beside Document and Source. It saves the file the agent produced.
+- A task comment stays open through a short report. "Read the rest" appears once the comment is longer than that.
 - Reviews sits in Personal, above Agent, instead of in Work.
 - Agent chat can see the workspace. The chat envelope carries an open-work
   snapshot (tasks, plans, goals, projects) so a summary does not spend the run
@@ -385,6 +399,8 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Removed
 
+- Settings → Plugins no longer installs a plugin from a URL or an uploaded `berry-plugin.json`. Plugins that ship with Berry stay in the list.
+- The new-task dialog no longer has Create another. Creating a task closes the dialog.
 - PGlite (`@electric-sql/pglite`, `@electric-sql/pglite-socket`, `DATABASE_URL=pglite:<dir>`).
   The server and the desktop window talk only to host Postgres. `pnpm package:desktop` no
   longer patches pglite-socket.
@@ -428,6 +444,7 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Fixed
 
+- Settings → Plugins shows a one-line summary for each MCP tool. A description that is an agent prompt, such as PostHog's `exec` skill instructions, is not printed in that list.
 - Creating a project from Agent chat wrote the row and then left the Projects
   page empty. `ProjectRepository` now records `project.created`,
   `project.updated` and `project.archived` on the workspace stream, and the

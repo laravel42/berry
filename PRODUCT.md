@@ -726,7 +726,7 @@ Agents reach GitHub through the access members gave when they signed in with Git
 
 ### Plugins
 
-Plugins are outside extensions, installed from a link or by uploading a plugin package file. Installing takes two steps on purpose. First Berry shows everything the plugin asks for: permissions, events it wants to hear about, schedules, pages and agent tools. An admin approves that concrete list instead of trusting a bare link. When the plugin is installed, Berry generates a signing secret, shown once, that the plugin uses to confirm calls really come from Berry. Each plugin has its own page with an on/off switch, its secrets, switches for each agent tool, a list of recent calls, the keys it has saved, and uninstall. A plugin's agent tools stay off until an admin switches each one on in the plugin's page. Only those tools reach agent runs, with a credential limited to what the plugin was granted that expires within hours.
+Plugins are outside extensions, installed from a link or by uploading a plugin package file. Installing takes two steps on purpose. First Berry shows everything the plugin asks for: permissions, events it wants to hear about, schedules, pages and agent tools. An admin approves that concrete list instead of trusting a bare link. When the plugin is installed, Berry generates a signing secret, shown once, that the plugin uses to confirm calls really come from Berry. Each plugin has its own page with an on/off switch, its secrets, switches for each agent tool, a list of recent calls, the keys it has saved, and uninstall. A plugin that names its agent tools keeps them off until an admin switches each one on in the plugin's page. Only those tools reach agent runs. A plugin that connects to an MCP server and offers every tool that server lists is available once the plugin itself is on. Either way the credential is limited to what the plugin was granted and expires within hours.
 
 > **Needs setup:** needs the server's encryption key. Without it, plugins can't be installed.
 
@@ -736,7 +736,7 @@ Berry ships a small Node.js toolkit for plugin authors. It includes a client for
 
 ### The public API
 
-Berry has a small public API for scripts and plugins, separate from the API the web app uses. With it you can see who a token belongs to and which workspaces it reaches, read a task or change its title, description, status or priority, and read or post comments. Plugins also get a small private store for their own saved values. It accepts personal access tokens and short-lived plugin tokens. Every call goes through the same permission checks as the main product and is recorded as done by the token's owner. For a plugin, that's the person who installed it.
+Berry has a small public API for scripts and plugins, separate from the API the web app uses. With it you can see who a token belongs to and which workspaces it reaches, read a task or change its title, description, status or priority, and read or post comments. A plugin token can also read that plugin's own settings and secrets, which is how a tool an agent calls reaches a credential saved in Berry. Plugins also get a small private store for their own saved values. It accepts personal access tokens and short-lived plugin tokens. Every call goes through the same permission checks as the main product and is recorded as done by the token's owner. For a plugin, that's the person who installed it.
 
 ---
 
