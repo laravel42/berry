@@ -1,6 +1,16 @@
 'use client';
 
+import { SettingsTile } from '@/components/common/settings/shared';
 import { useTranslations } from 'next-intl';
+import {
+   Activity,
+   CalendarClock,
+   Inbox,
+   ListFilter,
+   Newspaper,
+   Rocket,
+   type LucideIcon,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -54,6 +64,18 @@ interface Props {
 
 /** Something to start from, so an empty workspace is not an empty page. */
 const TEMPLATES = ['standup', 'triage', 'sweep', 'digest', 'release', 'watch'] as const;
+
+const TEMPLATE_ICON: Record<(typeof TEMPLATES)[number], LucideIcon> = {
+   standup: CalendarClock,
+   triage: Inbox,
+   sweep: ListFilter,
+   digest: Newspaper,
+   release: Rocket,
+   watch: Activity,
+};
+
+/** Same height as the card title (`h1` on the type scale). */
+const titleHeight = 'size-[calc(var(--text-lg)*var(--text-lg--line-height))]';
 
 function sortAutopilots(
    list: Autopilot[],
@@ -256,40 +278,57 @@ export default function Autopilots({
          );
       }
       return (
-         <div className="flex h-full min-h-64 w-full items-center justify-center px-6 py-12">
+         <div className="flex h-full min-h-64 w-full flex-col items-center px-5 py-12">
             <div className="flex w-full max-w-2xl flex-col items-center text-center">
                <EmptyStateMark label={t('empty.mark')} />
                <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>
                <EmptyStateText>{t('empty.body')}</EmptyStateText>
-               {canEdit ? (
-                  <div className="mt-10 w-full text-left">
-                     <p className="font-medium">{t('templates.title')}</p>
-                     <p className="text-muted-foreground">{t('templates.hint')}</p>
-                     <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {TEMPLATES.map((key) => (
-                           <button
-                              key={key}
-                              type="button"
-                              className="cursor-pointer rounded-md border p-3 text-left hover:bg-sidebar/50"
-                              onClick={() =>
-                                 onUseTemplate({
-                                    name: t(`templates.${key}_name`),
-                                    prompt: t(`templates.${key}_prompt`),
-                                 })
-                              }
-                           >
-                              <span className="block font-medium">
-                                 {t(`templates.${key}_name`)}
-                              </span>
-                              <span className="mt-0.5 block line-clamp-2 text-muted-foreground">
-                                 {t(`templates.${key}_prompt`)}
-                              </span>
-                           </button>
-                        ))}
-                     </div>
-                  </div>
-               ) : null}
             </div>
+            {canEdit ? (
+               <div className="mt-[72px] w-full max-w-5xl text-center">
+                  <p className="font-medium">{t('templates.title')}</p>
+                  <p className="text-muted-foreground">{t('templates.hint')}</p>
+                  <div className="mt-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                     {TEMPLATES.map((key) => {
+                        const Icon = TEMPLATE_ICON[key];
+                        const name = t(`templates.${key}_name`);
+                        return (
+                           <section
+                              key={key}
+                              className="flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group"
+                              aria-label={name}
+                           >
+                              <button
+                                 type="button"
+                                 className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+                                 onClick={() =>
+                                    onUseTemplate({
+                                       name,
+                                       prompt: t(`templates.${key}_prompt`),
+                                    })
+                                 }
+                              >
+                                 <SettingsTile size="lg" className={titleHeight}>
+                                    <Icon className="size-[55%]" aria-hidden />
+                                 </SettingsTile>
+                                 <div className="min-w-0 flex-1">
+                                    <h3 data-heading="h1" className="m-0 min-w-0 truncate">
+                                       {name}
+                                    </h3>
+                                    <p
+                                       data-settings-type="caption"
+                                       className="mt-1.5 line-clamp-3 min-h-[3lh] leading-[1.55] text-muted-foreground"
+                                    >
+                                       {t(`templates.${key}_prompt`)}
+                                    </p>
+                                 </div>
+                              </button>
+                           </section>
+                        );
+                     })}
+                  </div>
+               </div>
+            ) : null}
          </div>
       );
    }
