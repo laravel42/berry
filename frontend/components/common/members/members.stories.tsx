@@ -44,7 +44,7 @@ export const Owner: Story = {
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
       await expect(await canvas.findByText(/the last owner/)).toBeVisible();
-      await expect(canvas.getByRole('combobox', { name: 'Role for Maya Okafor' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Role for Maya Okafor' })).toBeVisible();
       // Invitations are a second request that can land after the member list.
       await expect(await canvas.findByText('jonas@agency.example')).toBeVisible();
 
@@ -69,8 +69,8 @@ export const Admin: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findAllByText(/only an owner can change this/)).toHaveLength(1);
-      await expect(canvas.getByRole('combobox', { name: 'Role for Tomás Reyes' })).toBeVisible();
-      await expect(canvas.queryByRole('combobox', { name: 'Role for Andrea Lunelio' })).toBeNull();
+      await expect(canvas.getByRole('button', { name: 'Role for Tomás Reyes' })).toBeVisible();
+      await expect(canvas.queryByRole('button', { name: 'Role for Andrea Lunelio' })).toBeNull();
    },
 };
 

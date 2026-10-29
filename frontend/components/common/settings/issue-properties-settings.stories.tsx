@@ -27,7 +27,7 @@ type Story = StoryObj<typeof meta>;
 export const Fields: Story = {
    play: async ({ canvas, userEvent }) => {
       await expect(await canvas.findByText('4 of 20 in use')).toBeVisible();
-      await expect(canvas.getByText('· Staging, Production')).toBeVisible();
+      await expect(canvas.getByText('Staging, Production')).toBeVisible();
       // Archived fields hide behind a toggle, and can be restored from there.
       await userEvent.click(canvas.getByRole('switch'));
       await userEvent.click(canvas.getByRole('button', { name: 'Restore' }));

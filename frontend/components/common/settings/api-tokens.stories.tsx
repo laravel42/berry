@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, within } from 'storybook/test';
+import { expect } from 'storybook/test';
 import ApiTokens from './api-tokens';
 import { apiError, page, personalTokens } from './stories-fixtures';
 
@@ -44,7 +44,7 @@ export const Keys: Story = {
 };
 
 export const CreateShowsSecretOnce: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
+   play: async ({ canvas, userEvent }) => {
       await canvas.findByText('CI release bot');
       await userEvent.type(
          canvas.getByRole('textbox', { name: 'What is it for?' }),
@@ -52,14 +52,10 @@ export const CreateShowsSecretOnce: Story = {
       );
       await userEvent.click(canvas.getByRole('button', { name: 'Create key' }));
 
-      const body = within(canvasElement.ownerDocument.body);
-      const dialog = await body.findByRole('dialog', { name: 'Copy your key now' });
-      await expect(within(dialog).getByText(/bry_pat_N3w0_s3cr3t/)).toBeVisible();
-      // "Done" waits until the reader says the key is stored.
-      const done = within(dialog).getByRole('button', { name: 'Done' });
-      await expect(done).toBeDisabled();
-      await userEvent.click(within(dialog).getByRole('checkbox'));
-      await expect(done).toBeEnabled();
+      // The key is shown once, in a card above the list, with its own copy button.
+      await expect(await canvas.findByText('Copy your new key now')).toBeVisible();
+      await expect(canvas.getByText(/bry_pat_N3w0_s3cr3t/)).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Copy' })).toBeVisible();
    },
 };
 
