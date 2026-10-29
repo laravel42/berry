@@ -14,5 +14,8 @@ allowBuilds:
    tree-sitter-typescript: true
 
 # GHSA-jqcg-44mw-7w3h: express pulled proxy-addr before 2.0.8.
+# GHSA-x6jw-m9v5-85vh / GHSA-v5rq-49vh-5v5c: node-llama-cpp pulled simple-git 3.
 overrides:
    proxy-addr: 2.0.8
+   simple-git: 4.0.1
+   '@simple-git/argv-parser': 2.0.1
