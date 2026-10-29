@@ -13,7 +13,6 @@ import {
 import { GitHubIntegrationSettings } from '@/components/common/settings/github-integration-settings';
 import { GitLabIntegrationSettings } from '@/components/common/settings/gitlab-integration-settings';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
-import { StatusBadge } from '@/components/common/status-badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
    BUILT_IN_PROVIDER,
@@ -33,23 +32,28 @@ import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronRight, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { INTEGRATION_LOGOS } from './integration-logos';
-import { SettingsCard, SettingsRow, SettingsShell } from './shared';
+import {
+   SettingsCard,
+   SettingsChip,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsShell,
+   SettingsTile,
+   StatusIndicator,
+} from './shared';
 
 function ProviderIcon({ provider }: { provider: Provider }) {
    const Logo = INTEGRATION_LOGOS[provider.id];
    if (Logo) {
       return (
-         <span
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border bg-background"
-            aria-hidden
-         >
-            <Logo className="size-[60%]" />
-         </span>
+         <SettingsTile size="lg" className="text-[var(--brand-body)]">
+            <Logo className="size-[55%]" aria-hidden />
+         </SettingsTile>
       );
    }
    const initials = visibleProviderName(provider)
@@ -61,12 +65,9 @@ function ProviderIcon({ provider }: { provider: Provider }) {
       .join('')
       .toUpperCase();
    return (
-      <span
-         className="inline-flex size-9 shrink-0 select-none items-center justify-center rounded-md border bg-accent font-medium text-accent-foreground"
-         aria-hidden
-      >
+      <SettingsTile size="lg" className="text-[var(--brand-body)] select-none">
          {initials}
-      </span>
+      </SettingsTile>
    );
 }
 
@@ -105,56 +106,50 @@ function visibleFailure(failure: unknown): string {
    return describeIntegrationFailure(failure);
 }
 
+/**
+ * What a tool may do once the provider is connected. Read-only: the policy is
+ * the provider's own declaration, and no endpoint changes it per workspace.
+ */
+function toolPolicy(tool: Provider['tools'][number]): string {
+   if (tool.enabledByDefault === false && tool.allowed !== true) return 'Blocked';
+   if (tool.requiresApproval) return 'Needs approval';
+   return 'Allowed';
+}
+
 function ToolsTable({ provider }: { provider: Provider }) {
    return (
-      <div className="min-w-0">
-         <table className="w-full table-fixed border-t border-border/60">
-            <thead>
-               <tr className="text-left text-muted-foreground">
-                  <th className="w-[40%] px-3 py-1.5 font-medium">Tool</th>
-                  <th className="px-1.5 py-1.5 font-medium break-words">Effect</th>
-                  <th className="px-1.5 py-1.5 font-medium break-words">Approval</th>
-                  <th className="px-1.5 py-1.5 pr-3 font-medium break-words">Default</th>
-               </tr>
-            </thead>
-            <tbody>
-               {provider.tools.map((tool) => (
-                  <tr key={tool.name} className="border-t border-border/40 align-top">
-                     <td className="px-3 py-1.5">
-                        <span className="font-mono break-all">{toolOperation(tool.name)}</span>
-                        {tool.description && (
-                           <span className="block text-muted-foreground break-words">
-                              {tool.description}
-                           </span>
-                        )}
-                     </td>
-                     <td
-                        className={cn(
-                           'px-1.5 py-1.5 break-words',
-                           tool.effect === 'destructive'
-                              ? 'text-status-danger'
-                              : tool.effect === 'external_side_effect'
-                                ? 'text-status-warning'
-                                : 'text-muted-foreground'
-                        )}
+      <ul className="flex flex-col">
+         {provider.tools.map((tool) => (
+            <li
+               key={tool.name}
+               className="flex min-h-10 items-center gap-3 border-t border-settings-divider py-2 pr-4 pl-[34px]"
+            >
+               <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-mono break-all text-[var(--brand-body)]">
+                     {toolOperation(tool.name)}
+                  </span>
+                  {tool.description ? (
+                     <span
+                        data-settings-type="caption"
+                        className="break-words text-subtle-foreground"
                      >
-                        {describeToolEffect(tool.effect)}
-                     </td>
-                     <td className="px-1.5 py-1.5 break-words">
-                        {tool.requiresApproval ? (
-                           <span className="text-status-warning">required</span>
-                        ) : (
-                           <span className="text-muted-foreground">—</span>
-                        )}
-                     </td>
-                     <td className="px-1.5 py-1.5 pr-3 break-words text-muted-foreground">
-                        {tool.enabledByDefault === false ? 'opt-in' : 'on'}
-                     </td>
-                  </tr>
-               ))}
-            </tbody>
-         </table>
-      </div>
+                        {tool.description}
+                     </span>
+                  ) : null}
+               </span>
+               {tool.effect === 'destructive' ? (
+                  <span data-settings-type="small" className="shrink-0 text-status-danger">
+                     Destructive
+                  </span>
+               ) : tool.effect === 'external_side_effect' ? (
+                  <span data-settings-type="small" className="shrink-0 text-status-warning">
+                     {describeToolEffect(tool.effect)}
+                  </span>
+               ) : null}
+               <SettingsChip className="text-[var(--brand-body)]">{toolPolicy(tool)}</SettingsChip>
+            </li>
+         ))}
+      </ul>
    );
 }
 
@@ -212,28 +207,29 @@ function ProviderCard({
                   (showConnect || showDisconnect) && 'pr-24'
                )}
             >
-               <h3 className="font-medium">{visibleProviderName(provider)}</h3>
-               <StatusBadge
-                  look={{
-                     label: state.label,
-                     tone: state.tone,
-                     state: state.tone === 'complete' ? 'solid' : 'hollow',
-                  }}
-               />
+               <h3 className="m-0">{visibleProviderName(provider)}</h3>
+               <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
+                  {state.label}
+               </StatusIndicator>
             </div>
             {visibleProviderDescription(provider) && (
-               <p className="mt-0.5 text-muted-foreground">
+               <p
+                  data-settings-type="caption"
+                  className="mt-1 leading-[1.55] text-muted-foreground"
+               >
                   {visibleProviderDescription(provider)}
                </p>
             )}
             {provider.connected && connectionLine ? (
-               <p className="mt-1 text-muted-foreground">{connectionLine}</p>
+               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                  {connectionLine}
+               </p>
             ) : null}
             {/* A connection that lapsed is not a connection that was never
                    made, and the reason is the whole difference between "press
                    Connect" and "this was never set up". */}
             {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
-               <p className="mt-1 text-muted-foreground">
+               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
                   {publicDetail(connection?.statusDetail)}
                   {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
                </p>
@@ -242,28 +238,27 @@ function ProviderCard({
                !provider.connected &&
                provider.status !== 'reconnect' &&
                provider.status !== 'expired' && (
-                  <p className="mt-1 text-muted-foreground">
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
                      Sign in with GitHub to grant repository access so agents can clone, push and
                      open pull requests.
                   </p>
                )}
             {inDrawer && provider.status === 'reconnect' && (
-               <p className="mt-1 text-muted-foreground">
+               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
                   The {visibleProviderName(provider)} connection needs to be renewed before agents
                   can use a repository.
                </p>
             )}
             {inDrawer && provider.status === 'expired' && publicDetail(provider.statusDetail) && (
-               <p className="mt-1 text-muted-foreground">{publicDetail(provider.statusDetail)}</p>
+               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                  {publicDetail(provider.statusDetail)}
+               </p>
             )}
             {scopes.length > 0 && (
-               <ul className="mt-1.5 flex flex-wrap gap-1">
+               <ul className="mt-2 flex flex-wrap gap-1.5">
                   {scopes.map((scope) => (
-                     <li
-                        key={scope}
-                        className="rounded border border-border/60 bg-muted/40 px-1.5 font-mono leading-5 text-muted-foreground"
-                     >
-                        {scope}
+                     <li key={scope}>
+                        <SettingsChip>{scope}</SettingsChip>
                      </li>
                   ))}
                </ul>
@@ -276,7 +271,7 @@ function ProviderCard({
       <section
          id={`provider-${provider.id}`}
          className={cn(
-            'min-w-0 overflow-hidden rounded-lg border bg-container transition-shadow',
+            'min-w-0 overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
          aria-label={visibleProviderName(provider)}
@@ -286,23 +281,22 @@ function ProviderCard({
                <button
                   type="button"
                   onClick={onOpen}
-                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+                  className="flex min-w-0 flex-1 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
                >
                   {identity}
                </button>
             ) : (
-               <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">{identity}</div>
+               <div className="flex min-w-0 flex-1 items-start gap-3 p-4">{identity}</div>
             )}
             {showDisconnect || showConnect ? (
-               <div className="absolute top-3 right-4 flex items-center gap-2">
+               <div className="absolute top-4 right-4 flex items-center gap-2">
                   {showDisconnect ? (
-                     <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
+                     <Button variant="soft" disabled={busy} onClick={onDisconnect}>
                         {busy ? 'Working…' : 'Disconnect'}
                      </Button>
                   ) : null}
                   {showConnect ? (
                      <Button
-                        size="xs"
                         disabled={busy || !provider.configured}
                         title={
                            provider.configured
@@ -319,14 +313,16 @@ function ProviderCard({
          </div>
          <button
             type="button"
-            className="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 border-t border-border/60 px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-accent/40"
+            data-settings-type="caption"
+            className="flex min-h-10 w-full min-w-0 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 border-t border-settings-divider px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-settings-row-hover"
             aria-expanded={toolsOpen}
             onClick={() => setToolsOpen((open) => !open)}
          >
-            <ChevronDown
+            <ChevronRight
+               strokeWidth={2.5}
                className={cn(
-                  'size-3.5 transition-transform',
-                  toolsOpen ? 'rotate-0' : '-rotate-90'
+                  'mr-0.5 size-2.5 transition-transform duration-150 motion-reduce:transition-none',
+                  toolsOpen && 'rotate-90'
                )}
             />
             {provider.tools.length} tool{provider.tools.length === 1 ? '' : 's'}
@@ -397,12 +393,12 @@ function ProviderConnectionPanel({
                description={description}
                trailing={
                   provider.connected && !renewing ? (
-                     <Button size="xs" variant="destructive" disabled={busy} onClick={onDisconnect}>
+                     <Button variant="soft-destructive" disabled={busy} onClick={onDisconnect}>
                         <Trash2 aria-hidden />
                         {busy ? 'Working…' : 'Disconnect'}
                      </Button>
                   ) : (
-                     <Button size="xs" disabled={busy || !provider.configured} onClick={onConnect}>
+                     <Button disabled={busy || !provider.configured} onClick={onConnect}>
                         {busy ? 'Opening…' : renewing ? 'Reconnect' : 'Connect'}
                      </Button>
                   )
@@ -522,18 +518,18 @@ function IntegrationsDirectory() {
          title="Integrations"
          description="Connect the tools your agents may reach. An agent cannot reach a provider until it is connected."
       >
-         {error && (
-            <p role="alert" className="text-status-danger">
-               {error}
-            </p>
-         )}
-         {!loaded && !error && (
-            <p role="status" className="text-muted-foreground">
-               Loading providers…
-            </p>
-         )}
+         {error ? (
+            <SettingsCard>
+               <SettingsEmpty title={error} />
+            </SettingsCard>
+         ) : null}
+         {!loaded && !error ? (
+            <SettingsCard>
+               <SettingsEmpty title="Loading providers…" />
+            </SettingsCard>
+         ) : null}
 
-         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+         <div className="flex flex-col gap-3">
             {providers.map((provider) => (
                <ProviderCard
                   key={provider.id}

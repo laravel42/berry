@@ -17,7 +17,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { PluginConfigForm } from './plugin-config-form';
-import { EnabledDot, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import {
+   SettingsCard,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+   StatusIndicator,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -94,14 +101,14 @@ export default function PluginsSettings() {
    return (
       <SettingsShell
          title="Plugins"
-         description="Extend this workspace with hooks, pages and agent tools"
+         description="Extend this workspace with hooks, pages and agent tools."
       >
          <SettingsSection title="Installed" description={plugins.error ?? undefined}>
             <SettingsCard>
                {plugins.loading ? (
-                  <SettingsRow title="Loading…" />
+                  <SettingsEmpty title="Loading…" />
                ) : (plugins.value ?? []).length === 0 ? (
-                  <SettingsRow title="No plugins yet" description="Install one below." />
+                  <SettingsEmpty title="No plugins yet" description="Install one below." />
                ) : (
                   (plugins.value ?? []).map((plugin) => (
                      <SettingsRow
@@ -109,7 +116,11 @@ export default function PluginsSettings() {
                         icon={<Puzzle className="size-4" />}
                         title={plugin.name}
                         description={`${plugin.key} · v${plugin.version}`}
-                        trailing={plugin.enabled ? <EnabledDot>Enabled</EnabledDot> : 'Disabled'}
+                        trailing={
+                           <StatusIndicator status={plugin.enabled ? 'connected' : 'off'}>
+                              {plugin.enabled ? 'Enabled' : 'Disabled'}
+                           </StatusIndicator>
+                        }
                         chevron
                         onClick={() => router.push(`/${orgId}/settings/plugins/${plugin.id}`)}
                      />
@@ -117,17 +128,19 @@ export default function PluginsSettings() {
                )}
             </SettingsCard>
             {signingSecret ? (
-               <div className="mt-2 rounded-md border border-status-warning/40 bg-container px-4 py-3">
-                  <p className="font-medium">
-                     Signing secret — give it to the plugin now. It is not shown again.
-                  </p>
-                  <code className="mt-1.5 block break-all font-mono text-muted-foreground">
+               <div className="flex flex-col gap-2.5 rounded-[10px] bg-settings-group px-4 py-3.5">
+                  <div className="flex flex-col gap-0.5">
+                     <span className="font-medium">Copy the signing secret now</span>
+                     <span data-settings-type="caption" className="text-subtle-foreground">
+                        Give it to the plugin. This is the only time Berry shows it.
+                     </span>
+                  </div>
+                  <code className="block rounded-[7px] bg-settings-field-sunken px-2.5 py-1.5 font-mono break-all text-foreground">
                      {signingSecret}
                   </code>
                   <Button
-                     size="xs"
-                     variant="ghost"
-                     className="mt-2 -ml-2"
+                     variant="soft"
+                     className="w-fit"
                      onClick={() => {
                         void navigator.clipboard?.writeText(signingSecret);
                         setSigningSecret(null);
@@ -141,7 +154,7 @@ export default function PluginsSettings() {
 
          <SettingsSection
             title="Install a plugin"
-            description="From a URL that serves berry-plugin.json, or by uploading the file"
+            description="From a URL that serves berry-plugin.json, or by uploading the file."
          >
             <SettingsCard>
                <SettingsRow
@@ -149,14 +162,14 @@ export default function PluginsSettings() {
                   trailing={
                      <span className="flex items-center gap-2">
                         <Input
+                           variant="settings"
                            value={url}
                            placeholder="https://…/berry-plugin.json"
-                           className="h-8 w-64"
+                           className="w-[260px]"
                            onChange={(event) => setUrl(event.target.value)}
                         />
                         <Button
-                           size="xs"
-                           variant="ghost"
+                           variant="soft"
                            disabled={busy || url.trim() === ''}
                            onClick={() => void runPreview({ url: url.trim() })}
                         >
@@ -167,7 +180,7 @@ export default function PluginsSettings() {
                />
                <SettingsRow
                   title="Upload a package"
-                  description={fileName ?? undefined}
+                  description={fileName ?? 'A berry-plugin.json package file.'}
                   trailing={
                      // The browser's own file control is unstyled and speaks the
                      // browser's language, so it stays hidden behind a button.
@@ -184,12 +197,11 @@ export default function PluginsSettings() {
                            }}
                         />
                         <Button
-                           size="xs"
-                           variant="ghost"
+                           variant="soft"
                            disabled={busy}
                            onClick={() => picker.current?.click()}
                         >
-                           Choose file…
+                           Choose file
                         </Button>
                      </>
                   }
@@ -202,7 +214,7 @@ export default function PluginsSettings() {
                title={`${preview.name} v${preview.version}`}
                description={preview.description || preview.baseUrl}
                action={
-                  <Button size="sm" disabled={busy} onClick={() => void install()}>
+                  <Button disabled={busy} onClick={() => void install()}>
                      {busy ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
                   </Button>
                }

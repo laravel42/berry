@@ -140,6 +140,7 @@ export function GitHubIntegrationSettings({ heading = true }: { heading?: boolea
                description="When off, Berry ignores GitHub events here, hides linked pull requests and adds no commit trailers. Nothing is deleted."
                trailing={
                   <Switch
+                     variant="settings"
                      checked={settings.enabled}
                      disabled={locked}
                      aria-label="Use GitHub in this workspace"
@@ -155,6 +156,7 @@ export function GitHubIntegrationSettings({ heading = true }: { heading?: boolea
                   muted={!settings.enabled}
                   trailing={
                      <Switch
+                        variant="settings"
                         checked={settings[feature.key]}
                         disabled={locked || !settings.enabled}
                         aria-label={feature.title}

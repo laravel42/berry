@@ -28,12 +28,14 @@ export function PluginConfigForm({
                trailing={
                   field.type === 'boolean' ? (
                      <Switch
+                        variant="settings"
                         checked={value[field.key] === true}
                         disabled={disabled}
                         onCheckedChange={(checked) => set(field.key, checked)}
                      />
                   ) : (
                      <Input
+                        variant="settings"
                         className="h-8 w-56"
                         disabled={disabled}
                         type={field.type === 'number' ? 'number' : 'text'}

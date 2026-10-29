@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -24,6 +24,17 @@ import {
    type McpServer,
    type McpTransport,
 } from '@/lib/mcp';
+import { cn } from '@/lib/utils';
+import {
+   SelectMenu,
+   SettingsCard,
+   SettingsEmpty,
+   SettingsFooter,
+   SettingsIconButton,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 
 interface HeaderRow {
    name: string;
@@ -46,17 +57,22 @@ const toHeaders = (rows: HeaderRow[]) =>
 function HeaderRows({
    rows,
    onChange,
+   addButton = true,
 }: {
    rows: HeaderRow[];
    onChange: (rows: HeaderRow[]) => void;
+   /** False when the caller places "Add header" itself. */
+   addButton?: boolean;
 }) {
    return (
       <div className="flex flex-col gap-2">
          {rows.map((row, index) => (
             <div key={index} className="flex items-center gap-2">
                <Input
+                  variant="settings"
+                  className="min-w-0 flex-1"
                   value={row.name}
-                  placeholder="Header"
+                  placeholder="Authorization"
                   aria-label="Header name"
                   onChange={(event) =>
                      onChange(
@@ -67,9 +83,11 @@ function HeaderRows({
                   }
                />
                <Input
+                  variant="settings"
                   type="password"
+                  className="min-w-0 flex-1"
                   value={row.value}
-                  placeholder="Value"
+                  placeholder="Bearer …"
                   aria-label="Header value"
                   autoComplete="off"
                   onChange={(event) =>
@@ -80,25 +98,25 @@ function HeaderRows({
                      )
                   }
                />
-               <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label="Remove header"
+               <SettingsIconButton
+                  label="Remove header"
+                  destructive
                   onClick={() => onChange(rows.filter((_, at) => at !== index))}
                >
-                  <Trash2 className="size-4" />
-               </Button>
+                  <X />
+               </SettingsIconButton>
             </div>
          ))}
-         <Button
-            size="xs"
-            variant="secondary"
-            className="w-fit"
-            onClick={() => onChange([...rows, { name: '', value: '' }])}
-         >
-            <Plus className="size-4" />
-            Add header
-         </Button>
+         {addButton ? (
+            <Button
+               variant="soft"
+               className="w-fit"
+               onClick={() => onChange([...rows, { name: '', value: '' }])}
+            >
+               <Plus className="size-3" strokeWidth={2.2} />
+               Add header
+            </Button>
+         ) : null}
       </div>
    );
 }
@@ -144,22 +162,33 @@ function ServerRow({
    };
 
    return (
-      <li className="flex flex-col gap-2 border-b border-border px-3 py-2.5 last:border-b-0">
+      <li className="flex flex-col gap-2.5 border-t border-settings-divider py-3 pr-2 pl-4 first:border-t-0">
          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+            <span
+               aria-hidden
+               className={cn(
+                  'size-1.5 shrink-0 rounded-full',
+                  checked ? 'bg-status-success' : 'bg-settings-field-focus'
+               )}
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                <p className="truncate font-medium">{server.name}</p>
-               <p className="truncate text-muted-foreground">
-                  {server.url} · {server.transport === 'sse' ? 'SSE' : 'Streamable HTTP'}
-                  {server.viaGateway ? ' · through AgentCore Gateway' : ''}
+               <p data-settings-type="caption" className="truncate text-subtle-foreground">
+                  {[
+                     server.url,
+                     server.transport === 'sse' ? 'SSE' : 'Streamable HTTP',
+                     server.headerNames.length > 0
+                        ? `${server.headerNames.length} header${server.headerNames.length === 1 ? '' : 's'}`
+                        : null,
+                     server.viaGateway ? 'through AgentCore Gateway' : null,
+                  ]
+                     .filter(Boolean)
+                     .join(' · ')}
                </p>
-               {server.headerNames.length > 0 ? (
-                  <p className="text-muted-foreground">
-                     {server.headerNames.map((name) => `${name}: ••••`).join(' · ')}
-                  </p>
-               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
                <Switch
+                  variant="settings"
                   checked={checked}
                   disabled={readOnly}
                   aria-label={`Enable ${server.name}`}
@@ -176,27 +205,27 @@ function ServerRow({
                />
                {readOnly ? null : (
                   <>
-                     <Button size="xs" variant="secondary" onClick={() => setReplacing(!replacing)}>
+                     <Button variant="soft" onClick={() => setReplacing(!replacing)}>
                         Replace headers
                      </Button>
-                     <Button
-                        size="xs"
-                        variant="ghost"
-                        aria-label={`Remove ${server.name}`}
+                     <SettingsIconButton
+                        label={`Remove ${server.name}`}
+                        destructive
                         onClick={() => setRemoving(true)}
                      >
-                        <Trash2 className="size-4" />
-                     </Button>
+                        <Trash2 />
+                     </SettingsIconButton>
                   </>
                )}
             </div>
          </div>
          {replacing ? (
-            <div className="flex flex-col gap-2 rounded-md bg-muted/30 p-3">
-               <p className="text-muted-foreground">Saving replaces every header on this server.</p>
+            <div className="flex flex-col gap-2 rounded-[7px] bg-settings-field-sunken p-3">
+               <p data-settings-type="caption" className="text-subtle-foreground">
+                  Saving replaces every header on this server.
+               </p>
                <HeaderRows rows={rows} onChange={setRows} />
                <Button
-                  size="xs"
                   className="w-fit"
                   onClick={() =>
                      void patch(
@@ -230,9 +259,11 @@ function ServerRow({
 function AddServerForm({
    agentId,
    onAdded,
+   variant = 'panel',
 }: {
    agentId: string | null;
    onAdded: (server: McpServer) => void;
+   variant?: 'panel' | 'settings';
 }) {
    const [name, setName] = useState('');
    const [url, setUrl] = useState('');
@@ -266,16 +297,99 @@ function AddServerForm({
       }
    };
 
+   if (variant === 'settings') {
+      return (
+         <SettingsCard>
+            <SettingsRow
+               title="Name"
+               description="Lowercase, e.g. docs."
+               trailing={
+                  <Input
+                     variant="settings"
+                     className="w-[260px]"
+                     value={name}
+                     placeholder="docs"
+                     aria-label="Server name"
+                     onChange={(event) => setName(event.target.value.toLowerCase())}
+                  />
+               }
+            />
+            <SettingsRow
+               title="URL"
+               trailing={
+                  <Input
+                     variant="settings"
+                     className="w-[260px]"
+                     value={url}
+                     placeholder="https://example.com/mcp"
+                     aria-label="Server URL"
+                     onChange={(event) => setUrl(event.target.value)}
+                  />
+               }
+            />
+            <SettingsRow
+               title="Transport"
+               trailing={
+                  <SelectMenu
+                     className="w-[260px]"
+                     aria-label="Transport"
+                     options={['streamable_http', 'sse']}
+                     labels={{ streamable_http: 'Streamable HTTP', sse: 'SSE' }}
+                     value={transport}
+                     onChange={(value) => setTransport(value as McpTransport)}
+                  />
+               }
+            />
+            <SettingsRow
+               title="Headers"
+               description="Values are encrypted and never shown again."
+               trailing={
+                  <Button
+                     variant="soft"
+                     onClick={() => setRows([...rows, { name: '', value: '' }])}
+                  >
+                     <Plus className="size-3" strokeWidth={2.2} />
+                     Add header
+                  </Button>
+               }
+            >
+               {rows.length > 0 ? (
+                  <HeaderRows rows={rows} onChange={setRows} addButton={false} />
+               ) : null}
+            </SettingsRow>
+            <SettingsRow
+               title="Route through AgentCore Gateway"
+               description="Agents reach the server through the gateway instead of directly."
+               trailing={
+                  <Switch
+                     variant="settings"
+                     aria-label="Route through AgentCore Gateway"
+                     checked={viaGateway}
+                     onCheckedChange={setViaGateway}
+                  />
+               }
+            />
+            <SettingsFooter>
+               <Button disabled={busy || !name.trim() || !url.trim()} onClick={() => void submit()}>
+                  Add server
+               </Button>
+            </SettingsFooter>
+         </SettingsCard>
+      );
+   }
+
    return (
       <div className="flex flex-col gap-3 rounded-md border border-border p-3">
          <div className="grid gap-2 sm:grid-cols-3">
             <Input
+               variant="settings"
                value={name}
                placeholder="name (lowercase, e.g. docs)"
                aria-label="Server name"
                onChange={(event) => setName(event.target.value.toLowerCase())}
             />
             <Input
+               variant="settings"
                value={url}
                placeholder="https://example.com/mcp"
                aria-label="Server URL"
@@ -296,7 +410,7 @@ function AddServerForm({
          </div>
          <HeaderRows rows={rows} onChange={setRows} />
          <label className="flex items-center gap-2">
-            <Switch checked={viaGateway} onCheckedChange={setViaGateway} />
+            <Switch variant="settings" checked={viaGateway} onCheckedChange={setViaGateway} />
             <span>Route through AgentCore Gateway</span>
          </label>
          <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +443,8 @@ interface McpServerManagerProps {
    deferEnabled?: boolean;
    onEnabledDirtyChange?: (dirty: boolean) => void;
    onRegisterFlushEnabled?: (flush: (() => Promise<void>) | null) => void;
+   /** `settings` lays the list and the form out as settings sections. */
+   variant?: 'panel' | 'settings';
 }
 
 /** A list of MCP servers with their controls; header values are write-only. */
@@ -340,6 +456,7 @@ export function McpServerManager({
    deferEnabled = false,
    onEnabledDirtyChange,
    onRegisterFlushEnabled,
+   variant = 'panel',
 }: McpServerManagerProps) {
    const [servers, setServers] = useState<McpServer[] | null>(null);
    const [error, setError] = useState<string | null>(null);
@@ -395,6 +512,70 @@ export function McpServerManager({
       return () => onRegisterFlushEnabledRef.current?.(null);
    }, [deferEnabled, enabledDraft, servers]);
 
+   const serverRows = (servers: McpServer[]) =>
+      servers.map((server) => (
+         <ServerRow
+            key={server.id}
+            server={server}
+            readOnly={readOnly}
+            enabled={deferEnabled ? (enabledDraft[server.id] ?? server.enabled) : undefined}
+            onEnabledChange={
+               deferEnabled
+                  ? (enabled) =>
+                       setEnabledDraft((current) => ({
+                          ...current,
+                          [server.id]: enabled,
+                       }))
+                  : undefined
+            }
+            onChanged={(next) =>
+               setServers((current) => current?.map((s) => (s.id === next.id ? next : s)) ?? null)
+            }
+            onRemoved={(id) => {
+               setServers((current) => current?.filter((s) => s.id !== id) ?? null);
+               setEnabledDraft((current) => {
+                  const next = { ...current };
+                  delete next[id];
+                  return next;
+               });
+            }}
+         />
+      ));
+
+   const add = (server: McpServer) => {
+      setServers((current) => [...(current ?? []), server]);
+      setEnabledDraft((current) => ({
+         ...current,
+         [server.id]: server.enabled,
+      }));
+      setAdding(false);
+   };
+
+   if (variant === 'settings') {
+      return (
+         <>
+            <SettingsSection title="Servers">
+               <SettingsCard>
+                  {error ? (
+                     <SettingsEmpty title={error} />
+                  ) : !servers ? (
+                     <SettingsEmpty title="Loading servers…" />
+                  ) : servers.length === 0 ? (
+                     <SettingsEmpty title="No servers yet." />
+                  ) : (
+                     <ul className="flex flex-col">{serverRows(servers)}</ul>
+                  )}
+               </SettingsCard>
+            </SettingsSection>
+            {readOnly || error ? null : (
+               <SettingsSection title="Add a server">
+                  <AddServerForm agentId={agentId} variant="settings" onAdded={add} />
+               </SettingsSection>
+            )}
+         </>
+      );
+   }
+
    return (
       <div className="flex flex-col gap-3">
          {title ? (
@@ -402,12 +583,7 @@ export function McpServerManager({
                <div className="flex items-baseline gap-2">
                   <h3 className="font-medium">{title}</h3>
                   {readOnly || adding || !servers || error ? null : (
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        className="ml-auto"
-                        onClick={() => setAdding(true)}
-                     >
+                     <Button variant="soft" className="ml-auto" onClick={() => setAdding(true)}>
                         <Plus className="size-4" />
                         Add server
                      </Button>
@@ -423,54 +599,12 @@ export function McpServerManager({
          ) : (
             <>
                {servers.length > 0 ? (
-                  <ul className="flex flex-col rounded-md border border-border">
-                     {servers.map((server) => (
-                        <ServerRow
-                           key={server.id}
-                           server={server}
-                           readOnly={readOnly}
-                           enabled={
-                              deferEnabled ? (enabledDraft[server.id] ?? server.enabled) : undefined
-                           }
-                           onEnabledChange={
-                              deferEnabled
-                                 ? (enabled) =>
-                                      setEnabledDraft((current) => ({
-                                         ...current,
-                                         [server.id]: enabled,
-                                      }))
-                                 : undefined
-                           }
-                           onChanged={(next) =>
-                              setServers(
-                                 (current) =>
-                                    current?.map((s) => (s.id === next.id ? next : s)) ?? null
-                              )
-                           }
-                           onRemoved={(id) => {
-                              setServers((current) => current?.filter((s) => s.id !== id) ?? null);
-                              setEnabledDraft((current) => {
-                                 const next = { ...current };
-                                 delete next[id];
-                                 return next;
-                              });
-                           }}
-                        />
-                     ))}
+                  <ul className="flex flex-col rounded-[10px] bg-settings-group">
+                     {serverRows(servers)}
                   </ul>
                ) : null}
                {readOnly ? null : adding || !title ? (
-                  <AddServerForm
-                     agentId={agentId}
-                     onAdded={(server) => {
-                        setServers((current) => [...(current ?? []), server]);
-                        setEnabledDraft((current) => ({
-                           ...current,
-                           [server.id]: server.enabled,
-                        }));
-                        setAdding(false);
-                     }}
-                  />
+                  <AddServerForm agentId={agentId} onAdded={add} />
                ) : null}
             </>
          )}
@@ -481,12 +615,11 @@ export function McpServerManager({
 /** Settings → MCP servers: the servers every agent in the workspace connects to. */
 export default function McpServersSettings() {
    return (
-      <div className="flex flex-col gap-4">
-         <McpServerManager
-            agentId={null}
-            title="MCP servers"
-            description="Servers every agent in this workspace can use. Header values are encrypted and never shown again."
-         />
-      </div>
+      <SettingsShell
+         title="MCP servers"
+         description="Servers every agent in this workspace can use."
+      >
+         <McpServerManager agentId={null} variant="settings" />
+      </SettingsShell>
    );
 }
