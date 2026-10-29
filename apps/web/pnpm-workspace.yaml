@@ -1,3 +1,7 @@
 allowBuilds:
   esbuild: true
   workerd: true
+
+# GHSA-j22f-vq7h-c4qm and the other devalue highs, all patched in 5.9.3.
+overrides:
+  devalue: 5.9.3
