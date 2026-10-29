@@ -617,42 +617,12 @@ export class RuntimeTaskExecutor implements Executor {
                occurredAt, newId: this.#o.newId ?? randomUUID,
                runId: task.runId,
             }).catch(() => null);
-            if (task.kind === 'agent') {
-               await this.#attachHandoff(task, summary, plan, result.delivery, opened?.pull_request_number ?? null, occurredAt);
-            }
          }
       }
       return { runId: task.runId, status: 'succeeded', summary, usage, result };
    }
 
-   /**
-    * Attaches this task's `.handoffs` note to the task this run finished.
-    *
-    * Every agent task, not one project: the next task that waits on this one
-    * reads the comment instead of scanning the files this run produced.
-    */
-   async #attachHandoff(
-      task: TaskRow,
-      summary: string,
-      plan: Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery'],
-      delivery: TaskResult['delivery'] | null | undefined,
-      pullRequest: number | null,
-      occurredAt: string
-   ): Promise<void> {
-      if (!task.issueId || isHandoffDocument(summary)) return;
-      const text = await this.#handoffText(task, summary, plan, delivery, pullRequest);
-      if (!text) return;
-      await postRunResult(this.#o.sql, {
-         issueId: task.issueId,
-         agentId: task.agentId,
-         text,
-         cut: false,
-         occurredAt,
-         newId: this.#o.newId ?? randomUUID,
-      }).catch(() => null);
-   }
-
-   /** The handoff for this run, or null when the task cannot be named. */
+   /** The handoff file for this run, or null when the task cannot be named. */
    async #handoffText(
       task: TaskRow,
       summary: string,

@@ -102,9 +102,9 @@ export const mcpServerRefSchema = z.object({
    headers: z.record(z.string(), z.string()),
    /**
     * Server-side tool names the agent may use; null exposes every tool the
-    * server lists (a server the workspace registered itself). A plugin's
-    * server always carries its admin-approved list, and nothing else of it
-    * reaches the agent.
+    * server lists. That is a server the workspace registered itself, or a
+    * plugin that connects to an MCP server and offers all of its tools. A
+    * plugin that names its tools carries only the ones an admin approved.
     */
    allowedTools: z.array(z.string().min(1)).nullable(),
 });

@@ -9,6 +9,7 @@ import { PluginRepository, type PluginInstallation } from '../plugins/repository
 import { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { enqueueTask } from '../runs/queue.ts';
 import { redactEnvelope, taskEnvelopeSchema, type TaskEnvelope } from './envelope.ts';
+import { formatMention } from '../work/mentions.ts';
 import { EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 
@@ -38,6 +39,7 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
    let runtime: PluginRuntimeStore;
    let builder: EnvelopeBuilder;
    let relay: PluginInstallation;
+   let foreign: PluginInstallation;
 
    async function install(fixture: Fixture, pkg: typeof RELAY, approve: string[]): Promise<PluginInstallation> {
       return sql.begin(async (tx) => {
@@ -52,8 +54,9 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
       });
    }
 
-   async function agentEnvelope(fixture: Fixture): Promise<TaskEnvelope> {
+   async function agentEnvelope(fixture: Fixture, installationId: string): Promise<TaskEnvelope> {
       const issueId = await createIssue(sql, fixture, 'Plugin task');
+      await sql`UPDATE issues SET description = ${formatMention('plugin', installationId, 'Relay')} WHERE id = ${issueId}`;
       const { runId } = await enqueueTask(sql, {
          workspaceId: fixture.workspaceId, agentId: fixture.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go',
       });
@@ -80,7 +83,7 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
          plugins: { plugins, runtime, ttlMs: 60_000 },
       });
       relay = await install(mine, RELAY, ['say_hello']);
-      await install(theirs, FOREIGN, ['say_hello']);
+      foreign = await install(theirs, FOREIGN, ['say_hello']);
    });
    after(async () => {
       for (const fixture of [mine, theirs]) {
@@ -91,7 +94,7 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
    });
 
    test('an approved tool is exposed, and an unapproved tool on the same server is not', async () => {
-      const envelope = await agentEnvelope(mine!);
+      const envelope = await agentEnvelope(mine!, relay.id);
       const server = envelope.agent.mcpServers.find((candidate) => candidate.name === 'plugin-relay');
       assert.ok(server, 'the approved plugin server is in the envelope');
       assert.equal(server.url, 'https://relay.example.com/mcp');
@@ -103,16 +106,16 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
    });
 
    test('another workspace’s plugin never appears', async () => {
-      const envelope = await agentEnvelope(mine!);
+      const envelope = await agentEnvelope(mine!, relay.id);
       assert.deepEqual(envelope.agent.mcpServers.map((server) => server.name), ['plugin-relay']);
       assert.ok(!JSON.stringify(envelope.agent.mcpServers).includes('foreign.example.com'));
       // And the other way round: their agent sees theirs, never mine.
-      const other = await agentEnvelope(theirs!);
+      const other = await agentEnvelope(theirs!, foreign.id);
       assert.deepEqual(other.agent.mcpServers.map((server) => server.name), ['plugin-foreign']);
    });
 
    test('the plugin token is a secret: redacted from logs, and never minted for a completion', async () => {
-      const envelope = await agentEnvelope(mine!);
+      const envelope = await agentEnvelope(mine!, relay.id);
       const logged = JSON.stringify(redactEnvelope(envelope));
       const token = envelope.agent.mcpServers[0]?.headers.Authorization ?? '';
       assert.ok(token.startsWith('Bearer '));
@@ -127,10 +130,19 @@ describe('the envelope carries approved plugin MCP tools', { skip: url ? false :
       assert.equal(await tokenCount(relay.id), before, 'a completion mints no plugin token');
    });
 
+   test('a task that does not name the plugin carries none of its tools', async () => {
+      const issueId = await createIssue(sql, mine!, 'No plugin');
+      const { runId } = await enqueueTask(sql, {
+         workspaceId: mine!.workspaceId, agentId: mine!.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go',
+      });
+      const { envelope } = await builder.build({ task: await loadTask(sql, runId), dispatch: null, token: 'berry_task_x' });
+      assert.deepEqual(taskEnvelopeSchema.parse(envelope).agent.mcpServers, []);
+   });
+
    test('a disabled plugin contributes nothing', async () => {
       await sql.begin((tx) => plugins.update(tx, mine!.workspaceId, relay.id, { enabled: false }));
       const before = await tokenCount(relay.id);
-      const envelope = await agentEnvelope(mine!);
+      const envelope = await agentEnvelope(mine!, relay.id);
       assert.deepEqual(envelope.agent.mcpServers, []);
       assert.equal(await tokenCount(relay.id), before, 'a disabled plugin gets no token');
    });

@@ -3,8 +3,8 @@
  *
  * Every finished agent task gets one, stored under `.handoffs` at the
  * repository root. A later task that waits on it reads that file instead
- * of scanning the files the run produced. The first line is the path, which
- * is also how the next prompt finds the comment.
+ * of scanning the files the run produced. The first line is the path.
+ * The run posts one comment, its report; this file is the note beside it.
  */
 
 const SLUG_MAX = 80;

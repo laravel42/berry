@@ -17,6 +17,8 @@ import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
 import { envelopeSkill, loadAgentExtensions, type EnvelopeSkill, type ExtensionDeps } from '../agents/extensions.ts';
 import { pluginMcpServers } from '../plugins/mcp.ts';
+import { parseMentions } from '../work/mentions.ts';
+import type { PluginContainers } from '../plugins/containers.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
@@ -226,7 +228,7 @@ export interface EnvelopeDeps {
     * (workstream G). `ttlMs` bounds the plugin token minted into each
     * envelope. Absent: an agent carries no plugin tools.
     */
-   plugins?: { plugins: PluginRepository; runtime: PluginRuntimeStore; ttlMs: number } | undefined;
+   plugins?: { plugins: PluginRepository; runtime: PluginRuntimeStore; ttlMs: number; containers?: PluginContainers | null } | undefined;
    /** Servers left out for want of a gateway, by name only. */
    onSkipped?: ((names: string[]) => void) | undefined;
    /** Where a failure that does not stop the run is reported. */
@@ -323,7 +325,7 @@ export class EnvelopeBuilder {
               )
             : null;
       if (extensions && extensions.skipped.length > 0) this.#deps.onSkipped?.(extensions.skipped);
-      const mcpServers = await this.#mcpServers(task, extensions?.mcpServers ?? []);
+      const attached = await this.#mcpServers(task, extensions?.mcpServers ?? []);
       const instructions = agent.instructions;
 
       const base = {
@@ -339,7 +341,7 @@ export class EnvelopeBuilder {
             // EnvelopeSkill and EnvelopeMcpServer are SkillRef and McpServerRef
             // field for field: no mapping, and tsc refuses a drift.
             skills: extensions?.skills ?? [],
-            mcpServers,
+            mcpServers: attached.servers,
             permissions: agent.permissions,
             tools: agent.tools,
             maxTokens: this.#deps.maxTokens ?? null,
@@ -457,6 +459,7 @@ export class EnvelopeBuilder {
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
                   ...(empty ? { repositoryEmpty: true } : {}),
                   skills: (extensions?.skills ?? []).map((skill) => ({ name: skill.name, description: skillDescription(skill) })),
+                  ...(attached.plugins.length > 0 ? { plugins: attached.plugins } : {}),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
                      : {}),
@@ -486,32 +489,48 @@ export class EnvelopeBuilder {
    }
 
    /**
-    * The agent's own servers, then its workspace's approved plugin servers.
+    * The agent's own servers, then the plugins this task named.
     *
     * Plugin tokens are minted here and only here, straight into the envelope
     * — the one place secrets are opened (spec §11) — and only for an agent
-    * task: a completion is one model call and gets none. Each plugin server
-    * carries its approved tools as `allowedTools`, which the runtime enforces.
-    * A plugin whose server name an agent's own server already uses is left
-    * out rather than shadowing it.
+    * task: a completion is one model call and gets none. An issue task
+    * carries the plugins its description mentions, and each of those offers
+    * every tool its MCP server lists (or the tools an admin approved, when
+    * the plugin names them). A chat names no task, so it keeps every enabled
+    * plugin. A plugin whose server name an agent's own server already uses
+    * is left out rather than shadowing it.
     */
-   async #mcpServers(task: TaskRow, own: McpServerRef[]): Promise<McpServerRef[]> {
+   async #mcpServers(task: TaskRow, own: McpServerRef[]): Promise<{
+      servers: McpServerRef[];
+      plugins: { name: string; server: string }[];
+   }> {
       const plugins = this.#deps.plugins;
-      if (task.kind !== 'agent' || !plugins) return own;
+      if (task.kind !== 'agent' || !plugins) return { servers: own, plugins: [] };
+      let named: Set<string> | undefined;
+      if (task.issueId) {
+         const [row] = await this.#deps.sql`SELECT description FROM issues WHERE id = ${task.issueId}`;
+         named = new Set(parseMentions((row?.description as string | null) ?? '').plugins);
+      }
       const taken = new Set(own.map((server) => server.name));
-      const fromPlugins = await pluginMcpServers(plugins, task.workspaceId, plugins.ttlMs);
-      return [
-         ...own,
-         ...fromPlugins
-            .filter((server) => !taken.has(server.name))
-            .map((server) => ({
+      const fromPlugins = (await pluginMcpServers(
+         { ...plugins, apiUrl: this.#deps.publicUrl },
+         task.workspaceId,
+         plugins.ttlMs,
+         named
+      )).filter((server) => !taken.has(server.name));
+      return {
+         servers: [
+            ...own,
+            ...fromPlugins.map((server) => ({
                name: server.name,
                url: server.url,
                transport: server.transport,
                headers: server.headers,
                allowedTools: server.allowedTools,
             })),
-      ];
+         ],
+         plugins: fromPlugins.map((server) => ({ name: server.title, server: server.name })),
+      };
    }
 
    /** The issue context `claimDispatch` reads, without the claim: building an envelope changes no run state. */
@@ -857,9 +876,10 @@ export class EnvelopeBuilder {
     * The handoff posted on each task this one waits for, and on the tasks
     * those wait for.
     *
-    * The comment is the copy the next prompt carries. A file saved only in
-    * object storage is unread when that store is down, and the next agent
-    * would inventory the repository instead. The earliest handoff comes
+    * The run's comment is the copy the next prompt carries. An older note
+    * whose body starts with `.handoffs/` or `HANDOFF.md` still counts. A file
+    * saved only in object storage is unread when that store is down, and the
+    * next agent would inventory the repository instead. The earliest handoff comes
     * first, so the foundation is read before the task that sits on it.
     */
    async #handoffs(issueId: string): Promise<BlockerHandoff[]> {
@@ -888,7 +908,7 @@ export class EnvelopeBuilder {
                    SELECT body FROM comments
                     WHERE issue_id = blocker.id
                       AND parent_id IS NULL
-                      AND (body LIKE '.handoffs/%' OR body LIKE 'HANDOFF.md%')
+                      AND (body LIKE '.handoffs/%' OR body LIKE 'HANDOFF.md%' OR run_id IS NOT NULL)
                     ORDER BY created_at DESC
                     LIMIT 1
                 ) AS handoff ON true

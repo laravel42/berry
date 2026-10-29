@@ -380,13 +380,20 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('post_comment', {
       description:
-         'Post a comment on a task, as yourself: this run\'s task, or another one named by `task`. ' +
-         'Use it to ask a question, hand over context or report progress.',
+         'Post a comment on another task, as yourself. This run\'s task gets one comment, ' +
+         'your final message, so a comment here is refused. Use it to hand context to a task you are not working.',
       scope: 'task:write',
       inputSchema: z.object({ body: z.string().min(1).max(20_000), task: TASK_REF }),
       handler: async (context, input) => {
+         const issueId = await taskOf(context, input.task);
+         if (context.task.issueId && issueId === context.task.issueId) {
+            return {
+               posted: false,
+               reason: 'This task gets one comment, the result of the run. Put it in your final message.',
+            };
+         }
          const comment = await postRunResult(context.sql, {
-            issueId: await taskOf(context, input.task),
+            issueId,
             agentId: context.task.agentId,
             text: input.body,
             cut: false,
