@@ -55,10 +55,9 @@ interface ShellRailProps {
  * they do everywhere else — the prototype used div+onClick, which silently
  * removes all three.
  *
- * One element, two shapes. At `lg` and above it is a 218px column in the
- * shell's grid (262px while it is showing settings), collapsible via the
- * shortcut and the expand control when folded. Below `lg` it is a 260px
- * overlay (312px in settings) that slides in from the left edge over the
+ * One element, two shapes. At `lg` and above it is a 232px column in the
+ * shell's grid, collapsible via the shortcut and the expand control when
+ * folded. Below `lg` it is a 312px overlay that slides in from the left edge over the
  * page, closed until the strip's menu button opens it. The switch is made
  * in CSS (`lg:` classes) so the server's render and the first paint agree;
  * the breakpoint hook only governs behaviour that CSS cannot express, such
@@ -151,7 +150,7 @@ export function ShellRail({
          className={[
             'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
             'fixed inset-y-0 left-0 z-50 max-w-[85vw] border-r border-[var(--shell-line)]',
-            settingsMode ? 'w-[312px] lg:w-[232px]' : 'w-[260px] lg:w-[218px]',
+            'w-[312px] lg:w-[232px]',
             'duration-200 ease-out motion-reduce:transition-none',
             overlayOpen
                ? 'visible translate-x-0 transition-transform'

@@ -19,7 +19,7 @@ import { isNavItemActive } from '@/lib/nav-active';
 /**
  * The settings header, and the only settings navigation on a narrow screen.
  *
- * The rail carries the grouped list, but it is a fixed 218px column: below the
+ * The rail carries the grouped list, but it is a fixed 232px column: below the
  * shell's breakpoint it is either crushed or in the way, and settings had no
  * other way to move between pages. This dropdown is that way. It shows only
  * where the rail does not (`lg:hidden`), so the two are never both on screen
