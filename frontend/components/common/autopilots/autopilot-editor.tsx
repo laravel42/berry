@@ -626,13 +626,13 @@ function Editor({
                                  />
                               </FieldRow>
                               {trigger === 'cron' ? (
-                                 <StackedRow label={te('repeat')} description={te('repeatHint')}>
+                                 <div className="px-4 py-3.5">
                                     <ScheduleEditor
                                        expression={schedule.expression}
                                        timezone={schedule.timezone}
                                        onChange={setSchedule}
                                     />
-                                 </StackedRow>
+                                 </div>
                               ) : null}
                               {trigger === 'webhook' ? (
                                  <>
@@ -952,24 +952,6 @@ function FieldRow({
       <div className="grid grid-cols-1 items-center gap-x-6 gap-y-2 px-4 py-3.5 @min-[560px]:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
          <RowLabel label={label} description={description} htmlFor={htmlFor} />
          <div className="min-w-0">{children}</div>
-      </div>
-   );
-}
-
-/** For a control too large for the right-hand column: label above, control below. */
-function StackedRow({
-   label,
-   description,
-   children,
-}: {
-   label: string;
-   description?: ReactNode;
-   children: ReactNode;
-}) {
-   return (
-      <div className="flex flex-col gap-3 px-4 py-3.5">
-         <RowLabel label={label} description={description} />
-         {children}
       </div>
    );
 }

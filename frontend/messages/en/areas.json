@@ -461,8 +461,6 @@
          "kind_cron": "Schedule",
          "kind_webhook": "Webhook",
          "kind_none": "Manual",
-         "repeat": "Repeat",
-         "repeatHint": "In the time zone you pick; it is kept with the schedule.",
          "webhookUrl": "Webhook URL",
          "webhookUrlHint": "POST here to start a run. The body is passed to the agent.",
          "webhookUrlPending": "Shown once, after you create it",

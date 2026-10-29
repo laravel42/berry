@@ -172,8 +172,9 @@ export default function Autopilots({
       });
    };
 
+   // The default order (name, A→Z) goes unmarked; any other order says so.
    const sortMark = (key: AutopilotCriteria['sort']) =>
-      criteria.sort === key ? (
+      criteria.sort === key && (key !== 'name' || criteria.sortDescending) ? (
          <span aria-hidden>{criteria.sortDescending ? ' ↓' : ' ↑'}</span>
       ) : null;
 
@@ -188,7 +189,7 @@ export default function Autopilots({
             onClick={() => sortBy(key)}
             className={cn(
                'min-w-0 cursor-pointer truncate text-left hover:text-foreground',
-               criteria.sort === key && 'text-foreground',
+               sortMark(key) !== null && 'text-foreground',
                className
             )}
          >

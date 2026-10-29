@@ -182,7 +182,12 @@ export default function AutopilotLine({
       : !on
         ? t('status.paused')
         : nextFire
-          ? format.dateTime(new Date(nextFire), { dateStyle: 'medium', timeStyle: 'short' })
+          ? format.dateTime(new Date(nextFire), {
+               month: 'short',
+               day: 'numeric',
+               hour: 'numeric',
+               minute: '2-digit',
+            })
           : kind === 'webhook'
             ? t('next.webhook')
             : kind === 'manual'
