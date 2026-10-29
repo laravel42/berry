@@ -151,7 +151,7 @@ export function ShellRail({
          className={[
             'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
             'fixed inset-y-0 left-0 z-50 max-w-[85vw] border-r border-[var(--shell-line)]',
-            settingsMode ? 'w-[312px] lg:w-[262px]' : 'w-[260px] lg:w-[218px]',
+            settingsMode ? 'w-[312px] lg:w-[232px]' : 'w-[260px] lg:w-[218px]',
             'duration-200 ease-out motion-reduce:transition-none',
             overlayOpen
                ? 'visible translate-x-0 transition-transform'
