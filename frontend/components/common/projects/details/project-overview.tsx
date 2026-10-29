@@ -89,7 +89,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                      }}
                      placeholder="Add description…"
                      aria-label="Project description"
-                     className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin"
+                     className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold"
                      aiAssist={false}
                   />
 
