@@ -32,6 +32,8 @@ export interface CreateIssueDraft {
    /** Sent as the issue due date. */
    targetDate: string;
    labelIds: string[];
+   /** Installed plugins to hand the agent. Ignored unless the assignee is an agent. */
+   pluginIds: string[];
    /** Custom property values, applied once the task exists. */
    properties: Record<string, unknown>;
 }
@@ -45,6 +47,7 @@ export const EMPTY_DRAFT: CreateIssueDraft = {
    projectId: null,
    targetDate: '',
    labelIds: [],
+   pluginIds: [],
    properties: {},
 };
 
@@ -61,7 +64,6 @@ interface CreateIssueState {
    defaultStatus: Status | null;
    context: CreateIssueContext;
    draft: CreateIssueDraft;
-   createAnother: boolean;
 
    openModal: (status?: Status) => void;
    openModalWith: (context: Partial<CreateIssueContext>) => void;
@@ -69,12 +71,9 @@ interface CreateIssueState {
    setDefaultStatus: (status: Status | null) => void;
    setDraft: (patch: Partial<CreateIssueDraft>) => void;
    resetDraft: () => void;
-   setCreateAnother: (value: boolean) => void;
 }
 
-type PersistedCreateIssue = Partial<
-   Pick<CreateIssueState, 'createAnother'> & { draft: Partial<CreateIssueDraft> }
->;
+type PersistedCreateIssue = { draft?: Partial<CreateIssueDraft> };
 
 export const useCreateIssueStore = create<CreateIssueState>()(
    persist(
@@ -83,7 +82,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          defaultStatus: null,
          context: EMPTY_CONTEXT,
          draft: EMPTY_DRAFT,
-         createAnother: false,
 
          openModal: (status) =>
             set({
@@ -103,7 +101,6 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          setDefaultStatus: (defaultStatus) => set({ defaultStatus }),
          setDraft: (patch) => set((state) => ({ draft: { ...state.draft, ...patch } })),
          resetDraft: () => set({ draft: EMPTY_DRAFT }),
-         setCreateAnother: (createAnother) => set({ createAnother }),
       }),
       {
          name: 'create-issue-v3',
@@ -112,14 +109,12 @@ export const useCreateIssueStore = create<CreateIssueState>()(
          // Custom fields are per attempt: do not carry them into the next task.
          partialize: (state) => ({
             draft: { ...state.draft, properties: {} },
-            createAnother: state.createAnother,
          }),
          // A draft saved before a field existed must not come back without it.
          merge: (persisted, current) => {
             const saved = (persisted ?? {}) as PersistedCreateIssue;
             return {
                ...current,
-               createAnother: saved.createAnother ?? current.createAnother,
                draft: { ...EMPTY_DRAFT, ...(saved.draft ?? {}), properties: {} },
             };
          },

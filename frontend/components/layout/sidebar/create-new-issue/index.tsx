@@ -7,7 +7,6 @@ import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
    Dialog,
    DialogContent,
@@ -35,6 +34,7 @@ import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
 import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
 import { loadWorkspaceLabels } from '@/lib/labels';
+import { loadPlugins } from '@/lib/plugins';
 import { loadProperties, setIssueProperty, type PropertyDefinition } from '@/lib/properties';
 import { useAgentsStore } from '@/store/agents-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
@@ -51,6 +51,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector } from './assignee-selector';
+import { descriptionWithPlugins, CreatePluginSelect } from './plugin-select';
 import { ProjectSelector } from './project-selector';
 
 /**
@@ -90,17 +91,8 @@ function creatableStatus(draftId: string | null, fallback: Status | null): Statu
 export function CreateNewIssue() {
    const t = useTranslations('issueDetail.create');
    const tp = useTranslations('issueDetail.properties');
-   const {
-      isOpen,
-      context,
-      draft,
-      createAnother,
-      openModal,
-      closeModal,
-      setDraft,
-      resetDraft,
-      setCreateAnother,
-   } = useCreateIssueStore();
+   const { isOpen, context, draft, openModal, closeModal, setDraft, resetDraft } =
+      useCreateIssueStore();
    const { addIssue, getAllIssues, filterByStatus, filterByPriority } = useIssuesStore();
    const boardId = useSessionStore((state) => state.boardId);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
@@ -200,11 +192,6 @@ export function CreateNewIssue() {
 
    const finish = () => {
       setRevealedFields([]);
-      if (createAnother) {
-         // Keep the context — the column, the parent — and clear what was typed.
-         resetDraft();
-         return;
-      }
       resetDraft();
       closeModal();
    };
@@ -215,7 +202,6 @@ export function CreateNewIssue() {
          toast.error(t('titleRequired'));
          return;
       }
-      const description = draft.description || undefined;
       const assignee = selectedAssignee
          ? {
               type:
@@ -247,10 +233,15 @@ export function CreateNewIssue() {
 
       setPending(true);
       try {
+         let description = draft.description.trim();
+         if (assignee?.type === 'agent' && draft.pluginIds.length > 0) {
+            const installed = (await loadPlugins(workspaceId)).filter((plugin) => plugin.enabled);
+            description = descriptionWithPlugins(draft.description, installed, draft.pluginIds);
+         }
          const created = await createBoardIssue({
             boardId,
             title,
-            description,
+            description: description || undefined,
             // Not starting means the task waits in the backlog, which is the
             // one state an assigned agent is never dispatched from. Starting
             // means the opposite: an agent-assigned task outside the backlog
@@ -514,13 +505,15 @@ export function CreateNewIssue() {
             </div>
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
-               <label className="flex items-center gap-2 text-muted-foreground">
-                  <Checkbox
-                     checked={createAnother}
-                     onCheckedChange={(checked) => setCreateAnother(checked === true)}
-                  />
-                  {t('createAnother')}
-               </label>
+               <div className="flex min-w-0 items-center gap-3">
+                  {draft.assignee?.type === 'agent' ? (
+                     <CreatePluginSelect
+                        workspaceId={workspaceId}
+                        value={draft.pluginIds}
+                        onChange={(pluginIds) => setDraft({ pluginIds })}
+                     />
+                  ) : null}
+               </div>
                <Button disabled={pending} onClick={() => void create()}>
                   {pending ? t('creating') : t('create')}
                </Button>

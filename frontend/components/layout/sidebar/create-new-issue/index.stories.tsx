@@ -34,7 +34,6 @@ const meta = {
       useCreateIssueStore.setState({
          isOpen: true,
          draft: { ...EMPTY_DRAFT },
-         createAnother: false,
       });
       msw.use(
          http.get('*/api/v1/labels', () => HttpResponse.json(emptyConnection)),
