@@ -213,6 +213,7 @@ describe(
                issues: new IssueRepository(sql),
                comments: new CommentRepository(sql),
                plugins: pluginRuntime,
+               installations: pluginRepo,
             })
          );
          app = createApp(registry);

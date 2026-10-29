@@ -11,8 +11,10 @@ import { Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import type { ScopedDb } from '../identity/workspace-context.ts';
 import { InvalidPluginInput, PluginAlreadyInstalled, PluginUnreachable } from '../plugins/errors.ts';
+import { bundledPluginPackages } from '../plugins/catalog.ts';
+import { listUpstreamMcpTools, mcpServerUrl } from '../plugins/upstream-tools.ts';
 import { loadPackage, type PackageSource } from '../plugins/loader.ts';
-import { describePackage } from '../plugins/manifest.ts';
+import { declaredSecrets, describePackage, settingsFields } from '../plugins/manifest.ts';
 import type { PluginNetwork } from '../plugins/net.ts';
 import type { PluginInstallation, PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
@@ -53,7 +55,11 @@ const installSchema = z
    .strict()
    .refine(oneSource, 'Give either url or package.');
 const patchSchema = z
-   .object({ enabled: z.boolean().optional(), config: z.record(z.string(), z.unknown()).optional() })
+   .object({
+      enabled: z.boolean().optional(),
+      config: z.record(z.string(), z.unknown()).optional(),
+      baseUrl: z.string().min(1).max(500).optional(),
+   })
    .strict();
 const secretSchema = z.object({ value: z.string().min(1).max(4096) }).strict();
 const toolSchema = z.object({ approved: z.boolean() }).strict();
@@ -79,6 +85,58 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
       const body = await readJson(context, previewSchema, 2_000_000);
       const loaded = await loadPackage(options.network, toSource(body)).catch(mapPluginError);
       return json(describePackage(loaded.pkg));
+   });
+
+   route.get('/:workspaceId/catalog', async () => {
+      const packages = await bundledPluginPackages();
+      return json({
+         nodes: packages.map((pkg) => ({ preview: describePackage(pkg), package: pkg })),
+      });
+   });
+
+   route.get('/:workspaceId/catalog/:key/tools', async (context) => {
+      const scoped = context.get('scoped');
+      requirePermission(scoped, 'settings.write');
+      const key = context.req.param('key') ?? '';
+      const packages = await bundledPluginPackages();
+      const pkg = packages.find((item) => item.manifest.key === key);
+      if (!pkg?.manifest.mcp) throw new ApiError(404, 'NOT_FOUND', 'This plugin has no MCP server.');
+      if (pkg.manifest.mcp.offer === 'declared') {
+         return json({
+            tools: pkg.manifest.mcp.tools.map((tool) => ({ name: tool.name, description: tool.description })),
+         });
+      }
+      let config: Record<string, unknown> = {};
+      let apiKey = '';
+      if (options.plugins) {
+         const installed = (await options.plugins.list(scoped.ctx.workspaceId)).find((item) => item.key === key);
+         if (installed) {
+            config = installed.config;
+            const secrets = await options.plugins.openSecrets(scoped.ctx.workspaceId, installed.id);
+            apiKey = declaredSecrets(pkg.manifest)
+               .map((secret) => secrets[secret.name] ?? '')
+               .find((value) => value !== '') ?? '';
+         }
+      }
+      let url: string;
+      try {
+         url = mcpServerUrl(pkg.manifest, config);
+      } catch (error) {
+         const message = error instanceof Error ? error.message : 'This plugin cannot list its tools.';
+         throw new ApiError(422, 'VALIDATION_FAILED', message);
+      }
+      try {
+         const tools = await listUpstreamMcpTools(
+            url,
+            apiKey,
+            pkg.manifest.mcp.protocolVersion ?? '2025-03-26',
+            `berry-${pkg.manifest.key}`
+         );
+         return json({ tools });
+      } catch (error) {
+         const message = error instanceof Error ? error.message : 'This server did not list its tools.';
+         throw new ApiError(502, 'PLUGIN_UNREACHABLE', message);
+      }
    });
 
    route.get('/:workspaceId/installations', async (context) => {
@@ -125,6 +183,7 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
             repo().update(tx, ctx.workspaceId, installationId, {
                ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
                ...(body.config !== undefined ? { config: body.config } : {}),
+               ...(body.baseUrl !== undefined ? { baseUrl: body.baseUrl } : {}),
             })
          , { table: 'plugin_installations', id: installationId })
          .catch(mapPluginError);
@@ -218,6 +277,8 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
       const surface = installation.manifest.surfaces.find((s) => s.key === context.req.param('surface'));
       if (!surface) throw ApiError.notFound('Surface');
       if (!installation.enabled) throw new ApiError(409, 'PLUGIN_DISABLED', 'This plugin is disabled.');
+      if (!installation.baseUrl) throw new ApiError(422, 'VALIDATION_FAILED', 'This plugin has no address.');
+      const base = installation.baseUrl.replace(/\/+$/, '');
       const started = clock().getTime();
       // The token acts as the installer, but the person opening the page may
       // hold less. Never hand a viewer a token that can write what they cannot.
@@ -245,7 +306,6 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
          workspaceId,
          installationId,
       });
-      const base = installation.manifest.baseUrl.replace(/\/+$/, '');
       return json({ url: `${base}${surface.path}#${fragment.toString()}`, expiresAt });
    });
 
@@ -290,11 +350,13 @@ export function serializeInstallation(installation: PluginInstallation): Record<
       description: installation.description,
       source: installation.source,
       sourceUrl: installation.sourceUrl,
+      baseUrl: installation.baseUrl,
       enabled: installation.enabled,
       config: installation.config,
-      configFields: manifest.config,
-      secrets: manifest.secrets.map((s) => ({
+      configFields: settingsFields(manifest),
+      secrets: declaredSecrets(manifest).map((s) => ({
          name: s.name,
+         title: s.title,
          description: s.description,
          set: installation.secretNames.includes(s.name),
       })),
@@ -305,6 +367,7 @@ export function serializeInstallation(installation: PluginInstallation): Record<
             : { key: h.key, trigger: 'schedule', everyMinutes: h.everyMinutes }
       ),
       surfaces: manifest.surfaces.map((s) => ({ key: s.key, title: s.title })),
+      mcpOffer: manifest.mcp?.offer ?? 'declared',
       mcpTools: (manifest.mcp?.tools ?? []).map((t) => ({
          name: t.name,
          description: t.description,

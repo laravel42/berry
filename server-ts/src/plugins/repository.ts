@@ -6,7 +6,9 @@ import { isApiScope, type ApiScope } from '../public-api/scopes.ts';
 import { InvalidPluginInput, PluginAlreadyInstalled } from './errors.ts';
 import { appendPluginEvent } from './events.ts';
 import {
+   declaredSecrets,
    pluginManifestSchema,
+   parsePluginBaseUrl,
    validateConfig,
    type PluginConfig,
    type PluginManifest,
@@ -32,6 +34,8 @@ export interface PluginInstallation {
    manifest: PluginManifest;
    source: 'url' | 'upload';
    sourceUrl: string | null;
+   /** Where Berry calls this plugin. Null when Berry starts it in a container. */
+   baseUrl: string | null;
    enabled: boolean;
    config: PluginConfig;
    grantedScopes: ApiScope[];
@@ -43,7 +47,7 @@ export interface PluginInstallation {
 }
 
 const COLUMNS = `i.id, i.workspace_id, i.plugin_key, i.name, i.version, i.manifest, i.source,
-   i.source_url, i.enabled, i.config, i.granted_scopes, i.installed_by, i.created_at, i.updated_at,
+   i.source_url, i.base_url, i.enabled, i.config, i.granted_scopes, i.installed_by, i.created_at, i.updated_at,
    COALESCE((SELECT array_agg(s.name ORDER BY s.name) FROM plugin_secrets s
               WHERE s.installation_id = i.id), '{}') AS secret_names,
    COALESCE((SELECT array_agg(a.tool_name ORDER BY a.tool_name) FROM plugin_tool_approvals a
@@ -92,7 +96,7 @@ export class PluginRepository {
             enabled, config, granted_scopes, signing_secret_encrypted, installed_by, created_at, updated_at
          ) VALUES (
             ${id}, ${input.workspaceId}, ${manifest.key}, ${manifest.name}, ${manifest.version},
-            ${tx.json(manifest as never)}, ${input.source}, ${input.sourceUrl}, ${manifest.baseUrl},
+            ${tx.json(manifest as never)}, ${input.source}, ${input.sourceUrl}, ${manifest.baseUrl ?? null},
             true, ${tx.json(config as never)}, ${tx.array([...manifest.scopes])},
             ${this.#sealer.seal(signingSecret)}, ${input.installedBy}, ${now}, ${now}
          )`.catch((error: unknown) => {
@@ -136,20 +140,21 @@ export class PluginRepository {
       tx: Queryable,
       workspaceId: string,
       id: string,
-      patch: { enabled?: boolean | undefined; config?: unknown }
+      patch: { enabled?: boolean | undefined; config?: unknown; baseUrl?: string | undefined }
    ): Promise<PluginInstallation> {
       const [locked] = await tx`
-         SELECT manifest, enabled, config FROM plugin_installations
+         SELECT manifest, enabled, config, base_url FROM plugin_installations
           WHERE id = ${id} AND workspace_id = ${workspaceId}
           FOR UPDATE`;
       if (!locked) throw new NotFound();
       const manifest = pluginManifestSchema.parse(locked.manifest);
       const config = patch.config === undefined ? (locked.config as PluginConfig) : validateConfig(manifest, patch.config);
       const enabled = patch.enabled ?? (locked.enabled as boolean);
+      const baseUrl = patch.baseUrl === undefined ? (locked.base_url as string | null) : parsePluginBaseUrl(patch.baseUrl);
       const now = this.#clock().toISOString();
       await tx`
          UPDATE plugin_installations
-            SET enabled = ${enabled}, config = ${tx.json(config as never)}, updated_at = ${now}
+            SET enabled = ${enabled}, config = ${tx.json(config as never)}, base_url = ${baseUrl}, updated_at = ${now}
           WHERE id = ${id} AND workspace_id = ${workspaceId}`;
       await appendPluginEvent(tx, 'plugin.updated', workspaceId, id, manifest.key, now);
       return readOne(tx, workspaceId, id);
@@ -172,7 +177,7 @@ export class PluginRepository {
 
    async setSecret(tx: Queryable, workspaceId: string, id: string, name: string, value: string): Promise<void> {
       const manifest = await lockedManifest(tx, workspaceId, id);
-      if (!manifest.secrets.some((secret) => secret.name === name)) {
+      if (!declaredSecrets(manifest).some((secret) => secret.name === name)) {
          throw new InvalidPluginInput([{ path: '/name', message: 'The plugin does not declare this secret.' }]);
       }
       if (value.length < 1 || value.length > 4096) {
@@ -193,7 +198,10 @@ export class PluginRepository {
           WHERE installation_id = ${id} AND workspace_id = ${workspaceId} AND name = ${name}`;
    }
 
-   /** Decrypted secrets, for the hook call body only. Never serialized to a client. */
+   /**
+    * Decrypted secrets, for the plugin itself: a hook body, or `GET /v1/self`
+    * with its own token. Never sent to a browser.
+    */
    async openSecrets(workspaceId: string, id: string): Promise<Record<string, string>> {
       const rows = await this.#sql`
          SELECT name, value_encrypted FROM plugin_secrets
@@ -276,6 +284,7 @@ function toInstallation(row: Record<string, unknown>): PluginInstallation {
       manifest,
       source: row.source === 'url' ? 'url' : 'upload',
       sourceUrl: (row.source_url as string | null) ?? null,
+      baseUrl: (row.base_url as string | null) ?? null,
       enabled: row.enabled as boolean,
       config: row.config as PluginConfig,
       grantedScopes: (row.granted_scopes as string[]).filter(isApiScope),

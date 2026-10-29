@@ -136,6 +136,8 @@ import { ReplayRepository } from './realtime/replay.ts';
 import { IdempotencyStore } from './http/idempotency.ts';
 import { SessionService } from './auth/sessions.ts';
 import { personalTokenResolver } from './auth/credentials.ts';
+import { bundledPluginsRoot } from './plugins/catalog.ts';
+import { pluginContainers } from './plugins/containers.ts';
 import { PluginRuntimeStore } from './plugins/runtime-store.ts';
 import { publicApiMounts } from './mounts/public-api.ts';
 import { PluginRepository } from './plugins/repository.ts';
@@ -726,7 +728,18 @@ const executor = new RuntimeTaskExecutor({
            extensions: { skills: skillRepository, mcp: mcpRepository, profile: agentProfiles, gateway: gatewayRoute },
            // Plugin tools need the sealing key: without it no plugin is installed.
            ...(pluginRepository
-              ? { plugins: { plugins: pluginRepository, runtime: pluginRuntime, ttlMs: PLUGIN_MCP_TOKEN_TTL_MS } }
+              ? {
+                   plugins: {
+                      plugins: pluginRepository,
+                      runtime: pluginRuntime,
+                      ttlMs: PLUGIN_MCP_TOKEN_TTL_MS,
+                      containers: pluginContainers({
+                         root: bundledPluginsRoot(),
+                         publishAddr: config.docker.publishAddr,
+                         hostAddr: config.docker.hostAddr,
+                      }),
+                   },
+                }
               : {}),
            onSkipped: (names) => logger.warn('mcp server skipped: no gateway', { names }),
            onError: (message, error) =>
@@ -981,6 +994,7 @@ registry.registerAll(
       issues,
       comments,
       plugins: pluginRuntime,
+      installations: pluginRepository,
       broadcaster,
    })
 );

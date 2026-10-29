@@ -19,6 +19,7 @@ import type { Mount } from '../http/registry.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
 import type { Permission } from '../identity/roles.ts';
 import { InvalidPluginInput } from '../plugins/errors.ts';
+import type { PluginRepository } from '../plugins/repository.ts';
 import { validStorageKey, type PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import {
    actorId,
@@ -49,6 +50,8 @@ export interface PublicApiOptions {
    issues: IssueRepository;
    comments: CommentRepository;
    plugins: PluginRuntimeStore | null;
+   /** Null without INTEGRATION_ENCRYPTION_KEY: a plugin cannot read its sealed secrets. */
+   installations: PluginRepository | null;
    broadcaster?: Broadcaster | undefined;
    clock?: () => Date;
 }
@@ -117,6 +120,19 @@ function publicApiRoutes(options: PublicApiOptions): Hono<{ Variables: PublicApi
          scopes: principal.scopes,
          workspaces: workspace ? [{ id: workspace.id, name: workspace.name, slug: workspace.slug, role: null }] : [],
       });
+   });
+
+   route.get('/self', async (context) => {
+      const plugin = requirePlugin(context.get('principal'));
+      const installations = options.installations;
+      if (!installations) {
+         throw new ApiError(412, 'PLUGINS_NOT_CONFIGURED', 'Plugins need INTEGRATION_ENCRYPTION_KEY to hold their secrets.');
+      }
+      const installation = await installations.get(plugin.workspaceId, plugin.installationId);
+      const secrets = await installations.openSecrets(plugin.workspaceId, plugin.installationId);
+      const response = json({ config: installation.config, secrets });
+      response.headers.set('Cache-Control', 'no-store');
+      return response;
    });
 
    route.get('/issues/:ref', async (context) => {

@@ -47,6 +47,7 @@ describe('Feature: plugins, cross-tenant leakage', { skip: url ? false : 'BERRY_
             issues: new IssueRepository(sql),
             comments: new CommentRepository(sql),
             plugins: runtime,
+            installations: plugins,
          })
       );
       app = createApp(registry);

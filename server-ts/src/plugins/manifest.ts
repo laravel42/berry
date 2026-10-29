@@ -17,29 +17,44 @@ const pathSchema = z
    .regex(/^\/[A-Za-z0-9._~/-]{0,200}$/, 'Path must start with / and use URL-safe characters.')
    .refine((path) => !path.split('/').includes('..'), 'Path must not contain "..".');
 
+function isHttpUrl(value: string, allowSearch: boolean): boolean {
+   try {
+      const url = new URL(value);
+      return (
+         (url.protocol === 'https:' || url.protocol === 'http:') &&
+         url.username === '' &&
+         url.password === '' &&
+         (allowSearch || url.search === '') &&
+         url.hash === ''
+      );
+   } catch {
+      return false;
+   }
+}
+
 const baseUrlSchema = z
    .string()
    .max(500)
-   .refine((value) => {
-      try {
-         const url = new URL(value);
-         return (
-            (url.protocol === 'https:' || url.protocol === 'http:') &&
-            url.username === '' &&
-            url.password === '' &&
-            url.search === '' &&
-            url.hash === ''
-         );
-      } catch {
-         return false;
-      }
-   }, 'Base URL must be an http(s) URL without credentials, query or fragment.');
+   .refine((value) => isHttpUrl(value, false), 'Base URL must be an http(s) URL without credentials, query or fragment.');
+
+/** An upstream MCP address. A query is how some servers pick a tool catalog. */
+const mcpServerUrlSchema = z
+   .string()
+   .max(500)
+   .refine((value) => isHttpUrl(value, true), 'MCP server URL must be an http(s) URL without credentials or a fragment.');
 
 const configFieldSchema = z
    .object({
       key: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/),
+      /** Short title in settings. `label` is the longer description. */
+      name: z.string().trim().min(1).max(80).optional(),
       label: z.string().trim().min(1).max(80),
-      type: z.enum(['string', 'number', 'boolean']),
+      /**
+       * `array` offers `options` and stores the one option the admin picks.
+       * `secret` is sealed and is not a setting edited in the clear.
+       */
+      type: z.enum(['string', 'number', 'boolean', 'secret', 'array']),
+      options: z.array(z.string().trim().min(1).max(80)).min(1).max(20).optional(),
       required: z.boolean().default(false),
    })
    .strict();
@@ -70,7 +85,13 @@ export const pluginManifestSchema = z
       name: z.string().trim().min(1).max(80),
       version: z.string().regex(/^\d{1,4}\.\d{1,4}\.\d{1,4}$/),
       description: z.string().max(500).default(''),
-      baseUrl: baseUrlSchema,
+      /**
+       * Where Berry calls the plugin. Omitted when Berry starts the plugin
+       * in a container and nothing else is called at a public URL.
+       */
+      baseUrl: baseUrlSchema.optional(),
+      /** Listen port inside a container. Omitted when Berry assigns one at start. */
+      port: z.number().int().min(1).max(65535).optional(),
       scopes: z.array(z.enum(API_SCOPES)).max(API_SCOPES.length).default([]),
       config: z.array(configFieldSchema).max(50).default([]),
       secrets: z
@@ -100,6 +121,14 @@ export const pluginManifestSchema = z
       mcp: z
          .object({
             path: pathSchema,
+            /**
+             * `declared` names each tool in `tools`, and an admin approves
+             * them one by one. `all` connects the plugin to its MCP server
+             * and offers every tool that server lists.
+             */
+            offer: z.enum(['declared', 'all']).default('declared'),
+            protocolVersion: z.string().trim().min(1).max(32).optional(),
+            servers: z.record(z.string().regex(SHORT_KEY), mcpServerUrlSchema).optional(),
             tools: z
                .array(
                   z
@@ -109,8 +138,8 @@ export const pluginManifestSchema = z
                      })
                      .strict()
                )
-               .min(1)
-               .max(50),
+               .max(50)
+               .default([]),
          })
          .strict()
          .optional(),
@@ -126,9 +155,29 @@ export const pluginManifestSchema = z
       };
       unique(manifest.config.map((f) => f.key), (i) => ['config', i, 'key']);
       unique(manifest.secrets.map((s) => s.name), (i) => ['secrets', i, 'name']);
+      const secretKeys = new Set(manifest.config.filter((field) => field.type === 'secret').map((field) => field.key));
+      manifest.secrets.forEach((secret, index) => {
+         if (secretKeys.has(secret.name)) {
+            ctx.addIssue({ code: 'custom', message: 'Already declared as a config secret.', path: ['secrets', index, 'name'] });
+         }
+      });
       unique(manifest.hooks.map((h) => h.key), (i) => ['hooks', i, 'key']);
       unique(manifest.surfaces.map((s) => s.key), (i) => ['surfaces', i, 'key']);
       unique((manifest.mcp?.tools ?? []).map((t) => t.name), (i) => ['mcp', 'tools', i, 'name']);
+      manifest.config.forEach((field, index) => {
+         if (field.type === 'array') {
+            if (field.options === undefined) {
+               ctx.addIssue({ code: 'custom', message: 'List the options.', path: ['config', index, 'options'] });
+            } else {
+               unique(field.options, (optionIndex) => ['config', index, 'options', optionIndex]);
+            }
+         } else if (field.options !== undefined) {
+            ctx.addIssue({ code: 'custom', message: 'Options belong on an array field.', path: ['config', index, 'options'] });
+         }
+      });
+      if (manifest.mcp && manifest.mcp.offer === 'declared' && manifest.mcp.tools.length === 0) {
+         ctx.addIssue({ code: 'custom', message: 'Name the tools, or offer every tool the MCP server lists.', path: ['mcp', 'tools'] });
+      }
    });
 
 export type PluginManifest = z.infer<typeof pluginManifestSchema>;
@@ -165,11 +214,40 @@ export const pluginPackageSchema = z
 
 export type PluginPackage = z.infer<typeof pluginPackageSchema>;
 export type PluginConfigValue = string | number | boolean;
+
+/** Config entries of type `secret`, plus any names still declared on `secrets`. */
+export function declaredSecrets(manifest: PluginManifest): { name: string; title: string; description: string }[] {
+   const fromConfig = manifest.config
+      .filter((field) => field.type === 'secret')
+      .map((field) => ({ name: field.key, title: field.name ?? field.key, description: field.label }));
+   const named = new Set(fromConfig.map((secret) => secret.name));
+   return [
+      ...fromConfig,
+      ...manifest.secrets
+         .filter((secret) => !named.has(secret.name))
+         .map((secret) => ({ name: secret.name, title: secret.name, description: secret.description })),
+   ];
+}
+
+/** Settings an admin edits in the clear. Secret fields are stored separately. */
+export function settingsFields(manifest: PluginManifest): PluginManifest['config'] {
+   return manifest.config.filter((field) => field.type !== 'secret');
+}
 export type PluginConfig = Record<string, PluginConfigValue>;
 
-export function parsePackage(value: unknown): PluginPackage {
+export function parsePackage(value: unknown, options?: { container?: boolean }): PluginPackage {
    const parsed = pluginPackageSchema.safeParse(value);
    if (!parsed.success) throw new InvalidPluginInput(zodFields(parsed.error));
+   const manifest = parsed.data.manifest;
+   const hosted = options?.container === true || manifest.port !== undefined;
+   const needsBaseUrl =
+      manifest.hooks.length > 0 || manifest.surfaces.length > 0 || (manifest.mcp !== undefined && !hosted);
+   if (needsBaseUrl && manifest.baseUrl === undefined) {
+      throw new InvalidPluginInput([{
+         path: '/manifest/baseUrl',
+         message: 'Base URL is required unless Berry reaches this plugin through its container.',
+      }]);
+   }
    return parsed.data;
 }
 
@@ -183,20 +261,29 @@ export function validateConfig(manifest: PluginManifest, value: unknown): Plugin
    const config: PluginConfig = {};
    const declared = new Map(manifest.config.map((field) => [field.key, field]));
    for (const key of Object.keys(input)) {
-      if (!declared.has(key)) fields.push({ path: `/config/${key}`, message: 'The plugin does not declare this setting.' });
+      const field = declared.get(key);
+      if (!field) fields.push({ path: `/config/${key}`, message: 'The plugin does not declare this setting.' });
+      else if (field.type === 'secret') fields.push({ path: `/config/${key}`, message: 'Save this as a secret.' });
    }
    for (const field of manifest.config) {
+      if (field.type === 'secret') continue;
       const entry = input[field.key];
       if (entry === undefined || entry === null || entry === '') {
          if (field.required) fields.push({ path: `/config/${field.key}`, message: `${field.label} is required.` });
          continue;
       }
+      const choices = field.type === 'array' ? (field.options ?? []) : [];
       const typeOk =
          (field.type === 'string' && typeof entry === 'string' && entry.length <= 2000) ||
          (field.type === 'number' && typeof entry === 'number' && Number.isFinite(entry)) ||
-         (field.type === 'boolean' && typeof entry === 'boolean');
+         (field.type === 'boolean' && typeof entry === 'boolean') ||
+         (field.type === 'array' && typeof entry === 'string' && choices.includes(entry));
       if (!typeOk) {
-         fields.push({ path: `/config/${field.key}`, message: `${field.label} must be a ${field.type}.` });
+         const message =
+            field.type === 'array'
+               ? `${field.label} must be ${choices.join(' or ')}.`
+               : `${field.label} must be a ${field.type}.`;
+         fields.push({ path: `/config/${field.key}`, message });
          continue;
       }
       config[field.key] = entry as PluginConfigValue;
@@ -210,15 +297,25 @@ export interface PluginPreview {
    name: string;
    version: string;
    description: string;
-   baseUrl: string;
+   baseUrl: string | null;
    scopes: string[];
    config: PluginManifest['config'];
-   secrets: PluginManifest['secrets'];
+   secrets: { name: string; title: string; description: string }[];
    events: string[];
    schedules: { key: string; everyMinutes: number }[];
    surfaces: { key: string; title: string }[];
+   mcpOffer: 'declared' | 'all';
    mcpTools: string[];
    files: { path: string; size: number }[];
+}
+
+/** The same check the manifest uses for `baseUrl`. An installation may change it later. */
+export function parsePluginBaseUrl(value: string): string {
+   const parsed = baseUrlSchema.safeParse(value);
+   if (!parsed.success) {
+      throw new InvalidPluginInput([{ path: '/baseUrl', message: 'Base URL must be an http(s) URL without credentials, query or fragment.' }]);
+   }
+   return parsed.data;
 }
 
 export function describePackage(pkg: PluginPackage): PluginPreview {
@@ -234,13 +331,14 @@ export function describePackage(pkg: PluginPackage): PluginPreview {
       name: manifest.name,
       version: manifest.version,
       description: manifest.description,
-      baseUrl: manifest.baseUrl,
+      baseUrl: manifest.baseUrl ?? null,
       scopes: [...manifest.scopes],
-      config: manifest.config,
-      secrets: manifest.secrets,
+      config: settingsFields(manifest),
+      secrets: declaredSecrets(manifest),
       events: [...events].sort(),
       schedules,
       surfaces: manifest.surfaces.map((s) => ({ key: s.key, title: s.title })),
+      mcpOffer: manifest.mcp?.offer ?? 'declared',
       mcpTools: (manifest.mcp?.tools ?? []).map((t) => t.name),
       files: pkg.files.map((f) => ({ path: f.path, size: Buffer.byteLength(f.content, 'utf8') })),
    };
