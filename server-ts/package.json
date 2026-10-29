@@ -36,5 +36,10 @@
       "fast-check": "^4.10.1",
       "typescript": "^7.0.2"
    },
-   "license": "AGPL-3.0-only"
+   "license": "AGPL-3.0-only",
+   "pnpm": {
+      "overrides": {
+         "proxy-addr": "2.0.8"
+      }
+   }
 }

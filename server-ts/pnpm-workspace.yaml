@@ -12,3 +12,7 @@ allowBuilds:
    tree-sitter-python: true
    tree-sitter-rust: true
    tree-sitter-typescript: true
+
+# GHSA-jqcg-44mw-7w3h: express pulled proxy-addr before 2.0.8.
+overrides:
+   proxy-addr: 2.0.8
