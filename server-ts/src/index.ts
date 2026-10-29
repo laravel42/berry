@@ -143,6 +143,7 @@ import { publicApiMounts } from './mounts/public-api.ts';
 import { PluginRepository } from './plugins/repository.ts';
 import { createPluginNetwork } from './plugins/net.ts';
 import { pluginMounts } from './mounts/plugins.ts';
+import { PluginOAuthStateStore } from './plugins/oauth-states.ts';
 import { PluginCaller, PluginHookRunner } from './plugins/hooks.ts';
 import { createBerryAuth, devSessionCookies } from './auth/better-auth.ts';
 import { drain } from './http/drain.ts';
@@ -433,6 +434,9 @@ const agentProfiles = new AgentProfileRepository({ sql, sealer: agentSealer });
 // key integrations do. Without it the mount answers PLUGINS_NOT_CONFIGURED.
 const pluginRepository = config.integrationKey
    ? new PluginRepository({ sql, sealer: sealerFromKey(config.integrationKey) })
+   : null;
+const pluginOAuthStates = config.integrationKey
+   ? new PluginOAuthStateStore({ sql, sealer: sealerFromKey(config.integrationKey) })
    : null;
 const pluginNetwork = createPluginNetwork({ allowPrivate: config.pluginsAllowPrivateNetwork });
 
@@ -1006,6 +1010,13 @@ registry.registerAll(
       runtime: pluginRuntime,
       network: pluginNetwork,
       publicUrl: config.integrations.publicUrl,
+      appUrl: config.integrations.appUrl ?? config.auth.baseUrl,
+      workspaceSlug: async (workspaceId: string) => {
+         const [row] = await sql`SELECT slug FROM workspaces WHERE id = ${workspaceId}`;
+         return (row?.slug as string | undefined) ?? null;
+      },
+      oauthStates: pluginOAuthStates,
+      ...(config.integrations.googleOAuth ? { oauthClient: config.integrations.googleOAuth } : {}),
    })
 );
 // Plugin hooks run in every server process; the cursor and schedule rows are

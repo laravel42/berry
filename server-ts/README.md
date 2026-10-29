@@ -69,7 +69,9 @@ commit values):
   `BERRY_PUBLIC_URL`, `AUTH_ALLOW_PASSWORDLESS_LOGIN`.
 - **Integrations**: `INTEGRATION_ENCRYPTION_KEY` (integrations and plugins
   are off without it), `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` (legacy
-  repository connection), `GITHUB_PROVIDER`, `BERRY_GITHUB_WEBHOOK_SECRET`.
+  repository connection), `GITHUB_PROVIDER`, `BERRY_GITHUB_WEBHOOK_SECRET`,
+  `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` (Google MCP hosts
+  that do not register clients).
 - **Storage**: `S3_BUCKET` (enables storage), `S3_REGION`, `S3_ENDPOINT`,
   `S3_USE_PATH_STYLE`, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` /
   `AWS_SESSION_TOKEN`, `STORAGE_MAX_BYTES`. AWS S3 is the default; any

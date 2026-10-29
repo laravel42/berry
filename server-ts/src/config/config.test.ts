@@ -191,6 +191,41 @@ test('sign-in credentials are separate from the integrations GitHub credential',
       clientId: 'integration-id',
       clientSecret: 'integration-secret',
    });
+   assert.equal(config.integrations.googleOAuth, null);
+});
+
+test('half a Google OAuth client is refused at boot', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            GOOGLE_OAUTH_CLIENT_ID: 'google-client',
+         }),
+      (error: unknown) =>
+         error instanceof ConfigError && /GOOGLE_OAUTH_CLIENT_SECRET/.test(error.message)
+   );
+});
+
+test('a Google OAuth client is one registered client for the deployment', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      GOOGLE_OAUTH_CLIENT_ID: 'google-client',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'google-secret',
+   });
+   assert.deepEqual(config.integrations.googleOAuth, {
+      clientId: 'google-client',
+      clientSecret: 'google-secret',
+   });
+});
+
+test('development does not treat the API public URL as the app origin', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      BERRY_PUBLIC_URL: 'http://localhost:4000',
+   });
+   assert.equal(config.auth.baseUrl, 'http://localhost:3000');
+   assert.equal(config.integrations.publicUrl, 'http://localhost:4000');
 });
 
 test('the auth base URL is the app origin, and both origins are trusted', () => {

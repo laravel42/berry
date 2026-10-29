@@ -216,6 +216,13 @@ export interface StorageConfig {
 export interface IntegrationsConfig {
    github: { clientId: string; clientSecret: string } | null;
    /**
+    * Google Cloud OAuth client for MCP servers that use Google's
+    * authorization server and do not advertise dynamic client
+    * registration. One per deployment; every workspace uses it. Null
+    * until both halves are set.
+    */
+   googleOAuth: { clientId: string; clientSecret: string } | null;
+   /**
     * This server's own public origin — where the provider sends the browser
     * back. Not derivable from a request: behind a proxy the request's own
     * host is the proxy's, and a redirect_uri that does not match the one
@@ -393,6 +400,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const appEnv = (env.APP_ENV ?? 'development').trim();
    const authConfig = auth(env, appEnv, problems);
    const databaseIamAuth = iamDatabaseAuth(env, databaseUrl, problems);
+   const integrationsConfig = integrations(env, problems);
 
    if (problems.length > 0) throw new ConfigError(problems);
 
@@ -426,7 +434,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // between restarts and strand every credential already stored.
       integrationKey: (env.INTEGRATION_ENCRYPTION_KEY ?? '').trim() || null,
       pluginsAllowPrivateNetwork: (env.BERRY_PLUGINS_ALLOW_PRIVATE_NETWORK ?? '').trim() === '1',
-      integrations: integrations(env),
+      integrations: integrationsConfig,
       git: git(env),
    };
 }
@@ -657,13 +665,22 @@ function agentCoreGateway(env: NodeJS.ProcessEnv): AgentCoreGatewayConfig | null
    };
 }
 
-function integrations(env: NodeJS.ProcessEnv): IntegrationsConfig {
+function integrations(env: NodeJS.ProcessEnv, problems: string[]): IntegrationsConfig {
    const clientId = (env.GITHUB_CLIENT_ID ?? '').trim();
    const clientSecret = (env.GITHUB_CLIENT_SECRET ?? '').trim();
+   const googleId = (env.GOOGLE_OAUTH_CLIENT_ID ?? '').trim();
+   const googleSecret = (env.GOOGLE_OAUTH_CLIENT_SECRET ?? '').trim();
+   if (googleId && !googleSecret) {
+      problems.push('GOOGLE_OAUTH_CLIENT_SECRET is required with GOOGLE_OAUTH_CLIENT_ID');
+   }
+   if (googleSecret && !googleId) {
+      problems.push('GOOGLE_OAUTH_CLIENT_ID is required with GOOGLE_OAUTH_CLIENT_SECRET');
+   }
    return {
       // Both or neither: half a credential cannot complete an exchange, and
       // reporting the provider as configured would promise that it can.
       github: clientId && clientSecret ? { clientId, clientSecret } : null,
+      googleOAuth: googleId && googleSecret ? { clientId: googleId, clientSecret: googleSecret } : null,
       publicUrl: origin(env.BERRY_PUBLIC_URL),
       appUrl: origin(env.BERRY_APP_URL),
    };
@@ -725,7 +742,9 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
 
    const appUrl = origin(env.BERRY_APP_URL);
    const publicUrl = origin(env.BERRY_PUBLIC_URL);
-   const baseUrl = appUrl ?? publicUrl ?? (development ? 'http://localhost:3000' : null);
+   // The API public URL is not a browser origin. In development the app is
+   // localhost:3000 unless BERRY_APP_URL says otherwise.
+   const baseUrl = appUrl ?? (development ? 'http://localhost:3000' : publicUrl);
    // A browser reaching the app by another name — a LAN address on a phone, a
    // tunnel in front of a local stack — sends that origin, and Better Auth
    // refuses a sign-in from an origin it was not told about. Naming them is an

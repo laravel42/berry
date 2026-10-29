@@ -7,18 +7,43 @@ import { decodeTimeCursor, encodeCursor, parsePageQuery } from '../http/cursor.t
 import { ApiError } from '../http/errors.ts';
 import { readJson } from '../http/json-body.ts';
 import type { Mount } from '../http/registry.ts';
-import { Forbidden, NotFound } from '../identity/errors.ts';
+import { requireSession } from '../auth/middleware.ts';
+import { Forbidden, NotFound, toApiError } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
-import type { ScopedDb } from '../identity/workspace-context.ts';
 import { InvalidPluginInput, PluginAlreadyInstalled, PluginUnreachable } from '../plugins/errors.ts';
+import { resolveWorkspaceContext, scopedDb, type ScopedDb } from '../identity/workspace-context.ts';
 import { bundledPluginPackages } from '../plugins/catalog.ts';
 import { listUpstreamMcpTools, mcpServerUrl } from '../plugins/upstream-tools.ts';
 import { loadPackage, type PackageSource } from '../plugins/loader.ts';
-import { declaredSecrets, describePackage, settingsFields } from '../plugins/manifest.ts';
+import {
+   declaredSecrets,
+   describePackage,
+   mcpAuthMode,
+   pluginCatalogAvailable,
+   oauthAuthorizeParams,
+   oauthClientId,
+   oauthClientSecretName,
+   oauthRefreshSecretName,
+   oauthScopeList,
+   oauthTokenSecretName,
+   settingsFields,
+} from '../plugins/manifest.ts';
+import {
+   buildAuthorizeUrl,
+   exchangeMcpCode,
+   McpOAuthFailed,
+   resolveMcpOAuthClient,
+   startMcpAuthorize,
+   type McpOAuthClient,
+} from '../plugins/mcp-oauth.ts';
 import type { PluginNetwork } from '../plugins/net.ts';
+import {
+   PluginAuthorizationNotPending,
+   type PluginOAuthStateStore,
+} from '../plugins/oauth-states.ts';
 import type { PluginInstallation, PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
-import { mountWorkspaceScope, pathId, type ScopedVariables } from './shared.ts';
+import { pathId, type ScopedVariables } from './shared.ts';
 
 /**
  * `/api/v1/plugins/:workspaceId/*` — installing and running plugins.
@@ -40,6 +65,13 @@ export interface PluginMountOptions {
    network: PluginNetwork;
    /** Where a plugin reaches `/v1`. BERRY_PUBLIC_URL. */
    publicUrl: string | null;
+   /** Browser origin after an OAuth callback. BERRY_APP_URL or the auth base. */
+   appUrl?: string | null;
+   workspaceSlug?: (workspaceId: string) => Promise<string | null>;
+   oauthStates?: PluginOAuthStateStore | null;
+   /** Registered client for MCP hosts that do not advertise DCR. */
+   oauthClient?: McpOAuthClient | null;
+   fetchImpl?: typeof fetch;
    clock?: () => Date;
 }
 
@@ -70,7 +102,10 @@ export function pluginMounts(options: PluginMountOptions): Mount[] {
 
 function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVariables }> {
    const route = new Hono<{ Variables: ScopedVariables }>();
-   mountWorkspaceScope(route, { sessions: options.sessions, sql: options.sql });
+   // Sessionless: the provider returns the browser here. The hashed state is
+   // the authorisation. `oauth` is not a workspace id, so the scope gate skips it.
+   route.get('/oauth/callback', (context) => handlePluginOAuthCallback(context, options));
+   mountPluginWorkspaceScope(route, { sessions: options.sessions, sql: options.sql });
    const clock = options.clock ?? (() => new Date());
    const repo = (): PluginRepository => {
       if (!options.plugins) {
@@ -89,6 +124,12 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
 
    route.get('/:workspaceId/catalog', async () => {
       const packages = await bundledPluginPackages();
+      packages.sort((left, right) => {
+         const leftOpen = pluginCatalogAvailable(left.manifest) ? 0 : 1;
+         const rightOpen = pluginCatalogAvailable(right.manifest) ? 0 : 1;
+         if (leftOpen !== rightOpen) return leftOpen - rightOpen;
+         return left.manifest.name.localeCompare(right.manifest.name);
+      });
       return json({
          nodes: packages.map((pkg) => ({ preview: describePackage(pkg), package: pkg })),
       });
@@ -125,6 +166,9 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
          const message = error instanceof Error ? error.message : 'This plugin cannot list its tools.';
          throw new ApiError(422, 'VALIDATION_FAILED', message);
       }
+      if (mcpAuthMode(pkg.manifest) === 'oauth' && apiKey === '') {
+         throw new ApiError(422, 'PLUGIN_OAUTH_REQUIRED', 'Connect this plugin to list its tools.');
+      }
       try {
          const tools = await listUpstreamMcpTools(
             url,
@@ -149,6 +193,9 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
       requirePermission(scoped, 'settings.write');
       const body = await readJson(context, installSchema, 2_000_000);
       const loaded = await loadPackage(options.network, toSource(body)).catch(mapPluginError);
+      if (!pluginCatalogAvailable(loaded.pkg.manifest)) {
+         throw new ApiError(422, 'PLUGIN_UNAVAILABLE', 'This plugin is not available yet.');
+      }
       const { installation, signingSecret } = await scoped
          .mutate('settings.write', (tx, ctx) =>
             repo().install(tx, {
@@ -220,6 +267,76 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
          .mutate('settings.write', (tx, ctx) => repo().deleteSecret(tx, ctx.workspaceId, installationId, name), { table: 'plugin_installations', id: installationId })
          .catch(mapPluginError);
       return new Response(null, { status: 204 });
+   });
+
+   route.post('/:workspaceId/installations/:id/oauth', async (context) => {
+      const scoped = context.get('scoped');
+      requirePermission(scoped, 'settings.write');
+      const installation = await repo().get(scoped.ctx.workspaceId, id(context.req.param('id'))).catch(mapPluginError);
+      if (mcpAuthMode(installation.manifest) !== 'oauth') {
+         throw new ApiError(422, 'PLUGIN_OAUTH_UNSUPPORTED', 'This plugin signs in with an API key.');
+      }
+      const publicUrl = pluginOAuthPublicOrigin(options.publicUrl, context.req.url);
+      if (!publicUrl) {
+         throw new ApiError(503, 'PLUGIN_OAUTH_NOT_CONFIGURED', 'This deployment has no public URL for the OAuth callback.');
+      }
+      const states = options.oauthStates;
+      if (!states) {
+         throw new ApiError(412, 'PLUGINS_NOT_CONFIGURED', 'Plugins need INTEGRATION_ENCRYPTION_KEY to hold their secrets.');
+      }
+      let serverUrl: string;
+      try {
+         serverUrl = mcpServerUrl(installation.manifest, installation.config);
+      } catch (error) {
+         const message = error instanceof Error ? error.message : 'This plugin cannot start OAuth.';
+         throw new ApiError(422, 'VALIDATION_FAILED', message);
+      }
+      const redirectUri = pluginOAuthCallbackUri(publicUrl);
+      const secrets = await repo().openSecrets(scoped.ctx.workspaceId, installation.id);
+      const client = registeredMcpOAuthClient(options, installation, secrets);
+      try {
+         const pending = await startMcpAuthorize({
+            serverUrl,
+            redirectUri,
+            clientName: 'Berry',
+            scope: oauthScopeList(installation.manifest),
+            ...(client ? { clientId: client.clientId } : {}),
+            ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+         });
+         await states.sweep();
+         const { state } = await states.start({
+            workspaceId: scoped.ctx.workspaceId,
+            userId: scoped.ctx.userId,
+            installationId: installation.id,
+            redirectUri,
+            tokenEndpoint: pending.tokenEndpoint,
+            clientId: pending.clientId,
+            codeVerifier: pending.codeVerifier,
+         });
+         const extra = oauthAuthorizeParams(installation.manifest);
+         return json({
+            authorizeUrl: buildAuthorizeUrl({
+               authorizationEndpoint: pending.authorizationEndpoint,
+               clientId: pending.clientId,
+               redirectUri,
+               state,
+               challenge: pending.challenge,
+               scope: oauthScopeList(installation.manifest),
+               resource: serverUrl,
+               ...(Object.keys(extra).length > 0 ? { extra } : {}),
+            }),
+         });
+      } catch (error) {
+         if (error instanceof McpOAuthFailed) {
+            const missingClient = error.message.includes('has no OAuth client');
+            throw new ApiError(
+               missingClient ? 503 : 502,
+               missingClient ? 'PLUGIN_OAUTH_NOT_CONFIGURED' : 'PLUGIN_OAUTH_FAILED',
+               error.message
+            );
+         }
+         throw error;
+      }
    });
 
    route.put('/:workspaceId/installations/:id/tools/:tool', async (context) => {
@@ -322,6 +439,159 @@ function requirePermission(scoped: ScopedDb, permission: Permission): void {
    }
 }
 
+function mountPluginWorkspaceScope(
+   route: Hono<{ Variables: ScopedVariables }>,
+   options: { sessions: SessionService; sql: Sql }
+): void {
+   route.use('/:workspaceId/*', async (context, next) => {
+      if (context.req.param('workspaceId') === 'oauth') return next();
+      return requireSession(options.sessions)(context as never, next);
+   });
+   route.use('/:workspaceId/*', async (context, next) => {
+      if (context.req.param('workspaceId') === 'oauth') return next();
+      const workspaceId = pathId(context.req.param('workspaceId'), 'Workspace');
+      try {
+         const ctx = await resolveWorkspaceContext(
+            options.sql,
+            context.get('user').id,
+            workspaceId,
+            'product.read'
+         );
+         context.set('scoped', scopedDb(options.sql, ctx));
+      } catch (error) {
+         throw toApiError(error, 'Workspace');
+      }
+      await next();
+   });
+}
+
+function pluginOAuthPublicOrigin(publicUrl: string | null | undefined, requestUrl: string): string {
+   const configured = (publicUrl ?? '').replace(/\/+$/, '');
+   if (configured) return configured;
+   try {
+      const origin = new URL(requestUrl).origin;
+      return origin === 'null' ? '' : origin;
+   } catch {
+      return '';
+   }
+}
+
+function pluginOAuthCallbackUri(publicUrl: string): string {
+   return `${publicUrl.replace(/\/+$/, '')}/api/v1/plugins/oauth/callback`;
+}
+
+function registeredMcpOAuthClient(
+   options: PluginMountOptions,
+   installation: PluginInstallation,
+   secrets: Record<string, string>
+): McpOAuthClient | null {
+   const secretName = oauthClientSecretName(installation.manifest);
+   return resolveMcpOAuthClient({
+      ...(options.oauthClient ? { deployment: options.oauthClient } : {}),
+      clientId: oauthClientId(installation.config),
+      ...(secretName && secrets[secretName] ? { clientSecret: secrets[secretName] } : {}),
+   });
+}
+
+function redirectTo(location: string): Response {
+   return new Response(null, { status: 302, headers: { location } });
+}
+
+function pluginConnectLanding(
+   origin: string,
+   slug: string | null,
+   plugin: string,
+   status: string,
+   reason?: string
+): string {
+   const path = slug ? `/${slug}/integrations` : '/';
+   const query = new URLSearchParams({ plugin, status });
+   if (reason) query.set('reason', reason);
+   return origin ? `${origin.replace(/\/+$/, '')}${path}?${query}` : `${path}?${query}`;
+}
+
+async function handlePluginOAuthCallback(
+   context: { req: { url: string } },
+   options: PluginMountOptions
+): Promise<Response> {
+   const url = new URL(context.req.url);
+   const origin = (options.appUrl || options.publicUrl || '').replace(/\/+$/, '');
+   const land = async (
+      workspaceId: string | null,
+      plugin: string,
+      status: string,
+      reason?: string
+   ): Promise<Response> => {
+      const slug =
+         workspaceId && options.workspaceSlug
+            ? await options.workspaceSlug(workspaceId).catch(() => null)
+            : null;
+      return redirectTo(pluginConnectLanding(origin, slug, plugin, status, reason));
+   };
+   const state = url.searchParams.get('state') ?? '';
+   if (state === '' || !options.oauthStates || !options.plugins) {
+      return land(null, '', 'error', 'missing');
+   }
+   let pending;
+   try {
+      pending = await options.oauthStates.consume(state);
+   } catch (error) {
+      if (error instanceof PluginAuthorizationNotPending) {
+         return land(null, '', 'error', 'expired');
+      }
+      throw error;
+   }
+   let installation: PluginInstallation;
+   try {
+      installation = await options.plugins.get(pending.workspaceId, pending.installationId);
+   } catch {
+      return land(pending.workspaceId, '', 'error', 'missing');
+   }
+   if (url.searchParams.get('error')) {
+      return land(pending.workspaceId, installation.key, 'error', 'denied');
+   }
+   const code = url.searchParams.get('code') ?? '';
+   if (code === '') {
+      return land(pending.workspaceId, installation.key, 'error', 'denied');
+   }
+   try {
+      await resolveWorkspaceContext(options.sql, pending.userId, pending.workspaceId, 'settings.write');
+   } catch {
+      return land(pending.workspaceId, installation.key, 'error', 'forbidden');
+   }
+   const secretName = oauthTokenSecretName(installation.manifest);
+   if (mcpAuthMode(installation.manifest) !== 'oauth' || !secretName) {
+      return land(pending.workspaceId, installation.key, 'error', 'unsupported');
+   }
+   try {
+      const secrets = await options.plugins.openSecrets(pending.workspaceId, pending.installationId);
+      const client = registeredMcpOAuthClient(options, installation, secrets);
+      const token = await exchangeMcpCode({
+         tokenEndpoint: pending.tokenEndpoint,
+         clientId: pending.clientId,
+         code,
+         redirectUri: pending.redirectUri,
+         codeVerifier: pending.codeVerifier,
+         ...(client?.clientSecret ? { clientSecret: client.clientSecret } : {}),
+         ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+      });
+      const plugins = options.plugins;
+      const refreshName = oauthRefreshSecretName(installation.manifest);
+      await options.sql.begin(async (tx) => {
+         await plugins.setSecret(tx, pending.workspaceId, pending.installationId, secretName, token.accessToken);
+         if (refreshName && token.refreshToken) {
+            await plugins.setSecret(tx, pending.workspaceId, pending.installationId, refreshName, token.refreshToken);
+         }
+      });
+   } catch (error) {
+      if (error instanceof McpOAuthFailed) {
+         return land(pending.workspaceId, installation.key, 'error', 'exchange');
+      }
+      return land(pending.workspaceId, installation.key, 'error', 'save');
+   }
+   return land(pending.workspaceId, installation.key, 'connected');
+}
+
 function mapPluginError(error: unknown): never {
    if (error instanceof InvalidPluginInput) {
       throw new ApiError(422, 'VALIDATION_FAILED', error.fields[0]?.message ?? 'The plugin input is invalid.', {
@@ -368,6 +638,7 @@ export function serializeInstallation(installation: PluginInstallation): Record<
       ),
       surfaces: manifest.surfaces.map((s) => ({ key: s.key, title: s.title })),
       mcpOffer: manifest.mcp?.offer ?? 'declared',
+      mcpAuth: mcpAuthMode(manifest),
       mcpTools: (manifest.mcp?.tools ?? []).map((t) => ({
          name: t.name,
          description: t.description,

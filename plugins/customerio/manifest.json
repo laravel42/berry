@@ -7,11 +7,13 @@
    "scopes": [],
    "config": [
       { "key": "REGION", "name": "Region", "label": "Customer.io region (us or eu)", "type": "array", "options": ["us", "eu"], "required": true },
-      { "key": "API_KEY", "name": "API Key", "label": "App API key. This MCP server signs in with OAuth instead.", "type": "secret", "required": true }
+      { "key": "API_KEY", "name": "Access token", "label": "Saved when you connect with Customer.io.", "type": "secret", "required": false }
    ],
    "mcp": {
       "path": "/mcp",
       "offer": "all",
+      "auth": "oauth",
+      "scopes": ["read", "write"],
       "protocolVersion": "2025-03-26",
       "servers": {
          "us": "https://mcp.customer.io/mcp",

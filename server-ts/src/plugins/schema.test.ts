@@ -16,6 +16,7 @@ const TABLES = [
    'plugin_hook_state',
    'plugin_event_cursor',
    'plugin_tool_approvals',
+   'plugin_oauth_states',
 ];
 
 describe('plugin schema', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not set' }, () => {

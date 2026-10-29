@@ -48,7 +48,7 @@ const configFieldSchema = z
       key: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/),
       /** Short title in settings. `label` is the longer description. */
       name: z.string().trim().min(1).max(80).optional(),
-      label: z.string().trim().min(1).max(80),
+      label: z.string().trim().min(1).max(200),
       /**
        * `array` offers `options` and stores the one option the admin picks.
        * `secret` is sealed and is not a setting edited in the clear.
@@ -128,6 +128,27 @@ export const pluginManifestSchema = z
              */
             offer: z.enum(['declared', 'all']).default('declared'),
             protocolVersion: z.string().trim().min(1).max(32).optional(),
+            /**
+             * `oauth` starts the MCP authorization-code + PKCE flow. `bearer`
+             * is a sealed API key the admin pastes.
+             */
+            auth: z.enum(['bearer', 'oauth']).default('bearer'),
+            /** Scopes requested when `auth` is `oauth`. The person still consents. */
+            scopes: z
+               .array(
+                  z
+                     .string()
+                     .refine(
+                        (value) =>
+                           /^[A-Za-z][A-Za-z0-9:._-]{0,79}$/.test(value) ||
+                           /^https:\/\/[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{1,200}$/.test(value),
+                        'Scope must be a short token or an https URL.'
+                     )
+               )
+               .max(40)
+               .optional(),
+            /** Extra authorize query fields this authorization server needs. */
+            authorize: z.record(z.string().regex(/^[a-z_]{1,40}$/), z.string().trim().min(1).max(200)).optional(),
             servers: z.record(z.string().regex(SHORT_KEY), mcpServerUrlSchema).optional(),
             tools: z
                .array(
@@ -305,6 +326,8 @@ export interface PluginPreview {
    schedules: { key: string; everyMinutes: number }[];
    surfaces: { key: string; title: string }[];
    mcpOffer: 'declared' | 'all';
+   mcpAuth: 'bearer' | 'oauth';
+   available: boolean;
    mcpTools: string[];
    files: { path: string; size: number }[];
 }
@@ -316,6 +339,49 @@ export function parsePluginBaseUrl(value: string): string {
       throw new InvalidPluginInput([{ path: '/baseUrl', message: 'Base URL must be an http(s) URL without credentials, query or fragment.' }]);
    }
    return parsed.data;
+}
+
+export function mcpAuthMode(manifest: PluginManifest): 'bearer' | 'oauth' {
+   return manifest.mcp?.auth ?? 'bearer';
+}
+
+/** Catalog hosts that work with no OAuth and no pasted secret. */
+const OPEN_CATALOG_KEYS = new Set(['firecrawl', 'openai-docs']);
+
+/** Connect-ready, or an open MCP host. Everything else stays listed last. */
+export function pluginCatalogAvailable(manifest: PluginManifest): boolean {
+   return mcpAuthMode(manifest) === 'oauth' || OPEN_CATALOG_KEYS.has(manifest.key);
+}
+
+/** Space-separated scopes requested at authorize time. The person still consents. */
+export function oauthScopeList(manifest: PluginManifest): string {
+   return (manifest.mcp?.scopes ?? []).join(' ');
+}
+
+export function oauthAuthorizeParams(manifest: PluginManifest): Record<string, string> {
+   return { ...(manifest.mcp?.authorize ?? {}) };
+}
+
+export function oauthTokenSecretName(manifest: PluginManifest): string | null {
+   const secrets = declaredSecrets(manifest);
+   return secrets.find((secret) => secret.name === 'API_KEY')?.name ?? secrets[0]?.name ?? null;
+}
+
+export function oauthClientId(config: Record<string, unknown>): string {
+   const value = config.CLIENT_ID;
+   return typeof value === 'string' ? value.trim() : '';
+}
+
+export function oauthClientSecretName(manifest: PluginManifest): string | null {
+   return declaredSecrets(manifest).some((secret) => secret.name === 'CLIENT_SECRET')
+      ? 'CLIENT_SECRET'
+      : null;
+}
+
+export function oauthRefreshSecretName(manifest: PluginManifest): string | null {
+   return declaredSecrets(manifest).some((secret) => secret.name === 'REFRESH_TOKEN')
+      ? 'REFRESH_TOKEN'
+      : null;
 }
 
 export function describePackage(pkg: PluginPackage): PluginPreview {
@@ -339,6 +405,8 @@ export function describePackage(pkg: PluginPackage): PluginPreview {
       schedules,
       surfaces: manifest.surfaces.map((s) => ({ key: s.key, title: s.title })),
       mcpOffer: manifest.mcp?.offer ?? 'declared',
+      mcpAuth: mcpAuthMode(manifest),
+      available: pluginCatalogAvailable(manifest),
       mcpTools: (manifest.mcp?.tools ?? []).map((t) => t.name),
       files: pkg.files.map((f) => ({ path: f.path, size: Buffer.byteLength(f.content, 'utf8') })),
    };

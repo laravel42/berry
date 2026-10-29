@@ -57,7 +57,7 @@ Integrations, plugins and usage:
 
 - `/api/v1/integrations` — includes the GitHub App manifest flow
 - `/api/v1/github`, `/api/v1/gitlab` (workspace switches for the integrations drawer), `/api/v1/webhooks`
-- `/api/v1/plugins`
+- `/api/v1/plugins` — includes sessionless `GET /api/v1/plugins/oauth/callback`
 - `/api/v1/usage`, `/api/v1/dashboard`
 - `/api/v1/logs` — every model call (`kind: 'completion'` runs): system prompt, JSON schema, prompt and response
 

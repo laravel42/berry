@@ -5,7 +5,9 @@ import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { createApp, type BerryApp } from '../http/app.ts';
 import { Registry } from '../http/registry.ts';
 import { SecretsRepository } from '../identity/secrets.ts';
+import { bundledPluginPackages } from '../plugins/catalog.ts';
 import { dropWorld, HELLO, seedWorld, testSealer, testSessions, type World } from '../plugins/fixture.test-support.ts';
+import { PluginOAuthStateStore } from '../plugins/oauth-states.ts';
 import { PluginRepository } from '../plugins/repository.ts';
 import { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { pluginMounts } from './plugins.ts';
@@ -19,6 +21,8 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
    let memberId = '';
    let viewerId = '';
    const tokens = { owner: '', member: '', viewer: '' };
+   const sealer = testSealer();
+   let oauthFetch: typeof fetch = fetch;
 
    before(async () => {
       sql = openDatabase({ url: url as string });
@@ -27,10 +31,21 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
          pluginMounts({
             sessions: testSessions(sql),
             sql,
-            plugins: new PluginRepository({ sql, sealer: testSealer() }),
+            plugins: new PluginRepository({ sql, sealer }),
             runtime: new PluginRuntimeStore({ sql }),
             network: { request: async () => ({ status: 200, body: JSON.stringify(HELLO) }) },
             publicUrl: 'https://berry.example.com',
+            appUrl: 'https://app.example.com',
+            workspaceSlug: async (workspaceId) => {
+               const [row] = await sql`SELECT slug FROM workspaces WHERE id = ${workspaceId}`;
+               return (row?.slug as string | undefined) ?? null;
+            },
+            oauthStates: new PluginOAuthStateStore({ sql, sealer }),
+            oauthClient: {
+               clientId: 'google-client.apps.googleusercontent.com',
+               clientSecret: 'google-secret',
+            },
+            fetchImpl: (input, init) => oauthFetch(input, init),
          })
       );
       app = createApp(registry);
@@ -118,9 +133,11 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
       const detail = await call(`/installations/${installationId}`, tokens.member);
       const text = await detail.text();
       assert.ok(!text.includes('sk-secret-value'));
-      const parsed = JSON.parse(text) as { secrets: { name: string; set: boolean }[]; mcpTools: { approved: boolean }[] };
-      assert.deepEqual(parsed.secrets, [{ name: 'API_KEY', description: '', set: true }]);
+      const parsed = JSON.parse(text) as { secrets: { name: string; set: boolean }[]; mcpTools: { approved: boolean }[]; mcpAuth: string };
+      assert.deepEqual(parsed.secrets, [{ name: 'API_KEY', title: 'API_KEY', description: '', set: true }]);
+      assert.equal(parsed.mcpAuth, 'bearer');
       assert.equal(parsed.mcpTools[0]?.approved, true);
+      assert.equal((await call(`/installations/${installationId}/oauth`, tokens.owner, { method: 'POST' })).status, 422);
    });
 
    test('a member launches a surface and the launch is logged', async () => {
@@ -189,6 +206,135 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
          await sql`DELETE FROM personal_api_tokens WHERE user_id = ${other.userId}`;
          await dropWorld(sql, other);
       }
+   });
+
+   test('Customer.io OAuth stores the access token as the plugin secret', async () => {
+      const packages = await bundledPluginPackages();
+      const customerio = packages.find((pkg) => pkg.manifest.key === 'customerio');
+      assert.ok(customerio);
+      oauthFetch = async (input, init) => {
+         const target = String(input);
+         if (target.endsWith('/.well-known/oauth-authorization-server')) {
+            return new Response(
+               JSON.stringify({
+                  authorization_endpoint: 'https://mcp.customer.io/oauth2/authorize',
+                  token_endpoint: 'https://mcp.customer.io/oauth2/token',
+                  registration_endpoint: 'https://mcp.customer.io/oauth2/register',
+               }),
+               { status: 200 }
+            );
+         }
+         if (target.endsWith('/oauth2/register')) {
+            return new Response(JSON.stringify({ client_id: 'cio-client' }), { status: 201 });
+         }
+         if (target.endsWith('/oauth2/token')) {
+            const body = new URLSearchParams(String(init?.body));
+            assert.equal(body.get('grant_type'), 'authorization_code');
+            assert.equal(body.get('code'), 'cio-code');
+            assert.equal(body.get('client_id'), 'cio-client');
+            assert.ok(body.get('code_verifier'));
+            return new Response(JSON.stringify({ access_token: 'cio-access-token' }), { status: 200 });
+         }
+         throw new Error(target);
+      };
+      const created = await call('/installations', tokens.owner, {
+         method: 'POST',
+         body: JSON.stringify({ package: customerio, config: { REGION: 'us' } }),
+      });
+      assert.equal(created.status, 201);
+      const installed = (await created.json()) as { installation: { id: string; mcpAuth: string; key: string } };
+      assert.equal(installed.installation.mcpAuth, 'oauth');
+      const started = await call(`/installations/${installed.installation.id}/oauth`, tokens.owner, { method: 'POST' });
+      assert.equal(started.status, 200);
+      const { authorizeUrl } = (await started.json()) as { authorizeUrl: string };
+      const authorize = new URL(authorizeUrl);
+      assert.equal(authorize.origin, 'https://mcp.customer.io');
+      assert.equal(authorize.searchParams.get('code_challenge_method'), 'S256');
+      assert.equal(
+         authorize.searchParams.get('redirect_uri'),
+         'https://berry.example.com/api/v1/plugins/oauth/callback'
+      );
+      const callback = await app.request(
+         `/api/v1/plugins/oauth/callback?code=cio-code&state=${encodeURIComponent(authorize.searchParams.get('state') ?? '')}`
+      );
+      assert.equal(callback.status, 302);
+      const location = new URL(callback.headers.get('location') ?? '');
+      assert.equal(location.origin, 'https://app.example.com');
+      assert.match(location.pathname, /\/integrations$/);
+      assert.equal(location.searchParams.get('plugin'), 'customerio');
+      assert.equal(location.searchParams.get('status'), 'connected');
+      const detail = (await (await call(`/installations/${installed.installation.id}`, tokens.owner)).json()) as {
+         secrets: { name: string; set: boolean }[];
+      };
+      assert.equal(detail.secrets.find((secret) => secret.name === 'API_KEY')?.set, true);
+      const opened = await new PluginRepository({ sql, sealer }).openSecrets(world.workspaceId, installed.installation.id);
+      assert.equal(opened.API_KEY, 'cio-access-token');
+      assert.equal((await call(`/installations/${installed.installation.id}`, tokens.owner, { method: 'DELETE' })).status, 204);
+      oauthFetch = fetch;
+   });
+
+   test('OAuth uses the deployment client when the server names no registration endpoint', async () => {
+      const packages = await bundledPluginPackages();
+      const gmail = packages.find((pkg) => pkg.manifest.key === 'gmail');
+      assert.ok(gmail);
+      oauthFetch = async (input, init) => {
+         const target = String(input);
+         if (target.includes('oauth-protected-resource')) {
+            return new Response(
+               JSON.stringify({ authorization_servers: ['https://accounts.google.com/'] }),
+               { status: 200 }
+            );
+         }
+         if (target.includes('accounts.google.com') && target.includes('well-known')) {
+            return new Response(
+               JSON.stringify({
+                  authorization_endpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+                  token_endpoint: 'https://oauth2.googleapis.com/token',
+               }),
+               { status: 200 }
+            );
+         }
+         if (target === 'https://oauth2.googleapis.com/token') {
+            const body = new URLSearchParams(String(init?.body));
+            assert.equal(body.get('grant_type'), 'authorization_code');
+            assert.equal(body.get('code'), 'gmail-code');
+            assert.equal(body.get('client_id'), 'google-client.apps.googleusercontent.com');
+            assert.equal(body.get('client_secret'), 'google-secret');
+            assert.ok(body.get('code_verifier'));
+            return new Response(
+               JSON.stringify({ access_token: 'gmail-access-token', refresh_token: 'gmail-refresh-token' }),
+               { status: 200 }
+            );
+         }
+         throw new Error(target);
+      };
+      const created = await call('/installations', tokens.owner, {
+         method: 'POST',
+         body: JSON.stringify({ package: gmail }),
+      });
+      assert.equal(created.status, 201);
+      const installed = (await created.json()) as { installation: { id: string; mcpAuth: string } };
+      assert.equal(installed.installation.mcpAuth, 'oauth');
+      const started = await call(`/installations/${installed.installation.id}/oauth`, tokens.owner, { method: 'POST' });
+      assert.equal(started.status, 200);
+      const { authorizeUrl } = (await started.json()) as { authorizeUrl: string };
+      const authorize = new URL(authorizeUrl);
+      assert.equal(authorize.origin, 'https://accounts.google.com');
+      assert.equal(authorize.searchParams.get('client_id'), 'google-client.apps.googleusercontent.com');
+      assert.equal(authorize.searchParams.get('access_type'), 'offline');
+      assert.equal(authorize.searchParams.get('prompt'), 'consent');
+      const callback = await app.request(
+         `/api/v1/plugins/oauth/callback?code=gmail-code&state=${encodeURIComponent(authorize.searchParams.get('state') ?? '')}`
+      );
+      assert.equal(callback.status, 302);
+      const location = new URL(callback.headers.get('location') ?? '');
+      assert.equal(location.searchParams.get('plugin'), 'gmail');
+      assert.equal(location.searchParams.get('status'), 'connected');
+      const opened = await new PluginRepository({ sql, sealer }).openSecrets(world.workspaceId, installed.installation.id);
+      assert.equal(opened.API_KEY, 'gmail-access-token');
+      assert.equal(opened.REFRESH_TOKEN, 'gmail-refresh-token');
+      assert.equal((await call(`/installations/${installed.installation.id}`, tokens.owner, { method: 'DELETE' })).status, 204);
+      oauthFetch = fetch;
    });
 
    test('uninstall removes it', async () => {
