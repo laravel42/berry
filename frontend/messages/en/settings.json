@@ -4,6 +4,7 @@
    },
    "preferences": {
       "title": "Preferences",
+      "description": "How Berry looks and behaves for you.",
       "general": "General",
       "name": "Full name",
       "namePlaceholder": "Your name",

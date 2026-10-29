@@ -10,14 +10,13 @@ import {
    removeChannel,
    type ChannelIdentity,
 } from '@/lib/settings';
-import { cn } from '@/lib/utils';
 import { Loader2, Mail, MessageCircle, Phone, Send } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import {
    SelectMenu,
-   SETTINGS_PILL,
    SettingsCard,
+   SettingsEmpty,
    SettingsRow,
    SettingsSection,
    SettingsShell,
@@ -102,12 +101,12 @@ export default function AccountConnections() {
          badge="Not yet implemented"
          description="Addresses Berry can reach you at. Connecting GitHub so agents can push is under Integrations."
       >
-         <SettingsSection description={channels.error ?? undefined}>
+         <SettingsSection title="Addresses" description={channels.error ?? undefined}>
             <SettingsCard>
                {channels.loading ? (
-                  <SettingsRow title="Loading…" />
+                  <SettingsEmpty title="Loading…" />
                ) : (channels.value ?? []).length === 0 ? (
-                  <SettingsRow
+                  <SettingsEmpty
                      title="No addresses yet"
                      description="Berry reaches you in your inbox until you add one."
                   />
@@ -131,9 +130,7 @@ export default function AccountConnections() {
                               .join(' · ')}
                            trailing={
                               <Button
-                                 size="xs"
-                                 variant="ghost"
-                                 className="text-status-danger hover:text-status-danger"
+                                 variant="soft-destructive"
                                  disabled={channels.saving}
                                  onClick={() => setRemoving(identity)}
                               >
@@ -146,9 +143,12 @@ export default function AccountConnections() {
                )}
                <SettingsRow
                   title="Add an address"
+                  className="[&>div]:flex-wrap"
                   trailing={
-                     <span className="flex items-center gap-2">
+                     <span className="flex flex-wrap items-center gap-2">
                         <SelectMenu
+                           className="w-auto min-w-28"
+                           aria-label="Channel"
                            options={[...CHANNELS].map((entry) => LABELS[entry] ?? entry)}
                            value={LABELS[channel] ?? channel}
                            disabled={adding}
@@ -161,22 +161,22 @@ export default function AccountConnections() {
                            }
                         />
                         <Input
+                           variant="settings"
                            value={address}
                            placeholder={channel === 'EMAIL' ? 'you@example.com' : '+1 555 0100'}
-                           className="h-8 w-44"
+                           className="w-[200px]"
                            onChange={(event) => setAddress(event.target.value)}
                            onKeyDown={(event) => {
                               if (event.key === 'Enter') void add();
                            }}
                         />
-                        <button
-                           type="button"
-                           className={cn(SETTINGS_PILL, 'h-8 min-h-8 py-0 lg:min-h-8')}
+                        <Button
+                           variant="soft"
                            disabled={adding || address.trim() === ''}
                            onClick={() => void add()}
                         >
                            {adding ? <Loader2 className="size-3.5 animate-spin" /> : 'Add'}
-                        </button>
+                        </Button>
                      </span>
                   }
                />

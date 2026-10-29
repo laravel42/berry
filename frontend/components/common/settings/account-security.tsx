@@ -1,8 +1,18 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
+import { authClient } from '@/lib/auth-client';
 import { describeDevice, loadSessions, revokeSession, type AccountSession } from '@/lib/settings';
 import { Monitor } from 'lucide-react';
-import { SETTINGS_PILL, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import { useEffect, useState } from 'react';
+import {
+   SettingsCard,
+   SettingsChip,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -18,52 +28,115 @@ import { useSettingsResource } from './use-settings-resource';
  */
 export default function AccountSecurity() {
    const sessions = useSettingsResource<AccountSession[]>(loadSessions);
+   const currentId = useCurrentSessionId();
+
+   const all = sessions.value ?? [];
+   // This device first: it is the one a person looks for to orient the rest.
+   const rows = [...all].sort((a, b) => Number(b.id === currentId) - Number(a.id === currentId));
+   const others = all.filter((session) => session.id !== currentId);
 
    const signOut = async (session: AccountSession) => {
-      const rest = (sessions.value ?? []).filter((entry) => entry.id !== session.id);
+      const rest = all.filter((entry) => entry.id !== session.id);
       await sessions.mutate(rest, () => revokeSession(session.id));
    };
 
+   // Only offered once the current session is known, so it can never sign
+   // this browser out by mistake.
+   const signOutOthers = async () => {
+      const keep = all.filter((entry) => entry.id === currentId);
+      await sessions.mutate(keep, async () => {
+         for (const session of others) await revokeSession(session.id);
+      });
+   };
+
    return (
-      <SettingsShell title="Security & access">
+      <SettingsShell title="Security & access" description="Where you are signed in.">
          <SettingsSection
             title="Sessions"
-            description={sessions.error ?? 'Devices signed in to your account'}
+            description={sessions.error ?? 'Devices signed in to your account.'}
+            action={
+               currentId && others.length > 0 ? (
+                  <Button
+                     variant="soft"
+                     disabled={sessions.saving}
+                     onClick={() => void signOutOthers()}
+                  >
+                     Sign out other sessions
+                  </Button>
+               ) : null
+            }
          >
             <SettingsCard>
                {sessions.loading ? (
-                  <SettingsRow title="Loading…" />
-               ) : (sessions.value ?? []).length === 0 ? (
-                  <SettingsRow title="No other sessions" />
+                  <SettingsEmpty title="Loading…" />
+               ) : rows.length === 0 ? (
+                  <SettingsEmpty title="No other sessions" />
                ) : (
-                  (sessions.value ?? []).map((session) => (
-                     <SettingsRow
-                        key={session.id}
-                        icon={<Monitor className="size-4" />}
-                        title={describeDevice(session.userAgent)}
-                        description={[
-                           session.ip,
-                           `last used ${when(session.lastUsedAt ?? session.createdAt)}`,
-                        ]
-                           .filter(Boolean)
-                           .join(' · ')}
-                        trailing={
-                           <button
-                              type="button"
-                              className={SETTINGS_PILL}
-                              disabled={sessions.saving}
-                              onClick={() => void signOut(session)}
-                           >
-                              Sign out
-                           </button>
-                        }
-                     />
-                  ))
+                  rows.map((session) => {
+                     const current = session.id === currentId;
+                     return (
+                        <SettingsRow
+                           key={session.id}
+                           className="py-3"
+                           icon={<Monitor className="size-[15px]" strokeWidth={1.7} />}
+                           title={describeDevice(session.userAgent)}
+                           description={[
+                              current
+                                 ? 'Active now'
+                                 : `Last used ${when(session.lastUsedAt ?? session.createdAt)}`,
+                              session.ip,
+                           ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                           trailing={
+                              current ? (
+                                 <SettingsChip>
+                                    <span
+                                       aria-hidden
+                                       className="size-1.5 rounded-full bg-status-success"
+                                    />
+                                    This device
+                                 </SettingsChip>
+                              ) : (
+                                 <Button
+                                    variant="soft"
+                                    disabled={sessions.saving}
+                                    onClick={() => void signOut(session)}
+                                 >
+                                    Sign out
+                                 </Button>
+                              )
+                           }
+                        />
+                     );
+                  })
                )}
             </SettingsCard>
          </SettingsSection>
       </SettingsShell>
    );
+}
+
+/**
+ * The id of the session this browser is signed in with, from Better Auth's own
+ * session endpoint. `/me/sessions` does not mark it, so without this every row
+ * would offer "Sign out", including the one that signs this tab out.
+ */
+function useCurrentSessionId(): string | null {
+   const [id, setId] = useState<string | null>(null);
+   useEffect(() => {
+      let live = true;
+      authClient()
+         .getSession()
+         .then((result) => {
+            if (live) setId(result.data?.session.id ?? null);
+         })
+         .catch(() => undefined);
+      return () => {
+         live = false;
+      };
+   }, []);
+   return id;
 }
 
 /** "3 days ago", roughly. A security page needs recency, not a timestamp. */
