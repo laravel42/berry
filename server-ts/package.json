@@ -28,7 +28,7 @@
       "ioredis": "^6.0.0",
       "pg": "^8.23.0",
       "postgres": "^3.4.9",
-      "zod": "^4.6.5"
+      "zod": "^4.6.6"
    },
    "devDependencies": {
       "@types/node": "^26.6.1",
@@ -42,7 +42,8 @@
          "proxy-addr": "2.0.8",
          "simple-git": "4.0.1",
          "@simple-git/argv-parser": "2.0.1",
-         "body-parser": "2.4.0"
+         "body-parser": "2.4.0",
+         "zod@>=4.0.0 <4.6.6": "4.6.7"
       }
    }
 }
