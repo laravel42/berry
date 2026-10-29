@@ -244,7 +244,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   onScroll={(event) => rememberScroll(scrollKey, event.currentTarget.scrollTop)}
                   className="min-h-0 flex-1 overflow-y-auto"
                >
-                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
+                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
                      <div className="flex flex-col gap-3">
                         <IssueTitle issue={issue} />
                         {/* Below `lg` the side panel has no room, so the same

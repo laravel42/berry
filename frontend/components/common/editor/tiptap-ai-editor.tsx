@@ -283,7 +283,10 @@ export function TiptapAiEditor({
                </Button>
             </FormatHint>
          </BubbleMenu>
-         <EditorContent editor={editor} className={cn('min-h-24 flex-1', aiAssist && 'pb-16')} />
+         <EditorContent
+            editor={editor}
+            className={cn(formatting ? 'min-h-24' : 'min-h-24 flex-1', aiAssist && 'pb-16')}
+         />
          {aiAssist ? (
             <EditorAiBar
                prompt={aiPrompt}
