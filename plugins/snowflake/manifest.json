@@ -1,0 +1,53 @@
+{
+   "schemaVersion": 1,
+   "key": "snowflake",
+   "name": "Snowflake",
+   "version": "1.0.0",
+   "description": "Queries warehouses, databases, and tables. An agent can run SQL and summarize the rows the warehouse returns.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "ACCOUNT_HOST",
+         "name": "Account host",
+         "label": "Account host",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "DATABASE",
+         "name": "Database",
+         "label": "Database",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "SCHEMA",
+         "name": "Schema",
+         "label": "Schema",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "SERVER_NAME",
+         "name": "Server name",
+         "label": "Server name",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://{account-host}/api/v2/databases/{database}/schemas/{schema}/mcp-servers/{server-name}"
+      }
+   }
+}

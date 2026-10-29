@@ -1,0 +1,25 @@
+{
+   "schemaVersion": 1,
+   "key": "windsor",
+   "name": "Windsor.ai",
+   "version": "1.0.0",
+   "description": "Marketing and analytics data from connected sources. An agent can pull campaign figures and use them in the task.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.windsor.ai/"
+      }
+   }
+}

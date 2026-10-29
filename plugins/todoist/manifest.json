@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "todoist",
+   "name": "Todoist",
+   "version": "1.0.0",
+   "description": "Tasks, projects, and due dates. An agent can add work, complete an item, and keep a list aligned with the task.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://ai.todoist.net/mcp"
+      }
+   }
+}

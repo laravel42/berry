@@ -55,6 +55,11 @@ write code. Never run one workspace's tools over another.
 | Tests | `node --test` | none — lint + build | `node --test` |
 | Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
 
+Installable plugins live in `plugins/`, one workspace package each. They are
+the services an agent calls while executing a task. `plugins/customerio`
+connects to the Customer.io MCP server. `packages/plugin-sdk/examples/` stays the SDK sample
+manifest, not a running plugin.
+
 `apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
 With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
 against PGlite in the app data directory, or a `postgres://` `DATABASE_URL` /
@@ -254,8 +259,9 @@ pnpm db:migrate         # needs DATABASE_URL
 pnpm db:seed            # development dataset; idempotent
 pnpm dev:server
 
-# Plugin SDK
+# Plugin SDK and installable plugins (plugins/)
 pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+pnpm test:plugins && pnpm typecheck:plugins
 
 # Frontend
 cd frontend && pnpm lint && pnpm build:check

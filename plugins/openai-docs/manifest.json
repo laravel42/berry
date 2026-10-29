@@ -1,0 +1,17 @@
+{
+   "schemaVersion": 1,
+   "key": "openai-docs",
+   "name": "OpenAI Developers",
+   "version": "1.0.0",
+   "description": "Searches OpenAI developer documentation. An agent can look up an API and follow the current guide while it writes code.",
+   "scopes": [],
+   "config": [],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://developers.openai.com/mcp"
+      }
+   }
+}

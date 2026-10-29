@@ -1,0 +1,21 @@
+{
+   "schemaVersion": 1,
+   "key": "context7",
+   "name": "Context7",
+   "version": "1.0.0",
+   "description": "Retrieves current documentation for software libraries. An agent can read the latest API notes before it writes or changes code.",
+   "scopes": [],
+   "config": [
+      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["default", "oauth"], "required": true },
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.context7.com/mcp",
+         "oauth": "https://mcp.context7.com/mcp/oauth"
+      }
+   }
+}

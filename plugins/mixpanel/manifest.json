@@ -1,0 +1,22 @@
+{
+   "schemaVersion": 1,
+   "key": "mixpanel",
+   "name": "Mixpanel",
+   "version": "1.0.0",
+   "description": "Product analytics for events, funnels, and retention. An agent can query usage and describe what people actually did.",
+   "scopes": [],
+   "config": [
+      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["us", "eu", "in"], "required": true },
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "us": "https://mcp.mixpanel.com/mcp",
+         "eu": "https://mcp-eu.mixpanel.com/mcp",
+         "in": "https://mcp-in.mixpanel.com/mcp"
+      }
+   }
+}

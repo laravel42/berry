@@ -2,6 +2,7 @@ packages:
    - frontend
    - server-ts
    - packages/plugin-sdk
+   - plugins/*
    - apps/mobile
    - apps/desktop
    - apps/vscode

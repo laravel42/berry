@@ -1,0 +1,17 @@
+{
+   "schemaVersion": 1,
+   "key": "shop",
+   "name": "Shop",
+   "version": "1.0.0",
+   "description": "Shopify catalog search and Shop Pay checkout. An agent can find a product and help a shopper move toward payment.",
+   "scopes": [],
+   "config": [],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.shop.com"
+      }
+   }
+}

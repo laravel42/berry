@@ -1,0 +1,45 @@
+{
+   "schemaVersion": 1,
+   "key": "datadog",
+   "name": "Datadog",
+   "version": "1.0.0",
+   "description": "Logs, metrics, monitors, and traces. An agent can check what production is doing before it suggests a fix.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "us1",
+            "us3",
+            "us5",
+            "eu",
+            "ap1",
+            "ap2"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "us1": "https://mcp.datadoghq.com/v1/mcp",
+         "us3": "https://mcp.us3.datadoghq.com/v1/mcp",
+         "us5": "https://mcp.us5.datadoghq.com/v1/mcp",
+         "eu": "https://mcp.datadoghq.eu/v1/mcp",
+         "ap1": "https://mcp.ap1.datadoghq.com/v1/mcp",
+         "ap2": "https://mcp.ap2.datadoghq.com/v1/mcp"
+      }
+   }
+}

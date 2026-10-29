@@ -1,0 +1,21 @@
+{
+   "schemaVersion": 1,
+   "key": "linear",
+   "name": "Linear",
+   "version": "1.0.0",
+   "description": "Reads and updates issues, projects, and comments. An agent can follow the work it was assigned and record progress on it.",
+   "scopes": [],
+   "config": [
+      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["default", "readonly"], "required": true },
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.linear.app/mcp",
+         "readonly": "https://mcp.linear.app/mcp/readonly"
+      }
+   }
+}

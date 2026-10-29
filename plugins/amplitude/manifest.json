@@ -1,0 +1,21 @@
+{
+   "schemaVersion": 1,
+   "key": "amplitude",
+   "name": "Amplitude",
+   "version": "1.0.0",
+   "description": "Queries analytics for events, charts, and funnels. An agent can check how a feature is used before it recommends a change.",
+   "scopes": [],
+   "config": [
+      { "key": "ENDPOINT", "name": "Server", "label": "Which MCP server to call", "type": "array", "options": ["us", "eu"], "required": true },
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "us": "https://mcp.amplitude.com/mcp",
+         "eu": "https://mcp.eu.amplitude.com/mcp"
+      }
+   }
+}

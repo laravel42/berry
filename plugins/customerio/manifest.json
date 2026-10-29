@@ -1,0 +1,21 @@
+{
+   "schemaVersion": 1,
+   "key": "customerio",
+   "name": "Customer.io",
+   "version": "1.0.0",
+   "description": "Messaging data and campaigns in Customer.io. An agent can look up people, segments, and messages while it works a task.",
+   "scopes": [],
+   "config": [
+      { "key": "REGION", "name": "Region", "label": "Customer.io region (us or eu)", "type": "array", "options": ["us", "eu"], "required": true },
+      { "key": "API_KEY", "name": "API Key", "label": "App API key. This MCP server signs in with OAuth instead.", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "us": "https://mcp.customer.io/mcp",
+         "eu": "https://mcp-eu.customer.io/mcp"
+      }
+   }
+}

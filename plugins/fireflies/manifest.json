@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "fireflies",
+   "name": "Fireflies",
+   "version": "1.0.0",
+   "description": "Meeting transcripts and summaries. An agent can find a call and read what was said before it writes a follow-up.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://api.fireflies.ai/mcp"
+      }
+   }
+}

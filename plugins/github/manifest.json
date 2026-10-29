@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "github",
+   "name": "GitHub",
+   "version": "1.0.0",
+   "description": "Repositories, issues, and pull requests. An agent can read code and work items, then update the change it was asked to make.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://api.githubcopilot.com/mcp/"
+      }
+   }
+}

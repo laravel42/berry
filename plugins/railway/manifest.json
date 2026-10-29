@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "railway",
+   "name": "Railway",
+   "version": "1.0.0",
+   "description": "Creates and deploys projects and services. An agent can check a deployment and see how the project is running.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.railway.com"
+      }
+   }
+}

@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "trello",
+   "name": "Trello",
+   "version": "1.0.0",
+   "description": "Boards, lists, and cards on Trello. An agent can find a card and move or update it as the task requires.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.trello.com/v1"
+      }
+   }
+}

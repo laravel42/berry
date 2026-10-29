@@ -1,0 +1,25 @@
+{
+   "schemaVersion": 1,
+   "key": "vercel",
+   "name": "Vercel",
+   "version": "1.0.0",
+   "description": "Projects, deployments, and logs. An agent can see what is deployed and how the latest build finished.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.vercel.com"
+      }
+   }
+}

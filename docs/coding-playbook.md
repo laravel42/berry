@@ -23,6 +23,10 @@ Know which workspace you are in before you write code.
 | Tests | `node --test` | none — lint + `build:check` | `node --test` |
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 
+Installable plugins live in `plugins/` (`plugins/*` in the pnpm workspace),
+one package per plugin. `packages/plugin-sdk` is the toolkit they import.
+`plugins/customerio` connects an agent to the Customer.io MCP server.
+
 `apps/desktop` compiles TypeScript to `dist/` and runs Electron. Match the
 server style (3-space, single quotes). It loads the frontend and does not
 import the server. `pnpm --filter @berry/desktop package` stages
@@ -240,6 +244,7 @@ the affected view.
 python3 scripts/check-locale-catalogues.py   # English catalogues well-formed; no extra locales
 pnpm check:models                            # no model SDK imports in server-ts/src outside agents/runtime/
 pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+pnpm test:plugins && pnpm typecheck:plugins
 ```
 
 ## Commits

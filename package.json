@@ -30,7 +30,9 @@
       "runtime:sessions": "bash scripts/runtime-docker.sh --per-session",
       "check:models": "python3 scripts/test_check_no_model_in_server.py && python3 scripts/check-no-model-in-server.py",
       "test:plugin-sdk": "pnpm --filter @berry/plugin-sdk test",
-      "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck"
+      "typecheck:plugin-sdk": "pnpm --filter @berry/plugin-sdk typecheck",
+      "test:plugins": "pnpm --filter './plugins/*' test",
+      "typecheck:plugins": "pnpm --filter './plugins/*' typecheck"
    },
    "devDependencies": {
       "husky": "^9.1.7"

@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "apollo",
+   "name": "Apollo.io",
+   "version": "1.0.0",
+   "description": "Prospecting and enrichment for people and companies. An agent can find contacts and fill in details while it prepares outreach.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.apollo.io/mcp"
+      }
+   }
+}

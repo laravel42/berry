@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "higgsfield",
+   "name": "Higgsfield",
+   "version": "1.0.0",
+   "description": "Generates images, video, and audio. An agent can produce a creative asset from the brief on the task.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.higgsfield.ai/mcp"
+      }
+   }
+}

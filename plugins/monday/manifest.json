@@ -1,0 +1,19 @@
+{
+   "schemaVersion": 1,
+   "key": "monday",
+   "name": "monday.com",
+   "version": "1.0.0",
+   "description": "Boards, items, and updates on monday.com. An agent can find a row and change the status the task calls for.",
+   "scopes": [],
+   "config": [
+      { "key": "API_KEY", "name": "API Key", "label": "Bearer token for the MCP server", "type": "secret", "required": true }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.monday.com/mcp"
+      }
+   }
+}
