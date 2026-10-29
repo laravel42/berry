@@ -113,12 +113,12 @@ export const WithBadges: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('2 reviews waiting')).toBeInTheDocument();
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Agent, 4 unread')).toBeInTheDocument();
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
       await expect(canvas.getByRole('link', { name: /^Reviews/ })).toHaveAttribute(
          'aria-current',
          'page'
       );
-      const personal = canvas.getByRole('link', { name: /^Agent/ }).closest('ul');
+      const personal = canvas.getByRole('link', { name: /^Reviews/ }).closest('ul');
       expect(personal?.querySelector('a[href="/elian/reviews"]')).not.toBeNull();
    },
 };

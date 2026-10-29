@@ -35,9 +35,8 @@ export const OnInbox: Story = {
          'page'
       );
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Agent, 2 unread')).toBeInTheDocument();
-      const links = canvas.getAllByRole('link').map((link) => link.getAttribute('href'));
-      expect(links.indexOf('/elian/reviews')).toBeLessThan(links.indexOf('/elian/chat'));
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
+      await expect(canvas.getByRole('link', { name: /^Reviews/ })).toBeVisible();
    },
 };
 
@@ -49,7 +48,7 @@ export const ServerCountOnly: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('99+')).toBeInTheDocument();
-      await expect(canvas.queryByText(/^Agent, /)).toBeNull();
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
    },
 };
 

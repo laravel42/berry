@@ -24,7 +24,6 @@ import {
    FolderKanban,
    GripVertical,
    LucideIcon,
-   MessageSquare,
    Puzzle,
    Sparkles,
    Target,
@@ -42,7 +41,6 @@ interface ItemConfig {
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
-   { key: 'chat', label: 'Agent', icon: MessageSquare },
    { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
 ];

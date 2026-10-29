@@ -121,7 +121,7 @@ const WORK: ShellRouteDef[] = [
 // and label their tabs, and are reached from the command palette.
 const OFF_RAIL: ShellRouteDef[] = [
    {
-      // Waiting on you, so Personal renders this above Agent rather than in Work.
+      // Waiting on you, so Personal renders this rather than Work.
       id: 'reviews',
       label: 'reviews',
       labelKey: 'reviews',

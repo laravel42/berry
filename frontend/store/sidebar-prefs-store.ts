@@ -7,7 +7,6 @@ export type SidebarBadgeStyle = 'count' | 'dot';
 export type SidebarItemKey =
    | 'inbox'
    | 'reviews'
-   | 'chat'
    | 'meetings'
    | 'my-issues'
    | 'goals'
@@ -58,7 +57,6 @@ export function manageOpenByDefault(role: string | undefined): boolean {
 const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'inbox': 'always',
    'reviews': 'always',
-   'chat': 'always',
    'meetings': 'always',
    'my-issues': 'always',
    'goals': 'always',
@@ -81,7 +79,7 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    // groups the tasks one plan compiled inside a project. Plans has no rail
    // entry; a stored `plans` key is dropped by resolveOrder. Approvals and
    // proposals land in Inbox now, not as their own Work rail entries.
-   workspace: ['projects', 'goals', 'my-issues', 'chat'],
+   workspace: ['projects', 'goals', 'my-issues'],
    automate: [],
    // No runtimes, usage, or logs entry: those live in Settings. A stored
    // `agent`, `usage`, `logs`, or `dashboard` key is dropped by resolveOrder,

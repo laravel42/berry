@@ -7,7 +7,6 @@ import { useTranslations } from 'next-intl';
 
 import { useNotificationsStore } from '@/store/notifications-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
-import { useShellStore } from '@/store/shell-store';
 import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { ShellBadge, badgeText } from './shell-badge';
 import { ShellIcon, shellNavRow } from './shell-icon';
@@ -17,7 +16,6 @@ import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
 const TASKS_ICON =
    '<path d="M5 7l2 2 4-4" /><path d="M5 16l2 2 4-4" /><path d="M13 7h6M13 17h6" />';
-const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
 const REVIEWS_ICON =
    '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />';
 
@@ -26,11 +24,10 @@ const REVIEWS_ICON =
  * about the workspace.
  *
  * Inbox is the notifications page. Unread counts on the rail row are how you
- * know something arrived without a floating drawer. Inbox and chat follow the
+ * know something arrived without a floating drawer. Inbox follows the
  * workspace event stream, so a task assigned to you while you are reading
- * something else shows up without a refresh. Chat's figure is kept by
- * `useChatUnreadSync` in the shell, which the floating chat button reads too.
- * Reviews sit above Agent: they are waiting on you, not on the workspace.
+ * something else shows up without a refresh. Reviews sit here: they are
+ * waiting on you, not on the workspace. Agent chat is not on the rail.
  */
 export function ShellPersonal({ orgId }: { orgId: string }) {
    const t = useTranslations('navigation.sidebar');
@@ -43,7 +40,6 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const pathname = usePathname() ?? '';
    const notifications = useNotificationsStore((state) => state.notifications);
    const serverUnreadCount = useNotificationsStore((state) => state.serverUnreadCount);
-   const chatUnread = useShellStore((state) => state.chatUnread);
    const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
 
    // The loaded list is what Inbox shows, so it is what the badge counts;
@@ -56,7 +52,6 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const search = useSearchParams()?.toString() ?? '';
    const onInbox = pathname.startsWith(`/${orgId}/inbox`);
    const onIssues = pathname.startsWith(`/${orgId}/tasks`) && isMyTasks(pathname, search);
-   const onChat = pathname.startsWith(`/${orgId}/chat`);
    const onReviews = isReviews(pathname, orgId);
 
    return (
@@ -104,21 +99,6 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   <ShellBadge
                      count={openReviews}
                      label={t('reviewsWaiting', { count: openReviews })}
-                  />
-               </Link>
-            </li>
-            <li>
-               <Link
-                  data-shell-nav
-                  href={`/${orgId}/chat`}
-                  aria-current={onChat ? 'page' : undefined}
-                  className={shellNavRow(onChat)}
-               >
-                  <ShellIcon path={CHAT_ICON} />
-                  {t('chat')}
-                  <ShellBadge
-                     count={chatUnread}
-                     label={t('chatUnread', { count: badgeText(chatUnread) })}
                   />
                </Link>
             </li>

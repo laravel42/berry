@@ -324,7 +324,7 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 - A finished agent run posts one comment, its report. The handoff stays a file on the task and is omitted from that comment's file list. `post_comment` on the task being worked is refused, so the run cannot add a second comment.
 - The file preview header has a Download button beside Document and Source. It saves the file the agent produced.
 - A task comment stays open through a short report. "Read the rest" appears once the comment is longer than that.
-- Reviews sits in Personal, above Agent, instead of in Work.
+- Reviews sits in Personal instead of in Work. Agent is not on the rail.
 - Agent chat can see the workspace. The chat envelope carries an open-work
   snapshot (tasks, plans, goals, projects) so a summary does not spend the run
   listing, and a chat turn is not told to call `list_run_tools` first.
