@@ -73,7 +73,7 @@ export function ProjectDateSelector({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+                  className="w-full min-w-0 justify-start gap-2 px-0"
                   aria-expanded={open}
                   aria-label={ariaLabel}
                >

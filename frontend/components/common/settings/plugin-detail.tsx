@@ -127,6 +127,7 @@ export default function PluginDetail() {
                   description="A disabled plugin receives no calls and its tokens stop working."
                   trailing={
                      <Switch
+                        variant="settings"
                         checked={current.enabled}
                         disabled={plugin.saving}
                         onCheckedChange={(v) => void toggle(v)}
@@ -146,8 +147,7 @@ export default function PluginDetail() {
                title="Settings"
                action={
                   <Button
-                     size="xs"
-                     variant="ghost"
+                     variant="quiet"
                      disabled={plugin.saving}
                      onClick={() => void saveConfig()}
                   >
@@ -178,6 +178,7 @@ export default function PluginDetail() {
                         trailing={
                            <span className="flex items-center gap-2">
                               <Input
+                                 variant="settings"
                                  type="password"
                                  autoComplete="off"
                                  className="h-8 w-44"
@@ -190,17 +191,12 @@ export default function PluginDetail() {
                                     }))
                                  }
                               />
-                              <Button
-                                 size="xs"
-                                 variant="ghost"
-                                 onClick={() => void saveSecret(secret.name)}
-                              >
+                              <Button variant="quiet" onClick={() => void saveSecret(secret.name)}>
                                  Save
                               </Button>
                               {secret.set ? (
                                  <Button
-                                    size="xs"
-                                    variant="ghost"
+                                    variant="quiet"
                                     onClick={() => void clearSecret(secret.name)}
                                  >
                                     Clear
@@ -227,6 +223,7 @@ export default function PluginDetail() {
                         description={tool.description || undefined}
                         trailing={
                            <Switch
+                              variant="settings"
                               checked={tool.approved}
                               disabled={plugin.saving}
                               onCheckedChange={(v) => void approve(tool.name, v)}
@@ -283,7 +280,7 @@ export default function PluginDetail() {
             title="Recent calls"
             description={invocations.error ?? undefined}
             action={
-               <Button size="xs" variant="ghost" onClick={() => invocations.reload()}>
+               <Button variant="quiet" onClick={() => invocations.reload()}>
                   Refresh
                </Button>
             }
@@ -338,8 +335,7 @@ export default function PluginDetail() {
                   description="Deletes its settings, secrets, storage and history."
                   trailing={
                      <Button
-                        size="xs"
-                        variant="ghost"
+                        variant="quiet"
                         className="text-status-danger hover:text-status-danger"
                         onClick={() => setConfirmingUninstall(true)}
                      >

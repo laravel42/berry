@@ -11,7 +11,6 @@ import {
    EmptyStateText,
 } from '@/components/common/empty-state';
 import { readableModelName } from '@/components/common/agents/model-name';
-import { PageStatement } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import {
    Select,
@@ -108,7 +107,6 @@ export default function PromptLogs() {
 
    return (
       <div className="flex min-h-0 flex-1 flex-col">
-         <PageStatement label={t('title')} />
          <div className="flex h-[44px] flex-wrap items-center gap-2 border-b px-5">
             <Select
                value={filter.kind ?? ANY}
@@ -183,7 +181,7 @@ export default function PromptLogs() {
                </SelectContent>
             </Select>
             <Button
-               variant="ghost"
+               variant="quiet"
                size="sm"
                className="ml-auto"
                onClick={() => setTick((value) => value + 1)}
@@ -288,7 +286,7 @@ export default function PromptLogs() {
             )}
             {cursor && (
                <div className="flex justify-center py-4">
-                  <Button variant="outline" size="sm" onClick={loadMore} disabled={loading}>
+                  <Button variant="soft" size="sm" onClick={loadMore} disabled={loading}>
                      {t('loadMore')}
                   </Button>
                </div>

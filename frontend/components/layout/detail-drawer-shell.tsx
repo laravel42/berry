@@ -33,7 +33,7 @@ interface DetailDrawerShellProps {
  *
  * Width is capped globally by `--drawer-max-width` and additionally clamped to
  * the space left beside the rail, so the drawer never covers navigation on
- * a narrow viewport. The rail's width comes from the shell: 218px as a
+ * a narrow viewport. The rail's width comes from the shell: 232px as a
  * column, 36px collapsed, and nothing below `lg`, where it is an overlay
  * and the drawer may take the whole screen. The cap is a token rather than a
  * prop default so changing it is one edit rather than an audit of every

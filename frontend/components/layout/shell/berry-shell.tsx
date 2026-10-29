@@ -161,7 +161,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                // leaving a strip for the floating menu button: floated over
                // the page it sat on whatever was last on screen — a list's
                // final row, the comment box's attach button.
-               className="relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-12 lg:pb-0"
+               className={`relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-12 lg:pb-0 ${settingsMode ? 'lg:py-2 lg:pr-2' : ''}`}
             >
                {/* Radius + overflow live on an inner surface so the floating
                    chrome in the corner is not clipped by the curve.
@@ -169,7 +169,13 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                    default min-height:auto grows with page content, the
                    rounded box becomes as tall as the list, and the bottom
                    radius (and scroll) disappear past the frame. */}
-               <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[10px] lg:border-l lg:border-[var(--shell-line)]">
+               <div
+                  className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
+                     settingsMode
+                        ? 'rounded-[12px] lg:border lg:border-[var(--shell-line)]'
+                        : 'rounded-[10px] lg:border-l lg:border-[var(--shell-line)]'
+                  }`}
+               >
                   <NavigationProgress />
                   <main className="min-h-0 flex-1 overflow-hidden bg-[var(--shell-canvas)]">
                      {children}

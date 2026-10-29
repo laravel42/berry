@@ -120,3 +120,99 @@ export const Failed: Story = {
       await expect(await canvas.findByText('Only an owner can see runtimes.')).toBeVisible();
    },
 };
+
+const catalogRuntime = (
+   id: string,
+   name: string,
+   description: string,
+   state: 'connected' | 'available' | 'missing',
+   billing: 'subscription' | 'api_billing' = 'subscription'
+) => ({
+   id,
+   name,
+   publisher: name.split(' ')[0],
+   product: name,
+   description,
+   executionMode: 'agent_process',
+   provider: id,
+   billing,
+   billingDetail: '',
+   subscriptionAccess: 'supported',
+   connectionMethods: [],
+   platforms: ['macos'],
+   localProcess: billing === 'subscription',
+   installation: '',
+   defaultModel: null,
+   capabilities: {
+      modelDiscovery: 'supported',
+      streaming: 'supported',
+      tools: 'supported',
+      sessions: 'supported',
+      cancellation: 'supported',
+      usage: 'supported',
+   },
+   availability: 'available',
+   installed: state !== 'missing',
+   unavailableReason: null,
+   officialSources: [`https://example.com/${id}`],
+   connection:
+      state === 'connected'
+         ? {
+              id: `conn-${id}`,
+              runtimeId: id,
+              status: 'connected',
+              authMethod: 'cli',
+              accountId: null,
+              accountName: null,
+              metadata: {},
+              connectedAt: '2026-10-01T10:00:00Z',
+              disconnectedAt: null,
+              lastCheckedAt: null,
+              lastError: null,
+           }
+         : null,
+});
+
+/** The catalog in each of its three states: connected, available, not installed. */
+export const Catalog: Story = {
+   beforeEach: ({ msw }) => {
+      msw.use(
+         http.get('*/api/v1/runtimes/catalog', () =>
+            HttpResponse.json({
+               nodes: [
+                  catalogRuntime(
+                     'codex',
+                     'Codex CLI',
+                     'OpenAI’s coding agent, already signed in with ChatGPT on this workstation.',
+                     'connected'
+                  ),
+                  catalogRuntime(
+                     'openai-api',
+                     'OpenAI API',
+                     'Paste an API token. Berry seals it and lists the models it can call.',
+                     'connected',
+                     'api_billing'
+                  ),
+                  catalogRuntime(
+                     'claude-code',
+                     'Claude CLI',
+                     'Anthropic’s coding agent, already signed in on this workstation.',
+                     'available'
+                  ),
+                  catalogRuntime(
+                     'qoder',
+                     'Qoder CLI',
+                     'Qoder’s coding agent, driven over ACP.',
+                     'missing'
+                  ),
+               ],
+               preference: { runtimeId: null, modelId: null },
+            })
+         )
+      );
+   },
+   play: async ({ canvas }) => {
+      await expect(await canvas.findByText('Codex CLI')).toBeVisible();
+      await expect(canvas.getByRole('link', { name: 'Install guide' })).toBeVisible();
+   },
+};

@@ -106,6 +106,7 @@ export default function OrganizationSettings() {
                         description={t('settings.discoveryHint')}
                         trailing={
                            <Switch
+                              variant="settings"
                               checked={value.discoveryEnabled}
                               disabled={org.saving || !canEdit}
                               onCheckedChange={toggleDiscovery}
@@ -147,8 +148,7 @@ export default function OrganizationSettings() {
                                           {t('settings.contractInvalid')}
                                        </span>
                                        <Button
-                                          size="xs"
-                                          variant="outline"
+                                          variant="soft"
                                           disabled={!canEdit || resettingKey === role.roleKey}
                                           title={canEdit ? undefined : t('settings.adminOnly')}
                                           onClick={() => void reset(role.roleKey)}
@@ -177,8 +177,7 @@ export default function OrganizationSettings() {
                               description={specialist.mission}
                               trailing={
                                  <Button
-                                    size="xs"
-                                    variant="outline"
+                                    variant="soft"
                                     disabled={!canEdit || addingKey !== null}
                                     title={canEdit ? undefined : t('settings.adminOnly')}
                                     onClick={() => void add(specialist.roleKey, specialist.name)}

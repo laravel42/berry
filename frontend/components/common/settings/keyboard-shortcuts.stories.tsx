@@ -58,7 +58,7 @@ export const RestoreAllConfirm: Story = {
 
 export const NoMatches: Story = {
    play: async ({ canvas, userEvent }) => {
-      await userEvent.type(canvas.getByRole('textbox', { name: 'Search shortcuts' }), 'teleport');
+      await userEvent.type(canvas.getByRole('searchbox', { name: 'Search shortcuts' }), 'teleport');
       await expect(canvas.getByText('No shortcut matches that.')).toBeVisible();
    },
 };

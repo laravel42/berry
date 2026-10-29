@@ -136,6 +136,7 @@ export function GitLabIntegrationSettings({ heading = true }: { heading?: boolea
                description="When off, Berry ignores GitLab events here, hides linked merge requests and adds no commit trailers. Nothing is deleted."
                trailing={
                   <Switch
+                     variant="settings"
                      checked={settings.enabled}
                      disabled={locked}
                      aria-label="Use GitLab in this workspace"
@@ -151,6 +152,7 @@ export function GitLabIntegrationSettings({ heading = true }: { heading?: boolea
                   muted={!settings.enabled}
                   trailing={
                      <Switch
+                        variant="settings"
                         checked={settings[feature.key]}
                         disabled={locked || !settings.enabled}
                         aria-label={feature.title}

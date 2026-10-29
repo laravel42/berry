@@ -12,13 +12,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import {
    archiveProperty,
@@ -37,6 +30,15 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { DEFAULT_LABEL_COLOR, OPTION_PALETTE } from './label-palette';
+import {
+   SelectMenu,
+   SettingsCard,
+   SettingsChip,
+   SettingsEmpty,
+   SettingsIconButton,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -138,115 +140,122 @@ export default function IssuePropertiesSettings() {
    };
 
    const line = (property: PropertyDefinition) => (
-      <li
+      <div
          key={property.id}
-         className="flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2"
+         className="flex min-h-[42px] min-w-0 items-center gap-3 py-1.5 pr-2 pl-4 transition-colors hover:bg-settings-row-hover"
       >
-         <span className="min-w-0 truncate">
-            {property.name}{' '}
-            <span className="text-muted-foreground">· {PROPERTY_KIND_LABELS[property.kind]}</span>
+         <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate font-medium">{property.name}</span>
             {property.options.length > 0 ? (
-               <span className="text-muted-foreground">
-                  {' '}
-                  · {property.options.map((option) => option.name).join(', ')}
+               <span data-settings-type="caption" className="truncate text-subtle-foreground">
+                  {property.options.map((option) => option.name).join(', ')}
                </span>
             ) : null}
          </span>
+         <SettingsChip>{PROPERTY_KIND_LABELS[property.kind]}</SettingsChip>
          {property.archivedAt === null ? (
-            <Button
-               variant="ghost"
-               size="xs"
-               className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
-               aria-label={t('remove')}
+            <SettingsIconButton
+               label={t('remove')}
+               destructive
                onClick={() => setRemoving(property)}
             >
-               <Trash2 className="size-3.5" aria-hidden />
-            </Button>
+               <Trash2 />
+            </SettingsIconButton>
          ) : (
-            <Button variant="ghost" size="sm" onClick={() => void restore(property)}>
+            <Button variant="quiet" onClick={() => void restore(property)}>
                {t('restore')}
             </Button>
          )}
-      </li>
+      </div>
    );
 
    return (
-      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-8">
-         <div>
-            <h1>{t('title')}</h1>
-            <p className="text-muted-foreground">{t('lead')}</p>
-            <p className={full ? 'mt-1 text-status-danger' : 'mt-1 text-muted-foreground'}>
-               {t('counter', { used: active.length, max: MAX_ACTIVE_PROPERTIES })}
-            </p>
-         </div>
+      <SettingsShell title={t('title')} description={t('lead')}>
+         <SettingsSection title={t('newTitle')} description={t('kindIsFixed')}>
+            <SettingsCard>
+               <div className="flex flex-col gap-2 px-4 py-3.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                     <Input
+                        variant="settings"
+                        placeholder={t('namePlaceholder')}
+                        aria-label={t('namePlaceholder')}
+                        value={name}
+                        disabled={full}
+                        className="min-w-[180px] flex-1"
+                        onChange={(event) => setName(event.target.value)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Enter') void create();
+                        }}
+                     />
+                     <SelectMenu
+                        className="w-[140px]"
+                        aria-label={t('kindLabel')}
+                        options={[...PROPERTY_KINDS]}
+                        labels={PROPERTY_KIND_LABELS}
+                        value={kind}
+                        disabled={full}
+                        onChange={(value) => setKind(value as PropertyKind)}
+                     />
+                     <Button
+                        onClick={() => void create()}
+                        disabled={creating || full || !name.trim() || (isSelect && !options.trim())}
+                     >
+                        {t('add')}
+                     </Button>
+                  </div>
+                  {isSelect ? (
+                     <Input
+                        variant="settings"
+                        placeholder={t('optionsPlaceholder')}
+                        aria-label={t('optionsPlaceholder')}
+                        value={options}
+                        disabled={full}
+                        onChange={(event) => setOptions(event.target.value)}
+                     />
+                  ) : null}
+                  {full ? (
+                     <p data-settings-type="caption" className="text-status-danger">
+                        {t('atCapacity')}
+                     </p>
+                  ) : null}
+               </div>
+            </SettingsCard>
+         </SettingsSection>
 
-         <div className="flex flex-col gap-2 rounded-md border p-3">
-            <div className="flex gap-2">
-               <Input
-                  placeholder={t('namePlaceholder')}
-                  value={name}
-                  disabled={full}
-                  onChange={(event) => setName(event.target.value)}
-               />
-               <Select value={kind} onValueChange={(value) => setKind(value as PropertyKind)}>
-                  <SelectTrigger className="w-40" disabled={full}>
-                     <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                     {PROPERTY_KINDS.map((entry) => (
-                        <SelectItem key={entry} value={entry}>
-                           {PROPERTY_KIND_LABELS[entry]}
-                        </SelectItem>
-                     ))}
-                  </SelectContent>
-               </Select>
-               <Button
-                  onClick={() => void create()}
-                  disabled={creating || full || !name.trim() || (isSelect && !options.trim())}
-               >
-                  {t('add')}
-               </Button>
-            </div>
-            {isSelect ? (
-               <Input
-                  placeholder={t('optionsPlaceholder')}
-                  value={options}
-                  disabled={full}
-                  onChange={(event) => setOptions(event.target.value)}
-               />
-            ) : null}
-            {/* The kind cannot change later, so it is worth saying here
-                rather than after somebody has tried. */}
-            <p className="text-muted-foreground">{t('kindIsFixed')}</p>
-            {full ? <p className="text-status-danger">{t('atCapacity')}</p> : null}
-         </div>
-
-         {properties.error ? (
-            <p role="alert" className="text-muted-foreground">
-               {properties.error}
-            </p>
-         ) : null}
-
-         {active.length > 0 ? (
-            <ul className="grid grid-cols-2 gap-2">{active.map(line)}</ul>
-         ) : !properties.loading ? (
-            <p className="text-muted-foreground">{t('empty')}</p>
-         ) : null}
-
-         {archived.length > 0 ? (
-            <div className="flex flex-col gap-3">
-               <label className="flex items-center gap-2">
-                  <Switch checked={showArchived} onCheckedChange={setShowArchived} />
+         <SettingsSection
+            title={t('fieldsTitle')}
+            description={
+               <span className={full ? 'text-status-danger' : undefined}>
+                  {t('counter', { used: active.length, max: MAX_ACTIVE_PROPERTIES })}
+               </span>
+            }
+         >
+            <SettingsCard>
+               {properties.error ? <SettingsEmpty title={properties.error} /> : null}
+               {active.map(line)}
+               {active.length === 0 && !properties.loading && !properties.error ? (
+                  <SettingsEmpty title={t('empty')} />
+               ) : null}
+            </SettingsCard>
+            {archived.length > 0 ? (
+               <label className="flex w-fit cursor-pointer items-center gap-2 pt-1">
+                  <Switch
+                     variant="settings"
+                     checked={showArchived}
+                     onCheckedChange={setShowArchived}
+                  />
                   <span>{t('showArchived', { count: archived.length })}</span>
                </label>
-               {showArchived ? (
-                  <>
-                     <p className="text-muted-foreground">{t('archivedLead')}</p>
-                     <ul className="grid grid-cols-2 gap-2">{archived.map(line)}</ul>
-                  </>
-               ) : null}
-            </div>
-         ) : null}
+            ) : null}
+            {archived.length > 0 && showArchived ? (
+               <>
+                  <p data-settings-type="caption" className="text-subtle-foreground">
+                     {t('archivedLead')}
+                  </p>
+                  <SettingsCard>{archived.map(line)}</SettingsCard>
+               </>
+            ) : null}
+         </SettingsSection>
 
          <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
             <AlertDialogContent>
@@ -264,6 +273,6 @@ export default function IssuePropertiesSettings() {
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
-      </div>
+      </SettingsShell>
    );
 }

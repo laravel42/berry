@@ -292,12 +292,24 @@ export function formatCombo(combo: string, apple = isApplePlatform()): string {
       .join(SEQUENCE_SEPARATOR);
 }
 
-function formatChord(combo: string, apple: boolean): string {
-   const parts = combo.split('+').map((part) => {
+/**
+ * The same as `formatCombo`, one key per entry, for drawing each key as its
+ * own cap: `mod+b` is `[['⌘', 'B']]`, the sequence `g i` is `[['G'], ['I']]`.
+ */
+export function formatComboKeys(combo: string, apple = isApplePlatform()): string[][] {
+   return comboChords(combo).map((chord) => chordKeys(chord, apple));
+}
+
+function chordKeys(combo: string, apple: boolean): string[] {
+   return combo.split('+').map((part) => {
       const mapped = apple ? APPLE_GLYPHS[part] : OTHER_NAMES[part];
       if (mapped) return mapped;
       return part.length === 1 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1);
    });
+}
+
+function formatChord(combo: string, apple: boolean): string {
+   const parts = chordKeys(combo, apple);
    return apple ? parts.join('') : parts.join('+');
 }
 

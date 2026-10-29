@@ -219,6 +219,7 @@ export function GitHubImportPicker({
                <div className="relative min-w-[12rem] flex-1">
                   <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                     variant="settings"
                      placeholder="Search every account"
                      aria-label="Search repositories"
                      value={query}
@@ -274,6 +275,7 @@ export function GitHubImportPicker({
                                        )}
                                     >
                                        <Checkbox
+                                          variant="settings"
                                           id={id}
                                           className="mt-0.5"
                                           disabled={reason !== null}
@@ -322,12 +324,7 @@ export function GitHubImportPicker({
                )}
                {cursor && !loading && !error && (
                   <div className="border-t border-border/60 p-2 text-center">
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={loadingMore}
-                        onClick={() => void loadMore()}
-                     >
+                     <Button variant="soft" disabled={loadingMore} onClick={() => void loadMore()}>
                         {loadingMore
                            ? 'Loading…'
                            : `Load more (${total - repositories.length} left)`}
@@ -339,7 +336,7 @@ export function GitHubImportPicker({
             <DialogFooter className="items-center gap-2 sm:justify-between">
                <span className="text-muted-foreground">{selected.size} selected</span>
                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => onOpenChange(false)}>
+                  <Button variant="soft" onClick={() => onOpenChange(false)}>
                      Cancel
                   </Button>
                   <Button

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -19,7 +19,7 @@ import { isNavItemActive } from '@/lib/nav-active';
 /**
  * The settings header, and the only settings navigation on a narrow screen.
  *
- * The rail carries the grouped list, but it is a fixed 218px column: below the
+ * The rail carries the grouped list, but it is a fixed 232px column: below the
  * shell's breakpoint it is either crushed or in the way, and settings had no
  * other way to move between pages. This dropdown is that way. It shows only
  * where the rail does not (`lg:hidden`), so the two are never both on screen
@@ -39,8 +39,24 @@ export default function HeaderNav() {
       .find((item) => isNavItemActive(pathname, `/${orgId}${item.url}`));
 
    return (
-      <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
-         <h1 className="min-w-0 truncate">{t('title')}</h1>
+      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-5 py-1.5">
+         {/* Breadcrumb: "Settings › Page". The h1 stays "Settings"; the page
+             name is the section below it. */}
+         <div className="flex min-w-0 items-center gap-2">
+            <h1 className="m-0 shrink-0 font-normal text-subtle-foreground">{t('title')}</h1>
+            {current ? (
+               <>
+                  <ChevronRight
+                     className="size-2.5 shrink-0 text-settings-field-focus"
+                     strokeWidth={2.5}
+                     aria-hidden
+                  />
+                  <span className="min-w-0 truncate font-semibold">
+                     {admin(`nav.${current.labelKey}`)}
+                  </span>
+               </>
+            ) : null}
+         </div>
 
          <DropdownMenu>
             <DropdownMenuTrigger

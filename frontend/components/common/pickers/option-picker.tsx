@@ -171,7 +171,7 @@ export function PickerRowButton({ className, ...props }: PickerButtonProps) {
          type="button"
          size="sm"
          variant="ghost"
-         className={cn('w-full min-w-0 justify-start gap-2 px-1.5', className)}
+         className={cn('w-full min-w-0 justify-start gap-2 px-0', className)}
          {...props}
       />
    );
