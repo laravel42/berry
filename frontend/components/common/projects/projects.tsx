@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
+import { Button, trackButtonPressedClass } from '@/components/ui/button';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
@@ -356,13 +356,11 @@ export default function Projects() {
                <ListFilterTrigger filter={filter} iconOnly />
                <Button
                   size="xs"
-                  variant="outline"
+                  variant="track"
                   aria-label={lists('projects.insights')}
                   title={lists('projects.insights')}
-                  className={cn(
-                     'border-muted-foreground/15 px-2',
-                     openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
-                  )}
+                  aria-pressed={openPanel === 'insights'}
+                  className={cn(openPanel === 'insights' && trackButtonPressedClass)}
                   onClick={() => togglePanel('insights')}
                >
                   <BarChart3 className="size-4" aria-hidden="true" />

@@ -129,9 +129,9 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               className="relative border-muted-foreground/15"
+               className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
                size="xs"
-               variant="outline"
+               variant={iconOnly ? 'track' : 'outline'}
                aria-label={iconOnly ? t('label') : undefined}
                title={iconOnly ? t('label') : undefined}
             >

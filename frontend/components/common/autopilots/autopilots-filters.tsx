@@ -160,7 +160,7 @@ export default function AutopilotsFilters({
             <ListFilterTrigger filter={filter} />
             <Popover>
                <PopoverTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
+                  <Button size="xs" variant="track">
                      <Columns3 className="size-4" />
                      {t('filters.columns')}
                   </Button>

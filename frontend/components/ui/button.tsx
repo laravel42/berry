@@ -25,6 +25,9 @@ const buttonRecipe = cva(
                'bg-settings-control text-status-danger hover:bg-settings-control-hover disabled:opacity-100 disabled:text-subtle-foreground',
             /** Settings ghost: muted ink, fills on hover. */
             'quiet': 'text-muted-foreground hover:bg-settings-control hover:text-foreground',
+            /** Filled track, same as the shell "Back to app" control. */
+            'track':
+               '!h-[30px] !rounded-[7px] border-0 bg-segment-track px-2 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] data-[state=open]:!bg-[var(--brand-hairline)] data-[state=open]:!text-[var(--shell-text)]',
          },
          size: {
             default: 'h-[30px] rounded-[7px] px-3 has-[>svg]:px-2.5',
@@ -84,5 +87,9 @@ function Button({
       />
    );
 }
+
+/** Pressed fill for `variant="track"`. */
+export const trackButtonPressedClass =
+   '!bg-[var(--brand-hairline)] !text-[var(--shell-text)] hover:!bg-[var(--brand-hairline)] hover:!text-[var(--shell-text)]';
 
 export { Button, buttonVariants };

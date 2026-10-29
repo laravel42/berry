@@ -106,8 +106,8 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
          <PopoverTrigger asChild>
             <Button
                size="xs"
-               variant="outline"
-               className="relative border-muted-foreground/15"
+               variant={iconOnly ? 'track' : 'outline'}
+               className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
                aria-label={iconOnly ? 'Display' : undefined}
                title={iconOnly ? 'Display' : undefined}
             >

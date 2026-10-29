@@ -5,7 +5,7 @@ import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trig
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
-import { Button } from '@/components/ui/button';
+import { Button, trackButtonPressedClass } from '@/components/ui/button';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { canEditProduct } from '@/lib/workspace-role';
 import { cn } from '@/lib/utils';
@@ -87,15 +87,11 @@ export default function Header() {
                <IssueFilterBarActions />
                <Button
                   size="xs"
-                  variant="outline"
+                  variant="track"
                   aria-label={t('insights')}
                   title={t('insights')}
-                  className={cn(
-                     // Below `lg` the panels these open cover the list rather
-                     // than sit beside it; the same button closes them.
-                     'border-muted-foreground/15 px-2',
-                     openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
-                  )}
+                  aria-pressed={openPanel === 'insights'}
+                  className={cn(openPanel === 'insights' && trackButtonPressedClass)}
                   onClick={() => togglePanel('insights')}
                >
                   <BarChart3 className="size-4" aria-hidden="true" />
@@ -103,13 +99,11 @@ export default function Header() {
                <DisplayOptions iconOnly />
                <Button
                   size="xs"
-                  variant="outline"
+                  variant="track"
                   aria-label={t('breakdown')}
                   title={t('breakdown')}
-                  className={cn(
-                     'border-muted-foreground/15 px-2',
-                     openPanel === 'breakdown' && 'bg-secondary hover:bg-secondary/80'
-                  )}
+                  aria-pressed={openPanel === 'breakdown'}
+                  className={cn(openPanel === 'breakdown' && trackButtonPressedClass)}
                   onClick={() => togglePanel('breakdown')}
                >
                   <PanelRight className="size-4" aria-hidden="true" />

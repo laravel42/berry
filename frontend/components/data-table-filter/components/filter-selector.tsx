@@ -90,11 +90,7 @@ function __FilterSelector<TData>({
       <PopoverTrigger asChild>
         <Button
           size="xs"
-          variant="outline"
-          className={cn(
-            'border-muted-foreground/15 shadow-none',
-            iconOnly && 'px-2',
-          )}
+          variant="track"
           aria-label={t('filter', locale)}
           title={iconOnly ? t('filter', locale) : undefined}
         >
