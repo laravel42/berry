@@ -8,32 +8,40 @@ import {
    deletePluginSecret,
    loadPlugin,
    loadPluginInvocations,
-   loadPluginStorage,
+   loadPluginTools,
    setPluginSecret,
    setPluginTool,
+   toolSummary,
    uninstallPlugin,
    updatePlugin,
-   type PluginConfigValue,
    type PluginInstallation,
    type PluginInvocation,
-   type PluginStoredValue,
 } from '@/lib/plugins';
 import { useSessionStore } from '@/store/session-store';
 import { ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { PluginConfigForm } from './plugin-config-form';
 import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 type Detail = PluginInstallation & { files: { path: string; size: number }[] };
 
 /** One installed plugin: everything an admin can change about it, and what it has been doing. */
-export default function PluginDetail() {
+export default function PluginDetail({
+   pluginId: pluginIdProp,
+   embedded = false,
+   onUninstalled,
+}: {
+   pluginId?: string;
+   /** Render inside a drawer. The drawer supplies the title. */
+   embedded?: boolean;
+   onUninstalled?: () => void;
+} = {}) {
    const router = useRouter();
-   const { orgId, pluginId } = useParams<{ orgId: string; pluginId: string }>();
+   const { orgId, pluginId: pluginIdParam } = useParams<{ orgId: string; pluginId?: string }>();
+   const pluginId = pluginIdProp ?? pluginIdParam ?? '';
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const need = <T,>(work: () => Promise<T>) =>
       workspaceId ? work() : Promise.reject(new Error('No workspace is selected.'));
@@ -46,20 +54,24 @@ export default function PluginDetail() {
       () => need(() => loadPluginInvocations(workspaceId, pluginId)),
       [workspaceId, pluginId]
    );
-   const storage = useSettingsResource<PluginStoredValue[]>(
-      () => need(() => loadPluginStorage(workspaceId, pluginId)),
-      [workspaceId, pluginId]
+   const catalogTools = useSettingsResource<{ name: string; description: string }[]>(
+      () =>
+         workspaceId &&
+         plugin.value?.key &&
+         (plugin.value.mcpOffer === 'all' || plugin.value.mcpTools.length === 0)
+            ? loadPluginTools(workspaceId, plugin.value.key)
+            : Promise.resolve([]),
+      [workspaceId, plugin.value?.key, plugin.value?.mcpOffer, plugin.value?.mcpTools.length]
    );
 
-   const [config, setConfig] = useState<Record<string, PluginConfigValue>>({});
    const [secretDrafts, setSecretDrafts] = useState<Record<string, string>>({});
    const [confirmingUninstall, setConfirmingUninstall] = useState(false);
-   useEffect(() => {
-      if (plugin.value) setConfig(plugin.value.config);
-   }, [plugin.value]);
 
    const current = plugin.value;
    if (!current) {
+      if (embedded) {
+         return <p className="px-6 py-6 text-muted-foreground">{plugin.error ?? 'Loading…'}</p>;
+      }
       return (
          <SettingsShell title="Plugin" description={plugin.error ?? 'Loading…'}>
             {null}
@@ -72,11 +84,6 @@ export default function PluginDetail() {
    const toggle = (enabled: boolean) =>
       plugin.mutate({ ...current, enabled }, async () =>
          keep(await updatePlugin(workspaceId, pluginId, { enabled }))
-      );
-
-   const saveConfig = () =>
-      plugin.mutate({ ...current, config }, async () =>
-         keep(await updatePlugin(workspaceId, pluginId, { config }))
       );
 
    const saveSecret = async (name: string) => {
@@ -106,6 +113,10 @@ export default function PluginDetail() {
    const uninstall = async () => {
       try {
          await uninstallPlugin(workspaceId, pluginId);
+         if (onUninstalled) {
+            onUninstalled();
+            return;
+         }
          router.push(`/${orgId}/settings/plugins`);
       } catch (cause) {
          toast.error(
@@ -115,11 +126,20 @@ export default function PluginDetail() {
       }
    };
 
-   return (
-      <SettingsShell
-         title={current.name}
-         description={`${current.key} · v${current.version}${current.description ? ` · ${current.description}` : ''}`}
-      >
+   const description = `${current.key} · v${current.version}${current.description ? ` · ${current.description}` : ''}`;
+   const frame = (children: ReactNode) =>
+      embedded ? (
+         <div className="settings-surface min-h-0 flex-1 overflow-y-auto">
+            <div className="flex flex-col gap-6 px-6 py-6 pb-16">{children}</div>
+         </div>
+      ) : (
+         <SettingsShell title={current.name} description={description}>
+            {children}
+         </SettingsShell>
+      );
+
+   return frame(
+      <>
          <SettingsSection title="Status">
             <SettingsCard>
                <SettingsRow
@@ -134,35 +154,8 @@ export default function PluginDetail() {
                      />
                   }
                />
-               <SettingsRow title="Access" description={current.scopes.join(', ') || 'None'} />
-               <SettingsRow
-                  title="Installed from"
-                  description={current.source === 'url' ? current.sourceUrl : 'Uploaded package'}
-               />
             </SettingsCard>
          </SettingsSection>
-
-         {current.configFields.length > 0 ? (
-            <SettingsSection
-               title="Settings"
-               action={
-                  <Button
-                     variant="quiet"
-                     disabled={plugin.saving}
-                     onClick={() => void saveConfig()}
-                  >
-                     Save
-                  </Button>
-               }
-            >
-               <PluginConfigForm
-                  fields={current.configFields}
-                  value={config}
-                  onChange={setConfig}
-                  disabled={plugin.saving}
-               />
-            </SettingsSection>
-         ) : null}
 
          {current.secrets.length > 0 ? (
             <SettingsSection
@@ -173,7 +166,7 @@ export default function PluginDetail() {
                   {current.secrets.map((secret) => (
                      <SettingsRow
                         key={secret.name}
-                        title={secret.name}
+                        title={secret.title ?? secret.name}
                         description={secret.set ? 'Set' : secret.description || 'Not set'}
                         trailing={
                            <span className="flex items-center gap-2">
@@ -210,7 +203,46 @@ export default function PluginDetail() {
             </SettingsSection>
          ) : null}
 
-         {current.mcpTools.length > 0 ? (
+         {current.mcpOffer === 'all' || current.mcpTools.length === 0 ? (
+            <SettingsSection
+               title="Tools"
+               description={
+                  catalogTools.error ??
+                  'Every tool the connected MCP server provides. Agents can use all of them.'
+               }
+            >
+               <SettingsCard>
+                  <div className="show-scrollbar flex max-h-80 flex-col gap-2.5 overflow-y-auto px-4 py-3">
+                     {catalogTools.loading ? (
+                        <span data-settings-type="caption" className="text-subtle-foreground">
+                           Loading tools…
+                        </span>
+                     ) : null}
+                     {!catalogTools.loading && (catalogTools.value ?? []).length === 0 ? (
+                        <span data-settings-type="caption" className="text-subtle-foreground">
+                           This server lists no tools.
+                        </span>
+                     ) : null}
+                     {(catalogTools.value ?? []).map((tool) => {
+                        const summary = toolSummary(tool.description);
+                        return (
+                           <div key={tool.name} className="flex min-w-0 flex-col gap-0.5">
+                              <span className="font-medium text-foreground">{tool.name}</span>
+                              {summary ? (
+                                 <span
+                                    data-settings-type="caption"
+                                    className="text-pretty text-subtle-foreground"
+                                 >
+                                    {summary}
+                                 </span>
+                              ) : null}
+                           </div>
+                        );
+                     })}
+                  </div>
+               </SettingsCard>
+            </SettingsSection>
+         ) : (
             <SettingsSection
                title="Agent tools"
                description="Agents can use only the tools approved here"
@@ -220,7 +252,7 @@ export default function PluginDetail() {
                      <SettingsRow
                         key={tool.name}
                         title={tool.name}
-                        description={tool.description || undefined}
+                        description={toolSummary(tool.description) || undefined}
                         trailing={
                            <Switch
                               variant="settings"
@@ -233,7 +265,7 @@ export default function PluginDetail() {
                   ))}
                </SettingsCard>
             </SettingsSection>
-         ) : null}
+         )}
 
          {current.surfaces.length > 0 ? (
             <SettingsSection title="Pages">
@@ -309,25 +341,6 @@ export default function PluginDetail() {
             </SettingsCard>
          </SettingsSection>
 
-         <SettingsSection
-            title="Stored data"
-            description={storage.error ?? 'Keys this plugin has saved'}
-         >
-            <SettingsCard>
-               {(storage.value ?? []).length === 0 ? (
-                  <SettingsRow title={storage.loading ? 'Loading…' : 'Nothing stored'} />
-               ) : (
-                  (storage.value ?? []).map((entry) => (
-                     <SettingsRow
-                        key={entry.key}
-                        title={<code className="font-mono">{entry.key}</code>}
-                        description={JSON.stringify(entry.value).slice(0, 160)}
-                     />
-                  ))
-               )}
-            </SettingsCard>
-         </SettingsSection>
-
          <SettingsSection title="Danger zone">
             <SettingsCard>
                <SettingsRow
@@ -356,6 +369,6 @@ export default function PluginDetail() {
             destructive
             onConfirm={uninstall}
          />
-      </SettingsShell>
+      </>
    );
 }

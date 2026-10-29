@@ -10,8 +10,10 @@ const configValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 
 const configFieldSchema = z.object({
    key: z.string(),
+   name: z.string().optional(),
    label: z.string(),
-   type: z.enum(['string', 'number', 'boolean']),
+   type: z.enum(['string', 'number', 'boolean', 'array']),
+   options: z.array(z.string()).optional(),
    required: z.boolean(),
 });
 
@@ -24,10 +26,18 @@ const installationSchema = z.object({
    description: z.string(),
    source: z.enum(['url', 'upload']),
    sourceUrl: z.string().nullable(),
+   baseUrl: z.string().nullable(),
    enabled: z.boolean(),
    config: z.record(z.string(), configValueSchema),
    configFields: z.array(configFieldSchema),
-   secrets: z.array(z.object({ name: z.string(), description: z.string(), set: z.boolean() })),
+   secrets: z.array(
+      z.object({
+         name: z.string(),
+         title: z.string().optional(),
+         description: z.string(),
+         set: z.boolean(),
+      })
+   ),
    scopes: z.array(z.string()),
    hooks: z.array(
       z.object({
@@ -38,6 +48,7 @@ const installationSchema = z.object({
       })
    ),
    surfaces: z.array(z.object({ key: z.string(), title: z.string() })),
+   mcpOffer: z.enum(['declared', 'all']).default('declared'),
    mcpTools: z.array(
       z.object({ name: z.string(), description: z.string(), approved: z.boolean() })
    ),
@@ -51,13 +62,16 @@ const previewSchema = z.object({
    name: z.string(),
    version: z.string(),
    description: z.string(),
-   baseUrl: z.string(),
+   baseUrl: z.string().nullable(),
    scopes: z.array(z.string()),
    config: z.array(configFieldSchema),
-   secrets: z.array(z.object({ name: z.string(), description: z.string() })),
+   secrets: z.array(
+      z.object({ name: z.string(), title: z.string().optional(), description: z.string() })
+   ),
    events: z.array(z.string()),
    schedules: z.array(z.object({ key: z.string(), everyMinutes: z.number() })),
    surfaces: z.array(z.object({ key: z.string(), title: z.string() })),
+   mcpOffer: z.enum(['declared', 'all']).default('declared'),
    mcpTools: z.array(z.string()),
    files: z.array(z.object({ path: z.string(), size: z.number() })),
 });
@@ -91,6 +105,57 @@ function parse<T extends z.ZodTypeAny>(schema: T, json: unknown, what: string): 
    const parsed = schema.safeParse(json);
    if (!parsed.success) throw new Error(`${what} response was not recognized`);
    return parsed.data;
+}
+
+export interface CatalogPlugin {
+   preview: PluginPreview;
+   package: unknown;
+}
+
+/**
+ * A tool description a person can read.
+ *
+ * Some servers, PostHog's `exec` among them, put an agent prompt in the
+ * description ("SKILLS FIRST…"). That prompt stays with the agent. The
+ * settings list gets one plain sentence, or a short stand-in when the text
+ * is instructions rather than a summary.
+ */
+export function toolSummary(description: string): string {
+   const plain = description
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[*_`#>]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+   if (plain === '') return '';
+   if (/skills first|before answering any|authoritative source of/i.test(plain)) {
+      return 'Runs a skill on this server.';
+   }
+   const sentence = plain.split(/(?<=[.!?])\s/)[0] ?? plain;
+   if (sentence.length <= 180) return sentence;
+   return `${sentence.slice(0, 177).trimEnd()}…`;
+}
+
+export async function loadPluginTools(
+   workspaceId: string,
+   key: string
+): Promise<{ name: string; description: string }[]> {
+   return parse(
+      z.object({
+         tools: z.array(z.object({ name: z.string(), description: z.string() })),
+      }),
+      await apiFetch(`${base(workspaceId)}/catalog/${encodeURIComponent(key)}/tools`),
+      'Plugin tools'
+   ).tools;
+}
+
+export async function loadPluginCatalog(workspaceId: string): Promise<CatalogPlugin[]> {
+   return parse(
+      z.object({
+         nodes: z.array(z.object({ preview: previewSchema, package: z.unknown() })),
+      }),
+      await apiFetch(`${base(workspaceId)}/catalog`),
+      'Plugin catalog'
+   ).nodes;
 }
 
 export async function loadPlugins(workspaceId: string): Promise<PluginInstallation[]> {
@@ -146,7 +211,7 @@ export async function loadPlugin(
 export async function updatePlugin(
    workspaceId: string,
    id: string,
-   patch: { enabled?: boolean; config?: Record<string, PluginConfigValue> }
+   patch: { enabled?: boolean; config?: Record<string, PluginConfigValue>; baseUrl?: string }
 ): Promise<PluginInstallation> {
    return parse(
       installationSchema,

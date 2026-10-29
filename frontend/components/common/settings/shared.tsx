@@ -32,6 +32,7 @@ export function SettingsShell({
    badge,
    children,
    compact,
+   wide,
 }: {
    title: string;
    description?: React.ReactNode;
@@ -40,10 +41,17 @@ export function SettingsShell({
    children: React.ReactNode;
    /** Tighter section stack, for long lists rather than short forms. */
    compact?: boolean;
+   /** Drop the 720px column so a card grid can use the settings canvas. */
+   wide?: boolean;
 }) {
    return (
       <div className="settings-surface h-full w-full overflow-y-auto">
-         <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-8 pt-10 pb-24">
+         <div
+            className={cn(
+               'flex flex-col gap-8 px-8 pt-10 pb-24',
+               wide ? 'w-full' : 'mx-auto max-w-[720px]'
+            )}
+         >
             <div className="flex flex-col gap-1.5">
                <div className="flex flex-wrap items-center gap-2.5">
                   {/* The settings bar above is the page's h1 ("Settings"); the
@@ -476,6 +484,7 @@ export function SelectMenu({
    searchable,
    searchPlaceholder = 'Search…',
    emptyLabel = 'Nothing matches.',
+   placeholder,
    'aria-label': ariaLabel,
    className,
 }: {
@@ -492,6 +501,8 @@ export function SelectMenu({
    'searchable'?: boolean;
    'searchPlaceholder'?: string;
    'emptyLabel'?: string;
+   /** Shown while no option is selected. */
+   'placeholder'?: string;
    'aria-label'?: string;
    /** Width overrides; the default is the 220px right-aligned control. */
    'className'?: string;
@@ -499,7 +510,7 @@ export function SelectMenu({
    const [internal, setInternal] = useState(defaultValue ?? options[0]);
    const [open, setOpen] = useState(false);
    const value = controlledValue ?? internal;
-   const display = labels?.[value] ?? value;
+   const display = value ? (labels?.[value] ?? value) : (placeholder ?? '');
 
    const choose = (option: string) => {
       setInternal(option);

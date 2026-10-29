@@ -40,7 +40,7 @@ export function SegmentedControl<T extends string | number>({
          aria-label={label}
          className={cn(
             'flex w-fit items-center rounded-[7px] bg-segment-track p-0.5',
-            size === 'md' ? 'h-[30px] gap-0.5' : 'h-7',
+            size === 'md' ? 'h-[30px] gap-0.5 overflow-hidden' : 'h-7',
             className
          )}
       >
@@ -55,7 +55,7 @@ export function SegmentedControl<T extends string | number>({
                   onClick={() => onValueChange(option.value)}
                   className={cn(
                      'inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
-                     size === 'md' ? 'h-[26px] gap-1.5 px-2.5' : 'h-6 px-3',
+                     size === 'md' ? 'h-full gap-1.5 px-2.5 leading-none' : 'h-6 px-3',
                      active
                         ? size === 'md'
                            ? 'bg-settings-segment-on text-foreground'

@@ -7,7 +7,6 @@ import {
    installedPlugin,
    pluginDetail,
    pluginInvocations,
-   pluginStorage,
    seedSession,
 } from './stories-fixtures';
 
@@ -30,9 +29,6 @@ const meta = {
          http.get('*/api/v1/plugins/:ws/installations/:id', () => HttpResponse.json(pluginDetail)),
          http.get('*/api/v1/plugins/:ws/installations/:id/invocations', () =>
             HttpResponse.json({ nodes: pluginInvocations })
-         ),
-         http.get('*/api/v1/plugins/:ws/installations/:id/storage', () =>
-            HttpResponse.json({ nodes: pluginStorage })
          ),
          http.put(
             '*/api/v1/plugins/:ws/installations/:id/tools/:tool',
