@@ -170,6 +170,34 @@
    --sidebar-accent-foreground: var(--brand-chalk);
    --sidebar-border: var(--brand-hairline);
    --sidebar-ring: var(--brand-azure);
+
+   /* --- Settings surface (design_handoff_settings_redesign) ---------------
+      Every settings page reads these, through the primitives in
+      components/common/settings/shared.tsx. Light values are the nearest
+      existing light tokens: Berry Dark is the only shipped theme, but the
+      light block keeps a home for each name. */
+   --settings-panel: var(--container);
+   --settings-panel-line: var(--border);
+   --settings-group: var(--card);
+   --settings-row-hover: var(--accent);
+   --settings-divider: var(--border);
+   --settings-field: var(--card);
+   --settings-field-line: var(--input);
+   --settings-field-focus: var(--brand-slate);
+   --settings-field-sunken: var(--muted);
+   --settings-placeholder: var(--placeholder);
+   --settings-control: var(--secondary);
+   --settings-control-hover: var(--accent);
+   --settings-chip: var(--secondary);
+   --settings-segment: var(--muted);
+   --settings-segment-on: var(--card);
+   --settings-switch-off: var(--input);
+   --settings-avatar: var(--muted);
+   --settings-check-dim: color-mix(in oklab, var(--status-success) 55%, var(--card));
+   --settings-accent: var(--berry);
+   --settings-accent-hover: var(--berry-hover);
+   --settings-danger-hover: color-mix(in oklab, var(--brand-danger) 18%, var(--card));
+   --settings-badge-warning: color-mix(in oklab, var(--status-warning) 14%, transparent);
 }
 
 .dark {
@@ -217,6 +245,32 @@
    --sidebar-accent-foreground: #f2f0ed;
    --sidebar-border: #222226;
    --sidebar-ring: var(--brand-berry);
+
+   /* Settings surface, verbatim from the handoff. */
+   --settings-panel: #19191c;
+   --settings-panel-line: #242428;
+   --settings-group: #1f1f23;
+   --settings-row-hover: #232327;
+   --settings-divider: #2a2a2f;
+   --settings-field: #222226;
+   --settings-field-line: #2a2a2f;
+   --settings-field-focus: #4a4a52;
+   --settings-field-sunken: #141416;
+   --settings-placeholder: #5e5d64;
+   --settings-control: #2a2a2f;
+   --settings-control-hover: #323238;
+   --settings-chip: #26262b;
+   --settings-segment: #222226;
+   --settings-segment-on: #2e2e33;
+   --settings-switch-off: #3a3a40;
+   --settings-avatar: #3a3a40;
+   --settings-check-dim: #3d6e57;
+   /* The handoff's accent sits a step brighter than --berry (#b84355). Scoped
+      to settings so the rest of the app keeps the brand red; see the PR. */
+   --settings-accent: #c74a5e;
+   --settings-accent-hover: #d55a6e;
+   --settings-danger-hover: #3a2226;
+   --settings-badge-warning: rgba(217, 165, 74, 0.14);
 }
 
 @theme inline {
@@ -288,6 +342,28 @@
    --color-sidebar-ring: var(--sidebar-ring);
    --color-segment-track: var(--segment-track);
    --color-segment-selected: var(--segment-selected);
+   --color-settings-panel: var(--settings-panel);
+   --color-settings-panel-line: var(--settings-panel-line);
+   --color-settings-group: var(--settings-group);
+   --color-settings-row-hover: var(--settings-row-hover);
+   --color-settings-divider: var(--settings-divider);
+   --color-settings-field: var(--settings-field);
+   --color-settings-field-line: var(--settings-field-line);
+   --color-settings-field-focus: var(--settings-field-focus);
+   --color-settings-field-sunken: var(--settings-field-sunken);
+   --color-settings-placeholder: var(--settings-placeholder);
+   --color-settings-control: var(--settings-control);
+   --color-settings-control-hover: var(--settings-control-hover);
+   --color-settings-chip: var(--settings-chip);
+   --color-settings-segment: var(--settings-segment);
+   --color-settings-segment-on: var(--settings-segment-on);
+   --color-settings-switch-off: var(--settings-switch-off);
+   --color-settings-avatar: var(--settings-avatar);
+   --color-settings-check-dim: var(--settings-check-dim);
+   --color-settings-accent: var(--settings-accent);
+   --color-settings-accent-hover: var(--settings-accent-hover);
+   --color-settings-danger-hover: var(--settings-danger-hover);
+   --color-settings-badge-warning: var(--settings-badge-warning);
    --color-container: var(--container);
    --color-board-column-body: var(--board-column-body);
    --color-column-tint-neutral: var(--column-tint-neutral);
@@ -300,6 +376,12 @@
    --color-group-tint-warning: var(--group-tint-warning);
    --color-group-tint-success: var(--group-tint-success);
    --color-group-tint-danger: var(--group-tint-danger);
+}
+
+/* Settings pages take the handoff's accent for their one primary action. */
+.settings-surface {
+   --berry: var(--settings-accent);
+   --berry-hover: var(--settings-accent-hover);
 }
 
 @layer components {
@@ -438,6 +520,50 @@
    [data-heading='h2'],
    h2[data-heading='label'] {
       font-weight: 700;
+   }
+
+   /* Settings type (design_handoff_settings_redesign). The surface sets its
+      own body weight: the handoff is drawn at 400 throughout, where the page
+      boundary in MainLayout drops to 100. Section titles are plain h3s
+      (13 / 600); these cover the steps h1-h4 do not. */
+   .settings-surface {
+      font-weight: 400;
+   }
+
+   [data-settings-type='title'] {
+      font-size: 1.25rem;
+      line-height: 1.3;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+   }
+
+   [data-settings-type='caption'] {
+      font-size: 0.75rem;
+      line-height: 1.45;
+   }
+
+   [data-settings-type='small'] {
+      font-size: 0.71875rem;
+      line-height: 1.3;
+   }
+
+   [data-settings-type='segment'] {
+      font-size: 0.78125rem;
+      line-height: 1.3;
+   }
+
+   [data-settings-type='stat'] {
+      font-size: 1.375rem;
+      line-height: 1.2;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+   }
+
+   [data-settings-type='stat-lg'] {
+      font-size: 1.5rem;
+      line-height: 1.2;
+      font-weight: 600;
+      letter-spacing: -0.02em;
    }
 
    /* A secondary line under a menu title, one step below the body. */

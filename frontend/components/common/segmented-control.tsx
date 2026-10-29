@@ -15,6 +15,8 @@ interface SegmentedControlProps<T extends string | number> {
    'value': T;
    'onValueChange': (value: T) => void;
    'className'?: string;
+   /** `md` is the settings size: a 30px track with 26px segments. */
+   'size'?: 'default' | 'md';
 }
 
 /**
@@ -30,13 +32,15 @@ export function SegmentedControl<T extends string | number>({
    value,
    onValueChange,
    className,
+   size = 'default',
 }: SegmentedControlProps<T>) {
    return (
       <div
          role="group"
          aria-label={label}
          className={cn(
-            'flex h-7 w-fit items-center rounded-[7px] bg-segment-track p-0.5',
+            'flex w-fit items-center rounded-[7px] bg-segment-track p-0.5',
+            size === 'md' ? 'h-[30px] gap-0.5' : 'h-7',
             className
          )}
       >
@@ -47,11 +51,15 @@ export function SegmentedControl<T extends string | number>({
                   key={option.value}
                   type="button"
                   aria-pressed={active}
+                  data-settings-type={size === 'md' ? 'segment' : undefined}
                   onClick={() => onValueChange(option.value)}
                   className={cn(
-                     'inline-flex h-6 items-center justify-center rounded-[5px] px-3 font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
+                     'inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
+                     size === 'md' ? 'h-[26px] gap-1.5 px-2.5' : 'h-6 px-3',
                      active
-                        ? 'bg-segment-selected text-foreground'
+                        ? size === 'md'
+                           ? 'bg-settings-segment-on text-foreground'
+                           : 'bg-segment-selected text-foreground'
                         : 'text-muted-foreground hover:text-foreground'
                   )}
                >

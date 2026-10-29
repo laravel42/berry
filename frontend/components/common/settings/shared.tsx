@@ -16,16 +16,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useState } from 'react';
 
-/** Same pill as Settings → Back to app. */
+/** The settings secondary button, for a `<button>` or `<Link>` that cannot be a `Button`. */
 export const SETTINGS_PILL_SHAPE =
-   'flex min-h-11 w-fit items-center gap-1.5 rounded-[5px] bg-[var(--shell-line)] px-2 py-1 font-normal transition-colors hover:bg-[var(--shell-line-strong)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:opacity-50 lg:min-h-0';
+   'inline-flex h-[30px] w-fit shrink-0 cursor-pointer items-center gap-1.5 rounded-[7px] bg-settings-control px-3 font-medium whitespace-nowrap transition-colors hover:bg-settings-control-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:text-subtle-foreground';
 
-export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]`;
+export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-foreground`;
 
-/** Centered settings page: big title, optional description, stacked sections. */
+/** Centered settings page: title, optional description, stacked sections. */
 export function SettingsShell({
    title,
    description,
@@ -34,34 +34,44 @@ export function SettingsShell({
    compact,
 }: {
    title: string;
-   description?: string;
-   /** Small status label beside the title (e.g. "Not yet implemented"). */
+   description?: React.ReactNode;
+   /** Small amber status label beside the title (e.g. "Not yet implemented"). */
    badge?: string;
    children: React.ReactNode;
-   /** Tighter title and section stack, for long lists rather than short forms. */
+   /** Tighter section stack, for long lists rather than short forms. */
    compact?: boolean;
 }) {
    return (
-      <div className="w-full overflow-y-auto h-full">
-         <div className={cn('mx-auto max-w-5xl px-6', compact ? 'py-6 pb-12' : 'py-10 pb-20')}>
-            <div className="flex flex-wrap items-center gap-3">
-               {/* The settings bar above is the page's h1 ("Settings"); the
-                   page name sits one level down and keeps the h1 size. It is
-                   a section name, not a page display title, so it takes the
-                   heading role rather than the display face. */}
-               <h2 data-heading="h1">{title}</h2>
-               {badge ? (
-                  <span className="rounded-md border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 text-status-warning">
-                     {badge}
-                  </span>
+      <div className="settings-surface h-full w-full overflow-y-auto">
+         <div className="mx-auto flex max-w-[720px] flex-col gap-8 px-8 pt-10 pb-24">
+            <div className="flex flex-col gap-1.5">
+               <div className="flex flex-wrap items-center gap-2.5">
+                  {/* The settings bar above is the page's h1 ("Settings"); the
+                      page name sits one level down. */}
+                  <h2 data-settings-type="title" className="m-0">
+                     {title}
+                  </h2>
+                  {badge ? <SettingsBadge>{badge}</SettingsBadge> : null}
+               </div>
+               {description ? (
+                  <p className="max-w-[600px] text-pretty text-muted-foreground">{description}</p>
                ) : null}
             </div>
-            {description && <p className="mt-1 text-muted-foreground">{description}</p>}
-            <div className={cn('flex flex-col', compact ? 'mt-5 gap-4' : 'mt-10 gap-10')}>
-               {children}
-            </div>
+            <div className={cn('flex flex-col', compact ? 'gap-6' : 'gap-8')}>{children}</div>
          </div>
       </div>
+   );
+}
+
+/** Amber "Not yet implemented" style label. */
+export function SettingsBadge({ children }: { children: React.ReactNode }) {
+   return (
+      <span
+         data-settings-type="small"
+         className="inline-flex h-[22px] items-center rounded-[6px] bg-settings-badge-warning px-2 font-medium text-status-warning"
+      >
+         {children}
+      </span>
    );
 }
 
@@ -69,45 +79,65 @@ export function SettingsSection({
    title,
    description,
    action,
+   count,
    children,
    className,
-   /** Match agent capability panel titles (`h3.font-medium`) instead of settings page `h2`. */
+   /** Match agent capability panel titles (`h3.font-medium`) instead of settings page sections. */
    panel,
 }: {
-   title?: string;
+   title?: React.ReactNode;
    description?: React.ReactNode;
    action?: React.ReactNode;
+   /** Muted count after the title ("People 3"). */
+   count?: React.ReactNode;
    children: React.ReactNode;
    className?: string;
    panel?: boolean;
 }) {
-   return (
-      <section className={cn(panel ? 'flex flex-col gap-2' : undefined, className)}>
-         {(title || action || (panel && description)) &&
-            (panel ? (
+   if (panel) {
+      return (
+         <section className={cn('flex flex-col gap-2', className)}>
+            {title || action || description ? (
                <div className="flex items-baseline gap-2">
                   {title ? <h3 className="font-medium">{title}</h3> : null}
                   {description ? <p className="text-muted-foreground">{description}</p> : null}
                   {action ? <div className="ml-auto shrink-0">{action}</div> : null}
                </div>
-            ) : (
-               <div className="mb-1 flex items-end justify-between gap-4">
-                  <div>
-                     {/* Same heading as the page name in SettingsShell: the
-                         display face at the h1 size, in the foreground. */}
-                     {title ? <h2 data-heading="h1">{title}</h2> : null}
-                     {description ? (
-                        <p className="mt-0.5 text-muted-foreground">{description}</p>
-                     ) : null}
-                  </div>
-                  {action}
+            ) : null}
+            <div>{children}</div>
+         </section>
+      );
+   }
+   return (
+      <section className={cn('flex flex-col gap-2.5', className)}>
+         {title || action || description ? (
+            <div className="flex items-end justify-between gap-4">
+               <div className="flex min-w-0 flex-col gap-0.5">
+                  {title ? (
+                     <h3 className="m-0">
+                        {title}
+                        {count !== undefined ? (
+                           <span className="ml-1.5 font-medium text-subtle-foreground">
+                              {count}
+                           </span>
+                        ) : null}
+                     </h3>
+                  ) : null}
+                  {description ? (
+                     <p data-settings-type="caption" className="text-pretty text-subtle-foreground">
+                        {description}
+                     </p>
+                  ) : null}
                </div>
-            ))}
-         <div className={panel ? undefined : 'mt-3 flex flex-col gap-3'}>{children}</div>
+               {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
+            </div>
+         ) : null}
+         {children}
       </section>
    );
 }
 
+/** A filled group of rows. Rows are divided by a hairline; the group has no outer border. */
 export function SettingsCard({
    children,
    className,
@@ -116,13 +146,21 @@ export function SettingsCard({
    className?: string;
 }) {
    return (
-      <div className={cn('rounded-lg border bg-container divide-y divide-border/60', className)}>
+      <div
+         className={cn(
+            'flex flex-col divide-y divide-settings-divider overflow-hidden rounded-[10px] bg-settings-group',
+            className
+         )}
+      >
          {children}
       </div>
    );
 }
 
-/** A single settings row: optional icon, title + description, trailing control. */
+/** The handoff's name for a group of rows. */
+export const SettingsGroup = SettingsCard;
+
+/** A single settings row: optional icon, label + description, trailing control. */
 export function SettingsRow({
    icon,
    title,
@@ -131,7 +169,10 @@ export function SettingsRow({
    chevron,
    onClick,
    muted,
+   compact,
+   align = 'center',
    children,
+   className,
 }: {
    icon?: React.ReactNode;
    title: React.ReactNode;
@@ -140,44 +181,285 @@ export function SettingsRow({
    chevron?: boolean;
    onClick?: () => void;
    muted?: boolean;
-   /** Full-width body under the title, for controls that cannot fit in the trailing slot. */
+   /** 42px list row (toggles, shortcuts, labels) instead of the 14/16 padded row. */
+   compact?: boolean;
+   /** `start` for rows whose description wraps under a tile (runtimes). */
+   align?: 'center' | 'start';
+   /** Full-width body under the label, for controls that cannot fit in the trailing slot. */
    children?: React.ReactNode;
+   className?: string;
 }) {
    const Comp = onClick ? 'button' : 'div';
    return (
       <Comp
+         type={onClick ? 'button' : undefined}
          onClick={onClick}
          className={cn(
-            'w-full px-4 py-3 text-left',
-            children ? 'flex flex-col items-stretch gap-3' : 'flex items-center gap-3',
-            onClick && 'hover:bg-accent/40 transition-colors cursor-pointer',
-            muted && 'opacity-60'
+            'w-full text-left',
+            compact ? 'flex min-h-[42px] items-center px-4' : 'px-4 py-3.5',
+            children ? 'flex flex-col items-stretch gap-2.5' : null,
+            onClick && 'cursor-pointer transition-colors hover:bg-settings-row-hover',
+            muted && 'opacity-60',
+            className
          )}
       >
-         <div className="flex w-full min-w-0 items-center gap-3">
-            {icon && (
-               <span className="inline-flex size-8 items-center justify-center rounded-md bg-muted/50 shrink-0 text-muted-foreground">
-                  {icon}
-               </span>
+         <div
+            className={cn(
+               'flex w-full min-w-0 gap-3',
+               align === 'start' ? 'items-start' : 'items-center'
             )}
-            <div className="flex-1 min-w-0">
-               <div className="font-medium flex items-center gap-2">{title}</div>
-               {description && <div className="text-muted-foreground mt-0.5">{description}</div>}
+         >
+            {icon ? <SettingsTile>{icon}</SettingsTile> : null}
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+               <div className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-foreground">
+                  {title}
+               </div>
+               {description ? (
+                  <div data-settings-type="caption" className="text-pretty text-subtle-foreground">
+                     {description}
+                  </div>
+               ) : null}
             </div>
-            {trailing && (
-               <div className="shrink-0 flex items-center gap-2 text-muted-foreground">
+            {trailing ? (
+               <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
                   {trailing}
                </div>
-            )}
-            {chevron && <ChevronRight className="size-4 text-muted-foreground shrink-0" />}
+            ) : null}
+            {chevron ? <ChevronRight className="size-4 shrink-0 text-subtle-foreground" /> : null}
          </div>
          {children}
       </Comp>
    );
 }
 
+/** Right-aligned action strip at the foot of a form group. */
+export function SettingsFooter({ children }: { children: React.ReactNode }) {
+   return <div className="flex items-center justify-end gap-2 px-4 py-3">{children}</div>;
+}
+
+/** Empty state inside a group: a line of secondary text, or a title over a muted description. */
+export function SettingsEmpty({
+   title,
+   description,
+}: {
+   title: React.ReactNode;
+   description?: React.ReactNode;
+}) {
+   if (!description) return <div className="px-4 py-3.5 text-muted-foreground">{title}</div>;
+   return (
+      <div className="flex flex-col gap-0.5 px-4 py-3.5">
+         <span className="font-medium">{title}</span>
+         <span data-settings-type="caption" className="text-subtle-foreground">
+            {description}
+         </span>
+      </div>
+   );
+}
+
+/** 32px tile (36 on integration cards) for a device glyph, a provider logo or its monogram. */
+export function SettingsTile({
+   children,
+   size = 'md',
+   className,
+}: {
+   children: React.ReactNode;
+   size?: 'md' | 'lg';
+   className?: string;
+}) {
+   return (
+      <span
+         data-settings-type="small"
+         className={cn(
+            'inline-flex shrink-0 items-center justify-center rounded-[8px] bg-settings-chip font-bold text-muted-foreground',
+            size === 'lg' ? 'size-9' : 'size-8',
+            className
+         )}
+      >
+         {children}
+      </span>
+   );
+}
+
+/** 22px tag: a scope, a role, a field type. */
+export function SettingsChip({
+   children,
+   className,
+}: {
+   children: React.ReactNode;
+   className?: string;
+}) {
+   return (
+      <span
+         data-settings-type="small"
+         className={cn(
+            'inline-flex h-[22px] shrink-0 items-center gap-1.5 rounded-[6px] bg-settings-chip px-2 whitespace-nowrap text-muted-foreground',
+            className
+         )}
+      >
+         {children}
+      </span>
+   );
+}
+
+/** One key of a shortcut ("⌘", "B"). */
+export function KeyCap({ children }: { children: React.ReactNode }) {
+   return (
+      <kbd
+         data-settings-type="small"
+         className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-[5px] bg-settings-control px-1.5 font-sans font-medium text-foreground"
+      >
+         {children}
+      </kbd>
+   );
+}
+
+export type SettingsStatus = 'connected' | 'available' | 'off';
+
+/** 6px dot plus a 12px label: Connected (green), Available (grey), Not installed / not connected (dim). */
+export function StatusIndicator({
+   status,
+   children,
+}: {
+   status: SettingsStatus;
+   children: React.ReactNode;
+}) {
+   return (
+      <span
+         data-settings-type="caption"
+         className={cn(
+            'inline-flex items-center gap-1.5',
+            status === 'connected' ? 'text-muted-foreground' : 'text-subtle-foreground'
+         )}
+      >
+         <span
+            aria-hidden
+            className={cn(
+               'size-1.5 shrink-0 rounded-full',
+               status === 'connected'
+                  ? 'bg-status-success'
+                  : status === 'available'
+                    ? 'bg-status-neutral'
+                    : 'bg-settings-field-focus'
+            )}
+         />
+         {children}
+      </span>
+   );
+}
+
+/** A labelled figure; sit them in `StatTileGrid`. */
+export function StatTile({
+   label,
+   value,
+   large,
+}: {
+   label: React.ReactNode;
+   value: React.ReactNode;
+   /** 24px figure instead of 22. */
+   large?: boolean;
+}) {
+   return (
+      <div className="flex flex-col gap-1.5 rounded-[10px] bg-settings-group p-4">
+         <span data-settings-type="caption" className="text-subtle-foreground">
+            {label}
+         </span>
+         <span data-settings-type={large ? 'stat-lg' : 'stat'} className="text-foreground">
+            {value}
+         </span>
+      </div>
+   );
+}
+
+export function StatTileGrid({
+   children,
+   min = 150,
+}: {
+   children: React.ReactNode;
+   /** Minimum tile width in px before the grid wraps. */
+   min?: number;
+}) {
+   return (
+      <div
+         className="grid gap-3"
+         style={{ gridTemplateColumns: `repeat(auto-fit, minmax(min(100%, ${min}px), 1fr))` }}
+      >
+         {children}
+      </div>
+   );
+}
+
+/** 28px icon button; `destructive` turns the glyph red on hover. */
+export function SettingsIconButton({
+   label,
+   onClick,
+   destructive,
+   disabled,
+   children,
+}: {
+   label: string;
+   onClick?: () => void;
+   destructive?: boolean;
+   disabled?: boolean;
+   children: React.ReactNode;
+}) {
+   return (
+      <button
+         type="button"
+         aria-label={label}
+         title={label}
+         onClick={onClick}
+         disabled={disabled}
+         className={cn(
+            'inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] text-subtle-foreground transition-colors outline-none hover:bg-settings-control focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-[13px]',
+            destructive ? 'hover:text-status-danger' : 'hover:text-foreground'
+         )}
+      >
+         {children}
+      </button>
+   );
+}
+
+/** A filled search field with a leading glyph, used above settings lists. */
+export function SettingsSearch({
+   value,
+   onChange,
+   placeholder,
+   className,
+   'aria-label': ariaLabel,
+}: {
+   'value': string;
+   'onChange': (value: string) => void;
+   'placeholder': string;
+   'className'?: string;
+   'aria-label'?: string;
+}) {
+   return (
+      <label
+         className={cn(
+            'flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-settings-field-line bg-settings-field px-2.5 text-settings-placeholder focus-within:border-settings-field-focus',
+            className
+         )}
+      >
+         <Search className="size-[13px] shrink-0" aria-hidden />
+         <input
+            type="search"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            aria-label={ariaLabel ?? placeholder}
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] placeholder:text-settings-placeholder [&::-webkit-search-cancel-button]:hidden"
+         />
+      </label>
+   );
+}
+
+/** Width of a control right-aligned in a row. */
+export const SETTINGS_CONTROL_WIDTH = 'w-[220px]';
+
 const selectTriggerClass =
-   'h-8 max-w-56 truncate px-3 rounded-md border bg-container inline-flex items-center gap-1.5 hover:bg-accent transition-colors outline-none disabled:opacity-60';
+   'relative inline-flex h-[30px] w-[220px] max-w-full items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none transition-colors focus-visible:border-settings-field-focus data-[state=open]:border-settings-field-focus disabled:cursor-not-allowed disabled:opacity-60';
+const selectChevronClass =
+   'pointer-events-none absolute top-1/2 right-2.5 size-2.5 -translate-y-1/2 text-subtle-foreground';
 
 /** Small functional select (local state) used across the settings pages. */
 export function SelectMenu({
@@ -191,6 +473,7 @@ export function SelectMenu({
    searchPlaceholder = 'Search…',
    emptyLabel = 'Nothing matches.',
    'aria-label': ariaLabel,
+   className,
 }: {
    'options': string[];
    /** Display text per option; the option value is shown when absent. */
@@ -206,6 +489,8 @@ export function SelectMenu({
    'searchPlaceholder'?: string;
    'emptyLabel'?: string;
    'aria-label'?: string;
+   /** Width overrides; the default is the 220px right-aligned control. */
+   'className'?: string;
 }) {
    const [internal, setInternal] = useState(defaultValue ?? options[0]);
    const [open, setOpen] = useState(false);
@@ -224,10 +509,10 @@ export function SelectMenu({
             <PopoverTrigger
                disabled={disabled}
                aria-label={ariaLabel}
-               className={selectTriggerClass}
+               className={cn(selectTriggerClass, className)}
             >
                <span className="min-w-0 truncate">{display}</span>
-               <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+               <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 p-0">
                <Command
@@ -267,10 +552,10 @@ export function SelectMenu({
          <DropdownMenuTrigger
             disabled={disabled}
             aria-label={ariaLabel}
-            className={selectTriggerClass}
+            className={cn(selectTriggerClass, className)}
          >
             <span className="min-w-0 truncate">{display}</span>
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+            <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
          </DropdownMenuTrigger>
          <DropdownMenuContent align="end" className="max-h-72 min-w-40 overflow-y-auto">
             {options.map((option) => (
@@ -290,10 +575,5 @@ export function SelectMenu({
 
 /** "● Enabled ..." green-dot status text. */
 export function EnabledDot({ children }: { children: React.ReactNode }) {
-   return (
-      <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-         <span className="size-1.5 shrink-0 rounded-full bg-status-success" aria-hidden />
-         {children}
-      </span>
-   );
+   return <StatusIndicator status="connected">{children}</StatusIndicator>;
 }

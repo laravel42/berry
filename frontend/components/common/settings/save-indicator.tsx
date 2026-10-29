@@ -54,7 +54,7 @@ export function SaveIndicator({
                <TriangleAlert className="size-3.5 text-status-danger" />
                <span className="text-status-danger">{error ?? t('failed')}</span>
                {onRetry ? (
-                  <Button size="xxs" variant="ghost" onClick={onRetry}>
+                  <Button size="xxs" variant="quiet" onClick={onRetry}>
                      {t('retry')}
                   </Button>
                ) : null}
