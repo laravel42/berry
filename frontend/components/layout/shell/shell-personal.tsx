@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -7,8 +8,10 @@ import { useTranslations } from 'next-intl';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useShellStore } from '@/store/shell-store';
+import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { ShellBadge, badgeText } from './shell-badge';
 import { ShellIcon, shellNavRow } from './shell-icon';
+import { ShellSectionFold } from './shell-section-fold';
 import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
@@ -31,6 +34,12 @@ const REVIEWS_ICON =
  */
 export function ShellPersonal({ orgId }: { orgId: string }) {
    const t = useTranslations('navigation.sidebar');
+   const personalOpen = useSidebarPrefsStore((state) => state.personalOpen);
+   const setPersonalOpen = useSidebarPrefsStore((state) => state.setPersonalOpen);
+   // The stored fold is unknown during the server render, so Personal stays
+   // open until mount and then follows the person's choice.
+   const [mounted, setMounted] = useState(false);
+   useEffect(() => setMounted(true), []);
    const pathname = usePathname() ?? '';
    const notifications = useNotificationsStore((state) => state.notifications);
    const serverUnreadCount = useNotificationsStore((state) => state.serverUnreadCount);
@@ -51,13 +60,11 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const onReviews = isReviews(pathname, orgId);
 
    return (
-      <div>
-         <div
-            data-heading="label"
-            className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
-         >
-            {t('personal')}
-         </div>
+      <ShellSectionFold
+         heading={t('personal')}
+         open={mounted ? (personalOpen ?? true) : true}
+         onOpenChange={setPersonalOpen}
+      >
          <ul className="flex flex-col gap-0 px-3 lg:gap-1">
             <li>
                <Link
@@ -116,6 +123,6 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                </Link>
             </li>
          </ul>
-      </div>
+      </ShellSectionFold>
    );
 }

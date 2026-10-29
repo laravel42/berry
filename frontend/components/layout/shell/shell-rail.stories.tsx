@@ -61,16 +61,26 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Admin: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, userEvent }) => {
       await expect(canvas.getByRole('link', { name: 'Tasks' })).toHaveAttribute(
          'aria-current',
          'page'
       );
-      // Owners and admins start with Manage open.
+      // Owners and admins start with Manage open. Personal and Work start
+      // open for everyone, and fold the same way Manage does.
       await expect(canvas.getByRole('button', { name: 'Manage' })).toHaveAttribute(
          'aria-expanded',
          'true'
       );
+      await expect(canvas.getByRole('button', { name: 'Personal' })).toHaveAttribute(
+         'aria-expanded',
+         'true'
+      );
+      const work = canvas.getByRole('button', { name: 'Work' });
+      await expect(work).toHaveAttribute('aria-expanded', 'true');
+      await userEvent.click(work);
+      await expect(work).toHaveAttribute('aria-expanded', 'false');
+      await expect(canvas.queryByRole('link', { name: 'Tasks' })).toBeNull();
       // Pins arrive from GET /api/v1/pins.
       await expect(await canvas.findByText('Berry Server')).toBeVisible();
    },

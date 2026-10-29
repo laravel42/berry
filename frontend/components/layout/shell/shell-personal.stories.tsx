@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useShellStore } from '@/store/shell-store';
+import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { inboxItems, workspaceRoute } from '../stories-fixtures';
 import { ShellPersonal } from './shell-personal';
 
@@ -18,6 +19,7 @@ const meta = {
       ),
    ],
    beforeEach: () => {
+      useSidebarPrefsStore.setState(useSidebarPrefsStore.getInitialState());
       useNotificationsStore.setState({ notifications: inboxItems, serverUnreadCount: null });
       useShellStore.setState({ chatUnread: 2 });
    },

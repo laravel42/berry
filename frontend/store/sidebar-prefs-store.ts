@@ -30,10 +30,18 @@ interface SidebarPrefsState {
     * owner configures the workspace and a member mostly does not.
     */
    manageOpen: boolean | null;
+   /**
+    * Whether Personal and Work are unfolded. Null until the person decides,
+    * and until then both stay open: those sections are the rail itself.
+    */
+   personalOpen: boolean | null;
+   workOpen: boolean | null;
    setBadgeStyle: (style: SidebarBadgeStyle) => void;
    setVisibility: (item: SidebarItemKey, visibility: SidebarVisibility) => void;
    moveItem: (section: SidebarSection, from: number, to: number) => void;
    setManageOpen: (open: boolean) => void;
+   setPersonalOpen: (open: boolean) => void;
+   setWorkOpen: (open: boolean) => void;
 }
 
 /** Owners and admins start with Manage unfolded; everyone else with it folded. */
@@ -143,8 +151,12 @@ export const useSidebarPrefsStore = create<SidebarPrefsState>()(
          visibility: DEFAULT_VISIBILITY,
          order: DEFAULT_ORDER,
          manageOpen: null,
+         personalOpen: null,
+         workOpen: null,
          setBadgeStyle: (badgeStyle) => set({ badgeStyle }),
          setManageOpen: (manageOpen) => set({ manageOpen }),
+         setPersonalOpen: (personalOpen) => set({ personalOpen }),
+         setWorkOpen: (workOpen) => set({ workOpen }),
          setVisibility: (item, value) =>
             set((state) => ({ visibility: { ...state.visibility, [item]: value } })),
          moveItem: (section, from, to) =>

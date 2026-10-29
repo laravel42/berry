@@ -3,8 +3,7 @@
 import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { ChevronRight, X } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { X } from 'lucide-react';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -28,6 +27,7 @@ import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
 import { ShellPersonal } from './shell-personal';
+import { ShellSectionFold } from './shell-section-fold';
 
 /** A workspace route the user can pin or hide. */
 type PinnableRoute = ShellRouteDef & { prefsKey: SidebarItemKey };
@@ -73,7 +73,8 @@ export function ShellRail({
    ref,
 }: ShellRailProps) {
    const t = useTranslations('shell');
-   const { visibility, order, manageOpen, setManageOpen } = useSidebarPrefsStore();
+   const { visibility, order, manageOpen, workOpen, setManageOpen, setWorkOpen } =
+      useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
    const isMobile = useIsMobile();
    // A run that has not reached a terminal status is still going, which is what
@@ -253,59 +254,29 @@ export function ShellRail({
                      </ul>
                   );
 
-                  if (section.headingKey !== 'manage' || heading === null) {
-                     return (
-                        <div key={section.heading ?? 'primary'}>
-                           {heading ? (
-                              <div
-                                 data-heading="label"
-                                 className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
-                              >
-                                 {heading}
-                              </div>
-                           ) : null}
-                           {list}
-                        </div>
-                     );
+                  if (heading === null) {
+                     return <div key="primary">{list}</div>;
                   }
 
-                  // Manage folds. Owners and admins start with it open, since
-                  // they are the ones who configure the workspace; anyone
-                  // else starts with it closed, unless the page they are on
-                  // lives inside it. A choice, once made, is kept. Before
-                  // mount the stored choice is unknown, so the role decides.
+                  // Manage starts open for owners and admins, and for anyone
+                  // whose current page lives inside it, until they choose.
+                  // Work starts open. A choice, once made, is kept. Before
+                  // mount the stored choice is unknown, so the default shows.
                   const activeInside = shown.some((route) => route.id === active);
-                  const expanded = mounted
+                  const manageExpanded = mounted
                      ? (manageOpen ?? (manageOpenByDefault(role) || activeInside))
                      : manageOpenByDefault(role) || activeInside;
+                  const workExpanded = mounted ? (workOpen ?? true) : true;
+                  const expanded = section.headingKey === 'manage' ? manageExpanded : workExpanded;
                   return (
-                     <Collapsible
+                     <ShellSectionFold
                         key={section.heading}
+                        heading={heading}
                         open={expanded}
-                        onOpenChange={setManageOpen}
+                        onOpenChange={section.headingKey === 'manage' ? setManageOpen : setWorkOpen}
                      >
-                        <div className="px-3 pt-2 lg:pt-[11px]">
-                           <CollapsibleTrigger asChild>
-                              {/* Radix supplies aria-expanded and aria-controls; the
-                                  visible word is the name, so it never changes
-                                  under a screen reader as it opens and closes. */}
-                              <button
-                                 type="button"
-                                 data-heading="label"
-                                 className="group/fold flex min-h-11 w-full cursor-pointer items-center gap-1 rounded px-3 py-[7px] text-left text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text-muted)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:min-h-0"
-                              >
-                                 {heading}
-                                 <ChevronRight
-                                    size={12}
-                                    strokeWidth={1.8}
-                                    aria-hidden="true"
-                                    className="transition-transform group-data-[state=open]/fold:rotate-90 motion-reduce:transition-none"
-                                 />
-                              </button>
-                           </CollapsibleTrigger>
-                        </div>
-                        <CollapsibleContent>{list}</CollapsibleContent>
-                     </Collapsible>
+                        {list}
+                     </ShellSectionFold>
                   );
                })}
             </>
