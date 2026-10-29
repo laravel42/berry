@@ -24,6 +24,9 @@ import {
    type RunArtifact,
    artifactView,
    buildArtifactTree,
+   isHandoffPath,
+   isProtectedTreePath,
+   isProtectedWritePath,
    loadIssueArtifacts,
    siteEntry,
 } from '@/lib/attachments';
@@ -73,6 +76,7 @@ import { FileKindMark } from './file-kind-mark';
  * When open, the layout is a file tree on the left and a preview pane on the
  * right — pick a file, see it; no overlay. The review pane embeds the same
  * tree under its own heading, unfolded and narrowed to the run under review.
+ * `.handoffs` is omitted, as it is from a comment's file list.
  */
 /** The root node's key among the folded paths; no file path contains a NUL. */
 const ROOT = '\0root';
@@ -270,10 +274,10 @@ export function IssueArtifacts({
       };
    }, [issueRef, load, reloads]);
 
-   const artifacts = useMemo(
-      () => (runId ? all.filter((artifact) => artifact.runId === runId) : all),
-      [all, runId]
-   );
+   const artifacts = useMemo(() => {
+      const scoped = runId ? all.filter((artifact) => artifact.runId === runId) : all;
+      return scoped.filter((artifact) => !isHandoffPath(artifact.path));
+   }, [all, runId]);
    /** The tree as the pending edits leave it, laid over the loaded files. */
    const shown = useMemo(() => projectTree(artifacts, marked, ops), [artifacts, marked, ops]);
 
@@ -287,8 +291,9 @@ export function IssueArtifacts({
    }, [shown, changesOnly, marked]);
 
    const visibleFolders = useMemo(() => {
-      if (!changesOnly || !marked) return folders;
-      return folders.filter((folder) =>
+      const kept = folders.filter((folder) => !isHandoffPath(folder));
+      if (!changesOnly || !marked) return kept;
+      return kept.filter((folder) =>
          [...shown.marks.keys()].some((path) => path === folder || path.startsWith(`${folder}/`))
       );
    }, [folders, changesOnly, marked, shown.marks]);
@@ -404,6 +409,7 @@ export function IssueArtifacts({
       const path = segments.join('/');
       if (draft.value.trim().startsWith('/') || typed.some((part) => part === '.' || part === '..'))
          return setError(t('pathInvalid'));
+      if (isHandoffPath(path)) return setError(t('menu.protected'));
       const taken = (nodes: ArtifactTreeNode[]): boolean =>
          nodes.some((node) => node.path === path || taken(node.children));
       if (taken(tree)) return setError(t('pathTaken', { path }));
@@ -530,6 +536,12 @@ export function IssueArtifacts({
       if (kind === 'folder' && (to === from || to.startsWith(`${from}/`))) {
          throw new Error(t('menu.moveIntoSelf'));
       }
+      if (
+         (mode === 'move' && (isProtectedTreePath(from) || isProtectedTreePath(to))) ||
+         (mode === 'copy' && isProtectedWritePath(to))
+      ) {
+         throw new Error(t('menu.protected'));
+      }
       const files =
          kind === 'file' ? artifacts.filter((file) => file.path === from) : filesUnder(from);
       if (files.length === 0) {
@@ -584,6 +596,10 @@ export function IssueArtifacts({
          return;
       }
       const to = joinPath(parentOf(current.path), name);
+      if (isProtectedTreePath(current.path) || isProtectedTreePath(to)) {
+         setError(t('menu.protected'));
+         return;
+      }
       if (pathTaken(to)) {
          setError(t('pathTaken', { path: to }));
          return;
@@ -677,6 +693,10 @@ export function IssueArtifacts({
       const target = pendingDelete;
       setPendingDelete(null);
       if (!target) return;
+      if (isProtectedTreePath(target.path)) {
+         setError(t('menu.protected'));
+         return;
+      }
       const empty = target.kind === 'folder' && filesUnder(target.path).length === 0;
       if (empty) {
          retargetFolders(target.path, null);
@@ -795,7 +815,7 @@ export function IssueArtifacts({
       );
    }
 
-   if (shown.files.length === 0) return null;
+   if (visibleArtifacts.length === 0 && visibleFolders.length === 0) return null;
 
    const agents = [...new Set(shown.files.map((artifact) => artifact.agentName))].filter(Boolean);
    const showTree = heading === null || open;
@@ -1076,10 +1096,22 @@ function TreeRow({
       (node.path === menu.clip.path || node.path.startsWith(`${menu.clip.path}/`));
    const emptyFolder = !node.file && !menu.hasFiles(node.path);
    const gone = Boolean(node.file && menu.deleted(node.path));
-   const canChange = !menu.busy && ((menu.writable && !gone) || emptyFolder);
+   const locked = isProtectedTreePath(node.path);
+   const canChange = !locked && !menu.busy && ((menu.writable && !gone) || emptyFolder);
    const canCopy = !menu.busy && (menu.writable || emptyFolder);
    const clipEmpty = menu.clip?.kind === 'folder' && !menu.hasFiles(menu.clip.path);
-   const canPaste = !menu.busy && menu.clip !== null && (menu.writable || clipEmpty);
+   const pasteAllowed = (at: string) => {
+      if (menu.busy || menu.clip === null) return false;
+      if (!(menu.writable || clipEmpty)) return false;
+      const dest = joinPath(at, baseName(menu.clip.path));
+      if (
+         menu.clip.op === 'cut' &&
+         (isProtectedTreePath(menu.clip.path) || isProtectedTreePath(dest))
+      ) {
+         return false;
+      }
+      return !isProtectedWritePath(dest);
+   };
 
    const name = naming ? (
       <form
@@ -1114,7 +1146,7 @@ function TreeRow({
             node={node}
             canChange={canChange}
             canCopy={canCopy}
-            canPaste={canPaste}
+            canPaste={pasteAllowed(parentOf(node.path))}
             canUndo={gone}
             pasteAt={parentOf(node.path)}
          >
@@ -1176,7 +1208,7 @@ function TreeRow({
                node={node}
                canChange={canChange}
                canCopy={canCopy}
-               canPaste={canPaste}
+               canPaste={pasteAllowed(node.path)}
                canUndo={false}
                pasteAt={node.path}
             >

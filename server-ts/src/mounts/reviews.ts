@@ -13,7 +13,7 @@ import type { Queryable } from '../db/pool.ts';
 import { recordPullRequestRelease } from '../core/issues.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import { parseRepository } from '../agents/checkout.ts';
-import { insideDirectory } from '../agents/workspace-files.ts';
+import { insideDirectory, protectedPathReason } from '../agents/workspace-files.ts';
 import { coAuthorTrailer, withTrailers } from '../scm/commit-trailer.ts';
 
 /**
@@ -224,6 +224,9 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
          throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository, the new content and the file\'s current blob id (none for a new file) are required.');
       }
       if (Buffer.byteLength(body.content, 'utf8') > MAX_FILE_BYTES) throw new ApiError(413, 'FILE_TOO_LARGE', 'This file is too large to commit from here.');
+      if (path.split('/').includes('.git')) {
+         throw new ApiError(422, 'PATH_PROTECTED', `${path} is inside .git`);
+      }
       if (await options.queue.hasActiveRun(target.issueId)) {
          throw new ApiError(409, 'RUN_ACTIVE', 'An agent is working on this task, and its branch is that run\'s to change. Commit when the run has finished.');
       }
@@ -271,6 +274,8 @@ export function reviewMounts(options: ReviewMountOptions): Mount[] {
       if (!body || path === null || typeof sha !== 'string' || !/^[0-9a-f]{40}([0-9a-f]{24})?$/i.test(sha)) {
          throw new ApiError(400, 'VALIDATION_FAILED', 'A path inside the repository and the file\'s current blob id are required.');
       }
+      const protectedPath = protectedPathReason(path);
+      if (protectedPath) throw new ApiError(422, 'PATH_PROTECTED', protectedPath);
       if (await options.queue.hasActiveRun(target.issueId)) {
          throw new ApiError(409, 'RUN_ACTIVE', 'An agent is working on this task, and its branch is that run\'s to change. Commit when the run has finished.');
       }

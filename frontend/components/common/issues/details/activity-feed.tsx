@@ -22,6 +22,7 @@ import { describeActivity, loadIssueActivity } from '@/lib/activity';
 import { BerryApiError } from '@/lib/api';
 import {
    assignAttachmentToComment,
+   isHandoffPath,
    loadIssueArtifacts,
    loadIssueAttachments,
    onIssueAttachment,
@@ -259,12 +260,7 @@ function handoffNote(body: string): boolean {
 
 /** The run's handoff. It stays on the task and is not a file the comment lists. */
 function handoffFile(file: RunArtifact): boolean {
-   return (
-      file.path === 'HANDOFF.md' ||
-      file.path.startsWith('.handoffs/') ||
-      file.directory === '.handoffs' ||
-      file.directory.startsWith('.handoffs/')
-   );
+   return isHandoffPath(file.path);
 }
 
 /** Files this comment's run saved, plus any the comment names by path. */

@@ -267,6 +267,25 @@ export async function downloadArtifact(artifact: RunArtifact): Promise<void> {
 export type ArtifactViewKind =
    'markdown' | 'image' | 'video' | 'audio' | 'pdf' | 'html' | 'code' | 'unsupported';
 
+/** A run's handoff, or the old root file that used to be one. */
+export function isHandoffPath(path: string): boolean {
+   return path === 'HANDOFF.md' || path === '.handoffs' || path.startsWith('.handoffs/');
+}
+
+/**
+ * Paths the file tools will not delete or move: `.handoffs/` and anything
+ * inside `.git`. The review Files tree uses the same rule.
+ */
+export function isProtectedTreePath(path: string): boolean {
+   const segments = path.split('/').filter(Boolean);
+   return segments[0] === '.handoffs' || segments.includes('.git');
+}
+
+/** A write that would change `.git` itself. A handoff file may still be edited. */
+export function isProtectedWritePath(path: string): boolean {
+   return path.split('/').filter(Boolean).includes('.git');
+}
+
 const VIEW_BY_EXTENSION: Record<string, { kind: ArtifactViewKind; mime: string }> = {
    md: { kind: 'markdown', mime: 'text/markdown' },
    markdown: { kind: 'markdown', mime: 'text/markdown' },
@@ -331,6 +350,10 @@ export function artifactView(artifact: Pick<RunArtifact, 'path' | 'contentType'>
    kind: ArtifactViewKind;
    mime: string;
 } {
+   // Handoffs have no extension; they are the markdown note a later task reads.
+   if (artifact.path.startsWith('.handoffs/')) {
+      return { kind: 'markdown', mime: 'text/markdown' };
+   }
    const byExtension = VIEW_BY_EXTENSION[extensionOf(artifact.path)];
    if (byExtension) return byExtension;
    const stored = artifact.contentType.toLowerCase().split(';')[0]!.trim();

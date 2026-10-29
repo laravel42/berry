@@ -409,6 +409,7 @@
          "actionFailed": "{path} could not be changed.",
          "nameInvalid": "Use a name without slashes.",
          "moveIntoSelf": "A folder cannot be moved into itself.",
+         "protected": "Nothing under .handoffs/ or inside .git is cut, renamed or deleted.",
          "commitDelete": "Delete {path}",
          "commitRestore": "Restore {path}",
          "commitRename": "Rename {from} to {to}",
