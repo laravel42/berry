@@ -10,12 +10,12 @@ import {
    storyHandlers,
 } from '@/components/common/agents/stories-fixtures';
 import { useAgentsStore } from '@/store/agents-store';
-import AutopilotDetail from './autopilot-detail';
+import AutopilotEditor from './autopilot-editor';
 
 const navigation = (query: Record<string, string> = {}) => ({
    nextjs: {
       navigation: {
-         pathname: '/berry/autopilot/ap-triage',
+         pathname: '/berry/autopilots/ap-triage',
          segments: [['orgId', 'berry']],
          query,
       },
@@ -23,7 +23,7 @@ const navigation = (query: Record<string, string> = {}) => ({
 });
 
 const meta = {
-   component: AutopilotDetail,
+   component: AutopilotEditor,
    tags: ['ai-generated', 'needs-work'],
    parameters: navigation(),
    args: { autopilotId: autopilotDetail.id },
@@ -44,26 +44,54 @@ const meta = {
          </div>
       ),
    ],
-} satisfies Meta<typeof AutopilotDetail>;
+} satisfies Meta<typeof AutopilotEditor>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Overview: Story = {
+export const Existing: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       // The autopilot, its runs and deliveries all load from MSW.
-      await expect(await canvas.findByRole('heading', { name: 'Morning triage' })).toBeVisible();
+      await expect(await canvas.findByDisplayValue('Morning triage')).toBeVisible();
+      // Nothing to save until something changes.
+      await expect(canvas.getByRole('button', { name: 'Save changes' })).toBeDisabled();
       await userEvent.click(canvas.getByRole('button', { name: 'Run now' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText('Queued a run')).toBeVisible();
    },
 };
 
-export const TriggersTab: Story = { parameters: navigation({ view: 'triggers' }) };
+/** A new autopilot: Schedule is chosen, Create waits on an agent, a board and a runbook. */
+export const New: Story = {
+   args: { autopilotId: undefined },
+   parameters: navigation(),
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('button', { name: 'Create autopilot' })).toBeDisabled();
+      await expect(canvas.getByRole('button', { name: 'Schedule', pressed: true })).toBeVisible();
+      await expect(
+         canvas.getByText('No runs yet. Save, then press Run now to try it.')
+      ).toBeVisible();
+   },
+};
 
-export const RunsTab: Story = { parameters: navigation({ view: 'runs' }) };
+/** Use template on the empty state lands here, filled in. */
+export const FromTemplate: Story = {
+   args: { autopilotId: undefined, template: 'digest' },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByDisplayValue('Weekly digest')).toBeVisible();
+   },
+};
 
-export const DeliveriesTab: Story = { parameters: navigation({ view: 'deliveries' }) };
+/** Narrow, as in the drawer: one column, rows stacked. */
+export const Narrow: Story = {
+   decorators: [
+      (Story) => (
+         <div className="flex h-[860px] w-[520px] flex-col">
+            <Story />
+         </div>
+      ),
+   ],
+};
 
 /** A guest can read it but not run, edit or delete it. */
 export const GuestView: Story = {
