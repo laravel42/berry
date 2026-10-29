@@ -4,7 +4,9 @@ Build a Berry plugin: a web service that Berry calls on events and schedules,
 that can show pages inside Berry, and that calls back through Berry's public
 API (`/v1`, backed by `src/public-api/` in `server-ts`).
 
-1. **Describe it.** Write `berry-plugin.json` (see `examples/hello`). It lists
+1. **Describe it.** Write `berry-plugin.json` (see `examples/hello`). A plugin
+   an agent calls while it executes a task lives under `plugins/`, for example
+   `plugins/customerio`. It lists
    the scopes, settings, secrets, hooks, pages and agent tools the plugin
    needs.
 2. **Install it.** In Berry, open Settings → Plugins. Paste the URL that

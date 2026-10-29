@@ -20,6 +20,11 @@ export interface IssuePatch {
    priority?: 'none' | 'urgent' | 'high' | 'medium' | 'low';
 }
 
+export interface PluginSelf {
+   config: Record<string, string | number | boolean>;
+   secrets: Record<string, string>;
+}
+
 export class BerryClient {
    readonly #base: string;
    readonly #token: string;
@@ -33,6 +38,11 @@ export class BerryClient {
 
    context(): Promise<unknown> {
       return this.#json('GET', '/v1/context');
+   }
+
+   /** This plugin's settings and secrets. Plugin tokens only. */
+   self(): Promise<PluginSelf> {
+      return this.#json('GET', '/v1/self') as Promise<PluginSelf>;
    }
 
    getIssue(ref: string): Promise<unknown> {
