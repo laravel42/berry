@@ -1,11 +1,11 @@
-import PluginsSettings from '@/components/common/settings/plugins-settings';
-import Header from '@/components/layout/headers/settings/header';
-import MainLayout from '@/components/layout/main-layout';
+import { redirect } from 'next/navigation';
 
-export default function PluginsSettingsPage() {
-   return (
-      <MainLayout header={<Header />} headersNumber={1}>
-         <PluginsSettings />
-      </MainLayout>
-   );
+/** Integrations moved onto the rail; old Settings links land there. */
+export default async function PluginsSettingsRedirect({
+   params,
+}: {
+   params: Promise<{ orgId: string }>;
+}) {
+   const { orgId } = await params;
+   redirect(`/${orgId}/integrations`);
 }

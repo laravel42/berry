@@ -117,7 +117,7 @@ export default function PluginDetail({
             onUninstalled();
             return;
          }
-         router.push(`/${orgId}/settings/plugins`);
+         router.push(`/${orgId}/integrations`);
       } catch (cause) {
          toast.error(
             cause instanceof Error ? cause.message : 'The plugin could not be uninstalled.'

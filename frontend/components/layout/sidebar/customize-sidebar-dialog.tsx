@@ -25,6 +25,7 @@ import {
    GripVertical,
    LucideIcon,
    MessageSquare,
+   Puzzle,
    Sparkles,
    Target,
    Timer,
@@ -50,6 +51,7 @@ export const CONFIGURE_ITEMS: ItemConfig[] = [
    { key: 'agents', label: 'Agents', icon: Sparkles },
    { key: 'skills', label: 'Skills', icon: BookOpen },
    { key: 'autopilot', label: 'Autopilots', icon: Timer },
+   { key: 'integrations', label: 'Connect', icon: Puzzle },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

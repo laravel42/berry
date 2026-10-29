@@ -15,7 +15,8 @@ export type SidebarItemKey =
    | 'projects'
    | 'views'
    | 'agents'
-   | 'skills';
+   | 'skills'
+   | 'integrations';
 
 export type SidebarSection = 'personal' | 'workspace' | 'automate' | 'configure';
 
@@ -66,6 +67,7 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'views': 'always',
    'agents': 'always',
    'skills': 'always',
+   'integrations': 'always',
 };
 
 /**
@@ -84,7 +86,7 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    // No runtimes, usage, or logs entry: those live in Settings. A stored
    // `agent`, `usage`, `logs`, or `dashboard` key is dropped by resolveOrder,
    // which keeps only known keys.
-   configure: ['agents', 'skills', 'autopilot'],
+   configure: ['agents', 'skills', 'autopilot', 'integrations'],
 };
 
 /** The key the previous shape was persisted under; read once, when v7 has nothing. */

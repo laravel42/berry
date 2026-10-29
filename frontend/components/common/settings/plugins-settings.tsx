@@ -1,6 +1,6 @@
 'use client';
 
-import { SegmentedControl } from '@/components/common/segmented-control';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -10,7 +10,8 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
    installPlugin,
    loadPluginCatalog,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/plugins';
 import { cn } from '@/lib/utils';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
+import MainLayout from '@/components/layout/main-layout';
 import { useSessionStore } from '@/store/session-store';
 import { ChevronRight, Loader2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -31,15 +33,7 @@ import { toast } from 'sonner';
 import PluginDetail from './plugin-detail';
 import { PluginConfigForm } from './plugin-config-form';
 import { PLUGIN_LOGOS } from './plugin-logos';
-import {
-   SettingsCard,
-   SettingsEmpty,
-   SettingsRow,
-   SettingsSearch,
-   SettingsShell,
-   SettingsTile,
-   StatusIndicator,
-} from './shared';
+import { SettingsCard, SettingsEmpty, SettingsRow, SettingsTile, StatusIndicator } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 type PluginFilter = 'all' | 'installed' | 'available';
@@ -135,205 +129,206 @@ export default function PluginsSettings() {
    };
 
    return (
-      <SettingsShell
-         wide
-         title="Plugins"
-         description="Extend this workspace with hooks, pages and agent tools."
-      >
-         {plugins.loading ||
-         ((plugins.value ?? []).length === 0 && available.length === 0) ? null : (
-            <div className="flex flex-wrap items-center gap-2.5">
-               <SettingsSearch
-                  className="min-w-[200px] max-w-[373px]"
-                  value={query}
-                  onChange={setQuery}
-                  placeholder="Search plugins"
-                  aria-label="Search plugins"
-               />
-               <SegmentedControl
-                  size="md"
-                  className="ml-auto h-[30px] shrink-0"
-                  aria-label="Plugin catalog"
-                  value={filter}
-                  onValueChange={setFilter}
-                  options={PLUGIN_FILTERS.map((value) => ({
-                     value,
-                     label: (
-                        <>
-                           {FILTER_LABEL[value]}
-                           <span className="text-subtle-foreground">{filterCount[value]}</span>
-                        </>
-                     ),
-                  }))}
-               />
-            </div>
-         )}
-         {plugins.error ? (
-            <SettingsCard>
-               <SettingsEmpty title={plugins.error} />
-            </SettingsCard>
-         ) : null}
-         {plugins.loading ? (
-            <SettingsCard>
-               <SettingsEmpty title="Loading…" />
-            </SettingsCard>
-         ) : null}
-         {!plugins.loading && (plugins.value ?? []).length === 0 && available.length === 0 ? (
-            <SettingsCard>
-               <SettingsEmpty title="No plugins yet" />
-            </SettingsCard>
-         ) : null}
-         {!plugins.loading &&
-         shownAvailable.length === 0 &&
-         shownInstalled.length === 0 &&
-         ((plugins.value ?? []).length > 0 || available.length > 0) ? (
-            <SettingsCard>
-               <SettingsEmpty title="Nothing matches." />
-            </SettingsCard>
-         ) : null}
-         {shownAvailable.length > 0 || shownInstalled.length > 0 ? (
-            <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-               {shownInstalled.map((plugin) => (
-                  <PluginCard
-                     key={plugin.id}
-                     pluginKey={plugin.key}
-                     title={plugin.name}
-                     description={catalogDescription.get(plugin.key) || plugin.description}
-                     onOpen={() => setOpenPlugin({ id: plugin.id, name: plugin.name })}
-                     status={
-                        <StatusIndicator status={plugin.enabled ? 'connected' : 'off'}>
-                           {plugin.enabled ? 'Enabled' : 'Disabled'}
-                        </StatusIndicator>
-                     }
+      <MainLayout
+         header={
+            <>
+               <PageKpiHeader label="Connect">
+                  <Input
+                     className={`${searchFieldClass} w-64 max-sm:w-40`}
+                     value={query}
+                     onChange={(event) => setQuery(event.target.value)}
+                     placeholder="Search plugins"
+                     aria-label="Search plugins"
                   />
-               ))}
-               {shownAvailable.map((item) => (
-                  <PluginCard
-                     key={item.preview.key}
-                     pluginKey={item.preview.key}
-                     title={item.preview.name}
-                     description={item.preview.description || item.preview.key}
-                     onOpen={() => {
-                        if (busy) return;
-                        setPreview(item.preview);
-                        setSource({ package: item.package });
-                        setConfig({});
-                        setSecretDrafts({});
-                     }}
-                  />
-               ))}
-            </div>
-         ) : null}
-         {signingSecret ? (
-            <div className="flex flex-col gap-2.5 rounded-[10px] bg-settings-group px-4 py-3.5">
-               <div className="flex flex-col gap-0.5">
-                  <span className="font-medium">Copy the signing secret now</span>
-                  <span data-settings-type="caption" className="text-subtle-foreground">
-                     Give it to the plugin. This is the only time Berry shows it.
-                  </span>
-               </div>
-               <code className="block rounded-[7px] bg-settings-field-sunken px-2.5 py-1.5 font-mono break-all text-foreground">
-                  {signingSecret}
-               </code>
-               <Button
-                  variant="soft"
-                  className="w-fit"
-                  onClick={() => {
-                     void navigator.clipboard?.writeText(signingSecret);
-                     setSigningSecret(null);
-                  }}
-               >
-                  Copy and dismiss
-               </Button>
-            </div>
-         ) : null}
-
-         <Dialog
-            open={preview !== null}
-            onOpenChange={(open) => {
-               if (!open && !busy) {
-                  setPreview(null);
-                  setSource(null);
-                  setSecretDrafts({});
-               }
-            }}
-         >
-            {preview ? (
-               <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-                  <DialogHeader>
-                     <DialogTitle>{preview.name}</DialogTitle>
-                     <DialogDescription>
-                        {preview.description || 'Settings this plugin asks for.'}
-                     </DialogDescription>
-                  </DialogHeader>
-                  <PluginConfigForm
-                     fields={preview.config}
-                     value={config}
-                     onChange={setConfig}
-                     disabled={busy}
-                  />
-                  {preview.secrets.length > 0 ? (
-                     <SettingsCard>
-                        {preview.secrets.map((secret) => (
-                           <SettingsRow
-                              key={secret.name}
-                              title={secret.title ?? secret.name}
-                              description={secret.description || undefined}
-                              trailing={
-                                 <Input
-                                    variant="settings"
-                                    type="password"
-                                    autoComplete="off"
-                                    className="h-8 w-56"
-                                    disabled={busy}
-                                    value={secretDrafts[secret.name] ?? ''}
-                                    onChange={(event) =>
-                                       setSecretDrafts((drafts) => ({
-                                          ...drafts,
-                                          [secret.name]: event.target.value,
-                                       }))
-                                    }
-                                 />
-                              }
-                           />
+               </PageKpiHeader>
+               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
+                  <Tabs value={filter} onValueChange={(value) => setFilter(value as PluginFilter)}>
+                     <TabsList aria-label="Plugin catalog">
+                        {PLUGIN_FILTERS.map((value) => (
+                           <TabsTrigger key={value} value={value}>
+                              {FILTER_LABEL[value]}
+                              <span className="tabular-nums text-muted-foreground">
+                                 {filterCount[value]}
+                              </span>
+                           </TabsTrigger>
                         ))}
-                     </SettingsCard>
-                  ) : null}
-                  {preview.config.length === 0 && preview.secrets.length === 0 ? (
-                     <p data-settings-type="caption" className="text-subtle-foreground">
-                        This plugin does not ask for any settings.
-                     </p>
-                  ) : null}
-                  <DialogFooter>
-                     <Button disabled={busy} onClick={() => void install()}>
-                        {busy ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
-                     </Button>
-                  </DialogFooter>
-               </DialogContent>
-            ) : null}
-         </Dialog>
-         <DetailDrawerShell
-            open={openPlugin !== null}
-            onClose={closePlugin}
-            header={
-               <div className="flex h-[52px] w-full items-center gap-1 border-b px-5">
-                  <button
-                     type="button"
-                     onClick={closePlugin}
-                     className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                     Plugins
-                  </button>
-                  <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                  <span className="truncate font-medium">{openPlugin?.name}</span>
+                     </TabsList>
+                  </Tabs>
                </div>
-            }
-         >
-            {openPlugin ? (
-               <PluginDetail pluginId={openPlugin.id} embedded onUninstalled={closePlugin} />
+            </>
+         }
+      >
+         <div className="px-5 py-5">
+            {plugins.error ? (
+               <SettingsCard>
+                  <SettingsEmpty title={plugins.error} />
+               </SettingsCard>
             ) : null}
-         </DetailDrawerShell>
-      </SettingsShell>
+            {plugins.loading ? (
+               <SettingsCard>
+                  <SettingsEmpty title="Loading…" />
+               </SettingsCard>
+            ) : null}
+            {!plugins.loading && (plugins.value ?? []).length === 0 && available.length === 0 ? (
+               <SettingsCard>
+                  <SettingsEmpty title="No plugins yet" />
+               </SettingsCard>
+            ) : null}
+            {!plugins.loading &&
+            shownAvailable.length === 0 &&
+            shownInstalled.length === 0 &&
+            ((plugins.value ?? []).length > 0 || available.length > 0) ? (
+               <SettingsCard>
+                  <SettingsEmpty title="Nothing matches." />
+               </SettingsCard>
+            ) : null}
+            {shownAvailable.length > 0 || shownInstalled.length > 0 ? (
+               <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {shownInstalled.map((plugin) => (
+                     <PluginCard
+                        key={plugin.id}
+                        pluginKey={plugin.key}
+                        title={plugin.name}
+                        description={catalogDescription.get(plugin.key) || plugin.description}
+                        onOpen={() => setOpenPlugin({ id: plugin.id, name: plugin.name })}
+                        status={
+                           <StatusIndicator status={plugin.enabled ? 'connected' : 'off'}>
+                              {plugin.enabled ? 'Enabled' : 'Disabled'}
+                           </StatusIndicator>
+                        }
+                     />
+                  ))}
+                  {shownAvailable.map((item) => (
+                     <PluginCard
+                        key={item.preview.key}
+                        pluginKey={item.preview.key}
+                        title={item.preview.name}
+                        description={item.preview.description || item.preview.key}
+                        onOpen={() => {
+                           if (busy) return;
+                           setPreview(item.preview);
+                           setSource({ package: item.package });
+                           setConfig({});
+                           setSecretDrafts({});
+                        }}
+                     />
+                  ))}
+               </div>
+            ) : null}
+            {signingSecret ? (
+               <div className="flex flex-col gap-2.5 rounded-[10px] bg-settings-group px-4 py-3.5">
+                  <div className="flex flex-col gap-0.5">
+                     <span className="font-medium">Copy the signing secret now</span>
+                     <span data-settings-type="caption" className="text-subtle-foreground">
+                        Give it to the plugin. This is the only time Berry shows it.
+                     </span>
+                  </div>
+                  <code className="block rounded-[7px] bg-settings-field-sunken px-2.5 py-1.5 font-mono break-all text-foreground">
+                     {signingSecret}
+                  </code>
+                  <Button
+                     variant="soft"
+                     className="w-fit"
+                     onClick={() => {
+                        void navigator.clipboard?.writeText(signingSecret);
+                        setSigningSecret(null);
+                     }}
+                  >
+                     Copy and dismiss
+                  </Button>
+               </div>
+            ) : null}
+
+            <Dialog
+               open={preview !== null}
+               onOpenChange={(open) => {
+                  if (!open && !busy) {
+                     setPreview(null);
+                     setSource(null);
+                     setSecretDrafts({});
+                  }
+               }}
+            >
+               {preview ? (
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+                     <DialogHeader>
+                        <DialogTitle>{preview.name}</DialogTitle>
+                        <DialogDescription>
+                           {preview.description || 'Settings this plugin asks for.'}
+                        </DialogDescription>
+                     </DialogHeader>
+                     <PluginConfigForm
+                        fields={preview.config}
+                        value={config}
+                        onChange={setConfig}
+                        disabled={busy}
+                     />
+                     {preview.secrets.length > 0 ? (
+                        <SettingsCard>
+                           {preview.secrets.map((secret) => (
+                              <SettingsRow
+                                 key={secret.name}
+                                 title={secret.title ?? secret.name}
+                                 description={secret.description || undefined}
+                                 trailing={
+                                    <Input
+                                       variant="settings"
+                                       type="password"
+                                       autoComplete="off"
+                                       className="h-8 w-56"
+                                       disabled={busy}
+                                       value={secretDrafts[secret.name] ?? ''}
+                                       onChange={(event) =>
+                                          setSecretDrafts((drafts) => ({
+                                             ...drafts,
+                                             [secret.name]: event.target.value,
+                                          }))
+                                       }
+                                    />
+                                 }
+                              />
+                           ))}
+                        </SettingsCard>
+                     ) : null}
+                     {preview.config.length === 0 && preview.secrets.length === 0 ? (
+                        <p data-settings-type="caption" className="text-subtle-foreground">
+                           This plugin does not ask for any settings.
+                        </p>
+                     ) : null}
+                     <DialogFooter>
+                        <Button disabled={busy} onClick={() => void install()}>
+                           {busy ? <Loader2 className="size-3.5 animate-spin" /> : 'Install'}
+                        </Button>
+                     </DialogFooter>
+                  </DialogContent>
+               ) : null}
+            </Dialog>
+            <DetailDrawerShell
+               open={openPlugin !== null}
+               onClose={closePlugin}
+               header={
+                  <div className="flex h-[52px] w-full items-center gap-1 border-b px-5">
+                     <button
+                        type="button"
+                        onClick={closePlugin}
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                     >
+                        Connect
+                     </button>
+                     <ChevronRight
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                        aria-hidden
+                     />
+                     <span className="truncate font-medium">{openPlugin?.name}</span>
+                  </div>
+               }
+            >
+               {openPlugin ? (
+                  <PluginDetail pluginId={openPlugin.id} embedded onUninstalled={closePlugin} />
+               ) : null}
+            </DetailDrawerShell>
+         </div>
+      </MainLayout>
    );
 }
 

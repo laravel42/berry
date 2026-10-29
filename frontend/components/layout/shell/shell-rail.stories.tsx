@@ -97,6 +97,7 @@ export const Member: Story = {
       await userEvent.click(fold);
       await expect(fold).toHaveAttribute('aria-expanded', 'true');
       await expect(canvas.getByRole('link', { name: 'Skills' })).toBeVisible();
+      await expect(canvas.getByRole('link', { name: 'Connect' })).toBeVisible();
    },
 };
 

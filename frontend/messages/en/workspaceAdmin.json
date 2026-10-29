@@ -23,9 +23,9 @@
       "usage": "Usage",
       "logs": "Logs",
       "repositories": "Repositories",
-      "integrations": "Integrations",
+      "integrations": "Source control",
       "mcp": "MCP servers",
-      "plugins": "Plugins",
+      "plugins": "Connect",
       "shortcuts": "Keyboard shortcuts"
    },
    "jump": {
