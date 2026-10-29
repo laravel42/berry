@@ -141,11 +141,13 @@ function CommentBody({
    body,
    clamp,
    thin,
+   className,
 }: {
    body: string;
    clamp?: { lines: number; moreLabel: string; lessLabel: string };
    /** Agent replies are set at weight 100, lighter than the rest of the page. */
    thin?: boolean;
+   className?: string;
 }) {
    const { orgId } = useParams<{ orgId: string }>();
    const org = orgId ?? WORKSPACE_SLUG;
@@ -327,12 +329,15 @@ function CommentCard({
          </div>
 
          <div className="flex flex-col gap-1">
-            <CommentBody
-               body={comment.body}
-               thin={isAgent}
-               clamp={{ lines: 6, moreLabel: t('readRest'), lessLabel: t('showLess') }}
-            />
-            <CommentFiles files={files} />
+            <div className="flex flex-col gap-1 px-1 mt-2">
+               <CommentBody
+                  body={comment.body}
+                  thin={isAgent}
+                  className="px-2"
+                  clamp={{ lines: 6, moreLabel: t('readRest'), lessLabel: t('showLess') }}
+               />
+               <CommentFiles files={files} />
+            </div>
 
             <div className="flex flex-wrap items-center gap-1">
                <ReactionBar target="comment" id={comment.id} />
