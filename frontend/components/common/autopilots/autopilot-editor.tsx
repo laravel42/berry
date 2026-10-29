@@ -74,7 +74,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useSessionStore } from '@/store/session-store';
 
 import { AgentMark } from './autopilot-line';
-import { DeliveriesTable, RunsTable } from './history-tabs';
+import { DeliveryRows, RunRows } from './history-tabs';
 import ScheduleEditor from './schedule-editor';
 import { TEMPLATE_PRESETS, type TemplateKey } from './templates';
 import TriggersTab, { SecretsNotice } from './triggers-tab';
@@ -795,7 +795,7 @@ function Editor({
                         caption={autopilot ? te('runsCaption') : undefined}
                      />
                      {autopilot ? (
-                        <RunsTable runs={runs} orgId={orgId} />
+                        <RunRows runs={runs} orgId={orgId} />
                      ) : (
                         <div className="px-4 py-3.5 text-subtle-foreground">{te('noRunsNew')}</div>
                      )}
@@ -804,7 +804,7 @@ function Editor({
                   (deliveries.length > 0 || autopilot.triggerKinds.includes('webhook')) ? (
                      <SettingsGroup>
                         <GroupTitle title={te('deliveriesTitle')} />
-                        <DeliveriesTable
+                        <DeliveryRows
                            autopilotId={autopilot.id}
                            deliveries={deliveries}
                            canReplay={canEdit}
