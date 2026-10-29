@@ -3,5 +3,7 @@ allowBuilds:
   workerd: true
 
 # GHSA-j22f-vq7h-c4qm and the other devalue highs, all patched in 5.9.3.
+# GHSA-wq5f-xc86-pv6w / GHSA-rgj7-g3m4-5g8c: sharp before 0.35.5.
 overrides:
   devalue: 5.9.3
+  sharp: 0.35.5
