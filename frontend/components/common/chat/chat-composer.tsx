@@ -165,7 +165,7 @@ export function ChatComposer({
                      {false && onVoice ? (
                         <button
                            type="button"
-                           onClick={onVoice}
+                           onClick={onVoice ?? undefined}
                            aria-label={t('voiceOpen')}
                            title={t('voiceOpen')}
                            className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"

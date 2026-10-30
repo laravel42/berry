@@ -79,7 +79,7 @@ export const PreviewThenInstall: Story = {
       await expect(body.getByRole('heading', { name: 'Release notes' })).toBeVisible();
       await expect(body.getByText('Tone')).toBeVisible();
       await expect(body.getByText('GITHUB_TOKEN')).toBeVisible();
-      await userEvent.click(body.getByRole('button', { name: 'Install', exact: true }));
+      await userEvent.click(body.getByRole('button', { name: 'Install' }));
       await expect(await canvas.findByText('whsec_9b1f3c7e2a4d6f8b0c1e3a5d7f9b2c4e')).toBeVisible();
    },
 };

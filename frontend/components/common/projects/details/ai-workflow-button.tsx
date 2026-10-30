@@ -20,6 +20,7 @@ import { useSessionStore } from '@/store/session-store';
 import { ChevronRight, Sparkles, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * "AI Workflow" on a project's header: Berry plans the project.
