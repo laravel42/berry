@@ -51,6 +51,7 @@ Agents and runs:
 - `/api/v1/autopilots`
 - `/api/webhooks/autopilots/:token` — public, signed autopilot webhook deliveries
 - `/api/v1/conversations` — chat
+- `/api/v1/voice` — LiveKit join token for a member talking to a workspace agent
 - `/api/v1/editor` — editor AI
 
 Integrations, plugins and usage:

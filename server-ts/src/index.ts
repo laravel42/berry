@@ -79,6 +79,7 @@ import { workTrackingHooks } from './work/hooks.ts';
 import { stageGate } from './work/hierarchy.ts';
 import { accountRoutes } from './mounts/account.ts';
 import { conversationMounts } from './mounts/conversations.ts';
+import { voiceMounts } from './mounts/voice.ts';
 import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { ProjectDraftAssist } from './editor/project-draft.ts';
@@ -1256,6 +1257,15 @@ const conversationRepository = new ConversationRepository(sql);
 registerChatReplies({ sql, conversations: conversationRepository });
 registerOrganizationToolsFor({ sql, issues, gate: reviewGate, limits: config.organization });
 registry.registerAll(
+   voiceMounts({
+      sessions,
+      sql,
+      agents,
+      conversations: conversationRepository,
+      livekit: config.livekit,
+   })
+);
+registry.registerAll(
    conversationMounts({
       sessions,
       conversations: conversationRepository,
@@ -1447,6 +1457,8 @@ registry.registerAll(
          // for the same workspace this read is about.
          planner: executionForRequest,
          modelGateway: false,
+         // LiveKit credentials are present: the browser can open a voice room.
+         voiceAgents: config.livekit !== null,
          // What the sign-in page believes: true when the GitHub OAuth App
          // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,

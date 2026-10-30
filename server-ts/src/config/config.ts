@@ -81,6 +81,12 @@ export interface Config {
     */
    integrations: IntegrationsConfig;
    /**
+    * LiveKit Cloud or a self-hosted LiveKit server. Null until URL, API key
+    * and API secret are all set. The browser never sees those credentials;
+    * `POST /api/v1/voice/token` mints a short-lived room token instead.
+    */
+   livekit: LivekitConfig | null;
+   /**
     * Berry's own git server, when the deployment runs one.
     *
     * All three or none: a repositories directory with no key is a repository
@@ -231,6 +237,18 @@ export interface IntegrationsConfig {
    publicUrl: string | null;
    /** Where the browser lands afterwards. The frontend, when it is separate. */
    appUrl: string | null;
+}
+
+/** LiveKit Cloud or a self-hosted LiveKit server, for voice with an agent. */
+export interface LivekitConfig {
+   url: string;
+   apiKey: string;
+   apiSecret: string;
+   /**
+    * The LiveKit agent worker to dispatch when a member opens a voice room.
+    * Defaults to berry-voice when LIVEKIT_AGENT_NAME is unset.
+    */
+   agentName: string;
 }
 
 /** Sign-in: Better Auth sessions, GitHub via a GitHub OAuth App. */
@@ -401,6 +419,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const authConfig = auth(env, appEnv, problems);
    const databaseIamAuth = iamDatabaseAuth(env, databaseUrl, problems);
    const integrationsConfig = integrations(env, problems);
+   const livekitConfig = livekit(env, problems);
 
    if (problems.length > 0) throw new ConfigError(problems);
 
@@ -435,6 +454,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       integrationKey: (env.INTEGRATION_ENCRYPTION_KEY ?? '').trim() || null,
       pluginsAllowPrivateNetwork: (env.BERRY_PLUGINS_ALLOW_PRIVATE_NETWORK ?? '').trim() === '1',
       integrations: integrationsConfig,
+      livekit: livekitConfig,
       git: git(env),
    };
 }
@@ -684,6 +704,32 @@ function integrations(env: NodeJS.ProcessEnv, problems: string[]): IntegrationsC
       publicUrl: origin(env.BERRY_PUBLIC_URL),
       appUrl: origin(env.BERRY_APP_URL),
    };
+}
+
+/**
+ * Voice rooms. URL, API key and API secret are all or none: a half-set
+ * LiveKit client cannot mint a token, and reporting voice as configured
+ * would promise a Connect that cannot start.
+ */
+function livekit(env: NodeJS.ProcessEnv, problems: string[]): LivekitConfig | null {
+   const url = (env.LIVEKIT_URL ?? '').trim();
+   const apiKey = (env.LIVEKIT_API_KEY ?? '').trim();
+   const apiSecret = (env.LIVEKIT_API_SECRET ?? '').trim();
+   const agentName = (env.LIVEKIT_AGENT_NAME ?? '').trim() || 'berry-voice';
+   const any = Boolean(url || apiKey || apiSecret);
+   const all = Boolean(url && apiKey && apiSecret);
+   if (any && !all) {
+      if (!url) problems.push('LIVEKIT_URL is required with LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
+      if (!apiKey) problems.push('LIVEKIT_API_KEY is required with LIVEKIT_URL and LIVEKIT_API_SECRET');
+      if (!apiSecret) problems.push('LIVEKIT_API_SECRET is required with LIVEKIT_URL and LIVEKIT_API_KEY');
+      return null;
+   }
+   if (!all) return null;
+   if (!/^wss?:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+      problems.push('LIVEKIT_URL must be a ws://, wss://, http:// or https:// origin');
+      return null;
+   }
+   return { url, apiKey, apiSecret, agentName };
 }
 
 /**

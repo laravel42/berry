@@ -49,6 +49,7 @@ test('a boolean capability is reported as it always was', async () => {
       planner: false,
       githubSignIn: true,
       modelGateway: false,
+      voiceAgents: false,
       passwordlessLogin: false,
       emailRegistration: false,
    });
@@ -63,6 +64,10 @@ test('passwordlessLogin reports the development email sign-in', async () => {
 
 test('modelGateway says whether models are called through a gateway with tiers', async () => {
    assert.equal((await capabilitiesOf({ ...base, modelGateway: true })()).modelGateway, true);
+});
+
+test('voiceAgents is true only when this process can mint a LiveKit token', async () => {
+   assert.equal((await capabilitiesOf({ ...base, voiceAgents: true })()).voiceAgents, true);
 });
 
 test('signInOrigin is the browser origin GitHub sign-in must start on', async () => {

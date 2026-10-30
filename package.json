@@ -18,6 +18,7 @@
       "lint:frontend": "pnpm --filter berry-frontend lint",
       "build:frontend": "pnpm --filter berry-frontend build",
       "dev:server": "pnpm --filter @berry/server dev",
+      "dev:voice": "pnpm --filter @berry/server dev:voice",
       "dev:docker": "docker compose -f deploy/local/docker-compose.yml up --build",
       "dev:docker:down": "docker compose -f deploy/local/docker-compose.yml down",
       "typecheck:server": "pnpm --filter @berry/server typecheck",

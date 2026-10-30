@@ -11,6 +11,8 @@ packages:
 allowBuilds:
    '@biomejs/biome': true
    '@google/genai': true
+   '@livekit/blingfire': true
+   '@livekit/local-inference': true
    '@parcel/watcher': true
    '@swc/core': true
    better-sqlite3: true

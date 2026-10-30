@@ -206,6 +206,44 @@ test('half a Google OAuth client is refused at boot', () => {
    );
 });
 
+test('half a LiveKit client is refused at boot', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+            LIVEKIT_API_KEY: 'APItest',
+         }),
+      (error: unknown) => error instanceof ConfigError && /LIVEKIT_API_SECRET/.test(error.message)
+   );
+});
+
+test('a LiveKit client without LIVEKIT_AGENT_NAME dispatches berry-voice', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+      LIVEKIT_API_KEY: 'APItest',
+      LIVEKIT_API_SECRET: 'secret-for-tests-only',
+   });
+   assert.equal(config.livekit?.agentName, 'berry-voice');
+});
+
+test('a LiveKit client is one voice host for the deployment', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+      LIVEKIT_API_KEY: 'APItest',
+      LIVEKIT_API_SECRET: 'secret-for-tests-only',
+      LIVEKIT_AGENT_NAME: 'berry-voice',
+   });
+   assert.deepEqual(config.livekit, {
+      url: 'wss://voice.example.livekit.cloud',
+      apiKey: 'APItest',
+      apiSecret: 'secret-for-tests-only',
+      agentName: 'berry-voice',
+   });
+});
+
 test('a Google OAuth client is one registered client for the deployment', () => {
    const config = loadConfig({
       ...BASE_ENV,
