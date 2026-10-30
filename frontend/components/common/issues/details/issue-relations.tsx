@@ -41,11 +41,15 @@ function useOrgId(): string {
 export function IssueGoalSection({ issue }: { issue: Issue }) {
    const orgId = useOrgId();
    const goals = useGoalsStore((state) => state.goals);
+   const goalsLoaded = useGoalsStore((state) => state.loaded);
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const [open, setOpen] = useState(false);
    const [busy, setBusy] = useState(false);
-   const current = issue.goal ?? null;
-   const known = current ? goals.find((goal) => goal.id === current.id) : undefined;
+   const linked = issue.goal ?? null;
+   const known = linked ? goals.find((goal) => goal.id === linked.id) : undefined;
+   // Archive leaves the task's stored link; the goals list no longer has the
+   // row. Once that list has loaded, a missing goal is gone — do not list it.
+   const current = !goalsLoaded ? linked : known ? { id: known.id, title: known.title } : null;
 
    const choose = async (goalId: string | null) => {
       setOpen(false);

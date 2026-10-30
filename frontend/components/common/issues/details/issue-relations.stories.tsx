@@ -64,6 +64,18 @@ export const ServesAGoal: Story = {
    },
 };
 
+export const ServesADeletedGoal: Story = {
+   beforeEach: () => {
+      useGoalsStore.setState({ goals: [], loaded: true, error: null });
+   },
+   play: async ({ canvas }) => {
+      await expect(canvas.getByText('Serves no goal.')).toBeInTheDocument();
+      await expect(
+         canvas.queryByRole('link', { name: /Projects report their own health/ })
+      ).toBeNull();
+   },
+};
+
 export const ServesNoGoal: Story = {
    args: { issue: sharedFilter },
    play: async ({ canvas, canvasElement, userEvent }) => {
