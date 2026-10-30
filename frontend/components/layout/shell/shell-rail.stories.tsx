@@ -34,6 +34,26 @@ const meta = {
       overlayOpen: true,
       onDismiss: fn(),
    },
+   argTypes: {
+      active: {
+         control: 'select',
+         options: [
+            'issues',
+            'runs',
+            'reviews',
+            'chat',
+            'inbox',
+            'projects',
+            'plans',
+            'goals',
+            'members',
+            'skills',
+            'autopilots',
+            'usage',
+            'logs',
+         ],
+      },
+   },
    parameters: {
       layout: 'fullscreen',
       nextjs: { navigation: workspaceRoute('/elian/tasks') },

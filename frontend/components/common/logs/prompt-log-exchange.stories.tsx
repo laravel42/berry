@@ -43,6 +43,12 @@ const meta = {
    component: ResponseView,
    tags: ['ai-generated'],
    args: { exchange, kind: 'completion' },
+   argTypes: {
+      kind: {
+         control: 'select',
+         options: ['completion', 'agent'],
+      },
+   },
 } satisfies Meta<typeof ResponseView>;
 
 export default meta;

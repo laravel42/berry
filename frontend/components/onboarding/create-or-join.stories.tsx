@@ -37,6 +37,12 @@ const meta = {
    component: CreateOrJoin,
    tags: ['ai-generated', 'needs-work'],
    args: { onEntered: fn() },
+   argTypes: {
+      initialTab: {
+         control: 'select',
+         options: ['create', 'join'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[384px]">

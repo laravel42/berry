@@ -6,6 +6,12 @@ const meta = {
    component: PageStatement,
    tags: ['ai-generated'],
    args: { label: 'Projects', figure: '12', line: 'open projects' },
+   argTypes: {
+      heading: {
+         control: 'select',
+         options: ['h1', 'h2'],
+      },
+   },
 } satisfies Meta<typeof PageStatement>;
 
 export default meta;

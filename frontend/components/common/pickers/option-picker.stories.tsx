@@ -19,6 +19,12 @@ const meta = {
       emptyLabel: 'Nothing to pick.',
       children: <PickerChipButton>Pear</PickerChipButton>,
    },
+   argTypes: {
+      menuWidth: {
+         control: 'select',
+         options: ['trigger', 'menu'],
+      },
+   },
 } satisfies Meta<typeof OptionPicker>;
 
 export default meta;

@@ -15,6 +15,12 @@ const meta = {
       onTierChange: fn(),
       onUnpin: fn(),
    },
+   argTypes: {
+      tier: {
+         control: 'select',
+         options: ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'],
+      },
+   },
    beforeEach: ({ msw }) => {
       msw.use(...gatewayHandlers, ...storyHandlers);
    },

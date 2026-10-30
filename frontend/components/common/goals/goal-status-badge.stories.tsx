@@ -5,6 +5,12 @@ const meta = {
    component: GoalStatusBadge,
    tags: ['ai-generated', 'needs-work'],
    args: { status: 'active' },
+   argTypes: {
+      status: {
+         control: 'select',
+         options: ['planned', 'active', 'blocked', 'completed'],
+      },
+   },
 } satisfies Meta<typeof GoalStatusBadge>;
 
 export default meta;

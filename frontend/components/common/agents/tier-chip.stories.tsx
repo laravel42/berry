@@ -9,6 +9,12 @@ const meta = {
    component: TierChip,
    tags: ['ai-generated'],
    args: { tier: 'berry_high' },
+   argTypes: {
+      tier: {
+         control: 'select',
+         options: ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'],
+      },
+   },
 } satisfies Meta<typeof TierChip>;
 
 export default meta;

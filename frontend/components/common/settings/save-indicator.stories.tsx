@@ -6,6 +6,12 @@ const meta = {
    component: SaveIndicator,
    tags: ['ai-generated', 'needs-work'],
    args: { state: 'saved' },
+   argTypes: {
+      state: {
+         control: 'select',
+         options: ['idle', 'saving', 'saved', 'failed'],
+      },
+   },
 } satisfies Meta<typeof SaveIndicator>;
 
 export default meta;

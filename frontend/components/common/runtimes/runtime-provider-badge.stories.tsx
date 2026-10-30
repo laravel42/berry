@@ -7,6 +7,12 @@ const meta = {
    component: RuntimeProviderBadge,
    tags: ['ai-generated'],
    args: { runtimeId: 'kiro', label: 'Kiro' },
+   argTypes: {
+      size: {
+         control: 'select',
+         options: ['sm', 'md'],
+      },
+   },
 } satisfies Meta<typeof RuntimeProviderBadge>;
 
 export default meta;

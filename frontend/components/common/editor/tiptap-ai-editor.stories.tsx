@@ -26,6 +26,12 @@ const meta = {
       'aria-label': 'Project description',
       'className': 'min-h-24',
    },
+   argTypes: {
+      'data-heading': {
+         control: 'select',
+         options: ['h1', 'h2', 'h3'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="flex min-h-72 w-[640px] flex-col">

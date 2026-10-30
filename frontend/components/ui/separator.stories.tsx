@@ -4,6 +4,12 @@ import { Separator } from './separator';
 const meta = {
    component: Separator,
    tags: ['ai-generated', 'needs-work'],
+   argTypes: {
+      orientation: {
+         control: 'select',
+         options: ['horizontal', 'vertical'],
+      },
+   },
 } satisfies Meta<typeof Separator>;
 
 export default meta;
