@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { handoffDocument, handoffPath, handoffSlug, withHandoffFile } from './handoff.ts';
+import { countProducedFiles, handoffDocument, handoffPath, handoffSlug, withHandoffFile } from './handoff.ts';
+
+test('produced files omit the handoff and count each path once', () => {
+   assert.equal(
+      countProducedFiles(['src/clock.ts', '.handoffs/BER-12 - add-the-clock', 'HANDOFF.md', 'src/clock.ts']),
+      1
+   );
+   assert.equal(countProducedFiles(['.handoffs/BER-12 - add-the-clock', 'HANDOFF.md', '.handoffs']), 0);
+});
 
 test('a title becomes a hyphenated filename piece', () => {
    assert.equal(handoffSlug('GitLab OAuth2 integration'), 'gitlab-oauth2-integration');

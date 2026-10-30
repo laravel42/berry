@@ -1,4 +1,5 @@
 import { toRFC3339, type Sql } from '../db/pool.ts';
+import { countProducedFiles } from '../runs/handoff.ts';
 
 /**
  * The human review gate, as a list.
@@ -46,9 +47,9 @@ export interface ReviewItem {
       files: string[];
       /**
        * Files the run produced and attached to the task, whether or not it
-       * committed anything. A design task delivers this way, so a review with
-       * no pull request and nothing committed is not a run that stopped
-       * without delivering when this is above zero.
+       * committed anything. The handoff is omitted. A design task delivers
+       * this way, so a review with no pull request and nothing committed is
+       * not a run that stopped without delivering when this is above zero.
        */
       producedFiles: number;
    };
@@ -210,17 +211,23 @@ export class ReviewQueue {
       }
 
       // Ready artifacts per run, counted by path: a re-attached file is one
-      // file, not two.
+      // file, not two. The handoff is omitted, as it is from the Files tree.
       const runIds = rows.map((row) => row.run_id as string).filter(Boolean);
       const artifactRows = runIds.length
          ? await this.#sql`
-              SELECT run_id, COUNT(DISTINCT path)::int AS produced
+              SELECT run_id, path
                 FROM run_artifacts
-               WHERE run_id = ANY(${runIds}) AND state = 'ready'
-               GROUP BY run_id`
+               WHERE run_id = ANY(${runIds}) AND state = 'ready'`
          : [];
+      const pathsByRun = new Map<string, string[]>();
+      for (const row of artifactRows) {
+         const runId = row.run_id as string;
+         const paths = pathsByRun.get(runId) ?? [];
+         paths.push(String(row.path));
+         pathsByRun.set(runId, paths);
+      }
       const produced = new Map<string, number>();
-      for (const row of artifactRows) produced.set(row.run_id as string, Number(row.produced));
+      for (const [runId, paths] of pathsByRun) produced.set(runId, countProducedFiles(paths));
 
       return rows.map((row) => {
          const delivered = (row.delivered ?? null) as {

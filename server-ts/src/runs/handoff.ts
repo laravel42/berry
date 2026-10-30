@@ -28,10 +28,20 @@ export function handoffPath(identifier: string, title: string): string {
    return `.handoffs/${key} - ${handoffSlug(title)}`;
 }
 
+/** A run's handoff, or the old root file that used to be one. */
+export function isHandoffPath(path: string): boolean {
+   return path === 'HANDOFF.md' || path === '.handoffs' || path.startsWith('.handoffs/');
+}
+
 /** A comment or summary that is already a handoff, including the old root file. */
 export function isHandoffDocument(text: string): boolean {
    const first = text.trimStart();
    return first.startsWith('HANDOFF.md') || first.startsWith('.handoffs/');
+}
+
+/** Distinct artifact paths that count as produced files — not the handoff. */
+export function countProducedFiles(paths: readonly string[]): number {
+   return new Set(paths.filter((path) => !isHandoffPath(path))).size;
 }
 
 export function handoffDocument(input: {

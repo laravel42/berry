@@ -59,7 +59,7 @@ export const reviewItemSchema = z.object({
       insertions: z.number(),
       deletions: z.number(),
       files: z.array(z.string()).default([]),
-      /** Files the run produced and attached, whether or not it committed. */
+      /** Files the run produced and attached, whether or not it committed. The handoff is omitted. */
       producedFiles: z.number().default(0),
    }),
    checks: z
