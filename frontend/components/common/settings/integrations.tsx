@@ -94,8 +94,24 @@ function visibleProviderName(provider: { id: string; name: string }): string {
    return drawer ? DRAWER_NAMES[drawer] : provider.name;
 }
 
-function visibleProviderDescription(provider: { description?: string | null }): string {
-   return provider.description ?? '';
+function visibleProviderDescription(provider: {
+   id?: string;
+   description?: string | null;
+}): string {
+   const text = (provider.description ?? '').trim();
+   if (!text) return '';
+   if (provider.id !== 'github') return text;
+   const sentence = text.match(/^[^.!?]+[.!?]/);
+   return (sentence?.[0] ?? text).trim();
+}
+
+/** Bitbucket sits last until Connect ships; filename order would put it first. */
+function directoryOrder(providers: Provider[]): Provider[] {
+   return [...providers].sort((left, right) => {
+      if (left.id === 'bitbucket') return 1;
+      if (right.id === 'bitbucket') return -1;
+      return 0;
+   });
 }
 
 function publicDetail(detail: string | null | undefined): string | null {
@@ -181,7 +197,8 @@ function ProviderCard({
    // second column once that account is connected.
    const inDrawer = drawerProviderId(provider.id) !== null;
    const showDisconnect = !inDrawer && provider.connected;
-   const showConnect = !provider.connected;
+   const showConnect =
+      !provider.connected && provider.id !== 'gitlab' && provider.id !== 'bitbucket';
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
    // dates, so a provider with neither does not repeat the word.
@@ -237,7 +254,8 @@ function ProviderCard({
             {visibleProviderDescription(provider) && (
                <p
                   data-settings-type="caption"
-                  className="mt-1 leading-[1.55] text-muted-foreground"
+                  title={visibleProviderDescription(provider)}
+                  className="mt-1 line-clamp-2 leading-[1.55] text-muted-foreground"
                >
                   {visibleProviderDescription(provider)}
                </p>
@@ -256,15 +274,6 @@ function ProviderCard({
                   {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
                </p>
             )}
-            {provider.id === 'github' &&
-               !provider.connected &&
-               provider.status !== 'reconnect' &&
-               provider.status !== 'expired' && (
-                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
-                     Sign in with GitHub to grant repository access so agents can clone, push and
-                     open pull requests.
-                  </p>
-               )}
             {inDrawer && provider.status === 'reconnect' && (
                <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
                   The {visibleProviderName(provider)} connection needs to be renewed before agents
@@ -430,7 +439,9 @@ function IntegrationsDirectory() {
             listProviders(workspace.id),
             listConnections().catch(() => [] as ProviderConnection[]),
          ]);
-         const connected = providerList.filter((provider) => provider.id !== BUILT_IN_PROVIDER);
+         const connected = directoryOrder(
+            providerList.filter((provider) => provider.id !== BUILT_IN_PROVIDER)
+         );
          setProviders(connected);
          setConnections(connectionList);
          hydrateProviders(connected);

@@ -62,6 +62,17 @@ function GitlabLogo({ className }: LogoProps) {
    );
 }
 
+function BitbucketLogo({ className }: LogoProps) {
+   return (
+      <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+         <path
+            fill="#2684FF"
+            d="M.778 1.213A.768.768 0 0 0 .01 2.105l3.263 19.81c.084.5.548.868 1.052.868H19.95a.772.772 0 0 0 .77-.646l3.27-20.03a.768.768 0 0 0-.768-.891ZM14.52 15.53H9.522L8.17 8.466h7.561z"
+         />
+      </svg>
+   );
+}
+
 function FigmaLogo({ className }: LogoProps) {
    return (
       <svg viewBox="0 0 256 384" className={className} fill="currentColor" aria-hidden>
@@ -974,6 +985,7 @@ export const INTEGRATION_LOGOS: Record<string, (props: LogoProps) => React.React
    'github': GithubLogo,
    'slack': SlackLogo,
    'gitlab': GitlabLogo,
+   'bitbucket': BitbucketLogo,
    'figma': FigmaLogo,
    'intercom': IntercomLogo,
    'google-sheets': GoogleSheetsLogo,

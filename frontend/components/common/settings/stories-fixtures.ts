@@ -357,8 +357,7 @@ export const integrationProviders = [
       id: 'github',
       include: 'oauth',
       name: 'GitHub',
-      description:
-         'The repositories your agents check out, branch and open pull requests. Connect to grant repository access so agents can clone, push and open pull requests.',
+      description: 'The repositories your agents check out, branch and open pull requests.',
       configured: true,
       connected: true,
       status: 'connected',
@@ -391,6 +390,22 @@ export const integrationProviders = [
             enabledByDefault: false,
             allowed: false,
          },
+      ],
+   },
+   {
+      id: 'bitbucket',
+      include: 'oauth',
+      name: 'Bitbucket',
+      description:
+         'The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.',
+      configured: false,
+      connected: false,
+      status: null,
+      source: null,
+      scopes: ['repository', 'pullrequest'],
+      tools: [
+         { name: 'bitbucket.read_repository', effect: 'read', allowed: false },
+         { name: 'bitbucket.open_pull_request', effect: 'external_side_effect', allowed: false },
       ],
    },
    {
