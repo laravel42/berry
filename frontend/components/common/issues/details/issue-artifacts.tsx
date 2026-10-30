@@ -1192,7 +1192,7 @@ function TreeRow({
       </>
    );
    const folderClass = cn(
-      'flex min-h-5 w-full min-w-0 items-center gap-1 rounded-sm pr-2 text-left outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
+      'mb-0.5 flex min-h-5 w-full min-w-0 items-center gap-1 pr-2 text-left outline-none hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
       selectedFolder === node.path && 'bg-accent',
       cut && 'opacity-50'
    );

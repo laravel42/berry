@@ -1,5 +1,6 @@
 'use client';
 
+import { BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import {
    Dialog,
@@ -12,14 +13,13 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Project } from '@/data/projects';
 import { BerryApiError } from '@/lib/api';
-import { WORKSPACE_SLUG } from '@/lib/config';
+import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
 import { describePlanFailure, generatePlan, listPlans } from '@/lib/plans';
 import { usePlanStore } from '@/store/plan-store';
 import { useSessionStore } from '@/store/session-store';
-import { Sparkles } from 'lucide-react';
+import { ChevronRight, Sparkles, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 
 /**
  * "AI Workflow" on a project's header: Berry plans the project.
@@ -175,39 +175,79 @@ export function AiWorkflowButton({ project }: { project: Project }) {
          </Tooltip>
 
          <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
-            <DialogContent className="sm:max-w-md">
-               <DialogHeader>
-                  <DialogTitle>Develop {project.name} with AI</DialogTitle>
-                  <DialogDescription>
+            <DialogContent
+               showCloseButton={false}
+               className="flex max-h-[85vh] w-full flex-col gap-0 p-0 shadow-lg top-[22%] translate-y-0 sm:max-w-lg"
+               onEscapeKeyDown={(event) => pending && event.preventDefault()}
+            >
+               <DialogHeader className="px-6 pt-5 pb-0">
+                  <div className="flex items-center justify-between gap-3">
+                     <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
+                        <BerryMark size="sm" />
+                        <span className="font-medium text-foreground">{WORKSPACE_NAME}</span>
+                        <ChevronRight className="size-3.5 shrink-0" />
+                        <span className="truncate">AI workflow</span>
+                     </div>
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Close"
+                        disabled={pending}
+                        onClick={() => setOpen(false)}
+                     >
+                        <X className="size-4" />
+                     </Button>
+                  </div>
+               </DialogHeader>
+
+               <div
+                  data-step-body="prose"
+                  className="min-h-0 flex-1 overflow-y-auto px-6 pt-4 pb-4"
+               >
+                  <DialogTitle asChild>
+                     <p className="font-medium text-foreground">Develop {project.name} with AI</p>
+                  </DialogTitle>
+                  <DialogDescription className="mt-1">
                      Berry plans the project in four steps. You stay in charge of the plan and of
                      every release.
                   </DialogDescription>
-               </DialogHeader>
-               <ol className="flex flex-col gap-3">
-                  {STEPS.map((step, index) => (
-                     <li key={step.title} className="flex gap-3">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-muted font-medium text-muted-foreground">
-                           {index + 1}
-                        </span>
-                        <div className="flex flex-col gap-0.5">
-                           <span className="font-medium text-foreground">{step.title}</span>
-                           <span className="text-muted-foreground">{step.detail}</span>
-                        </div>
-                     </li>
-                  ))}
-               </ol>
-               <DialogFooter>
+                  <ol className="mt-4">
+                     {STEPS.map((step, index) => (
+                        <li
+                           key={step.title}
+                           className="grid grid-cols-[2ch_minmax(0,1fr)] gap-x-3 border-t border-border/60 py-3 first:border-t-0 first:pt-0 last:pb-0"
+                        >
+                           <span className="tabular-nums text-muted-foreground">{index + 1}</span>
+                           <div className="min-w-0">
+                              <p className="font-medium text-foreground">{step.title}</p>
+                              <p className="mt-0.5 text-muted-foreground">{step.detail}</p>
+                           </div>
+                        </li>
+                     ))}
+                  </ol>
+               </div>
+
+               <DialogFooter data-step-body="prose" className="border-t px-6 py-3 sm:justify-end">
                   <Button
                      type="button"
                      variant="ghost"
                      size="sm"
+                     className="max-sm:min-h-11"
                      disabled={pending}
                      onClick={() => setOpen(false)}
                   >
                      Cancel
                   </Button>
-                  <Button type="button" size="sm" disabled={pending} onClick={() => void start()}>
-                     <Sparkles className="size-3.5" />
+                  <Button
+                     type="button"
+                     size="sm"
+                     className="max-sm:min-h-11"
+                     disabled={pending}
+                     onClick={() => void start()}
+                  >
+                     <Sparkles className="size-4" />
                      {pending ? 'Starting…' : 'Start AI workflow'}
                   </Button>
                </DialogFooter>
