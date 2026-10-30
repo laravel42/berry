@@ -12,6 +12,8 @@ The parser in `server-ts/src/config/config.ts` and the composition in `server-ts
 | `BERRY_APP_URL` | Browser-facing app address. |
 | `BERRY_PUBLIC_URL` | Public server address used by integrations and runtime fallback. |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google Cloud OAuth client for MCP servers that use Google's authorization server and do not advertise dynamic client registration. One per deployment. |
+| `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | LiveKit Cloud or a self-hosted LiveKit server. All three or none. `POST /api/v1/voice/token` mints a room token; the browser never sees the secret. |
+| `LIVEKIT_AGENT_NAME` | LiveKit worker to dispatch (default `berry-voice`). Run `pnpm dev:voice` so it is registered. |
 | `INTEGRATION_ENCRYPTION_KEY` | Sealing key for stored provider and integration secrets. |
 | `S3_BUCKET` / `S3_REGION` | Artifact and attachment storage. |
 | `S3_ENDPOINT` / `S3_USE_PATH_STYLE` | S3-compatible storage configuration. |

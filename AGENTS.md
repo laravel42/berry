@@ -206,8 +206,10 @@ exists.
 capabilities this process actually has — for example, `agentExecution` is true
 only when a runtime target (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) is
 configured or the requested workspace has a connected subscription CLI;
-`modelGateway` is always false. A capability reported true that the
-server cannot deliver is worse than one reported false.
+`modelGateway` is always false; `voiceAgents` is true only when
+`LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are set. A
+capability reported true that the server cannot deliver is worse than one
+reported false.
 
 **Frontend is wired to the API** through `lib/api.ts` (`apiUrl` / `apiFetch`).
 Do not reintroduce demo/mock datasets. `NEXT_PUBLIC_BERRY_API_URL` empty means
