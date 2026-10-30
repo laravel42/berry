@@ -1,0 +1,37 @@
+{
+   "id": "bitbucket",
+   "name": "Bitbucket",
+   "description": "The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.",
+   "include": "oauth",
+   "scopes": ["repository", "pullrequest"],
+   "tools": [
+      {
+         "name": "bitbucket.read_repository",
+         "description": "Permission to read repository contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "bitbucket.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "bitbucket.open_pull_request",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "bitbucket.merge_pull_request",
+         "description": "Permission to integrate proposed changes without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

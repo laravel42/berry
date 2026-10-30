@@ -12,7 +12,7 @@ import {
 test('each integration file is included with the same shape', () => {
    assert.deepEqual(
       PROVIDERS.map((provider) => provider.id),
-      ['berry', 'github', 'gitlab']
+      ['berry', 'bitbucket', 'github', 'gitlab']
    );
    const berry = findProvider(BUILT_IN_PROVIDER);
    const github = findProvider('github');
@@ -48,4 +48,15 @@ test('GitLab is an OAuth integration with repository scopes and gitlab-prefixed 
       gitlab?.description,
       'The projects a GitLab account can reach. Sign in so agents can work in those repositories.'
    );
+});
+
+test('Bitbucket is catalogued without a claim that Connect works yet', () => {
+   const bitbucket = findProvider('bitbucket');
+   assert.equal(bitbucket?.include, 'oauth');
+   assert.equal(bitbucket?.name, 'Bitbucket');
+   assert.equal(
+      bitbucket?.description,
+      'The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.'
+   );
+   assert.ok(bitbucket?.tools.every((tool) => tool.name.startsWith('bitbucket.')));
 });

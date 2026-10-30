@@ -1,7 +1,7 @@
 {
    "id": "github",
    "name": "GitHub",
-   "description": "The repositories your agents check out, branch and open pull requests. Sign in with GitHub to grant repository access so agents can clone, push and open pull requests.",
+   "description": "The repositories your agents check out, branch and open pull requests.",
    "include": "oauth",
    "scopes": ["repo", "workflow", "read:org"],
    "tools": [
