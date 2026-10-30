@@ -1009,7 +1009,7 @@ async function projectRuntimeForIssue(
 function requireSubscription(): never {
    throw new AiRuntimeSelectionError(
       'AI_RUNTIME_NOT_CONNECTED',
-      'Connect a subscription AI runtime before running this task.'
+      'Connect an AI runtime before running this task.'
    );
 }
 
@@ -1055,7 +1055,7 @@ function modelOf(metadata: unknown, definition: AiRuntimeDefinition): string {
  *
  * The authorizing person's own connection comes first. Unattended and
  * delegated work then uses the workspace's newest connected runtime, so a
- * connected subscription is what runs rather than the deployment API.
+ * connected CLI or API token is what runs rather than a native model.
  */
 async function pickConnectedRuntime(
    sql: Sql,
@@ -1071,10 +1071,9 @@ async function pickConnectedRuntime(
    accountName: string | null;
    metadata: unknown;
 } | null> {
-   // API-token connections list models. Agent work stays on a CLI runtime.
-   const executable = AI_RUNTIME_CATALOG.filter(
-      (runtime) => runtime.availability === 'available' && runtime.executionMode === 'agent_process'
-   ).map((runtime) => runtime.id);
+   const executable = AI_RUNTIME_CATALOG.filter((runtime) => runtime.availability === 'available').map(
+      (runtime) => runtime.id
+   );
    const [connection] = await sql<Array<{
       id: string;
       user_id: string;

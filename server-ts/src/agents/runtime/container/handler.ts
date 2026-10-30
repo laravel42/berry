@@ -15,7 +15,8 @@ import { permissionsOf, type Permission } from '../../permissions.ts';
 import { buildRunAgent } from '../agent.ts';
 import { logRuntimePrompt } from '../prompt-log.ts';
 import { classify } from '../failure.ts';
-import type { ModelFactory } from '../model.ts';
+import { nativeModelUnavailable, type ModelFactory } from '../model.ts';
+import { apiTokenModelFactory } from '../api-token-model.ts';
 import { AccountingPlugin } from '../plugins/accounting.ts';
 import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
@@ -190,7 +191,7 @@ export async function handleInvocation(
       if (event.type === 'task.completed' || event.type === 'task.failed') ended = true;
       emit(event);
    };
-   if (envelope.kind === 'completion' && envelope.runtime) {
+   if (envelope.kind === 'completion' && envelope.runtime?.executionMode === 'agent_process') {
       await deps.registry
          .exclusive(
             envelope.runtimeSessionId,
@@ -202,14 +203,30 @@ export async function handleInvocation(
    }
    if (envelope.kind === 'completion') {
       // Fresh by construction: no registry, so nothing warm is read or kept.
+      // An API-token runtime uses this loop with that token, not a CLI adapter.
       await deps.registry
-         .exclusive(envelope.runtimeSessionId, (signal) => runCompletionTask(envelope, say, deps, signal), caller)
+         .exclusive(
+            envelope.runtimeSessionId,
+            (signal) => runCompletionTask(envelope, say, { ...deps, modelFactory: modelFactoryFor(envelope, deps) }, signal),
+            caller
+         )
          .catch(ignoreCallerGone);
       return;
    }
    await deps.registry
       .exclusive(envelope.runtimeSessionId, (signal) => runAgentTask(envelope, say, deps, signal), caller)
       .catch(ignoreCallerGone);
+}
+
+/**
+ * An API-token run uses the sealed key on the envelope. Tests keep the
+ * factory they injected (a scripted model); the image's
+ * `nativeModelUnavailable` is what production passes.
+ */
+function modelFactoryFor(envelope: TaskEnvelope, deps: HandlerDeps): ModelFactory {
+   if (envelope.runtime?.executionMode !== 'direct_inference') return deps.modelFactory;
+   if (deps.modelFactory !== nativeModelUnavailable) return deps.modelFactory;
+   return apiTokenModelFactory(envelope, deps.fetch ?? fetch);
 }
 
 /** Nobody is listening for an invocation whose caller left before it started. */
@@ -332,7 +349,8 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       // so it is not offered there. The native loop is offered every tool and
       // PermissionPlugin refuses a call with its reason; both declare only what
       // the run can call, which is what list_run_tools is for.
-      const visible = [...tools, ...mcp.tools].filter((entry) => !envelope.runtime || entry.name !== 'summarize');
+      const agentProcess = envelope.runtime?.executionMode === 'agent_process';
+      const visible = [...tools, ...mcp.tools].filter((entry) => !agentProcess || entry.name !== 'summarize');
       const callable = authorizedAgentTools(visible, envelope, table, exempt);
       const declaration = listRunToolsTool(
          callable.map((entry) => ({ name: entry.name, description: entry.description })),
@@ -345,14 +363,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
       const delivers = directory !== null && envelope.repo !== null && envelope.repo !== undefined && !envelope.repo.readOnly;
       mirror.committed = delivers;
 
-      if (envelope.runtime) {
-         if (envelope.runtime.executionMode !== 'agent_process') {
-            throw new RuntimeAdapterError(
-               'RUNTIME_PROTOCOL',
-               `${envelope.runtime.id} is not an agent-process runtime.`,
-               false
-            );
-         }
+      if (envelope.runtime?.executionMode === 'agent_process') {
          const adapter = deps.adapters?.agentProcess(envelope.runtime.id) ?? null;
          if (!adapter) {
             throw new RuntimeAdapterError(
@@ -447,7 +458,7 @@ async function runAgentTask(envelope: TaskEnvelope, emit: Emit, deps: HandlerDep
             messages: warm && held ? held.messages : toConversation(envelope.transcript),
             onReasoning: thinking,
          },
-         deps.modelFactory
+         modelFactoryFor(envelope, deps)
       );
       if (directory) agent.appState.set(WORKDIR_KEY, directory);
 

@@ -1,4 +1,5 @@
 import type { Sql } from '../db/pool.ts';
+import { isApiTokenRuntime } from '../runtime/ai-runtime-catalog.ts';
 
 /**
  * Workstation adapters the dispatcher claims, and that chat admits, when this
@@ -24,13 +25,15 @@ export function configureTaskExecution(value: TaskExecutionPolicy | null): void 
 
 /**
  * Subscription selection never silently becomes a native/API-billed run.
- * A native host admits native work (a null runtime) and the workstation keys
- * it can also run. Any other runtime key is refused.
+ * A native host admits native work (a null runtime), workstation CLIs, and
+ * API-token runtimes that call the provider from that host. Any other key
+ * is refused.
  */
 export function taskExecutionAllowed(runtimeKey: string | null): boolean {
    if (!policy) return true;
    if (runtimeKey === null) return policy.nativeExecution;
-   return policy.workstationKeys.includes(runtimeKey);
+   if (policy.workstationKeys.includes(runtimeKey)) return true;
+   return policy.nativeExecution && isApiTokenRuntime(runtimeKey);
 }
 
 /**

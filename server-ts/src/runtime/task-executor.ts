@@ -23,6 +23,7 @@ import { scheduleReview } from '../runs/followups.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
+import { isApiTokenRuntime } from './ai-runtime-catalog.ts';
 
 export type UsageRecorder = (
    sql: Sql,
@@ -232,7 +233,7 @@ export class RuntimeTaskExecutor implements Executor {
       if (!target) {
          return this.#fail(task, recorder, usage, { code: 'RUNTIME_UNCONFIGURED', message: 'No agent runtime is configured for this workspace.', retryable: false });
       }
-      if (task.aiRuntimeId) {
+      if (task.aiRuntimeId && !isApiTokenRuntime(task.aiRuntimeId)) {
          const workstation = this.#o.workstation;
          const control = this.#o.transport.control;
          if (onWorkstation && !workstation) {

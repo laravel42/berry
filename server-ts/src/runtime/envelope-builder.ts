@@ -577,10 +577,10 @@ export class EnvelopeBuilder {
             false
          );
       }
-      if (definition.executionMode !== 'agent_process') {
+      if (definition.executionMode !== 'agent_process' && definition.executionMode !== 'direct_inference') {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_UNAVAILABLE',
-            `${definition.name} is connected with an API token. Agent runs use a CLI runtime.`,
+            `${definition.name} cannot run this task.`,
             false
          );
       }
@@ -606,6 +606,13 @@ export class EnvelopeBuilder {
             `${definition.name} could not use your account. Reconnect it and run the task again.`,
             false,
             { cause }
+         );
+      }
+      if (definition.executionMode === 'direct_inference' && credential.type !== 'api_key') {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            `Reconnect ${definition.name} with an API token before running this task.`,
+            false
          );
       }
       if (task.aiRuntimeId === 'claude' && (credential.type !== 'oauth' || credential.token !== CLAUDE_CLI_LOGIN)) {

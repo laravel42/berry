@@ -12,8 +12,8 @@ import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
  *
  * Native Bedrock and Kilo factories are gone. This image still hosts the
  * Strands loop for AgentCore / HTTP invokes; a native model call fails in
- * `nativeModelUnavailable`. Subscription CLIs run on the workstation, not
- * in this container.
+ * `nativeModelUnavailable` unless the envelope carries an API-token runtime.
+ * Subscription CLIs run on the workstation, not in this container.
  */
 const env = process.env;
 const region = (env.BERRY_AGENTCORE_REGION ?? env.AWS_REGION ?? '').trim();

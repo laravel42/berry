@@ -4,7 +4,10 @@ packages:
    - .
 strictDepBuilds: false
 allowBuilds:
+   '@livekit/blingfire': set this to true or false
+   '@livekit/local-inference': set this to true or false
    better-sqlite3: true
+   esbuild: set this to true or false
    koffi: true
    node-llama-cpp: true
    tree-sitter-go: true

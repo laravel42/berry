@@ -176,7 +176,7 @@
    },
    "modelTiers": {
       "title": "Model tiers",
-      "description": "The models each tier runs in this workspace, first choice first. Connect a subscription AI runtime, then place its models on each tier.",
+      "description": "The models each tier runs in this workspace, first choice first. Connect an AI runtime, then place its models on each tier.",
       "subscriptionDescription": "Choose models from {runtimes} for each tier. The tiers are the same for the whole workspace.",
       "agentsTitle": "Agents",
       "agentsHint": "An agent is on one tier. Several agents can share a tier.",
@@ -190,7 +190,7 @@
       "emptyTier": "No models yet. Tasks in this tier use the workspace default.",
       "collapse": "Show or hide {name}",
       "noAgents": "This runtime has not reported any agents.",
-      "gatewayOff": "Connect a subscription AI runtime in Settings → AI Runtimes, then place its models on each tier. Agent runs and completions use those subscriptions only.",
+      "gatewayOff": "Connect an AI runtime in Settings → AI Runtimes, then place its models on each tier. Agent runs and completions use that connection.",
       "loading": "Loading…",
       "sourceWorkspace": "This workspace uses its own placement.",
       "sourceDeployment": "This workspace uses the server's default placement.",

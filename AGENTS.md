@@ -149,21 +149,24 @@ served over HTTP). The runtime's lifecycle stream is written to the run ledger.
 The runtime calls Berry's tools back at `/api/v1/agent-tools` with a
 task-scoped token. There is no other external worker.
 
-**Models are subscription CLIs only**
+**Models are subscription CLIs, or a pasted API token on the compute host**
 ([ADR-0019](docs/adr/0019-subscription-ai-runtimes.md);
 [ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md) is superseded). There is
 no native Bedrock or Kilo path. Agent runs and completions need a connected
-subscription AI runtime. This is separate from the AgentCore/HTTP compute
+AI runtime: a workstation CLI, or an OpenAI / xAI / Anthropic / Gemini API
+token. The token is sealed in Berry and opened only into the task envelope;
+the runtime image calls the provider with `fetch` under
+`src/agents/runtime/`. This is separate from the AgentCore/HTTP compute
 host. The connection id is snapshotted on the run. Resolution order is the
 task override, then the project's runtime, then the person's preference, then
 the first connected model on the agent's tier, then that person's newest
 connection, then the workspace's newest connection. A failed or disconnected
-subscription does not fall back to a native model. `berry-native` is refused.
+runtime does not fall back to a native model. `berry-native` is refused.
 A completion runs as the Orchestrator (or the named role) and uses the first
 connected model on that agent's selected tier; with none placed, it fails.
-Kiro, Claude Code, and Codex are the connectable runtimes, each a CLI on the
+Kiro, Claude Code, and Codex are the connectable subscription CLIs on the
 workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or `codex`), not a
-container Berry runs. Settings → Model tiers places subscription models on
+container Berry runs. Settings → Model tiers places models on
 BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit
 on more than one tier. Products that are not yet connectable are omitted
 from Settings until their adapter ships. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
