@@ -46,6 +46,8 @@ const configSchema = z.object({
       emailRegistration: z.boolean().optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
+      /** Members can open a LiveKit voice room with a workspace agent. */
+      voiceAgents: z.boolean().optional(),
    }),
 });
 
@@ -165,6 +167,20 @@ export async function fetchModelGatewayAvailable(): Promise<boolean> {
       const json: unknown = await apiFetch('/api/v1/config');
       const parsed = configSchema.safeParse(json);
       return parsed.success && parsed.data.capabilities.modelGateway === true;
+   } catch {
+      return false;
+   }
+}
+
+/**
+ * Whether this process can mint a LiveKit voice token. False when the server
+ * does not say so, or cannot be asked: the voice control stays hidden.
+ */
+export async function fetchVoiceAgentsAvailable(): Promise<boolean> {
+   try {
+      const json: unknown = await apiFetch('/api/v1/config');
+      const parsed = configSchema.safeParse(json);
+      return parsed.success && parsed.data.capabilities.voiceAgents === true;
    } catch {
       return false;
    }

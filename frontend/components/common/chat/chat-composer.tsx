@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { ArrowUp, Square } from 'lucide-react';
+import { ArrowUp, Mic, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useComposerPalette } from '@/components/common/composer-palette';
@@ -34,6 +34,8 @@ interface ChatComposerProps {
     * already has one, so there it is a secondary control.
     */
    sendVariant?: 'primary' | 'secondary';
+   /** Open a LiveKit voice room with this conversation's agent. */
+   onVoice?: (() => void) | null;
 }
 
 const SEND_VARIANT = {
@@ -68,6 +70,7 @@ export function ChatComposer({
    agent,
    answering = false,
    sendVariant = 'primary',
+   onVoice = null,
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
    const mode = useUiPrefsStore((state) => state.chatMode);
@@ -96,7 +99,7 @@ export function ChatComposer({
          {palette.list}
 
          <form
-            className="flex items-end gap-2 px-6 pt-2 pb-5"
+            className="flex items-end gap-2 px-3 pt-2 pb-5"
             onSubmit={(event) => {
                event.preventDefault();
                if (canSend) onSend();
@@ -159,6 +162,17 @@ export function ChatComposer({
                      />
                   </div>
                   <div className="flex items-center gap-2">
+                     {false && onVoice ? (
+                        <button
+                           type="button"
+                           onClick={onVoice}
+                           aria-label={t('voiceOpen')}
+                           title={t('voiceOpen')}
+                           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"
+                        >
+                           <Mic className="size-4" aria-hidden />
+                        </button>
+                     ) : null}
                      {onStop ? (
                         <button
                            type="button"

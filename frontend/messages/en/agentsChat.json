@@ -336,6 +336,7 @@
       "tierModelFailed": "The model could not be changed.",
       "composerPlaceholder": "Message {name}…",
       "send": "Send",
+      "voiceOpen": "Talk",
       "queue": "Queue",
       "stopReply": "Stop the reply",
       "attach": "Attach a file",
@@ -409,15 +410,28 @@
       "close": "Close",
       "history": "Conversations",
       "pickAgent": "Pick an agent",
-      "openFull": "Open the full chat",
       "shortcutHint": "Chat anywhere with {keys}",
       "newChat": "New chat",
       "pickTitle": "Who do you want to talk to?",
       "pickHint": "Every agent in this workspace is here.",
       "recentGroup": "Recent",
       "allGroup": "Agents",
-      "startChat": "Start a chat",
       "startChatWith": "Start a chat with {name}",
       "pickEmpty": "No agents to talk to yet."
+   },
+   "voice": {
+      "title": "Talk to {name}",
+      "hint": "Speak, and the agent answers in this room.",
+      "connecting": "Connecting…",
+      "listening": "Listening. Ask it a question.",
+      "thinking": "Thinking…",
+      "speaking": "Speaking",
+      "failed": "The voice room could not start.",
+      "startAudio": "Start audio",
+      "open": "Talk",
+      "openWith": "Talk to {name}",
+      "say": "Send",
+      "sayPlaceholder": "Or type a line…",
+      "micVirtual": "This microphone is virtual and will not hear you. Pick a real one from the control."
    }
 }
