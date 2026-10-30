@@ -62,11 +62,12 @@ which rejects anything else.
 `components/layout/sidebar/nav-settings.tsx` groups settings pages into three
 sections: personal (preferences, notifications, shortcuts, security, tokens,
 connected-accounts), workspace (general, members, agents, **runtimes**,
-**organization**, labels, properties, quick actions), and connections
-(repositories, integrations, MCP, plugins). Runtimes and Organization are
-workspace-settings pages, not top-level rail items. A few settings pages
-exist but are intentionally absent from the nav (`profile`,
-`project-statuses`, `join-links`).
+**organization**, labels, properties, quick actions, logs), and connections
+(repositories, integrations, MCP). Runtimes and Organization are
+workspace-settings pages, not top-level rail items. Connect and Usage live
+on the Manage rail (`/integrations`, `/usage`); old Settings paths redirect
+there. A few settings pages exist but are intentionally absent from the nav
+(`profile`, `project-statuses`, `join-links`).
 
 ## Conventions worth knowing before you edit
 

@@ -235,9 +235,9 @@ const PAGES: PalettePage[] = [
    {
       id: 'usage',
       label: 'Usage',
-      keywords: ['cost', 'spend', 'tokens', 'settings'],
+      keywords: ['cost', 'spend', 'tokens'],
       icon: Coins,
-      href: '/settings/usage',
+      href: '/usage',
    },
    {
       id: 'logs',

@@ -20,6 +20,7 @@ import {
    BookOpen,
    Box,
    Check,
+   Coins,
    ChevronDown,
    FolderKanban,
    GripVertical,
@@ -50,6 +51,7 @@ export const CONFIGURE_ITEMS: ItemConfig[] = [
    { key: 'skills', label: 'Skills', icon: BookOpen },
    { key: 'autopilot', label: 'Autopilots', icon: Timer },
    { key: 'integrations', label: 'Connect', icon: Puzzle },
+   { key: 'usage', label: 'Usage', icon: Coins },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

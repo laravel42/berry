@@ -3,7 +3,6 @@ import {
    Blocks,
    Braces,
    Building2,
-   Coins,
    Keyboard,
    KeyRound,
    Layers,
@@ -45,7 +44,6 @@ export type SettingsNavKey =
    | 'skillLabels'
    | 'properties'
    | 'quickActions'
-   | 'usage'
    | 'logs'
    | 'integrations'
    | 'mcp';
@@ -98,7 +96,6 @@ export const settingsNav: SettingsNavGroup[] = [
          { labelKey: 'skillLabels', url: '/settings/skill-labels', icon: Tags },
          { labelKey: 'properties', url: '/settings/issue-properties', icon: ListChecks },
          { labelKey: 'quickActions', url: '/settings/quick-actions', icon: Zap },
-         { labelKey: 'usage', url: '/settings/usage', icon: Coins },
          { labelKey: 'logs', url: '/settings/logs', icon: ScrollText },
       ],
    },

@@ -68,13 +68,14 @@ High-level sections under `[orgId]/`:
   `inbox`, `reviews`, `review`, `approvals`, `goals`/`goal`, `projects`/`project`,
   `plan`, `proposals` (agent-submitted work proposals).
 - **Agents:** `agents`, `agent`, `skills`, `autopilots`/`autopilot`, `runs`, `chat`.
-- **Other:** `dashboard`, `usage`, `views`/`view`, `members`, `plugins`, `profiles`,
-  `attachments`.
+- **Other:** `dashboard` (redirects to Usage), `usage`, `views`/`view`, `members`,
+  `plugins`, `profiles`, `attachments`.
 - **Settings** (`settings/`): personal (preferences, notifications, shortcuts,
   security, tokens, connected-accounts), workspace (general, members, agents,
-  **runtimes**, **organization**, labels, properties, quick actions), and
-  connections (repositories, integrations, MCP, plugins). Runtimes and
-  Organization are workspace settings pages, not top-level nav items.
+  **runtimes**, **organization**, labels, properties, quick actions, logs), and
+  connections (repositories, integrations, MCP). Connect and Usage live on the
+  Manage rail; `settings/plugins` and `settings/usage` redirect there. Runtimes
+  and Organization are workspace settings pages, not top-level nav items.
 
 There are no Squads — that surface was removed. A top-level `runtimes/` route
 still exists only as a redirect into `settings/runtimes`, kept for old links.
