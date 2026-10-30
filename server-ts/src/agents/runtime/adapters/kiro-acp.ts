@@ -22,6 +22,8 @@ export interface KiroChild {
    errors(): AsyncIterable<string>;
    kill(): void;
    readonly exited: Promise<{ code: number | null; error: Error | null }>;
+   /** False when the OS has already reaped the process and `exit` never fired. */
+   alive?(): boolean;
 }
 
 interface Pending {
@@ -65,6 +67,17 @@ export function spawnKiroProcess(spec: KiroSpawn): KiroChild {
          child.kill('SIGKILL');
       },
       exited,
+      alive() {
+         if (child.exitCode !== null || child.signalCode !== null) return false;
+         const pid = child.pid;
+         if (pid == null) return false;
+         try {
+            process.kill(pid, 0);
+            return true;
+         } catch {
+            return false;
+         }
+      },
    };
 }
 
@@ -80,8 +93,8 @@ export class KiroAcpClient {
    readonly #pending = new Map<number, Pending>();
    #nextId = 0;
    #closed = false;
+   #dead: Error | null = null;
    #stderr = '';
-   #reading: Promise<void> = Promise.resolve();
 
    constructor(child: KiroChild, token: string, handlers: KiroAcpHandlers) {
       this.#child = child;
@@ -90,8 +103,11 @@ export class KiroAcpClient {
    }
 
    start(): void {
-      this.#reading = this.#pump();
+      void this.#pump();
       void this.#collectErrors();
+      // stdout can stay open after the process is gone; do not wait on it.
+      void this.#watchExit();
+      void this.#watchAlive();
    }
 
    stderr(): string {
@@ -99,6 +115,10 @@ export class KiroAcpClient {
    }
 
    request(method: string, params: unknown, timeoutMs: number): Promise<unknown> {
+      if (this.#dead) return Promise.reject(this.#dead);
+      if (this.#closed) {
+         return Promise.reject(new RuntimeAdapterError('RUNTIME_CANCELLED', 'The Kiro run was closed.', false));
+      }
       const id = ++this.#nextId;
       return new Promise((resolve, reject) => {
          const timer = setTimeout(() => {
@@ -120,12 +140,52 @@ export class KiroAcpClient {
       this.#closed = true;
       this.#failPending(new RuntimeAdapterError('RUNTIME_CANCELLED', 'The Kiro run was closed.', false));
       this.#child.kill();
-      await this.#reading.catch(() => undefined);
+      // Do not wait for `#pump`: a dead CLI can leave stdout open, and that
+      // is the hang that kept chat on "thinking".
       await this.#child.exited.catch(() => undefined);
    }
 
    #write(message: JsonRpc): void {
       this.#child.write(JSON.stringify(message));
+   }
+
+   async #watchExit(): Promise<void> {
+      const exit = await this.#child.exited.catch(() => ({ code: null, error: null as Error | null }));
+      if (this.#closed) return;
+      // The last result is often already in stdout when `exit` fires. Give
+      // `#pump` a turn to resolve it before treating the child as gone.
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      if (this.#closed) return;
+      const missing = Boolean(exit.error && (exit.error as NodeJS.ErrnoException).code === 'ENOENT');
+      const detail = this.stderr().trim();
+      const error = missing
+         ? new RuntimeAdapterError('RUNTIME_NOT_INSTALLED', 'kiro-cli is not installed on this workstation.', false)
+         : new RuntimeAdapterError(
+              'RUNTIME_ERROR',
+              detail !== '' ? detail.slice(0, 300) : 'Kiro CLI closed the ACP connection.',
+              true
+           );
+      // Remember the death: a handshake can finish, the CLI can exit, and
+      // the next `session/prompt` must not wait out the two-hour deadline.
+      this.#dead = error;
+      this.#failPending(error);
+   }
+
+   async #watchAlive(): Promise<void> {
+      while (!this.#closed && this.#dead === null) {
+         await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
+         if (this.#closed || this.#dead) return;
+         if (this.#child.alive && !this.#child.alive()) {
+            const error = new RuntimeAdapterError(
+               'RUNTIME_ERROR',
+               'Kiro CLI closed the ACP connection.',
+               true
+            );
+            this.#dead = error;
+            this.#failPending(error);
+            return;
+         }
+      }
    }
 
    async #collectErrors(): Promise<void> {

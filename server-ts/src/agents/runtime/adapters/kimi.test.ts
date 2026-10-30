@@ -88,6 +88,10 @@ class ScriptedChild {
       this.#wake();
    }
 
+   alive(): boolean {
+      return !this.#done;
+   }
+
    async *lines(): AsyncIterable<string> {
       for (;;) {
          if (this.#queue.length > 0) {
@@ -334,6 +338,164 @@ describe('Kimi adapter', () => {
       assert.equal(event.usage.reportedCostMicros, null);
       assert.equal(event.usage.model, 'kimi-k2');
       assert.equal(kimiUsageEvent({ update: { creditsUsed: 0.08 } }, 'kimi-k2'), null);
+   });
+
+   test('fails the turn when the CLI exits and leaves stdout open', async () => {
+      // The real `kimi acp` child can die while Node still holds its stdout
+      // pipe. Chat then sat on "thinking" until the two-hour deadline.
+      const hungLauncher: KimiLauncher = (spec) => {
+         if (spec.args[0] === '--version') {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushLine('kimi 1.2.3');
+               child.kill();
+            });
+            return child;
+         }
+         const child = new ScriptedChild();
+         const originalWrite = child.write.bind(child);
+         child.write = (line: string) => {
+            const message = JSON.parse(line) as { method?: string };
+            if (message.method === 'session/prompt') {
+               queueMicrotask(() => child.kill());
+               return;
+            }
+            originalWrite(line);
+         };
+         const lines = child.lines.bind(child);
+         child.lines = async function* () {
+            for await (const line of lines()) {
+               yield line;
+            }
+            await new Promise<void>(() => undefined);
+         };
+         return child;
+      };
+      const adapter = new KimiAgentAdapter({ launcher: hungLauncher, deadlineMs: 30_000 });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-kimi-hung-'));
+      const started = Date.now();
+      try {
+         await assert.rejects(
+            () =>
+               adapter.start({
+                  envelope: envelope(),
+                  credential,
+                  workingDirectory: directory,
+                  stateDirectory: join(directory, 'state'),
+                  tools: [],
+                  emit: () => undefined,
+                  signal: new AbortController().signal,
+               }),
+            (error: unknown) =>
+               error instanceof RuntimeAdapterError &&
+               error.code === 'RUNTIME_ERROR' &&
+               /closed the ACP connection/i.test(error.message)
+         );
+         assert.ok(Date.now() - started < 5_000);
+      } finally {
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('fails session/prompt when the CLI exits after the handshake', async () => {
+      const hungLauncher: KimiLauncher = (spec) => {
+         if (spec.args[0] === '--version') {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushLine('kimi 1.2.3');
+               child.kill();
+            });
+            return child;
+         }
+         const child = new ScriptedChild();
+         const originalWrite = child.write.bind(child);
+         child.write = (line: string) => {
+            const message = JSON.parse(line) as { method?: string };
+            if (message.method === 'session/prompt') return;
+            originalWrite(line);
+            if (message.method === 'session/new') queueMicrotask(() => child.kill());
+         };
+         return child;
+      };
+      const adapter = new KimiAgentAdapter({ launcher: hungLauncher, deadlineMs: 30_000 });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-kimi-dead-'));
+      const started = Date.now();
+      try {
+         await assert.rejects(
+            () =>
+               adapter.start({
+                  envelope: envelope(),
+                  credential,
+                  workingDirectory: directory,
+                  stateDirectory: join(directory, 'state'),
+                  tools: [],
+                  emit: () => undefined,
+                  signal: new AbortController().signal,
+               }),
+            (error: unknown) =>
+               error instanceof RuntimeAdapterError &&
+               error.code === 'RUNTIME_ERROR' &&
+               /closed the ACP connection/i.test(error.message)
+         );
+         assert.ok(Date.now() - started < 5_000);
+      } finally {
+         await rm(directory, { recursive: true, force: true });
+      }
+   });
+
+   test('fails when the CLI pid is gone even if exit never fires', async () => {
+      const hungLauncher: KimiLauncher = (spec) => {
+         if (spec.args[0] === '--version') {
+            const child = new ScriptedChild();
+            queueMicrotask(() => {
+               child.pushLine('kimi 1.2.3');
+               child.kill();
+            });
+            return child;
+         }
+         const child = new ScriptedChild();
+         let live = true;
+         child.alive = () => live;
+         const originalWrite = child.write.bind(child);
+         child.write = (line: string) => {
+            const message = JSON.parse(line) as { method?: string };
+            if (message.method === 'session/prompt') {
+               live = false;
+               return;
+            }
+            originalWrite(line);
+         };
+         const lines = child.lines.bind(child);
+         child.lines = async function* () {
+            for await (const line of lines()) yield line;
+            await new Promise<void>(() => undefined);
+         };
+         return child;
+      };
+      const adapter = new KimiAgentAdapter({ launcher: hungLauncher, deadlineMs: 30_000 });
+      const directory = await mkdtemp(join(tmpdir(), 'berry-kimi-pid-'));
+      const started = Date.now();
+      try {
+         await assert.rejects(
+            () =>
+               adapter.start({
+                  envelope: envelope(),
+                  credential,
+                  workingDirectory: directory,
+                  stateDirectory: join(directory, 'state'),
+                  tools: [],
+                  emit: () => undefined,
+                  signal: new AbortController().signal,
+               }),
+            (error: unknown) =>
+               error instanceof RuntimeAdapterError &&
+               error.code === 'RUNTIME_ERROR' &&
+               /closed the ACP connection/i.test(error.message)
+         );
+         assert.ok(Date.now() - started < 5_000);
+      } finally {
+         await rm(directory, { recursive: true, force: true });
+      }
    });
 
    test('uses the installer binary when the shell PATH does not list it', async () => {
