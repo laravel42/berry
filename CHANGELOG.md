@@ -18,6 +18,7 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- Source control lists Bitbucket after GitHub and GitLab, without a Connect button. The catalog file is `server-ts/src/integrations/catalog/bitbucket.json`.
 - Members can talk to a workspace agent by voice. The chat page opens a LiveKit session modal (`BarVisualizer`, `VoiceAssistantControlBar`). `POST /api/v1/voice/token` mints a 10-minute join token (identity is the member id; the Berry role, member name, instructions and recent chat go in dispatch metadata). `GET /api/v1/config` reports `voiceAgents` only when `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are set. The worker is `pnpm dev:voice` (`LIVEKIT_AGENT_NAME`, default `berry-voice`) on LiveKit Inference, with AssemblyAI streaming STT so a spoken (or typed) turn gets a reply. Talk prefers a real microphone over a virtual device. A server without LiveKit answers `422 VOICE_UNAVAILABLE`. The floating Agents window stays text-only.
 - Settings → Plugins lists the plugins that ship in `plugins/` (Customer.io) so they can be installed from the page. `GET /api/v1/plugins/{workspaceId}/catalog` returns them.
 - `GET /v1/self` lets a plugin token read its own config and secrets. An agent run calls the plugin's approved MCP tools at the address saved on the installation, and sends `Berry-Api-Url` so the plugin can read those values back. Personal tokens receive `403 PLUGIN_TOKEN_REQUIRED`. `PATCH` on an installation accepts `baseUrl`.
@@ -320,6 +321,8 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Changed
 
+- Usage sits on the Manage rail under Connect at `/{orgId}/usage`. `/{orgId}/settings/usage` and `/{orgId}/dashboard` redirect there. Runtimes and Logs stay in Settings.
+- Source control shows GitHub's first sentence only, hides Connect on GitLab and Bitbucket, and puts the Bitbucket card last.
 - Settings → Integrations is labelled Source control. Plugins is Connect on the main rail, under Autopilots. `/{orgId}/settings/plugins` redirects there.
 - Connect uses the same page header and filter bar as Autopilots. Each plugin is a card with its brand mark, a larger name, a three-line description, and status. Opening an installed plugin shows its detail and tools in a drawer, without access, install source, settings, or stored-data rows. Clicking an available plugin opens the install dialog. All, Installed, and Available filter the grid, with installed plugins first. Autopilot start-from templates use the same cards, without a heading above them.
 - A finished agent run posts one comment, its report. The handoff stays a file on the task and is omitted from that comment's file list, from the review Files tree, and from `delivery.producedFiles` on `GET /api/v1/reviews`. The Files tab is omitted when that listing is empty. `post_comment` on the task being worked is refused, so the run cannot add a second comment. Cut, rename and delete of `.handoffs/` and `.git` are refused on that tree, as they are on the file tools; `POST /api/v1/reviews/{runId}/delete` answers `422 PATH_PROTECTED`.
@@ -446,6 +449,7 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Fixed
 
+- A task's Goal section no longer lists a goal that has been archived. The leftover `{ id, title }` on the issue is ignored once the goals list has loaded and that row is gone.
 - Agent chat no longer stays on "thinking" after Kimi or Kiro's CLI child exits. The ACP client fails the turn when that process is gone, even if its stdout pipe never closes or `exit` never fires, so the reply (or the failure line) lands instead of waiting out the two-hour deadline. A boardless chat turn that gets no ACP answer in 90 seconds fails the same way.
 - Settings → Plugins shows a one-line summary for each MCP tool. A description that is an agent prompt, such as PostHog's `exec` skill instructions, is not printed in that list.
 - Creating a project from Agent chat wrote the row and then left the Projects
