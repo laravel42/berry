@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useShellStore } from '@/store/shell-store';
 import { activeShellRoute, type ShellRoute } from './shell-routes';
 import { ShellRail } from './shell-rail';
-// import { ShellChatButton } from './shell-chat-button';
+import { ShellChatButton } from './shell-chat-button';
 import { shellIconButton } from './shell-icon';
 import { useChatUnreadSync } from './use-chat-unread-sync';
 import { NotificationToasts } from '../notifications/notification-toasts';
@@ -22,7 +22,7 @@ import { ShellShortcuts } from './shell-shortcuts';
  *
  * The chrome that has to stay reachable whatever the page shows — the menu
  * button below `lg` and the chat window's button — floats in the
- * bottom-left corner. Below `lg` the canvas leaves a strip under the page for
+ * bottom-right corner. Below `lg` the canvas leaves a strip under the page for
  * it, so it never covers the page's last line.
  * The page fills the canvas; the URL is the only navigation state.
  * Notifications live on Inbox in the rail; toasts still announce arrivals.
@@ -182,11 +182,11 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                   </main>
                   <NotificationToasts />
                </div>
-               {/* Flat Agents launcher at the bottom-left of the body frame,
+               {/* Flat Agents launcher at the bottom-right of the body frame,
                 plus the menu below `lg`. Fixed to the viewport insets so it
                 sits in the frame gutter and, below `lg`, in the strip the
                 canvas leaves for it, not over the page. */}
-               <div className="pointer-events-none fixed left-[calc(var(--app-inset-l)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+0.25rem+2px)] z-50 flex items-center gap-2 *:pointer-events-auto">
+               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+0.25rem+2px)] z-50 flex items-center gap-2 *:pointer-events-auto">
                   <button
                      ref={menuRef}
                      type="button"
@@ -198,8 +198,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                   >
                      <Menu size={16} strokeWidth={1.8} aria-hidden="true" />
                   </button>
-                  {/* Agents launcher hidden for now. */}
-                  {/* <ShellChatButton /> */}
+                  <ShellChatButton />
                </div>
             </div>
          </div>

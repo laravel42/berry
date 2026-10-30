@@ -1,8 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ChevronDown, Maximize2, Minus, Minimize2, Pin, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -47,8 +46,8 @@ const MIN_HEIGHT = 320;
 const MAX_RECENT = 6;
 
 /**
- * One agent to start a conversation with: who it is, what it is for, and the
- * action. The whole row is the button, so on a phone the target is the row.
+ * One agent to start a text conversation with. The whole row is the
+ * button, so on a phone the target is the row.
  */
 function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) => void }) {
    const t = useTranslations('agentsChat.floating');
@@ -61,7 +60,7 @@ function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) 
             type="button"
             onClick={() => onPick(agent)}
             aria-label={t('startChatWith', { name: agent.name })}
-            className="group flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus-visible:bg-[var(--shell-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+            className="flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
          >
             <span className="flex size-8 flex-none items-center justify-center overflow-hidden rounded-md bg-[var(--shell-surface)]">
                {avatarSrc ? (
@@ -89,12 +88,6 @@ function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) 
                   </span>
                ) : null}
             </span>
-            <span
-               aria-hidden
-               className="flex-none rounded-md bg-[var(--shell-line)] px-2 py-1 text-[var(--shell-text-muted)] transition-colors group-hover:bg-[var(--shell-line-strong)] group-hover:text-[var(--shell-text)] group-focus-visible:bg-[var(--shell-line-strong)] group-focus-visible:text-[var(--shell-text)]"
-            >
-               {t('startChat')}
-            </span>
          </button>
       </li>
    );
@@ -110,8 +103,7 @@ const headerControl =
  * The point of this window is that the conversation is *next to* the work
  * rather than instead of it, so it deliberately does not try to be the chat
  * page: no queue panel, no archive, no session management. Anything beyond
- * saying something to an agent sends the reader to `/chat`, which is one click
- * away in the header.
+ * saying something to an agent belongs on `/chat`.
  *
  * It opens from the chat button in the tab strip (`ShellChatButton`) and from
  * mod+J; both go through the shell store, so the button reflects the window
@@ -127,7 +119,6 @@ export function FloatingChat() {
    const chat = useTranslations('agentsChat.chat');
    const common = useTranslations('agentsChat.common');
    const pathname = usePathname() ?? '';
-   const { orgId } = useParams<{ orgId?: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
 
    const state = useShellStore((store) => store.chatWindow);
@@ -351,10 +342,10 @@ export function FloatingChat() {
       const move = (moveEvent: PointerEvent) => {
          const from = resizing.current;
          if (!from) return;
-         // The window grows up and to the right, because it is anchored to the
-         // bottom-left corner of the viewport.
+         // The window grows up and to the left, because it is anchored to the
+         // bottom-right corner of the viewport.
          setSize({
-            width: Math.max(MIN_WIDTH, from.width + (moveEvent.clientX - from.x)),
+            width: Math.max(MIN_WIDTH, from.width + (from.x - moveEvent.clientX)),
             height: Math.max(MIN_HEIGHT, from.height + (from.y - moveEvent.clientY)),
          });
       };
@@ -374,7 +365,8 @@ export function FloatingChat() {
 
    // Closed is nothing at all: the strip's chat button is the launcher, and a
    // page's bottom action bar gets its corner back.
-   if (hidden || state === 'closed') return null;
+   if (hidden) return null;
+   if (state === 'closed') return null;
 
    const expanded = state === 'expanded';
    const minimised = state === 'minimised';
@@ -413,10 +405,11 @@ export function FloatingChat() {
          // Below `sm` the window fills the screen under the strip: a 380px
          // panel on a phone is the whole screen anyway, and keeping the strip
          // keeps the button that closes it.
+         data-step-body="prose"
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
             // Bottom ~3.1rem: the Agents launcher sits under the panel.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:left-4 sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
             expanded
                ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
                : minimised
@@ -426,6 +419,16 @@ export function FloatingChat() {
          style={sizeVars}
       >
          <header className="flex flex-none items-center gap-2 border-b border-[var(--shell-line)] px-3 py-2">
+            {!expanded && !minimised ? (
+               <button
+                  type="button"
+                  onPointerDown={onResize}
+                  aria-label={t('expand')}
+                  className="hidden size-4 flex-none cursor-nwse-resize text-[var(--shell-text-dim)] sm:block"
+               >
+                  <Minimize2 className="size-3.5 rotate-90" aria-hidden />
+               </button>
+            ) : null}
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <button
@@ -476,26 +479,6 @@ export function FloatingChat() {
                   )}
                </DropdownMenuContent>
             </DropdownMenu>
-
-            {orgId ? (
-               <Link
-                  href={`/${orgId}/chat${active ? `?session=${active.id}` : ''}`}
-                  className="flex min-h-11 flex-none items-center rounded text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] sm:min-h-0"
-               >
-                  {t('openFull')}
-               </Link>
-            ) : null}
-
-            {!expanded && !minimised ? (
-               <button
-                  type="button"
-                  onPointerDown={onResize}
-                  aria-label={t('expand')}
-                  className="hidden size-4 flex-none cursor-nesw-resize text-[var(--shell-text-dim)] sm:block"
-               >
-                  <Minimize2 className="size-3.5 -rotate-90" aria-hidden />
-               </button>
-            ) : null}
 
             <button
                type="button"
@@ -561,7 +544,9 @@ export function FloatingChat() {
                aria-busy={opening !== null || !agentsLoaded}
             >
                <div className="px-3 pt-3">
-                  <h2 className="text-[var(--shell-text)]">{t('pickTitle')}</h2>
+                  <h2 data-step-body="prose" className="text-[var(--shell-text)]">
+                     {t('pickTitle')}
+                  </h2>
                   <p className="mt-0.5 text-[var(--shell-text-muted)]">{t('pickHint')}</p>
                </div>
                {!agentsLoaded ? (
