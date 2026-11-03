@@ -4,8 +4,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Chips under the "Ledger" redesign: the kit's `.pill` — 26px tall, pilled,
+ * 10px of side padding, a 7px gap, and its label at 600 on a single line.
+ *
+ * The height is a floor (`--chip-h`) rather than a fixed height, so a chip
+ * whose label wraps grows instead of clipping. The kit sets the label at 12px;
+ * the size is left to the base layer here, which gives every element 13px —
+ * both clear invariant 5's 12px readability floor, and font sizes are not a
+ * component's to set in this codebase.
+ */
 const badgeVariants = cva(
-   'inline-flex items-center justify-center rounded-md border px-3 py-1 font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-auto',
+   'inline-flex items-center justify-center min-h-(--chip-h) rounded-pill border px-2.5 gap-[7px] font-semibold leading-none w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow]',
    {
       variants: {
          variant: {
@@ -36,5 +46,16 @@ function Badge({
       <Comp data-slot="badge" className={cn(badgeVariants({ variant }), className)} {...props} />
    );
 }
+
+/**
+ * The chip geometry alone, for the two chips that are not `Badge`.
+ *
+ * `common/status-badge` and `common/meta-badge` carry colours and content of
+ * their own — a mark plus a word, an icon plus a truncating label — but they
+ * were also drawing at three different heights between them. They take the
+ * shape from here and keep their own paint.
+ */
+export const CHIP_GEOMETRY =
+   'inline-flex items-center min-h-(--chip-h) rounded-pill px-2.5 gap-[7px] font-semibold leading-none whitespace-nowrap';
 
 export { Badge, badgeVariants };

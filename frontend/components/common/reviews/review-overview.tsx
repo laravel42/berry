@@ -35,7 +35,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
          <dt>
             <Badge
                variant="secondary"
-               className="overflow-hidden border-status-neutral/40 bg-status-neutral/10 px-1.5 py-0 font-normal text-status-neutral"
+               className="overflow-hidden border-status-neutral/40 bg-status-neutral/10 text-status-neutral"
             >
                {label}
             </Badge>
