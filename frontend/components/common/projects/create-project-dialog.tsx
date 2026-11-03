@@ -201,9 +201,8 @@ export function CreateProjectDialog() {
                         <div className="flex shrink-0 items-center gap-1">
                            <Button
                               type="button"
-                              variant="outline"
-                              size="xs"
-                              className="spark h-[38px] min-h-0 border-0"
+                              variant="ai"
+                              size="md"
                               onClick={() => setAssistant(true)}
                            >
                               <SparkIcon className="size-3.5" />

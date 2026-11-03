@@ -57,8 +57,8 @@ export function ShellChatButton() {
    return (
       <Button
          type="button"
-         variant="outline"
-         size="xxs"
+         variant="ai"
+         size="md"
          onClick={() => {
             if (!floatingEnabled) setFloatingChat(true);
             toggleChat();
@@ -68,10 +68,7 @@ export function ShellChatButton() {
          aria-expanded={open}
          title={title}
          data-open={open ? 'true' : undefined}
-         className={cn(
-            'spark relative h-6 min-h-0 border-0 data-[open=true]:text-foreground',
-            onChatPage && 'opacity-40'
-         )}
+         className={cn('relative data-[open=true]:text-foreground', onChatPage && 'opacity-40')}
       >
          <SparkIcon className="size-3.5" />
          {t('nav.agents')}

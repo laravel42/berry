@@ -30,12 +30,31 @@ const buttonVariants = cva(
             ghost: 'hover:bg-muted hover:text-accent-foreground',
             link: 'text-primary-text underline-offset-4 hover:underline',
             gate: 'bg-gate text-gate-foreground shadow-xs hover:brightness-110',
+            /* A secondary control inviting an AI action — "Create with
+               agent", "AI Workflow", "Fix with AI" — never the primary
+               action on a screen, which already carries the gradient fill
+               of `default` and would just get a noisy ring around it.
+               `.spark` (app/globals.css) draws the travelling ring on
+               `::after`, which is why the border itself is removed here
+               rather than left for a border-colour variant to fill.
+               Padding is left to `size`, same as every other variant;
+               callers needing more room pass a `size`, not a one-off
+               className override that would have to out-specify
+               `size`'s own `has-[>svg]` padding split. */
+            ai: 'spark border-0',
          },
          size: {
             default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
             xxs: 'h-6 gap-1.5 px-2.5 has-[>svg]:px-2',
             xs: 'h-7 gap-1.5 px-2.5 has-[>svg]:px-2',
             sm: 'h-[30px] gap-1.5 px-3 has-[>svg]:px-2.5',
+            /* 38px: between `sm` (30px) and the 44px floor, for a control
+               that wants more room to breathe than the compact sizes but
+               does not carry the 44px touch-target requirement `default`
+               and `lg` are for. Flat padding, no `has-[>svg]` split: unlike
+               the compact sizes, an icon here is not meant to read as
+               narrower than the label it sits beside. */
+            md: 'h-[38px] gap-1.5 px-4',
             lg: 'min-h-(--ctl-h-lg) min-w-(--ctl-h-lg) px-(--ctl-px)',
             icon: 'size-7',
          },

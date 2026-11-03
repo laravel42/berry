@@ -154,16 +154,9 @@ export function AiWorkflowButton({ project }: { project: Project }) {
             }}
          >
             <TooltipTrigger asChild>
-               {/* `.spark`'s own ring (app/globals.css) stands in for the
-                   old gradient wrapper: a secondary control inviting an AI
-                   action keeps its own background this way. */}
-               <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  className="spark rounded-md border-0"
-                  onClick={() => setOpen(true)}
-               >
+               {/* variant="ai": the .spark ring (app/globals.css) for a
+                   secondary control inviting an AI action. */}
+               <Button type="button" variant="ai" size="md" onClick={() => setOpen(true)}>
                   <SparkIcon className="size-3.5" />
                   AI Workflow
                </Button>

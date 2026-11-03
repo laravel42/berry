@@ -407,9 +407,8 @@ export function EnvironmentPreview({
                         env.failure !== 'infrastructure' && (
                            <Button
                               type="button"
-                              variant="outline"
-                              size="xs"
-                              className="spark rounded-md border-0"
+                              variant="ai"
+                              size="md"
                               disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
                               onClick={fixWithAi}
                               title={t('fixHint')}
