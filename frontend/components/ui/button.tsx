@@ -30,6 +30,11 @@ const buttonVariants = cva(
             ghost: 'hover:bg-muted hover:text-accent-foreground',
             link: 'text-primary-text underline-offset-4 hover:underline',
             gate: 'bg-gate text-gate-foreground shadow-xs hover:brightness-110',
+            /* The monochrome strong button: a solid fill in the text colour,
+               for a confirm that is not the gradient primary. `--foreground`
+               and `--background` swap with the theme, so one recipe is dark
+               ink on light and light ink on dark without a second variant. */
+            dark: 'bg-foreground text-background shadow-xs hover:bg-foreground/90',
             /* A secondary control inviting an AI action — "Create with
                agent", "AI Workflow", "Fix with AI" — never the primary
                action on a screen, which already carries the gradient fill

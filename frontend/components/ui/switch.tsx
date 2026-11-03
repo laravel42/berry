@@ -10,7 +10,11 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
       <SwitchPrimitive.Root
          data-slot="switch"
          className={cn(
-            'peer data-[state=checked]:bg-status-success data-[state=unchecked]:bg-input focus-visible:border-ring inline-flex h-[22px] w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-xs transition-all outline-none disabled:cursor-not-allowed disabled:opacity-50',
+            // Invariant 6: the switch is one of two controls allowed to draw
+            // under the 44px floor, provided it extends its hit area to it. The
+            // `before` pseudo is a 44px target centred on the 36x22 track, so
+            // the touch target meets WCAG 2.5.8 without the control growing.
+            'peer data-[state=checked]:bg-status-success data-[state=unchecked]:bg-input focus-visible:border-ring relative inline-flex h-[22px] w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-xs transition-all outline-none before:absolute before:top-1/2 before:left-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[""] disabled:cursor-not-allowed disabled:opacity-50',
             className
          )}
          {...props}

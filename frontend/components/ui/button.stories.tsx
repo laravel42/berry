@@ -10,11 +10,21 @@ const meta = {
    argTypes: {
       variant: {
          control: 'select',
-         options: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link', 'gate'],
+         options: [
+            'default',
+            'destructive',
+            'outline',
+            'secondary',
+            'ghost',
+            'link',
+            'gate',
+            'dark',
+            'ai',
+         ],
       },
       size: {
          control: 'select',
-         options: ['default', 'xxs', 'xs', 'sm', 'lg', 'icon'],
+         options: ['default', 'xxs', 'xs', 'sm', 'md', 'lg', 'icon'],
       },
    },
 } satisfies Meta<typeof Button>;
@@ -32,6 +42,7 @@ export const Primary: Story = {
 export const Secondary: Story = { args: { variant: 'secondary' } };
 export const Outline: Story = { args: { variant: 'outline', size: 'xs' } };
 export const Destructive: Story = { args: { variant: 'destructive', children: 'Clear' } };
+export const Dark: Story = { args: { variant: 'dark', children: 'Confirm' } };
 
 export const WithIcon: Story = {
    args: {

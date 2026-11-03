@@ -302,16 +302,13 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          <Tabs
             value={view}
             onValueChange={(value) => setView(value as DetailTab)}
+            variant="underline"
             className="flex min-h-0 flex-1 flex-col"
          >
             <div className="border-b px-8">
-               <TabsList className="h-10 gap-1 rounded-none bg-transparent p-0">
+               <TabsList>
                   {TABS.map((tab) => (
-                     <TabsTrigger
-                        key={tab}
-                        value={tab}
-                        className="rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                     >
+                     <TabsTrigger key={tab} value={tab}>
                         {tabLabel[tab]}
                      </TabsTrigger>
                   ))}
