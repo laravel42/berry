@@ -902,6 +902,84 @@ input[type='search'] {
    }
 }
 
+/* ── .spark: a control worth noticing ────────────────────────────────
+   Ledger redesign recipe (berry-redesign/ledger/components.css) ported to
+   this theme's own tokens instead of the kit's --accent/--raised/--line-2.
+   A light travels the border in the brand berry (--pri-a → --pri-b) rather
+   than the old rainbow sweep of `.ai-animated-border`, and the label takes
+   --primary-text. This is for a SECONDARY control that invites an AI
+   action — "Create with agent", "AI Workflow", "Fix with AI" — never the
+   primary action on a screen, which already carries the gradient fill
+   (`Button` variant="default") and would just get a noisy ring around it.
+
+   Drawn as a conic gradient on ::after, masked down to a 1px ring, so the
+   control sits on any surface without needing to match a background.
+   --spark is a registered custom property because an unregistered one
+   cannot be interpolated by the keyframe; the `0deg` fallback inside var()
+   keeps a static ring on screen where @property is unsupported. */
+@property --spark {
+   syntax: '<angle>';
+   initial-value: 0deg;
+   inherits: false;
+}
+
+@keyframes spark {
+   to {
+      --spark: 360deg;
+   }
+}
+
+.spark {
+   position: relative;
+   color: var(--primary-text);
+   background: var(--card);
+}
+
+.spark:hover {
+   color: var(--primary-text);
+   background: var(--secondary);
+}
+
+.spark::after {
+   content: '';
+   position: absolute;
+   inset: 0;
+   border-radius: inherit;
+   padding: 1px;
+   pointer-events: none;
+   background: conic-gradient(
+      from var(--spark, 0deg),
+      transparent 0 54%,
+      var(--pri-a) 76%,
+      var(--pri-b) 84%,
+      transparent 96%
+   );
+   -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+   -webkit-mask-composite: xor;
+   mask-composite: exclude;
+   animation: spark 3.4s linear infinite;
+}
+
+/* The light is the invitation, not the state: once this IS the active mode
+   (a selected tab, not a one-shot action), add .on to drop the ring and
+   read as any other selected control. */
+.spark.on {
+   color: var(--foreground);
+   background: var(--background);
+}
+
+.spark.on::after {
+   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+   .spark::after {
+      animation: none;
+   }
+}
+
 .tiptap-ai-editor .ProseMirror {
    min-height: 6rem;
    outline: none;

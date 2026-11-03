@@ -24,6 +24,7 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { priorities } from '@/data/priorities';
 import type { Status } from '@/data/status';
 import type { User } from '@/data/users';
@@ -42,7 +43,7 @@ import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
-import { ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
+import { ChevronRight, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -198,18 +199,16 @@ export function CreateProjectDialog() {
                       so the header does not show a second close. */}
                      {assistant ? null : (
                         <div className="flex shrink-0 items-center gap-1">
-                           <span className="ai-animated-border h-6">
-                              <Button
-                                 type="button"
-                                 variant="outline"
-                                 size="xxs"
-                                 className="h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
-                                 onClick={() => setAssistant(true)}
-                              >
-                                 <Sparkles className="size-3.5" aria-hidden="true" />
-                                 Create with agent
-                              </Button>
-                           </span>
+                           <Button
+                              type="button"
+                              variant="outline"
+                              size="xs"
+                              className="spark h-[38px] min-h-0 border-0"
+                              onClick={() => setAssistant(true)}
+                           >
+                              <SparkIcon className="size-3.5" />
+                              Create with agent
+                           </Button>
                            <Button
                               type="button"
                               variant="ghost"

@@ -10,6 +10,7 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import type { Project } from '@/data/projects';
 import { BerryApiError } from '@/lib/api';
 import { WORKSPACE_SLUG } from '@/lib/config';
@@ -153,20 +154,19 @@ export function AiWorkflowButton({ project }: { project: Project }) {
             }}
          >
             <TooltipTrigger asChild>
-               {/* The gradient is a wrapper's padding, so the button keeps its
-                   own background and the ring reads as a border that moves. */}
-               <span className="ai-animated-border rounded-md">
-                  <Button
-                     type="button"
-                     variant="ghost"
-                     size="xs"
-                     className="bg-background hover:bg-accent"
-                     onClick={() => setOpen(true)}
-                  >
-                     <Sparkles className="size-3.5" />
-                     AI Workflow
-                  </Button>
-               </span>
+               {/* `.spark`'s own ring (app/globals.css) stands in for the
+                   old gradient wrapper: a secondary control inviting an AI
+                   action keeps its own background this way. */}
+               <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  className="spark rounded-md border-0"
+                  onClick={() => setOpen(true)}
+               >
+                  <SparkIcon className="size-3.5" />
+                  AI Workflow
+               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-64 text-center">
                This project will be developed with AI assistance: Berry analyses it, proposes a plan
