@@ -81,6 +81,12 @@
    --ctl-h: 44px;
    --ctl-h-lg: 48px;
    --ctl-px: 14px;
+   /* Chips sit well under the control floor on purpose — a board row can carry
+      twenty of them, and `.pill` in the kit is 26px with 10px of side padding.
+      Stated once because three components draw a chip today (`ui/badge`,
+      `common/status-badge`, `common/meta-badge`) and they were already three
+      different heights. */
+   --chip-h: 26px;
 
    /* --- Application shell (Berry Prototype.dc.html) -------------------------
       The shell is dark in both themes. It is chrome, not content: the tab
@@ -104,6 +110,18 @@
    --shell-accent: var(--brand-berry);
    --segment-track: #222226;
    --segment-selected: #303035;
+
+   /* The rail's nav glyphs. The kit puts every one in a 22px box (`.navi .ib`)
+      and flips that box to the button gradient on the row you are on
+      (`.navi.on .ib`), so the current destination is marked by a filled shape
+      rather than by the accent: invariant 3 spends berry on the primary action
+      and on work that needs a person, and "where I am" is neither. These are
+      the kit's DARK `--btn-*` values, because the rail takes the dark ramp in
+      both themes like everything else under `--shell-*`. */
+   --shell-nav-icon-a: #ffffff;
+   --shell-nav-icon-b: #c6c6cb;
+   --shell-nav-icon-line: #ffffff;
+   --shell-nav-icon-ink: #010101;
 
    /* Detail drawers never exceed this, regardless of viewport. Past roughly
       this width a drawer stops reading as a panel over the workspace and

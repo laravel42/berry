@@ -23,7 +23,7 @@ import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
-import { ShellIcon, BerryMark, shellNavRow } from './shell-icon';
+import { ShellIcon, ShellNavIcon, BerryMark, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
@@ -229,7 +229,9 @@ export function ShellRail({
                            const className = shellNavRow(on);
                            const inner = (
                               <>
-                                 <ShellIcon path={route.icon} />
+                                 <ShellNavIcon on={on}>
+                                    <ShellIcon path={route.icon} size={13} />
+                                 </ShellNavIcon>
                                  {t(`nav.${route.labelKey}`)}
                                  {route.live === 'runs' && runsLive ? (
                                     <span

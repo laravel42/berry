@@ -8,7 +8,7 @@ import { useNotificationsStore } from '@/store/notifications-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useShellStore } from '@/store/shell-store';
 import { ShellBadge, badgeText } from './shell-badge';
-import { ShellIcon, shellNavRow } from './shell-icon';
+import { ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
 import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
@@ -66,7 +66,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onInbox ? 'page' : undefined}
                   className={shellNavRow(onInbox)}
                >
-                  <ShellIcon path={INBOX_ICON} />
+                  <ShellNavIcon on={onInbox}>
+                     <ShellIcon path={INBOX_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('inbox')}
                   <ShellBadge
                      count={inboxUnread}
@@ -81,7 +83,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onIssues ? 'page' : undefined}
                   className={shellNavRow(onIssues)}
                >
-                  <ShellIcon path={TASKS_ICON} />
+                  <ShellNavIcon on={onIssues}>
+                     <ShellIcon path={TASKS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('myIssues')}
                </Link>
             </li>
@@ -92,7 +96,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onReviews ? 'page' : undefined}
                   className={shellNavRow(onReviews)}
                >
-                  <ShellIcon path={REVIEWS_ICON} />
+                  <ShellNavIcon on={onReviews}>
+                     <ShellIcon path={REVIEWS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('reviews')}
                   <ShellBadge
                      count={openReviews}
@@ -107,7 +113,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onChat ? 'page' : undefined}
                   className={shellNavRow(onChat)}
                >
-                  <ShellIcon path={CHAT_ICON} />
+                  <ShellNavIcon on={onChat}>
+                     <ShellIcon path={CHAT_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('chat')}
                   <ShellBadge
                      count={chatUnread}

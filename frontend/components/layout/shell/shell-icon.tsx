@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 interface ShellIconProps {
    /** Inner SVG markup on a 24x24 viewBox. */
    path: string;
@@ -79,17 +81,44 @@ export const shellIconButton = [
  * A rail row: icon plus label, highlighted when it is where you are.
  *
  * Shared by the workspace routes, Personal and the settings rail so the three
- * lists cannot drift. Below `lg` the rail is an overlay a person taps, so a
- * row is at least 44px tall there; as a column it sizes to its text.
+ * lists cannot drift. The kit's `.navi` is 44px tall at every width, 10px
+ * radius, 500 weight, stepping to 600 and the lighter text on the row you are
+ * on — the row keeps the 44px floor as a column too, rather than sizing to its
+ * text, so it agrees with the buttons and fields that already took that floor.
  */
 export function shellNavRow(on: boolean): string {
    return [
-      'flex min-h-11 items-center gap-2.5 rounded px-3 py-1.5 transition-colors lg:min-h-0',
+      'flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors',
       'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]',
       on
          ? // Inset rather than a real border: a 2px edge on a rounded pill
            // would shift the label by two pixels on selection.
-           'bg-[var(--shell-surface)] text-[var(--shell-text)]'
+           'bg-[var(--shell-surface)] font-semibold text-[var(--shell-text)]'
          : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
    ].join(' ');
+}
+
+/**
+ * A nav glyph in its box — the kit's `.navi .ib`.
+ *
+ * 22px rounded square, the sunken fill at rest, the button gradient with dark
+ * ink on the row you are on. Takes the glyph as children because the three
+ * lists draw theirs differently: the workspace and Personal routes keep their
+ * path data in a data file and render it through `ShellIcon`, while the
+ * settings rail holds lucide components.
+ */
+export function ShellNavIcon({ on, children }: { on: boolean; children: ReactNode }) {
+   return (
+      <span
+         aria-hidden="true"
+         className={[
+            'grid size-[22px] flex-none place-items-center rounded-sm transition-colors',
+            on
+               ? 'border border-[var(--shell-nav-icon-line)] bg-[linear-gradient(180deg,var(--shell-nav-icon-a)_0%,var(--shell-nav-icon-b)_100%)] text-[var(--shell-nav-icon-ink)] shadow-xs'
+               : 'bg-[var(--shell-line)] text-[var(--shell-text-muted)]',
+         ].join(' ')}
+      >
+         {children}
+      </span>
+   );
 }

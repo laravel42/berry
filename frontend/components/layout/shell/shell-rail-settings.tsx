@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 
 import { settingsNav } from '@/components/layout/sidebar/nav-settings';
 import { isNavItemActive } from '@/lib/nav-active';
-import { shellNavRow } from './shell-icon';
+import { ShellNavIcon, shellNavRow } from './shell-icon';
 
 /**
  * Settings mode for the rail.
@@ -63,7 +63,9 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
                               aria-current={active ? 'page' : undefined}
                               className={shellNavRow(active)}
                            >
-                              <item.icon className="size-[15px] flex-none" />
+                              <ShellNavIcon on={active}>
+                                 <item.icon className="size-[13px] flex-none" />
+                              </ShellNavIcon>
                               {t(`nav.${item.labelKey}`)}
                            </Link>
                         </li>
