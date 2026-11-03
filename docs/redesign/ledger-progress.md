@@ -22,18 +22,25 @@ survives a chat compaction or a handoff; it is a log, not a second plan.
   - avatar needs no primitive change: person-vs-agent (round vs bracket
     `BerryMark`) is handled in `common/issues/actor-avatar.tsx`.
 
-## Phase 3 (shell & chrome) — decision: **option B**
+## Phase 3 (shell & chrome) — decision: **option B** — done
 
 The shipped shell already implements most of Phase 3 (honest drawer with
 scrim/Escape/focus return, settings nav collapsing to a dropdown, 44px nav
-rows, the `.navi` icon box from cc2b081). We keep the shipped shell and do only
+rows, the `.navi` icon box from cc2b081). We kept the shipped shell and did only
 the small, unblocked re-skin, recording the plan deviations as accepted.
 
-**To do under B (small, verifiable):**
+**Done under B:**
 
-- Sidebar counts as a mono-700 figure instead of the berry pill badge
-  (`shell-badge.tsx`, consumed by `shell-personal.tsx`).
-- A `.hot` treatment for owed work (reviews waiting, inbox unread).
+- Rail counts are now a mono-700 tabular figure (`data-figure`) instead of the
+  berry pill, so they line up down the rail and read as one voice with every
+  other number. `ShellBadge` gained a `hot` prop; the figure inherits the base
+  layer's size (which also lifted the old 10px count above the 12px readability
+  floor, invariant 5). `shell-badge.tsx` + its story.
+- `.hot` for owed work: `hot` paints the figure in `--shell-accent` — the one
+  rail state invariant 3 lets wear berry ("waiting on you"). Inbox unread and
+  reviews waiting are `hot`; chat unread stays the neutral dim. `shell-personal.tsx`.
+  The accent is the colour, not a fill, so the berry-pill-everywhere the
+  redesign removed does not come back.
 
 **Accepted deviations from `ledger-plan.md` (do not "fix" these):**
 

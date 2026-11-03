@@ -73,6 +73,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   <ShellBadge
                      count={inboxUnread}
                      label={t('inboxUnread', { count: badgeText(inboxUnread) })}
+                     hot
                   />
                </Link>
             </li>
@@ -103,6 +104,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   <ShellBadge
                      count={openReviews}
                      label={t('reviewsWaiting', { count: openReviews })}
+                     hot
                   />
                </Link>
             </li>

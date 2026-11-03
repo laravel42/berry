@@ -26,3 +26,6 @@ nango/
 
 # The old root handoff. Per-task notes live in .handoffs and are committed.
 HANDOFF.md
+
+# Local dev-server log captures (redirected stdout/stderr), machine-local.
+*.log
