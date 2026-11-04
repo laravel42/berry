@@ -37,7 +37,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 const GENERIC_ERROR = 'We could not sign you in with GitHub. Please try again.';
 
-function PasswordlessSignIn() {
+function PasswordlessSignIn({ onBack }: { onBack?: () => void }) {
    const router = useRouter();
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
    const [email, setEmail] = useState('');
@@ -62,6 +62,17 @@ function PasswordlessSignIn() {
       <AuthCard
          title="Sign in to Berry"
          description="Sign in with the email of an account on this server."
+         footer={
+            onBack ? (
+               <button
+                  type="button"
+                  className="underline-offset-4 hover:underline"
+                  onClick={onBack}
+               >
+                  Back
+               </button>
+            ) : undefined
+         }
       >
          <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
             <div className="grid gap-1.5 text-left">
@@ -123,7 +134,13 @@ function GitHubScopeNote() {
    );
 }
 
-function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
+function GitHubSignIn({
+   onUseEmail,
+   onUsePasswordless,
+}: {
+   onUseEmail?: () => void;
+   onUsePasswordless?: () => void;
+}) {
    const params = useSearchParams();
    const returned = params.get('error');
    const [available, setAvailable] = useState<boolean | null>(null);
@@ -188,6 +205,15 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
                      Use email instead
                   </button>
                ) : null}
+               {onUsePasswordless ? (
+                  <button
+                     type="button"
+                     className="underline-offset-4 hover:underline"
+                     onClick={onUsePasswordless}
+                  >
+                     Sign in as the local dev user
+                  </button>
+               ) : null}
                <p className="text-subtle-foreground leading-relaxed">
                   By continuing you agree to the terms and the privacy notice.
                </p>
@@ -229,7 +255,13 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
    );
 }
 
-function EmailRegistration({ onBack }: { onBack?: () => void }) {
+function EmailRegistration({
+   onBack,
+   onUsePasswordless,
+}: {
+   onBack?: () => void;
+   onUsePasswordless?: () => void;
+}) {
    const router = useRouter();
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
    const [mode, setMode] = useState<'register' | 'sign-in'>('register');
@@ -285,6 +317,15 @@ function EmailRegistration({ onBack }: { onBack?: () => void }) {
                      onClick={onBack}
                   >
                      Continue with GitHub
+                  </button>
+               ) : null}
+               {onUsePasswordless ? (
+                  <button
+                     type="button"
+                     className="underline-offset-4 hover:underline"
+                     onClick={onUsePasswordless}
+                  >
+                     Sign in as the local dev user
                   </button>
                ) : null}
             </div>
@@ -360,6 +401,7 @@ function SignInContent() {
       emailRegistration: boolean;
    } | null>(null);
    const [forceEmail, setForceEmail] = useState(false);
+   const [forcePasswordless, setForcePasswordless] = useState(false);
 
    useEffect(() => {
       let cancelled = false;
@@ -384,15 +426,27 @@ function SignInContent() {
    }, []);
 
    if (options === null) return null;
+   // The dev-only passwordless login has no password-based counterpart (the
+   // seeded local account has no credential), so it needs its own escape
+   // hatch out of whichever form would otherwise always win below.
+   if (forcePasswordless && options.passwordless) {
+      return <PasswordlessSignIn onBack={() => setForcePasswordless(false)} />;
+   }
    if (options.github && !forceEmail) {
       return (
          <GitHubSignIn
             onUseEmail={options.emailRegistration ? () => setForceEmail(true) : undefined}
+            onUsePasswordless={options.passwordless ? () => setForcePasswordless(true) : undefined}
          />
       );
    }
    if (options.emailRegistration) {
-      return <EmailRegistration onBack={options.github ? () => setForceEmail(false) : undefined} />;
+      return (
+         <EmailRegistration
+            onBack={options.github ? () => setForceEmail(false) : undefined}
+            onUsePasswordless={options.passwordless ? () => setForcePasswordless(true) : undefined}
+         />
+      );
    }
    if (options.passwordless) return <PasswordlessSignIn />;
    return <GitHubSignIn />;
