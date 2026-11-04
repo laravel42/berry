@@ -1,6 +1,9 @@
 ---
 // PostHog analytics snippet
 // Uses is:inline to prevent Astro from processing the script
+if (import.meta.env.PROD && !import.meta.env.PUBLIC_POSTHOG_PROJECT_TOKEN) {
+  throw new Error('PUBLIC_POSTHOG_PROJECT_TOKEN is not set. A production build without it captures no analytics. Set it in .env or in the build environment (see README.md).');
+}
 ---
 <script is:inline define:vars={{ apiKey: import.meta.env.PUBLIC_POSTHOG_PROJECT_TOKEN, apiHost: import.meta.env.PUBLIC_POSTHOG_HOST }}>
   if (!apiKey) {
