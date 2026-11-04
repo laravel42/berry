@@ -71,8 +71,10 @@ export const BulkSelection: Story = {
 
 export const CancelRuns: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await canvas.findByText('Frontend Engineer');
-      await userEvent.click(canvas.getByRole('button', { name: 'Actions for Frontend Engineer' }));
+      // The row's actions live on a left click now, not a dedicated button.
+      const name = await canvas.findByText('Frontend Engineer');
+      const row = name.closest('[data-slot="context-menu-trigger"]') as HTMLElement;
+      await userEvent.click(row);
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('menuitem', { name: 'Cancel all runs' }));
       // One running and two queued, from the roster.

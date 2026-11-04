@@ -105,7 +105,8 @@ export const Active: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('button', { name: 'Edit the title' })).toBeVisible();
-      await expect(canvas.getByText(goalActive.title)).toBeVisible();
+      // The pending approval also links back to this goal by title; scope to the heading.
+      await expect(canvas.getByRole('heading', { name: goalActive.title })).toBeVisible();
       // The plan list arrives from /api/v1/goals/:id/plans.
       await expect(await canvas.findByText('Plan v2')).toBeVisible();
    },

@@ -28,7 +28,9 @@ export const OpenList: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByText('List options')).toBeVisible();
+      // The popover has no section heading any more (it was dropped when the
+      // layout was aligned with the tasks list's), so wait on its first row.
+      await expect(await body.findByText('Grouping')).toBeVisible();
       await expect(body.getByText('Show empty groups')).toBeVisible();
       await expect(body.queryByRole('button', { name: 'Milestones' })).not.toBeInTheDocument();
       await expect(body.queryByRole('button', { name: 'Members' })).not.toBeInTheDocument();
@@ -41,7 +43,7 @@ export const ReverseOrdering: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByText('List options')).toBeVisible();
+      await expect(await body.findByText('Grouping')).toBeVisible();
       await expect(body.queryByRole('button', { name: 'Timeline' })).not.toBeInTheDocument();
       await userEvent.click(body.getByRole('button', { name: 'Ascending' }));
       await expect(useProjectsDisplayStore.getState().direction).toBe('desc');

@@ -18,9 +18,33 @@ import { ShellRail } from './shell-rail';
 
 /**
  * Two reviews waiting. The rail only counts the queue, so the entries carry
- * just enough to be told apart.
+ * just enough to be told apart, plus a `delivery` so `reportedWithoutChanges`
+ * has something to read.
  */
-const openReviews = [{ runId: 'run-7' }, { runId: 'run-9' }] as unknown as ReviewItem[];
+const openReviews = [
+   {
+      runId: 'run-7',
+      delivery: {
+         committed: true,
+         filesChanged: 1,
+         insertions: 1,
+         deletions: 0,
+         files: [],
+         producedFiles: 0,
+      },
+   },
+   {
+      runId: 'run-9',
+      delivery: {
+         committed: true,
+         filesChanged: 1,
+         insertions: 1,
+         deletions: 0,
+         files: [],
+         producedFiles: 0,
+      },
+   },
+] as unknown as ReviewItem[];
 
 const meta = {
    component: ShellRail,
@@ -127,7 +151,7 @@ export const WithBadges: Story = {
          'aria-current',
          'page'
       );
-      const personal = canvas.getByRole('link', { name: /^Agent/ }).closest('ul');
+      const personal = canvas.getByRole('link', { name: /^Agent\b/ }).closest('ul');
       expect(personal?.querySelector('a[href="/elian/reviews"]')).not.toBeNull();
    },
 };

@@ -61,7 +61,7 @@ export const StartAConversation: Story = {
          await canvas.findByRole('button', { name: 'Start a chat with Orchestrator' })
       );
       await expect(
-         await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
+         await canvas.findByRole('textbox', { name: 'Plan, search, build anything' })
       ).toBeVisible();
    },
 };

@@ -88,7 +88,7 @@ type Story = StoryObj<typeof meta>;
 /** The sidebar names the models and the run count. Token totals and spend stay hidden. */
 export const WithUsage: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Models')).toBeVisible();
+      await expect(await canvas.findByText('Model')).toBeVisible();
       await expect(canvas.getByText('Runs')).toBeVisible();
       await expect(canvas.queryByText('Tokens')).toBeNull();
       await expect(canvas.queryByText('Cost')).toBeNull();

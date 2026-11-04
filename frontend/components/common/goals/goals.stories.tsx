@@ -7,9 +7,14 @@ import Goals from './goals';
 
 /** The rail rows: one button per goal, named by its title. */
 function goalRows(canvas: { queryAllByRole: (role: 'button') => HTMLElement[] }) {
-   return canvas
-      .queryAllByRole('button')
-      .filter((row) => storyGoals.some((goal) => row.textContent?.includes(goal.title)));
+   return (
+      canvas
+         .queryAllByRole('button')
+         // The detail pane's editable title button also names the selected goal; it has an
+         // aria-label (the rail rows don't), so it's excluded here.
+         .filter((row) => !row.hasAttribute('aria-label'))
+         .filter((row) => storyGoals.some((goal) => row.textContent?.includes(goal.title)))
+   );
 }
 
 const meta = {

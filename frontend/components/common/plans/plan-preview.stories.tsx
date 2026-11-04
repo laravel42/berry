@@ -68,7 +68,7 @@ export const ReadyToStart: Story = {
       await expect(
          await canvas.findByRole('heading', { name: 'Persist project health and weekly updates' })
       ).toBeVisible();
-      await expect(canvas.getByText('2 milestones · 4 tasks · 2 approvals')).toBeVisible();
+      await expect(canvas.getByText('2 goals · 4 tasks · 2 approvals')).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Start Plan' }));
       // The approved record replaces the draft: the actions go, the outcome shows.
       await expect(

@@ -87,7 +87,7 @@ export const GitHubOAuthDrawer: Story = {
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitHub in this workspace')).toBeVisible();
       await expect(within(drawer).getByText('Pull requests on tasks')).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
    },
@@ -103,7 +103,7 @@ export const GitLabSettingsDrawer: Story = {
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitLab in this workspace')).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitLab in this workspace')).toBeVisible();
       await expect(within(drawer).getByText('Merge requests on tasks')).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Disconnect' })).toBeVisible();
@@ -120,7 +120,7 @@ export const GitHubSettingsDrawer: Story = {
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitHub in this workspace')).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
    },
 };
