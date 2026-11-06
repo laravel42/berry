@@ -3,38 +3,174 @@
 import type { ReactNode } from 'react';
 
 import { BerryWordmark } from '@/components/brand/berry-mark';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface AuthCardProps {
    title: string;
-   description?: string;
+   /** Supporting line under the title. May include emphasis. */
+   description?: ReactNode;
    children: ReactNode;
-   /** Rendered under the card (e.g. the cross-link to the other auth screen). */
+   /** Cross-link under the card body (legacy callers). Prefer `topAction`. */
    footer?: ReactNode;
+   /** Right-side header action, e.g. "No account? Sign up". */
+   topAction?: ReactNode;
+   /** Shows a Back control above the title. */
+   onBack?: () => void;
+   /** Banner inside the card. */
+   error?: string | null;
+   /** Signup-style progress: filled through `current` of `total`. */
+   steps?: { total: number; current: number };
+   className?: string;
 }
 
 /**
- * Centered auth scaffold shared by sign-in. It matches the boot
- * screen's language — `bg-background`, the Berry mark up top — so moving from
- * "loading" to "sign in" does not feel like a different app. The page keeps its
- * own form logic; this only owns the frame.
+ * Auth scaffold for sign-in, registration and onboarding. Matches the Berry
+ * Auth canvas: void canvas, soft grid, wordmark in the header, one centred
+ * panel, and a quiet legal footer.
  */
-export function AuthCard({ title, description, children, footer }: AuthCardProps) {
+export function AuthCard({
+   title,
+   description,
+   children,
+   footer,
+   topAction,
+   onBack,
+   error,
+   steps,
+   className,
+}: AuthCardProps) {
    return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-6 bg-background px-4 py-10">
-         <BerryWordmark size="lg" />
-         <Card className="w-full max-w-sm">
-            <CardHeader className="text-center">
-               <CardTitle>
-                  <h1>{title}</h1>
-               </CardTitle>
-               {description ? (
-                  <CardDescription className="text-balance">{description}</CardDescription>
+      <div
+         className={cn(
+            'relative isolate flex min-h-svh flex-col bg-[var(--brand-void)] text-[var(--brand-chalk)]',
+            className
+         )}
+      >
+         <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(rgba(242,240,237,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(242,240,237,0.035)_1px,transparent_1px)] bg-size-[48px_48px] bg-position-[center] [mask-image:radial-gradient(ellipse_70%_60%_at_50%_45%,#000_0%,rgba(0,0,0,0.5)_45%,transparent_80%)]"
+         />
+
+         <div className="flex min-h-full flex-1 flex-col px-8 py-7">
+            <header className="flex items-center gap-2.5">
+               <BerryWordmark size="lg" />
+               {topAction ? (
+                  <div className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-[15px] text-[var(--brand-slate)]">
+                     {topAction}
+                  </div>
                ) : null}
-            </CardHeader>
-            <CardContent>{children}</CardContent>
-         </Card>
-         {footer ? <div className="text-muted-foreground">{footer}</div> : null}
+            </header>
+
+            <div className="flex flex-1 items-center justify-center py-10">
+               <div
+                  className={cn(
+                     'flex w-full max-w-[400px] flex-col gap-7 rounded-2xl border border-[#1f1f23]',
+                     'bg-[color-mix(in_oklab,var(--brand-void)_85%,transparent)] p-8 backdrop-blur-[2px]'
+                  )}
+               >
+                  <div className="flex flex-col gap-2">
+                     {onBack ? (
+                        <button
+                           type="button"
+                           onClick={onBack}
+                           className="mb-2 inline-flex items-center gap-1.5 self-start text-[var(--brand-ash)] transition-colors hover:text-[var(--brand-chalk)]"
+                        >
+                           <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              aria-hidden
+                           >
+                              <path d="M15 6l-6 6 6 6" />
+                           </svg>
+                           Back
+                        </button>
+                     ) : null}
+                     <h1 className="m-0 text-[28px] leading-[1.2] font-semibold tracking-[-0.025em] text-pretty">
+                        {title}
+                     </h1>
+                     {description ? (
+                        <p className="m-0 leading-relaxed text-pretty text-[var(--brand-ash)]">
+                           {description}
+                        </p>
+                     ) : null}
+                  </div>
+
+                  {error ? (
+                     <div
+                        role="alert"
+                        className="flex gap-2.5 rounded-[10px] bg-[color-mix(in_oklab,var(--brand-danger)_10%,#19191c)] px-3 py-2.5 leading-normal text-[#f0a49d]"
+                     >
+                        <svg
+                           width="14"
+                           height="14"
+                           viewBox="0 0 24 24"
+                           fill="none"
+                           stroke="currentColor"
+                           strokeWidth="2"
+                           className="mt-0.5 shrink-0"
+                           aria-hidden
+                        >
+                           <circle cx="12" cy="12" r="9" />
+                           <path d="M12 8v5M12 16v.5" />
+                        </svg>
+                        <span>{error}</span>
+                     </div>
+                  ) : null}
+
+                  {children}
+
+                  {footer ? <div className="text-[var(--brand-slate)]">{footer}</div> : null}
+
+                  {steps && steps.total > 0 ? (
+                     <div className="flex gap-1.5" aria-hidden>
+                        {Array.from({ length: steps.total }, (_, index) => (
+                           <span
+                              key={index}
+                              className={cn(
+                                 'h-0.5 flex-1 rounded-sm',
+                                 index <= steps.current
+                                    ? 'bg-[#e3b341]'
+                                    : 'bg-[var(--brand-hairline)]'
+                              )}
+                           />
+                        ))}
+                     </div>
+                  ) : null}
+               </div>
+            </div>
+
+            <footer className="flex gap-5 text-sm text-[var(--brand-slate)]">
+               <span>© 2026 Laravel42</span>
+               <a
+                  className="ml-auto text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"
+                  href="https://berry.pm/privacy"
+                  target="_blank"
+                  rel="noreferrer"
+               >
+                  Privacy
+               </a>
+               <a
+                  className="text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"
+                  href="https://berry.pm/terms"
+                  target="_blank"
+                  rel="noreferrer"
+               >
+                  Terms
+               </a>
+               <a
+                  className="text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"
+                  href="https://status.berry.pm"
+                  target="_blank"
+                  rel="noreferrer"
+               >
+                  Status
+               </a>
+            </footer>
+         </div>
       </div>
    );
 }
