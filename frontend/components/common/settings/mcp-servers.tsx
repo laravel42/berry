@@ -53,7 +53,7 @@ function HeaderRows({
    return (
       <div className="flex flex-col gap-2">
          {rows.map((row, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={index} className="flex items-stretch gap-2">
                <Input
                   value={row.name}
                   placeholder="Header"
@@ -83,6 +83,7 @@ function HeaderRows({
                <Button
                   size="xs"
                   variant="ghost"
+                  className="h-auto px-4"
                   aria-label="Remove header"
                   onClick={() => onChange(rows.filter((_, at) => at !== index))}
                >

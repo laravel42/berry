@@ -123,7 +123,7 @@ export default function SkillLabelsSettings() {
                   onChange={(event) => setQuery(event.target.value)}
                   className="h-8 w-64"
                />
-               <div className="flex items-center gap-2">
+               <div className="flex items-stretch gap-2">
                   <Input
                      placeholder={t('newLabel')}
                      value={name}
@@ -136,6 +136,7 @@ export default function SkillLabelsSettings() {
                   />
                   <Button
                      size="xs"
+                     className="h-auto px-4"
                      disabled={creating || name.trim() === ''}
                      onClick={() => void create()}
                   >

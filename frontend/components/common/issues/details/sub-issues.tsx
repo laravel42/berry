@@ -233,6 +233,7 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
             <Button
                size="xs"
                variant="secondary"
+               className="h-auto px-4"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
             >
@@ -400,7 +401,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   ))
                )}
 
-               <div className="flex flex-wrap items-center gap-2">
+               <div className="flex flex-wrap items-stretch gap-2">
                   <Input
                      className="h-8 min-w-[180px] flex-1"
                      placeholder={t('addPlaceholder')}
@@ -410,7 +411,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   />
                   <Button
                      size="xs"
-                     variant="outline"
+                     className="h-auto px-4"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >
