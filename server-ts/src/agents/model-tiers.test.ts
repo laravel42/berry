@@ -5,7 +5,7 @@ import { normalizeTierName, resolveTierNames, TIER_NAMES } from './model-tiers.t
 describe('tier display names', () => {
    test('a blank or default name clears the override', () => {
       assert.equal(normalizeTierName('berry_max', '  '), null);
-      assert.equal(normalizeTierName('berry_max', 'BerryMax'), null);
+      assert.equal(normalizeTierName('berry_max', 'Max'), null);
    });
 
    test('a custom name is kept and collapsed', () => {
@@ -17,7 +17,7 @@ describe('tier display names', () => {
    });
 
    test('saved names replace only the tiers they name', () => {
-      const names = resolveTierNames({ berry_high: 'Careful', berry_max: 'BerryMax', extra: 'no' });
+      const names = resolveTierNames({ berry_high: 'Careful', berry_max: 'Max', extra: 'no' });
       assert.equal(names.berry_high, 'Careful');
       assert.equal(names.berry_max, TIER_NAMES.berry_max);
       assert.equal(names.berry_low, TIER_NAMES.berry_low);

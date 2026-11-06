@@ -13,11 +13,11 @@ export type Tier = (typeof TIERS)[number];
 export type RoleTier = Tier;
 
 export const TIER_NAMES: Record<Tier, string> = {
-   berry_max: 'BerryMax',
-   berry_xhigh: 'BerryXHigh',
-   berry_high: 'BerryHigh',
-   berry_mid: 'BerryMid',
-   berry_low: 'BerryLow',
+   berry_max: 'Max',
+   berry_xhigh: 'XHigh',
+   berry_high: 'High',
+   berry_mid: 'Mid',
+   berry_low: 'Low',
 };
 
 export function isTier(value: unknown): value is Tier {
