@@ -34,17 +34,6 @@ export default function Header() {
    return (
       <div className="flex w-full flex-col">
          <PageKpiHeader label={tab === 'assigned' ? t('titleMine') : t('title')}>
-            <Input
-               className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
-               placeholder={t('search')}
-               value={searchQuery}
-               onChange={(event) => {
-                  const value = event.target.value;
-                  setSearchQuery(value);
-                  if (value.trim() === '') closeSearch();
-                  else openSearch();
-               }}
-            />
             {canEdit ? (
                <Button className="shrink-0" onClick={() => openModal()}>
                   <Plus className="size-4" aria-hidden />
@@ -52,8 +41,19 @@ export default function Header() {
                </Button>
             ) : null}
          </PageKpiHeader>
-         <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
+         <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] [&_button]:!h-[30px]">
             <div className="flex flex-wrap items-center gap-1">
+               <Input
+                  className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
+                  placeholder={t('search')}
+                  value={searchQuery}
+                  onChange={(event) => {
+                     const value = event.target.value;
+                     setSearchQuery(value);
+                     if (value.trim() === '') closeSearch();
+                     else openSearch();
+                  }}
+               />
                <IssueFilterTrigger iconOnly />
                <IssueFilterBarActions />
                <DisplayOptions iconOnly />

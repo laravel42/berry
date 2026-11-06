@@ -87,12 +87,12 @@ export function PageStatement({
    return (
       <header
          className={cn(
-            'flex w-full flex-col gap-3 border-b px-5',
-            label || children ? (figure !== undefined ? 'pb-5' : '') : 'py-2'
+            'flex w-full flex-col gap-1 border-b px-5',
+            label || children ? (figure !== undefined ? 'pb-2' : '') : 'py-2'
          )}
       >
          {label || children ? (
-            <div className="flex h-[52px] items-center justify-between gap-4">
+            <div className="flex h-10 items-center justify-between gap-4">
                {label ? (
                   heading === 'h1' ? (
                      <h1 className="min-w-0 truncate">{label}</h1>
