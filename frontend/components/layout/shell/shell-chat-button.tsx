@@ -57,7 +57,7 @@ export function ShellChatButton() {
    return (
       <span
          className={cn(
-            'ai-animated-border shell-agents-launcher h-6 origin-bottom-right scale-[1.3]',
+            'ai-animated-border shell-agents-launcher h-6 origin-center scale-[1.3]',
             onChatPage && 'opacity-40'
          )}
       >

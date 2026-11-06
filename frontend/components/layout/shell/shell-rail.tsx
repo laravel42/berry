@@ -169,7 +169,7 @@ export function ShellRail({
              chevrons-up-down glyph reads as a switcher everywhere else in the
              product, and settings and log out have no other home. The rail
              folds via the sidebar shortcut; the expand control restores it. */}
-               <div className="flex items-center gap-1 px-3 pt-3">
+               <div className="flex items-center gap-1 px-3 pt-2">
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
                         <button
