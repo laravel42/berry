@@ -22,6 +22,15 @@ import type {
    ProjectUpdate,
    ResourcePatch,
 } from '../core/projects.ts';
+import type { MilestoneRepository } from '../core/milestones.ts';
+import type { IssueRepository } from '../core/issues.ts';
+import {
+   ProjectMilestoneGenerator,
+} from '../projects/generate-milestones.ts';
+import { ProjectMilestoneTaskGenerator } from '../projects/generate-tasks.ts';
+import { EditorAssistUnavailable } from '../editor/assist.ts';
+import { defaultBoardId } from '../work/batch.ts';
+import { serializeIssue } from './issues.ts';
 import type { ScmProvisioning } from '../scm/provisioning.ts';
 import type { ScmLink } from '../scm/links.ts';
 import type { ScmWorkspaces } from '../scm/workspaces.ts';
@@ -41,9 +50,8 @@ import {
 /**
  * `/api/v1/projects`.
  *
- * `POST /:projectId/generated-issues` is deliberately absent. It decomposes a
- * project into issues with an agent, and what it should mean now that agents
- * run in-process is its own decision. See SCOPE.md.
+ * `POST /:projectId/generated-issues` stays absent (SCOPE.md). Task breakdown
+ * for milestones that already exist is `POST /:projectId/generate-tasks`.
  */
 
 const STATUSES = new Set(['planned', 'active', 'paused', 'completed', 'cancelled']);
@@ -107,6 +115,18 @@ export interface ProjectOptions {
    githubToken: ((workspaceId: string) => Promise<string>) | null;
    logger: Logger;
    sql: Sql;
+   /**
+    * Propose and create milestones from the project brief. Absent when this
+    * deployment cannot run completions.
+    */
+   milestoneGenerator?: ProjectMilestoneGenerator | null;
+   /**
+    * Propose and create board tasks under the project's milestones. Absent
+    * when this deployment cannot run completions or create issues.
+    */
+   taskGenerator?: ProjectMilestoneTaskGenerator | null;
+   milestones?: MilestoneRepository | null;
+   issues?: IssueRepository | null;
 }
 
 export function projectMounts(options: ProjectOptions): Mount[] {
@@ -193,6 +213,181 @@ export function projectMounts(options: ProjectOptions): Mount[] {
       const { workspaceId, projectId } = await scopeOf(context, projects, 'product.read');
       const found = await projects.get(workspaceId, projectId).catch(rethrow);
       return json(serializeProject(found, await options.scm?.linkFor('project', found.id)));
+   });
+
+   /**
+    * Orchestrator completion: turn the project's brief into milestones
+    * (`{ title, date }`) using adapted project skills, then file them.
+    */
+   route.post('/:projectId/generate-milestones', async (context) => {
+      const generator = options.milestoneGenerator ?? null;
+      const milestones = options.milestones ?? null;
+      if (!generator || !milestones) {
+         throw new ApiError(503, 'EDITOR_UNAVAILABLE', 'Milestone generation is not configured.');
+      }
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const project = await projects.get(workspaceId, projectId).catch(rethrow);
+      const description = (project.description ?? '').trim();
+      if (description === '') {
+         return json({ nodes: [] });
+      }
+
+      const controller = new AbortController();
+      context.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true });
+
+      let proposed;
+      try {
+         proposed = await generator.propose({
+            workspaceId,
+            projectName: project.name,
+            description,
+            startDate: project.startDate,
+            targetDate: project.targetDate,
+            signal: controller.signal,
+         });
+      } catch (error) {
+         if (error instanceof EditorAssistUnavailable) {
+            throw new ApiError(
+               503,
+               'EDITOR_UNAVAILABLE',
+               `Milestone generation could not complete: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      const nodes: Record<string, unknown>[] = [];
+      for (const entry of proposed) {
+         const created = await milestones
+            .create({
+               workspaceId,
+               projectId,
+               title: entry.title,
+               description: null,
+               targetDate: entry.date,
+               createdBy: userId,
+               createdAt: new Date().toISOString(),
+            })
+            .catch(rethrow);
+         nodes.push({
+            id: created.goal.id,
+            workspaceId: created.goal.workspaceId,
+            projectId: created.goal.projectId,
+            title: created.goal.title,
+            description: created.goal.description,
+            status: created.goal.status,
+            targetDate: created.goal.targetDate,
+            sortOrder: created.goal.sortOrder,
+            createdAt: created.goal.createdAt,
+            updatedAt: created.goal.updatedAt,
+         });
+      }
+      return json({ nodes }, 201);
+   });
+
+   /**
+    * Orchestrator completion: break each existing project milestone into
+    * board tasks and link them. Does not invent milestones.
+    */
+   route.post('/:projectId/generate-tasks', async (context) => {
+      const generator = options.taskGenerator ?? null;
+      const milestones = options.milestones ?? null;
+      const issues = options.issues ?? null;
+      if (!generator || !milestones || !issues) {
+         throw new ApiError(503, 'EDITOR_UNAVAILABLE', 'Task generation is not configured.');
+      }
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const project = await projects.get(workspaceId, projectId).catch(rethrow);
+      const description = (project.description ?? '').trim();
+      if (description === '') {
+         return json({ nodes: [] });
+      }
+
+      const existing = await milestones
+         .list(workspaceId, { query: '', status: null, projectId }, null, 50)
+         .catch(rethrow);
+      if (existing.length === 0) {
+         return json({ nodes: [] });
+      }
+
+      const boardId = await defaultBoardId(options.sql, workspaceId).catch((error: unknown) => {
+         if (error instanceof NotFound) {
+            throw new ApiError(422, 'BOARD_NOT_FOUND', 'This workspace has no board to file tasks on.');
+         }
+         throw error;
+      });
+
+      const controller = new AbortController();
+      context.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true });
+
+      let proposed;
+      try {
+         proposed = await generator.propose({
+            workspaceId,
+            projectName: project.name,
+            description,
+            milestones: existing.map((goal) => ({
+               id: goal.id,
+               title: goal.title,
+               targetDate: goal.targetDate,
+            })),
+            startDate: project.startDate,
+            targetDate: project.targetDate,
+            signal: controller.signal,
+         });
+      } catch (error) {
+         if (error instanceof EditorAssistUnavailable) {
+            throw new ApiError(
+               503,
+               'EDITOR_UNAVAILABLE',
+               `Task generation could not complete: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      const byId = new Map(existing.map((goal) => [goal.id, goal]));
+      const nodes: Record<string, unknown>[] = [];
+      let sortOrder = 0;
+      for (const entry of proposed) {
+         const goal = byId.get(entry.milestoneId);
+         if (!goal) continue;
+         const dueDate =
+            goal.targetDate !== null && goal.targetDate !== ''
+               ? `${goal.targetDate}T00:00:00.000Z`
+               : null;
+         const created = await issues
+            .create({
+               boardId,
+               title: entry.title,
+               description: entry.description,
+               status: 'todo',
+               priority: entry.priority,
+               sortOrder: sortOrder++,
+               dueDate,
+               assignee: entry.agentId ? { type: 'agent', id: entry.agentId } : null,
+               project: projectId,
+               createdBy: userId,
+            })
+            .catch(rethrow);
+         await milestones
+            .linkIssue({
+               workspaceId,
+               milestoneId: goal.id,
+               issueId: created.issue.id,
+               actorId: userId,
+               now: new Date().toISOString(),
+            })
+            .catch(rethrow);
+         nodes.push(
+            serializeIssue(created.issue, {
+               milestone: { id: goal.id, title: goal.title },
+               dependsOn: [],
+               blocks: [],
+            })
+         );
+      }
+      return json({ nodes }, 201);
    });
 
    const aiRuntimes = new AiRuntimeRepository(options.sql);

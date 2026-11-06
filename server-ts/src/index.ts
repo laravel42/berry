@@ -84,6 +84,11 @@ import { voiceMounts } from './mounts/voice.ts';
 import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { ProjectDraftAssist } from './editor/project-draft.ts';
+import { ProjectMilestoneGenerator } from './projects/generate-milestones.ts';
+import {
+   listAssignableAgents,
+   ProjectMilestoneTaskGenerator,
+} from './projects/generate-tasks.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
 import { planMounts, type PlanOptions } from './mounts/plans.ts';
 import { registerPlanningTools } from './plans/agent-tools.ts';
@@ -1126,6 +1131,19 @@ registry.registerAll(
       githubToken,
       logger,
       sql,
+      milestones,
+      issues,
+      milestoneGenerator: new ProjectMilestoneGenerator({
+         completion,
+         skills: skillRepository,
+         defaultModel: config.runtime.defaultModel,
+      }),
+      taskGenerator: new ProjectMilestoneTaskGenerator({
+         completion,
+         skills: skillRepository,
+         defaultModel: config.runtime.defaultModel,
+         loadAgents: (workspaceId) => listAssignableAgents(sql, workspaceId),
+      }),
    })
 );
 registry.registerAll(runMounts(runOptions));

@@ -63,7 +63,7 @@ A mount answering does not mean every route under its prefix does.
 
 | Route | Why it is not registered |
 | --- | --- |
-| `POST /api/v1/projects/:id/generated-issues` | Decomposed a project with an agent. Planning a project now produces the same tasks through a plan, which also produces the milestone that groups them, so the route and its frontend button were retired. |
+| `POST /api/v1/projects/:id/generated-issues` | Decomposed a project with an agent into issues in one shot. Retired in favour of plans for open-ended planning, and of `POST /api/v1/projects/:id/generate-tasks` when milestones already exist and need board tasks attached. |
 | `POST /api/v1/agents/:id/ask` | A chat completion passed straight through to an agent. Nothing in the product calls it. |
 
 ## What stays entangled across scope lines
