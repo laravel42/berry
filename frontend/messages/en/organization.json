@@ -37,7 +37,12 @@
       "quality-security": "Quality & Security",
       "platform": "Platform",
       "growth-insight": "Growth & Insight",
-      "leadership": "Leadership"
+      "leadership": "Leadership",
+      "marketing": "Marketing & Communications",
+      "customer": "Sales & Customer",
+      "people": "People",
+      "finance-legal": "Finance & Legal",
+      "knowledge": "Research & Knowledge"
    },
    "settings": {
       "title": "Organization",
@@ -51,8 +56,9 @@
       "reset": "Reset",
       "adminOnly": "Only workspace owners and admins can change this.",
       "specialists": "Specialists",
-      "specialistsHint": "Every workspace starts with five core roles. Add a specialist when you have deep work in its field; until then the core roles cover it.",
+      "specialistsHint": "Every workspace starts with only the Orchestrator. Add the roles you need from the catalog, in software or beyond it.",
       "add": "Add",
+      "adding": "Adding…",
       "added": "{name} added"
    },
    "proposals": {

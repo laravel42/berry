@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BerryApiError } from '@/lib/api';
 import {
    getWorkspaceAgent,
+   isOrchestrator,
    listAgentTasks,
    loadAgentRoster,
    useAgentAvatarSrc,
@@ -198,7 +199,9 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    // Workload from the roster: runs in flight, queued, or idle. The stored
    // agent.status (Online/Busy/Offline) is not shown here.
    const archived = Boolean(agent.archivedAt);
-   const locked = readOnly || archived;
+   // The Orchestrator is Berry's own router: shown, never edited.
+   const managed = isOrchestrator(agent);
+   const locked = readOnly || archived || managed;
    const needsRuntime = roster !== undefined && !agentHasRuntime(coverage, agentId) && !archived;
 
    const tabLabel: Record<DetailTab, string> = {
@@ -232,6 +235,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      <h1 className="leading-none">{agent.name}</h1>
                      <AgentWorkloadChip roster={roster} />
                      <AgentModelChip agent={agent} />
+                     {needsRuntime ? (
+                        <span className="inline-flex shrink-0 items-center rounded border border-status-warning/40 bg-status-warning/10 px-1.5 py-px leading-none text-status-warning">
+                           {t('bannerNoRuntime')}
+                        </span>
+                     ) : null}
                   </div>
                   {agent.description ? (
                      <p className="mt-2 max-w-3xl text-muted-foreground">{agent.description}</p>
@@ -239,23 +247,24 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2">
-               {readOnly ? (
-                  <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground">
-                     {t('bannerReadOnly')}
-                  </p>
-               ) : null}
-               {archived ? (
-                  <p className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-                     {t('bannerArchived')}
-                  </p>
-               ) : null}
-               {needsRuntime ? (
-                  <p className="rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2 text-center">
-                     {t('bannerNoRuntime')}
-                  </p>
-               ) : null}
-            </div>
+            {managed || readOnly || archived ? (
+               <div className="mt-4 flex flex-col gap-2">
+                  {managed ? (
+                     <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground">
+                        {t('bannerManaged')}
+                     </p>
+                  ) : readOnly ? (
+                     <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground">
+                        {t('bannerReadOnly')}
+                     </p>
+                  ) : null}
+                  {archived ? (
+                     <p className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+                        {t('bannerArchived')}
+                     </p>
+                  ) : null}
+               </div>
+            ) : null}
          </div>
 
          <Tabs
@@ -316,18 +325,16 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   />
                ) : null}
                {view === 'mcp' ? (
-                  <div className="min-h-0 flex-1 overflow-auto px-8 py-6">
-                     <AgentExecutionSettings
-                        agent={agent}
-                        roster={roster}
-                        readOnly={locked}
-                        onChange={onChanged}
-                        onRosterStale={() => void loadRoster()}
-                        onDirtyChange={setDirty}
-                        onForbidden={() => setReadOnly(true)}
-                        view="mcp"
-                     />
-                  </div>
+                  <AgentExecutionSettings
+                     agent={agent}
+                     roster={roster}
+                     readOnly={locked}
+                     onChange={onChanged}
+                     onRosterStale={() => void loadRoster()}
+                     onDirtyChange={setDirty}
+                     onForbidden={() => setReadOnly(true)}
+                     view="mcp"
+                  />
                ) : null}
                {view === 'settings' ? (
                   <AgentSettingsTab

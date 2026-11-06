@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import {
    addRole,
+   specialistsByDepartment,
    getOrganization,
    resetRole,
    setDiscovery,
@@ -169,25 +170,40 @@ export default function OrganizationSettings() {
                      title={t('settings.specialists')}
                      description={t('settings.specialistsHint')}
                   >
-                     <SettingsCard>
-                        {value.specialists.map((specialist) => (
-                           <SettingsRow
-                              key={specialist.roleKey}
-                              title={specialist.name}
-                              description={specialist.mission}
-                              trailing={
-                                 <Button
-                                    variant="soft"
-                                    disabled={!canEdit || addingKey !== null}
-                                    title={canEdit ? undefined : t('settings.adminOnly')}
-                                    onClick={() => void add(specialist.roleKey, specialist.name)}
-                                 >
-                                    {t('settings.add')}
-                                 </Button>
-                              }
-                           />
+                     <div className="flex flex-col gap-4">
+                        {specialistsByDepartment(value.specialists).map((group) => (
+                           <div key={group.department} className="flex flex-col gap-2">
+                              <h3 className="font-medium tracking-wide text-muted-foreground uppercase">
+                                 {t.has(`departments.${group.department}` as 'departments.product')
+                                    ? t(`departments.${group.department}` as 'departments.product')
+                                    : group.department}
+                              </h3>
+                              <SettingsCard>
+                                 {group.roles.map((specialist) => (
+                                    <SettingsRow
+                                       key={specialist.roleKey}
+                                       title={specialist.name}
+                                       description={specialist.mission}
+                                       trailing={
+                                          <Button
+                                             variant="soft"
+                                             disabled={!canEdit || addingKey !== null}
+                                             title={canEdit ? undefined : t('settings.adminOnly')}
+                                             onClick={() =>
+                                                void add(specialist.roleKey, specialist.name)
+                                             }
+                                          >
+                                             {addingKey === specialist.roleKey
+                                                ? t('settings.adding')
+                                                : t('settings.add')}
+                                          </Button>
+                                       }
+                                    />
+                                 ))}
+                              </SettingsCard>
+                           </div>
                         ))}
-                     </SettingsCard>
+                     </div>
                   </SettingsSection>
                ) : null}
 

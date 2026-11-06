@@ -26,7 +26,7 @@ const meta = {
          filters: [],
          query: '',
          selected: [],
-         columns: ['activity', 'lastActive', 'model'],
+         columns: ['activity', 'lastActive'],
       });
    },
    decorators: [
@@ -97,7 +97,7 @@ export const ByName: Story = {
       useAgentsListStore.setState({
          sortKey: 'name',
          sortDescending: false,
-         columns: ['activity', 'model', 'access'],
+         columns: ['activity', 'access'],
       });
    },
 };

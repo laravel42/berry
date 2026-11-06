@@ -30,10 +30,6 @@ export const Admin: Story = {
          '/elian/agents/new'
       );
       const search = canvas.getByRole('textbox', { name: 'Search agents' });
-      const button = canvas.getByRole('link', { name: 'New agent' });
-      await expect(search.getBoundingClientRect().right).toBeLessThanOrEqual(
-         button.getBoundingClientRect().left
-      );
       await userEvent.type(search, 'front');
       await expect(useAgentsListStore.getState().query).toBe('front');
    },

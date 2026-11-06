@@ -86,12 +86,52 @@ const organizationSchema = z.object({
             role: z.string(),
             department: z.string(),
             mission: z.string(),
+            /** Absent from an older server. */
+            tier: z.string().nullable().optional(),
+            autonomyLevel: z.number().optional(),
          })
       )
       .default([]),
    discoveryEnabled: z.boolean(),
 });
 export type Organization = z.infer<typeof organizationSchema>;
+export type Specialist = Organization['specialists'][number];
+
+/** The order departments read in, software first; one the server adds later goes last. */
+export const DEPARTMENT_ORDER = [
+   'operations',
+   'product',
+   'engineering',
+   'quality-security',
+   'platform',
+   'growth-insight',
+   'leadership',
+   'marketing',
+   'customer',
+   'people',
+   'finance-legal',
+   'knowledge',
+] as const;
+
+/** Specialists grouped by department, departments in reading order, roles by name. */
+export function specialistsByDepartment(
+   specialists: Specialist[]
+): Array<{ department: string; roles: Specialist[] }> {
+   const groups = new Map<string, Specialist[]>();
+   for (const specialist of specialists) {
+      groups.set(specialist.department, [...(groups.get(specialist.department) ?? []), specialist]);
+   }
+   const rank = (department: string) => {
+      const index = (DEPARTMENT_ORDER as readonly string[]).indexOf(department);
+      return index === -1 ? DEPARTMENT_ORDER.length : index;
+   };
+   return [...groups.entries()]
+      .toSorted(([left], [right]) => rank(left) - rank(right) || left.localeCompare(right))
+      .map(([department, roles]) => ({
+         department,
+         roles: roles.toSorted((left, right) => left.name.localeCompare(right.name)),
+      }));
+}
 export type OrganizationRole = Organization['departments'][number]['roles'][number];
 
 const evidenceSchema = z.object({
@@ -141,12 +181,38 @@ export async function setDiscovery(enabled: boolean): Promise<boolean> {
       .discoveryEnabled;
 }
 
-/** Adds a catalogue role to the workspace; its archived agent comes back if it had one. */
-export async function addRole(roleKey: string): Promise<void> {
-   await apiFetch(`/api/v1/organization/roles/${encodeURIComponent(roleKey)}`, {
+/** Adds a catalogue role to the workspace; its archived agent comes back if it had one. Returns the agent's id. */
+export async function addRole(roleKey: string): Promise<string | null> {
+   const json = await apiFetch(`/api/v1/organization/roles/${encodeURIComponent(roleKey)}`, {
       method: 'POST',
       body: '{}',
    });
+   const parsed = z.object({ id: z.string() }).safeParse(json);
+   const id = parsed.success ? parsed.data.id : null;
+   if (typeof window !== 'undefined') window.dispatchEvent(new Event(ORGANIZATION_CHANGED));
+   return id;
+}
+
+/** Fired after a role is added, so an open catalogue or settings view reloads. */
+export const ORGANIZATION_CHANGED = 'berry:organization-changed';
+
+const catalogRoleSchema = z.object({
+   contract: roleContractSchema,
+   /** Display names of the roles the contract refers to, by key. */
+   names: z.record(z.string(), z.string()),
+   core: z.boolean(),
+   /** The workspace's agent for this role, when it has one. */
+   agentId: z.string().nullable(),
+});
+export type CatalogRole = z.infer<typeof catalogRoleSchema>;
+
+/** One catalogue role in full, as shipped. */
+export async function getCatalogRole(roleKey: string): Promise<CatalogRole> {
+   return parse(
+      catalogRoleSchema,
+      await apiFetch(`/api/v1/organization/roles/${encodeURIComponent(roleKey)}`),
+      'Catalog role'
+   );
 }
 
 export async function resetRole(roleKey: string): Promise<void> {
