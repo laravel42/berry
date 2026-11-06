@@ -55,8 +55,8 @@ export const Gateway: Story = {
       );
    },
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('BerryMax · 4 of 5 permissions')).toBeVisible();
-      await expect(canvas.getByText('BerryLow · 1 of 5 permissions')).toBeVisible();
+      await expect(await canvas.findByText('Max · 4 of 5 permissions')).toBeVisible();
+      await expect(canvas.getByText('Low · 1 of 5 permissions')).toBeVisible();
    },
 };
 

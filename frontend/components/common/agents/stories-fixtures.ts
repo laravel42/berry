@@ -1251,7 +1251,7 @@ export const modelTiers: ModelTiers = {
    tiers: [
       {
          tier: 'berry_max',
-         name: 'BerryMax',
+         name: 'Max',
          models: [
             {
                id: 'openai/gpt-5.2',
@@ -1273,7 +1273,7 @@ export const modelTiers: ModelTiers = {
       },
       {
          tier: 'berry_mid',
-         name: 'BerryMid',
+         name: 'Mid',
          models: [
             {
                id: 'z-ai/glm-5',
@@ -1295,7 +1295,7 @@ export const modelTiers: ModelTiers = {
       },
       {
          tier: 'berry_low',
-         name: 'BerryLow',
+         name: 'Low',
          models: [
             {
                id: 'minimax/minimax-m2.5',

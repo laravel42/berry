@@ -319,13 +319,13 @@ export function modelVendor(model: Pick<AgentModel, 'id' | 'provider'>): string 
 export const TIERS = ['berry_max', 'berry_xhigh', 'berry_high', 'berry_mid', 'berry_low'] as const;
 export type Tier = (typeof TIERS)[number];
 
-/** Product names, not translated: they are Berry's, like its own name. */
+/** Product names for the five model tiers. */
 export const TIER_NAMES: Record<Tier, string> = {
-   berry_max: 'BerryMax',
-   berry_xhigh: 'BerryXHigh',
-   berry_high: 'BerryHigh',
-   berry_mid: 'BerryMid',
-   berry_low: 'BerryLow',
+   berry_max: 'Max',
+   berry_xhigh: 'XHigh',
+   berry_high: 'High',
+   berry_mid: 'Mid',
+   berry_low: 'Low',
 };
 
 /** What past usage may still carry: tiers since removed, named for the Usage page. */
@@ -417,9 +417,6 @@ const tierPlacementSchema = z.object({
 });
 
 export type TierPlacement = z.infer<typeof tierPlacementSchema>;
-
-/** A tier's places: the leaderboard fills those a placement leaves. */
-export const TIER_PLACES = 3;
 
 const modelTiersSchema = z.object({
    tiers: z.array(
