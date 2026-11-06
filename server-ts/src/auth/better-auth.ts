@@ -2,10 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { magicLink, testUtils, twoFactor, type TestHelpers } from 'better-auth/plugins';
-import { sso } from '@better-auth/sso';
 import type { Pool } from 'pg';
 
-import type { AuthSsoProvider } from '../config/config.ts';
 import {
    createConsoleMailer,
    createSmtpMailer,
@@ -17,12 +15,11 @@ import {
 import type { AuthMailConfig } from '../config/config.ts';
 
 /**
- * Sign-in: Better Auth with GitHub, email/password, magic link, SSO and 2FA.
+ * Sign-in: Better Auth with GitHub, email/password, magic link and 2FA.
  *
  * Better Auth's user model *is* `users`, so an account keeps the id every
  * workspace, issue and token already points at. Its own state — sessions,
- * linked accounts, OAuth state, 2FA secrets, SSO providers — lives in the
- * auth_* tables.
+ * linked accounts, OAuth state and 2FA secrets — lives in the auth_* tables.
  *
  * It talks to Postgres through a small `pg` pool rather than the server's
  * postgres.js client because its Kysely adapter speaks `pg`; the pool is sized
@@ -45,8 +42,6 @@ export interface BerryAuthOptions {
    testUtils?: boolean;
    /** Outbound mail. Null disables magic link and password reset. */
    mail?: AuthMailConfig | null;
-   /** Enterprise SSO providers configured in code. */
-   sso?: AuthSsoProvider[];
 }
 
 const MIN_PASSWORD_LENGTH = 12;
@@ -117,8 +112,6 @@ export function createMailer(config: AuthMailConfig | null | undefined): Mailer 
 
 export function createBerryAuth(options: BerryAuthOptions) {
    const mailer = createMailer(options.mail ?? null);
-   const ssoProviders = options.sso ?? [];
-   const trustedOrigins = [...options.trustedOrigins];
    const plugins: BetterAuthPlugin[] = [];
 
    if (mailer) {
@@ -175,55 +168,6 @@ export function createBerryAuth(options: BerryAuthOptions) {
       }) as unknown as BetterAuthPlugin
    );
 
-   if (ssoProviders.length > 0) {
-      // Trust the IdP origins so OIDC discovery can fetch them.
-      for (const provider of ssoProviders) {
-         try {
-            const origin = new URL(provider.issuer).origin;
-            if (!trustedOrigins.includes(origin)) trustedOrigins.push(origin);
-         } catch {
-            // Issuer was already validated at config load.
-         }
-      }
-      plugins.push(
-         sso({
-            providersLimit: 0,
-            domainVerification: { enabled: true },
-            modelName: 'auth_sso_providers',
-            fields: {
-               oidcConfig: 'oidc_config',
-               samlConfig: 'saml_config',
-               userId: 'user_id',
-               providerId: 'provider_id',
-               organizationId: 'organization_id',
-               domain: 'domain',
-            },
-            schema: {
-               ssoProvider: {
-                  fields: {
-                     domainVerified: 'domain_verified',
-                  },
-               },
-            },
-            defaultSSO: ssoProviders.map((provider) => ({
-               providerId: provider.providerId,
-               domain: provider.domain,
-               oidcConfig: {
-                  issuer: provider.issuer,
-                  clientId: provider.clientId,
-                  clientSecret: provider.clientSecret,
-                  pkce: true,
-                  discoveryEndpoint: new URL(
-                     '/.well-known/openid-configuration',
-                     provider.issuer.endsWith('/') ? provider.issuer : `${provider.issuer}/`
-                  ).toString(),
-                  scopes: ['openid', 'email', 'profile'],
-               },
-            })),
-         }) as unknown as BetterAuthPlugin
-      );
-   }
-
    if (options.testUtils) {
       plugins.push(testUtils() as unknown as BetterAuthPlugin);
    }
@@ -233,7 +177,7 @@ export function createBerryAuth(options: BerryAuthOptions) {
       baseURL: options.baseUrl,
       basePath: AUTH_BASE_PATH,
       secret: options.secret,
-      trustedOrigins,
+      trustedOrigins: options.trustedOrigins,
       database: options.pool,
       emailAndPassword: {
          enabled: true,
@@ -358,10 +302,13 @@ export function createBerryAuth(options: BerryAuthOptions) {
       },
       advanced: {
          cookiePrefix: SESSION_COOKIE_PREFIX,
-         // users.id and every auth_* id are uuid columns. A generator rather
-         // than 'uuid': in this Better Auth version 'uuid' means "the database
-         // supplies it", and only users.id has a default; the auth_* tables
-         // take the id they are given.
+         // users.id and auth_sessions / auth_accounts / auth_two_factors ids
+         // are uuid columns. auth_verifications.id is text: Better Auth's
+         // reserveVerificationValue writes a SHA-256 base64url primary key
+         // when a magic link promotes an unverified account. A generator
+         // rather than 'uuid': in this Better Auth version 'uuid' means "the
+         // database supplies it", and only users.id has a default; the
+         // auth_* tables take the id they are given.
          database: { generateId: () => randomUUID() },
          // The address a session records (Settings › Security › Sessions).
          // The browser reaches the API through the web app's proxy, and often

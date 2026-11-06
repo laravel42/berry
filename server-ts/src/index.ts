@@ -290,7 +290,6 @@ const auth =
            sessionTtlMs: config.sessionTtlMs,
            testUtils: config.auth.devLogin,
            mail: config.auth.mail,
-           sso: config.auth.sso,
         })
       : null;
 
@@ -1530,8 +1529,6 @@ registry.registerAll(
          magicLink: auth !== null && config.auth.mail !== null,
          passwordReset: auth !== null && config.auth.mail !== null,
          twoFactor: auth !== null,
-         sso: auth !== null && config.auth.sso.length > 0,
-         ssoDomains: config.auth.sso.map((provider) => provider.domain),
       },
       signInOrigin: config.auth.baseUrl,
    })

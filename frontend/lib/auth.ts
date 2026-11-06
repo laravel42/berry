@@ -47,8 +47,6 @@ const configSchema = z.object({
       magicLink: z.boolean().optional(),
       passwordReset: z.boolean().optional(),
       twoFactor: z.boolean().optional(),
-      sso: z.boolean().optional(),
-      ssoDomains: z.array(z.string()).optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
       /** Members can open a LiveKit voice room with a workspace agent. */
@@ -67,8 +65,6 @@ export type SignInOptions = {
    magicLink: boolean;
    passwordReset: boolean;
    twoFactor: boolean;
-   sso: boolean;
-   ssoDomains: string[];
    signInOrigin: string | null;
 };
 
@@ -142,10 +138,6 @@ export async function fetchSignInOptions(): Promise<SignInOptions> {
       magicLink: capabilities.magicLink === true,
       passwordReset: capabilities.passwordReset === true,
       twoFactor: capabilities.twoFactor === true,
-      sso: capabilities.sso === true,
-      ssoDomains: Array.isArray(capabilities.ssoDomains)
-         ? capabilities.ssoDomains.map((domain) => domain.toLowerCase())
-         : [],
       signInOrigin: parsed.success ? (parsed.data.signInOrigin ?? null) : null,
    };
 }
@@ -214,18 +206,6 @@ export async function resetPassword(token: string, newPassword: string): Promise
    }
 }
 
-export async function signInWithSso(email: string): Promise<void> {
-   const origin = window.location.origin;
-   const { error } = await authClient().signIn.sso({
-      email: email.trim(),
-      callbackURL: `${origin}/`,
-      errorCallbackURL: `${origin}/sign-in?error=sso`,
-   });
-   if (error) {
-      throw new Error(error.message || 'Could not start SSO');
-   }
-}
-
 export async function verifyTwoFactorTotp(code: string, trustDevice: boolean): Promise<void> {
    const { error } = await authClient().twoFactor.verifyTotp({
       code: code.trim(),
@@ -279,21 +259,4 @@ export async function logoutSession(): Promise<void> {
    if (error && error.status !== 401) {
       throw new Error(error.message || 'Sign-out failed');
    }
-}
-
-/** Domain part of an email, lowercased, or null when the address is not usable. */
-export function emailDomain(email: string): string | null {
-   const at = email.trim().lastIndexOf('@');
-   if (at < 1) return null;
-   const domain = email
-      .trim()
-      .slice(at + 1)
-      .toLowerCase();
-   return domain.includes('.') ? domain : null;
-}
-
-export function ssoDomainMatch(email: string, domains: string[]): string | null {
-   const domain = emailDomain(email);
-   if (!domain) return null;
-   return domains.includes(domain) ? domain : null;
 }

@@ -18,8 +18,6 @@ import {
    registerWithEmail,
    signInWithEmail,
    signInWithGitHub,
-   signInWithSso,
-   ssoDomainMatch,
    verifyTwoFactorBackup,
    verifyTwoFactorTotp,
    type SignInOptions,
@@ -160,12 +158,10 @@ export function AuthFlow({
    const [error, setError] = useState<string | null>(returnedError);
 
    const emailOk = EMAIL_OK.test(email.trim());
-   const ssoDomain = options.sso ? ssoDomainMatch(email, options.ssoDomains) : null;
    const passwordOk = password.length >= 12;
    const registering = step === 'signup';
    const entryReady =
-      emailOk &&
-      (ssoDomain ? true : registering ? passwordOk && name.trim() !== '' : password.length > 0);
+      emailOk && (registering ? passwordOk && name.trim() !== '' : password.length > 0);
 
    const go = (next: AuthStep) => {
       setStep(next);
@@ -182,17 +178,6 @@ export function AuthFlow({
       event.preventDefault();
       if (!emailOk) {
          setError('Enter a valid email address.');
-         return;
-      }
-      if (ssoDomain) {
-         setPending(true);
-         setError(null);
-         try {
-            await signInWithSso(email);
-         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : 'Could not start SSO');
-            setPending(false);
-         }
          return;
       }
       if (registering) {
@@ -493,60 +478,32 @@ export function AuthFlow({
                   }}
                />
             </AuthFieldGroup>
-            {ssoDomain ? (
-               <div className="flex items-center gap-2.5 rounded-[10px] border border-[#2a2a2f] bg-[#19191c] px-3 py-2.5">
-                  <svg
-                     width="14"
-                     height="14"
-                     viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="#6ea0d8"
-                     strokeWidth="1.8"
-                     aria-hidden
-                  >
-                     <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
-                  </svg>
-                  <span className="text-[var(--brand-ash)]">
-                     <span className="text-[var(--brand-chalk)]">{ssoDomain}</span> signs in with
-                     SSO.
-                  </span>
-               </div>
-            ) : (
-               <>
-                  <PasswordField
-                     id="auth-password"
-                     value={password}
-                     onChange={(next) => {
-                        setPassword(next);
-                        setError(null);
-                     }}
-                     autoComplete={registering ? 'new-password' : 'current-password'}
-                     placeholder={registering ? 'At least 12 characters' : '••••••••••••'}
-                     trailing={
-                        !registering && options.passwordReset ? (
-                           <button
-                              type="button"
-                              className="text-[#e8c15c] hover:text-[#f2d27e]"
-                              onClick={() => go('forgot')}
-                           >
-                              Forgot?
-                           </button>
-                        ) : undefined
-                     }
-                  />
-                  {registering ? <PasswordStrength password={password} /> : null}
-               </>
-            )}
+            <PasswordField
+               id="auth-password"
+               value={password}
+               onChange={(next) => {
+                  setPassword(next);
+                  setError(null);
+               }}
+               autoComplete={registering ? 'new-password' : 'current-password'}
+               placeholder={registering ? 'At least 12 characters' : '••••••••••••'}
+               trailing={
+                  !registering && options.passwordReset ? (
+                     <button
+                        type="button"
+                        className="text-[#e8c15c] hover:text-[#f2d27e]"
+                        onClick={() => go('forgot')}
+                     >
+                        Forgot?
+                     </button>
+                  ) : undefined
+               }
+            />
+            {registering ? <PasswordStrength password={password} /> : null}
             <AuthPrimaryButton type="submit" ready={entryReady && !pending}>
-               {pending
-                  ? 'Working…'
-                  : ssoDomain
-                    ? 'Continue with SSO'
-                    : registering
-                      ? 'Create account'
-                      : 'Sign in'}
+               {pending ? 'Working…' : registering ? 'Create account' : 'Sign in'}
             </AuthPrimaryButton>
-            {!registering && options.magicLink && !ssoDomain ? (
+            {!registering && options.magicLink ? (
                <AuthSecondaryButton disabled={pending} onClick={() => void sendMagic()}>
                   <svg
                      width="14"

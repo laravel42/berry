@@ -29,8 +29,11 @@ const ERROR_MESSAGES: Record<string, string> = {
    email_not_verified: 'Verify your primary email on GitHub, then try again.',
    unable_to_create_user: 'Verify your primary email on GitHub, then try again.',
    access_denied: 'GitHub sign-in was cancelled.',
+   // Better Auth sets `error` on errorCallbackURL (replacing our magic_link
+   // hint) when /magic-link/verify fails after the email click.
    magic_link: 'That sign-in link could not be used. Request a new one.',
-   sso: 'SSO sign-in could not complete. Try again or use another method.',
+   INVALID_TOKEN: 'That sign-in link could not be used. Request a new one.',
+   new_user_signup_disabled: 'That sign-in link could not be used. Request a new one.',
 };
 const GENERIC_GITHUB_ERROR = 'We could not sign you in with GitHub. Please try again.';
 
@@ -184,8 +187,6 @@ function SignInContent() {
                   magicLink: false,
                   passwordReset: false,
                   twoFactor: false,
-                  sso: false,
-                  ssoDomains: [],
                   signInOrigin: null,
                });
             }
@@ -204,13 +205,12 @@ function SignInContent() {
       return <div className="min-h-svh bg-[var(--brand-void)]" />;
    }
 
-   // Full email auth surface whenever registration, magic link, reset or SSO
-   // is on. GitHub rides along as a secondary when configured.
+   // Full email auth surface whenever registration, magic link or reset is on.
+   // GitHub rides along as a secondary when configured.
    if (
       options.emailRegistration ||
       options.magicLink ||
       options.passwordReset ||
-      options.sso ||
       initialStep === 'twofa'
    ) {
       return <AuthFlow options={options} initialStep={initialStep} returnedError={returnedError} />;

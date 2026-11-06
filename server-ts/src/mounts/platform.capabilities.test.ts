@@ -55,8 +55,6 @@ test('a boolean capability is reported as it always was', async () => {
       magicLink: false,
       passwordReset: false,
       twoFactor: false,
-      sso: false,
-      ssoDomains: [],
    });
 });
 

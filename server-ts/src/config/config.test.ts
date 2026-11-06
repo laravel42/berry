@@ -324,6 +324,63 @@ test('the runtime reaches Berry at its own address, not the browser one', () => 
    assert.equal(loadConfig({ ...BASE_ENV }).runtime.callbackUrl, null);
 });
 
+test('Cloudflare mail provider fills authenticated SMTP on port 465', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'production',
+      BERRY_AUTH_SECRET: 'x'.repeat(32),
+      BERRY_MAIL_PROVIDER: 'cloudflare',
+      BERRY_MAIL_FROM: 'Berry <noreply@example.com>',
+      BERRY_SMTP_PASS: 'cf-api-token',
+   });
+   assert.deepEqual(config.auth.mail, {
+      from: 'Berry <noreply@example.com>',
+      smtp: {
+         host: 'smtp.mx.cloudflare.net',
+         port: 465,
+         secure: true,
+         user: 'api_token',
+         pass: 'cf-api-token',
+      },
+   });
+});
+
+test('Cloudflare mail provider refuses to boot without an SMTP password', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            APP_ENV: 'production',
+            BERRY_AUTH_SECRET: 'x'.repeat(32),
+            BERRY_MAIL_PROVIDER: 'cloudflare',
+         }),
+      (error: unknown) =>
+         error instanceof ConfigError && /BERRY_SMTP_PASS|cloudflare/.test(error.message)
+   );
+});
+
+test('an explicit SMTP host still wins over the Cloudflare mail provider', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      BERRY_MAIL_PROVIDER: 'cloudflare',
+      BERRY_SMTP_HOST: 'smtp.example.com',
+      BERRY_SMTP_PORT: '587',
+      BERRY_SMTP_USER: 'mailer',
+      BERRY_SMTP_PASS: 'secret',
+   });
+   assert.deepEqual(config.auth.mail, {
+      from: 'Berry <noreply@localhost>',
+      smtp: {
+         host: 'smtp.example.com',
+         port: 587,
+         secure: false,
+         user: 'mailer',
+         pass: 'secret',
+      },
+   });
+});
+
 test('dev login needs both the flag and a development environment', () => {
    assert.equal(
       loadConfig({ ...BASE_ENV, APP_ENV: 'development', AUTH_ALLOW_PASSWORDLESS_LOGIN: 'true' })

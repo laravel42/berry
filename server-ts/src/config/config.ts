@@ -11,6 +11,7 @@ import {
    rdsRegionFromHostname,
    type DatabaseIamAuth,
 } from '../db/rds-iam.ts';
+import { CLOUDFLARE_EMAIL_SMTP } from '../mail/mailer.ts';
 
 export interface Config {
    appEnv: string;
@@ -284,29 +285,16 @@ export interface AuthConfig {
     * those flows are not advertised (except a console sink in development).
     */
    mail: AuthMailConfig | null;
-   /**
-    * Enterprise SSO providers configured in code (`defaultSSO`). Empty is a
-    * working deployment that simply does not offer SSO.
-    */
-   sso: AuthSsoProvider[];
 }
 
 export interface AuthMailConfig {
    from: string;
    /**
     * SMTP URL (`smtp://` / `smtps://`) or host settings. Null is the console
-    * sink used in development when no SMTP is configured.
+    * sink used in development when no SMTP is configured. Cloudflare Email
+    * Sending is the host form with `smtp.mx.cloudflare.net:465`.
     */
    smtp: string | { host: string; port: number; user?: string; pass?: string; secure: boolean } | null;
-}
-
-export interface AuthSsoProvider {
-   providerId: string;
-   /** Bare email domain, e.g. `acme.com`. */
-   domain: string;
-   issuer: string;
-   clientId: string;
-   clientSecret: string;
 }
 
 /** Planner and run bounds. Not a model credential: those live on a subscription runtime. */
@@ -862,7 +850,6 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       githubAppSlug: slug === '' ? null : slug,
       devLogin: development && boolean(env.AUTH_ALLOW_PASSWORDLESS_LOGIN, true),
       mail: authMail(env, development, problems),
-      sso: authSso(env, problems),
    };
 }
 
@@ -871,6 +858,12 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
  * sink so magic-link and reset flows can be exercised locally. Production
  * with no SMTP returns null — those capabilities stay off rather than
  * logging links that nobody receives.
+ *
+ * `BERRY_MAIL_PROVIDER=cloudflare` fills Cloudflare Email Sending's
+ * authenticated SMTP endpoint (`smtp.mx.cloudflare.net:465`). The password
+ * is a Cloudflare API token with Email Sending: Edit; the username defaults
+ * to the literal `api_token`. An explicit `BERRY_SMTP_URL` or
+ * `BERRY_SMTP_HOST` still wins when set.
  */
 function authMail(
    env: NodeJS.ProcessEnv,
@@ -909,47 +902,33 @@ function authMail(
          },
       };
    }
+   const provider = (env.BERRY_MAIL_PROVIDER ?? '').trim().toLowerCase();
+   if (provider === 'cloudflare') {
+      // Cloudflare Email Sending SMTP: port 465 / implicit TLS only.
+      const pass = (env.BERRY_SMTP_PASS ?? env.CF_API_TOKEN ?? '').trim();
+      if (!pass) {
+         problems.push(
+            'BERRY_MAIL_PROVIDER=cloudflare needs BERRY_SMTP_PASS (Cloudflare API token with Email Sending: Edit)'
+         );
+         return null;
+      }
+      const user = (env.BERRY_SMTP_USER ?? '').trim() || CLOUDFLARE_EMAIL_SMTP.user;
+      return {
+         from,
+         smtp: {
+            host: CLOUDFLARE_EMAIL_SMTP.host,
+            port: CLOUDFLARE_EMAIL_SMTP.port,
+            secure: CLOUDFLARE_EMAIL_SMTP.secure,
+            user,
+            pass,
+         },
+      };
+   }
+   if (provider !== '' && provider !== 'smtp') {
+      problems.push('BERRY_MAIL_PROVIDER must be cloudflare, smtp, or empty');
+      return null;
+   }
    return development ? { from, smtp: null } : null;
-}
-
-/**
- * One OIDC SSO provider from env. Multiple providers stay out of scope for
- * the env shape; register more at runtime once a settings surface exists.
- */
-function authSso(env: NodeJS.ProcessEnv, problems: string[]): AuthSsoProvider[] {
-   const providerId = (env.BERRY_AUTH_SSO_PROVIDER_ID ?? '').trim();
-   const domain = (env.BERRY_AUTH_SSO_DOMAIN ?? '').trim().toLowerCase();
-   const issuer = (env.BERRY_AUTH_SSO_ISSUER ?? '').trim();
-   const clientId = (env.BERRY_AUTH_SSO_CLIENT_ID ?? '').trim();
-   const clientSecret = (env.BERRY_AUTH_SSO_CLIENT_SECRET ?? '').trim();
-   const any =
-      providerId !== '' ||
-      domain !== '' ||
-      issuer !== '' ||
-      clientId !== '' ||
-      clientSecret !== '';
-   if (!any) return [];
-   if (!providerId || !domain || !issuer || !clientId || !clientSecret) {
-      problems.push(
-         'BERRY_AUTH_SSO_* needs PROVIDER_ID, DOMAIN, ISSUER, CLIENT_ID and CLIENT_SECRET together'
-      );
-      return [];
-   }
-   if (!/^[a-zA-Z0-9_-]+$/.test(providerId)) {
-      problems.push('BERRY_AUTH_SSO_PROVIDER_ID must be letters, digits, underscore or hyphen');
-      return [];
-   }
-   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
-      problems.push('BERRY_AUTH_SSO_DOMAIN must be a bare email domain such as acme.com');
-      return [];
-   }
-   try {
-      void new URL(issuer);
-   } catch {
-      problems.push('BERRY_AUTH_SSO_ISSUER must be an https URL');
-      return [];
-   }
-   return [{ providerId, domain, issuer, clientId, clientSecret }];
 }
 
 /** An IPv4/IPv6 address, optionally with a /prefix that fits its family. */

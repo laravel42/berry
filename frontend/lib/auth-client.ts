@@ -2,7 +2,6 @@
 
 import { createAuthClient } from 'better-auth/react';
 import { magicLinkClient, twoFactorClient } from 'better-auth/client/plugins';
-import { ssoClient } from '@better-auth/sso/client';
 
 import { API_BASE_URL } from './config';
 
@@ -12,7 +11,6 @@ function createBerryAuthClient() {
       basePath: '/api/auth',
       plugins: [
          magicLinkClient(),
-         ssoClient(),
          twoFactorClient({
             onTwoFactorRedirect() {
                if (typeof window === 'undefined') return;
