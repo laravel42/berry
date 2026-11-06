@@ -10,13 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
-import {
-   deleteSkill,
-   refreshSkill,
-   restoreSkill,
-   setSkillForAgent,
-   type Skill,
-} from '@/lib/skills';
+import { deleteSkill, restoreSkill, setSkillForAgent, type Skill } from '@/lib/skills';
 
 interface Props {
    selected: Skill[];
@@ -59,7 +53,6 @@ export default function SkillBulkBar({
    );
 
    if (selected.length === 0) return null;
-   const refreshable = selected.filter((skill) => skill.source.kind === 'github');
 
    /** Runs `work` over the selection, counting as it goes, and reports the tally. */
    const walk = async (
@@ -104,13 +97,6 @@ export default function SkillBulkBar({
       );
    };
 
-   const update = () =>
-      void walk(
-         refreshable,
-         (skill) => refreshSkill(skill.id),
-         (succeeded, failed) => toast.success(t('bulk.updated', { count: succeeded, failed }))
-      );
-
    const remove = () =>
       void walk(
          selected,
@@ -133,7 +119,7 @@ export default function SkillBulkBar({
 
    return (
       <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
-         <span className="font-medium">{t('bulk.selected', { count: selected.length })}</span>
+         <span className="font-bold">{t('bulk.selected', { count: selected.length })}</span>
 
          {progress ? (
             <span className="flex items-center gap-2 text-muted-foreground">
@@ -166,23 +152,18 @@ export default function SkillBulkBar({
                         }
                      />
 
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={refreshable.length === 0}
-                        title={refreshable.length === 0 ? t('bulk.nothingToUpdate') : undefined}
-                        onClick={update}
-                     >
-                        {t('bulk.update')}
-                     </Button>
-
-                     <Button size="xs" variant="secondary" onClick={() => setConfirming(true)}>
+                     <Button size="xs" variant="destructive" onClick={() => setConfirming(true)}>
                         {t('bulk.delete')}
                      </Button>
                   </>
                )}
 
-               <Button size="xs" variant="ghost" onClick={onClear}>
+               <Button
+                  size="xs"
+                  variant="ghost"
+                  className="font-bold underline underline-offset-2"
+                  onClick={onClear}
+               >
                   {t('bulk.clear')}
                </Button>
             </>

@@ -3,9 +3,7 @@
 import { ChevronDown, CircleDashed } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
-import { ConfirmAction } from '@/components/common/confirm-action';
 import {
    EmptyState,
    EmptyStateLoading,
@@ -15,10 +13,9 @@ import {
 } from '@/components/common/empty-state';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { BerryApiError } from '@/lib/api';
 import type { Agent } from '@/lib/agents';
 import { colorForSkillLabel } from '@/lib/skill-labels';
-import { deleteSkill, restoreSkill, type Skill } from '@/lib/skills';
+import type { Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
@@ -136,17 +133,11 @@ function firstSeenIds(groups: LabelGroup[]): string[] {
 interface SkillLabelGroupProps {
    group: LabelGroup;
    columns: SkillColumn[];
-   agents: Agent[];
    canEdit: boolean;
    openId: string | null;
    selection: string[];
-   refreshingId: string | null;
    onToggleSelected: (id: string) => void;
    onOpen: (id: string) => void;
-   onChanged: () => void;
-   onRefreshing: (id: string | null) => void;
-   onConfirmDelete: (skill: Skill) => void;
-   onRestore: (skill: Skill) => void;
    labelColors?: Record<string, string>;
 }
 
@@ -154,17 +145,11 @@ interface SkillLabelGroupProps {
 function SkillLabelGroup({
    group,
    columns,
-   agents,
    canEdit,
    openId,
    selection,
-   refreshingId,
    onToggleSelected,
    onOpen,
-   onChanged,
-   onRefreshing,
-   onConfirmDelete,
-   onRestore,
    labelColors,
 }: SkillLabelGroupProps) {
    const t = useTranslations('areas.skills');
@@ -214,17 +199,11 @@ function SkillLabelGroup({
                   key={skill.id}
                   skill={skill}
                   columns={columns}
-                  agents={agents}
                   canEdit={canEdit}
                   selected={selection.includes(skill.id)}
                   open={openId === skill.id}
                   onToggleSelected={onToggleSelected}
                   onOpen={onOpen}
-                  onChanged={onChanged}
-                  refreshing={refreshingId === skill.id}
-                  onRefreshing={onRefreshing}
-                  onConfirmDelete={onConfirmDelete}
-                  onRestore={onRestore}
                />
             ))}
          </CollapsibleContent>
@@ -236,9 +215,8 @@ function SkillLabelGroup({
  * The workspace's skills, grouped by label.
  *
  * The groups use the same accordion as the task list: a tinted header with a
- * chevron and a count, and a gap between groups. Rows are acted on one at a
- * time through the menu, or several at once through the bar that appears with
- * a selection.
+ * chevron and a count, and a gap between groups. Bulk actions sit on the bar
+ * that appears with a selection; single-skill actions live on the detail drawer.
  */
 export default function SkillsList({
    skills,
@@ -257,8 +235,6 @@ export default function SkillsList({
    const t = useTranslations('areas.skills');
    const setOrderedIds = useSkillsCatalogueStore((state) => state.setOrderedIds);
    const [selection, setSelection] = useState<string[]>([]);
-   const [confirming, setConfirming] = useState<Skill | null>(null);
-   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
    const rows = useMemo(
       () => sortSkills(skills ?? [], criteria.sort, criteria.descending),
@@ -303,31 +279,6 @@ export default function SkillsList({
       setSelection((current) =>
          current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]
       );
-
-   const fail = (failure: unknown, fallback: string) =>
-      toast.error(failure instanceof BerryApiError ? failure.message : fallback);
-
-   const remove = async (skill: Skill) => {
-      try {
-         await deleteSkill(skill.id);
-         toast.success(t('row.deleted', { name: skill.name }));
-         setSelection((current) => current.filter((entry) => entry !== skill.id));
-         onChanged();
-      } catch (failure) {
-         fail(failure, t('row.deleteFailed'));
-      }
-   };
-
-   const restore = async (skill: Skill) => {
-      try {
-         await restoreSkill(skill.id);
-         toast.success(t('row.restored', { name: skill.name }));
-         setSelection((current) => current.filter((entry) => entry !== skill.id));
-         onChanged();
-      } catch (failure) {
-         fail(failure, t('row.restoreFailed'));
-      }
-   };
 
    // The same heading again reverses the order; a new one starts in its natural order.
    const sortBy = (sort: SkillCriteria['sort']) => {
@@ -408,8 +359,6 @@ export default function SkillsList({
             {header('agents', t('columns.agents'))}
             {header('creator', t('columns.creator'))}
             {header('updated', t('columns.updated'))}
-            {header('files', t('columns.files'), 'justify-end')}
-            <span className="size-6 shrink-0" aria-hidden />
          </div>
          <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background">
             {groups.map((group) => (
@@ -417,17 +366,11 @@ export default function SkillsList({
                   key={group.id}
                   group={group}
                   columns={criteria.columns}
-                  agents={agents}
                   canEdit={canEdit}
                   openId={openId}
                   selection={selection}
-                  refreshingId={refreshingId}
                   onToggleSelected={toggle}
                   onOpen={onOpen}
-                  onChanged={onChanged}
-                  onRefreshing={setRefreshingId}
-                  onConfirmDelete={setConfirming}
-                  onRestore={restore}
                   labelColors={labelColors}
                />
             ))}
@@ -442,19 +385,6 @@ export default function SkillsList({
                archived={archived}
             />
          ) : null}
-
-         <ConfirmAction
-            open={confirming !== null}
-            onOpenChange={(open) => !open && setConfirming(null)}
-            title={t('row.confirmDeleteTitle', { name: confirming?.name ?? '' })}
-            description={t('row.confirmDeleteBody')}
-            cancelLabel={t('cancel')}
-            confirmLabel={t('row.delete')}
-            onConfirm={() => {
-               // Closes at once: the row reports its own progress and failure.
-               if (confirming) void remove(confirming);
-            }}
-         />
       </div>
    );
 }

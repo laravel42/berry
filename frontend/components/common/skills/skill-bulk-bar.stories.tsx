@@ -39,14 +39,6 @@ export const TwoSelected: Story = {
    },
 };
 
-/** No GitHub import in the selection, so there is nothing to update from source. */
-export const NothingToUpdate: Story = {
-   args: { selected: [skills[0]!, skills[2]!] },
-   play: async ({ canvas }) => {
-      await expect(canvas.getByRole('button', { name: 'Update from source' })).toBeDisabled();
-   },
-};
-
 export const ConfirmDelete: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Archive' }));

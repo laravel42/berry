@@ -2,6 +2,7 @@
    "skills": {
       "title": "Skills",
       "search": "Search skills",
+      "catalogButton": "Skills catalog",
       "loading": "Loading skills…",
       "loadFailed": "Skills could not be loaded.",
       "empty": {
@@ -78,7 +79,7 @@
          "update": "Update from source",
          "delete": "Archive",
          "restore": "Restore",
-         "clear": "Clear",
+         "clear": "Clear selection",
          "progress": "{done} of {total}",
          "updated": "{count} updated, {failed} failed",
          "deleted": "{count, plural, =1 {1 skill archived} other {# skills archived}}",
@@ -136,6 +137,38 @@
          "change_details": "name and description",
          "change_labels": "labels",
          "change_instructions": "instructions"
+      },
+      "catalog": {
+         "title": "Skills catalog",
+         "search": "Search skills and departments",
+         "loading": "Loading skills…",
+         "loadFailed": "The skills catalog could not be loaded.",
+         "empty": "No skill matches this view.",
+         "otherDepartment": "Other",
+         "add": "Add",
+         "adding": "Adding…",
+         "addFailed": "The skill could not be added.",
+         "added": "{name} added to {agent}",
+         "addTo": "Add to",
+         "suggested": "Suggested",
+         "otherAgents": "Other agents",
+         "searchAgents": "Search agents",
+         "noAgentMatch": "No agent matches.",
+         "noAgents": "No agent can take a skill yet. Add one from the Agent catalog first.",
+         "openAgentCatalog": "Open the Agent catalog",
+         "columns": {
+            "skill": "Skill"
+         },
+         "row": {
+            "add": "Add {name}"
+         },
+         "bulk": {
+            "add": "{count, plural, one {Add # skill} other {Add # skills}}",
+            "added": "{count, plural, one {# skill added to {agent}} other {# skills added to {agent}}}",
+            "clear": "Clear",
+            "select": "Select {name}",
+            "selectAll": "Select every skill that can be added"
+         }
       }
    },
    "autopilots": {
@@ -656,7 +689,7 @@
       "bandAvailable": "{count} available",
       "catalogTitle": "Runtime catalog",
       "catalogSearch": "Search runtimes and providers",
-      "catalogLoading": "Loading runtime evidence…",
+      "catalogLoading": "Loading…",
       "catalogEmpty": "No runtime matches this view.",
       "filterAll": "All",
       "filterConnected": "Connected",
@@ -671,6 +704,11 @@
       "tokenHint": "Berry stores this token sealed and does not show it again.",
       "tokenPlaceholder": "Paste the API token",
       "tokenCancel": "Cancel",
+      "serverHint": "Berry calls this LM Studio server from the compute host. Start it in LM Studio under Developer, or with lms server start.",
+      "serverLabel": "Server address",
+      "serverPlaceholder": "http://localhost:1234/v1",
+      "tokenOptionalLabel": "API token (only if authentication is on)",
+      "tokenOptionalPlaceholder": "Leave empty when LM Studio does not ask for one",
       "connecting": "Connecting…",
       "disconnect": "Disconnect",
       "disconnecting": "Disconnecting…",

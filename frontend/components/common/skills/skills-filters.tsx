@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Columns3, Tag, UserPen, Bot, CircleDot } from 'lucide-react';
+import { Tag, UserPen, Bot, CircleDot } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useMemo, type ReactNode } from 'react';
 
@@ -14,9 +14,7 @@ import {
    type ListFilterController,
 } from '@/components/common/filters/list-filters';
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
-import { Button } from '@/components/ui/button';
-import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Agent } from '@/lib/agents';
 import { isSkillInUse, type Skill } from '@/lib/skills';
@@ -24,7 +22,7 @@ import { isSkillInUse, type Skill } from '@/lib/skills';
 export const SKILL_SCOPES = ['all', 'archived'] as const;
 export type SkillScope = (typeof SKILL_SCOPES)[number];
 
-export const SKILL_COLUMNS = ['agents', 'files', 'creator', 'updated'] as const;
+export const SKILL_COLUMNS = ['agents', 'creator', 'updated'] as const;
 export type SkillColumn = (typeof SKILL_COLUMNS)[number];
 
 export const SKILL_SORTS = ['name', 'labels', 'updated', 'usage'] as const;
@@ -40,7 +38,7 @@ export interface SkillCriteria {
 
 export const DEFAULT_CRITERIA: SkillCriteria = {
    sort: 'name',
-   columns: ['agents', 'files'],
+   columns: ['agents'],
 };
 
 /**
@@ -104,9 +102,9 @@ export function useSkillFilterColumns(
 }
 
 interface Props {
-   criteria: SkillCriteria;
-   onChange: (criteria: SkillCriteria) => void;
    filter: ListFilterController<Skill>;
+   query: string;
+   onQueryChange: (query: string) => void;
    /** Trailing primary action (e.g. New skill), after the list controls. */
    action?: ReactNode;
    scope?: SkillScope;
@@ -114,18 +112,17 @@ interface Props {
    counts?: Record<SkillScope, number | null>;
 }
 
-/** The catalogue's filter and column controls. Search sits on the page statement. */
+/** Search and Filter on the left; All / Archived on the right. */
 export default function SkillsFilters({
-   criteria,
-   onChange,
    filter,
+   query,
+   onQueryChange,
    action,
    scope = 'all',
    onScopeChange,
    counts = { all: 0, archived: null },
 }: Props) {
    const t = useTranslations('areas.skills');
-   const set = (patch: Partial<SkillCriteria>) => onChange({ ...criteria, ...patch });
    const scopeLabel: Record<SkillScope, string> = {
       all: t('scopeAll'),
       archived: t('scopeArchived'),
@@ -133,6 +130,17 @@ export default function SkillsFilters({
 
    return (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
+         <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
+            <Input
+               className={`${searchFieldClass} w-64 max-sm:w-40`}
+               value={query}
+               onChange={(event) => onQueryChange(event.target.value)}
+               placeholder={t('search')}
+               aria-label={t('search')}
+            />
+            <ListFilterTrigger filter={filter} />
+            {action}
+         </div>
          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Tabs value={scope} onValueChange={(value) => onScopeChange?.(value as SkillScope)}>
                <TabsList aria-label={t('title')}>
@@ -148,44 +156,6 @@ export default function SkillsFilters({
                   ))}
                </TabsList>
             </Tabs>
-         </div>
-         <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <ListFilterTrigger filter={filter} />
-            <Popover>
-               <PopoverTrigger asChild>
-                  <Button size="xs" variant="track">
-                     <Columns3 className="size-4" />
-                     {t('filters.columns')}
-                  </Button>
-               </PopoverTrigger>
-               <PopoverContent className="w-52 p-0" align="end">
-                  <Command>
-                     <CommandList>
-                        <CommandGroup>
-                           {SKILL_COLUMNS.map((column) => (
-                              <CommandItem
-                                 key={column}
-                                 onSelect={() =>
-                                    set({
-                                       columns: criteria.columns.includes(column)
-                                          ? criteria.columns.filter((entry) => entry !== column)
-                                          : [...criteria.columns, column],
-                                    })
-                                 }
-                                 className="justify-between"
-                              >
-                                 {t(`columns.${column}`)}
-                                 {criteria.columns.includes(column) ? (
-                                    <Check className="size-4" />
-                                 ) : null}
-                              </CommandItem>
-                           ))}
-                        </CommandGroup>
-                     </CommandList>
-                  </Command>
-               </PopoverContent>
-            </Popover>
-            {action}
          </div>
       </div>
    );
