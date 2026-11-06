@@ -5,7 +5,7 @@ import { UnsavedChangesBar } from './unsaved-changes-bar';
 const meta = {
    component: UnsavedChangesBar,
    tags: ['ai-generated', 'needs-work'],
-   args: { what: 'instructions, starters', onDiscard: fn(), onSave: fn() },
+   args: { onDiscard: fn(), onSave: fn() },
    decorators: [
       (Story) => (
          <div className="w-[640px] border">
@@ -20,7 +20,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Dirty: Story = {
    play: async ({ args, canvas, userEvent }) => {
-      await expect(canvas.getByText('Unsaved: instructions, starters')).toBeVisible();
+      await expect(canvas.getByText('Unsaved changes')).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
       await expect(args.onSave).toHaveBeenCalledTimes(1);
       await userEvent.click(canvas.getByRole('button', { name: 'Discard' }));
@@ -37,5 +37,5 @@ export const Saving: Story = {
 };
 
 export const CustomLabels: Story = {
-   args: { what: 'role contract', discardLabel: 'Revert', saveLabel: 'Save role' },
+   args: { discardLabel: 'Revert', saveLabel: 'Save role' },
 };

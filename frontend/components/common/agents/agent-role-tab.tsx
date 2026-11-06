@@ -73,7 +73,6 @@ export function AgentRoleTab({
    onForbidden: () => void;
 }) {
    const t = useTranslations('organization');
-   const detail = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
    const admin = useTranslations('workspaceAdmin.agents');
    const [resetting, setResetting] = useState(false);
@@ -154,13 +153,6 @@ export function AgentRoleTab({
       }
    };
 
-   const whatChanged = [
-      levelDirty ? detail('change_autonomy') : null,
-      permissionsDirty ? detail('change_permissions') : null,
-   ]
-      .filter(Boolean)
-      .join(', ');
-
    const permissionsLocked = readOnly || saving;
 
    const permissionsPanel = (
@@ -194,12 +186,7 @@ export function AgentRoleTab({
 
    const saveBar =
       !readOnly && dirty ? (
-         <UnsavedChangesBar
-            what={whatChanged}
-            busy={saving}
-            onDiscard={discard}
-            onSave={() => void save()}
-         />
+         <UnsavedChangesBar busy={saving} onDiscard={discard} onSave={() => void save()} />
       ) : null;
 
    // The form scrolls; the save bar stays on the bottom edge of the tab.

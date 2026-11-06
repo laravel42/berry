@@ -7,7 +7,7 @@
       "empty": "No agents match that."
    },
    "unsavedBar": {
-      "unsaved": "Unsaved: {what}",
+      "unsaved": "Unsaved changes",
       "discard": "Discard",
       "save": "Save",
       "saving": "Saving…"

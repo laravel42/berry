@@ -308,7 +308,6 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
 
          {editable && changes.length > 0 ? (
             <UnsavedChangesBar
-               what={changes.map((part) => t(`detail.change_${part}`)).join(', ')}
                busy={busy}
                discardLabel={t('detail.discard')}
                saveLabel={t('detail.save')}
