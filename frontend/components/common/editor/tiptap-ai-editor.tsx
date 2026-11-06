@@ -62,6 +62,11 @@ interface TiptapAiEditorProps {
     * the text sits against the field.
     */
    'formatting'?: boolean;
+   /**
+    * When false the surface is read-only (e.g. while an AI rewrite is in
+    * flight). Defaults to editable.
+    */
+   'editable'?: boolean;
 }
 
 type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
@@ -82,6 +87,7 @@ export function TiptapAiEditor({
    'data-heading': dataHeading,
    aiAssist = true,
    formatting = false,
+   editable = true,
 }: TiptapAiEditorProps) {
    const [aiPrompt, setAiPrompt] = useState('');
    const [aiPending, setAiPending] = useState(false);
@@ -105,6 +111,7 @@ export function TiptapAiEditor({
          }),
       ],
       content: value,
+      editable,
       immediatelyRender: false,
       editorProps: {
          attributes: {
@@ -127,6 +134,11 @@ export function TiptapAiEditor({
          onBlurRef.current?.(readMarkdown(current));
       },
    });
+
+   useEffect(() => {
+      if (!editor) return;
+      editor.setEditable(editable);
+   }, [editor, editable]);
 
    useEffect(() => {
       if (!editor) return;
@@ -230,8 +242,10 @@ export function TiptapAiEditor({
          className={cn(
             'tiptap-ai-editor relative flex min-h-0 flex-1 flex-col',
             formatting && 'formatting-editor',
+            !editable && 'pointer-events-none opacity-60',
             className
          )}
+         aria-busy={!editable || undefined}
          onPointerDown={(event) => event.stopPropagation()}
       >
          <BubbleMenu

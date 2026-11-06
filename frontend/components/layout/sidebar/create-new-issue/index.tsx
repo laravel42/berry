@@ -30,6 +30,7 @@ import { status, type Status } from '@/data/status';
 import { BerryApiError } from '@/lib/api';
 import { WORKSPACE_NAME } from '@/lib/config';
 import { agentToUser } from '@/lib/agents';
+import { assistEditorText } from '@/lib/editor-ai';
 import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
 import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
@@ -45,7 +46,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
 import { format } from 'date-fns';
-import { CheckIcon, ChevronRight, Plus, TagIcon, X } from 'lucide-react';
+import { CheckIcon, ChevronRight, Loader2, Plus, Sparkles, TagIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -53,6 +54,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector } from './assignee-selector';
 import { descriptionWithPlugins, CreatePluginSelect } from './plugin-select';
 import { ProjectSelector } from './project-selector';
+
+/** Fixed prompt for the create-task footer: expand the description for clarity. */
+const IMPROVE_DESCRIPTION_INSTRUCTION =
+   'Expand this task description so a person or agent can understand the goal, constraints, and what done looks like. Improve comprehension and focus. Keep it concrete and actionable. Return Markdown only.';
 
 /**
  * Creating a task: title, description, and whichever properties are worth
@@ -104,6 +109,7 @@ export function CreateNewIssue() {
    // default and still sends it, so the task is created exactly as before.
    const createFields = useUiPrefsStore((state) => state.createFields);
    const [pending, setPending] = useState(false);
+   const [improving, setImproving] = useState(false);
    const [labels, setLabels] = useState<LabelInterface[]>([]);
    const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
    const [revealedFields, setRevealedFields] = useState<string[]>([]);
@@ -194,6 +200,27 @@ export function CreateNewIssue() {
       setRevealedFields([]);
       resetDraft();
       closeModal();
+   };
+
+   const improveDescription = async () => {
+      const source = draft.description.trim();
+      if (!source) {
+         toast.error(t('improveEmpty'));
+         return;
+      }
+      if (improving || pending) return;
+      setImproving(true);
+      try {
+         const rewritten = await assistEditorText({
+            text: source,
+            instruction: IMPROVE_DESCRIPTION_INSTRUCTION,
+         });
+         setDraft({ description: rewritten });
+      } catch (error) {
+         toast.error(error instanceof BerryApiError ? error.message : t('improveFailed'));
+      } finally {
+         setImproving(false);
+      }
    };
 
    const create = async () => {
@@ -499,6 +526,7 @@ export function CreateNewIssue() {
                      aria-label={t('descriptionPlaceholder')}
                      aiAssist={false}
                      formatting
+                     editable={!improving}
                      className="min-h-56 [&_.ProseMirror]:!min-h-56 [&_.ProseMirror]:bg-transparent"
                   />
                </div>
@@ -506,6 +534,21 @@ export function CreateNewIssue() {
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <div className="flex min-w-0 items-center gap-3">
+                  <Button
+                     type="button"
+                     variant="secondary"
+                     className="!bg-white !text-black shadow-xs hover:!bg-white/90 hover:!text-black"
+                     disabled={pending || improving || draft.description.trim() === ''}
+                     aria-busy={improving || undefined}
+                     onClick={() => void improveDescription()}
+                  >
+                     {improving ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                     ) : (
+                        <Sparkles className="size-3.5" aria-hidden />
+                     )}
+                     {improving ? t('improving') : t('improve')}
+                  </Button>
                   {draft.assignee?.type === 'agent' ? (
                      <CreatePluginSelect
                         workspaceId={workspaceId}
@@ -514,7 +557,7 @@ export function CreateNewIssue() {
                      />
                   ) : null}
                </div>
-               <Button disabled={pending} onClick={() => void create()}>
+               <Button disabled={pending || improving} onClick={() => void create()}>
                   {pending ? t('creating') : t('create')}
                </Button>
             </div>
