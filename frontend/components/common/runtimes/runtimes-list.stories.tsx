@@ -26,7 +26,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Registered: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Runtime catalog')).toBeVisible();
+      await expect(await canvas.findByRole('tab', { name: /All/ })).toBeVisible();
    },
 };
 
@@ -213,6 +213,7 @@ export const Catalog: Story = {
    },
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Codex CLI')).toBeVisible();
-      await expect(canvas.getByRole('link', { name: 'Install guide' })).toBeVisible();
+      await expect(canvas.getByText('Not installed')).toBeVisible();
+      await expect(canvas.getByRole('tab', { name: /Available/ })).toBeVisible();
    },
 };

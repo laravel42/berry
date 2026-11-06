@@ -15,7 +15,20 @@ const capabilities = {
 };
 
 /** A connected subscription runtime offering `models`. */
-const connected = (id: string, name: string, models: { id: string; name: string }[]) => ({
+const connected = (
+   id: string,
+   name: string,
+   models: {
+      id: string;
+      name: string;
+      maxContextLength?: number;
+      capabilities?: {
+         vision: boolean;
+         trainedForToolUse: boolean;
+         reasoning?: { allowedOptions: Array<'off' | 'on'>; default: 'off' | 'on' } | null;
+      };
+   }[]
+) => ({
    id,
    name,
    publisher: name,
@@ -60,7 +73,18 @@ const meta = {
          http.get('*/api/v1/runtimes/catalog', () =>
             HttpResponse.json({
                nodes: [
-                  connected('codex', 'Codex CLI', [{ id: 'gpt-6.1-sol', name: 'GPT-6.1-Sol' }]),
+                  connected('codex', 'Codex CLI', [
+                     {
+                        id: 'gpt-6.1-sol',
+                        name: 'GPT-6.1-Sol',
+                        maxContextLength: 262144,
+                        capabilities: {
+                           vision: true,
+                           trainedForToolUse: true,
+                           reasoning: { allowedOptions: ['off', 'on'], default: 'on' },
+                        },
+                     },
+                  ]),
                   connected('kiro', 'Kiro CLI', [{ id: 'auto', name: 'Automatic' }]),
                ],
                preference: { runtimeId: null, modelId: null },
@@ -96,6 +120,9 @@ type Story = StoryObj<typeof meta>;
 export const Tiers: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByDisplayValue('Reasoning')).toBeVisible();
+      await expect(canvas.getAllByText(/262,144 context/).length).toBeGreaterThan(0);
+      await expect(canvas.queryAllByText(/Vision/)).toHaveLength(0);
+      await expect(canvas.queryAllByText(/Reasoning off, on, default on/)).toHaveLength(0);
       await expect(
          canvas.getAllByText('No models yet. Tasks in this tier use the workspace default.')
       ).toHaveLength(2);

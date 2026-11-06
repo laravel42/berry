@@ -294,7 +294,29 @@ const aiRuntimeSelectionSchema = z.object({
    modelId: z.string().nullable(),
    agentId: z.string().nullable().optional(),
 });
-const aiRuntimeModelSchema = z.object({ id: z.string(), name: z.string() });
+const reasoningOptionSchema = z.enum(['off', 'on', 'low', 'medium', 'high', 'xhigh']);
+const modelReasoningSchema = z
+   .object({
+      allowedOptions: z.array(reasoningOptionSchema).min(1),
+      default: reasoningOptionSchema,
+   })
+   .nullish()
+   .catch(null);
+const modelCapabilitiesSchema = z
+   .object({
+      vision: z.boolean(),
+      trainedForToolUse: z.boolean(),
+      reasoning: modelReasoningSchema,
+   })
+   .nullish()
+   .catch(null);
+const aiRuntimeModelSchema = z.object({
+   id: z.string(),
+   name: z.string(),
+   /** Maximum context, in tokens. Absent on runtimes that do not report it. */
+   maxContextLength: z.number().int().nonnegative().nullish().catch(null),
+   capabilities: modelCapabilitiesSchema,
+});
 const aiRuntimeAgentSchema = z.object({ id: z.string(), name: z.string() });
 
 export type AiRuntimeConnection = z.infer<typeof aiRuntimeConnectionSchema>;
@@ -456,7 +478,7 @@ export function aiRuntimeConnectionHost(runtime: AiRuntimeDefinition | undefined
 
 export async function connectAiRuntime(
    runtimeId: string,
-   body: { apiKey?: string; name?: string; host?: string } = {}
+   body: { apiKey?: string; name?: string; host?: string; baseUrl?: string } = {}
 ): Promise<AiRuntimeConnection> {
    return parse(
       aiRuntimeConnectionSchema,

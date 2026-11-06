@@ -25,12 +25,13 @@ import {
 } from '@/components/ui/command';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MAIN_TIERS, TIER_NAMES, TIER_PLACES, type Tier } from '@/lib/agents';
+import { MAIN_TIERS, TIER_NAMES, type Tier } from '@/lib/agents';
 import {
    aiRuntimeModelsFrom,
    connectedAiRuntimes,
    EMPTY_AGENT_TIERS,
    getTierModels,
+   listAiRuntimeModels,
    saveTierModels,
    saveTierName,
    type AiRuntimeDefinition,
@@ -73,10 +74,6 @@ const TIER_DOT: Record<Tier, string> = {
    berry_mid: 'var(--status-info)',
    berry_low: 'var(--status-success)',
 };
-
-function listed(names: string[]): string {
-   return new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
-}
 
 /** Move one id from `from` to `to`. The original list is left unchanged. */
 function moveItem(list: readonly string[], from: number, to: number): string[] {
@@ -297,25 +294,22 @@ export default function ModelTiersSettings() {
    const [subscriptions, setSubscriptions] = useState<AiRuntimeDefinition[] | null>(null);
    useEffect(() => {
       let alive = true;
-      void connectedAiRuntimes().then((runtimes) => {
-         if (alive) setSubscriptions(runtimes);
-      });
+      void (async () => {
+         const runtimes = await connectedAiRuntimes();
+         if (!alive) return;
+         setSubscriptions(runtimes);
+         const refreshed = await Promise.all(
+            runtimes.map((runtime) => refreshLmStudioModels(runtime))
+         );
+         if (alive) setSubscriptions(refreshed);
+      })();
       return () => {
          alive = false;
       };
    }, []);
    const usingSubscription = (subscriptions?.length ?? 0) > 0;
    return (
-      <SettingsShell
-         title={t('title')}
-         description={
-            usingSubscription
-               ? t('subscriptionDescription', {
-                    runtimes: listed((subscriptions ?? []).map((runtime) => runtime.name)),
-                 })
-               : t('description')
-         }
-      >
+      <SettingsShell wide>
          {subscriptions === null ? (
             <EmptyStateLoading label={t('loading')} />
          ) : usingSubscription ? (
@@ -333,6 +327,25 @@ interface TierModelChoice {
    key: string;
    name: string;
    runtimeName: string;
+   maxContextLength?: number | null;
+}
+
+/** LM Studio's catalogue is cached without context or capabilities until it is listed again. */
+async function refreshLmStudioModels(runtime: AiRuntimeDefinition): Promise<AiRuntimeDefinition> {
+   if (runtime.id !== 'lmstudio' || !runtime.connection) return runtime;
+   try {
+      const listed = await listAiRuntimeModels(runtime.id);
+      if (!listed.complete) return runtime;
+      return {
+         ...runtime,
+         connection: {
+            ...runtime.connection,
+            metadata: { ...runtime.connection.metadata, models: listed.nodes },
+         },
+      };
+   } catch {
+      return runtime;
+   }
 }
 
 function tierModelChoices(runtimes: AiRuntimeDefinition[]): TierModelChoice[] {
@@ -343,7 +356,12 @@ function tierModelChoices(runtimes: AiRuntimeDefinition[]): TierModelChoice[] {
          const key = `${runtime.id}/${model.id}`;
          if (seen.has(key)) continue;
          seen.add(key);
-         choices.push({ key, name: model.name, runtimeName: runtime.name });
+         choices.push({
+            key,
+            name: model.name,
+            runtimeName: runtime.name,
+            maxContextLength: model.maxContextLength,
+         });
       }
    }
    return choices;
@@ -528,7 +546,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                         tabIndex={-1}
                      />
                   </CollapsibleTrigger>
-                  {canEdit && list.length < TIER_PLACES ? (
+                  {canEdit ? (
                      <AddRuntimeModel
                         choices={choices.filter((choice) => !list.includes(choice.key))}
                         disabled={loading}
@@ -567,6 +585,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                                           className="truncate text-subtle-foreground"
                                        >
                                           {choice.runtimeName}
+                                          <ModelFacts model={choice} />
                                        </span>
                                     ) : null}
                                  </span>
@@ -614,6 +633,19 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
    );
 }
 
+/** Context length LM Studio reports for a model. */
+function ModelFacts({ model }: { model: Pick<TierModelChoice, 'maxContextLength'> }) {
+   const t = useTranslations('workspaceAdmin.modelTiers');
+   if (typeof model.maxContextLength !== 'number') return null;
+   return (
+      <span className="text-subtle-foreground">
+         {' '}
+         ·{' '}
+         {t('contextLength', { count: new Intl.NumberFormat('en').format(model.maxContextLength) })}
+      </span>
+   );
+}
+
 function AddRuntimeModel({
    choices,
    disabled,
@@ -652,6 +684,7 @@ function AddRuntimeModel({
                               <span className="block truncate">{choice.name}</span>
                               <span className="block truncate text-muted-foreground">
                                  {choice.runtimeName}
+                                 <ModelFacts model={choice} />
                               </span>
                            </span>
                         </CommandItem>

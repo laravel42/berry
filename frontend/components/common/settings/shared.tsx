@@ -25,7 +25,7 @@ export const SETTINGS_PILL_SHAPE =
 
 export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-foreground`;
 
-/** Centered settings page: title, optional description, stacked sections. */
+/** Centered settings page: optional title and description, stacked sections. */
 export function SettingsShell({
    title,
    description,
@@ -34,7 +34,8 @@ export function SettingsShell({
    compact,
    wide,
 }: {
-   title: string;
+   /** Omitted when the settings bar already names the page. */
+   title?: string;
    description?: React.ReactNode;
    /** Small amber status label beside the title (e.g. "Not yet implemented"). */
    badge?: string;
@@ -44,27 +45,37 @@ export function SettingsShell({
    /** Drop the 720px column so a card grid can use the settings canvas. */
    wide?: boolean;
 }) {
+   const heading = Boolean(title || description || badge);
    return (
       <div className="settings-surface h-full w-full overflow-y-auto">
          <div
             className={cn(
-               'flex flex-col gap-8 px-8 pt-10 pb-24',
+               'flex flex-col gap-8 px-8 pb-24',
+               heading ? 'pt-10' : 'pt-4',
                wide ? 'w-full' : 'mx-auto max-w-[720px]'
             )}
          >
-            <div className="flex flex-col gap-1.5">
-               <div className="flex flex-wrap items-center gap-2.5">
-                  {/* The settings bar above is the page's h1 ("Settings"); the
-                      page name sits one level down. */}
-                  <h2 data-settings-type="title" className="m-0">
-                     {title}
-                  </h2>
-                  {badge ? <SettingsBadge>{badge}</SettingsBadge> : null}
+            {heading ? (
+               <div className="flex flex-col gap-1.5">
+                  {title || badge ? (
+                     <div className="flex flex-wrap items-center gap-2.5">
+                        {/* The settings bar above is the page's h1 ("Settings"); the
+                            page name sits one level down. */}
+                        {title ? (
+                           <h2 data-settings-type="title" className="m-0">
+                              {title}
+                           </h2>
+                        ) : null}
+                        {badge ? <SettingsBadge>{badge}</SettingsBadge> : null}
+                     </div>
+                  ) : null}
+                  {description ? (
+                     <p className="max-w-[600px] text-pretty text-muted-foreground">
+                        {description}
+                     </p>
+                  ) : null}
                </div>
-               {description ? (
-                  <p className="max-w-[600px] text-pretty text-muted-foreground">{description}</p>
-               ) : null}
-            </div>
+            ) : null}
             <div className={cn('flex flex-col', compact ? 'gap-6' : 'gap-8')}>{children}</div>
          </div>
       </div>

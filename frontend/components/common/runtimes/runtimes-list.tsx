@@ -2,16 +2,10 @@
 
 import { ConfirmAction } from '@/components/common/confirm-action';
 import { EmptyStateLoading } from '@/components/common/empty-state';
-import { SegmentedControl } from '@/components/common/segmented-control';
 import {
    SettingsCard,
    SettingsEmpty,
-   SettingsRow,
-   SettingsSearch,
-   SettingsSection,
-   SettingsShell,
-   StatTile,
-   StatTileGrid,
+   SettingsTile,
    StatusIndicator,
    type SettingsStatus,
 } from '@/components/common/settings/shared';
@@ -25,15 +19,19 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
+import { Input, searchFieldClass } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import Header from '@/components/layout/headers/settings/header';
+import MainLayout from '@/components/layout/main-layout';
 import {
    connectAiRuntime,
    disconnectAiRuntime,
    loadAiRuntimeCatalog,
    type AiRuntimeDefinition,
 } from '@/lib/runtimes';
+import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { RuntimeProviderBadge } from './runtime-provider-badge';
 
@@ -47,9 +45,25 @@ type CatalogFilter = 'all' | 'connected' | 'available';
 
 const FILTERS: CatalogFilter[] = ['all', 'connected', 'available'];
 
-/** A CLI on PATH, or an API-token runtime, which needs no local binary. */
+/** LM Studio's documented local address; the person can change it. */
+const LMSTUDIO_DEFAULT_BASE_URL = 'http://localhost:1234/v1';
+
+/** Same height as the card title (`h1` on the type scale). */
+const titleHeight = 'size-[calc(var(--text-lg)*var(--text-lg--line-height))]';
+
+/** Called directly over HTTP: a provider API token, or an LM Studio server. */
+function directInference(runtime: AiRuntimeDefinition): boolean {
+   return runtime.executionMode === 'direct_inference';
+}
+
+/** A server the person runs, reached at an address they choose. */
+function takesServerAddress(runtime: AiRuntimeDefinition | null): boolean {
+   return runtime?.id === 'lmstudio';
+}
+
+/** A CLI on PATH, or a runtime Berry calls directly, which needs no local binary. */
 function connectable(runtime: AiRuntimeDefinition): boolean {
-   return runtime.installed === true || runtime.billing === 'api_billing';
+   return runtime.installed === true || directInference(runtime);
 }
 
 function catalogKey(runtime: AiRuntimeDefinition): keyof typeof STATUS {
@@ -64,68 +78,6 @@ function catalogRank(runtime: AiRuntimeDefinition): number {
    return 2;
 }
 
-function RuntimeRow({
-   runtime,
-   busy,
-   statusLabel,
-   connectLabel,
-   connectingLabel,
-   disconnectLabel,
-   disconnectingLabel,
-   installLabel,
-   onConnect,
-   onDisconnect,
-}: {
-   runtime: AiRuntimeDefinition;
-   busy: boolean;
-   statusLabel: string;
-   connectLabel: string;
-   connectingLabel: string;
-   disconnectLabel: string;
-   disconnectingLabel: string;
-   installLabel: string;
-   onConnect: () => void;
-   onDisconnect: () => void;
-}) {
-   const state = catalogKey(runtime);
-   const guide = runtime.officialSources[0];
-
-   return (
-      <SettingsRow
-         align="start"
-         icon={<RuntimeProviderBadge runtimeId={runtime.id} bare title={runtime.name} />}
-         title={
-            <>
-               <span className="font-semibold">{runtime.name}</span>
-               <StatusIndicator status={STATUS[state]}>{statusLabel}</StatusIndicator>
-            </>
-         }
-         description={
-            <span className="block leading-[1.55] text-muted-foreground">
-               {runtime.unavailableReason ?? runtime.description}
-            </span>
-         }
-         trailing={
-            state === 'connected' ? (
-               <Button variant="soft" disabled={busy} onClick={onDisconnect}>
-                  {busy ? disconnectingLabel : disconnectLabel}
-               </Button>
-            ) : state === 'available' ? (
-               <Button disabled={busy} onClick={onConnect}>
-                  {busy ? connectingLabel : connectLabel}
-               </Button>
-            ) : guide ? (
-               <Button variant="quiet" asChild>
-                  <a href={guide} target="_blank" rel="noreferrer">
-                     {installLabel}
-                  </a>
-               </Button>
-            ) : null
-         }
-      />
-   );
-}
-
 /** Subscription AI products a person can connect on this workstation. */
 export default function RuntimesList() {
    const t = useTranslations('areas.runtimes');
@@ -136,6 +88,7 @@ export default function RuntimesList() {
    const [disconnecting, setDisconnecting] = useState<AiRuntimeDefinition | null>(null);
    const [tokenRuntime, setTokenRuntime] = useState<AiRuntimeDefinition | null>(null);
    const [token, setToken] = useState('');
+   const [serverAddress, setServerAddress] = useState(LMSTUDIO_DEFAULT_BASE_URL);
 
    const nodes = catalog.value?.nodes ?? [];
    const connectedCount = nodes.filter(
@@ -162,14 +115,23 @@ export default function RuntimesList() {
          .toSorted((left, right) => catalogRank(left) - catalogRank(right));
    }, [catalog.value?.nodes, filter, query]);
 
-   const connect = async (runtime: AiRuntimeDefinition, apiKey?: string) => {
+   const connect = async (
+      runtime: AiRuntimeDefinition,
+      details: { apiKey?: string; baseUrl?: string } = {}
+   ) => {
       setBusy(runtime.id);
       try {
          await connectAiRuntime(
             runtime.id,
-            runtime.billing === 'api_billing'
-               ? { name: runtime.name, apiKey }
-               : { name: runtime.name, host: 'localhost' }
+            takesServerAddress(runtime)
+               ? {
+                    name: runtime.name,
+                    baseUrl: details.baseUrl,
+                    ...(details.apiKey ? { apiKey: details.apiKey } : {}),
+                 }
+               : directInference(runtime)
+                 ? { name: runtime.name, apiKey: details.apiKey }
+                 : { name: runtime.name, host: 'localhost' }
          );
          toast.success(`${runtime.name} connected`);
          setToken('');
@@ -183,8 +145,9 @@ export default function RuntimesList() {
    };
 
    const askConnect = (runtime: AiRuntimeDefinition) => {
-      if (runtime.billing === 'api_billing') {
+      if (directInference(runtime)) {
          setToken('');
+         setServerAddress(LMSTUDIO_DEFAULT_BASE_URL);
          setTokenRuntime(runtime);
          return;
       }
@@ -215,92 +178,101 @@ export default function RuntimesList() {
       }
    };
 
-   const missingCount = nodes.length - availableCount;
    const filterCount: Record<CatalogFilter, number> = {
       all: nodes.length,
       connected: connectedCount,
       available: availableCount - connectedCount,
    };
-   const figure = (count: number) => (catalog.value ? count : '–');
+
+   const openRuntime = (runtime: AiRuntimeDefinition) => {
+      if (busy !== null) return;
+      const state = catalogKey(runtime);
+      if (state === 'connected') {
+         setDisconnecting(runtime);
+         return;
+      }
+      if (state === 'available') {
+         askConnect(runtime);
+         return;
+      }
+      const guide = runtime.officialSources[0];
+      if (guide) window.open(guide, '_blank', 'noopener,noreferrer');
+   };
 
    return (
-      <SettingsShell
-         title="AI runtimes"
-         description="A runtime is a coding-agent CLI already signed in on this computer, or a provider API. Connect one to give agents that subscription."
+      <MainLayout
+         header={
+            <>
+               <Header>
+                  <Input
+                     className={`${searchFieldClass} w-64 max-sm:w-40`}
+                     value={query}
+                     onChange={(event) => setQuery(event.target.value)}
+                     placeholder={t('catalogSearch')}
+                     aria-label={t('catalogSearch')}
+                  />
+               </Header>
+               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
+                  <Tabs value={filter} onValueChange={(value) => setFilter(value as CatalogFilter)}>
+                     <TabsList aria-label={t('catalogTitle')}>
+                        {FILTERS.map((value) => (
+                           <TabsTrigger key={value} value={value}>
+                              {value === 'all'
+                                 ? t('filterAll')
+                                 : value === 'connected'
+                                   ? t('filterConnected')
+                                   : t('filterAvailable')}
+                              <span className="tabular-nums text-muted-foreground">
+                                 {catalog.value ? filterCount[value] : '–'}
+                              </span>
+                           </TabsTrigger>
+                        ))}
+                     </TabsList>
+                  </Tabs>
+               </div>
+            </>
+         }
       >
-         <StatTileGrid min={160}>
-            <StatTile large label={t('stateConnected')} value={figure(connectedCount)} />
-            <StatTile
-               large
-               label={t('stateAvailable')}
-               value={figure(availableCount - connectedCount)}
-            />
-            <StatTile large label={t('stateMissing')} value={figure(missingCount)} />
-         </StatTileGrid>
-
-         <SettingsSection title={t('catalogTitle')} description={catalog.error ?? undefined}>
-            <div className="flex flex-wrap items-center gap-2.5">
-               <SettingsSearch
-                  className="min-w-[200px]"
-                  value={query}
-                  onChange={setQuery}
-                  placeholder={t('catalogSearch')}
-               />
-               <SegmentedControl
-                  size="md"
-                  aria-label={t('catalogTitle')}
-                  value={filter}
-                  onValueChange={setFilter}
-                  options={FILTERS.map((value) => ({
-                     value,
-                     label: (
-                        <>
-                           {value === 'all'
-                              ? t('filterAll')
-                              : value === 'connected'
-                                ? t('filterConnected')
-                                : t('filterAvailable')}
-                           {catalog.value ? (
-                              <span className="text-subtle-foreground">{filterCount[value]}</span>
-                           ) : null}
-                        </>
-                     ),
-                  }))}
-               />
-            </div>
+         <div className="px-5 py-5">
+            {catalog.error ? (
+               <SettingsCard>
+                  <SettingsEmpty title={catalog.error} />
+               </SettingsCard>
+            ) : null}
             {catalog.loading && !catalog.value ? (
                <EmptyStateLoading label={t('catalogLoading')} />
             ) : null}
-            <SettingsCard>
-               {shown.map((runtime) => {
-                  const state = catalogKey(runtime);
-                  return (
-                     <RuntimeRow
-                        key={runtime.id}
-                        runtime={runtime}
-                        busy={busy === runtime.id}
-                        statusLabel={t(
-                           state === 'connected'
-                              ? 'stateConnected'
-                              : state === 'available'
-                                ? 'stateAvailable'
-                                : 'stateMissing'
-                        )}
-                        connectLabel={t('connect')}
-                        connectingLabel={t('connecting')}
-                        disconnectLabel={t('disconnect')}
-                        disconnectingLabel={t('disconnecting')}
-                        installLabel={t('installGuide')}
-                        onConnect={() => askConnect(runtime)}
-                        onDisconnect={() => setDisconnecting(runtime)}
-                     />
-                  );
-               })}
-               {catalog.value && shown.length === 0 ? (
+            {catalog.value && shown.length === 0 ? (
+               <SettingsCard>
                   <SettingsEmpty title={t('catalogEmpty')} />
-               ) : null}
-            </SettingsCard>
-         </SettingsSection>
+               </SettingsCard>
+            ) : null}
+            {shown.length > 0 ? (
+               <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {shown.map((runtime) => {
+                     const state = catalogKey(runtime);
+                     const guide = runtime.officialSources[0];
+                     const clickable = state !== 'unavailable' || Boolean(guide);
+                     return (
+                        <RuntimeCard
+                           key={runtime.id}
+                           runtime={runtime}
+                           busy={busy === runtime.id}
+                           status={
+                              state === 'available' ? undefined : (
+                                 <StatusIndicator status={STATUS[state]}>
+                                    {t(state === 'connected' ? 'stateConnected' : 'stateMissing')}
+                                 </StatusIndicator>
+                              )
+                           }
+                           unavailable={state === 'unavailable'}
+                           onOpen={clickable ? () => openRuntime(runtime) : undefined}
+                        />
+                     );
+                  })}
+               </div>
+            ) : null}
+         </div>
 
          <Dialog open={tokenRuntime !== null} onOpenChange={(open) => !open && closeToken()}>
             <DialogContent className="sm:max-w-md">
@@ -310,27 +282,60 @@ export default function RuntimesList() {
                      event.preventDefault();
                      if (!tokenRuntime) return;
                      const apiKey = token.trim();
+                     if (takesServerAddress(tokenRuntime)) {
+                        const baseUrl = serverAddress.trim();
+                        if (!baseUrl) return;
+                        void connect(tokenRuntime, { baseUrl, apiKey: apiKey || undefined });
+                        return;
+                     }
                      if (!apiKey) return;
-                     void connect(tokenRuntime, apiKey);
+                     void connect(tokenRuntime, { apiKey });
                   }}
                >
                   <DialogHeader>
                      <DialogTitle>
                         {t('connect')} {tokenRuntime?.name}
                      </DialogTitle>
-                     <DialogDescription>{t('tokenHint')}</DialogDescription>
+                     <DialogDescription>
+                        {takesServerAddress(tokenRuntime) ? t('serverHint') : t('tokenHint')}
+                     </DialogDescription>
                   </DialogHeader>
+                  {takesServerAddress(tokenRuntime) ? (
+                     <label className="flex flex-col gap-1" htmlFor="runtime-server-address">
+                        <span>{t('serverLabel')}</span>
+                        <Input
+                           variant="settings"
+                           id="runtime-server-address"
+                           type="url"
+                           inputMode="url"
+                           autoComplete="off"
+                           autoFocus
+                           spellCheck={false}
+                           value={serverAddress}
+                           placeholder={t('serverPlaceholder')}
+                           onChange={(event) => setServerAddress(event.target.value)}
+                        />
+                     </label>
+                  ) : null}
                   <label className="flex flex-col gap-1" htmlFor="runtime-api-token">
-                     <span>{t('tokenLabel')}</span>
+                     <span>
+                        {takesServerAddress(tokenRuntime)
+                           ? t('tokenOptionalLabel')
+                           : t('tokenLabel')}
+                     </span>
                      <Input
                         variant="settings"
                         id="runtime-api-token"
                         type="password"
                         autoComplete="off"
-                        autoFocus
+                        autoFocus={!takesServerAddress(tokenRuntime)}
                         spellCheck={false}
                         value={token}
-                        placeholder={t('tokenPlaceholder')}
+                        placeholder={
+                           takesServerAddress(tokenRuntime)
+                              ? t('tokenOptionalPlaceholder')
+                              : t('tokenPlaceholder')
+                        }
                         onChange={(event) => setToken(event.target.value)}
                      />
                   </label>
@@ -341,7 +346,12 @@ export default function RuntimesList() {
                      <Button
                         type="submit"
                         size="sm"
-                        disabled={busy !== null || token.trim() === ''}
+                        disabled={
+                           busy !== null ||
+                           (takesServerAddress(tokenRuntime)
+                              ? serverAddress.trim() === ''
+                              : token.trim() === '')
+                        }
                      >
                         {busy === tokenRuntime?.id ? t('connecting') : t('connect')}
                      </Button>
@@ -362,6 +372,71 @@ export default function RuntimesList() {
             destructive
             onConfirm={disconnect}
          />
-      </SettingsShell>
+      </MainLayout>
+   );
+}
+
+function RuntimeCard({
+   runtime,
+   status,
+   onOpen,
+   unavailable,
+   busy,
+}: {
+   runtime: AiRuntimeDefinition;
+   status?: ReactNode;
+   onOpen?: () => void;
+   unavailable?: boolean;
+   busy: boolean;
+}) {
+   const identity = (
+      <>
+         <SettingsTile size="lg" className={titleHeight}>
+            <RuntimeProviderBadge
+               runtimeId={runtime.id}
+               size="md"
+               bare
+               title={runtime.name}
+               className="flex size-full items-center justify-center"
+            />
+         </SettingsTile>
+         <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-3">
+               <h3 data-heading="h1" className="m-0 min-w-0 truncate">
+                  {runtime.name}
+               </h3>
+               {status ? <span className="shrink-0">{status}</span> : null}
+            </div>
+            <p
+               data-settings-type="caption"
+               className="mt-1.5 line-clamp-3 min-h-[3lh] leading-[1.55] text-muted-foreground"
+            >
+               {runtime.unavailableReason ?? runtime.description}
+            </p>
+         </div>
+      </>
+   );
+
+   return (
+      <section
+         className={cn(
+            'flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group',
+            unavailable && 'opacity-60',
+            busy && 'pointer-events-none opacity-70'
+         )}
+         aria-label={runtime.name}
+      >
+         {onOpen ? (
+            <button
+               type="button"
+               onClick={onOpen}
+               className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+            >
+               {identity}
+            </button>
+         ) : (
+            <div className="flex min-w-0 items-start gap-3 p-4">{identity}</div>
+         )}
+      </section>
    );
 }
