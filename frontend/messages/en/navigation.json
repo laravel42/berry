@@ -101,6 +101,8 @@
          "goToInbox": "Go to the inbox",
          "goToChat": "Go to Agent",
          "goToProjects": "Go to projects",
+         "goToCycles": "Go to cycles",
+         "goToLoops": "Go to loops",
          "goToReviews": "Go to reviews",
          "goToApprovals": "Go to the inbox (approvals)",
          "goToViews": "Go to views",

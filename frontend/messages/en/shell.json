@@ -9,6 +9,8 @@
       "approvals": "Approvals",
       "milestones": "Milestones",
       "projects": "Projects",
+      "cycles": "Cycles",
+      "loops": "Loops",
       "proposals": "Proposals",
       "runtimes": "Runtimes",
       "agents": "Agents",

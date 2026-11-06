@@ -10,6 +10,8 @@ export type SidebarItemKey =
    | 'meetings'
    | 'my-issues'
    | 'projects'
+   | 'cycles'
+   | 'loops'
    | 'views'
    | 'agents'
    | 'skills'
@@ -59,6 +61,8 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'meetings': 'always',
    'my-issues': 'always',
    'projects': 'always',
+   'cycles': 'always',
+   'loops': 'always',
    'views': 'always',
    'agents': 'always',
    'skills': 'always',
@@ -76,7 +80,7 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    // Milestones live on each project, not on the rail. Plans has no rail
    // entry; a stored `plans` or `milestones` key is dropped by resolveOrder.
    // Approvals and proposals land in Inbox now, not as their own Work rail entries.
-   workspace: ['projects', 'my-issues'],
+   workspace: ['projects', 'cycles', 'my-issues', 'loops'],
    automate: [],
    // No runtimes or logs entry: those live in Settings. A stored `agent`,
    // `logs`, or `dashboard` key is dropped by resolveOrder, which keeps
@@ -84,8 +88,8 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    configure: ['agents', 'skills', 'integrations', 'usage'],
 };
 
-/** The key the previous shape was persisted under; read once, when v7 has nothing. */
-const PREVIOUS_STORAGE_KEY = 'sidebar-prefs-v6';
+/** The key the previous shape was persisted under; read once, when v9 has nothing. */
+const PREVIOUS_STORAGE_KEY = 'sidebar-prefs-v8';
 
 /**
  * Stored order, resilient to new items: unknown keys are dropped, missing
@@ -128,9 +132,9 @@ function previousPrefs(): StoredPrefs | undefined {
       const parsed = JSON.parse(raw) as { state?: Partial<SidebarPrefsState> };
       const state = parsed.state;
       if (!state) return undefined;
-      // Order is not carried over: the v7 Manage defaults were reordered, and
-      // keeping a v6 order would pin the old one forever. Visibility and badge
-      // style survive the upgrade.
+      // Order is not carried over: Work defaults are Projects, Cycles,
+      // Tasks, Loops, and keeping a prior order would pin the old one forever.
+      // Visibility and badge style survive the upgrade.
       const carried: StoredPrefs = { ...state };
       delete carried.order;
       return carried;
@@ -164,7 +168,7 @@ export const useSidebarPrefsStore = create<SidebarPrefsState>()(
             }),
       }),
       {
-         name: 'sidebar-prefs-v7',
+         name: 'sidebar-prefs-v9',
          merge: (persisted, current) => {
             const stored = (persisted as StoredPrefs | undefined) ?? previousPrefs();
             const mergedOrder = { ...current.order, ...stored?.order };
