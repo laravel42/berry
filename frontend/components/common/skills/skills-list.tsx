@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Agent } from '@/lib/agents';
 import { colorForSkillLabel } from '@/lib/skill-labels';
-import type { Skill } from '@/lib/skills';
+import { withoutOrchestratorSkills, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 
@@ -91,7 +91,8 @@ interface LabelGroup {
  * One accordion per label, in name order, with unlabeled skills last.
  *
  * A skill with several labels is listed under each of them. The order inside
- * a group is the order the catalogue was already sorted into.
+ * a group is the order the catalogue was already sorted into. Orchestrator
+ * skills are stripped earlier via `withoutOrchestratorSkills`.
  */
 function groupByLabel(skills: Skill[]): LabelGroup[] {
    const buckets = new Map<string, Skill[]>();
@@ -237,7 +238,7 @@ export default function SkillsList({
    const [selection, setSelection] = useState<string[]>([]);
 
    const rows = useMemo(
-      () => sortSkills(skills ?? [], criteria.sort, criteria.descending),
+      () => sortSkills(withoutOrchestratorSkills(skills ?? []), criteria.sort, criteria.descending),
       [skills, criteria.sort, criteria.descending]
    );
    const groups = useMemo(() => groupByLabel(rows), [rows]);

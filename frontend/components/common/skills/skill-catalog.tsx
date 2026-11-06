@@ -33,7 +33,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { BerryApiError } from '@/lib/api';
 import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import { DEPARTMENT_ORDER, getOrganization } from '@/lib/organization';
-import { listSkills, setSkillForAgent, type Skill } from '@/lib/skills';
+import { listSkills, setSkillForAgent, withoutOrchestratorSkills, type Skill } from '@/lib/skills';
 import { cn } from '@/lib/utils';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
@@ -81,7 +81,7 @@ function SkillCatalogScreen() {
    const load = useCallback(() => {
       listSkills({ inUse: false }).then(
          (found) => {
-            setSkills(found);
+            setSkills(withoutOrchestratorSkills(found));
             setError(null);
          },
          (failure: unknown) =>

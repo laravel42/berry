@@ -16,8 +16,8 @@ import {
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Agent } from '@/lib/agents';
-import { isSkillInUse, type Skill } from '@/lib/skills';
+import { isOrchestrator, type Agent } from '@/lib/agents';
+import { isOrchestratorSkillLabel, isSkillInUse, type Skill } from '@/lib/skills';
 
 export const SKILL_SCOPES = ['all', 'archived'] as const;
 export type SkillScope = (typeof SKILL_SCOPES)[number];
@@ -55,6 +55,7 @@ export function useSkillFilterColumns(
 
    return useMemo(() => {
       const labels = [...new Set(skills.flatMap((skill) => skill.labels))]
+         .filter((label) => !isOrchestratorSkillLabel(label))
          .map((label) => ({ value: label, label }))
          .sort(byLabel);
       const dtf = createColumnConfigHelper<Skill>();
@@ -79,7 +80,12 @@ export function useSkillFilterColumns(
             )
             .displayName(t('filters.agent'))
             .icon(Bot)
-            .options(agents.map(agentFilterOption).sort(byLabel))
+            .options(
+               agents
+                  .filter((agent) => !isOrchestrator(agent))
+                  .map(agentFilterOption)
+                  .sort(byLabel)
+            )
             .build(),
          dtf
             .option()
