@@ -76,6 +76,7 @@ export const MinimalProperties: Story = {
             assignee: false,
             labels: false,
             created: false,
+            cycle: false,
          },
       });
    },

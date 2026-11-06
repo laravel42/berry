@@ -30,6 +30,7 @@ export const NAMESPACES = [
    'tasks',
    'projects',
    'milestones',
+   'cycles',
    'reviews',
    'agents',
    'runtimes',

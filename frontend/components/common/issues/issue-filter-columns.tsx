@@ -19,12 +19,15 @@ import { queryIssues } from '@/lib/views';
 import { useAgentsStore } from '@/store/agents-store';
 import { useLabelsStore } from '@/store/labels-store';
 import { useMembersStore } from '@/store/members-store';
+import { useCyclesStore } from '@/store/cycles-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
+import type { Cycle } from '@/lib/cycles';
 import {
    BarChart3,
    CalendarClock,
    CalendarPlus,
+   CalendarRange,
    CircleCheck,
    CircleDashed,
    CircleUserRound,
@@ -103,13 +106,29 @@ function buildProjectOptions(workspaceProjects: Project[]): ColumnOption[] {
    ];
 }
 
+function buildCycleOptions(workspaceCycles: Cycle[]): ColumnOption[] {
+   return [
+      {
+         value: 'no-cycle',
+         label: 'No cycle',
+         icon: <CalendarRange className="size-4 text-muted-foreground" />,
+      },
+      ...workspaceCycles.map((cycle) => ({
+         value: cycle.id,
+         label: cycle.name,
+         icon: <CalendarRange className="size-4 text-muted-foreground" />,
+      })),
+   ];
+}
+
 const asDate = (value: string | undefined): Date => (value ? new Date(value) : new Date(0));
 
 function buildIssueFilterColumns(
    members: User[],
    agents: User[],
    workspaceLabels: LabelInterface[],
-   workspaceProjects: Project[]
+   workspaceProjects: Project[],
+   workspaceCycles: Cycle[]
 ) {
    const dtf = createColumnConfigHelper<Issue>();
    return [
@@ -168,6 +187,14 @@ function buildIssueFilterColumns(
          .displayName('Project')
          .icon(Folder)
          .options(buildProjectOptions(workspaceProjects))
+         .build(),
+      dtf
+         .option()
+         .id('cycle')
+         .accessor((issue: Issue) => (issue.cycleId === '' ? 'no-cycle' : issue.cycleId))
+         .displayName('Cycle')
+         .icon(CalendarRange)
+         .options(buildCycleOptions(workspaceCycles))
          .build(),
       dtf
          .date()
@@ -297,6 +324,7 @@ export function useIssueFilterColumns() {
    const agentRecords = useAgentsStore((state) => state.agents);
    const workspaceLabels = useLabelsStore((state) => state.labels);
    const workspaceProjects = useProjectsStore((state) => state.projects);
+   const workspaceCycles = useCyclesStore((state) => state.cycles);
    const properties = useFilterableProperties();
 
    const agents = useMemo(
@@ -306,15 +334,21 @@ export function useIssueFilterColumns() {
 
    return useMemo(
       () => [
-         ...buildIssueFilterColumns(members, agents, workspaceLabels, workspaceProjects),
+         ...buildIssueFilterColumns(
+            members,
+            agents,
+            workspaceLabels,
+            workspaceProjects,
+            workspaceCycles
+         ),
          ...buildPropertyColumns(properties),
       ],
-      [members, agents, workspaceLabels, workspaceProjects, properties]
+      [members, agents, workspaceLabels, workspaceProjects, workspaceCycles, properties]
    );
 }
 
 /** Static fallback for non-hook contexts (empty assignee/label/project options). */
-export const issueFilterColumns = buildIssueFilterColumns([], [], [], []);
+export const issueFilterColumns = buildIssueFilterColumns([], [], [], [], []);
 
 const columnById = new Map<string, (typeof issueFilterColumns)[number]>(
    issueFilterColumns.map((column) => [column.id, column])

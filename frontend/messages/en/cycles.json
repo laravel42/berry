@@ -1,0 +1,47 @@
+{
+   "nav": {
+      "title": "Cycles"
+   },
+   "list": {
+      "search": "Search cycles",
+      "loading": "Loading cycles…",
+      "noneMatch": "No cycle matches this search.",
+      "name": "Cycle",
+      "dates": "Dates",
+      "status": "Status",
+      "progress": "Progress"
+   },
+   "status": {
+      "upcoming": "Upcoming",
+      "active": "Active",
+      "completed": "Completed"
+   },
+   "empty": {
+      "mark": "No cycles",
+      "comingSoon": "Coming soon",
+      "title": "No cycles yet.",
+      "body": "A cycle is a timeboxed window for work. Create one to schedule tasks into the next stretch."
+   },
+   "create": {
+      "title": "New cycle",
+      "name": "Name",
+      "namePlaceholder": "Optional — defaults to Cycle N",
+      "startsOn": "Starts",
+      "endsOn": "Ends",
+      "activate": "Make active",
+      "submit": "Create cycle",
+      "cancel": "Cancel",
+      "created": "Created {name}",
+      "failed": "The cycle could not be created."
+   },
+   "detail": {
+      "back": "All cycles",
+      "issues": "Tasks",
+      "noIssues": "No tasks in this cycle yet.",
+      "activate": "Activate",
+      "complete": "Complete",
+      "remove": "Remove",
+      "removed": "Removed {name}",
+      "failed": "That change could not be saved."
+   }
+}

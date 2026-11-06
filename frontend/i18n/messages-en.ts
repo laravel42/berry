@@ -4,6 +4,7 @@ import approvals from '@/messages/en/approvals.json';
 import areas from '@/messages/en/areas.json';
 import common from '@/messages/en/common.json';
 import milestones from '@/messages/en/milestones.json';
+import cycles from '@/messages/en/cycles.json';
 import inbox from '@/messages/en/inbox.json';
 import issueDetail from '@/messages/en/issueDetail.json';
 import issueLists from '@/messages/en/issueLists.json';
@@ -29,6 +30,7 @@ const messages = {
    areas,
    common,
    milestones,
+   cycles,
    inbox,
    issueDetail,
    issueLists,

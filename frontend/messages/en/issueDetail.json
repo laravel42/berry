@@ -79,6 +79,8 @@
       "assign": "Assign",
       "project": "Project",
       "noProject": "None",
+      "cycle": "Cycle",
+      "noCycle": "No cycle",
       "stage": "Stage",
       "noStageValue": "None",
       "dueDate": "Due",

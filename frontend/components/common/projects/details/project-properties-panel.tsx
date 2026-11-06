@@ -2,7 +2,7 @@
 
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Calendar, User as UserIcon, UserPlus } from 'lucide-react';
+import { ArrowRight, Calendar, CalendarRange, User as UserIcon, UserPlus } from 'lucide-react';
 import { useMemo } from 'react';
 import { CapacityRing } from '@/components/common/cycles/capacity-ring';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,6 +17,7 @@ import { HealthPopover } from '@/components/common/projects/health-popover';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { projectCreateStatusOptions } from '@/components/common/projects/create-project/project-status-options';
 import { RepositorySelector } from '@/components/common/projects/repository-selector';
+import { useCyclesStore } from '@/store/cycles-store';
 import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
@@ -302,6 +303,25 @@ export function ProjectPropertiesPanel({
       [issues]
    );
 
+   const cycles = useCyclesStore((state) => state.cycles);
+   const cycleRows = useMemo(
+      () =>
+         buildRows(
+            issues,
+            (issue) => (issue.cycleId === '' ? undefined : issue.cycleId),
+            (key) => {
+               const cycle = cycles.find((entry) => entry.id === key);
+               return {
+                  key: String(key),
+                  label: cycle?.name ?? 'Cycle',
+                  leading: <CalendarRange className="size-3.5 text-muted-foreground" />,
+                  target: { columnId: 'cycle', value: String(key) },
+               };
+            }
+         ),
+      [issues, cycles]
+   );
+
    if (compact) {
       return <ProjectPropertiesPanelCompact project={project} />;
    }
@@ -420,12 +440,18 @@ export function ProjectPropertiesPanel({
                   <TabsTrigger value="labels" className="px-2.5 rounded-full">
                      Labels
                   </TabsTrigger>
+                  <TabsTrigger value="cycles" className="px-2.5 rounded-full">
+                     Cycles
+                  </TabsTrigger>
                </TabsList>
                <TabsContent value="assignees">
                   <BreakdownList rows={assigneeRows} panelFilter={panelFilter} />
                </TabsContent>
                <TabsContent value="labels">
                   <BreakdownList rows={labelRows} panelFilter={panelFilter} />
+               </TabsContent>
+               <TabsContent value="cycles">
+                  <BreakdownList rows={cycleRows} panelFilter={panelFilter} />
                </TabsContent>
             </Tabs>
          </div>

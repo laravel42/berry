@@ -79,6 +79,7 @@ const issueSchema = z.object({
    assignee: actorRefSchema.nullish(),
    activeRunId: z.string().nullish(),
    project: z.object({ id: z.string(), name: z.string() }).nullish(),
+   cycleId: z.string().nullish(),
    createdBy: actorRefSchema.nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
@@ -126,6 +127,7 @@ export type IssuePatchBody = {
    description?: string | null;
    assignee?: { type: 'user' | 'agent'; id: string } | null;
    milestoneId?: string | null;
+   cycleId?: string | null;
    /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
    dueDate?: string | null;
 };
@@ -217,7 +219,7 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
       priority: uiPriority,
       labels: [],
       createdAt: apiIssue.createdAt,
-      cycleId: '',
+      cycleId: apiIssue.cycleId ?? '',
       rank: rankFromSortOrder(apiIssue.sortOrder),
       sortOrder: apiIssue.sortOrder,
    };

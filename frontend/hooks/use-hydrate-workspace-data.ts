@@ -5,6 +5,7 @@ import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents } from '@/lib/agents';
 import { loadWorkspaceApprovals } from '@/lib/approvals';
 import { loadWorkspaceMilestones } from '@/lib/milestones';
+import { loadWorkspaceCycles } from '@/lib/cycles';
 import { loadWorkspaceLabels } from '@/lib/labels';
 import { loadWorkspaceInbox, loadInboxUnreadCount } from '@/lib/inbox';
 import { loadBoardIssues } from '@/lib/issues';
@@ -15,6 +16,7 @@ import { loadWorkspaceViews } from '@/lib/views';
 import { useAgentsStore } from '@/store/agents-store';
 import { useApprovalsStore } from '@/store/approvals-store';
 import { useMilestonesStore } from '@/store/milestones-store';
+import { useCyclesStore } from '@/store/cycles-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useLabelsStore } from '@/store/labels-store';
 import { useMembersStore } from '@/store/members-store';
@@ -64,6 +66,7 @@ export function useHydrateWorkspaceData(): void {
    const hydrateLabels = useLabelsStore((state) => state.hydrateLabels);
    const hydrateViews = useViewsStore((state) => state.hydrateViews);
    const hydrateGoals = useMilestonesStore((state) => state.hydrateGoals);
+   const hydrateCycles = useCyclesStore((state) => state.hydrateCycles);
    const hydrateApprovals = useApprovalsStore((state) => state.hydrateApprovals);
 
    useEffect(() => {
@@ -145,6 +148,9 @@ export function useHydrateWorkspaceData(): void {
       void loadWorkspaceMilestones(workspaceId).then((milestones) => {
          if (!cancelled) hydrateGoals(milestones);
       });
+      void loadWorkspaceCycles(workspaceId).then((cycles) => {
+         if (!cancelled) hydrateCycles(cycles);
+      });
       void loadWorkspaceApprovals(workspaceId).then((approvals) => {
          if (!cancelled) hydrateApprovals(approvals);
       });
@@ -163,6 +169,7 @@ export function useHydrateWorkspaceData(): void {
       hydrateLabels,
       hydrateViews,
       hydrateGoals,
+      hydrateCycles,
       hydrateApprovals,
    ]);
 }

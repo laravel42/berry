@@ -19,6 +19,7 @@ import { IssueDetailsSection } from './issue-details-section';
 import { IssueLabelPicker } from './issue-label-picker';
 import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
+import { IssueCycleProperty } from './issue-cycle-property';
 import { IssueProjectProperty } from './issue-project-property';
 import { IssueQuickActions } from './issue-quick-actions';
 import { IssueDependenciesSection, IssueMilestoneSection } from './issue-relations';
@@ -89,6 +90,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   />
 
                   <IssueProjectProperty issue={issue} />
+                  <IssueCycleProperty issue={issue} />
                   <AutoGateProperty issue={issue} />
                </div>
             </Section>

@@ -44,6 +44,7 @@ const DEFAULT_CARD_PROPERTIES: Record<DisplayPropertyKey, boolean> = {
    assignee: true,
    labels: true,
    created: true,
+   cycle: false,
 };
 
 function cardPropertiesMatchDefault(
