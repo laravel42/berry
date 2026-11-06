@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
@@ -20,6 +20,19 @@ import {
 } from '@/lib/agents';
 import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { useSessionStore } from '@/store/session-store';
+
+/** Same footprint as the tier cards: selected keeps secondary gray, adds a berry border. */
+const CHOICE_SIZE = '!h-auto min-h-11 px-4 py-3';
+const CHOICE_SELECTED = '!border !border-primary';
+const CHOICE_IDLE = '!border !border-transparent';
+
+/** Draft controls a parent can fold into one shared unsaved bar. */
+export interface ExecutionUnsaved {
+   dirty: boolean;
+   busy: boolean;
+   discard: () => void;
+   save: (options?: { silent?: boolean }) => Promise<void>;
+}
 
 const NO_RUNTIME = '__none__';
 const DEFAULT_CONCURRENCY = 1;
@@ -80,6 +93,13 @@ interface AgentExecutionSettingsProps {
     * the part, so a heading that would repeat it is left out.
     */
    view?: ExecutionView;
+   /**
+    * When false, this pane does not draw its own bar — the parent folds the
+    * draft into one shared strip via `onUnsavedChange`.
+    */
+   showUnsavedBar?: boolean;
+   /** Publishes discard/save so a parent can own a single unsaved bar. */
+   onUnsavedChange?: (unsaved: ExecutionUnsaved | null) => void;
 }
 
 export type ExecutionView = 'mcp' | 'runtime' | 'none';
@@ -101,6 +121,8 @@ export default function AgentExecutionSettings({
    onDirtyChange,
    onForbidden,
    view,
+   showUnsavedBar = true,
+   onUnsavedChange,
 }: AgentExecutionSettingsProps) {
    const hidden = (part: Exclude<ExecutionView, 'none'>) => view !== undefined && view !== part;
    const t = useTranslations('agentsChat.detail');
@@ -108,10 +130,13 @@ export default function AgentExecutionSettings({
    const list = useTranslations('agentsChat.list');
    const sessionUserId = useSessionStore((state) => state.user?.id);
 
-   const failed = (error: unknown) => {
-      if (error instanceof BerryApiError && error.status === 403) onForbidden();
-      toast.error(reason(error, t('failureUnknown')));
-   };
+   const failed = useCallback(
+      (error: unknown) => {
+         if (error instanceof BerryApiError && error.status === 403) onForbidden();
+         toast.error(reason(error, t('failureUnknown')));
+      },
+      [onForbidden, t]
+   );
 
    const [runtimeId, setRuntimeId] = useState(roster?.runtimeId ?? null);
    const [concurrency, setConcurrency] = useState(() => concurrencyOf(agent));
@@ -157,165 +182,192 @@ export default function AgentExecutionSettings({
       onDirtyChange(dirty);
    }, [dirty, onDirtyChange]);
 
-   const whatChanged = useMemo(() => {
-      const parts: string[] = [];
-      if (mcpDirty) parts.push(t('change_mcp'));
-      if (runtimeDirty) parts.push(t('change_runtime'));
-      if (concurrencyDirty) parts.push(t('change_concurrency'));
-      if (accessDirty) parts.push(t('change_access'));
-      return parts.join(', ');
-   }, [mcpDirty, runtimeDirty, concurrencyDirty, accessDirty, t]);
-
-   const discard = () => {
+   const discard = useCallback(() => {
       setMcpDirty(false);
       setMcpEpoch((value) => value + 1);
       setRuntimeId(roster?.runtimeId ?? null);
       setConcurrency(concurrencyOf(agent));
       setAccessMode(baselineAccessMode);
-   };
+   }, [agent, baselineAccessMode, roster?.runtimeId]);
 
-   const save = async () => {
-      setSaving(true);
-      try {
-         let next = agent;
-         const config: Parameters<typeof updateAgentConfig>[1] = {};
-         if (concurrencyDirty) config.maxConcurrency = concurrency;
+   const save = useCallback(
+      async (options?: { silent?: boolean }) => {
+         setSaving(true);
+         try {
+            let next = agent;
+            const config: Parameters<typeof updateAgentConfig>[1] = {};
+            if (concurrencyDirty) config.maxConcurrency = concurrency;
 
-         if (Object.keys(config).length > 0) {
-            next = await updateAgentConfig(agent.id, config);
-         }
-
-         if (mcpDirty) await flushMcpEnabled.current?.();
-
-         if (runtimeDirty) {
-            const previous = roster?.runtimeId ?? null;
-            if (runtimeId === null) {
-               if (previous) await unbindAgentRuntime(previous, agent.id);
-            } else {
-               await bindAgentRuntime(runtimeId, agent.id);
+            if (Object.keys(config).length > 0) {
+               next = await updateAgentConfig(agent.id, config);
             }
-            onRosterStale();
-         }
 
-         if (accessDirty) {
-            const draft = accessDraftFor(accessMode, sessionUserId, accessBaseline);
-            next = await setAgentAccess(agent.id, draft);
-            setAccessBaseline(draft);
-         }
+            if (mcpDirty) await flushMcpEnabled.current?.();
 
-         onChange(next);
-         toast.success(common('saved'));
-      } catch (error) {
-         failed(error);
-         if (accessDirty) {
-            getAgentAccess(agent.id).then(
-               (access) => {
-                  setAccessBaseline(access);
-                  setAccessMode(accessModeOf(access, sessionUserId));
-               },
-               () => undefined
-            );
-         }
-      } finally {
-         setSaving(false);
-      }
-   };
+            if (runtimeDirty) {
+               const previous = roster?.runtimeId ?? null;
+               if (runtimeId === null) {
+                  if (previous) await unbindAgentRuntime(previous, agent.id);
+               } else {
+                  await bindAgentRuntime(runtimeId, agent.id);
+               }
+               onRosterStale();
+            }
 
+            if (accessDirty) {
+               const draft = accessDraftFor(accessMode, sessionUserId, accessBaseline);
+               next = await setAgentAccess(agent.id, draft);
+               setAccessBaseline(draft);
+            }
+
+            onChange(next);
+            if (!options?.silent) toast.success(common('saved'));
+         } catch (error) {
+            failed(error);
+            if (accessDirty) {
+               getAgentAccess(agent.id).then(
+                  (access) => {
+                     setAccessBaseline(access);
+                     setAccessMode(accessModeOf(access, sessionUserId));
+                  },
+                  () => undefined
+               );
+            }
+            throw error;
+         } finally {
+            setSaving(false);
+         }
+      },
+      [
+         accessBaseline,
+         accessDirty,
+         accessMode,
+         agent,
+         common,
+         concurrency,
+         concurrencyDirty,
+         failed,
+         mcpDirty,
+         onChange,
+         onRosterStale,
+         roster?.runtimeId,
+         runtimeDirty,
+         runtimeId,
+         sessionUserId,
+      ]
+   );
+
+   useEffect(() => {
+      if (!onUnsavedChange) return;
+      onUnsavedChange({ dirty, busy: saving, discard, save });
+      return () => onUnsavedChange(null);
+   }, [dirty, saving, discard, save, onUnsavedChange]);
+
+   // The form scrolls; the save bar stays on the bottom edge of the tab, full width.
    return (
-      <div className="flex flex-col gap-6">
-         <div hidden={hidden('mcp')}>
-            <SettingsSection
-               title={view === undefined ? t('capMcpAgent') : undefined}
-               description={t('capMcpAgentHint')}
-            >
-               <McpServerManager
-                  key={mcpEpoch}
-                  agentId={agent.id}
-                  readOnly={readOnly}
-                  deferEnabled
-                  onEnabledDirtyChange={setMcpDirty}
-                  onRegisterFlushEnabled={(flush) => {
-                     flushMcpEnabled.current = flush;
-                  }}
-               />
-            </SettingsSection>
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto px-8 py-6">
+            <div hidden={hidden('mcp')}>
+               <SettingsSection
+                  title={view === undefined ? t('capMcpAgent') : undefined}
+                  description={t('capMcpAgentHint')}
+               >
+                  <McpServerManager
+                     key={mcpEpoch}
+                     agentId={agent.id}
+                     readOnly={readOnly}
+                     deferEnabled
+                     onEnabledDirtyChange={setMcpDirty}
+                     onRegisterFlushEnabled={(flush) => {
+                        flushMcpEnabled.current = flush;
+                     }}
+                  />
+               </SettingsSection>
+            </div>
+
+            {/* Runtime, concurrency and access: form rows, label and caption beside the control. */}
+            <div hidden={hidden('runtime')} className="flex flex-col">
+               <FormRow label={t('setRuntime')} caption={t('setRuntimeHint')}>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label={t('setRuntime')}>
+                     {[
+                        { id: null, label: t('setRuntimeNone') },
+                        ...runtimes.map((runtime) => ({
+                           id: runtime.id,
+                           label:
+                              runtime.status === 'active'
+                                 ? runtime.name
+                                 : `${runtime.name} · ${list('runtimeUnreachable')}`,
+                        })),
+                     ].map((choice) => {
+                        const selected = (runtimeId ?? null) === choice.id;
+                        return (
+                           <Button
+                              key={choice.id ?? NO_RUNTIME}
+                              size="xs"
+                              variant="secondary"
+                              className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
+                              disabled={readOnly}
+                              aria-pressed={selected}
+                              onClick={() => setRuntimeId(choice.id)}
+                           >
+                              {choice.label}
+                           </Button>
+                        );
+                     })}
+                  </div>
+               </FormRow>
+
+               <FormRow label={t('setConcurrency')} caption={t('setConcurrencyHint')}>
+                  <div className="grid grid-cols-5 gap-2">
+                     {([1, 2, 3, 4, 5] as const).map((level) => {
+                        const selected = concurrency === level;
+                        return (
+                           <Button
+                              key={level}
+                              size="xs"
+                              variant="secondary"
+                              className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
+                              disabled={readOnly || saving}
+                              aria-pressed={selected}
+                              onClick={() => setConcurrency(level)}
+                           >
+                              {level}
+                           </Button>
+                        );
+                     })}
+                  </div>
+               </FormRow>
+
+               <FormRow label={t('setAccess')} caption={t('setAccessHint')}>
+                  <div className="flex flex-wrap gap-2">
+                     {(
+                        [
+                           ['me', t('accessOnlyMe')],
+                           ['workspace', t('accessWorkspace')],
+                        ] as const
+                     ).map(([mode, label]) => {
+                        const selected = accessMode === mode;
+                        return (
+                           <Button
+                              key={mode}
+                              size="xs"
+                              variant="secondary"
+                              className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
+                              disabled={readOnly || !accessBaseline}
+                              aria-pressed={selected}
+                              onClick={() => setAccessMode(mode)}
+                           >
+                              {label}
+                           </Button>
+                        );
+                     })}
+                  </div>
+               </FormRow>
+            </div>
          </div>
 
-         {/* Runtime, concurrency and access: form rows, label and caption beside the control. */}
-         <div hidden={hidden('runtime')} className="flex flex-col">
-            <FormRow label={t('setRuntime')} caption={t('setRuntimeHint')}>
-               <div className="flex flex-wrap gap-2" role="group" aria-label={t('setRuntime')}>
-                  {[
-                     { id: null, label: t('setRuntimeNone') },
-                     ...runtimes.map((runtime) => ({
-                        id: runtime.id,
-                        label:
-                           runtime.status === 'active'
-                              ? runtime.name
-                              : `${runtime.name} · ${list('runtimeUnreachable')}`,
-                     })),
-                  ].map((choice) => (
-                     <Button
-                        key={choice.id ?? NO_RUNTIME}
-                        size="xs"
-                        variant={(runtimeId ?? null) === choice.id ? 'default' : 'secondary'}
-                        disabled={readOnly}
-                        aria-pressed={(runtimeId ?? null) === choice.id}
-                        onClick={() => setRuntimeId(choice.id)}
-                     >
-                        {choice.label}
-                     </Button>
-                  ))}
-               </div>
-            </FormRow>
-
-            <FormRow label={t('setConcurrency')} caption={t('setConcurrencyHint')}>
-               <div className="flex flex-wrap gap-2">
-                  {([1, 2, 3, 4, 5] as const).map((level) => (
-                     <Button
-                        key={level}
-                        size="xs"
-                        variant={concurrency === level ? 'default' : 'secondary'}
-                        disabled={readOnly || saving}
-                        aria-pressed={concurrency === level}
-                        onClick={() => setConcurrency(level)}
-                     >
-                        {level}
-                     </Button>
-                  ))}
-               </div>
-            </FormRow>
-
-            <FormRow label={t('setAccess')} caption={t('setAccessHint')}>
-               <div className="flex flex-wrap gap-2">
-                  {(
-                     [
-                        ['me', t('accessOnlyMe')],
-                        ['workspace', t('accessWorkspace')],
-                     ] as const
-                  ).map(([mode, label]) => (
-                     <Button
-                        key={mode}
-                        size="xs"
-                        variant={accessMode === mode ? 'default' : 'secondary'}
-                        disabled={readOnly || !accessBaseline}
-                        aria-pressed={accessMode === mode}
-                        onClick={() => setAccessMode(mode)}
-                     >
-                        {label}
-                     </Button>
-                  ))}
-               </div>
-            </FormRow>
-         </div>
-
-         {!readOnly && dirty ? (
-            <UnsavedChangesBar
-               what={whatChanged}
-               busy={saving}
-               onDiscard={discard}
-               onSave={() => void save()}
-            />
+         {showUnsavedBar && !readOnly && dirty ? (
+            <UnsavedChangesBar busy={saving} onDiscard={discard} onSave={() => void save()} />
          ) : null}
       </div>
    );
