@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { refreshMilestonesForIssue } from '../core/milestone-status.ts';
 import { issueHasOpenHold } from '../work/holds.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
@@ -308,7 +308,7 @@ export class RunLedger {
                 RETURNING issue.id`;
             if (moved.length > 0) {
                await this.appendIssueUpdated(tx, started, now);
-               if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+               if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
             }
          }
          return started;
@@ -569,7 +569,7 @@ export class RunLedger {
                    active_run_id = NULL, updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (reviewed.length > 0 && run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+         if (reviewed.length > 0 && run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
 
          const usageSequence = await allocateSequence(tx, run.id);
          const completedSequence = await allocateSequence(tx, run.id);
@@ -648,7 +648,7 @@ export class RunLedger {
              RETURNING id`;
          if (released.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
-            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+            if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }
 
          const sequence = await allocateSequence(tx, run.id);
@@ -704,7 +704,7 @@ export class RunLedger {
              RETURNING id`;
          if (released.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
-            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+            if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }
 
          const sequence = await allocateSequence(tx, run.id);

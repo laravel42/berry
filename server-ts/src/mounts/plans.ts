@@ -106,7 +106,7 @@ export function planMounts(options: PlanOptions): Mount[] {
       const { value: body } = await decodeBody<{
          workspaceId?: string;
          prompt?: string;
-         goalId?: string;
+         milestoneId?: string;
          projectId?: string;
          boardId?: string;
          hint?: string;
@@ -115,7 +115,7 @@ export function planMounts(options: PlanOptions): Mount[] {
       }>(context, {
          workspaceId: 'string',
          prompt: 'string',
-         goalId: 'string',
+         milestoneId: 'string',
          projectId: 'string',
          boardId: 'string',
          hint: 'string',
@@ -145,7 +145,7 @@ export function planMounts(options: PlanOptions): Mount[] {
       const record = await startPlan(options, {
          workspaceId: body.workspaceId!,
          prompt,
-         goalId: body.goalId ?? null,
+         milestoneId: body.milestoneId ?? null,
          projectId: body.projectId ?? null,
          boardId: body.boardId ?? null,
          createdBy: context.get('user').id,
@@ -662,7 +662,7 @@ export function serializePlan(record: PlanRecord): Record<string, unknown> {
    return {
       id: record.id,
       workspaceId: record.workspaceId,
-      goalId: record.goalId,
+      milestoneId: record.milestoneId,
       projectId: record.projectId,
       autoGate: record.autoGate,
       status: record.status,
@@ -686,7 +686,7 @@ export function serializePlan(record: PlanRecord): Record<string, unknown> {
 export interface PlanStartInput {
    workspaceId: string;
    prompt: string;
-   goalId: string | null;
+   milestoneId: string | null;
    projectId: string | null;
    boardId: string | null;
    /** The person the plan is for: they are the one who presses Start Plan. */
@@ -721,7 +721,7 @@ export async function startPlan(options: PlanOptions, input: PlanStartInput): Pr
    try {
       record = await options.plans.open({
          workspaceId: input.workspaceId,
-         goalId: input.goalId,
+         milestoneId: input.milestoneId,
          projectId: input.projectId,
          boardId,
          prompt: input.prompt,

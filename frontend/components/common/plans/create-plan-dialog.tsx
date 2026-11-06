@@ -79,7 +79,7 @@ export function CreatePlanDialog() {
          const record = await generatePlan({
             workspaceId: workspace.id,
             prompt: trimmed,
-            goalId: prefill.goalId,
+            milestoneId: prefill.milestoneId,
             projectId: project?.id,
             boardId: boardId ?? undefined,
             hint: prefill.hint,

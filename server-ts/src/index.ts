@@ -50,7 +50,7 @@ import { releaseTaskResources } from './runs/session-teardown.ts';
 import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
 import { PreviewEnvStore } from './previews/env-store.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
-import { goalMounts } from './mounts/goals.ts';
+import { milestoneMounts } from './mounts/milestones.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
@@ -127,8 +127,8 @@ import { IssueRepository } from './core/issues.ts';
 import { CommentRepository } from './core/comments.ts';
 import { DependencyRepository } from './core/dependencies.ts';
 import { ReviewRepository } from './core/reviews.ts';
-import { GoalRepository } from './core/goals.ts';
-import { createGoalLinker } from './core/goal-linker.ts';
+import { MilestoneRepository } from './core/milestones.ts';
+import { createMilestoneLinker } from './core/milestone-linker.ts';
 import { AttachmentRepository } from './core/attachments.ts';
 import { ProjectRepository } from './core/projects.ts';
 import { Hub } from './realtime/hub.ts';
@@ -312,7 +312,7 @@ const previewTokens = new PreviewTokens({ secret: config.auth.secret });
 const comments = new CommentRepository(sql);
 const dependencies = new DependencyRepository(sql);
 const reviews = new ReviewRepository(sql);
-const goals = new GoalRepository(sql);
+const milestones = new MilestoneRepository(sql);
 const attachments = new AttachmentRepository(sql);
 const projects = new ProjectRepository(sql);
 const agents = new AgentRepository(sql);
@@ -413,10 +413,10 @@ const runMemory =
  * gets a repository, which is a working deployment, instead of one that fails
  * at the clone with a decryption error.
  */
-// The issue mount's narrow view of goals: clear an issue's goal, or link it to
-// one that belongs to the same workspace. Adapted here (see core/goal-linker)
-// so `goalId` on an issue is honoured rather than silently discarded.
-const goalLinker = createGoalLinker(sql, goals);
+// The issue mount's narrow view of milestones: clear an issue's goal, or link it to
+// one that belongs to the same workspace. Adapted here (see core/milestone-linker)
+// so `milestoneId` on an issue is honoured rather than silently discarded.
+const goalLinker = createMilestoneLinker(sql, milestones);
 
 const connections = config.integrationKey
    ? new ConnectionRepository({ sql, sealer: sealerFromKey(config.integrationKey) })
@@ -955,9 +955,9 @@ const commentOptions = {
 registry.registerAll(
    issueMounts({
       scm: scmSync,
-      // Without this, `goalId` on a create or patch is accepted and silently
+      // Without this, `milestoneId` on a create or patch is accepted and silently
       // does nothing — and a task then reaches the git host with no milestone.
-      goals: goalLinker,
+      milestones: goalLinker,
       sessions,
       issues,
       boards,
@@ -1104,7 +1104,7 @@ registry.registerAll(
    })
 );
 registry.registerAll(
-   goalMounts({ sessions, goals, issues, idempotency, broadcaster, scm: scmSync })
+   milestoneMounts({ sessions, milestones, issues, idempotency, broadcaster, scm: scmSync })
 );
 registry.registerAll(attachmentMounts({ sessions, attachments, storage }));
 registry.registerAll(artifactMounts({ sessions, artifacts: runArtifacts, issues, storage }));
@@ -1157,8 +1157,8 @@ const planOptions: PlanOptions = {
    sql,
    logger,
 };
-// `create_goal` and `create_plan`: the same planner a person's request reaches.
-registerPlanningTools({ sql, goals, boards, plans: planOptions, scm: scmSync });
+// `create_milestone` and `create_plan`: the same planner a person's request reaches.
+registerPlanningTools({ sql, milestones, boards, plans: planOptions, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    ...(scm.provisioning ? { github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) } : {}),

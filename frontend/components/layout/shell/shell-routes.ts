@@ -16,7 +16,6 @@ export type ShellRoute =
    | 'inbox'
    | 'projects'
    | 'plans'
-   | 'goals'
    | 'members'
    | 'skills'
    | 'integrations'
@@ -28,7 +27,6 @@ export type ShellLabelKey =
    | 'tasks'
    | 'chat'
    | 'reviews'
-   | 'goals'
    | 'projects'
    | 'plans'
    | 'runtimes'
@@ -94,15 +92,6 @@ const WORK: ShellRouteDef[] = [
       match: ['/issue/'],
       prefsKey: 'my-issues',
       icon: '<path d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z" />',
-   },
-   {
-      id: 'goals',
-      label: 'goals',
-      labelKey: 'goals',
-      href: '/goals',
-      match: ['/goal/'],
-      prefsKey: 'goals',
-      icon: '<circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" />',
    },
    {
       id: 'projects',
@@ -227,7 +216,7 @@ export function shellRoute(id: string): ShellRouteDef | undefined {
  *
  * Longest match wins so `/projects/abc` resolves to `projects` rather than
  * matching a shorter unrelated prefix, and a detail path such as
- * `/goal/abc/overview` lights up its list item through `match` rather than
+ * `/milestone/abc/overview` lights up its list item through `match` rather than
  * through a bare `pathname.includes`, which would hand any path containing
  * a shorter route's name to the wrong item.
  */

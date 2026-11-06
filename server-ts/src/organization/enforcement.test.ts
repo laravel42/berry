@@ -33,7 +33,7 @@ test('a chat lets any organization role plan; its tasks do not', async () => {
    const analyst = { role_key: 'business-analyst', role_contract: catalogRole('business-analyst') };
    const chat = await agentToolAllowlist(fakeSql(analyst, 'conversation-1'), 'agent', 'run');
    assert.equal(chat?.has('create_plan'), true);
-   assert.equal(chat?.has('create_goal'), true);
+   assert.equal(chat?.has('create_milestone'), true);
    const task = await agentToolAllowlist(fakeSql(analyst, null), 'agent', 'run');
    assert.equal(task?.has('create_plan'), false);
 });

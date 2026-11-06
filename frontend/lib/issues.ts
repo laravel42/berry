@@ -82,7 +82,7 @@ const issueSchema = z.object({
    createdBy: actorRefSchema.nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
-   goal: z.object({ id: z.string(), title: z.string() }).nullish(),
+   milestone: z.object({ id: z.string(), title: z.string() }).nullish(),
    dependsOn: z.array(dependencyRefSchema).default([]),
    blocks: z.array(dependencyRefSchema).default([]),
    parentId: z.string().nullish(),
@@ -125,7 +125,7 @@ export type IssuePatchBody = {
    sortOrder?: number;
    description?: string | null;
    assignee?: { type: 'user' | 'agent'; id: string } | null;
-   goalId?: string | null;
+   milestoneId?: string | null;
    /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
    dueDate?: string | null;
 };
@@ -171,8 +171,8 @@ export function describePatchFailure(error: unknown): string {
       if (error.code === 'APPROVAL_REQUIRED') {
          return 'An approval is pending. The task moves to To do once it is granted.';
       }
-      if (error.code === 'GOAL_NOT_FOUND') {
-         return 'That goal is not in this workspace.';
+      if (error.code === 'MILESTONE_NOT_FOUND') {
+         return 'That milestone is not in this workspace.';
       }
       if (error.code === 'VALIDATION_FAILED') {
          const details = error.details as { fields?: { message?: string }[] } | null;
@@ -239,7 +239,7 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
    if (apiIssue.activeRunId) {
       issue.activeRunId = apiIssue.activeRunId;
    }
-   issue.goal = apiIssue.goal ?? null;
+   issue.milestone = apiIssue.milestone ?? null;
    issue.dependsOn = apiIssue.dependsOn;
    issue.blocks = apiIssue.blocks;
    issue.parentId = apiIssue.parentId ?? null;
@@ -435,17 +435,20 @@ export async function setIssueAutoGate(issueRef: string, autoGate: boolean): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Goal and dependencies
+// Milestone and dependencies
 
 /**
  * Link a task to a goal, or unlink it with null. Raised rather than
  * swallowed for the same reason as the project link above. Throws
- * `GOAL_NOT_FOUND` for a goal outside the workspace.
+ * `MILESTONE_NOT_FOUND` for a goal outside the workspace.
  */
-export async function setIssueGoal(issueRef: string, goalId: string | null): Promise<void> {
+export async function setIssueMilestone(
+   issueRef: string,
+   milestoneId: string | null
+): Promise<void> {
    await apiFetch(`/api/v1/issues/${encodeURIComponent(issueRef)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ goalId }),
+      body: JSON.stringify({ milestoneId }),
    });
 }
 

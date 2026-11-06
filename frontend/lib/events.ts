@@ -18,7 +18,7 @@ export const eventEnvelopeSchema = z.object({
    boardId: z.string().nullish(),
    issueId: z.string().nullish(),
    runId: z.string().nullish(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    approvalId: z.string().nullish(),
    planId: z.string().nullish(),
    stepId: z.string().nullish(),
@@ -89,7 +89,7 @@ export interface StreamOptions {
 }
 
 /**
- * Every product change in a workspace, as it happens: goals, approvals,
+ * Every product change in a workspace, as it happens: milestones, approvals,
  * plans, and the workspace-wide issue and agent moments. The caller keeps
  * the last id it saw and passes it back as `after` on reconnect, so a
  * dropped connection loses nothing.
@@ -106,10 +106,10 @@ export async function* streamWorkspaceEvents(
    yield* readSseFrames(response, 'Workspace event');
 }
 
-/** The id inside a `plan.*`, `goal.*`, `approval.*` or `run.*` payload, when present. */
+/** The id inside a `plan.*`, `milestone.*`/`goal.*`, `approval.*` or `run.*` payload, when present. */
 export function payloadEntityId(
    event: EventEnvelope,
-   key: 'plan' | 'goal' | 'approval' | 'run'
+   key: 'plan' | 'milestone' | 'goal' | 'approval' | 'run'
 ): string | undefined {
    const payload = event.payload;
    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;

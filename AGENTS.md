@@ -195,7 +195,7 @@ does, and never touch `.git` or `.handoffs/`. Agents can `propose_work` and
 `done`, and never through a merge tool.
 
 Chat has no task of its own; the envelope carries an open-work snapshot.
-`list_tasks`, `list_plans`, `list_goals`, `list_projects` and `read_task` fill
+`list_tasks`, `list_plans`, `list_milestones`, `list_projects` and `read_task` fill
 in what that snapshot does not. Replies are markdown (headings, lists, tables),
 parsed to elements — never raw HTML.
 

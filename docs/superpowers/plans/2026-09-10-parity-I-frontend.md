@@ -926,7 +926,7 @@ git commit -m "feat(frontend): search projects, agents, chat and skills from the
 **Interfaces:**
 - Consumes: nothing from other tasks.
 - Produces:
-  - `ShellRoute` becomes `'issues' | 'runs' | 'reviews' | 'chat' | 'inbox' | 'projects' | 'goals' | 'members'` (`'analytics'` removed).
+  - `ShellRoute` becomes `'issues' | 'runs' | 'reviews' | 'chat' | 'inbox' | 'projects' | 'milestones' | 'members'` (`'analytics'` removed).
   - `FIXTURE_IMPORT_PATHS` in `frontend/eslint.config.mjs` is an array of `{ name: string; importNames?: string[]; message: string }`, fed to `no-restricted-imports`. Tasks 5 and 6 append to it.
   - `settingsNav: SettingsNavGroup[]` keeps its name and shape; the `NavSettings` component is removed.
 
@@ -1064,7 +1064,7 @@ export type ShellRoute =
    | 'chat'
    | 'inbox'
    | 'projects'
-   | 'goals'
+   | 'milestones'
    | 'members';
 ```
 
@@ -1093,7 +1093,7 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    personal: [],
    // Goals sits under projects because that is where a goal comes from: it
    // groups the tasks one plan compiled inside a project.
-   workspace: ['projects', 'goals', 'my-issues', 'reviews', 'chat'],
+   workspace: ['projects', 'milestones', 'my-issues', 'reviews', 'chat'],
    automate: [],
    configure: ['agent', 'agents'],
 };
@@ -1108,7 +1108,7 @@ export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'tasks', icon: FolderKanban },
    { key: 'reviews', label: 'reviews', icon: GitPullRequest },
    { key: 'chat', label: 'chat', icon: MessageSquare },
-   { key: 'goals', label: 'goals', icon: Target },
+   { key: 'milestones', label: 'milestones', icon: Target },
    { key: 'projects', label: 'projects', icon: Box },
 ];
 

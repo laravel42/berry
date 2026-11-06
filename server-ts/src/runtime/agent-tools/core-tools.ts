@@ -860,7 +860,7 @@ export function registerCoreAgentTools(): void {
                    COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
                    (SELECT COUNT(*)::int FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created
               FROM plans AS p
-              LEFT JOIN goals AS g ON g.id = p.goal_id
+              LEFT JOIN milestones AS g ON g.id = p.milestone_id
              WHERE p.workspace_id = ${context.task.workspaceId}
                AND p.deleted_at IS NULL
                AND p.archived_at IS NULL
@@ -882,29 +882,39 @@ export function registerCoreAgentTools(): void {
       },
    });
 
-   registerAgentTool('list_goals', {
-      description: 'List goals in this workspace: id, title, status and project. Defaults to goals that are not finished.',
+   registerAgentTool('list_milestones', {
+      description:
+         'List project milestones: id, title, target date, sort order, status and project. ' +
+         'Pass projectId to list one project in delivery order. Defaults to milestones that are not finished.',
       scope: 'task:read',
       inputSchema: z.object({
+         projectId: z.uuid().optional(),
          status: z.enum(['open', 'all']).default('open').describe('open excludes completed and cancelled.'),
       }),
       handler: async (context, input) => {
          const rows = await context.sql`
-            SELECT g.id::text AS id, g.title, g.status, p.name AS project
-              FROM goals AS g
+            SELECT g.id::text AS id, g.title, g.status, g.target_date::text AS target_date,
+                   g.sort_order, p.name AS project, g.project_id::text AS project_id
+              FROM milestones AS g
               LEFT JOIN projects AS p ON p.id = g.project_id AND p.deleted_at IS NULL
              WHERE g.workspace_id = ${context.task.workspaceId}
                AND g.deleted_at IS NULL
+               AND (${input.projectId ?? null}::uuid IS NULL OR g.project_id = ${input.projectId ?? null}::uuid)
                AND (${input.status === 'all'} OR g.status NOT IN ('completed', 'cancelled'))
-             ORDER BY g.updated_at DESC, g.id DESC
+             ORDER BY
+               CASE WHEN ${input.projectId ?? null}::uuid IS NULL THEN g.updated_at END DESC NULLS LAST,
+               g.sort_order ASC, g.id ASC
              LIMIT ${LIST_LIMIT + 1}`;
          const truncated = rows.length > LIST_LIMIT;
          const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
          return {
-            goals: page.map((row) => ({
+            milestones: page.map((row) => ({
                id: row.id,
                title: row.title,
                status: row.status,
+               targetDate: row.target_date,
+               sortOrder: Number(row.sort_order),
+               projectId: row.project_id,
                project: row.project,
             })),
             truncated,

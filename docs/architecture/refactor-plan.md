@@ -4,7 +4,7 @@ This document recorded a discovery pass and a small, phased server/frontend
 cleanup on branch `refactor/architecture-clarity`. That work is done — Phases
 1 through 5 were completed and verified; Phase 6 was optional polish and was
 not required. Its findings are historical: the four local corrections it made
-(moving the `GoalLinker` interface into `core/`, relocating the shared
+(moving the `MilestoneLinker` interface into `core/`, relocating the shared
 Bedrock client, deleting dead frontend filter helpers, and an audit of inline
 queries in `mounts/`) already landed and are not pending work.
 

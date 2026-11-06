@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
 import { expect, waitFor, within } from 'storybook/test';
-import type { Goal } from '@/lib/goals';
-import { useGoalsStore } from '@/store/goals-store';
+import type { Milestone } from '@/lib/milestones';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { IssueDependenciesSection, IssueGoalSection } from './issue-relations';
+import { IssueDependenciesSection, IssueMilestoneSection } from './issue-relations';
 import {
    approvalsInbox,
    dependencyRef,
@@ -15,28 +15,37 @@ import {
    sharedFilter,
 } from '../stories-fixtures';
 
-const goal = (id: string, title: string, status: Goal['status']): Goal => ({
+const goal = (id: string, title: string, status: Milestone['status']): Milestone => ({
    id,
    workspaceId: 'ws-1',
-   projectId: null,
+   projectId: persistHealth.project!.id,
    title,
    description: null,
    status,
+   targetDate: null,
+   sortOrder: 1,
    createdBy: null,
    createdAt: '2026-08-01T09:00:00Z',
    updatedAt: '2026-09-15T09:00:00Z',
    startedAt: null,
    completedAt: null,
-   progress: null,
+   progress: {
+      issuesTotal: 2,
+      issuesDone: 1,
+      issuesCancelled: 0,
+      issuesWorking: 0,
+      approvalsPending: 0,
+      percent: 50,
+   },
 });
 
-const goals = [
+const milestones = [
    goal('goal-1', 'Projects report their own health', 'active'),
    goal('goal-2', 'One inbox for every decision', 'planned'),
 ];
 
 const meta = {
-   component: IssueGoalSection,
+   component: IssueMilestoneSection,
    tags: ['ai-generated', 'needs-work'],
    args: { issue: persistHealth },
    decorators: [
@@ -48,45 +57,52 @@ const meta = {
    ],
    beforeEach: ({ msw }) => {
       seedIssuesWorkspace();
-      useGoalsStore.setState({ goals, loaded: true, error: null });
+      useMilestonesStore.setState({ milestones, loaded: true, error: null });
       msw.use(...issueApiHandlers);
    },
-} satisfies Meta<typeof IssueGoalSection>;
+} satisfies Meta<typeof IssueMilestoneSection>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const ServesAGoal: Story = {
+export const ServesAMilestone: Story = {
    play: async ({ canvas }) => {
       await expect(
          canvas.getByRole('link', { name: /Projects report their own health/ })
-      ).toHaveAttribute('href', expect.stringMatching(/\/goal\/goal-1\/overview$/));
+      ).toHaveAttribute(
+         'href',
+         expect.stringMatching(
+            new RegExp(`/project/${persistHealth.project!.id}/overview\\?milestone=goal-1$`)
+         )
+      );
    },
 };
 
-export const ServesADeletedGoal: Story = {
+export const ServesADeletedMilestone: Story = {
    beforeEach: () => {
-      useGoalsStore.setState({ goals: [], loaded: true, error: null });
+      useMilestonesStore.setState({ milestones: [], loaded: true, error: null });
    },
    play: async ({ canvas }) => {
-      await expect(canvas.getByText('Serves no goal.')).toBeInTheDocument();
+      await expect(canvas.getByText('Serves no milestone.')).toBeInTheDocument();
       await expect(
          canvas.queryByRole('link', { name: /Projects report their own health/ })
       ).toBeNull();
    },
 };
 
-export const ServesNoGoal: Story = {
+export const ServesNoMilestone: Story = {
    args: { issue: sharedFilter },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await expect(canvas.getByText('Serves no goal.')).toBeInTheDocument();
-      await userEvent.click(canvas.getByRole('button', { name: 'Link a goal' }));
+      await expect(canvas.getByText('Serves no milestone.')).toBeInTheDocument();
+      await userEvent.click(canvas.getByRole('button', { name: 'Link a milestone' }));
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(
          await body.findByRole('option', { name: /One inbox for every decision/ })
       );
       await waitFor(() =>
-         expect(useIssuesStore.getState().getIssueById(sharedFilter.id)?.goal?.id).toBe('goal-2')
+         expect(useIssuesStore.getState().getIssueById(sharedFilter.id)?.milestone?.id).toBe(
+            'goal-2'
+         )
       );
    },
 };

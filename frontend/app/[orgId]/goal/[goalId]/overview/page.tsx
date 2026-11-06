@@ -1,16 +1,11 @@
-import GoalOverview from '@/components/common/goals/goal-overview';
-import Header from '@/components/layout/headers/goal/header';
-import MainLayout from '@/components/layout/main-layout';
+import { redirect } from 'next/navigation';
 
-interface Props {
-   params: Promise<{ goalId: string }>;
-}
-
-export default async function GoalOverviewPage({ params }: Props) {
-   const { goalId } = await params;
-   return (
-      <MainLayout header={<Header goalId={goalId} />} headersNumber={1}>
-         <GoalOverview goalId={goalId} />
-      </MainLayout>
-   );
+/** Legacy Goals overview URL. */
+export default async function GoalOverviewRedirect({
+   params,
+}: {
+   params: Promise<{ orgId: string; goalId: string }>;
+}) {
+   const { orgId, goalId } = await params;
+   redirect(`/${orgId}/milestone/${goalId}`);
 }

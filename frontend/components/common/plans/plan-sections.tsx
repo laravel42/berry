@@ -193,7 +193,7 @@ export function PlanIssues({ plan }: { plan: Plan }) {
          <SectionHeading title="Work" count={plan.issues.length} />
          {plan.milestones.length > 1 && (
             <p className="mt-1 text-muted-foreground">
-               {plan.milestones.length} goals, each on the board once the plan starts.
+               {plan.milestones.length} milestones, each on the board once the plan starts.
             </p>
          )}
          {groups.map((group) => (

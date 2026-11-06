@@ -75,6 +75,12 @@ export const SEQUENCE_WINDOW_MS = 1000;
 export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'issue.create', group: 'general', labelKey: 'createIssue', defaultCombo: 'c' },
    {
+      id: 'issue.assignMilestone',
+      group: 'general',
+      labelKey: 'assignMilestone',
+      defaultCombo: 'shift+m',
+   },
+   {
       id: 'sidebar.toggle',
       group: 'general',
       labelKey: 'toggleSidebar',
@@ -139,7 +145,6 @@ export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'goto.approvals', group: 'navigation', labelKey: 'goToApprovals', defaultCombo: 'g a' },
    { id: 'goto.agents', group: 'navigation', labelKey: 'goToAgents', defaultCombo: 'g e' },
    { id: 'goto.projects', group: 'navigation', labelKey: 'goToProjects', defaultCombo: 'g p' },
-   { id: 'goto.goals', group: 'navigation', labelKey: 'goToGoals', defaultCombo: 'g g' },
    { id: 'goto.chat', group: 'navigation', labelKey: 'goToChat', defaultCombo: 'g c' },
    { id: 'goto.views', group: 'navigation', labelKey: 'goToViews', defaultCombo: 'g v' },
    { id: 'goto.settings', group: 'navigation', labelKey: 'goToSettings', defaultCombo: 'g s' },

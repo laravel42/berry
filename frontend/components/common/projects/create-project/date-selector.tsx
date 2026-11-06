@@ -15,10 +15,14 @@ interface ProjectDateSelectorProps {
    /**
     * `chip` — create-dialog secondary button.
     * `row` — issue-properties style: icon + dashed "Set date" / formatted value.
+    * `plain` — list cell: date text only (or empty label), opens the calendar.
     */
-   layout?: 'chip' | 'row';
-   /** Empty-state text for `row` layout. Defaults to "Set date". */
+   layout?: 'chip' | 'row' | 'plain';
+   /** Empty-state text for `row` / `plain` layouts. Defaults to "Set date". */
    emptyLabel?: string;
+   className?: string;
+   /** Chip only: calendar glyph, no date text (aria-label still names the date). */
+   iconOnly?: boolean;
 }
 
 export function ProjectDateSelector({
@@ -27,6 +31,8 @@ export function ProjectDateSelector({
    onChange,
    layout = 'chip',
    emptyLabel = 'Set date',
+   className,
+   iconOnly = false,
 }: ProjectDateSelectorProps) {
    const id = useId();
    const [open, setOpen] = useState(false);
@@ -40,6 +46,7 @@ export function ProjectDateSelector({
             mode="single"
             selected={date}
             onSelect={(next) => {
+               if (!next) return;
                onChange(next);
                setOpen(false);
             }}
@@ -66,14 +73,14 @@ export function ProjectDateSelector({
 
    if (layout === 'row') {
       return (
-         <Popover open={open} onOpenChange={setOpen}>
+         <Popover open={open} onOpenChange={setOpen} modal>
             <PopoverTrigger asChild>
                <Button
                   id={id}
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="w-full min-w-0 justify-start gap-2 px-0"
+                  className={cn('w-full min-w-0 justify-start gap-2 px-0', className)}
                   aria-expanded={open}
                   aria-label={ariaLabel}
                >
@@ -95,19 +102,47 @@ export function ProjectDateSelector({
       );
    }
 
+   if (layout === 'plain') {
+      return (
+         <Popover open={open} onOpenChange={setOpen} modal>
+            <PopoverTrigger asChild>
+               <button
+                  id={id}
+                  type="button"
+                  className={cn(
+                     'hidden shrink-0 cursor-pointer tabular-nums text-muted-foreground hover:text-foreground sm:inline',
+                     !date && 'opacity-0 group-hover:opacity-100',
+                     className
+                  )}
+                  aria-expanded={open}
+                  aria-label={ariaLabel}
+               >
+                  {date ? format(date, 'MMM d') : emptyLabel}
+               </button>
+            </PopoverTrigger>
+            {popover}
+         </Popover>
+      );
+   }
+
    return (
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={setOpen} modal>
          <PopoverTrigger asChild>
             <Button
                id={id}
-               className={date ? undefined : 'text-muted-foreground'}
-               size="xs"
+               type="button"
+               className={cn(
+                  date ? undefined : 'text-muted-foreground',
+                  iconOnly && 'size-6',
+                  className
+               )}
+               size={iconOnly ? 'icon' : 'xs'}
                variant="secondary"
                aria-expanded={open}
                aria-label={ariaLabel}
             >
                <CalendarIcon className="size-3.5" />
-               <span>{formattedShort}</span>
+               {iconOnly ? null : <span>{formattedShort}</span>}
             </Button>
          </PopoverTrigger>
          {popover}

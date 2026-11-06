@@ -40,7 +40,7 @@ export interface InboxItem {
    archived: boolean;
    createdAt: string;
    approvalId: string | null;
-   goalId: string | null;
+   milestoneId: string | null;
    planId: string | null;
 }
 
@@ -57,7 +57,7 @@ export type InboxAction = 'read' | 'unread' | 'archive' | 'unarchive';
 const COLUMNS = `item.id, item.workspace_id, item.recipient_id, item.event_type, item.category,
    item.severity, item.issue_id, item.actor_type, item.actor_id, item.title, item.body,
    item.details, item.read_at, item.archived_at, item.created_at,
-   item.approval_id, item.goal_id, item.plan_id,
+   item.approval_id, item.milestone_id, item.plan_id,
    issue.status::text AS issue_status,
    berry_issue_identifier(board.workspace_id, issue.number) AS issue_identifier`;
 
@@ -174,7 +174,7 @@ function toItem(row: Record<string, unknown>): InboxItem {
       archived: row.archived_at !== null && row.archived_at !== undefined,
       createdAt: toRFC3339(row.created_at as string)!,
       approvalId: (row.approval_id as string | null) ?? null,
-      goalId: (row.goal_id as string | null) ?? null,
+      milestoneId: (row.milestone_id as string | null) ?? null,
       planId: (row.plan_id as string | null) ?? null,
    };
 }

@@ -103,7 +103,7 @@ describe('the Berry organization catalog', () => {
 
    test('every role can list the workspace from chat', () => {
       for (const role of CATALOG) {
-         for (const tool of ['list_tasks', 'list_plans', 'list_goals', 'list_projects']) {
+         for (const tool of ['list_tasks', 'list_plans', 'list_milestones', 'list_projects']) {
             assert.ok(role.allowed_tools.includes(tool), `${role.id}: ${tool}`);
          }
       }
@@ -112,7 +112,7 @@ describe('the Berry organization catalog', () => {
    test('the Orchestrator answers chat from the snapshot instead of listing first', () => {
       const prompt = catalogRole('orchestrator')!.system_prompt;
       assert.match(prompt, /Incoming work is already in the turn/);
-      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_goals and list_projects before answering/);
+      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_milestones and list_projects before answering/);
    });
 
    test('tools exist and sit inside each role’s ceiling', () => {
@@ -152,10 +152,10 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('only the orchestrator, the planner and the product lead file goals and plans', () => {
+   test('only the orchestrator, the planner and the product lead file milestones and plans', () => {
       for (const role of CATALOG) {
          const planner = role.id === 'orchestrator' || role.id === 'planner' || role.id === 'product-lead';
-         assert.equal(role.allowed_tools.includes('create_goal'), planner, role.id);
+         assert.equal(role.allowed_tools.includes('create_milestone'), planner, role.id);
          assert.equal(role.allowed_tools.includes('create_plan'), planner, role.id);
       }
    });

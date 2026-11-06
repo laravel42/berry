@@ -53,7 +53,7 @@ export function PlanRowBody({
    plan: PlanSummary;
    showProject?: boolean;
 }) {
-   const t = useTranslations('goals.plans');
+   const t = useTranslations('milestones.plans');
    const look = planSummaryLook(plan);
    const started = plan.createdTasks > 0;
    const percent = started ? Math.round((plan.finishedTasks / plan.createdTasks) * 100) : 0;
@@ -150,7 +150,7 @@ function PlanRow({
  * adds the rejected and superseded ones. A row opens the plan itself.
  */
 export default function PlansList() {
-   const t = useTranslations('goals.plans');
+   const t = useTranslations('milestones.plans');
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? null);
    const scope = usePlansListStore((state) => state.scope);
    const query = usePlansListStore((state) => state.query);
@@ -180,6 +180,7 @@ export default function PlansList() {
          subscribeWorkspaceEvents((event) => {
             if (
                event.type.startsWith('plan.') ||
+               event.type.startsWith('milestone.') ||
                event.type.startsWith('goal.') ||
                event.type.startsWith('issue.')
             ) {

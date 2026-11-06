@@ -35,6 +35,8 @@ export const BOARD_TOPICS = [
  * a topic missing from this list is a fact that silently never arrives.
  */
 export const WORKSPACE_TOPICS = [
+   'milestone.created', 'milestone.updated', 'milestone.started', 'milestone.completed', 'milestone.cancelled', 'milestone.archived',
+   // Historical outbox rows from before the Goals → Milestones rename.
    'goal.created', 'goal.updated', 'goal.started', 'goal.completed', 'goal.cancelled', 'goal.archived',
    'project.created', 'project.updated', 'project.archived',
    'approval.requested', 'approval.approved', 'approval.rejected', 'approval.expired',
@@ -46,7 +48,7 @@ export const WORKSPACE_TOPICS = [
    'plugin.installed', 'plugin.updated', 'plugin.uninstalled',
    'github.settings.updated', 'github.repositories.updated',
    'github.connection.updated', 'github.pull_request.updated',
-   // Workspace-level like goals (boardId null): the Usage page, the Dashboard
+   // Workspace-level like milestones (boardId null): the Usage page, the Dashboard
    // and the usage panels refresh on it.
    'usage.recorded',
    // A chat's reply, and a line when work its agent started ends. Ids only,

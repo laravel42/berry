@@ -368,10 +368,10 @@ export const inboxItems: InboxItem[] = [
    notification({
       id: 'n-5',
       type: 'goal',
-      title: 'Goal “Ship the inbox” is blocked',
+      title: 'Milestone “Ship the inbox” is blocked',
       content: 'Two tasks under this goal are waiting on review.',
       eventType: 'goal.blocked',
-      category: 'goals',
+      category: 'milestones',
       timestamp: '2026-09-17T17:40:00Z',
       read: true,
       goal: { id: 'goal-1' },

@@ -88,9 +88,9 @@ export const compileReportSchema = z.object({
    status: z.enum(['running', 'succeeded', 'failed']),
    error: z.string().nullish(),
    compiledAt: z.string().nullish(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    /** One goal per milestone, in delivery order. Empty for older compiles. */
-   goalIds: z.array(z.string()).default([]),
+   milestoneIds: z.array(z.string()).default([]),
    issueIds: z.array(z.string()).default([]),
    approvalIds: z.array(z.string()).default([]),
 });
@@ -200,7 +200,7 @@ export const planSchema = z.object({
    confidence: z.number().optional(),
    compiled: z
       .object({
-         goalId: z.string(),
+         milestoneId: z.string(),
          issueIds: z.record(z.string(), z.string()).default({}),
          approvalIds: z.record(z.string(), z.string()).default({}),
          compiledAt: z.string(),
@@ -211,7 +211,7 @@ export const planSchema = z.object({
 export const planRecordSchema = z.object({
    id: z.string(),
    workspaceId: z.string(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    projectId: z.string().nullish(),
    /** True when this plan's tasks close on a peer agent's review. */
    autoGate: z.boolean().default(false),
@@ -289,7 +289,7 @@ function parseRecord(json: unknown): PlanRecord {
 export interface GeneratePlanInput {
    workspaceId: string;
    prompt: string;
-   goalId?: string;
+   milestoneId?: string;
    projectId?: string;
    boardId?: string;
    hint?: 'issue' | 'auto';
@@ -310,7 +310,7 @@ export async function generatePlan(input: GeneratePlanInput): Promise<PlanRecord
       workspaceId: input.workspaceId,
       prompt: input.prompt,
    };
-   if (input.goalId) body.goalId = input.goalId;
+   if (input.milestoneId) body.milestoneId = input.milestoneId;
    if (input.projectId) body.projectId = input.projectId;
    if (input.boardId) body.boardId = input.boardId;
    if (input.hint) body.hint = input.hint;
@@ -475,7 +475,7 @@ export const planSummarySchema = z.object({
    title: z.string(),
    projectId: z.string().nullish(),
    projectName: z.string().nullish(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    generation: z.object({
       status: generationStatusSchema,
       error: z.string().nullish(),
@@ -684,7 +684,7 @@ export function describePlanPath(path: string, plan: Plan | null | undefined): s
    const index = Number.parseInt(indexText ?? '', 10);
    const tail = rest.length > 0 ? ` › ${rest.join(' › ')}` : '';
    if (collection === 'goal')
-      return `Goal${indexText ? ` › ${segments.slice(1).join(' › ')}` : ''}`;
+      return `Milestone${indexText ? ` › ${segments.slice(1).join(' › ')}` : ''}`;
    if (!plan || Number.isNaN(index)) return path;
    switch (collection) {
       case 'issues': {

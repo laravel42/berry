@@ -43,7 +43,7 @@ export async function listPins(q: Queryable, workspaceId: string, userId: string
           ON pin.target_type = 'project' AND project.id = pin.target_id AND project.deleted_at IS NULL
         LEFT JOIN plans AS plan
           ON pin.target_type = 'plan' AND plan.id = pin.target_id AND plan.deleted_at IS NULL
-        LEFT JOIN goals AS plan_goal ON plan_goal.id = plan.goal_id
+        LEFT JOIN milestones AS plan_goal ON plan_goal.id = plan.milestone_id
        WHERE pin.workspace_id = ${workspaceId} AND pin.user_id = ${userId}
        ORDER BY pin.position, pin.id`;
    return rows

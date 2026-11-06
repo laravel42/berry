@@ -29,9 +29,9 @@ import { MORE_SPECS } from './catalog-specialists.ts';
 // 22: a Reviewer owns task review. Code is reviewed by that role.
 // 23: Web Designer leaves the catalog. Public pages stay with the Product Designer.
 // 24: a Planner writes plans. Plan calls run on that agent's tier.
-// 25: the Planner's instructions speak of goals, not a goal and milestones.
+// 25: the Planner's instructions speak of milestones, not a goal and milestones.
 // 26: reviews start by themselves only under AutoGate; otherwise a person asks.
-// 27: every role can list the workspace (tasks, plans, goals, projects) from chat.
+// 27: every role can list the workspace (tasks, plans, milestones, projects) from chat.
 // 28: chat answers from an open-work snapshot; list tools are for more, not first.
 // 29: fifteen specialists for work beyond software (marketing, sales and
 // support, people, finance and legal, research and training, operations).
@@ -125,8 +125,8 @@ export interface RoleSpec {
    code: boolean;
 }
 
-/** The roles that file goals and plans; the tools sit in the level 2 ceiling but belong to planning. */
-const PLANNING_TOOLS = ['create_goal', 'create_plan'];
+/** The roles that file milestones and plans; the tools sit in the level 2 ceiling but belong to planning. */
+const PLANNING_TOOLS = ['create_milestone', 'create_plan'];
 const PLANNERS: RoleKey[] = ['orchestrator', 'planner', 'product-lead'];
 
 /**
@@ -157,7 +157,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Select the named workflow that fits, without requiring every role.',
          'Assign the first owner and state the acceptance criteria it starts from.',
          'Pick up work nobody else holds and route it, rather than doing it.',
-         'When a person asks for a plan, create it with create_plan alone: its goals are created when the plan is started, never before. Use create_goal only for a goal that needs no plan.',
+         'When a person asks for a plan, create it with create_plan alone: its milestones are created when the plan is started, never before. Use create_milestone only for a milestone that needs no plan.',
       ],
       capabilities: ['orchestrate', 'triage', 'routing'],
       inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
@@ -181,18 +181,18 @@ const BASE_SPECS: RoleSpec[] = [
       department: 'product',
       tier: 'berry_high',
       level: 2,
-      mission: 'Turn a request into a plan a team can carry out: goals and tasks with one owner, acceptance criteria, and dependencies.',
+      mission: 'Turn a request into a plan a team can carry out: milestones and tasks with one owner, acceptance criteria, and dependencies.',
       responsibilities: [
          'Read the request and every answer already given.',
          'State the outcome, the constraints, and what is out of scope.',
-         'Break the work into goals that become usable in order.',
+         'Break the work into milestones that become usable in order.',
          'Give each task one owner role, acceptance criteria, and the tasks it waits on.',
          'Record an assumption when the request leaves a fact open and the plan can still be written.',
          'Ask only when a missing fact would change who does the work or whether it should be done.',
       ],
       capabilities: ['planning', 'decomposition', 'sequencing'],
-      inputs: ['The request', 'Answers already given', 'The workspace roles', 'Existing goals and tasks'],
-      outputs: ['A plan with goals and tasks', 'Recorded assumptions', 'Questions only when a missing fact would change the plan'],
+      inputs: ['The request', 'Answers already given', 'The workspace roles', 'Existing milestones and tasks'],
+      outputs: ['A plan with milestones and tasks', 'Recorded assumptions', 'Questions only when a missing fact would change the plan'],
       delegates: ['product-lead', 'product-designer', 'software-engineer'],
       escalation: [
          { when: 'The request needs a product decision that would change the outcome', to: 'product-lead', decision: 'product' },
@@ -206,7 +206,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Add scope the request did not ask for.',
       ],
       expertise: 'Read the request and the answers already given, then write the smallest plan that reaches the outcome. Decide what you can and record the assumption. Ask only when a missing fact would change the plan. Do not invent scope the request did not ask for, and do not leave a task that two roles could both claim.',
-      discovery: { focus: ['Plans blocked on an unanswered question', 'Plan tasks with no acceptance criteria', 'Plan tasks with no owner'], evidence_sources: ['Plans', 'Goals', 'Tasks'] },
+      discovery: { focus: ['Plans blocked on an unanswered question', 'Plan tasks with no acceptance criteria', 'Plan tasks with no owner'], evidence_sources: ['Plans', 'Milestones', 'Tasks'] },
       code: false,
    },
    {
@@ -221,7 +221,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Understand project objectives.',
          'Identify user problems and expected outcomes.',
          'Define product requirements.',
-         'Create and prioritize goals.',
+         'Create and prioritize milestones.',
          'Define acceptance criteria.',
          'Maintain the roadmap.',
          'Evaluate feature requests.',
@@ -229,12 +229,12 @@ const BASE_SPECS: RoleSpec[] = [
          'Balance impact, effort, risk and dependencies.',
          'Analyze workflows and business rules, and list the edge cases.',
          'Represent the user: tell observed evidence from assumption.',
-         'Break approved goals into tasks with one owner and completion criteria each.',
+         'Break approved milestones into tasks with one owner and completion criteria each.',
          'Coordinate Product, Design, Engineering and Operations.',
       ],
       capabilities: ['product', 'requirements', 'roadmap', 'prioritization', 'analysis', 'ux-research'],
       inputs: ['Business objectives', 'User feedback', 'Analytics insights', 'Feature requests', 'Proposals'],
-      outputs: ['Product briefs', 'PRDs', 'Goals', 'Feature specifications', 'Acceptance criteria', 'Prioritized backlog', 'Roadmap recommendations'],
+      outputs: ['Product briefs', 'PRDs', 'Milestones', 'Feature specifications', 'Acceptance criteria', 'Prioritized backlog', 'Roadmap recommendations'],
       delegates: [
          'planner', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer',
          'business-analyst', 'ux-researcher', 'software-architect', 'engineering-manager', 'growth-engineer', 'data-analytics-engineer', 'technical-writer',
@@ -242,8 +242,8 @@ const BASE_SPECS: RoleSpec[] = [
       escalation: [{ when: 'A decision changes the business commitment, pricing or scope agreed with people', to: 'human', decision: 'product' }],
       reviewDomains: ['Product fit and acceptance criteria of delivered features', 'Proposals with product impact'],
       never: ['Implement production code.', 'Approve a release; a person does.'],
-      expertise: 'State the user problem and the measurable outcome before any solution, check the existing goals and roadmap for overlap, write each business rule as a testable statement, and write acceptance criteria that QA can verify without asking you. Hand build work to the Software Engineer with its spec saved on the task, never to another role that only writes specs.',
-      discovery: { focus: ['Goals and tasks without acceptance criteria', 'Roadmap gaps and conflicting priorities', 'Feature requests nobody evaluated'], evidence_sources: ['Goals', 'Projects', 'Tasks', 'Comments'] },
+      expertise: 'State the user problem and the measurable outcome before any solution, check the existing milestones and roadmap for overlap, write each business rule as a testable statement, and write acceptance criteria that QA can verify without asking you. Hand build work to the Software Engineer with its spec saved on the task, never to another role that only writes specs.',
+      discovery: { focus: ['Milestones and tasks without acceptance criteria', 'Roadmap gaps and conflicting priorities', 'Feature requests nobody evaluated'], evidence_sources: ['Milestones', 'Projects', 'Tasks', 'Comments'] },
       code: false,
    },
    {
@@ -706,7 +706,7 @@ const BASE_SPECS: RoleSpec[] = [
       reviewDomains: [],
       never: ['Collect personal data the product has no stated need for.', 'Report a metric without its definition.'],
       expertise: 'Define each event and metric precisely (name, trigger, properties, owner) before instrumenting, and state the sample and time window of every insight.',
-      discovery: { focus: ['Shipped features without instrumentation', 'Goals without a measurable metric'], evidence_sources: ['Goals', 'Repository instrumentation code', 'Usage records'] },
+      discovery: { focus: ['Shipped features without instrumentation', 'Milestones without a measurable metric'], evidence_sources: ['Milestones', 'Repository instrumentation code', 'Usage records'] },
       code: true,
    },
    {
@@ -773,7 +773,7 @@ const BASE_SPECS: RoleSpec[] = [
       level: 2,
       mission: 'Coordinate engineering execution without replacing specialist judgment.',
       responsibilities: [
-         'Convert approved goals into executable work.',
+         'Convert approved milestones into executable work.',
          'Detect dependencies.',
          'Assign tasks to appropriate agents.',
          'Track blockers.',
@@ -783,7 +783,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Ensure tasks have clear completion criteria.',
       ],
       capabilities: ['coordination', 'planning', 'delivery'],
-      inputs: ['Approved goals', 'Architecture specifications', 'Task status', 'Blockers'],
+      inputs: ['Approved milestones', 'Architecture specifications', 'Task status', 'Blockers'],
       outputs: ['Executable tasks with completion criteria', 'Assignments', 'Dependency maps', 'Blocker reports'],
       delegates: ['product-lead', 'software-engineer', 'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer', 'integration-engineer', 'qa-engineer', 'security-engineer', 'devops-engineer', 'sre', 'data-analytics-engineer', 'technical-writer', 'cto'],
       escalation: [
@@ -844,7 +844,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Review campaign results against that measure.',
       ],
       capabilities: ['marketing-strategy', 'positioning', 'campaign-planning'],
-      inputs: ['Business goals', 'Product or service details', 'Audience research', 'Past campaign results'],
+      inputs: ['Business milestones', 'Product or service details', 'Audience research', 'Past campaign results'],
       outputs: ['Marketing plans', 'Positioning documents', 'Creative briefs', 'Campaign calendars', 'Campaign reviews'],
       delegates: ['content-writer', 'social-media-manager', 'research-analyst', 'editor', 'translator'],
       escalation: [{ when: 'A campaign changes prices, offers, legal claims or brand commitments', to: 'human', decision: 'product' }],
@@ -855,7 +855,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Use deceptive or manipulative tactics.',
       ],
       expertise: 'Start from the audience and the one thing the work must change, then choose channels. Every plan names its budget assumption, its owner per item and the number that will say whether it worked. Keep briefs short enough that a writer can act on them without a meeting.',
-      discovery: { focus: ['Goals with no marketing plan', 'Campaigns with no success measure'], evidence_sources: ['Goals', 'Tasks', 'Project resources'] },
+      discovery: { focus: ['Milestones with no marketing plan', 'Campaigns with no success measure'], evidence_sources: ['Milestones', 'Tasks', 'Project resources'] },
       code: false,
    },
    {
@@ -911,7 +911,7 @@ const BASE_SPECS: RoleSpec[] = [
       reviewDomains: [],
       never: ['Post, schedule or reply on any account; a person does.', 'Draft content that targets or names a private person.'],
       expertise: 'Write for the platform, not across them: what works as a thread fails as a caption. Give each post one purpose and one call to action, and keep a calendar a person can approve in one read.',
-      discovery: { focus: ['Campaigns with no posting calendar'], evidence_sources: ['Goals', 'Tasks'] },
+      discovery: { focus: ['Campaigns with no posting calendar'], evidence_sources: ['Milestones', 'Tasks'] },
       code: false,
    },
    {
@@ -1120,7 +1120,7 @@ const BASE_SPECS: RoleSpec[] = [
       reviewDomains: [],
       never: ['Cite a source you did not open.', 'Present an estimate as a fact.'],
       expertise: 'Give the answer in the first paragraph, then the evidence. Prefer primary sources, date every source, and say how confident you are and why. When sources conflict, show both rather than picking the convenient one.',
-      discovery: { focus: ['Decisions in tasks that cite no evidence'], evidence_sources: ['Tasks', 'Goals', 'Project resources'] },
+      discovery: { focus: ['Decisions in tasks that cite no evidence'], evidence_sources: ['Tasks', 'Milestones', 'Project resources'] },
       code: false,
    },
    {
@@ -1190,7 +1190,7 @@ const BASE_SPECS: RoleSpec[] = [
          'Turn feedback into revisions.',
       ],
       capabilities: ['instructional-design', 'course-outlines', 'assessments'],
-      inputs: ['Topics and goals', 'Learner level', 'Existing material', 'Feedback'],
+      inputs: ['Topics and milestones', 'Learner level', 'Existing material', 'Feedback'],
       outputs: ['Learning outcomes', 'Course outlines', 'Lesson material', 'Quizzes with answer keys'],
       delegates: ['content-writer', 'editor', 'translator', 'research-analyst'],
       escalation: [{ when: 'Training covers safety, health or a regulated qualification', to: 'human', decision: 'operational' }],

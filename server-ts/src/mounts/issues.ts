@@ -20,7 +20,7 @@ import { idempotent } from '../http/idempotent.ts';
 import type { IdempotencyStore } from '../http/idempotency.ts';
 import type { Broadcaster } from '../realtime/hub.ts';
 import type { BoardRepository } from '../core/boards.ts';
-import type { GoalLinker } from '../core/goal-linker.ts';
+import type { MilestoneLinker } from '../core/milestone-linker.ts';
 import {
    ApprovalRequired,
    InvalidTransition,
@@ -91,7 +91,7 @@ export interface IssueOptions {
    attachments?: Hono<{ Variables: AuthVariables }> | undefined;
    /** What the agents on an issue produced: the listing. */
    artifacts?: Hono<{ Variables: AuthVariables }> | undefined;
-   goals?: GoalLinker | undefined;
+   milestones?: MilestoneLinker | undefined;
    /**
     * Where a task assigned to an agent gets its run. Omitted means a task
     * handed to an agent waits for someone to press Run — the behaviour of a
@@ -498,7 +498,7 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
-      goal: relations?.goal ?? null,
+      milestone: relations?.milestone ?? null,
       // Always arrays: the frontend maps over them without a guard.
       dependsOn: relations?.dependsOn ?? [],
       blocks: relations?.blocks ?? [],
@@ -561,21 +561,21 @@ async function applyGoal(
    options: IssueOptions,
    workspaceId: string,
    issueId: string,
-   goalId: string | null,
+   milestoneId: string | null,
    actorId: string
 ): Promise<void> {
-   if (!options.goals) return;
-   if (goalId === null) {
-      await options.goals.clearIssueGoal(issueId);
+   if (!options.milestones) return;
+   if (milestoneId === null) {
+      await options.milestones.clearIssueGoal(issueId);
       return;
    }
    // Scoped to the workspace: a goal from elsewhere is reported missing
    // rather than linked.
-   const linked = await options.goals.linkIssue(workspaceId, goalId, issueId, actorId);
+   const linked = await options.milestones.linkIssue(workspaceId, milestoneId, issueId, actorId);
    if (!linked) {
       throw new ApiError(
          422,
-         'GOAL_NOT_FOUND',
+         'MILESTONE_NOT_FOUND',
          'That goal does not exist in this workspace.'
       );
    }
@@ -883,11 +883,11 @@ function goalChange(
    body: Record<string, unknown>,
    fields: FieldError[]
 ): { set: boolean; value: string | null } {
-   if (!('goalId' in body)) return { set: false, value: null };
-   if (body.goalId === null) return { set: true, value: null };
-   const parsed = looseUUID(String(body.goalId).trim());
+   if (!('milestoneId' in body)) return { set: false, value: null };
+   if (body.milestoneId === null) return { set: true, value: null };
+   const parsed = looseUUID(String(body.milestoneId).trim());
    if (parsed === null) {
-      fields.push(field('/goalId', 'invalid_string', 'goalId must be a UUID.'));
+      fields.push(field('/milestoneId', 'invalid_string', 'milestoneId must be a UUID.'));
       return { set: true, value: null };
    }
    return { set: true, value: parsed };
@@ -1003,7 +1003,7 @@ const ISSUE_BODY_FIELDS = new Set([
    'dueDate',
    'assignee',
    'projectId',
-   'goalId',
+   'milestoneId',
    // Without this the allowlist refused every AutoGate change with a 422
    // before `parsePatch` saw it.
    'autoGate',

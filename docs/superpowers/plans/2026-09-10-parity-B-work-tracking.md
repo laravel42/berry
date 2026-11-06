@@ -924,7 +924,7 @@ import type { z } from 'zod';
 import { assertValid, fieldError } from '../http/body.ts';
 import { ApiError } from '../http/errors.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
-import { InvalidTransition } from '../core/issues.ts';
+import { InvalidMilestoneTransition } from '../core/issues.ts';
 
 /** Body parsing for the work-tracking routes: one JSON value, validated once. */
 const MAX_BODY_BYTES = 1 << 20;
@@ -965,7 +965,7 @@ export function failureCode(error: unknown): string {
    if (error instanceof ApiError) return error.code;
    if (error instanceof NotFound) return 'NOT_FOUND';
    if (error instanceof Forbidden) return 'FORBIDDEN';
-   if (error instanceof InvalidTransition) return 'INVALID_STATE_TRANSITION';
+   if (error instanceof InvalidMilestoneTransition) return 'INVALID_STATE_TRANSITION';
    if (error instanceof Conflict) return 'CONFLICT';
    throw error;
 }
@@ -4707,7 +4707,7 @@ export function workTrackingHooks(options: {
 ```ts
 import { ApiError } from '../http/errors.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
-import { InvalidTransition } from '../core/issues.ts';
+import { InvalidMilestoneTransition } from '../core/issues.ts';
 import { InvalidPropertyValue, PropertyKindMismatch, PropertyNameTaken } from '../work/properties.ts';
 import { MetadataTooLarge } from '../work/metadata.ts';
 import { HierarchyCycle, ParentNotFound } from '../work/hierarchy.ts';
@@ -4764,7 +4764,7 @@ export function rethrowWork(resource: string): (error: unknown) => never {
       if (error instanceof JoinLinkInvalid) {
          throw new ApiError(404, 'NOT_FOUND', 'This join link is not valid.');
       }
-      if (error instanceof InvalidTransition) {
+      if (error instanceof InvalidMilestoneTransition) {
          throw new ApiError(409, 'INVALID_STATE_TRANSITION', `Cannot transition an issue from "${error.from}" to "${error.to}".`, {
             from: error.from,
             to: error.to,
@@ -6376,7 +6376,7 @@ In the Served block, add `/api/v1/join-links` and `/api/v1/pins` in alphabetical
 ```
 /api/v1/agents        /api/v1/approvals     /api/v1/attachments   /api/v1/auth
 /api/v1/boards        /api/v1/catalogs      /api/v1/comments      /api/v1/config
-/api/v1/conversations /api/v1/editor        /api/v1/events        /api/v1/goals
+/api/v1/conversations /api/v1/editor        /api/v1/events        /api/v1/milestones
 /api/v1/inbox         /api/v1/integrations  /api/v1/invitations   /api/v1/issues
 /api/v1/join-links    /api/v1/me            /api/v1/pins          /api/v1/plans
 /api/v1/projects      /api/v1/runs          /api/v1/search        /api/v1/tokens

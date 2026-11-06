@@ -27,6 +27,7 @@ export type NotificationType =
    | 'approval'
    | 'proposal'
    | 'goal'
+   | 'milestone'
    | 'workflow'
    | 'plan'
    | 'runCompleted'
@@ -54,6 +55,7 @@ export const NOTIFICATION_TYPES: NotificationType[] = [
    'approval',
    'proposal',
    'goal',
+   'milestone',
    'workflow',
    'plan',
    'runCompleted',
@@ -86,7 +88,7 @@ export interface InboxItem {
    title: string;
    content: string;
    type: NotificationType;
-   /** The server's inbox category (`tasks`, `approvals`, `goals`, …). */
+   /** The server's inbox category (`tasks`, `approvals`, `milestones`, …). */
    category: string;
    /** The raw server event, kept so a screen can be specific about a subtype. */
    eventType: string;

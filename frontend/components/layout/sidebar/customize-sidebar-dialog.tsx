@@ -27,7 +27,6 @@ import {
    LucideIcon,
    Puzzle,
    Sparkles,
-   Target,
 } from 'lucide-react';
 import { Fragment, useRef, useState, type PointerEvent } from 'react';
 
@@ -41,7 +40,6 @@ interface ItemConfig {
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
    { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
-   { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
 ];
 

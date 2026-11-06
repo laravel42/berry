@@ -9,7 +9,7 @@ import { usePlansListStore, type PlansScope } from '@/store/plans-list-store';
 const SCOPES: PlansScope[] = ['open', 'all'];
 
 function HeaderOptions() {
-   const t = useTranslations('goals.plans');
+   const t = useTranslations('milestones.plans');
    const { scope, query, counts, setScope, setQuery } = usePlansListStore();
 
    const scopeLabel: Record<PlansScope, string> = {

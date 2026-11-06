@@ -195,7 +195,7 @@ function task(
       cycleId: '',
       rank: `a${String(order).padStart(3, '0')}`,
       sortOrder: order * 1000,
-      goal: null,
+      milestone: null,
       dependsOn: [],
       blocks: [],
       parentId: null,
@@ -216,7 +216,7 @@ export const persistHealth = task(42, 'Persist project health and updates', {
    activeRunId: 'run-42-2',
    description:
       'The health chip has only ever lived in the browser. Add a column, a migration and an endpoint so it survives a reload.',
-   goal: { id: 'goal-1', title: 'Projects report their own health' },
+   milestone: { id: 'goal-1', title: 'Projects report their own health' },
    createdAt: '2026-09-08T10:15:00Z',
    childProgress: { total: 3, done: 1 },
 });
@@ -515,7 +515,7 @@ export function apiIssue(issue: Issue) {
       createdBy: actor(issue.createdBy),
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt ?? issue.createdAt,
-      goal: issue.goal ?? null,
+      milestone: issue.milestone ?? null,
       dependsOn: issue.dependsOn ?? [],
       blocks: issue.blocks ?? [],
       parentId: issue.parentId ?? null,

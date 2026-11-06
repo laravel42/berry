@@ -20,7 +20,7 @@ export const approvalSchema = z.object({
    risk: approvalRiskSchema,
    title: z.string(),
    description: z.string().nullish(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    planId: z.string().nullish(),
    issueId: z.string().nullish(),
    issue: z.object({ id: z.string(), identifier: z.string(), title: z.string() }).nullish(),
@@ -63,7 +63,7 @@ function parseApproval(json: unknown): Approval {
 export interface ApprovalsQuery {
    status?: ApprovalStatus;
    kind?: string;
-   goalId?: string;
+   milestoneId?: string;
    issueId?: string;
    /** Only the pending approvals the caller may resolve. */
    mine?: boolean;
@@ -81,7 +81,7 @@ export async function listWorkspaceApprovals(
       const params = new URLSearchParams({ workspaceId, first: String(Math.min(limit, 100)) });
       if (query.status) params.set('status', query.status);
       if (query.kind) params.set('kind', query.kind);
-      if (query.goalId) params.set('goalId', query.goalId);
+      if (query.milestoneId) params.set('milestoneId', query.milestoneId);
       if (query.issueId) params.set('issueId', query.issueId);
       if (query.mine) params.set('mine', 'true');
       if (after) params.set('after', after);

@@ -52,7 +52,9 @@ type Story = StoryObj<typeof meta>;
 export const List: Story = {
    play: async ({ canvas }) => {
       // GET /api/v1/boards/:id/runs (MSW) fills the table.
-      await expect(await canvas.findByText('Add an empty state to the goals list')).toBeVisible();
+      await expect(
+         await canvas.findByText('Add an empty state to the milestones list')
+      ).toBeVisible();
       await expect(canvas.getAllByRole('row')).toHaveLength(1 + runs.length);
    },
 };

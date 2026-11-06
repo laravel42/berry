@@ -271,7 +271,7 @@ keys:
 `StatusBadge` puts a status mark and its word in a pill. It takes `look: StatusLook`
 (`lib/catalog.ts`). Derive the look from your domain, then render it here:
 
-- `GoalStatusBadge` uses `statusLook(GOAL_STATUS, …)`.
+- `MilestoneStatusBadge` uses `statusLook(GOAL_STATUS, …)`.
 - `PlanStatusBadge` uses `planLook(record)`.
 
 `PlanStatusBadge` and the connection state in `settings/integrations.tsx` used to copy this
@@ -324,7 +324,7 @@ read, it returns `fallback`. It replaced six private copies:
 
 - `inbox-format.relativeTime`
 - the notifications drawer's `relativeTime`
-- `goal-line`
+- `milestone-line`
 - `activity-feed`, `execution-log` and `lib/comments` (these pass `'recently'` as their
   fallback)
 

@@ -13,9 +13,10 @@ import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
 import { cn } from '@/lib/utils';
 import { SendHorizonal } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ProjectActivityFeedList } from './project-activity-section';
-import { ProjectGoalsSection } from './project-goals-section';
+import { ProjectGoalsSection } from './project-milestones-section';
 import { ProjectPlanSection } from './project-plan-section';
 import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -34,6 +35,8 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const searchParams = useSearchParams();
+   const milestoneFilter = searchParams.get('milestone');
    const [draft, setDraft] = useState('');
    const [focused, setFocused] = useState(false);
    const updateRef = useRef<HTMLTextAreaElement>(null);
@@ -43,10 +46,12 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       onChange: setDraft,
       workspaceId,
    });
-   const issues = useMemo(
-      () => (project ? allIssues.filter((issue) => issue.project?.id === project.id) : []),
-      [allIssues, project]
-   );
+   const issues = useMemo(() => {
+      if (!project) return [];
+      const inProject = allIssues.filter((issue) => issue.project?.id === project.id);
+      if (!milestoneFilter) return inProject;
+      return inProject.filter((issue) => issue.milestone?.id === milestoneFilter);
+   }, [allIssues, project, milestoneFilter]);
 
    const submitComment = useCallback(() => {
       const text = draft.trim();

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { BoardRepository } from '../core/boards.ts';
-import type { GoalRepository } from '../core/goals.ts';
+import type { MilestoneRepository } from '../core/milestones.ts';
 import type { Sql } from '../db/pool.ts';
 import { ApiError } from '../http/errors.ts';
 import { Forbidden, NotFound } from '../identity/errors.ts';
@@ -9,7 +9,7 @@ import { getAgentTool, registerAgentTool, type AgentToolContext } from '../runti
 import type { ScmSync } from '../scm/sync.ts';
 
 /**
- * Goals and plans, from a chat or a task.
+ * Milestones and plans, from a chat or a task.
  *
  * Both are filed in the name of the person who asked for the run, and only
  * when that person could have done it themselves: the agent is their hands,
@@ -19,7 +19,7 @@ import type { ScmSync } from '../scm/sync.ts';
 
 export interface PlanningToolDeps {
    sql: Sql;
-   goals: Pick<GoalRepository, 'create'>;
+   milestones: Pick<MilestoneRepository, 'create'>;
    boards: Pick<BoardRepository, 'authorizeWorkspace'>;
    plans: PlanOptions;
    /** Mirrors a goal as a milestone. Absent when the deployment runs no git host. */
@@ -27,7 +27,7 @@ export interface PlanningToolDeps {
    clock?: () => Date;
 }
 
-/** The person this run is for; goals and plans are never filed in nobody's name. */
+/** The person this run is for; milestones and plans are never filed in nobody's name. */
 async function requester(context: AgentToolContext, what: string): Promise<string> {
    const [run] = await context.sql`SELECT requested_by FROM runs WHERE id = ${context.task.runId}`;
    const userId = (run?.requested_by as string | null) ?? null;
@@ -62,72 +62,80 @@ async function projectIn(context: AgentToolContext, projectId: string | undefine
 }
 
 export function registerPlanningTools(deps: PlanningToolDeps): void {
-   if (getAgentTool('create_goal')) return;
+   if (getAgentTool('create_milestone')) return;
    const clock = deps.clock ?? (() => new Date());
 
-   registerAgentTool('create_goal', {
+   registerAgentTool('create_milestone', {
       description:
-         'Create a goal in this workspace: an outcome tasks work towards. It starts as a draft. ' +
-         'Only for a goal that needs no plan. When the work needs planning, call create_plan alone and do not ' +
-         'create a goal first: the plan creates its goals when a person starts it.',
+         'Create a project milestone: a stage inside one project that tasks can link to. ' +
+         'Requires projectId. Prefer create_plan when the work needs planning — Start Plan creates ' +
+         'milestones from the plan; use this only for a stage that needs no plan.',
       scope: 'task:write',
       inputSchema: z.object({
          title: z.string().trim().min(1).max(500),
          description: z.string().max(20_000).optional(),
-         projectId: z.uuid().optional(),
+         projectId: z.uuid(),
+         targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
       }),
       handler: async (context, input) => {
          const workspaceId = context.task.workspaceId;
-         const userId = await requester(context, 'goal');
-         await authorize(deps, userId, workspaceId, 'product.write', 'goal');
+         const userId = await requester(context, 'milestone');
+         await authorize(deps, userId, workspaceId, 'product.write', 'milestone');
          const projectId = await projectIn(context, input.projectId);
-         const { goal } = await deps.goals.create({
+         if (!projectId) throw ApiError.notFound('Project');
+         const { goal } = await deps.milestones.create({
             workspaceId,
             title: input.title,
             description: input.description ?? null,
             projectId,
+            ...(input.targetDate ? { targetDate: input.targetDate } : {}),
             createdBy: userId,
             createdAt: clock().toISOString(),
          });
-         // As the goals route does: the milestone mirrors the goal, and its
-         // outcome is recorded on the goal's link rather than failing the call.
-         deps.scm?.guard('goal.created', deps.scm.goalCreated(goal.id));
-         return { id: goal.id, title: goal.title, status: goal.status, projectId: goal.projectId };
+         deps.scm?.guard('milestone.created', deps.scm.goalCreated(goal.id));
+         return {
+            id: goal.id,
+            title: goal.title,
+            status: goal.status,
+            projectId: goal.projectId,
+            targetDate: goal.targetDate,
+            sortOrder: goal.sortOrder,
+         };
       },
    });
 
    registerAgentTool('create_plan', {
       description:
-         'Ask the planner to break a request into tasks. It generates the plan in the background; its goals and ' +
+         'Ask the planner to break a request into tasks. It generates the plan in the background; its milestones and ' +
          'tasks are created only when a person reviews it and presses Start Plan, so say that when you report ' +
-         'it. Do not create a goal first — pass `goalId` only to plan more work for a goal that already exists.',
+         'it. Do not create a milestone first — pass `milestoneId` only to plan more work for a stage that already exists.',
       scope: 'task:write',
       inputSchema: z.object({
          prompt: z.string().trim().min(1).max(20_000).describe('What the plan is for, in the words a person would use.'),
-         goalId: z.uuid().optional(),
+         milestoneId: z.uuid().optional(),
          projectId: z.uuid().optional(),
       }),
       handler: async (context, input) => {
          const workspaceId = context.task.workspaceId;
          const userId = await requester(context, 'plan');
          await authorize(deps, userId, workspaceId, 'product.write', 'plan');
-         if (input.goalId) {
+         if (input.milestoneId) {
             const [goal] = await context.sql`
-               SELECT id FROM goals
-                WHERE id = ${input.goalId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`;
-            if (!goal) throw ApiError.notFound('Goal');
+               SELECT id FROM milestones
+                WHERE id = ${input.milestoneId} AND workspace_id = ${workspaceId} AND deleted_at IS NULL`;
+            if (!goal) throw ApiError.notFound('Milestone');
          }
          const record = await startPlan(deps.plans, {
             workspaceId,
             prompt: input.prompt,
-            goalId: input.goalId ?? null,
+            milestoneId: input.milestoneId ?? null,
             projectId: await projectIn(context, input.projectId),
             boardId: null,
             createdBy: userId,
          });
          return {
             id: record.id,
-            goalId: record.goalId,
+            milestoneId: record.milestoneId,
             status: record.status,
             generation: 'running',
             next: 'A person reviews the plan and presses Start Plan; nothing exists on the board until then.',

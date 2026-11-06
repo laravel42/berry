@@ -159,12 +159,12 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal(allTasks.some((row) => row.identifier === done.key), true);
    });
 
-   test('list_projects and list_goals stay inside this workspace', async () => {
+   test('list_projects and list_milestones stay inside this workspace', async () => {
       const [project] = await sql`
          INSERT INTO projects (workspace_id, name, created_by)
          VALUES (${mine.workspaceId}, 'Workspace visibility', ${mine.userId}) RETURNING id`;
       await sql`
-         INSERT INTO goals (workspace_id, title, status, source, created_by)
+         INSERT INTO milestones (workspace_id, title, status, source, created_by)
          VALUES (${mine.workspaceId}, 'See the board', 'active', 'manual', ${mine.userId})`;
       const [foreign] = await sql`
          INSERT INTO projects (workspace_id, name, created_by)
@@ -175,8 +175,8 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       }>;
       assert.equal(projects.some((row) => row.id === project!.id), true);
       assert.equal(projects.some((row) => row.id === foreign!.id), false);
-      const goals = (await ok('list_goals', unbound('orchestrator'), {})).goals as Array<{ title: string }>;
-      assert.equal(goals.some((row) => row.title === 'See the board'), true);
+      const milestones = (await ok('list_milestones', unbound('orchestrator'), {})).milestones as Array<{ title: string }>;
+      assert.equal(milestones.some((row) => row.title === 'See the board'), true);
       const plans = await ok('list_plans', unbound('orchestrator'), {});
       assert.ok(Array.isArray(plans.plans));
    });

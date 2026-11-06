@@ -26,7 +26,7 @@ Every prefix `src/index.ts` registers today:
 /api/v1/catalogs      /api/v1/comments      /api/v1/config        /api/v1/conversations
 /api/v1/dashboard     /api/v1/editor        /api/v1/events        /api/v1/github
 /api/v1/gitlab
-/api/v1/goals         /api/v1/inbox         /api/v1/integrations  /api/v1/invitations
+/api/v1/milestones         /api/v1/inbox         /api/v1/integrations  /api/v1/invitations
 /api/v1/issues        /api/v1/join-links    /api/v1/logs          /api/v1/mcp-servers
 /api/v1/me
 /api/v1/organization  /api/v1/pins          /api/v1/plans         /api/v1/plugins
@@ -63,7 +63,7 @@ A mount answering does not mean every route under its prefix does.
 
 | Route | Why it is not registered |
 | --- | --- |
-| `POST /api/v1/projects/:id/generated-issues` | Decomposed a project with an agent. Planning a project now produces the same tasks through a plan, which also produces the goal that groups them, so the route and its frontend button were retired. |
+| `POST /api/v1/projects/:id/generated-issues` | Decomposed a project with an agent. Planning a project now produces the same tasks through a plan, which also produces the milestone that groups them, so the route and its frontend button were retired. |
 | `POST /api/v1/agents/:id/ask` | A chat completion passed straight through to an agent. Nothing in the product calls it. |
 
 ## What stays entangled across scope lines

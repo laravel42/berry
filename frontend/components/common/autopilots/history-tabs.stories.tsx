@@ -58,7 +58,7 @@ export const Deliveries: Story = {
       // The stored payload is fetched on demand (MSW) and shown in a dialog.
       await userEvent.click(within(rows[1]!).getByRole('button', { name: 'Payload' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByText(/Goals list has no empty state/)).toBeVisible();
+      await expect(await body.findByText(/Milestones list has no empty state/)).toBeVisible();
    },
 };
 

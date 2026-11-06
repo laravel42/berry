@@ -4,7 +4,7 @@ import type { Sql } from '../db/pool.ts';
 /**
  * Autopilot facts on the workspace stream.
  *
- * Same envelope as a goal's (core/goals.ts): no board, so it replays on the
+ * Same envelope as a goal's (core/milestones.ts): no board, so it replays on the
  * workspace stream only, and the aggregate is the autopilot so a detail page
  * can tell whether a frame is about the one it shows.
  */

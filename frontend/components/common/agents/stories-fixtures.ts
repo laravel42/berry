@@ -189,7 +189,10 @@ export const frontendAgent: Agent = {
    autonomyLevel: 3,
    customized: true,
    contract: frontendContract,
-   conversationStarters: ['Build the empty state for the goals list', 'Audit the settings forms'],
+   conversationStarters: [
+      'Build the empty state for the milestones list',
+      'Audit the settings forms',
+   ],
    maxConcurrency: 2,
 };
 
@@ -422,7 +425,7 @@ export const agentTasks: AgentTask[] = [
       id: 'run-7f3a91c2',
       status: 'running',
       issueId: 'issue-42',
-      summary: 'Adding the empty state to the goals list',
+      summary: 'Adding the empty state to the milestones list',
       failure: null,
       createdAt: '2026-09-18T11:38:00Z',
       startedAt: '2026-09-18T11:40:00Z',
@@ -588,7 +591,7 @@ export const issues: Issue[] = [
    issue(
       'issue-42',
       'BERR-42',
-      'Add an empty state to the goals list',
+      'Add an empty state to the milestones list',
       'in-progress',
       agentToUser(frontendAgent),
       0
@@ -716,7 +719,7 @@ export const runs: RunRecord[] = [
       kind: 'agent',
       purpose: null,
       sequence: 3,
-      summary: 'Adding the empty state to the goals list',
+      summary: 'Adding the empty state to the milestones list',
       usage: {
          inputTokens: 18_400,
          outputTokens: 2_100,
@@ -1223,7 +1226,7 @@ export const storyHandlers = [
          ...(deliveries.find((entry) => entry.id === params.deliveryId) ?? deliveries[0]!),
          payload: {
             action: 'opened',
-            issue: { number: 118, title: 'Goals list has no empty state' },
+            issue: { number: 118, title: 'Milestones list has no empty state' },
          },
       })
    ),

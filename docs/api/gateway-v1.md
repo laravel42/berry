@@ -161,7 +161,7 @@ Validation failures set `details.fields` to an array of field errors:
 | 503 | `DEPENDENCY_UNAVAILABLE` | Runtime dependency is unavailable or timed out |
 | 500 | `INTERNAL` | Unhandled server failure |
 
-Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRED`, `INVALID_STATE_TRANSITION`, `ACTIVE_RUN_EXISTS`, `IDEMPOTENCY_CONFLICT`, `RUN_TERMINAL`, `APPROVAL_REQUIRED`, `APPROVAL_RESOLVED`, `DEPENDENCY_CYCLE`, `ISSUE_NOT_FOUND`, `GOAL_NOT_FOUND`, `GOAL_TRANSITION_INVALID`, `PLAN_FORBIDDEN`, `PLAN_INVALID`, `PLAN_NOT_OPEN`, `PLAN_BUSY`, `PLAN_OPEN_EXISTS`, `PLAN_COMPILE_FAILED`, `PLANNER_UNAVAILABLE`, `BOARD_REQUIRED`, `DEFINITION_INVALID`, `CONNECTIONS_MISSING`, `REVISION_CONFLICT`, `AGENT_UNAVAILABLE`, and `ANSWER_INVALID`.
+Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRED`, `INVALID_STATE_TRANSITION`, `ACTIVE_RUN_EXISTS`, `IDEMPOTENCY_CONFLICT`, `RUN_TERMINAL`, `APPROVAL_REQUIRED`, `APPROVAL_RESOLVED`, `DEPENDENCY_CYCLE`, `ISSUE_NOT_FOUND`, `MILESTONE_NOT_FOUND`, `MILESTONE_TRANSITION_INVALID`, `PLAN_FORBIDDEN`, `PLAN_INVALID`, `PLAN_NOT_OPEN`, `PLAN_BUSY`, `PLAN_OPEN_EXISTS`, `PLAN_COMPILE_FAILED`, `PLANNER_UNAVAILABLE`, `BOARD_REQUIRED`, `DEFINITION_INVALID`, `CONNECTIONS_MISSING`, `REVISION_CONFLICT`, `AGENT_UNAVAILABLE`, and `ANSWER_INVALID`.
 
 ## Resource schemas
 
@@ -259,11 +259,11 @@ An issue additionally carries its place in a plan:
 
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
-| `goal` | `{ "id": Uuid, "title": string }` or null | yes | The goal the issue serves (`goal_issues`) |
+| `goal` | `{ "id": Uuid, "title": string }` or null | yes | The goal the issue serves (`milestone_issues`) |
 | `dependsOn` | `IssueDependencyRef[]` | yes | Issues that must finish before this one starts |
 | `blocks` | `IssueDependencyRef[]` | yes | Issues waiting on this one |
 
-`IssueDependencyRef` is `{ "id": Uuid, "identifier": string, "title": string, "status": IssueStatus }`. `POST`/`PATCH` bodies accept `goalId` (`Uuid` or null; null unlinks); a goal outside the workspace answers `422 GOAL_NOT_FOUND`. `blocked` is an `IssueStatus`: a compiled issue with open blockers starts there and the dependency release moves it to `todo`.
+`IssueDependencyRef` is `{ "id": Uuid, "identifier": string, "title": string, "status": IssueStatus }`. `POST`/`PATCH` bodies accept `milestoneId` (`Uuid` or null; null unlinks); a goal outside the workspace answers `422 MILESTONE_NOT_FOUND`. `blocked` is an `IssueStatus`: a compiled issue with open blockers starts there and the dependency release moves it to `todo`.
 
 ### Comment
 
@@ -394,24 +394,26 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
 }
 ```
 
-### Goal
+### Milestone
 
-`GoalStatus` is one of `draft`, `planned`, `active`, `blocked`, `completed`, `cancelled`. `blocked` is set only by the trigger dispatcher.
+Authored project stage (name, optional description, optional target date, manual sort order). Progress percent is derived from linked issues. `MilestoneStatus` (`draft`, `planned`, `active`, `blocked`, `completed`, `cancelled`) remains for SCM open/closed mapping; product UX uses `progress.percent`. Live rows require `projectId`.
 
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
 | `id` | `Uuid` | yes | |
 | `workspaceId` | `Uuid` | yes | |
-| `projectId` | `Uuid` or null | yes | |
+| `projectId` | `Uuid` | yes | Owning project; required on create |
 | `title` | string | yes | 1–500 characters |
 | `description` | string or null | yes | At most 20,000 characters |
-| `status` | `GoalStatus` | yes | |
-| `source` | `manual \| ai` | yes | Who wrote the goal |
-| `sourcePrompt` | string or null | yes | The prompt an AI goal came from |
+| `status` | `MilestoneStatus` | yes | Coarse SCM/debug status; not the primary UX |
+| `targetDate` | `date` (`YYYY-MM-DD`) or null | yes | Optional delivery target |
+| `sortOrder` | number | yes | Order within the project (ascending) |
+| `source` | `manual \| ai` | yes | Who wrote the milestone |
+| `sourcePrompt` | string or null | yes | The prompt an AI milestone came from |
 | `createdBy` | `ActorRef` or null | yes | |
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 | `startedAt`, `completedAt` | `Timestamp` or null | yes | |
-| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "approvalsPending": integer }` | on list and single reads | Issues linked to the goal, and pending approvals on the goal or its issues |
+| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "issuesWorking", "approvalsPending", "percent": number }` | on list and single reads | `percent` = `round(100 * (finished + 0.5 * working) / total)` when `total > 0`, else `0` |
 
 ### Plan
 
@@ -420,7 +422,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
 | `id`, `workspaceId` | `Uuid` | yes | |
-| `goalId`, `projectId` | `Uuid` or null | yes | The project is the goal's |
+| `milestoneId`, `projectId` | `Uuid` or null | yes | The project is the milestone's |
 | `status` | `draft \| pendingApproval \| approved \| rejected \| superseded` | yes | |
 | `source` | `ai \| manual` | yes | |
 | `sourcePrompt` | string or null | yes | |
@@ -430,7 +432,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | `generation` | `{ "status": idle \| running \| succeeded \| failed, "error": string or null, "stage": string or null }` | yes | `stage` is the pipeline stage in progress while `status` is `running` (`intent`, `context`, `generate`, `validate`, `repair`, `critic`, `finalize`) and null otherwise. `error` is `PLAN_INVALID` when the bounded repairs ran out (the last IR is kept for editing), `shutdown` when the server stopped mid-generation, or `<code> at <stage>` (`timeout`, `ROLE_RATE_LIMITED`, `PLANNER_UNAVAILABLE`, `REQUEST_TOO_LARGE`, `INTENT_INVALID`, `upstream error`) |
 | `validation` | `{ "status": unknown \| valid \| invalid \| blocked, "errors": FieldError[], "warnings": FieldError[], "requiredConnections": [{ "provider", "purpose", "connected" }], "ambiguities": [{ "id", "question", "blocking" }], "risk": low \| medium \| high, "needsAdminActivation": boolean }` | yes | Errors and warnings are recomputed on every read from the stored IR with the workspace's agents and issues; `path` values are JSON pointers into `plan`. `blocked` means the classifier found a blocking question: `plan` is a goal-only skeleton whose `assumptions` carry the questions (`blocking: true`) and `ambiguities` lists them; answering lands in a later phase |
 | `critic` | object or null | yes | `{ "verdict": accept \| revise, "problems": [...], "coverage"?: [{ "requirement", "tasks", "status": covered \| weakened \| missing, "note"? }] }` |
-| `compile` | `{ "status": running \| succeeded \| failed, "error": string or null, "compiledAt": Timestamp or null, "goalId", "issueIds": Uuid[], "approvalIds": Uuid[] }` or null | yes | Null until a compile was attempted |
+| `compile` | `{ "status": running \| succeeded \| failed, "error": string or null, "compiledAt": Timestamp or null, "milestoneId", "issueIds": Uuid[], "approvalIds": Uuid[] }` or null | yes | Null until a compile was attempted |
 | `plan` | BerryPlan or null | yes | The current IR; after compile it carries `compiled` with the temporary-id map. A generated plan may carry `requirements` (`[{ "id", "description" }]`, what the request asked for) and, on each issue, `covers` (the requirement ids it delivers); both are optional and absent on older plans. A requirement no issue covers, or a `covers` id that is not a requirement, is a validation warning |
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 
@@ -444,7 +446,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | `kind` | `ApprovalKind` | yes | |
 | `risk` | `low \| medium \| high` | yes | High risk needs `settings.write` to resolve |
 | `title`, `description` | string, string or null | yes | |
-| `goalId`, `planId`, `issueId` | `Uuid` or null | yes | What the approval gates |
+| `milestoneId`, `planId`, `issueId` | `Uuid` or null | yes | What the approval gates |
 | `issue` | `{ "id", "identifier", "title" }` or null | yes | The gated issue, when any |
 | `requestedFrom` | `{ "userId": Uuid or null, "role": owner \| admin \| member or null }` | yes | The addressee: one person, or anyone holding the role or a stronger one |
 | `requestedBy` | `{ "type": user \| system \| agent, "id": Uuid }` or null | yes | |
@@ -546,7 +548,7 @@ Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `s
 - `404`: issue or assignee `NOT_FOUND`
 - `409`: `INVALID_STATE_TRANSITION`
 - `409`: `APPROVAL_REQUIRED` with `details.approvalId` when the issue's plan or its `issueStart` approval is not approved and the move targets `todo`
-- `422`: `VALIDATION_FAILED`, `GOAL_NOT_FOUND`
+- `422`: `VALIDATION_FAILED`, `MILESTONE_NOT_FOUND`
 
 #### `POST /api/v1/issues/batch`
 
@@ -745,47 +747,54 @@ Requests cancellation. The operation is idempotent while cancellation is pending
 - `409 RUN_TERMINAL`: run already succeeded or failed
 - `503`: dependency unavailable; run remains in its prior state
 
-### Goals
+### Milestones
 
 Every creating `POST` requires `Idempotency-Key`. Reads need `product.read`, writes `product.write`, deletion `settings.write`.
 
-#### `GET /api/v1/goals`
+#### `GET /api/v1/milestones`
 
-Query `workspaceId` (required), `query`, `status`, `projectId`, `first`, `after`. Ordered by `(updatedAt DESC, id DESC)`.
+Query `workspaceId` (required), `query`, `status`, `projectId`, `first`, `after`. With `projectId`, ordered by `(sortOrder ASC, id ASC)` without cursors; otherwise `(updatedAt DESC, id DESC)`.
 
-- `200`: connection of `Goal` (with `progress`)
+- `200`: connection of `Milestone` (with `progress`)
 
-#### `POST /api/v1/goals`
+#### `POST /api/v1/milestones`
 
-Request `{ "workspaceId", "title", "description"?, "projectId"? }`.
+Request `{ "workspaceId", "title", "projectId", "description"?, "targetDate"? }`. Assigns the next `sortOrder` in the project. Status starts as `planned`.
 
-- `201`: `Goal`; `Location: /api/v1/goals/{id}`
+- `201`: `Milestone`; `Location: /api/v1/milestones/{id}`
 - `422`: `VALIDATION_FAILED`, `PROJECT_NOT_FOUND`
 
-#### `GET /api/v1/goals/{goalId}`
+#### `PUT /api/v1/milestones/order`
 
-- `200`: `Goal` with `progress`
+Request `{ "workspaceId", "projectId", "milestoneIds": Uuid[] }` — every live milestone of the project, in the new order. Sets `sortOrder` to `1..n`.
 
-#### `PATCH /api/v1/goals/{goalId}`
+- `200`: `{ "ok": true }`
+- `404`: when the id set does not match the project's live milestones
 
-Any non-empty subset of `title`, `description`, `status`, `projectId`. Status follows `draft → planned → active → completed | cancelled`; `blocked` cannot be requested.
+#### `GET /api/v1/milestones/{milestoneId}`
 
-- `200`: `Goal` with `progress`
-- `422`: `VALIDATION_FAILED`, `GOAL_TRANSITION_INVALID` with `details.from`/`details.to`
+- `200`: `Milestone` with `progress`
 
-#### `DELETE /api/v1/goals/{goalId}`
+#### `PATCH /api/v1/milestones/{milestoneId}`
 
-Archives the goal; its issues keep their links. `settings.write`.
+Any non-empty subset of `title`, `description`, `projectId`, `targetDate`, `sortOrder`, and optionally `status` (SCM/debug). Prefer `PUT /order` for reordering a whole project.
+
+- `200`: `Milestone` with `progress`
+- `422`: `VALIDATION_FAILED`, `MILESTONE_TRANSITION_INVALID` with `details.from`/`details.to`
+
+#### `DELETE /api/v1/milestones/{milestoneId}`
+
+Archives the milestone; its issues keep their links. `settings.write`.
 
 - `204`
 
-#### `GET /api/v1/goals/{goalId}/issues`, `/approvals`, `/plans`
+#### `GET /api/v1/milestones/{milestoneId}/issues`, `/approvals`, `/plans`
 
 - `200`: `{ "nodes": [...] }` summaries
 
-#### `PUT` / `DELETE /api/v1/goals/{goalId}/issues/{issueId}`
+#### `PUT` / `DELETE /api/v1/milestones/{milestoneId}/issues/{issueId}`
 
-Links or unlinks an issue (id or identifier) in the goal's workspace. An issue belongs to at most one goal.
+Links or unlinks an issue (id or identifier) in the milestone's workspace. An issue belongs to at most one milestone.
 
 - `204`
 
@@ -795,11 +804,11 @@ Generated plans only. Mutating routes answer `403 PLAN_FORBIDDEN` for viewers.
 
 #### `POST /api/v1/plans/generate`
 
-Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "goalId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `goalId` no goal exists until the plan is started: `projectId` is kept on the plan, `goalId` stays null, and `POST /approve` creates one goal per milestone (the first becomes the plan's `goalId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
+Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "milestoneId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `milestoneId` no milestone exists until the plan is started: `projectId` is kept on the plan, `milestoneId` stays null, and `POST /approve` creates one milestone row per plan IR milestone (the first becomes the plan's `milestoneId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
 
 - `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
 - `403`: `PLAN_FORBIDDEN`
-- `409`: `PLAN_OPEN_EXISTS` (the goal already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
+- `409`: `PLAN_OPEN_EXISTS` (the milestone already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
 - `412`: `PLANNER_UNAVAILABLE` (no planner configured, or a model role is not provisioned)
 
 #### `POST /api/v1/plans/{planId}/again`
@@ -815,7 +824,7 @@ Plans the same request again on this plan (`product.write`). The plan must still
 
 The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`, and not archived; `all` adds `rejected`, `superseded` and archived). Deleted plans are left out of both. At most 200 rows.
 
-- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "goalId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
+- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "milestoneId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
 
 #### `GET /api/v1/plans/roles`
 
@@ -851,7 +860,7 @@ Re-runs the deterministic checks on the stored IR and records the verdict.
 
 #### `POST /api/v1/plans/{planId}/approve`
 
-Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan in one transaction: the goal is promoted to `planned`, issues are created in dependency order (`todo`; `blocked` when they depend on another issue; `backlog` with an `issueStart` approval when they require approval or match the destructive-action policy), required capabilities become labels, and `goal_issues`, `issue_project_links` and dependency edges are written. A member approving a plan whose `validation.risk` is `high` does not compile: the plan enters `pendingApproval` with a `plan` approval addressed to admins. Approving a compiled plan again is a no-op.
+Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan in one transaction: the goal is promoted to `planned`, issues are created in dependency order (`todo`; `blocked` when they depend on another issue; `backlog` with an `issueStart` approval when they require approval or match the destructive-action policy), required capabilities become labels, and `milestone_issues`, `issue_project_links` and dependency edges are written. A member approving a plan whose `validation.risk` is `high` does not compile: the plan enters `pendingApproval` with a `plan` approval addressed to admins. Approving a compiled plan again is a no-op.
 
 - `200`: `Plan` with `compile.status = "succeeded"`
 - `202`: `Plan` with `status = "pendingApproval"`
@@ -897,7 +906,7 @@ Request `{ "note"? }`. Closes an open plan; a draft AI goal the plan created wit
 
 #### `GET /api/v1/approvals`
 
-Query `workspaceId` (required), `status`, `kind`, `goalId`, `issueId`, `mine` (true returns the pending approvals the caller may resolve), `first`, `after`. Ordered by `(requestedAt DESC, id DESC)`.
+Query `workspaceId` (required), `status`, `kind`, `milestoneId`, `issueId`, `mine` (true returns the pending approvals the caller may resolve), `first`, `after`. Ordered by `(requestedAt DESC, id DESC)`.
 
 - `200`: connection of `Approval`
 
@@ -992,7 +1001,7 @@ This prefix is how a running agent acts on Berry — the only path it has, since
 | `GET /api/v1/agent-tools` | List tools available to the calling agent for its current task |
 | `POST /api/v1/agent-tools/{name}` | Call one tool |
 
-Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_goals`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
+Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_milestones`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
 
 Subscription runtimes receive that same set from the berry MCP server. The task prompt names the sandbox commands, the same set on every runtime, and the agent runs them with `run_command`. A finished run's handoff is the file `.handoffs/<identifier> - <slug of the title>` in the repository. The first line is that path. A task that depends on it is told to read the file. A delivery does not delete any other file under `.handoffs/`. `HANDOFF.md` at the repository root is not a handoff.
 
@@ -1012,7 +1021,7 @@ Follows product changes in one scope. Exactly one of `boardId` or `workspaceId` 
 
 With `boardId`, the stream emits every `issue.*` mutation on the board — whether a person, a batch edit, project planning or a run made it — plus `comment.created` and the run lifecycle events for issues on that board. Replay filters on the event's stored board scope, so a comment posted by a run and a comment posted by a person appear on the same stream.
 
-With `workspaceId` (`product.read`), the stream replays the facts that belong to no board beside the workspace-wide issue and agent moments: `goal.*`, `approval.*`, `plan.*`, `issue.created`, `issue.completed`, `issue.deleted`, `agent.*` and `artifact.created`. Frames use the same envelope with `boardId` and `issueId` null when the aggregate has none. A cursor from one scope is refused on the other.
+With `workspaceId` (`product.read`), the stream replays the facts that belong to no board beside the workspace-wide issue and agent moments: `milestone.*` (and historical `goal.*`), `approval.*`, `plan.*`, `issue.created`, `issue.completed`, `issue.deleted`, `agent.*` and `artifact.created`. Frames use the same envelope with `boardId` and `issueId` null when the aggregate has none. A cursor from one scope is refused on the other.
 
 All three endpoints:
 
@@ -1072,12 +1081,12 @@ Run sequences start at 0 and MUST be contiguous in the persisted stream. Deliver
 | `issue.completed` | `IssueMutation` | Emitted beside `issue.updated` when `status` moved to `done` |
 | `issue.deleted` | `IssueMutation` | Soft delete; the `issue` snapshot is the row as it was |
 | `comment.created` | `{ "comment": Comment }` | `runId` is the authoring run when applicable |
-| `goal.created`, `goal.updated`, `goal.started`, `goal.completed`, `goal.cancelled`, `goal.archived` | `{ "goal": Goal, "changedFields": string[], "actor"? }` | Workspace stream; `goal.archived` is a topic no consumer dispatches or projects on |
+| `milestone.created`, `milestone.updated`, `milestone.started`, `milestone.completed`, `milestone.cancelled`, `milestone.archived` | `{ "milestone": Milestone, "changedFields": string[], "actor"? }` | Workspace stream; `milestone.archived` is a topic no consumer dispatches or projects on. Historical `goal.*` topics with a `goal` payload key still replay. |
 | `project.created`, `project.updated`, `project.archived` | `{ "project": { "id", "workspaceId", "name", "status", … }, "changedFields": string[], "actor"? }` | Workspace stream. A project has no board, so these never appear on a board replay. `project.archived` is the soft-delete. |
 | `approval.requested`, `approval.approved`, `approval.rejected`, `approval.expired` | `{ "approval": Approval, "issueId"?, "actor"? }` | On the board stream too when the approval gates an issue |
 | `integration.webhook.received` | `{ "provider", "event", "deliveryId", "payload" }` | Written once per verified provider delivery by `POST /api/v1/hooks/{provider}`; consumed by the trigger dispatcher, subscribable as a `berry_event` |
-| `plan.approved`, `plan.compiled`, `plan.compile_failed` | `{ "plan": { "id", "workspaceId", "goalId", "status", "compileStatus", "validationStatus" }, ... }` | `plan.compiled` carries `compiled` (the id map); `plan.compile_failed` carries `stage` and `message`. `plan.patched` arrives with conversational editing |
-| `plan.updated`, `plan.generated`, `plan.blocked` | `{ "plan": { "id", "workspaceId", "goalId", "status", "compileStatus", "validationStatus" }, "stage", "status", ... }` | Workspace stream. `plan.updated` is emitted when each pipeline stage starts (`status: "running"`) and once more when generation fails (`status: "failed"`, `error`, `outcome`, `errors` codes when `PLAN_INVALID`); `plan.generated` closes a valid generation with `version`, `confidence`, `repairs`, `warnings` codes and `risk`; `plan.blocked` carries `questions: [{ "id", "question" }]`. None carries prompt text |
+| `plan.approved`, `plan.compiled`, `plan.compile_failed` | `{ "plan": { "id", "workspaceId", "milestoneId", "status", "compileStatus", "validationStatus" }, ... }` | `plan.compiled` carries `compiled` (the id map); `plan.compile_failed` carries `stage` and `message`. `plan.patched` arrives with conversational editing |
+| `plan.updated`, `plan.generated`, `plan.blocked` | `{ "plan": { "id", "workspaceId", "milestoneId", "status", "compileStatus", "validationStatus" }, "stage", "status", ... }` | Workspace stream. `plan.updated` is emitted when each pipeline stage starts (`status: "running"`) and once more when generation fails (`status: "failed"`, `error`, `outcome`, `errors` codes when `PLAN_INVALID`); `plan.generated` closes a valid generation with `version`, `confidence`, `repairs`, `warnings` codes and `risk`; `plan.blocked` carries `questions: [{ "id", "question" }]`. None carries prompt text |
 
 `IssueMutation` is `{ "issue": Issue, "changedFields": string[], "previousStatus"?: IssueStatus, "actor"?: { "type": "user" | "agent", "id": Uuid } }`. `changedFields` is empty for `issue.created` and `issue.deleted`; `previousStatus` is present only when `status` changed; `actor` is the user who made the change and is absent when a run made it. The derived topics (`assigned`, `started`, `completed`) carry the same payload as the `issue.updated` they accompany and are ordered after it.
 
@@ -1124,7 +1133,7 @@ These do not weaken the wire contract above, but require a product decision befo
 
 ## Contract self-check
 
-- Resource shapes: `Board`, `Issue`, `Comment`, `Agent`, `Run`, `Goal`, `Plan`, and `Approval` are defined with constraints; the first five with JSON examples.
+- Resource shapes: `Board`, `Issue`, `Comment`, `Agent`, `Run`, `Milestone`, `Plan`, and `Approval` are defined with constraints; the first five with JSON examples.
 - Pagination: connection envelope, cursor rules, limits, stable ordering, invalid and expired cursor behavior are defined.
 - Errors: one stable envelope, validation details, HTTP mappings, and domain codes are defined.
 - SSE: endpoints (run, board and workspace scopes), reconnection/replay behavior, envelope, ordering/deduplication, redaction rules, event types, payload shapes, and examples are defined.

@@ -56,8 +56,8 @@ const ROWS: Array<{ key: NotificationKey; title: string; description: string }> 
       description: 'A run on your task finishes, fails, or opens a pull request.',
    },
    {
-      key: 'goals',
-      title: 'Goals',
+      key: 'milestones',
+      title: 'Milestones',
       description: 'A goal you follow is planned, blocked or completed.',
    },
    {

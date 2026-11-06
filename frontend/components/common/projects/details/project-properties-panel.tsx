@@ -25,6 +25,7 @@ import { ProjectProgressChart } from './project-progress-chart';
 import { LeadPicker, leadCandidates } from '../lead-picker';
 import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
+import { ProjectGoalsSection } from './project-milestones-section';
 
 interface ProjectPropertiesPanelProps {
    project: Project;
@@ -370,6 +371,9 @@ export function ProjectPropertiesPanel({
                      {project.targetDate ? formatDay(project.targetDate) : 'Target'}
                   </span>
                </PropertyRow>
+            </div>
+            <div className="mt-3">
+               <ProjectGoalsSection projectId={project.id} compact />
             </div>
          </div>
 

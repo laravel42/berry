@@ -2788,7 +2788,7 @@ git commit -m "feat(server-ts): authenticate the public API with scoped personal
 - Test: `server-ts/src/mounts/public-api.test.ts`
 
 **Interfaces:**
-- Consumes: T6 `requireApiCredential`, `personalTokenScopes`, `requireScope`, `requirePlugin`, `actorId`, `readJson`, `PublicApiVariables`, `ApiPrincipal`; T5 `PluginRuntimeStore`, `validStorageKey`; `IssueRepository.get/authorize/update`, `Issue`, `IssuePatch`, `InvalidTransition`, `apiStatusToDb`, `dbStatusToApi` (`src/core/issues.ts`); `CommentRepository.list/create`, `InvalidParent`, `Comment` (`src/core/comments.ts`); `Broadcaster` (`src/realtime/hub.ts`).
+- Consumes: T6 `requireApiCredential`, `personalTokenScopes`, `requireScope`, `requirePlugin`, `actorId`, `readJson`, `PublicApiVariables`, `ApiPrincipal`; T5 `PluginRuntimeStore`, `validStorageKey`; `IssueRepository.get/authorize/update`, `Issue`, `IssuePatch`, `InvalidMilestoneTransition`, `apiStatusToDb`, `dbStatusToApi` (`src/core/issues.ts`); `CommentRepository.list/create`, `InvalidParent`, `Comment` (`src/core/comments.ts`); `Broadcaster` (`src/realtime/hub.ts`).
 - Produces:
   - `publicApiMounts(options: PublicApiOptions): Mount[]`, with prefix `/v1`
   - `interface PublicApiOptions { personalTokens: Pick<BearerResolver, 'resolve'>; sql: Sql; issues: IssueRepository; comments: CommentRepository; plugins: PluginRuntimeStore | null; broadcaster?: Broadcaster | undefined; clock?: () => Date }`
@@ -3014,7 +3014,7 @@ import { InvalidParent, type Comment, type CommentRepository } from '../core/com
 import {
    apiStatusToDb,
    dbStatusToApi,
-   InvalidTransition,
+   InvalidMilestoneTransition,
    type Issue,
    type IssuePatch,
    type IssueRepository,
@@ -3152,7 +3152,7 @@ function publicApiRoutes(options: PublicApiOptions): Hono<{ Variables: PublicApi
       const result = await options.issues
          .update({ issueId: issue.id, patch, actorId: actorId(principal) })
          .catch((error: unknown) => {
-            if (error instanceof InvalidTransition) {
+            if (error instanceof InvalidMilestoneTransition) {
                throw new ApiError(409, 'INVALID_TRANSITION', `Cannot move from ${error.from} to ${error.to}.`);
             }
             return mapIssueError(error);

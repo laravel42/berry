@@ -21,7 +21,7 @@ export function toolsForAgentRow(row: { role_key: string | null; role_contract: 
  * until they press Start Plan. Not for a contract that failed validation: an
  * agent nobody can vouch for gets no new reach.
  */
-export const CHAT_TOOLS: readonly string[] = ['create_goal', 'create_plan'];
+export const CHAT_TOOLS: readonly string[] = ['create_milestone', 'create_plan'];
 
 export async function agentToolAllowlist(
    sql: Sql,

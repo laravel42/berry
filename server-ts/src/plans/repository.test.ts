@@ -51,7 +51,7 @@ describe('opening a plan', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       // in the other repository tests: a workspace brings agents with it, and
       // unpicking that is not what this test is about.
       await sql`DELETE FROM plans WHERE workspace_id = ${workspaceId}`;
-      await sql`DELETE FROM goals WHERE workspace_id = ${workspaceId}`;
+      await sql`DELETE FROM milestones WHERE workspace_id = ${workspaceId}`;
       await closeDatabase(sql);
    });
 
@@ -59,7 +59,7 @@ describe('opening a plan', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       const plans = new PlanRepository(sql);
       const gated = await plans.open({
          workspaceId: workspaceId,
-         goalId: null,
+         milestoneId: null,
          projectId: null,
          boardId: boardId,
          prompt: 'Ship it without waiting on me.',
@@ -70,7 +70,7 @@ describe('opening a plan', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
 
       const reviewed = await plans.open({
          workspaceId: workspaceId,
-         goalId: null,
+         milestoneId: null,
          projectId: null,
          boardId: boardId,
          prompt: 'Ship it, and I will look first.',
@@ -114,7 +114,7 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
       if (!sql) return;
       await sql`DELETE FROM issues WHERE board_id = ${boardId}`;
       await sql`DELETE FROM plans WHERE workspace_id = ${workspaceId}`;
-      await sql`DELETE FROM goals WHERE workspace_id = ${workspaceId}`;
+      await sql`DELETE FROM milestones WHERE workspace_id = ${workspaceId}`;
       await closeDatabase(sql);
    });
 
@@ -122,14 +122,14 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
       const plans = new PlanRepository(sql);
       const opened = await plans.open({
          workspaceId,
-         goalId: null,
+         milestoneId: null,
          projectId: null,
          boardId,
          prompt: 'Build a support desk.',
          createdBy: userId,
       });
-      assert.equal(opened.goalId, null, 'a plan being planned is not a goal yet');
-      const [before] = await sql`SELECT count(*) AS n FROM goals WHERE workspace_id = ${workspaceId}`;
+      assert.equal(opened.milestoneId, null, 'a plan being planned is not a goal yet');
+      const [before] = await sql`SELECT count(*) AS n FROM milestones WHERE workspace_id = ${workspaceId}`;
       assert.equal(Number(before!.n), 0);
       const task = (tempId: string, title: string, milestone: string, dependsOn: string[] = []) => ({
          tempId,
@@ -182,18 +182,18 @@ describe('starting a plan with milestones', { skip: url ? false : 'BERRY_TEST_DA
       const compiled = await plans.compile({ planId: opened.id, userId, note: null });
 
       assert.equal(compiled.compile?.status, 'succeeded');
-      assert.equal(compiled.compile?.goalIds.length, 2);
-      assert.equal(compiled.goalId, compiled.compile?.goalIds[0], 'the first milestone is the plan goal');
+      assert.equal(compiled.compile?.milestoneIds.length, 2);
+      assert.equal(compiled.milestoneId, compiled.compile?.milestoneIds[0], 'the first milestone is the plan goal');
       assert.equal(compiled.compile?.issueIds.length, 3);
 
       // Read in the compiled order rather than by created_at.
       const rows = await sql`
          SELECT goal.id, goal.title, goal.status,
-                (SELECT count(*) FROM goal_issues WHERE goal_id = goal.id) AS tasks
-           FROM goals AS goal WHERE goal.workspace_id = ${workspaceId} AND goal.deleted_at IS NULL`;
+                (SELECT count(*) FROM milestone_issues WHERE milestone_id = goal.id) AS tasks
+           FROM milestones AS goal WHERE goal.workspace_id = ${workspaceId} AND goal.deleted_at IS NULL`;
       const byId = new Map(rows.map((row) => [row.id as string, row]));
       assert.deepEqual(
-         compiled.compile!.goalIds.map((id) => {
+         compiled.compile!.milestoneIds.map((id) => {
             const goal = byId.get(id)!;
             return [goal.title, goal.status, Number(goal.tasks)];
          }),

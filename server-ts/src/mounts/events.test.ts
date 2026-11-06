@@ -62,8 +62,8 @@ test('the two streams carry different topics, and both carry issue moments', () 
    // facts that belong to no board at all.
    assert.ok(BOARD_TOPICS.includes('run.output.delta'));
    assert.ok(BOARD_TOPICS.includes('comment.created'));
-   assert.ok(!(BOARD_TOPICS as readonly string[]).includes('goal.created'));
-   assert.ok(WORKSPACE_TOPICS.includes('goal.created'));
+   assert.ok(!(BOARD_TOPICS as readonly string[]).includes('milestone.created'));
+   assert.ok(WORKSPACE_TOPICS.includes('milestone.created'));
    assert.ok(WORKSPACE_TOPICS.includes('project.created'));
    assert.ok(WORKSPACE_TOPICS.includes('approval.requested'));
    assert.ok(!(BOARD_TOPICS as readonly string[]).includes('project.created'));

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { toRFC3339, type Queryable, type Sql } from '../db/pool.ts';
-import { refreshGoalsForIssue } from './goal-status.ts';
+import { refreshMilestonesForIssue } from './milestone-status.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import { structJSON } from '../http/canonical-json.ts';
@@ -108,7 +108,7 @@ export interface IssueDependencyRef {
 }
 
 export interface IssueRelations {
-   goal: { id: string; title: string } | null;
+   milestone: { id: string; title: string } | null;
    dependsOn: IssueDependencyRef[];
    blocks: IssueDependencyRef[];
 }
@@ -582,7 +582,7 @@ export class IssueRepository {
             occurredAt: now,
          });
          if (patch.status !== undefined && patch.status !== currentStatus) {
-            await refreshGoalsForIssue(tx, params.issueId, now);
+            await refreshMilestonesForIssue(tx, params.issueId, now);
          }
          return { issue, events };
       });
@@ -703,7 +703,7 @@ export class IssueRepository {
    }
 
    /**
-    * Goal, and both directions of the dependency graph.
+    * Milestone, and both directions of the dependency graph.
     *
     * Each edge is described from both ends in one row, because a page that
     * contains both issues of an edge needs the blocker on the dependent's
@@ -712,18 +712,18 @@ export class IssueRepository {
     */
    async loadRelations(issueIds: string[]): Promise<Map<string, IssueRelations>> {
       const result = new Map<string, IssueRelations>(
-         issueIds.map((id) => [id, { goal: null, dependsOn: [], blocks: [] }])
+         issueIds.map((id) => [id, { milestone: null, dependsOn: [], blocks: [] }])
       );
       if (issueIds.length === 0) return result;
 
-      const goals = await this.sql`
+      const milestones = await this.sql`
          SELECT link.issue_id, goal.id, goal.title
-           FROM goal_issues AS link
-           JOIN goals AS goal ON goal.id = link.goal_id AND goal.deleted_at IS NULL
+           FROM milestone_issues AS link
+           JOIN milestones AS goal ON goal.id = link.milestone_id AND goal.deleted_at IS NULL
           WHERE link.issue_id = ANY(${issueIds}::uuid[])`;
-      for (const row of goals) {
+      for (const row of milestones) {
          const relations = result.get(row.issue_id as string);
-         if (relations) relations.goal = { id: row.id as string, title: row.title as string };
+         if (relations) relations.milestone = { id: row.id as string, title: row.title as string };
       }
 
       const edges = await this.sql`

@@ -43,7 +43,7 @@ const NOTIFICATION_KEYS = [
    'comments',
    'statusChanges',
    'approvals',
-   'goals',
+   'milestones',
    'updates',
    'agentActivity',
 ] as const;

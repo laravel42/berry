@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, within } from 'storybook/test';
 import { useSessionStore } from '@/store/session-store';
-import GoalsHeader from './headers/goals/header';
+import MilestonesHeader from './headers/milestones/header';
 import MainLayout from './main-layout';
 import { workspaceRoute } from './stories-fixtures';
 import { CommandPalette } from './command-palette';
@@ -18,10 +18,10 @@ const pageBody = (
 const meta = {
    component: MainLayout,
    tags: ['ai-generated', 'needs-work'],
-   args: { header: <GoalsHeader />, children: pageBody },
+   args: { header: <MilestonesHeader />, children: pageBody },
    parameters: {
       layout: 'fullscreen',
-      nextjs: { navigation: workspaceRoute('/elian/goals') },
+      nextjs: { navigation: workspaceRoute('/elian/milestones') },
    },
    decorators: [
       (Story) => (

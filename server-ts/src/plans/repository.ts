@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { notifyApprovalRequested } from '../approvals/notify.ts';
-import { refreshGoal } from '../core/goal-status.ts';
+import { refreshMilestone } from '../core/milestone-status.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { StageRecord } from './generator.ts';
@@ -30,7 +30,7 @@ export interface PlanSummary {
    title: string;
    projectId: string | null;
    projectName: string | null;
-   goalId: string | null;
+   milestoneId: string | null;
    generation: { status: string; error: string | null; stage: string | null };
    validationStatus: string;
    compileStatus: string;
@@ -51,7 +51,7 @@ export interface PlanSummary {
 export interface PlanRecord {
    id: string;
    workspaceId: string;
-   goalId: string | null;
+   milestoneId: string | null;
    /** The goal's project, which is where the tasks will land. */
    projectId: string | null;
    boardId: string | null;
@@ -72,9 +72,9 @@ export interface PlanRecord {
       status: string;
       error: string | null;
       compiledAt: string | null;
-      goalId: string | null;
-      /** One per milestone, in delivery order. The first is `goalId`. */
-      goalIds: string[];
+      milestoneId: string | null;
+      /** One per milestone, in delivery order. The first is `milestoneId`. */
+      milestoneIds: string[];
       issueIds: string[];
       approvalIds: string[];
    } | null;
@@ -117,7 +117,7 @@ export class OpenPlanExists extends Error {
    }
 }
 
-const COLUMNS = `id, workspace_id, goal_id, project_id, board_id, auto_gate, status, source,
+const COLUMNS = `id, workspace_id, milestone_id, project_id, board_id, auto_gate, status, source,
    source_prompt, ir, ir_version, current_version, planner_version, confidence,
    generation_status, generation_error, generation_stage, validation_status, compile_status, compile_error,
    compiled_at, created_at, updated_at`;
@@ -147,7 +147,7 @@ export class PlanRepository {
     */
    async list(workspaceId: string, filter: { open: boolean }): Promise<PlanSummary[]> {
       const rows = await this.#sql`
-         SELECT p.id, p.status, p.goal_id, p.auto_gate, p.archived_at, p.created_at, p.updated_at,
+         SELECT p.id, p.status, p.milestone_id, p.auto_gate, p.archived_at, p.created_at, p.updated_at,
                 p.generation_status, p.generation_error, p.generation_stage,
                 p.validation_status, p.compile_status,
                 COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
@@ -160,7 +160,7 @@ export class PlanRepository {
                   WHERE ev.plan_id = p.id AND ev.stage = 'execute'
                   ORDER BY ev.sequence DESC LIMIT 1) AS routing_status
            FROM plans AS p
-           LEFT JOIN goals AS g ON g.id = p.goal_id
+           LEFT JOIN milestones AS g ON g.id = p.milestone_id
            LEFT JOIN projects AS pr ON pr.id = COALESCE(p.project_id, g.project_id) AND pr.deleted_at IS NULL
           WHERE p.workspace_id = ${workspaceId}
             AND p.deleted_at IS NULL
@@ -175,7 +175,7 @@ export class PlanRepository {
          title: row.title as string,
          projectId: (row.project_id as string | null) ?? null,
          projectName: (row.project_name as string | null) ?? null,
-         goalId: (row.goal_id as string | null) ?? null,
+         milestoneId: (row.milestone_id as string | null) ?? null,
          generation: {
             status: row.generation_status as string,
             error: (row.generation_error as string | null) ?? null,
@@ -210,7 +210,7 @@ export class PlanRepository {
     */
    async open(input: {
       workspaceId: string;
-      goalId: string | null;
+      milestoneId: string | null;
       projectId: string | null;
       boardId: string;
       prompt: string;
@@ -221,10 +221,10 @@ export class PlanRepository {
       const id = this.#newId();
       return this.#sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
-         if (input.goalId) {
+         if (input.milestoneId) {
             const [existing] = await tx`
                SELECT id FROM plans
-                WHERE goal_id = ${input.goalId} AND status IN ('draft', 'pending_approval', 'approved')
+                WHERE milestone_id = ${input.milestoneId} AND status IN ('draft', 'pending_approval', 'approved')
                 LIMIT 1`;
             // Two open plans for one goal would be two answers to one
             // question, and nothing in the product says which wins.
@@ -233,8 +233,8 @@ export class PlanRepository {
 
          // No goal is created here. A plan that is still generating, waiting
          // on answers or later rejected is not a goal anyone set, and minting
-         // one up front put it in the Goals list before anything was agreed.
-         // Start Plan (`compile`) creates the goals; until then a new plan
+         // one up front put it in the Milestones list before anything was agreed.
+         // Start Plan (`compile`) creates the milestones; until then a new plan
          // carries its project itself (`plans_scope_ck`, migration 199). A goal
          // the caller named keeps its project on the goal, as before.
          const projectId = input.projectId
@@ -247,21 +247,21 @@ export class PlanRepository {
             : null;
          if (input.projectId && !projectId) throw new NotFound();
 
-         const goalId = input.goalId ?? null;
+         const milestoneId = input.milestoneId ?? null;
 
          // A goal the caller named already says which project it serves, and
          // overwriting that from a plan request would let one plan move
          // somebody else's goal.
-         if (input.goalId && projectId) {
+         if (input.milestoneId && projectId) {
             await tx`
-               UPDATE goals SET project_id = ${projectId}, updated_at = now()
-                WHERE id = ${input.goalId} AND project_id IS NULL`;
+               UPDATE milestones SET project_id = ${projectId}, updated_at = now()
+                WHERE id = ${input.milestoneId} AND project_id IS NULL`;
          }
 
          await tx`
-            INSERT INTO plans (id, workspace_id, goal_id, project_id, board_id, status, source,
+            INSERT INTO plans (id, workspace_id, milestone_id, project_id, board_id, status, source,
                                source_prompt, generation_status, created_by, auto_gate)
-            VALUES (${id}, ${input.workspaceId}, ${goalId}, ${goalId ? null : projectId},
+            VALUES (${id}, ${input.workspaceId}, ${milestoneId}, ${milestoneId ? null : projectId},
                     ${input.boardId}, 'draft', 'ai', ${input.prompt}, 'running',
                     ${input.createdBy}, ${input.autoGate ?? false})`;
          // `proposed_by` is deliberately left null: it references `agents`,
@@ -502,36 +502,37 @@ export class PlanRepository {
          // One goal per milestone, in the plan's project. A goal the plan was
          // asked for becomes the first milestone rather than lingering as an
          // empty group beside the real ones; otherwise the first milestone's
-         // new goal becomes the plan's own (`plans.goal_id`, set below).
-         const goalOf = new Map<string, string>();
-         const goalIds: string[] = [];
+         // new goal becomes the plan's own (`plans.milestone_id`, set below).
+         const milestoneOf = new Map<string, string>();
+         const milestoneIds: string[] = [];
          const milestones =
             plan.milestones.length > 0
                ? plan.milestones
                : [{ tempId: plan.goal.tempId, title: plan.goal.title, description: plan.goal.description ?? null }];
          for (const [index, milestone] of milestones.entries()) {
-            let goalId: string;
-            if (index === 0 && record.goalId) {
-               goalId = record.goalId;
+            let milestoneId: string;
+            if (index === 0 && record.milestoneId) {
+               milestoneId = record.milestoneId;
                await tx`
-                  UPDATE goals
+                  UPDATE milestones
                      SET title = ${milestone.title}, description = ${milestone.description ?? null},
                          project_id = COALESCE(project_id, ${record.projectId}),
+                         sort_order = ${index + 1},
                          status = 'planned', updated_at = ${now}
-                   WHERE id = ${goalId}`;
+                   WHERE id = ${milestoneId}`;
             } else {
-               goalId = this.#newId();
+               milestoneId = this.#newId();
                await tx`
-                  INSERT INTO goals (id, workspace_id, project_id, title, description, status,
-                                     source, created_by, created_at, updated_at)
-                  VALUES (${goalId}, ${record.workspaceId}, ${record.projectId}, ${milestone.title},
-                          ${milestone.description ?? null}, 'planned', 'ai', ${input.userId},
+                  INSERT INTO milestones (id, workspace_id, project_id, title, description, status,
+                                     source, sort_order, created_by, created_at, updated_at)
+                  VALUES (${milestoneId}, ${record.workspaceId}, ${record.projectId}, ${milestone.title},
+                          ${milestone.description ?? null}, 'planned', 'ai', ${index + 1}, ${input.userId},
                           ${now}, ${now})`;
             }
-            goalOf.set(milestone.tempId, goalId);
-            goalIds.push(goalId);
+            milestoneOf.set(milestone.tempId, milestoneId);
+            milestoneIds.push(milestoneId);
          }
-         const firstGoalId = goalIds[0]!;
+         const firstMilestoneId = milestoneIds[0]!;
 
          const labelIds = await ensureLabels(tx, record.workspaceId, plan, input.userId);
          const issueIds = new Map<string, string>();
@@ -569,9 +570,9 @@ export class PlanRepository {
             issueIds.set(issue.tempId, issueId);
 
             await tx`
-               INSERT INTO goal_issues (workspace_id, goal_id, issue_id)
+               INSERT INTO milestone_issues (workspace_id, milestone_id, issue_id)
                VALUES (${record.workspaceId},
-                       ${(issue.milestone && goalOf.get(issue.milestone)) ?? firstGoalId},
+                       ${(issue.milestone && milestoneOf.get(issue.milestone)) ?? firstMilestoneId},
                        ${issueId})
                ON CONFLICT (issue_id) DO NOTHING`;
             await tx`
@@ -616,13 +617,13 @@ export class PlanRepository {
                   plan.approvals.find((a) => a.target.tempId === issue.tempId)?.reason ?? null;
                await tx`
                   INSERT INTO approvals (id, workspace_id, kind, risk, title, description, issue_id,
-                                         plan_id, goal_id, requested_from_role, requested_by_type,
+                                         plan_id, milestone_id, requested_from_role, requested_by_type,
                                          requested_by, status)
                   VALUES (${approvalId}, ${record.workspaceId}, 'issue_start', 'medium',
                           ${title},
                           ${description},
                           ${issueId}, ${input.planId},
-                          ${(issue.milestone && goalOf.get(issue.milestone)) ?? firstGoalId},
+                          ${(issue.milestone && milestoneOf.get(issue.milestone)) ?? firstMilestoneId},
                           'admin', 'user',
                           ${input.userId}, 'pending')`;
                await notifyApprovalRequested(tx, {
@@ -643,7 +644,7 @@ export class PlanRepository {
 
          // Planned is the status compile writes. A milestone whose tasks are
          // all blocked is not planned, and the goal should say so immediately.
-         for (const goalId of goalIds) await refreshGoal(tx, goalId, now);
+         for (const milestoneId of milestoneIds) await refreshMilestone(tx, milestoneId, now);
 
          // `approved` with a succeeded compile, not a `compiled` status: the
          // column has no such value, and the contract already distinguishes
@@ -651,7 +652,7 @@ export class PlanRepository {
          await tx`
             UPDATE plans
                SET status = 'approved', approved_by = ${input.userId},
-                   goal_id = ${firstGoalId},
+                   milestone_id = ${firstMilestoneId},
                    approved_at = ${now}, decision_note = ${input.note},
                    compile_status = 'succeeded', compile_error = NULL, compiled_at = ${now},
                    updated_at = ${now}
@@ -662,7 +663,7 @@ export class PlanRepository {
             planId: input.planId,
             stage: 'compile',
             outcome: 'ok',
-            detail: { goals: goalIds.length, issues: issueIds.size, approvals: approvalIds.length },
+            detail: { milestones: milestoneIds.length, issues: issueIds.size, approvals: approvalIds.length },
          });
       });
 
@@ -768,13 +769,13 @@ export class PlanRepository {
 
       // The goal's project once there is a goal; before Start Plan a new plan
       // carries its project itself.
-      const [project] = row.goal_id
+      const [project] = row.milestone_id
          ? await sql`
               SELECT project.id, project.name, project.github_repo_full_name
-                FROM goals AS goal
+                FROM milestones AS milestone
                 JOIN projects AS project
-                  ON project.id = goal.project_id AND project.deleted_at IS NULL
-               WHERE goal.id = ${row.goal_id as string}`
+                  ON project.id = milestone.project_id AND project.deleted_at IS NULL
+               WHERE milestone.id = ${row.milestone_id as string}`
          : row.project_id
            ? await sql`
                 SELECT id, name, github_repo_full_name FROM projects
@@ -783,7 +784,7 @@ export class PlanRepository {
 
       let issueIds: string[] = [];
       let approvalIds: string[] = [];
-      let goalIds: string[] = [];
+      let milestoneIds: string[] = [];
       const [routingEvent] = await sql`
          SELECT outcome, detail FROM planner_events
           WHERE plan_id = ${row.id as string} AND stage = 'execute'
@@ -792,18 +793,18 @@ export class PlanRepository {
          const issues = await sql`
             SELECT issue_id FROM plan_issues WHERE plan_id = ${row.id as string}`;
          issueIds = issues.map((entry) => entry.issue_id as string);
-         // The goals this plan's tasks were grouped into. The plan's own goal
+         // The milestones this plan's tasks were grouped into. The plan's own goal
          // first — it is the first milestone — then the rest in the order
          // compile created them, which is delivery order.
-         const goals = await sql`
-            SELECT DISTINCT goal.id, goal.created_at
-              FROM goal_issues AS membership
+         const milestones = await sql`
+            SELECT DISTINCT milestone.id, milestone.created_at
+              FROM milestone_issues AS membership
               JOIN plan_issues AS planned ON planned.issue_id = membership.issue_id
-              JOIN goals AS goal ON goal.id = membership.goal_id
+              JOIN milestones AS milestone ON milestone.id = membership.milestone_id
              WHERE planned.plan_id = ${row.id as string}
-             ORDER BY goal.created_at ASC, goal.id ASC`;
-         const anchor = (row.goal_id as string | null) ?? null;
-         goalIds = goals
+             ORDER BY milestone.created_at ASC, milestone.id ASC`;
+         const anchor = (row.milestone_id as string | null) ?? null;
+         milestoneIds = milestones
             .map((entry) => entry.id as string)
             .sort((left, right) => (left === anchor ? -1 : right === anchor ? 1 : 0));
          const approvals = await sql`
@@ -814,7 +815,7 @@ export class PlanRepository {
       return {
          id: row.id as string,
          workspaceId: row.workspace_id as string,
-         goalId: (row.goal_id as string | null) ?? null,
+         milestoneId: (row.milestone_id as string | null) ?? null,
          projectId: (project?.id as string | undefined) ?? null,
          boardId: (row.board_id as string | null) ?? null,
          autoGate: Boolean(row.auto_gate),
@@ -865,8 +866,8 @@ export class PlanRepository {
                  status: row.compile_status as string,
                  error: (row.compile_error as string | null) ?? null,
                  compiledAt: toRFC3339(row.compiled_at as string | null),
-                 goalId: (row.goal_id as string | null) ?? null,
-                 goalIds,
+                 milestoneId: (row.milestone_id as string | null) ?? null,
+                 milestoneIds,
                  issueIds,
                  approvalIds,
               }

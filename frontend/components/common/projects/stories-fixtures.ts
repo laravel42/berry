@@ -1,5 +1,5 @@
 /**
- * Shared story data for components/common/projects, goals and cycles.
+ * Shared story data for components/common/projects, milestones and cycles.
  *
  * Modelled on what the app holds after `/api/v1/projects` and friends have
  * been mapped by lib/*.ts: a workspace of people plus an agent, a handful of
@@ -14,11 +14,11 @@ import type { ProjectDetail, ProjectUpdate } from '@/data/project-details';
 import { health, type Health, type Project } from '@/data/projects';
 import { status as issueStatuses, type Status } from '@/data/status';
 import type { User } from '@/data/users';
-import type { Goal } from '@/lib/goals';
+import type { Milestone } from '@/lib/milestones';
 import { leadToApi } from '@/lib/project-lead';
 import { useApprovalsStore } from '@/store/approvals-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
-import { useGoalsStore } from '@/store/goals-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useMembersStore } from '@/store/members-store';
 import { usePinsStore } from '@/store/pins-store';
@@ -360,62 +360,102 @@ export const apiRepositories = {
    },
 };
 
-/* --------------------------------- Goals --------------------------------- */
+/* --------------------------------- Milestones --------------------------------- */
 
-export function makeGoal(overrides: Partial<Goal> & Pick<Goal, 'id' | 'title'>): Goal {
+export function makeMilestone(
+   overrides: Partial<Milestone> & Pick<Milestone, 'id' | 'title'>
+): Milestone {
    return {
       workspaceId: 'ws-1',
       projectId: projectHealth.id,
       description: null,
       status: 'active',
+      targetDate: null,
+      sortOrder: 1,
       createdBy: { type: 'user', id: andrea.id, name: andrea.name, avatarUrl: null },
       createdAt: '2026-09-01T09:00:00Z',
       updatedAt: '2026-09-18T09:00:00Z',
       startedAt: '2026-09-02T11:20:00Z',
       completedAt: null,
-      progress: { issuesTotal: 5, issuesDone: 3, issuesCancelled: 0, approvalsPending: 1 },
+      progress: {
+         issuesTotal: 5,
+         issuesDone: 3,
+         issuesCancelled: 0,
+         issuesWorking: 1,
+         approvalsPending: 1,
+         percent: 70,
+      },
       ...overrides,
    };
 }
 
-export const goalActive = makeGoal({
+export const milestoneActive = makeMilestone({
    id: 'goal-1',
    title: 'Project health survives a reload',
    description:
       'Every health change is stored with an update, so the chip reads the same for everyone.',
 });
 
-export const goalBlocked = makeGoal({
+export const milestoneBlocked = makeMilestone({
    id: 'goal-2',
    title: 'Runtime restores cold sessions',
    projectId: projectRunner.id,
    status: 'blocked',
+   sortOrder: 1,
    updatedAt: '2026-09-16T12:00:00Z',
-   progress: { issuesTotal: 3, issuesDone: 1, issuesCancelled: 0, approvalsPending: 0 },
+   progress: {
+      issuesTotal: 3,
+      issuesDone: 1,
+      issuesCancelled: 0,
+      issuesWorking: 0,
+      approvalsPending: 0,
+      percent: 33,
+   },
 });
 
-export const goalPlanned = makeGoal({
+export const milestonePlanned = makeMilestone({
    id: 'goal-3',
    title: 'Approvals land in one inbox',
-   projectId: null,
+   projectId: projectHealth.id,
    description: 'Proposals and approvals move out of the sidebar into the inbox.',
    status: 'planned',
+   sortOrder: 2,
    startedAt: null,
    updatedAt: '2026-09-10T08:00:00Z',
-   progress: { issuesTotal: 4, issuesDone: 0, issuesCancelled: 0, approvalsPending: 0 },
+   progress: {
+      issuesTotal: 4,
+      issuesDone: 0,
+      issuesCancelled: 0,
+      issuesWorking: 0,
+      approvalsPending: 0,
+      percent: 0,
+   },
 });
 
-export const goalCompleted = makeGoal({
+export const milestoneCompleted = makeMilestone({
    id: 'goal-4',
    title: 'New workspaces get an organization',
    projectId: projectOnboarding.id,
    status: 'completed',
+   sortOrder: 1,
    completedAt: '2026-08-01T17:00:00Z',
    updatedAt: '2026-08-01T17:00:00Z',
-   progress: { issuesTotal: 6, issuesDone: 5, issuesCancelled: 1, approvalsPending: 0 },
+   progress: {
+      issuesTotal: 6,
+      issuesDone: 5,
+      issuesCancelled: 1,
+      issuesWorking: 0,
+      approvalsPending: 0,
+      percent: 100,
+   },
 });
 
-export const storyGoals: Goal[] = [goalActive, goalBlocked, goalPlanned, goalCompleted];
+export const storyGoals: Milestone[] = [
+   milestoneActive,
+   milestoneBlocked,
+   milestonePlanned,
+   milestoneCompleted,
+];
 
 /* --------------------------------- Seeds --------------------------------- */
 
@@ -445,7 +485,7 @@ export function seedProjectStores({
    });
 }
 
-export function seedGoalStores(goals: Goal[] = storyGoals) {
-   useGoalsStore.setState({ goals, error: null, loaded: true });
+export function seedGoalStores(milestones: Milestone[] = storyGoals) {
+   useMilestonesStore.setState({ milestones, error: null, loaded: true });
    useApprovalsStore.setState({ approvals: [], loaded: true, error: null });
 }

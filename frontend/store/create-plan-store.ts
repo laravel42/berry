@@ -3,7 +3,7 @@ import { create } from 'zustand';
 /** What a caller can pre-fill when opening the plan prompt. */
 export interface CreatePlanPrefill {
    prompt?: string;
-   goalId?: string;
+   milestoneId?: string;
    projectId?: string;
    hint?: 'issue' | 'auto';
 }

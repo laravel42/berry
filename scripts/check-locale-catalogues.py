@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MESSAGES = ROOT / "frontend" / "messages"
 LOCALES = ("en",)
 NAMESPACES = (
-    "common", "settings", "shell", "tasks", "projects", "goals", "reviews", "agents", "runtimes",
+    "common", "settings", "shell", "tasks", "projects", "milestones", "reviews", "agents", "runtimes",
     "navigation",
     "issueDetail",
     "issueLists",

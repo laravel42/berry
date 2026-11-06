@@ -14,7 +14,7 @@ import { DetailSectionLabel } from './detail-section-label';
 
 /** The same compact progress a goal row shows: a short bar and done/total. */
 function PlanCardProgress({ plan }: { plan: PlanSummary }) {
-   const t = useTranslations('goals.plans');
+   const t = useTranslations('milestones.plans');
    if (plan.createdTasks > 0) {
       const percent = Math.round((plan.finishedTasks / plan.createdTasks) * 100);
       return (
@@ -41,7 +41,7 @@ function PlanCardProgress({ plan }: { plan: PlanSummary }) {
 }
 
 /**
- * The plans this project carries, above its goals. Rejected and superseded
+ * The plans this project carries, above its milestones. Rejected and superseded
  * plans are history and stay on the Plans page; with none left the section
  * is not drawn at all.
  */

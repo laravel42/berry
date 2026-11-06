@@ -113,7 +113,7 @@ export const notificationSwitches = {
       comments: false,
       statusChanges: true,
       approvals: true,
-      goals: false,
+      milestones: false,
       updates: false,
       agentActivity: true,
    },

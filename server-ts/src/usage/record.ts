@@ -161,7 +161,7 @@ export async function recordTaskUsage(sql: Sql, input: TaskUsageInput): Promise<
          type: 'usage.recorded',
          occurredAt: toRFC3339(occurredAt),
          workspaceId: usage.workspaceId,
-         // Workspace-level, like goals: usage belongs to no board's replay.
+         // Workspace-level, like milestones: usage belongs to no board's replay.
          boardId: null,
          aggregateType: 'run',
          aggregateId: usage.runId,
