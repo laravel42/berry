@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Message } from '@strands-agents/sdk';
 import { test } from 'node:test';
+import { LMSTUDIO_NO_TOKEN } from '../../runtime/envelope.ts';
 import { ApiTokenCallError, ApiTokenModel, buildRequest, readReply } from './api-token-model.ts';
 
 const TOKEN = 'secret-token-value';
@@ -156,4 +157,50 @@ test('a Gemini reply streams text then usage', async () => {
    assert.ok(usage && 'usage' in usage);
    assert.equal(usage.usage?.inputTokens, 5);
    assert.equal(usage.usage?.outputTokens, 2);
+});
+
+test('LM Studio chat goes to the connected address with no header when authentication is off', () => {
+   const request = buildRequest(
+      { runtimeId: 'lmstudio', model: 'qwen/qwen3-coder-30b', token: LMSTUDIO_NO_TOKEN, baseUrl: 'http://192.168.1.20:1234/v1' },
+      [user('hello')],
+      { toolSpecs: [{ name: 'read_task', description: 'read', inputSchema: { type: 'object', properties: {} } }] }
+   );
+   assert.equal(request.url, 'http://192.168.1.20:1234/v1/chat/completions');
+   assert.deepEqual(request.headers, {});
+   assert.equal(request.body.model, 'qwen/qwen3-coder-30b');
+   const tools = request.body.tools as Array<{ function: { name: string } }>;
+   assert.equal(tools[0]?.function.name, 'read_task');
+});
+
+test('LM Studio sends a pasted token as a bearer header', () => {
+   const request = buildRequest(
+      { runtimeId: 'lmstudio', model: 'm', token: TOKEN, baseUrl: 'http://localhost:1234/v1' },
+      [user('hello')]
+   );
+   assert.equal(request.headers.authorization, `Bearer ${TOKEN}`);
+});
+
+test('LM Studio without a connected address is refused before any call', () => {
+   assert.throws(
+      () => buildRequest({ runtimeId: 'lmstudio', model: 'm', token: LMSTUDIO_NO_TOKEN }, [user('hello')]),
+      (error: unknown) => error instanceof ApiTokenCallError && /server address/.test(error.message)
+   );
+});
+
+test('LM Studio tool calls read like OpenAI tool calls', () => {
+   const reply = readReply('lmstudio', {
+      choices: [
+         {
+            finish_reason: 'tool_calls',
+            message: {
+               role: 'assistant',
+               content: null,
+               tool_calls: [{ id: '365174485', type: 'function', function: { name: 'read_task', arguments: '{"ref":"BER-42"}' } }],
+            },
+         },
+      ],
+      usage: { prompt_tokens: 120, completion_tokens: 18 },
+   });
+   assert.deepEqual(reply.tools, [{ id: '365174485', name: 'read_task', input: { ref: 'BER-42' } }]);
+   assert.equal(reply.usage.inputTokens, 120);
 });

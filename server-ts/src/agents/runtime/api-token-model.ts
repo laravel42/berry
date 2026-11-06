@@ -12,7 +12,7 @@ import {
    type StreamOptions,
    type ToolSpec,
 } from '@strands-agents/sdk';
-import type { TaskEnvelope } from '../../runtime/envelope.ts';
+import { LMSTUDIO_NO_TOKEN, type TaskEnvelope } from '../../runtime/envelope.ts';
 import type { ModelFactory } from './model.ts';
 
 /**
@@ -24,6 +24,8 @@ import type { ModelFactory } from './model.ts';
  */
 
 const TIMEOUT_MS = 120_000;
+/** A local model on a laptop can take minutes for one long tool-calling turn. */
+const LOCAL_TIMEOUT_MS = 600_000;
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
@@ -31,6 +33,8 @@ export interface ApiTokenModelOptions {
    runtimeId: string;
    model: string;
    token: string;
+   /** A self-hosted server's `/v1` base URL. Required for LM Studio. */
+   baseUrl?: string | undefined;
    maxTokens?: number | undefined;
    temperature?: number | undefined;
    fetchImpl?: FetchLike;
@@ -66,6 +70,7 @@ export function apiTokenModelFactory(
          runtimeId: runtime.id,
          model,
          token: runtime.credential.token,
+         baseUrl: runtime.credential.baseUrl,
          maxTokens: spec.maxTokens,
          temperature: spec.temperature,
          fetchImpl,
@@ -77,6 +82,7 @@ export class ApiTokenModel extends Model<BaseModelConfig> {
    readonly #runtimeId: string;
    readonly #model: string;
    readonly #token: string;
+   readonly #baseUrl: string | undefined;
    readonly #maxTokens: number | undefined;
    readonly #temperature: number | undefined;
    readonly #fetch: FetchLike;
@@ -86,6 +92,7 @@ export class ApiTokenModel extends Model<BaseModelConfig> {
       this.#runtimeId = options.runtimeId;
       this.#model = options.model;
       this.#token = options.token;
+      this.#baseUrl = options.baseUrl;
       this.#maxTokens = options.maxTokens;
       this.#temperature = options.temperature;
       this.#fetch = options.fetchImpl ?? fetch;
@@ -107,6 +114,7 @@ export class ApiTokenModel extends Model<BaseModelConfig> {
             runtimeId: this.#runtimeId,
             model: this.#model,
             token: this.#token,
+            baseUrl: this.#baseUrl,
             maxTokens: this.#maxTokens,
             temperature: this.#temperature,
             fetchImpl: this.#fetch,
@@ -127,12 +135,12 @@ interface ProviderReply {
 
 async function invokeProvider(
    options: Required<Pick<ApiTokenModelOptions, 'runtimeId' | 'model' | 'token' | 'fetchImpl'>> &
-      Pick<ApiTokenModelOptions, 'maxTokens' | 'temperature'>,
+      Pick<ApiTokenModelOptions, 'baseUrl' | 'maxTokens' | 'temperature'>,
    messages: Message[],
    stream?: StreamOptions
 ): Promise<ProviderReply> {
    const request = buildRequest(options, messages, stream);
-   const timeout = AbortSignal.timeout(TIMEOUT_MS);
+   const timeout = AbortSignal.timeout(options.runtimeId === 'lmstudio' ? LOCAL_TIMEOUT_MS : TIMEOUT_MS);
    const signal = stream?.cancelSignal ? AbortSignal.any([stream.cancelSignal, timeout]) : timeout;
    let response: Response;
    try {
@@ -145,10 +153,19 @@ async function invokeProvider(
       });
    } catch (error) {
       if (stream?.cancelSignal?.aborted) throw error;
-      throw new ApiTokenCallError('The model provider could not be reached.');
+      throw new ApiTokenCallError(
+         options.runtimeId === 'lmstudio'
+            ? 'LM Studio could not be reached from the compute host. Check that its server is running at the connected address.'
+            : 'The model provider could not be reached.'
+      );
    }
    if (response.status === 401 || response.status === 403) {
-      throw new ApiTokenCallError('The API token was refused.', response.status);
+      throw new ApiTokenCallError(
+         options.runtimeId === 'lmstudio'
+            ? 'LM Studio refused the request. Reconnect it with an API token from Server Settings.'
+            : 'The API token was refused.',
+         response.status
+      );
    }
    let body: unknown;
    try {
@@ -168,7 +185,7 @@ async function invokeProvider(
 
 export function buildRequest(
    options: Required<Pick<ApiTokenModelOptions, 'runtimeId' | 'model' | 'token'>> &
-      Pick<ApiTokenModelOptions, 'maxTokens' | 'temperature'>,
+      Pick<ApiTokenModelOptions, 'baseUrl' | 'maxTokens' | 'temperature'>,
    messages: Message[],
    stream?: StreamOptions
 ): { url: string; headers: Record<string, string>; body: Record<string, unknown> } {
@@ -176,9 +193,17 @@ export function buildRequest(
       case 'gemini':
          return geminiRequest(options, messages, stream);
       case 'openai':
-         return openAiRequest('https://api.openai.com/v1/chat/completions', options, messages, stream);
+         return openAiRequest('https://api.openai.com/v1/chat/completions', bearer(options.token), options, messages, stream);
       case 'xai':
-         return openAiRequest('https://api.x.ai/v1/chat/completions', options, messages, stream);
+         return openAiRequest('https://api.x.ai/v1/chat/completions', bearer(options.token), options, messages, stream);
+      case 'lmstudio': {
+         if (!options.baseUrl) {
+            throw new ApiTokenCallError('Reconnect LM Studio with its server address before running this task.');
+         }
+         // LM Studio answers without a token unless authentication is on.
+         const headers = options.token === LMSTUDIO_NO_TOKEN ? {} : bearer(options.token);
+         return openAiRequest(`${options.baseUrl}/chat/completions`, headers, options, messages, stream);
+      }
       case 'anthropic':
          return anthropicRequest(options, messages, stream);
       default:
@@ -192,6 +217,7 @@ export function readReply(runtimeId: string, body: unknown): ProviderReply {
          return readGemini(body);
       case 'openai':
       case 'xai':
+      case 'lmstudio':
          return readOpenAi(body);
       case 'anthropic':
          return readAnthropic(body);
@@ -225,8 +251,13 @@ function geminiRequest(
    };
 }
 
+function bearer(token: string): Record<string, string> {
+   return { authorization: `Bearer ${token}` };
+}
+
 function openAiRequest(
    url: string,
+   headers: Record<string, string>,
    options: Required<Pick<ApiTokenModelOptions, 'model' | 'token'>> & Pick<ApiTokenModelOptions, 'maxTokens' | 'temperature'>,
    messages: Message[],
    stream?: StreamOptions
@@ -247,11 +278,7 @@ function openAiRequest(
       ...(tools.length > 0 ? { tools } : {}),
       ...openAiToolChoice(stream),
    };
-   return {
-      url,
-      headers: { authorization: `Bearer ${options.token}` },
-      body,
-   };
+   return { url, headers, body };
 }
 
 function anthropicRequest(

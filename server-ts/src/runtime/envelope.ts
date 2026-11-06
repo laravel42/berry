@@ -114,6 +114,12 @@ const runtimeCredentialSchema = z.object({
    token: z.string().min(1),
    accountId: z.string().nullable(),
    accountName: z.string().nullable(),
+   /**
+    * Where a self-hosted OpenAI-compatible server answers, such as an LM
+    * Studio `/v1` base URL. Absent for providers with a fixed endpoint.
+    * Not a secret.
+    */
+   baseUrl: z.url({ protocol: /^https?$/ }).max(2048).optional(),
 });
 
 export const taskEnvelopeSchema = z.object({
@@ -273,6 +279,12 @@ export const CURSOR_CLI_LOGIN = 'cursor-cli';
  * Berry does not store or read that credential. The value is not a secret.
  */
 export const QODER_CLI_LOGIN = 'qoder-cli';
+
+/**
+ * Marks an LM Studio connection whose server has authentication off. The
+ * runtime sends no Authorization header. The value is not a secret.
+ */
+export const LMSTUDIO_NO_TOKEN = 'lmstudio-no-token';
 
 const REDACTED = '[redacted]';
 

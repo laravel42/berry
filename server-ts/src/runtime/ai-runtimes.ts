@@ -442,7 +442,19 @@ export class AiRuntimeRepository {
 
    async recordModels(
       connectionId: string,
-      models: Array<{ id: string; name: string; reasoning: boolean | null; tools: boolean | null; policy: string | null }>
+      models: Array<{
+         id: string;
+         name: string;
+         reasoning?: boolean | null;
+         tools?: boolean | null;
+         policy?: string | null;
+         maxContextLength?: number | null;
+         capabilities?: {
+            vision: boolean;
+            trainedForToolUse: boolean;
+            reasoning?: { allowedOptions: string[]; default: string } | null;
+         } | null;
+      }>
    ): Promise<void> {
       const updated = await this.#sql`
          UPDATE ai_runtime_connections

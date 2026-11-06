@@ -164,8 +164,9 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { isApiTokenRuntime } from './runtime/ai-runtime-catalog.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { isApiTokenRuntime, takesBaseUrl } from './runtime/ai-runtime-catalog.ts';
+import { lmStudioBaseUrl } from './runtime/lmstudio-endpoint.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, LMSTUDIO_NO_TOKEN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
@@ -680,8 +681,10 @@ const executor = new RuntimeTaskExecutor({
                  external_account_id: string | null;
                  external_account_name: string | null;
                  credential_sealed: Buffer | null;
+                 metadata: Record<string, unknown> | null;
               }>>`
-                 SELECT connection.external_account_id, connection.external_account_name, connection.credential_sealed
+                 SELECT connection.external_account_id, connection.external_account_name, connection.credential_sealed,
+                        connection.metadata
                    FROM ai_runtime_connections AS connection
                    JOIN workspace_memberships AS membership
                      ON membership.workspace_id = connection.workspace_id
@@ -694,6 +697,25 @@ const executor = new RuntimeTaskExecutor({
                     AND connection.external_account_id IS NOT DISTINCT FROM ${accountId}`;
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
+              }
+              if (takesBaseUrl(runtimeId)) {
+                 const stored = connection.metadata?.baseUrl;
+                 const baseUrl = typeof stored === 'string' ? lmStudioBaseUrl(stored) : null;
+                 if (baseUrl === null) {
+                    throw new Error('the personal AI runtime connection is no longer usable');
+                 }
+                 const sealed = connection.credential_sealed ? Buffer.from(connection.credential_sealed) : null;
+                 const sealer = sealed && config.integrationKey ? sealerFromKey(config.integrationKey) : null;
+                 if (sealed && !sealer) {
+                    throw new Error('the personal AI runtime connection is no longer usable');
+                 }
+                 return {
+                    type: 'api_key',
+                    token: sealed && sealer ? sealer.open(sealed) : LMSTUDIO_NO_TOKEN,
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                    baseUrl,
+                 };
               }
               if (isApiTokenRuntime(runtimeId)) {
                  const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;

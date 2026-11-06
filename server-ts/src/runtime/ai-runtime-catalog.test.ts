@@ -1,21 +1,27 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { AI_RUNTIME_CATALOG, AI_RUNTIME_IDS, withWorkstationCliPresence } from './ai-runtime-catalog.ts';
+import {
+   AI_RUNTIME_CATALOG,
+   AI_RUNTIME_IDS,
+   isApiTokenRuntime,
+   takesBaseUrl,
+   withWorkstationCliPresence,
+} from './ai-runtime-catalog.ts';
 
 describe('AI runtime catalog', () => {
    test('lists only connectable runtimes, each exactly once', () => {
-      assert.equal(AI_RUNTIME_CATALOG.length, 11);
+      assert.equal(AI_RUNTIME_CATALOG.length, 12);
       assert.deepEqual(
          [...AI_RUNTIME_CATALOG.map((runtime) => runtime.id)].sort(),
          [...AI_RUNTIME_IDS].sort()
       );
-      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 11);
+      assert.equal(new Set(AI_RUNTIME_CATALOG.map((runtime) => runtime.id)).size, 12);
    });
 
    test('advertises only a fully implemented integration', () => {
       assert.deepEqual(
          AI_RUNTIME_CATALOG.map((runtime) => runtime.id),
-         ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi', 'openai', 'xai', 'anthropic', 'gemini']
+         ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi', 'openai', 'xai', 'anthropic', 'gemini', 'lmstudio']
       );
       for (const runtime of AI_RUNTIME_CATALOG) {
          assert.equal(runtime.availability, 'available', runtime.id);
@@ -31,6 +37,21 @@ describe('AI runtime catalog', () => {
          assert.equal(runtime?.executionMode, 'direct_inference', id);
          assert.equal(runtime?.billing, 'api_billing', id);
          assert.equal(runtime?.localProcess, false, id);
+         assert.equal(isApiTokenRuntime(id), true, id);
+         assert.equal(takesBaseUrl(id), false, id);
+      }
+   });
+
+   test('LM Studio is called directly at its own address and is not API billing', () => {
+      const lmstudio = AI_RUNTIME_CATALOG.find((entry) => entry.id === 'lmstudio');
+      assert.equal(lmstudio?.executionMode, 'direct_inference');
+      assert.equal(lmstudio?.billing, 'provider_dependent');
+      assert.equal(lmstudio?.localProcess, false);
+      assert.equal(lmstudio?.capabilities.tools, 'supported');
+      assert.equal(isApiTokenRuntime('lmstudio'), true);
+      assert.equal(takesBaseUrl('lmstudio'), true);
+      for (const id of ['claude', 'codex', 'cursor', 'grok', 'kiro', 'qoder', 'kimi']) {
+         assert.equal(isApiTokenRuntime(id), false, id);
       }
    });
 
