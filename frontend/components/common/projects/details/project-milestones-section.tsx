@@ -234,7 +234,7 @@ export function ProjectGoalsSection({
                   type="button"
                   variant="ghost"
                   size="xxs"
-                  className="-mt-1 text-muted-foreground hover:bg-card hover:text-foreground"
+                  className="-mt-1 text-ripe hover:bg-card hover:text-ripe"
                   onClick={startCompose}
                   disabled={composing}
                   aria-label="New milestone"

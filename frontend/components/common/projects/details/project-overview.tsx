@@ -12,9 +12,10 @@ import { useComposerPalette } from '@/components/common/composer-palette';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
 import { cn } from '@/lib/utils';
-import { SendHorizonal } from 'lucide-react';
+import { Check, Copy, SendHorizonal } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ProjectActivityFeedList } from './project-activity-section';
 import { ProjectGoalsSection } from './project-milestones-section';
 import { ProjectPlanSection } from './project-plan-section';
@@ -39,6 +40,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const milestoneFilter = searchParams.get('milestone');
    const [draft, setDraft] = useState('');
    const [focused, setFocused] = useState(false);
+   const [copiedDescription, setCopiedDescription] = useState(false);
    const updateRef = useRef<HTMLTextAreaElement>(null);
    const palette = useComposerPalette({
       textareaRef: updateRef,
@@ -70,6 +72,21 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
 
    const description = project?.description ?? '';
 
+   const copyDescription = useCallback(() => {
+      const text = description.trim();
+      if (!text) {
+         toast.message('Nothing to copy');
+         return;
+      }
+      void navigator.clipboard.writeText(text).then(
+         () => {
+            setCopiedDescription(true);
+            window.setTimeout(() => setCopiedDescription(false), 1200);
+         },
+         () => toast.error('Could not copy description')
+      );
+   }, [description]);
+
    if (!project) {
       return <div className="p-6 text-muted-foreground">Loading project…</div>;
    }
@@ -97,6 +114,24 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                      className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold"
                      aiAssist={false}
                   />
+                  <div className="-mt-0.5 flex justify-end">
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
+                        aria-label="Copy description"
+                        title="Copy description"
+                        disabled={!description.trim()}
+                        onClick={copyDescription}
+                     >
+                        {copiedDescription ? (
+                           <Check className="size-3.5" aria-hidden />
+                        ) : (
+                           <Copy className="size-3.5" aria-hidden />
+                        )}
+                     </Button>
+                  </div>
 
                   <div className="mt-4 [&>*:first-child]:mt-0">
                      <ProjectPlanSection projectId={projectId} />
