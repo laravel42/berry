@@ -207,3 +207,19 @@ export function serializeMember(member: Membership): Record<string, unknown> {
       updatedAt: member.updatedAt,
    };
 }
+
+/**
+ * The Orchestrator is Berry's own router: every workspace has it, nobody
+ * adds, edits or removes it. Catalogue upgrades still rewrite it through
+ * provisioning, which does not come through these routes.
+ */
+export async function refuseLockedAgent(sql: Sql, agentId: string): Promise<void> {
+   const [row] = await sql<Array<{ protected: boolean }>>`
+      SELECT protected FROM agents WHERE id = ${agentId}`;
+   if (row?.protected === true) throw agentLocked();
+}
+
+export function agentLocked(): ApiError {
+   return new ApiError(409, 'AGENT_LOCKED', 'The Orchestrator is managed by Berry and cannot be changed.');
+}
+

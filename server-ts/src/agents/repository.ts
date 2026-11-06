@@ -491,6 +491,13 @@ export class AgentRepository {
       return toAgent(row);
    }
 
+   /** True for the protected Orchestrator, which no route may change. */
+   async isProtected(agentId: string): Promise<boolean> {
+      const [row] = await this.sql<Array<{ protected: boolean }>>`
+         SELECT protected FROM agents WHERE id = ${agentId}`;
+      return row?.protected === true;
+   }
+
    async archive(agentId: string, workspaceId: string, now: Date): Promise<void> {
       const [row] = await this.sql`
          SELECT protected FROM agents

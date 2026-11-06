@@ -36,6 +36,7 @@ import { TIERS, type Tier } from '../agents/model-tiers.ts';
 import { catalogRole, toolsForLevel } from '../organization/catalog.ts';
 import { deriveReviewRequirements, effectiveContract } from '../organization/derived.ts';
 import type { RoleKey } from '../organization/contract.ts';
+import { agentLocked } from './shared.ts';
 
 /**
  * `/api/v1/agents`.
@@ -292,6 +293,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
     */
    route.put('/:agentId/config', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'product.write')
          .catch(rethrowAgent);
@@ -353,6 +355,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
     */
    route.put('/:agentId/permissions', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'workspace.admin')
          .catch(rethrowAgent);
@@ -427,6 +430,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
     */
    route.put('/:agentId/contract', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'workspace.admin')
          .catch(rethrowAgent);
@@ -494,6 +498,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
 
    route.put('/:agentId/labels', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'product.write')
          .catch(rethrowAgent);
@@ -505,6 +510,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
    /** Admin-only: env usually carries credentials the agent acts with. */
    route.put('/:agentId/env', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const user = context.get('user');
       const scope = await agents
          .authorizeAgent(user.id, agentId, 'workspace.admin')
@@ -560,6 +566,7 @@ export function agentMounts(options: AgentOptions): Mount[] {
 
    route.put('/:agentId/avatar', async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'product.write')
          .catch(rethrowAgent);
@@ -639,6 +646,8 @@ export function agentMounts(options: AgentOptions): Mount[] {
 
    route.post('/:agentId/copy', idempotent(options.idempotency), async (context) => {
       const agentId = pathId(context.req.param('agentId'));
+      // A copy would be a second Orchestrator; there is only ever one.
+      if (await agents.isProtected(agentId)) throw agentLocked();
       const scope = await agents
          .authorizeAgent(context.get('user').id, agentId, 'product.write')
          .catch(rethrowAgent);

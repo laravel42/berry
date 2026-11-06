@@ -12,7 +12,7 @@ import { Conflict, NotFound } from '../identity/errors.ts';
 import { SkillImportError, type SkillImporter } from '../skills/github-import.ts';
 import type { SkillRepository, SkillWithFiles } from '../skills/repository.ts';
 import { readZip, skillFromArchive } from '../skills/zip.ts';
-import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
+import { currentWorkspace, owned, pathId, refuseLockedAgent, resolveScoped, resolveScopedResource } from './shared.ts';
 import { readJson } from './zod-body.ts';
 
 const fileSchema = z.strictObject({
@@ -197,6 +197,7 @@ export function skillMounts(options: SkillMountOptions): Mount[] {
       const skillId = pathId(context.req.param('skillId'), 'Skill');
       const agentId = pathId(context.req.param('agentId'), 'Agent');
       const scoped = await scopeOne(context.get('user'), skillId, agentId);
+      await refuseLockedAgent(sql, agentId);
       const { enabled } = await readJson(context, bindingSchema);
       await skills.setBinding(scoped.ctx.workspaceId, agentId, skillId, enabled).catch(rethrow);
       return new Response(null, { status: 204 });
@@ -206,6 +207,7 @@ export function skillMounts(options: SkillMountOptions): Mount[] {
       const skillId = pathId(context.req.param('skillId'), 'Skill');
       const agentId = pathId(context.req.param('agentId'), 'Agent');
       const scoped = await scopeOne(context.get('user'), skillId, agentId);
+      await refuseLockedAgent(sql, agentId);
       await skills.removeBinding(scoped.ctx.workspaceId, agentId, skillId).catch(rethrow);
       return new Response(null, { status: 204 });
    });
