@@ -153,10 +153,13 @@ task-scoped token. There is no other external worker.
 ([ADR-0019](docs/adr/0019-subscription-ai-runtimes.md);
 [ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md) is superseded). There is
 no native Bedrock or Kilo path. Agent runs and completions need a connected
-AI runtime: a workstation CLI, or an OpenAI / xAI / Anthropic / Gemini API
-token. The token is sealed in Berry and opened only into the task envelope;
-the runtime image calls the provider with `fetch` under
-`src/agents/runtime/`. This is separate from the AgentCore/HTTP compute
+AI runtime: a workstation CLI, an OpenAI / xAI / Anthropic / Gemini API
+token, or an LM Studio server address (token optional). The token is sealed
+in Berry and opened only into the task envelope; the runtime image calls the
+provider, or LM Studio's OpenAI-compatible `/v1`, with `fetch` under
+`src/agents/runtime/`. LM Studio is called from the compute host, so that
+host must reach the address; `src/runtime/lmstudio-endpoint.ts` refuses
+link-local and cloud-metadata addresses. This is separate from the AgentCore/HTTP compute
 host. The connection id is snapshotted on the run. Resolution order is the
 task override, then the project's runtime, then the person's preference, then
 the first connected model on the agent's tier, then that person's newest

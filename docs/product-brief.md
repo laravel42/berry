@@ -67,10 +67,11 @@ The inner loop (issue → agent run → in review) is autonomous up to staging, 
 
 ## The organization
 
-Every workspace is provisioned with an Orchestrator and seven core roles
-(Planner, Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer, DevOps
-Engineer); fourteen specialists across the same departments are added by an
-admin when the work calls for them (ADR-0018). Each role carries a contract (mission, allowed tools, delegation
+Every workspace is provisioned with only the Orchestrator, which Berry manages
+and nobody edits or removes. The other 95 roles — eight per department, from
+software to marketing, sales, people, finance, legal, research and operations —
+are added by an admin from the Agent catalog when the work calls for them
+(ADR-0018). Each role carries a contract (mission, allowed tools, delegation
 targets, escalation path, review domains) and an autonomy level from 1 to 5
 that ceilings its effective tools no matter what the contract grants. Roles
 review each other's work by domain, can delegate or escalate to another role
