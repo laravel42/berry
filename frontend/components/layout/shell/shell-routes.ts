@@ -19,7 +19,6 @@ export type ShellRoute =
    | 'goals'
    | 'members'
    | 'skills'
-   | 'autopilots'
    | 'integrations'
    | 'usage'
    | 'logs';
@@ -36,7 +35,6 @@ export type ShellLabelKey =
    | 'agents'
    | 'analytics'
    | 'skills'
-   | 'autopilots'
    | 'integrations'
    | 'usage'
    | 'logs';
@@ -168,15 +166,6 @@ const MANAGE: ShellRouteDef[] = [
       match: ['/skills/'],
       prefsKey: 'skills',
       icon: '<path d="M5 4h10a4 4 0 014 4v12H9a4 4 0 01-4-4z" /><path d="M9 8h6M9 12h6" />',
-   },
-   {
-      id: 'autopilots',
-      label: 'autopilots',
-      labelKey: 'autopilots',
-      href: '/autopilots',
-      match: ['/autopilot/'],
-      prefsKey: 'autopilot',
-      icon: '<circle cx="12" cy="13" r="7.5" /><path d="M12 9v4l2.5 2.5" /><path d="M9.5 3h5" />',
    },
    {
       id: 'integrations',

@@ -55,7 +55,12 @@ export function ShellChatButton() {
         : label;
 
    return (
-      <span className={cn('ai-animated-border h-6', onChatPage && 'opacity-40')}>
+      <span
+         className={cn(
+            'ai-animated-border shell-agents-launcher h-6 origin-bottom-right scale-[1.3]',
+            onChatPage && 'opacity-40'
+         )}
+      >
          <Button
             type="button"
             variant="outline"

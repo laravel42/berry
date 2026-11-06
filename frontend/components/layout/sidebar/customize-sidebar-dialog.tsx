@@ -28,7 +28,6 @@ import {
    Puzzle,
    Sparkles,
    Target,
-   Timer,
 } from 'lucide-react';
 import { Fragment, useRef, useState, type PointerEvent } from 'react';
 
@@ -49,7 +48,6 @@ export const WORKSPACE_ITEMS: ItemConfig[] = [
 export const CONFIGURE_ITEMS: ItemConfig[] = [
    { key: 'agents', label: 'Agents', icon: Sparkles },
    { key: 'skills', label: 'Skills', icon: BookOpen },
-   { key: 'autopilot', label: 'Autopilots', icon: Timer },
    { key: 'integrations', label: 'Connect', icon: Puzzle },
    { key: 'usage', label: 'Usage', icon: Coins },
 ];

@@ -10,7 +10,6 @@ export type SidebarItemKey =
    | 'meetings'
    | 'my-issues'
    | 'goals'
-   | 'autopilot'
    | 'projects'
    | 'views'
    | 'agents'
@@ -61,7 +60,6 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'meetings': 'always',
    'my-issues': 'always',
    'goals': 'always',
-   'autopilot': 'always',
    'projects': 'always',
    'views': 'always',
    'agents': 'always',
@@ -86,7 +84,7 @@ const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    // No runtimes or logs entry: those live in Settings. A stored `agent`,
    // `logs`, or `dashboard` key is dropped by resolveOrder, which keeps
    // only known keys.
-   configure: ['agents', 'skills', 'autopilot', 'integrations', 'usage'],
+   configure: ['agents', 'skills', 'integrations', 'usage'],
 };
 
 /** The key the previous shape was persisted under; read once, when v7 has nothing. */
@@ -117,11 +115,9 @@ export function resolveOrder(
 }
 
 /**
- * The v3 preferences, when a person had customised them before the rail
- * grew its Automate section. Their visibility and order carry over; the
- * `automate` order is seeded from defaults, and `autopilot` leaves the
- * workspace list through `resolveOrder`, which only keeps a section's own
- * keys.
+ * Older preferences carry over visibility and badge style; order is rebuilt
+ * from defaults so removed rail items (and reordered Manage defaults) do not
+ * stick forever. `resolveOrder` only keeps a section's own keys.
  */
 type StoredPrefs = Omit<Partial<SidebarPrefsState>, 'visibility'> & {
    visibility?: Partial<Record<SidebarItemKey, SidebarVisibility>>;
