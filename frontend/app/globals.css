@@ -1118,7 +1118,10 @@ input[type='search'] {
 }
 
 .tiptap-ai-editor .ProseMirror p.is-editor-empty:first-child::before {
+   /* Match native placeholders: ProseMirror sets -webkit-text-fill-color on
+      the root, which would otherwise paint this as --foreground. */
    color: var(--placeholder);
+   -webkit-text-fill-color: var(--placeholder);
    content: attr(data-placeholder);
    float: left;
    height: 0;
