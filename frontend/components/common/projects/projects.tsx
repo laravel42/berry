@@ -14,9 +14,9 @@ import { useProjectsStore } from '@/store/projects-store';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
 import { useSessionStore } from '@/store/session-store';
-import { Box, LayoutGrid, List } from 'lucide-react';
+import { Box, ChartNoAxesGantt, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import {
@@ -32,14 +32,16 @@ import { CreateProjectDialog } from './create-project-dialog';
 import { EmptyProjects } from './empty-projects';
 import { ProjectsDisplayOptions } from './projects-display-options';
 import ProjectsList from './projects-list';
+import ProjectsTimeline from './projects-timeline';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
+import type { ProjectsViewType } from '@/store/projects-display-store';
 
 /** How one group of projects is found and shown; a status group also takes drops. */
 interface ProjectGroupSpec {
    id: string;
    name: string;
-   icon: React.ReactNode;
+   icon: ReactNode;
    status?: Status;
    match: (project: Project) => boolean;
 }
@@ -47,7 +49,7 @@ interface ProjectGroupSpec {
 export interface ProjectGroup {
    id: string;
    name: string;
-   icon?: string;
+   icon?: ReactNode;
    projects: Project[];
 }
 
@@ -122,9 +124,10 @@ function percentCompleteForProject(
    return Math.round((done / linked.length) * 100);
 }
 
-const LAYOUTS: { value: 'list' | 'board'; icon: React.ElementType }[] = [
+const LAYOUTS: { value: ProjectsViewType; icon: React.ElementType }[] = [
    { value: 'list', icon: List },
    { value: 'board', icon: LayoutGrid },
+   { value: 'timeline', icon: ChartNoAxesGantt },
 ];
 
 /** Projects page: search, filters, display options and views. */
@@ -280,7 +283,7 @@ export default function Projects() {
    const groups = useMemo<ProjectGroup[]>(
       () =>
          grouped
-            .map(({ id, name, projects }) => ({ id, name, projects }))
+            .map(({ id, name, icon, projects }) => ({ id, name, icon, projects }))
             .filter((group) => grouping === 'none' || showEmptyGroups || group.projects.length > 0),
       [grouped, grouping, showEmptyGroups]
    );
@@ -312,46 +315,48 @@ export default function Projects() {
          <CreateProjectDialog />
          <div className="w-full shrink-0">
             <PageKpiHeader label={lists('projects.title')}>
+               <CreateProjectButton />
+            </PageKpiHeader>
+         </div>
+         <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] [&_button]:!h-[30px]">
+            <div className="flex flex-wrap items-center gap-1">
                <Input
                   className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
                   placeholder={lists('projects.search')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                />
-               <CreateProjectButton />
-            </PageKpiHeader>
-         </div>
-         <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
-            <div className="flex flex-wrap items-center gap-1">
                <ListFilterTrigger filter={filter} iconOnly />
                <ProjectsDisplayOptions iconOnly />
             </div>
-            <div
-               role="group"
-               aria-label={lists('projects.layout.label')}
-               className="ml-auto flex items-center rounded-md border p-0.5"
-            >
-               {LAYOUTS.map((layout) => {
-                  const on = viewType === layout.value;
-                  return (
-                     <button
-                        key={layout.value}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={lists(`projects.layout.${layout.value}`)}
-                        title={lists(`projects.layout.${layout.value}`)}
-                        onClick={() => setViewType(layout.value)}
-                        className={cn(
-                           'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                           on
-                              ? 'bg-secondary text-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                        )}
-                     >
-                        <layout.icon className="size-4" />
-                     </button>
-                  );
-               })}
+            <div className="ml-auto flex items-center gap-1.5">
+               <div
+                  role="group"
+                  aria-label={lists('projects.layout.label')}
+                  className="flex items-center rounded-md border p-0.5"
+               >
+                  {LAYOUTS.map((layout) => {
+                     const on = viewType === layout.value;
+                     return (
+                        <button
+                           key={layout.value}
+                           type="button"
+                           aria-pressed={on}
+                           aria-label={lists(`projects.layout.${layout.value}`)}
+                           title={lists(`projects.layout.${layout.value}`)}
+                           onClick={() => setViewType(layout.value)}
+                           className={cn(
+                              'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                              on
+                                 ? 'bg-secondary text-foreground'
+                                 : 'text-muted-foreground hover:text-foreground'
+                           )}
+                        >
+                           <layout.icon className="size-4" />
+                        </button>
+                     );
+                  })}
+               </div>
             </div>
          </div>
 
@@ -392,16 +397,14 @@ export default function Projects() {
                         {lists('projects.noneMatch')}
                      </div>
                   )
+               ) : viewType === 'timeline' ? (
+                  <ProjectsTimeline groups={groups} />
                ) : (
-                  <>
-                     {viewType === 'list' && (
-                        <ProjectsList
-                           groups={groups}
-                           selected={selected}
-                           onToggleSelected={toggleSelected}
-                        />
-                     )}
-                  </>
+                  <ProjectsList
+                     groups={groups}
+                     selected={selected}
+                     onToggleSelected={toggleSelected}
+                  />
                )}
             </div>
          </div>

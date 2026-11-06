@@ -54,6 +54,12 @@ export const Board: Story = {
    },
 };
 
+export const Timeline: Story = {
+   beforeEach: () => {
+      useProjectsDisplayStore.setState({ viewType: 'timeline', timelineZoom: 'year' });
+   },
+};
+
 /** Searching narrows by name; a search that matches nothing says so. */
 export const Search: Story = {
    play: async ({ canvas, userEvent }) => {

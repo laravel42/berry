@@ -206,7 +206,8 @@
       "layout": {
          "label": "Layout",
          "list": "List",
-         "board": "Board"
+         "board": "Board",
+         "timeline": "Timeline"
       },
       "kpi": {
          "running": "Running",
