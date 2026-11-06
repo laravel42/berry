@@ -31,6 +31,31 @@ export interface SmtpMailConfig {
    transport: string | SMTPTransport.Options;
 }
 
+/**
+ * Cloudflare Email Service authenticated SMTP (Email Sending submission).
+ *
+ * Only port 465 with implicit TLS is supported — not STARTTLS on 587.
+ * Username is the literal string `api_token`; the password is a Cloudflare
+ * API token with Email Sending: Edit.
+ * @see https://developers.cloudflare.com/email-service/api/send-emails/smtp/
+ */
+export const CLOUDFLARE_EMAIL_SMTP = {
+   host: 'smtp.mx.cloudflare.net',
+   port: 465,
+   secure: true,
+   user: 'api_token',
+} as const;
+
+/** Nodemailer transport options for Cloudflare Email Sending over SMTP. */
+export function cloudflareSmtpTransport(password: string, user = CLOUDFLARE_EMAIL_SMTP.user): SMTPTransport.Options {
+   return {
+      host: CLOUDFLARE_EMAIL_SMTP.host,
+      port: CLOUDFLARE_EMAIL_SMTP.port,
+      secure: CLOUDFLARE_EMAIL_SMTP.secure,
+      auth: { user, pass: password },
+   };
+}
+
 export function createSmtpMailer(config: SmtpMailConfig): Mailer {
    const transporter = nodemailer.createTransport(config.transport);
    return {

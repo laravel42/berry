@@ -11,7 +11,8 @@
       "start": "node --env-file-if-exists=../.env --experimental-strip-types src/index.ts",
       "migrate": "node --env-file-if-exists=../.env --experimental-strip-types src/migrate/index.ts",
       "seed": "node --env-file-if-exists=../.env --experimental-strip-types src/seed/index.ts",
-      "reset": "node --env-file-if-exists=../.env --experimental-strip-types src/reset/index.ts"
+      "reset": "node --env-file-if-exists=../.env --experimental-strip-types src/reset/index.ts",
+      "mail:test": "node --env-file-if-exists=../.env --experimental-strip-types src/mail/send-test.ts"
    },
    "dependencies": {
       "@aws-sdk/client-bedrock-agentcore": "^3.1134.0",
@@ -19,7 +20,6 @@
       "@aws-sdk/client-s3": "^3.1134.0",
       "@aws-sdk/rds-signer": "^3.1151.0",
       "@aws-sdk/s3-request-presigner": "^3.1134.0",
-      "@better-auth/sso": "1.7.7",
       "@electric-sql/pglite": "0.5.8",
       "@electric-sql/pglite-socket": "0.2.11",
       "@hono/node-server": "^2.1.1",

@@ -26,6 +26,7 @@
       "db:migrate": "pnpm --filter @berry/server migrate",
       "db:seed": "pnpm --filter @berry/server seed",
       "db:reset": "pnpm --filter @berry/server reset",
+      "mail:test": "pnpm --filter @berry/server mail:test",
       "runtime:build": "docker build -f server-ts/sandbox/agentcore/Dockerfile -t berry-agent-runtime server-ts",
       "runtime:docker": "bash scripts/runtime-docker.sh",
       "runtime:sessions": "bash scripts/runtime-docker.sh --per-session",
