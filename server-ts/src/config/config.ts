@@ -279,6 +279,34 @@ export interface AuthConfig {
    githubAppSlug: string | null;
    /** Development-only known-email login (dev-login route + testUtils plugin). */
    devLogin: boolean;
+   /**
+    * Outbound mail for magic links, password reset and 2FA OTP. Null means
+    * those flows are not advertised (except a console sink in development).
+    */
+   mail: AuthMailConfig | null;
+   /**
+    * Enterprise SSO providers configured in code (`defaultSSO`). Empty is a
+    * working deployment that simply does not offer SSO.
+    */
+   sso: AuthSsoProvider[];
+}
+
+export interface AuthMailConfig {
+   from: string;
+   /**
+    * SMTP URL (`smtp://` / `smtps://`) or host settings. Null is the console
+    * sink used in development when no SMTP is configured.
+    */
+   smtp: string | { host: string; port: number; user?: string; pass?: string; secure: boolean } | null;
+}
+
+export interface AuthSsoProvider {
+   providerId: string;
+   /** Bare email domain, e.g. `acme.com`. */
+   domain: string;
+   issuer: string;
+   clientId: string;
+   clientSecret: string;
 }
 
 /** Planner and run bounds. Not a model credential: those live on a subscription runtime. */
@@ -833,7 +861,95 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       github,
       githubAppSlug: slug === '' ? null : slug,
       devLogin: development && boolean(env.AUTH_ALLOW_PASSWORDLESS_LOGIN, true),
+      mail: authMail(env, development, problems),
+      sso: authSso(env, problems),
    };
+}
+
+/**
+ * Outbound mail. SMTP wins when set; otherwise development gets a console
+ * sink so magic-link and reset flows can be exercised locally. Production
+ * with no SMTP returns null — those capabilities stay off rather than
+ * logging links that nobody receives.
+ */
+function authMail(
+   env: NodeJS.ProcessEnv,
+   development: boolean,
+   problems: string[]
+): AuthMailConfig | null {
+   const from = (env.BERRY_MAIL_FROM ?? '').trim() || 'Berry <noreply@localhost>';
+   const smtpUrl = (env.BERRY_SMTP_URL ?? env.SMTP_URL ?? '').trim();
+   if (smtpUrl) {
+      try {
+         // Validate early: Better Auth would only fail on the first send.
+         void new URL(smtpUrl);
+      } catch {
+         problems.push('BERRY_SMTP_URL must be an smtp:// or smtps:// URL');
+         return null;
+      }
+      return { from, smtp: smtpUrl };
+   }
+   const host = (env.BERRY_SMTP_HOST ?? '').trim();
+   if (host) {
+      const portRaw = (env.BERRY_SMTP_PORT ?? '587').trim();
+      const port = Number(portRaw);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+         problems.push('BERRY_SMTP_PORT must be an integer between 1 and 65535');
+         return null;
+      }
+      const user = (env.BERRY_SMTP_USER ?? '').trim();
+      const pass = env.BERRY_SMTP_PASS ?? '';
+      return {
+         from,
+         smtp: {
+            host,
+            port,
+            secure: boolean(env.BERRY_SMTP_SECURE, port === 465),
+            ...(user ? { user, pass } : {}),
+         },
+      };
+   }
+   return development ? { from, smtp: null } : null;
+}
+
+/**
+ * One OIDC SSO provider from env. Multiple providers stay out of scope for
+ * the env shape; register more at runtime once a settings surface exists.
+ */
+function authSso(env: NodeJS.ProcessEnv, problems: string[]): AuthSsoProvider[] {
+   const providerId = (env.BERRY_AUTH_SSO_PROVIDER_ID ?? '').trim();
+   const domain = (env.BERRY_AUTH_SSO_DOMAIN ?? '').trim().toLowerCase();
+   const issuer = (env.BERRY_AUTH_SSO_ISSUER ?? '').trim();
+   const clientId = (env.BERRY_AUTH_SSO_CLIENT_ID ?? '').trim();
+   const clientSecret = (env.BERRY_AUTH_SSO_CLIENT_SECRET ?? '').trim();
+   const any =
+      providerId !== '' ||
+      domain !== '' ||
+      issuer !== '' ||
+      clientId !== '' ||
+      clientSecret !== '';
+   if (!any) return [];
+   if (!providerId || !domain || !issuer || !clientId || !clientSecret) {
+      problems.push(
+         'BERRY_AUTH_SSO_* needs PROVIDER_ID, DOMAIN, ISSUER, CLIENT_ID and CLIENT_SECRET together'
+      );
+      return [];
+   }
+   if (!/^[a-zA-Z0-9_-]+$/.test(providerId)) {
+      problems.push('BERRY_AUTH_SSO_PROVIDER_ID must be letters, digits, underscore or hyphen');
+      return [];
+   }
+   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+      problems.push('BERRY_AUTH_SSO_DOMAIN must be a bare email domain such as acme.com');
+      return [];
+   }
+   try {
+      void new URL(issuer);
+   } catch {
+      problems.push('BERRY_AUTH_SSO_ISSUER must be an https URL');
+      return [];
+   }
+   return [{ providerId, domain, issuer, clientId, clientSecret }];
 }
 
 /** An IPv4/IPv6 address, optionally with a /prefix that fits its family. */

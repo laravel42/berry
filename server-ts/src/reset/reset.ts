@@ -51,6 +51,8 @@ export const KEPT_TABLES: ReadonlySet<string> = new Set([
    'auth_accounts',
    'auth_sessions',
    'auth_verifications',
+   'auth_two_factors',
+   'auth_sso_providers',
    'sessions',
    'personal_api_tokens',
    'notification_preferences',

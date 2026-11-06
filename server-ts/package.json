@@ -19,6 +19,7 @@
       "@aws-sdk/client-s3": "^3.1134.0",
       "@aws-sdk/rds-signer": "^3.1151.0",
       "@aws-sdk/s3-request-presigner": "^3.1134.0",
+      "@better-auth/sso": "1.7.7",
       "@electric-sql/pglite": "0.5.8",
       "@electric-sql/pglite-socket": "0.2.11",
       "@hono/node-server": "^2.1.1",
@@ -28,6 +29,7 @@
       "hono": "^4.13.8",
       "ioredis": "^6.0.0",
       "livekit-server-sdk": "^2.19.2",
+      "nodemailer": "^10.3.1",
       "pg": "^8.23.0",
       "postgres": "^3.4.9",
       "zod": "^4.6.6"
@@ -36,6 +38,7 @@
       "@livekit/agents": "^1.9.5",
       "@livekit/protocol": "^1.53.1",
       "@types/node": "^26.6.1",
+      "@types/nodemailer": "^8.0.2",
       "@types/pg": "^8.23.1",
       "fast-check": "^4.10.1",
       "tsx": "^4.23.15",

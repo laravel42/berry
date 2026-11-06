@@ -50,6 +50,16 @@ export interface Capabilities {
     * when Better Auth is serving.
     */
    emailRegistration?: boolean;
+   /** Magic-link sign-in when outbound mail is configured. */
+   magicLink?: boolean;
+   /** Forgot-password when outbound mail is configured. */
+   passwordReset?: boolean;
+   /** TOTP / OTP second factor is available on this deployment. */
+   twoFactor?: boolean;
+   /** At least one enterprise SSO provider is configured. */
+   sso?: boolean;
+   /** Email domains that route to SSO (bare hostnames, lowercased). */
+   ssoDomains?: string[];
 }
 
 export interface PlatformOptions {
@@ -189,6 +199,11 @@ function configRoute(
                   : capabilities.githubSignIn,
             passwordlessLogin: capabilities.passwordlessLogin ?? false,
             emailRegistration: capabilities.emailRegistration ?? false,
+            magicLink: capabilities.magicLink ?? false,
+            passwordReset: capabilities.passwordReset ?? false,
+            twoFactor: capabilities.twoFactor ?? false,
+            sso: capabilities.sso ?? false,
+            ssoDomains: capabilities.ssoDomains ?? [],
          },
       });
    });

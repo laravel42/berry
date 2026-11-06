@@ -52,6 +52,11 @@ test('a boolean capability is reported as it always was', async () => {
       voiceAgents: false,
       passwordlessLogin: false,
       emailRegistration: false,
+      magicLink: false,
+      passwordReset: false,
+      twoFactor: false,
+      sso: false,
+      ssoDomains: [],
    });
 });
 
