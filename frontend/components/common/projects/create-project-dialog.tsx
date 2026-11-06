@@ -13,6 +13,11 @@ import {
    projectCreateStatusOptions,
 } from '@/components/common/projects/create-project/project-status-options';
 import { LeadPicker, leadCandidates } from '@/components/common/projects/lead-picker';
+import {
+   memberCandidates,
+   MembersChipContent,
+   MembersPicker,
+} from '@/components/common/projects/members-picker';
 import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
 import {
@@ -55,6 +60,8 @@ interface ProjectFormState {
    priority: (typeof priorities)[number];
    /** Absent until someone is chosen. */
    lead?: User;
+   /** People on the project; empty until someone is chosen. */
+   members: User[];
    startDate?: Date;
    targetDate?: Date;
    /** owner/name, or undefined for a project that delivers nowhere yet. */
@@ -119,6 +126,7 @@ export function CreateProjectDialog() {
          description: '',
          status: defaultStatus ?? defaultProjectCreateStatus.status,
          priority: priorities.find((entry) => entry.id === 'no-priority')!,
+         members: [],
       }),
       [defaultStatus]
    );
@@ -312,11 +320,20 @@ export function CreateProjectDialog() {
                               ) : (
                                  <>
                                     <UserIcon className="size-3.5" />
-                                    <span>Project lead</span>
+                                    <span>Lead</span>
                                  </>
                               )}
                            </PickerChipButton>
                         </LeadPicker>
+                        <MembersPicker
+                           value={form.members}
+                           candidates={memberCandidates(members)}
+                           onChange={(next) => setForm({ ...form, members: next })}
+                        >
+                           <PickerChipButton aria-label="Members">
+                              <MembersChipContent members={form.members} />
+                           </PickerChipButton>
+                        </MembersPicker>
                         <ProjectDateSelector
                            label="Start"
                            date={form.startDate}
