@@ -226,10 +226,9 @@ them:
 
 ## The organization
 
-Every workspace is provisioned with an "organization": a protected
-Orchestrator agent plus seven core roles, including the Planner that plan
-generation runs as; fourteen more are specialists a
-person adds (ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
+Every workspace is provisioned with a locked Orchestrator agent and
+nothing else; the other 95 catalogue roles are specialists a person adds
+(ADR-0018; `src/organization/catalog.ts`, `CORE_ROLES`,
 `CATALOG_VERSION`). Each role has a mission, a contract, an **autonomy level**
 (1–5), delegation and escalation rules, and required reviewers.
 

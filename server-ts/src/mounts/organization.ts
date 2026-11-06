@@ -7,7 +7,7 @@ import { toRFC3339, type Sql } from '../db/pool.ts';
 import { json } from '../http/app.ts';
 import { ApiError } from '../http/errors.ts';
 import type { Mount } from '../http/registry.ts';
-import { CATALOG, WORKFLOWS, catalogRole } from '../organization/catalog.ts';
+import { CATALOG, CORE_ROLES, WORKFLOWS, catalogRole } from '../organization/catalog.ts';
 import { hashContract, parseContract } from '../organization/contract.ts';
 import { DEPARTMENTS } from '../organization/contract.ts';
 import { addRole, resetRole, RoleNotFound } from '../organization/provision.ts';
@@ -181,6 +181,8 @@ export function organizationMounts(options: {
          role: role.role,
          department: role.department,
          mission: role.mission,
+         tier: role.tier ?? null,
+         autonomyLevel: role.autonomy_level,
       }));
 
       return json({
@@ -210,6 +212,36 @@ export function organizationMounts(options: {
    });
 
    /** Adds a catalogue role to the workspace, restoring its archived agent if it has one. */
+   /**
+    * One catalogue role in full, for the catalogue's role drawer: the shipped
+    * contract, the names of the roles it names, and the workspace's agent for
+    * it when it has one. Read-only; adding goes through POST below.
+    */
+   org.get('/roles/:roleKey', async (context) => {
+      const user = context.get('user');
+      const workspaceId = currentWorkspace(user.currentWorkspaceId);
+      await resolveScoped(sql, user.id, workspaceId, 'product.read');
+      const contract = catalogRole(context.req.param('roleKey'));
+      if (!contract) throw ApiError.notFound('Role');
+      const [live] = await sql<Array<{ id: string }>>`
+         SELECT id FROM agents
+          WHERE workspace_id = ${workspaceId} AND role_key = ${contract.id} AND archived_at IS NULL
+          LIMIT 1`;
+      const named = new Set([
+         ...contract.can_delegate_to,
+         ...contract.receives_work_from,
+         ...contract.escalation_rules.map((rule) => rule.to),
+         ...contract.review_requirements.map((rule) => rule.reviewer),
+      ]);
+      const names = Object.fromEntries(
+         [...named].flatMap((key) => {
+            const role = catalogRole(key);
+            return role ? [[key, role.name]] : [];
+         })
+      );
+      return json({ contract, names, core: CORE_ROLES.includes(contract.id), agentId: live?.id ?? null });
+   });
+
    org.post('/roles/:roleKey', async (context) => {
       const user = context.get('user');
       const workspaceId = currentWorkspace(user.currentWorkspaceId);

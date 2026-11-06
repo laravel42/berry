@@ -18,6 +18,11 @@ export const DEPARTMENTS = [
    'platform',
    'growth-insight',
    'leadership',
+   'marketing',
+   'customer',
+   'people',
+   'finance-legal',
+   'knowledge',
 ] as const;
 
 export type Department = (typeof DEPARTMENTS)[number];
@@ -58,8 +63,8 @@ export const roleContractSchema = z.object({
    preferred_model: z.string().min(1).max(200).optional(),
    inputs: list,
    outputs: list,
-   can_delegate_to: z.array(roleKey).max(30),
-   receives_work_from: z.array(roleKey).max(30),
+   can_delegate_to: z.array(roleKey).max(128),
+   receives_work_from: z.array(roleKey).max(128),
    escalation_rules: z
       .array(
          z.object({
