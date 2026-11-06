@@ -798,6 +798,42 @@ Links or unlinks an issue (id or identifier) in the milestone's workspace. An is
 
 - `204`
 
+### Cycles
+
+Workspace-scoped timeboxes (`upcoming` | `active` | `completed`). An issue belongs to at most one cycle via `cycleId` on the issue. At most one cycle per workspace may be `active`. Progress percent is derived from issues in the cycle.
+
+#### `GET /api/v1/cycles`
+
+- Query: `workspaceId` (required), `query?`, `status?`, `first`, `after`
+- `200`: connection of `Cycle` (`id`, `workspaceId`, `number`, `name`, `startsOn`, `endsOn`, `status`, `createdBy`, timestamps, optional `progress`)
+
+#### `POST /api/v1/cycles`
+
+- Body: `{ "workspaceId", "startsOn", "endsOn", "name"?, "status"? }` — `Idempotency-Key` required (`product.write`)
+- `201`: `Cycle`
+
+#### `GET /api/v1/cycles/{cycleId}`
+
+- `200`: `Cycle` with `progress`
+
+#### `PATCH /api/v1/cycles/{cycleId}`
+
+- Body may include `name`, `startsOn`, `endsOn`, `status` (`product.write`)
+- Activating a cycle completes any other active cycle in the workspace
+
+#### `DELETE /api/v1/cycles/{cycleId}`
+
+- Soft-deletes; clears `cycle_id` on its issues (`settings.write`)
+- `204`
+
+#### `GET /api/v1/cycles/{cycleId}/issues`
+
+- `200`: `{ "nodes": [...] }` issue summaries
+
+#### `PUT` / `DELETE /api/v1/cycles/{cycleId}/issues/{issueRef}`
+
+Links or clears the issue's cycle (`product.write`). `204`.
+
 ### Plans
 
 Generated plans only. Mutating routes answer `403 PLAN_FORBIDDEN` for viewers.

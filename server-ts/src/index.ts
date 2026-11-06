@@ -51,6 +51,7 @@ import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts'
 import { PreviewEnvStore } from './previews/env-store.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { milestoneMounts } from './mounts/milestones.ts';
+import { cycleMounts } from './mounts/cycles.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
@@ -128,6 +129,7 @@ import { CommentRepository } from './core/comments.ts';
 import { DependencyRepository } from './core/dependencies.ts';
 import { ReviewRepository } from './core/reviews.ts';
 import { MilestoneRepository } from './core/milestones.ts';
+import { CycleRepository } from './core/cycles.ts';
 import { createMilestoneLinker } from './core/milestone-linker.ts';
 import { AttachmentRepository } from './core/attachments.ts';
 import { ProjectRepository } from './core/projects.ts';
@@ -313,6 +315,7 @@ const comments = new CommentRepository(sql);
 const dependencies = new DependencyRepository(sql);
 const reviews = new ReviewRepository(sql);
 const milestones = new MilestoneRepository(sql);
+const cycles = new CycleRepository(sql);
 const attachments = new AttachmentRepository(sql);
 const projects = new ProjectRepository(sql);
 const agents = new AgentRepository(sql);
@@ -1105,6 +1108,9 @@ registry.registerAll(
 );
 registry.registerAll(
    milestoneMounts({ sessions, milestones, issues, idempotency, broadcaster, scm: scmSync })
+);
+registry.registerAll(
+   cycleMounts({ sessions, cycles, issues, idempotency, broadcaster })
 );
 registry.registerAll(attachmentMounts({ sessions, attachments, storage }));
 registry.registerAll(artifactMounts({ sessions, artifacts: runArtifacts, issues, storage }));

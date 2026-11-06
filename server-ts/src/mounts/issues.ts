@@ -495,6 +495,7 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
       project: issue.project,
+      cycleId: issue.cycleId,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
@@ -592,6 +593,7 @@ export function touchesIssueRow(patch: IssuePatch): boolean {
       patch.dueDateSet ||
       patch.assigneeSet ||
       patch.projectSet ||
+      patch.cycleSet === true ||
       patch.autoGate !== undefined
    );
 }
@@ -787,6 +789,11 @@ export function parsePatch(body: Record<string, unknown>): {
       // absent field, so patching a title alone does not drop the project.
       patch.projectSet = true;
       patch.project = optionalUUID(body, 'projectId', 'Project id must be a UUID.', fields).value;
+   }
+   if ('cycleId' in body) {
+      provided += 1;
+      patch.cycleSet = true;
+      patch.cycleId = optionalUUID(body, 'cycleId', 'Cycle id must be a UUID.', fields).value;
    }
    if (provided === 0) {
       fields.push(field('/', 'too_small', 'At least one field must be provided.'));
@@ -1003,6 +1010,7 @@ const ISSUE_BODY_FIELDS = new Set([
    'dueDate',
    'assignee',
    'projectId',
+   'cycleId',
    'milestoneId',
    // Without this the allowlist refused every AutoGate change with a 422
    // before `parsePatch` saw it.

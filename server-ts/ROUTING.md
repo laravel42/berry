@@ -30,7 +30,7 @@ Work tracking:
 - `/api/v1/boards` — boards, including board runs
 - `/api/v1/issues` — issues plus comments, relations, attachments, artifacts (and `POST …/artifacts/preview` for a site-preview token), runs, and tracking routes (quick, batch, batch-delete, assignee-frequency, activity, children, labels, metadata, properties, reactions, subscribers, status, move, quick-actions)
 - `/api/v1/comments` — comments, including comment tracking
-- `/api/v1/milestones`, `/api/v1/projects`, `/api/v1/plans`
+- `/api/v1/milestones`, `/api/v1/cycles`, `/api/v1/projects`, `/api/v1/plans`
 - `/api/v1/reviews` — review queue and run diffs
 - `/api/v1/approvals`, `/api/v1/inbox`, `/api/v1/pins`
 - `/api/v1/catalogs`, `/api/v1/search`, `/api/v1/views`

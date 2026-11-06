@@ -24,7 +24,7 @@ const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_s
    project.id AS project_id, project.name AS project_name,
    i.created_by, creator.name AS creator_name, creator.avatar_url AS creator_avatar_url,
    i.created_at, i.updated_at,
-   i.parent_id, i.stage, i.status_id, i.auto_gate,
+   i.parent_id, i.stage, i.status_id, i.auto_gate, i.cycle_id,
    (SELECT count(*) FROM issues AS child
      WHERE child.parent_id = i.id AND child.deleted_at IS NULL)::int AS child_total,
    (SELECT count(*) FROM issues AS child
@@ -97,6 +97,8 @@ export interface Issue {
     * without a person. Set from the plan at compile, and switchable per task.
     */
    autoGate: boolean;
+   /** Workspace cycle this issue is scheduled in, when any. */
+   cycleId: string | null;
    childProgress: { total: number; done: number };
 }
 
@@ -154,6 +156,9 @@ export interface IssuePatch {
    assignee?: AssigneeInput | null;
    projectSet: boolean;
    project?: string | null;
+   /** Set or clear the cycle; absent leaves it alone. */
+   cycleSet?: boolean;
+   cycleId?: string | null;
    /** AutoGate on or off; undefined leaves it alone. */
    autoGate?: boolean;
 }
@@ -542,6 +547,7 @@ export class IssueRepository {
                due_date = CASE WHEN ${patch.dueDateSet} THEN ${patch.dueDate ?? null}::timestamptz ELSE due_date END,
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
+               cycle_id = CASE WHEN ${patch.cycleSet === true} THEN ${patch.cycleId ?? null}::uuid ELSE cycle_id END,
                review_rejections = review_rejections + ${rejectsReview ? 1 : 0},
                updated_at = ${now}
              WHERE id = ${params.issueId}`.catch(classifyWrite);
@@ -569,6 +575,16 @@ export class IssueRepository {
          }
          if (patch.projectSet) {
             await setIssueProject(tx, params.issueId, patch.project ?? null, params.actorId);
+         }
+         if (patch.cycleSet && patch.cycleId) {
+            const [scope] = await tx`
+               SELECT i.id
+                 FROM issues AS i
+                 JOIN boards AS b ON b.id = i.board_id
+                 JOIN cycles AS c ON c.id = ${patch.cycleId}::uuid AND c.deleted_at IS NULL
+                WHERE i.id = ${params.issueId}
+                  AND c.workspace_id = b.workspace_id`;
+            if (!scope) throw new NotFound();
          }
 
          const issue = await issueById(tx, params.issueId, false);
@@ -903,6 +919,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       stage: row.stage === null || row.stage === undefined ? null : Number(row.stage),
       statusId: (row.status_id as string | null) ?? null,
       autoGate: row.auto_gate === true,
+      cycleId: (row.cycle_id as string | null) ?? null,
       childProgress: { total: Number(row.child_total ?? 0), done: Number(row.child_done ?? 0) },
    };
 }
@@ -1011,6 +1028,7 @@ function patchChanges(
    if (patch.dueDateSet) changed.push('dueDate');
    if (patch.assigneeSet) changed.push('assignee');
    if (patch.projectSet) changed.push('project');
+   if (patch.cycleSet) changed.push('cycle');
    if (patch.autoGate !== undefined) changed.push('autoGate');
    return { changed, previousStatus };
 }
@@ -1034,6 +1052,7 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       // Carried so realtime readers keep the switch right: a client that
       // parsed an event without it read every task as AutoGate off.
       autoGate: issue.autoGate,
+      cycleId: issue.cycleId,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
