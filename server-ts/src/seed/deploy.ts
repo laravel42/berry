@@ -1,12 +1,12 @@
 import type { Queryable, Sql } from '../db/pool.ts';
 import { ensureOrganizationAgents } from '../organization/provision.ts';
 import type { PackedSkill } from './skill-pack.ts';
-import { ABSORBED_ROLES, catalogRole } from '../organization/catalog.ts';
 import { loadPackedSkills } from './skills.ts';
+import { CATALOG } from '../organization/catalog.ts';
 
 /**
- * What every workspace carries after a deploy: the AgentCore skills pack in its
- * library, its role agents bound to the pack skills that match their name, and
+ * What every workspace carries after a deploy: the committed skill packs (the
+ * AgentCore software skills and the work skills beyond software) in its library, its role agents bound to the pack skills that match their name, and
  * its agents bound to the deployment's own runtime.
  *
  * Run at boot for every workspace, and when a workspace is created, so a fresh
@@ -16,7 +16,7 @@ import { loadPackedSkills } from './skills.ts';
  * another runtime keeps that binding.
  */
 
-/** The committed skills pack, or none when it cannot be read: agents still get seeded. */
+/** The committed skill packs, or none when they cannot be read: agents still get seeded. */
 export function loadDeploySkills(onError: (error: unknown) => void): PackedSkill[] {
    try {
       return loadPackedSkills();
@@ -35,7 +35,7 @@ export interface AutoseedWorkspaceOptions {
 
 /**
  * Everything a brand-new workspace needs before a person opens it: the role
- * organization, the skills pack (and bindings) and the platform runtime
+ * organization, the skill packs (and bindings) and the platform runtime
  * binding. No autopilots: weekly discovery is switched on by a person, which
  * is what provisions it (organization/discovery.ts).
  *
@@ -66,7 +66,7 @@ export async function seedWorkspaceDefaults(
    sql: Sql,
    workspaceId: string,
    skills: PackedSkill[]
-): Promise<{ skills: number; skillBindings: number; bound: number }> {
+): Promise<{ skills: number; skillBindings: number; skillLabels: number; bound: number }> {
    const now = new Date().toISOString();
    let added = 0;
    for (const skill of skills) {
@@ -76,16 +76,17 @@ export async function seedWorkspaceDefaults(
             source_kind, source_url, imported_at, created_by, created_at, updated_at
          ) VALUES (
             ${workspaceId}, ${skill.name}, ${skill.description}, ${skill.content}, ${skill.labels},
-            'zip', 'seed://berry-agentcore-deep-skills-100', ${now}, NULL, ${now}, ${now}
+            'zip', ${skill.source}, ${now}, NULL, ${now}, ${now}
          )
          ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO NOTHING
          RETURNING 1`;
       added += inserted.length;
    }
 
-   const skillBindings =
-      (await bindRolePackSkills(sql, workspaceId)) +
-      (await ensureCapabilitySkills(sql, workspaceId, now));
+   const skillBindings = await bindRolePackSkills(sql, workspaceId);
+
+   // After the pack skills exist, so their labels are all named.
+   const skillLabels = await ensureSkillLabelCatalog(sql, workspaceId);
 
    // The platform row is the deployment's own runtime (syncPlatformRuntime).
    // Without one there is nothing to bind to, and the agents stay unbound.
@@ -98,96 +99,67 @@ export async function seedWorkspaceDefaults(
          AND agent.archived_at IS NULL AND agent.runtime_id IS NULL
       RETURNING agent.id`;
 
-   return { skills: added, skillBindings, bound: bound.length };
+   return { skills: added, skillBindings, skillLabels, bound: bound.length };
 }
 
 /**
- * Each pack skill is labeled with a role agent name. Bind those skills to the
- * matching live role agents, and a core role also to the skills of the
- * specialists whose work it takes on (ADR-0018). Idempotent: a binding that
- * already exists is left alone, including one a person switched off.
+ * Settings → Skill labels lists the `skill_labels` catalogue, not the names
+ * skills happen to carry. Migration 237 built that catalogue only for the
+ * workspaces that existed then, so a workspace created later opened with
+ * labelled pack skills and an empty catalogue. Give every label a live skill
+ * carries a row, coloured the way its chip already is.
+ *
+ * Additive, and it never brings back a label a person retired: the unique
+ * index covers only active rows, so a name with any row, archived or not, is
+ * skipped rather than inserted again.
+ */
+export async function ensureSkillLabelCatalog(q: Queryable, workspaceId: string): Promise<number> {
+   const inserted = await q`
+      INSERT INTO skill_labels (workspace_id, name, color, created_by)
+      SELECT ${workspaceId}, used.label, berry_skill_label_color(used.label), NULL
+        FROM (
+           SELECT DISTINCT ON (lower(label)) label
+             FROM skills AS s, unnest(s.labels) AS label
+            WHERE s.workspace_id = ${workspaceId}
+              AND s.archived_at IS NULL
+              AND char_length(label) BETWEEN 1 AND 40
+            ORDER BY lower(label), label
+        ) AS used
+       WHERE NOT EXISTS (
+          SELECT 1 FROM skill_labels AS existing
+           WHERE existing.workspace_id = ${workspaceId}
+             AND lower(existing.name) = lower(used.label)
+       )
+      ON CONFLICT (workspace_id, lower(name)) WHERE archived_at IS NULL DO NOTHING
+      RETURNING 1`;
+   return inserted.length;
+}
+
+/**
+ * Each pack skill is labelled with a role agent name, and every catalogue role
+ * has eight. Bind a live role agent to exactly those: a core role no longer
+ * takes on the skills of the specialists it stands in for (ADR-0018 keeps the
+ * delegation, not the skills). Idempotent: a binding that already exists is
+ * left alone, including one a person switched off.
  */
 export async function bindRolePackSkills(q: Queryable, workspaceId: string): Promise<number> {
+   // By role key, not the agent's name, so a renamed role agent keeps its skills.
+   const keys = CATALOG.map((role) => role.id);
+   const names = CATALOG.map((role) => role.name);
    const linked = await q`
       INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
       SELECT a.id, s.id, ${workspaceId}, true
         FROM agents a
-        JOIN skills s ON s.workspace_id = a.workspace_id AND a.name = ANY (s.labels)
+        JOIN unnest(${keys}::text[], ${names}::text[]) AS role (key, name) ON role.key = a.role_key
+        JOIN skills s ON s.workspace_id = a.workspace_id AND role.name = ANY (s.labels)
        WHERE a.workspace_id = ${workspaceId}
          AND a.archived_at IS NULL
          AND a.role_key IS NOT NULL
+         AND s.archived_at IS NULL
+         AND s.source_url LIKE 'seed://%'
       ON CONFLICT (agent_id, skill_id) DO NOTHING
       RETURNING 1`;
-   let absorbed = 0;
-   for (const [roleKey, specialists] of Object.entries(ABSORBED_ROLES)) {
-      const names = specialists.flatMap((key) => catalogRole(key)?.name ?? []);
-      const rows = await q`
-         INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
-         SELECT a.id, s.id, ${workspaceId}, true
-           FROM agents a
-           JOIN skills s ON s.workspace_id = a.workspace_id AND s.labels && ${names}::text[]
-          WHERE a.workspace_id = ${workspaceId}
-            AND a.archived_at IS NULL
-            AND a.role_key = ${roleKey}
-         ON CONFLICT (agent_id, skill_id) DO NOTHING
-         RETURNING 1`;
-      absorbed += rows.length;
-   }
-   return linked.length + absorbed;
-}
-
-/**
- * Role agents with no catalogue skills yet (the Orchestrator today) get a thin
- * skill per capability tag, then the binding. Pack-backed roles already carry
- * their equivalents and are skipped.
- */
-export async function ensureCapabilitySkills(
-   q: Queryable,
-   workspaceId: string,
-   now: string
-): Promise<number> {
-   const unbound = await q<
-      Array<{ id: string; name: string; capabilities: string[] | null }>
-   >`
-      SELECT a.id, a.name, a.capabilities
-        FROM agents a
-       WHERE a.workspace_id = ${workspaceId}
-         AND a.archived_at IS NULL
-         AND a.role_key IS NOT NULL
-         AND NOT EXISTS (
-            SELECT 1 FROM agent_skills b WHERE b.agent_id = a.id AND b.enabled
-         )`;
-
-   let linked = 0;
-   for (const agent of unbound) {
-      const caps = Array.isArray(agent.capabilities) ? agent.capabilities : [];
-      for (const capability of caps) {
-         if (!/^[a-z][a-z0-9-]{0,63}$/.test(capability)) continue;
-         const description = `${agent.name} capability: ${capability}.`;
-         const content =
-            `# ${capability}\n\n` +
-            `Use when acting as ${agent.name} for work that needs ${capability}.\n`;
-         await q`
-            INSERT INTO skills (
-               workspace_id, name, description, content, labels,
-               source_kind, source_url, imported_at, created_by, created_at, updated_at
-            ) VALUES (
-               ${workspaceId}, ${capability}, ${description}, ${content}, ${[agent.name]},
-               'manual', 'seed://role-capability', ${now}, NULL, ${now}, ${now}
-            )
-            ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO NOTHING`;
-         const [skill] = await q<Array<{ id: string }>>`
-            SELECT id FROM skills WHERE workspace_id = ${workspaceId} AND name = ${capability}`;
-         if (!skill) continue;
-         const inserted = await q`
-            INSERT INTO agent_skills (agent_id, skill_id, workspace_id, enabled)
-            VALUES (${agent.id}, ${skill.id}, ${workspaceId}, true)
-            ON CONFLICT (agent_id, skill_id) DO NOTHING
-            RETURNING 1`;
-         linked += inserted.length;
-      }
-   }
-   return linked;
+   return linked.length;
 }
 
 /** The same for every workspace; one workspace failing never stops the rest, or the boot. */

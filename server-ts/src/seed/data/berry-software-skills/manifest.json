@@ -1,0 +1,1394 @@
+[
+  {
+    "name": "product-discovery",
+    "role": "Product Lead",
+    "description": "Use for a new product/feature idea before solution commitment.",
+    "path": "product-discovery/SKILL.md"
+  },
+  {
+    "name": "prd-authoring",
+    "role": "Product Lead",
+    "description": "Use when an approved problem needs an implementation-ready product specification.",
+    "path": "prd-authoring/SKILL.md"
+  },
+  {
+    "name": "roadmap-prioritization",
+    "role": "Product Lead",
+    "description": "Use to rank competing initiatives or decide what enters a release.",
+    "path": "roadmap-prioritization/SKILL.md"
+  },
+  {
+    "name": "acceptance-criteria",
+    "role": "Product Lead",
+    "description": "Use when a goal/task needs observable completion conditions.",
+    "path": "acceptance-criteria/SKILL.md"
+  },
+  {
+    "name": "feature-triage",
+    "role": "Product Lead",
+    "description": "Use for incoming feature requests, customer asks, or backlog proposals.",
+    "path": "feature-triage/SKILL.md"
+  },
+  {
+    "name": "release-readiness",
+    "role": "Product Lead",
+    "description": "Use immediately before shipping a meaningful product change.",
+    "path": "release-readiness/SKILL.md"
+  },
+  {
+    "name": "requirements-elicitation",
+    "role": "Business Analyst",
+    "description": "Use when stakeholder intent is incomplete, contradictory, or informal.",
+    "path": "requirements-elicitation/SKILL.md"
+  },
+  {
+    "name": "user-story-mapping",
+    "role": "Business Analyst",
+    "description": "Use to organize a product journey into releases and executable slices.",
+    "path": "user-story-mapping/SKILL.md"
+  },
+  {
+    "name": "business-rules-analysis",
+    "role": "Business Analyst",
+    "description": "Use when behavior depends on policy, eligibility, state, pricing, limits, or approvals.",
+    "path": "business-rules-analysis/SKILL.md"
+  },
+  {
+    "name": "process-modeling",
+    "role": "Business Analyst",
+    "description": "Use to understand or redesign a multi-step operational workflow.",
+    "path": "process-modeling/SKILL.md"
+  },
+  {
+    "name": "requirements-gap-analysis",
+    "role": "Business Analyst",
+    "description": "Use before implementation when requirements may be incomplete.",
+    "path": "requirements-gap-analysis/SKILL.md"
+  },
+  {
+    "name": "persona-analysis",
+    "role": "UX Researcher",
+    "description": "Use to form or refine evidence-grounded user segments/personas.",
+    "path": "persona-analysis/SKILL.md"
+  },
+  {
+    "name": "journey-mapping",
+    "role": "UX Researcher",
+    "description": "Use for end-to-end experience analysis across touchpoints.",
+    "path": "journey-mapping/SKILL.md"
+  },
+  {
+    "name": "usability-review",
+    "role": "UX Researcher",
+    "description": "Use to inspect an existing flow or prototype for usability risks.",
+    "path": "usability-review/SKILL.md"
+  },
+  {
+    "name": "feedback-synthesis",
+    "role": "UX Researcher",
+    "description": "Use when many tickets/interviews/reviews need synthesis.",
+    "path": "feedback-synthesis/SKILL.md"
+  },
+  {
+    "name": "information-architecture",
+    "role": "Product Designer",
+    "description": "Use when navigation, hierarchy, taxonomy, or discoverability needs design.",
+    "path": "information-architecture/SKILL.md"
+  },
+  {
+    "name": "interaction-design",
+    "role": "Product Designer",
+    "description": "Use for a new or changed interactive workflow.",
+    "path": "interaction-design/SKILL.md"
+  },
+  {
+    "name": "design-system-governance",
+    "role": "Product Designer",
+    "description": "Use when adding/changing reusable UI primitives or patterns.",
+    "path": "design-system-governance/SKILL.md"
+  },
+  {
+    "name": "accessibility-design-review",
+    "role": "Product Designer",
+    "description": "Use for pre-implementation accessibility review.",
+    "path": "accessibility-design-review/SKILL.md"
+  },
+  {
+    "name": "design-handoff",
+    "role": "Product Designer",
+    "description": "Use when design is ready for implementation.",
+    "path": "design-handoff/SKILL.md"
+  },
+  {
+    "name": "architecture-discovery",
+    "role": "Software Architect",
+    "description": "Use before major changes to an unfamiliar codebase/system.",
+    "path": "architecture-discovery/SKILL.md"
+  },
+  {
+    "name": "architecture-decision-records",
+    "role": "Software Architect",
+    "description": "Use for consequential, durable technical decisions.",
+    "path": "architecture-decision-records/SKILL.md"
+  },
+  {
+    "name": "service-boundary-design",
+    "role": "Software Architect",
+    "description": "Use when splitting/merging services/modules or defining ownership.",
+    "path": "service-boundary-design/SKILL.md"
+  },
+  {
+    "name": "api-contract-design",
+    "role": "Software Architect",
+    "description": "Use to design public/internal HTTP/RPC/event contracts.",
+    "path": "api-contract-design/SKILL.md"
+  },
+  {
+    "name": "system-design-review",
+    "role": "Software Architect",
+    "description": "Use for architecture review before build or major scale change.",
+    "path": "system-design-review/SKILL.md"
+  },
+  {
+    "name": "dependency-analysis",
+    "role": "Software Architect",
+    "description": "Use for circular dependencies, risky libraries, coupling, or upgrade planning.",
+    "path": "dependency-analysis/SKILL.md"
+  },
+  {
+    "name": "migration-planning",
+    "role": "Software Architect",
+    "description": "Use for framework/service/data/architecture migrations.",
+    "path": "migration-planning/SKILL.md"
+  },
+  {
+    "name": "technical-debt-assessment",
+    "role": "Software Architect",
+    "description": "Use to prioritize structural engineering debt.",
+    "path": "technical-debt-assessment/SKILL.md"
+  },
+  {
+    "name": "rest-api-implementation",
+    "role": "Backend Engineer",
+    "description": "Use to implement or modify production HTTP APIs.",
+    "path": "rest-api-implementation/SKILL.md"
+  },
+  {
+    "name": "background-job-design",
+    "role": "Backend Engineer",
+    "description": "Use for queues, workers, scheduled jobs, or async workflows.",
+    "path": "background-job-design/SKILL.md"
+  },
+  {
+    "name": "authentication-authorization",
+    "role": "Backend Engineer",
+    "description": "Use to implement identity/session/token/permission behavior.",
+    "path": "authentication-authorization/SKILL.md"
+  },
+  {
+    "name": "backend-performance",
+    "role": "Backend Engineer",
+    "description": "Use when backend latency, CPU, memory, throughput, or cost is a problem.",
+    "path": "backend-performance/SKILL.md"
+  },
+  {
+    "name": "error-handling",
+    "role": "Backend Engineer",
+    "description": "Use to standardize application/service error semantics.",
+    "path": "error-handling/SKILL.md"
+  },
+  {
+    "name": "domain-service-design",
+    "role": "Backend Engineer",
+    "description": "Use for non-trivial business logic and transactional behavior.",
+    "path": "domain-service-design/SKILL.md"
+  },
+  {
+    "name": "systematic-debugging",
+    "role": "Backend Engineer",
+    "description": "Use for difficult backend defects before proposing a fix.",
+    "path": "systematic-debugging/SKILL.md"
+  },
+  {
+    "name": "react-component-engineering",
+    "role": "Frontend Engineer",
+    "description": "Use to create/refactor React components in a production codebase.",
+    "path": "react-component-engineering/SKILL.md"
+  },
+  {
+    "name": "frontend-state-management",
+    "role": "Frontend Engineer",
+    "description": "Use when deciding where UI/application state belongs.",
+    "path": "frontend-state-management/SKILL.md"
+  },
+  {
+    "name": "frontend-performance",
+    "role": "Frontend Engineer",
+    "description": "Use for slow interaction/render/load or oversized bundles.",
+    "path": "frontend-performance/SKILL.md"
+  },
+  {
+    "name": "responsive-ui",
+    "role": "Frontend Engineer",
+    "description": "Use to implement layouts across viewport, zoom, and input modes.",
+    "path": "responsive-ui/SKILL.md"
+  },
+  {
+    "name": "frontend-accessibility",
+    "role": "Frontend Engineer",
+    "description": "Use while implementing interactive web UI.",
+    "path": "frontend-accessibility/SKILL.md"
+  },
+  {
+    "name": "frontend-testing",
+    "role": "Frontend Engineer",
+    "description": "Use to design React/web test coverage.",
+    "path": "frontend-testing/SKILL.md"
+  },
+  {
+    "name": "schema-design",
+    "role": "Database Engineer",
+    "description": "Use for new relational data models or major schema changes.",
+    "path": "schema-design/SKILL.md"
+  },
+  {
+    "name": "safe-migrations",
+    "role": "Database Engineer",
+    "description": "Use for production schema/data migrations.",
+    "path": "safe-migrations/SKILL.md"
+  },
+  {
+    "name": "query-optimization",
+    "role": "Database Engineer",
+    "description": "Use when a database query is demonstrably slow/expensive.",
+    "path": "query-optimization/SKILL.md"
+  },
+  {
+    "name": "index-design",
+    "role": "Database Engineer",
+    "description": "Use to create/remove/reorder database indexes.",
+    "path": "index-design/SKILL.md"
+  },
+  {
+    "name": "data-integrity",
+    "role": "Database Engineer",
+    "description": "Use when duplicates, races, inconsistent state, or cross-write correctness matter.",
+    "path": "data-integrity/SKILL.md"
+  },
+  {
+    "name": "oauth-integration",
+    "role": "Integration Engineer",
+    "description": "Use to connect OAuth 2.0/OIDC providers such as GitHub, Google, Slack.",
+    "path": "oauth-integration/SKILL.md"
+  },
+  {
+    "name": "webhook-engineering",
+    "role": "Integration Engineer",
+    "description": "Use for inbound provider webhooks.",
+    "path": "webhook-engineering/SKILL.md"
+  },
+  {
+    "name": "third-party-api-adapter",
+    "role": "Integration Engineer",
+    "description": "Use to wrap an external API behind an internal interface.",
+    "path": "third-party-api-adapter/SKILL.md"
+  },
+  {
+    "name": "rate-limit-resilience",
+    "role": "Integration Engineer",
+    "description": "Use when external/internal APIs enforce quotas or throttling.",
+    "path": "rate-limit-resilience/SKILL.md"
+  },
+  {
+    "name": "integration-contract-testing",
+    "role": "Integration Engineer",
+    "description": "Use to protect against external API/schema behavior changes.",
+    "path": "integration-contract-testing/SKILL.md"
+  },
+  {
+    "name": "test-strategy",
+    "role": "QA Engineer",
+    "description": "Use to design project/feature quality coverage.",
+    "path": "test-strategy/SKILL.md"
+  },
+  {
+    "name": "e2e-testing",
+    "role": "QA Engineer",
+    "description": "Use for critical user journeys crossing real system boundaries.",
+    "path": "e2e-testing/SKILL.md"
+  },
+  {
+    "name": "regression-testing",
+    "role": "QA Engineer",
+    "description": "Use after changes to choose focused regression scope.",
+    "path": "regression-testing/SKILL.md"
+  },
+  {
+    "name": "bug-reproduction",
+    "role": "QA Engineer",
+    "description": "Use to convert a defect report into actionable engineering evidence.",
+    "path": "bug-reproduction/SKILL.md"
+  },
+  {
+    "name": "exploratory-testing",
+    "role": "QA Engineer",
+    "description": "Use for risk-driven human/agent exploration beyond scripted tests.",
+    "path": "exploratory-testing/SKILL.md"
+  },
+  {
+    "name": "release-quality-gate",
+    "role": "QA Engineer",
+    "description": "Use for independent QA go/no-go assessment.",
+    "path": "release-quality-gate/SKILL.md"
+  },
+  {
+    "name": "threat-modeling",
+    "role": "Security Engineer",
+    "description": "Use before/while building security-sensitive features or new trust boundaries.",
+    "path": "threat-modeling/SKILL.md"
+  },
+  {
+    "name": "secure-code-review",
+    "role": "Security Engineer",
+    "description": "Use for security-focused review of code changes.",
+    "path": "secure-code-review/SKILL.md"
+  },
+  {
+    "name": "secrets-management",
+    "role": "Security Engineer",
+    "description": "Use for API keys, credentials, signing keys, certificates, tokens.",
+    "path": "secrets-management/SKILL.md"
+  },
+  {
+    "name": "dependency-security",
+    "role": "Security Engineer",
+    "description": "Use for CVEs/advisories/dependency upgrades.",
+    "path": "dependency-security/SKILL.md"
+  },
+  {
+    "name": "auth-security-review",
+    "role": "Security Engineer",
+    "description": "Use for login, OAuth, sessions, MFA, recovery, permissions, tenancy.",
+    "path": "auth-security-review/SKILL.md"
+  },
+  {
+    "name": "security-incident-triage",
+    "role": "Security Engineer",
+    "description": "Use for suspected compromise, credential leak, abuse, or vulnerability exploitation.",
+    "path": "security-incident-triage/SKILL.md"
+  },
+  {
+    "name": "owasp-web-review",
+    "role": "Security Engineer",
+    "description": "Use for structured web-app security assessment.",
+    "path": "owasp-web-review/SKILL.md"
+  },
+  {
+    "name": "ci-cd-pipeline",
+    "role": "DevOps Engineer",
+    "description": "Use to build/review delivery pipelines.",
+    "path": "ci-cd-pipeline/SKILL.md"
+  },
+  {
+    "name": "docker-production",
+    "role": "DevOps Engineer",
+    "description": "Use for production Dockerfile/container review.",
+    "path": "docker-production/SKILL.md"
+  },
+  {
+    "name": "infrastructure-as-code",
+    "role": "DevOps Engineer",
+    "description": "Use for Terraform/CDK/CloudFormation infrastructure changes.",
+    "path": "infrastructure-as-code/SKILL.md"
+  },
+  {
+    "name": "deployment-strategy",
+    "role": "DevOps Engineer",
+    "description": "Use to choose/execute production rollout.",
+    "path": "deployment-strategy/SKILL.md"
+  },
+  {
+    "name": "environment-management",
+    "role": "DevOps Engineer",
+    "description": "Use to make dev/staging/prod reproducible and safely distinct.",
+    "path": "environment-management/SKILL.md"
+  },
+  {
+    "name": "cloud-cost-review",
+    "role": "DevOps Engineer",
+    "description": "Use to reduce cloud spend based on measured usage.",
+    "path": "cloud-cost-review/SKILL.md"
+  },
+  {
+    "name": "slo-sli-design",
+    "role": "Site Reliability Engineer",
+    "description": "Use to define measurable service reliability targets.",
+    "path": "slo-sli-design/SKILL.md"
+  },
+  {
+    "name": "observability-design",
+    "role": "Site Reliability Engineer",
+    "description": "Use to instrument a service/workflow for diagnosis and reliability.",
+    "path": "observability-design/SKILL.md"
+  },
+  {
+    "name": "incident-response",
+    "role": "Site Reliability Engineer",
+    "description": "Use during active production degradation/outage.",
+    "path": "incident-response/SKILL.md"
+  },
+  {
+    "name": "postmortem",
+    "role": "Site Reliability Engineer",
+    "description": "Use after significant incidents.",
+    "path": "postmortem/SKILL.md"
+  },
+  {
+    "name": "capacity-planning",
+    "role": "Site Reliability Engineer",
+    "description": "Use for growth, saturation, scaling, or resource forecasts.",
+    "path": "capacity-planning/SKILL.md"
+  },
+  {
+    "name": "reliability-review",
+    "role": "Site Reliability Engineer",
+    "description": "Use before launch or after recurring failures.",
+    "path": "reliability-review/SKILL.md"
+  },
+  {
+    "name": "event-taxonomy",
+    "role": "Data & Analytics Engineer",
+    "description": "Use to define product analytics instrumentation.",
+    "path": "event-taxonomy/SKILL.md"
+  },
+  {
+    "name": "funnel-analysis",
+    "role": "Data & Analytics Engineer",
+    "description": "Use to measure conversion through ordered product steps.",
+    "path": "funnel-analysis/SKILL.md"
+  },
+  {
+    "name": "retention-analysis",
+    "role": "Data & Analytics Engineer",
+    "description": "Use to understand repeat value/return behavior.",
+    "path": "retention-analysis/SKILL.md"
+  },
+  {
+    "name": "analytics-quality",
+    "role": "Data & Analytics Engineer",
+    "description": "Use to audit trustworthiness of product/data metrics.",
+    "path": "analytics-quality/SKILL.md"
+  },
+  {
+    "name": "experiment-analysis",
+    "role": "Data & Analytics Engineer",
+    "description": "Use for A/B or controlled product experiments.",
+    "path": "experiment-analysis/SKILL.md"
+  },
+  {
+    "name": "developer-documentation",
+    "role": "Technical Writer",
+    "description": "Use for setup, architecture, contribution, or developer workflow docs.",
+    "path": "developer-documentation/SKILL.md"
+  },
+  {
+    "name": "api-documentation",
+    "role": "Technical Writer",
+    "description": "Use to document developer-facing APIs.",
+    "path": "api-documentation/SKILL.md"
+  },
+  {
+    "name": "runbook-authoring",
+    "role": "Technical Writer",
+    "description": "Use for operational procedures responders must execute safely.",
+    "path": "runbook-authoring/SKILL.md"
+  },
+  {
+    "name": "release-notes",
+    "role": "Technical Writer",
+    "description": "Use to communicate shipped changes.",
+    "path": "release-notes/SKILL.md"
+  },
+  {
+    "name": "documentation-audit",
+    "role": "Technical Writer",
+    "description": "Use to find stale/missing/conflicting documentation.",
+    "path": "documentation-audit/SKILL.md"
+  },
+  {
+    "name": "technical-seo-audit",
+    "role": "Growth Engineer",
+    "description": "Use for crawl/index/render/search technical diagnosis.",
+    "path": "technical-seo-audit/SKILL.md"
+  },
+  {
+    "name": "programmatic-seo",
+    "role": "Growth Engineer",
+    "description": "Use to design large-scale template-driven search pages.",
+    "path": "programmatic-seo/SKILL.md"
+  },
+  {
+    "name": "activation-funnel",
+    "role": "Growth Engineer",
+    "description": "Use to improve signup-to-first-value.",
+    "path": "activation-funnel/SKILL.md"
+  },
+  {
+    "name": "growth-experiment",
+    "role": "Growth Engineer",
+    "description": "Use to plan a measurable acquisition/activation/retention experiment.",
+    "path": "growth-experiment/SKILL.md"
+  },
+  {
+    "name": "conversion-review",
+    "role": "Growth Engineer",
+    "description": "Use to inspect landing/onboarding/checkout conversion surfaces.",
+    "path": "conversion-review/SKILL.md"
+  },
+  {
+    "name": "task-decomposition",
+    "role": "Engineering Manager",
+    "description": "Use to turn an approved goal/spec into executable engineering work.",
+    "path": "task-decomposition/SKILL.md"
+  },
+  {
+    "name": "dependency-coordination",
+    "role": "Engineering Manager",
+    "description": "Use when multiple agents/tasks/repos must land in sequence.",
+    "path": "dependency-coordination/SKILL.md"
+  },
+  {
+    "name": "engineering-risk-management",
+    "role": "Engineering Manager",
+    "description": "Use for delivery/technical risk tracking.",
+    "path": "engineering-risk-management/SKILL.md"
+  },
+  {
+    "name": "code-review-orchestration",
+    "role": "Engineering Manager",
+    "description": "Use to route and close reviews across specialties.",
+    "path": "code-review-orchestration/SKILL.md"
+  },
+  {
+    "name": "technology-strategy",
+    "role": "CTO",
+    "description": "Use for company-level platform/model/framework/cloud direction.",
+    "path": "technology-strategy/SKILL.md"
+  },
+  {
+    "name": "build-vs-buy",
+    "role": "CTO",
+    "description": "Use for strategic build/buy/open-source/managed-service decisions.",
+    "path": "build-vs-buy/SKILL.md"
+  },
+  {
+    "name": "architecture-governance",
+    "role": "CTO",
+    "description": "Use to resolve cross-system standards and high-impact architecture exceptions.",
+    "path": "architecture-governance/SKILL.md"
+  },
+  {
+    "name": "technical-risk-review",
+    "role": "CTO",
+    "description": "Use for executive-level systemic technical risk.",
+    "path": "technical-risk-review/SKILL.md"
+  },
+  {
+    "name": "engineering-maturity",
+    "role": "CTO",
+    "description": "Use to assess and improve engineering operating capability.",
+    "path": "engineering-maturity/SKILL.md"
+  },
+  {
+    "name": "request-routing",
+    "role": "Orchestrator",
+    "description": "Use when new work arrives and must go to the first responsible role.",
+    "path": "request-routing/SKILL.md"
+  },
+  {
+    "name": "specialist-gap-detection",
+    "role": "Orchestrator",
+    "description": "Use when no role in the workspace fits the work, to say which catalogue specialist to add.",
+    "path": "specialist-gap-detection/SKILL.md"
+  },
+  {
+    "name": "cross-role-delegation",
+    "role": "Orchestrator",
+    "description": "Use when one request spans several roles and must be split into owned hand-offs.",
+    "path": "cross-role-delegation/SKILL.md"
+  },
+  {
+    "name": "workspace-status-briefing",
+    "role": "Orchestrator",
+    "description": "Use when someone asks what is happening across the workspace.",
+    "path": "workspace-status-briefing/SKILL.md"
+  },
+  {
+    "name": "escalation-routing",
+    "role": "Orchestrator",
+    "description": "Use when work is blocked or escalated and must reach the right role or person.",
+    "path": "escalation-routing/SKILL.md"
+  },
+  {
+    "name": "review-assignment",
+    "role": "Orchestrator",
+    "description": "Use when finished work needs its required reviewers in place.",
+    "path": "review-assignment/SKILL.md"
+  },
+  {
+    "name": "duplicate-work-detection",
+    "role": "Orchestrator",
+    "description": "Use when new work may overlap tasks, goals or proposals that already exist.",
+    "path": "duplicate-work-detection/SKILL.md"
+  },
+  {
+    "name": "workspace-onboarding",
+    "role": "Orchestrator",
+    "description": "Use when a person is new to the workspace and needs to know how roles, skills and reviews work.",
+    "path": "workspace-onboarding/SKILL.md"
+  },
+  {
+    "name": "request-to-plan",
+    "role": "Planner",
+    "description": "Use when a request must become a plan of goals and tasks a team can carry out.",
+    "path": "request-to-plan/SKILL.md"
+  },
+  {
+    "name": "goal-definition",
+    "role": "Planner",
+    "description": "Use when a goal is vague and needs an outcome, a measure and a boundary.",
+    "path": "goal-definition/SKILL.md"
+  },
+  {
+    "name": "task-sizing",
+    "role": "Planner",
+    "description": "Use when tasks in a plan are too big, too small or uneven to assign.",
+    "path": "task-sizing/SKILL.md"
+  },
+  {
+    "name": "owner-assignment",
+    "role": "Planner",
+    "description": "Use when plan tasks need the right owner role for each.",
+    "path": "owner-assignment/SKILL.md"
+  },
+  {
+    "name": "dependency-sequencing",
+    "role": "Planner",
+    "description": "Use when plan tasks must be ordered by what depends on what.",
+    "path": "dependency-sequencing/SKILL.md"
+  },
+  {
+    "name": "plan-risk-review",
+    "role": "Planner",
+    "description": "Use before a plan is approved, to surface what could make it fail.",
+    "path": "plan-risk-review/SKILL.md"
+  },
+  {
+    "name": "replanning",
+    "role": "Planner",
+    "description": "Use when scope, priorities or facts change and an existing plan must be updated.",
+    "path": "replanning/SKILL.md"
+  },
+  {
+    "name": "plan-acceptance-checks",
+    "role": "Planner",
+    "description": "Use when tasks in a plan need acceptance criteria a reviewer can check.",
+    "path": "plan-acceptance-checks/SKILL.md"
+  },
+  {
+    "name": "feature-implementation",
+    "role": "Software Engineer",
+    "description": "Use when a defined feature must be built end to end across interface, backend and data.",
+    "path": "feature-implementation/SKILL.md"
+  },
+  {
+    "name": "bug-fix-delivery",
+    "role": "Software Engineer",
+    "description": "Use when a reported defect must be reproduced, fixed and protected against regression.",
+    "path": "bug-fix-delivery/SKILL.md"
+  },
+  {
+    "name": "test-driven-change",
+    "role": "Software Engineer",
+    "description": "Use when behaviour should be pinned by tests before the code changes.",
+    "path": "test-driven-change/SKILL.md"
+  },
+  {
+    "name": "safe-refactoring",
+    "role": "Software Engineer",
+    "description": "Use when code structure must change without changing behaviour.",
+    "path": "safe-refactoring/SKILL.md"
+  },
+  {
+    "name": "codebase-orientation",
+    "role": "Software Engineer",
+    "description": "Use before working in an unfamiliar part of a repository.",
+    "path": "codebase-orientation/SKILL.md"
+  },
+  {
+    "name": "dependency-upgrade",
+    "role": "Software Engineer",
+    "description": "Use when a library, framework or runtime version must be upgraded.",
+    "path": "dependency-upgrade/SKILL.md"
+  },
+  {
+    "name": "change-description",
+    "role": "Software Engineer",
+    "description": "Use when a finished change needs a description a reviewer can act on.",
+    "path": "change-description/SKILL.md"
+  },
+  {
+    "name": "feature-flag-rollout",
+    "role": "Software Engineer",
+    "description": "Use when a change should ship behind a flag and roll out gradually.",
+    "path": "feature-flag-rollout/SKILL.md"
+  },
+  {
+    "name": "review-verdict",
+    "role": "Reviewer",
+    "description": "Use when delivered work must be judged against its task and a verdict recorded.",
+    "path": "review-verdict/SKILL.md"
+  },
+  {
+    "name": "diff-review",
+    "role": "Reviewer",
+    "description": "Use when a code change must be reviewed for correctness, safety and fit.",
+    "path": "diff-review/SKILL.md"
+  },
+  {
+    "name": "acceptance-verification",
+    "role": "Reviewer",
+    "description": "Use when each acceptance criterion must be checked with evidence.",
+    "path": "acceptance-verification/SKILL.md"
+  },
+  {
+    "name": "document-deliverable-review",
+    "role": "Reviewer",
+    "description": "Use when the delivered work is a document, plan, brief or other non-code deliverable.",
+    "path": "document-deliverable-review/SKILL.md"
+  },
+  {
+    "name": "test-evidence-review",
+    "role": "Reviewer",
+    "description": "Use when the quality of a change depends on its tests and their results.",
+    "path": "test-evidence-review/SKILL.md"
+  },
+  {
+    "name": "risk-flagging-review",
+    "role": "Reviewer",
+    "description": "Use when a change may touch security, data, money or irreversible operations.",
+    "path": "risk-flagging-review/SKILL.md"
+  },
+  {
+    "name": "review-comment-writing",
+    "role": "Reviewer",
+    "description": "Use when findings must be written so the author can act on them quickly.",
+    "path": "review-comment-writing/SKILL.md"
+  },
+  {
+    "name": "follow-up-review",
+    "role": "Reviewer",
+    "description": "Use when an author has responded to review feedback and the work must be re-checked.",
+    "path": "follow-up-review/SKILL.md"
+  },
+  {
+    "name": "stakeholder-analysis",
+    "role": "Business Analyst",
+    "description": "Use when a change affects several groups and their interests must be understood.",
+    "path": "stakeholder-analysis/SKILL.md"
+  },
+  {
+    "name": "data-requirements-definition",
+    "role": "Business Analyst",
+    "description": "Use when a feature or report needs its data defined: fields, sources, rules and quality.",
+    "path": "data-requirements-definition/SKILL.md"
+  },
+  {
+    "name": "business-case-analysis",
+    "role": "Business Analyst",
+    "description": "Use when a proposed change needs costs, benefits and risks set out for a decision.",
+    "path": "business-case-analysis/SKILL.md"
+  },
+  {
+    "name": "user-flow-design",
+    "role": "Product Designer",
+    "description": "Use when a task a user performs must be designed as a sequence of screens and decisions.",
+    "path": "user-flow-design/SKILL.md"
+  },
+  {
+    "name": "interface-copy",
+    "role": "Product Designer",
+    "description": "Use when labels, messages, errors and empty states in an interface need clear wording.",
+    "path": "interface-copy/SKILL.md"
+  },
+  {
+    "name": "marketing-page-design",
+    "role": "Product Designer",
+    "description": "Use when a public page, landing page or marketing site needs layout and visual design.",
+    "path": "marketing-page-design/SKILL.md"
+  },
+  {
+    "name": "backup-restore-verification",
+    "role": "Database Engineer",
+    "description": "Use when backups must be proven restorable within recovery targets.",
+    "path": "backup-restore-verification/SKILL.md"
+  },
+  {
+    "name": "data-retention-design",
+    "role": "Database Engineer",
+    "description": "Use when data must be kept, archived or deleted on a schedule.",
+    "path": "data-retention-design/SKILL.md"
+  },
+  {
+    "name": "data-backfill-planning",
+    "role": "Database Engineer",
+    "description": "Use when existing rows must be filled or transformed at scale.",
+    "path": "data-backfill-planning/SKILL.md"
+  },
+  {
+    "name": "data-sync-design",
+    "role": "Integration Engineer",
+    "description": "Use when data must stay in step between Berry-side records and an external system.",
+    "path": "data-sync-design/SKILL.md"
+  },
+  {
+    "name": "integration-observability",
+    "role": "Integration Engineer",
+    "description": "Use when an integration needs logs, metrics and alerts that show it is healthy.",
+    "path": "integration-observability/SKILL.md"
+  },
+  {
+    "name": "provider-migration",
+    "role": "Integration Engineer",
+    "description": "Use when an integration must move from one external provider to another.",
+    "path": "provider-migration/SKILL.md"
+  },
+  {
+    "name": "metric-definition",
+    "role": "Data & Analytics Engineer",
+    "description": "Use when a metric needs a precise, shared definition before it is reported.",
+    "path": "metric-definition/SKILL.md"
+  },
+  {
+    "name": "dashboard-design",
+    "role": "Data & Analytics Engineer",
+    "description": "Use when a dashboard must answer specific questions for a specific audience.",
+    "path": "dashboard-design/SKILL.md"
+  },
+  {
+    "name": "sql-analysis-review",
+    "role": "Data & Analytics Engineer",
+    "description": "Use when an analytic query or its results must be checked for correctness.",
+    "path": "sql-analysis-review/SKILL.md"
+  },
+  {
+    "name": "user-guide-authoring",
+    "role": "Technical Writer",
+    "description": "Use when end users need task-based guidance for a product feature.",
+    "path": "user-guide-authoring/SKILL.md"
+  },
+  {
+    "name": "tutorial-authoring",
+    "role": "Technical Writer",
+    "description": "Use when a learner needs a guided path from nothing to a working result.",
+    "path": "tutorial-authoring/SKILL.md"
+  },
+  {
+    "name": "docs-site-structure",
+    "role": "Technical Writer",
+    "description": "Use when documentation is hard to navigate and needs a clear structure.",
+    "path": "docs-site-structure/SKILL.md"
+  },
+  {
+    "name": "referral-loop-design",
+    "role": "Growth Engineer",
+    "description": "Use when users could bring other users and the loop needs designing and measuring.",
+    "path": "referral-loop-design/SKILL.md"
+  },
+  {
+    "name": "lifecycle-messaging",
+    "role": "Growth Engineer",
+    "description": "Use when triggered emails or in-app messages must guide users at key moments.",
+    "path": "lifecycle-messaging/SKILL.md"
+  },
+  {
+    "name": "pricing-experiment",
+    "role": "Growth Engineer",
+    "description": "Use when pricing, packaging or paywall changes must be tested safely.",
+    "path": "pricing-experiment/SKILL.md"
+  },
+  {
+    "name": "technology-budget-review",
+    "role": "CTO",
+    "description": "Use when technology spend must be reviewed against value and plans.",
+    "path": "technology-budget-review/SKILL.md"
+  },
+  {
+    "name": "vendor-technical-due-diligence",
+    "role": "CTO",
+    "description": "Use before committing to a critical technology vendor.",
+    "path": "vendor-technical-due-diligence/SKILL.md"
+  },
+  {
+    "name": "engineering-org-design",
+    "role": "CTO",
+    "description": "Use when team structure, ownership or roles must change to fit the work.",
+    "path": "engineering-org-design/SKILL.md"
+  },
+  {
+    "name": "user-research-plan",
+    "role": "UX Researcher",
+    "description": "Use before any study, to define questions, method, participants and timing.",
+    "path": "user-research-plan/SKILL.md"
+  },
+  {
+    "name": "interview-guide-design",
+    "role": "UX Researcher",
+    "description": "Use when user interviews need a guide of neutral, open questions.",
+    "path": "interview-guide-design/SKILL.md"
+  },
+  {
+    "name": "usability-test-protocol",
+    "role": "UX Researcher",
+    "description": "Use when a design or product must be tested with users on real tasks.",
+    "path": "usability-test-protocol/SKILL.md"
+  },
+  {
+    "name": "insight-repository",
+    "role": "UX Researcher",
+    "description": "Use when research findings must be stored so others can find and reuse them.",
+    "path": "insight-repository/SKILL.md"
+  },
+  {
+    "name": "team-capacity-allocation",
+    "role": "Engineering Manager",
+    "description": "Use when available capacity must be matched to committed work.",
+    "path": "team-capacity-allocation/SKILL.md"
+  },
+  {
+    "name": "delivery-status-report",
+    "role": "Engineering Manager",
+    "description": "Use when stakeholders need an honest status of in-flight delivery.",
+    "path": "delivery-status-report/SKILL.md"
+  },
+  {
+    "name": "retrospective-facilitation",
+    "role": "Engineering Manager",
+    "description": "Use after a project, release or incident to learn and pick improvements.",
+    "path": "retrospective-facilitation/SKILL.md"
+  },
+  {
+    "name": "blocker-resolution",
+    "role": "Engineering Manager",
+    "description": "Use when work is stuck and someone must unblock it.",
+    "path": "blocker-resolution/SKILL.md"
+  },
+  {
+    "name": "product-metrics-review",
+    "role": "Product Lead",
+    "description": "Use when product outcomes must be reviewed to decide what to do next.",
+    "path": "product-metrics-review/SKILL.md"
+  },
+  {
+    "name": "competitive-product-analysis",
+    "role": "Product Lead",
+    "description": "Use when product decisions need an honest view of alternatives users choose.",
+    "path": "competitive-product-analysis/SKILL.md"
+  },
+  {
+    "name": "form-engineering",
+    "role": "Frontend Engineer",
+    "description": "Use when forms need validation, error handling, accessibility and safe submission.",
+    "path": "form-engineering/SKILL.md"
+  },
+  {
+    "name": "frontend-internationalization",
+    "role": "Frontend Engineer",
+    "description": "Use when interface text, dates and numbers must work across languages and locales.",
+    "path": "frontend-internationalization/SKILL.md"
+  },
+  {
+    "name": "test-data-management",
+    "role": "QA Engineer",
+    "description": "Use when tests need realistic, safe and repeatable data.",
+    "path": "test-data-management/SKILL.md"
+  },
+  {
+    "name": "load-testing",
+    "role": "QA Engineer",
+    "description": "Use when a system's behaviour under expected and peak load must be measured.",
+    "path": "load-testing/SKILL.md"
+  },
+  {
+    "name": "dns-tls-management",
+    "role": "DevOps Engineer",
+    "description": "Use when domains, records or certificates must be set up, changed or renewed.",
+    "path": "dns-tls-management/SKILL.md"
+  },
+  {
+    "name": "build-pipeline-performance",
+    "role": "DevOps Engineer",
+    "description": "Use when builds and CI runs are slow or flaky.",
+    "path": "build-pipeline-performance/SKILL.md"
+  },
+  {
+    "name": "alert-tuning",
+    "role": "Site Reliability Engineer",
+    "description": "Use when alerts are noisy, missing or not actionable.",
+    "path": "alert-tuning/SKILL.md"
+  },
+  {
+    "name": "disaster-recovery-drill",
+    "role": "Site Reliability Engineer",
+    "description": "Use when recovery from a major failure must be rehearsed and measured.",
+    "path": "disaster-recovery-drill/SKILL.md"
+  },
+  {
+    "name": "caching-strategy",
+    "role": "Backend Engineer",
+    "description": "Use when responses or computations should be cached for speed without serving wrong data.",
+    "path": "caching-strategy/SKILL.md"
+  },
+  {
+    "name": "privacy-data-review",
+    "role": "Security Engineer",
+    "description": "Use when a feature collects, stores or shares personal data.",
+    "path": "privacy-data-review/SKILL.md"
+  },
+  {
+    "name": "mobile-feature-implementation",
+    "role": "Mobile Engineer",
+    "description": "Use when a mobile feature must be implemented from a spec and design.",
+    "path": "mobile-feature-implementation/SKILL.md"
+  },
+  {
+    "name": "offline-and-sync",
+    "role": "Mobile Engineer",
+    "description": "Use when an app must work offline or on poor networks.",
+    "path": "offline-and-sync/SKILL.md"
+  },
+  {
+    "name": "mobile-permissions",
+    "role": "Mobile Engineer",
+    "description": "Use when an app requests device permissions.",
+    "path": "mobile-permissions/SKILL.md"
+  },
+  {
+    "name": "mobile-performance",
+    "role": "Mobile Engineer",
+    "description": "Use when an app is slow, janky or drains battery.",
+    "path": "mobile-performance/SKILL.md"
+  },
+  {
+    "name": "app-store-release-prep",
+    "role": "Mobile Engineer",
+    "description": "Use when an app version must be prepared for store submission.",
+    "path": "app-store-release-prep/SKILL.md"
+  },
+  {
+    "name": "mobile-unit-testing",
+    "role": "Mobile Engineer",
+    "description": "Use when app logic needs automated tests.",
+    "path": "mobile-unit-testing/SKILL.md"
+  },
+  {
+    "name": "mobile-accessibility",
+    "role": "Mobile Engineer",
+    "description": "Use when an app must work with screen readers, dynamic type and other assistive features.",
+    "path": "mobile-accessibility/SKILL.md"
+  },
+  {
+    "name": "mobile-crash-triage",
+    "role": "Mobile Engineer",
+    "description": "Use when crash reports must be triaged and fixed.",
+    "path": "mobile-crash-triage/SKILL.md"
+  },
+  {
+    "name": "critical-flow-automation",
+    "role": "Test Automation Engineer",
+    "description": "Use when critical user flows need automated tests.",
+    "path": "critical-flow-automation/SKILL.md"
+  },
+  {
+    "name": "flaky-test-remediation",
+    "role": "Test Automation Engineer",
+    "description": "Use when tests pass and fail without code changes.",
+    "path": "flaky-test-remediation/SKILL.md"
+  },
+  {
+    "name": "test-suite-speed",
+    "role": "Test Automation Engineer",
+    "description": "Use when the test suite is too slow to run on every change.",
+    "path": "test-suite-speed/SKILL.md"
+  },
+  {
+    "name": "coverage-gap-report",
+    "role": "Test Automation Engineer",
+    "description": "Use when what is not tested must be reported.",
+    "path": "coverage-gap-report/SKILL.md"
+  },
+  {
+    "name": "api-test-automation",
+    "role": "Test Automation Engineer",
+    "description": "Use when API behaviour needs automated contract and behaviour tests.",
+    "path": "api-test-automation/SKILL.md"
+  },
+  {
+    "name": "test-framework-setup",
+    "role": "Test Automation Engineer",
+    "description": "Use when a project needs a test framework set up or improved.",
+    "path": "test-framework-setup/SKILL.md"
+  },
+  {
+    "name": "visual-regression-testing",
+    "role": "Test Automation Engineer",
+    "description": "Use when interface changes must be checked for unintended visual differences.",
+    "path": "visual-regression-testing/SKILL.md"
+  },
+  {
+    "name": "test-reporting",
+    "role": "Test Automation Engineer",
+    "description": "Use when test results must be reported clearly to the team.",
+    "path": "test-reporting/SKILL.md"
+  },
+  {
+    "name": "response-time-measurement",
+    "role": "Performance Engineer",
+    "description": "Use when response times and page speed must be measured.",
+    "path": "response-time-measurement/SKILL.md"
+  },
+  {
+    "name": "slow-path-diagnosis",
+    "role": "Performance Engineer",
+    "description": "Use when a slow request or page must be traced to its cause.",
+    "path": "slow-path-diagnosis/SKILL.md"
+  },
+  {
+    "name": "load-test-plan",
+    "role": "Performance Engineer",
+    "description": "Use when load tests must be planned and run in safe environments.",
+    "path": "load-test-plan/SKILL.md"
+  },
+  {
+    "name": "performance-budget",
+    "role": "Performance Engineer",
+    "description": "Use when new work needs performance budgets.",
+    "path": "performance-budget/SKILL.md"
+  },
+  {
+    "name": "frontend-load-optimization",
+    "role": "Performance Engineer",
+    "description": "Use when pages load slowly.",
+    "path": "frontend-load-optimization/SKILL.md"
+  },
+  {
+    "name": "database-query-performance",
+    "role": "Performance Engineer",
+    "description": "Use when database queries cause slowness.",
+    "path": "database-query-performance/SKILL.md"
+  },
+  {
+    "name": "capacity-forecast",
+    "role": "Performance Engineer",
+    "description": "Use when future load must be forecast against capacity.",
+    "path": "capacity-forecast/SKILL.md"
+  },
+  {
+    "name": "performance-regression-guard",
+    "role": "Performance Engineer",
+    "description": "Use when performance regressions must be caught before release.",
+    "path": "performance-regression-guard/SKILL.md"
+  },
+  {
+    "name": "iac-module",
+    "role": "Cloud Engineer",
+    "description": "Use when infrastructure must be written as code.",
+    "path": "iac-module/SKILL.md"
+  },
+  {
+    "name": "least-privilege-access",
+    "role": "Cloud Engineer",
+    "description": "Use when cloud access must be designed with least privilege.",
+    "path": "least-privilege-access/SKILL.md"
+  },
+  {
+    "name": "network-design",
+    "role": "Cloud Engineer",
+    "description": "Use when cloud networks must be designed.",
+    "path": "network-design/SKILL.md"
+  },
+  {
+    "name": "environment-parity",
+    "role": "Cloud Engineer",
+    "description": "Use when environments drift from each other.",
+    "path": "environment-parity/SKILL.md"
+  },
+  {
+    "name": "storage-design",
+    "role": "Cloud Engineer",
+    "description": "Use when storage must be chosen and configured.",
+    "path": "storage-design/SKILL.md"
+  },
+  {
+    "name": "infrastructure-change-runbook",
+    "role": "Cloud Engineer",
+    "description": "Use when infrastructure changes need a documented procedure.",
+    "path": "infrastructure-change-runbook/SKILL.md"
+  },
+  {
+    "name": "cloud-right-sizing",
+    "role": "Cloud Engineer",
+    "description": "Use when resources are over or under sized.",
+    "path": "cloud-right-sizing/SKILL.md"
+  },
+  {
+    "name": "secrets-in-infrastructure",
+    "role": "Cloud Engineer",
+    "description": "Use when infrastructure needs secrets.",
+    "path": "secrets-in-infrastructure/SKILL.md"
+  },
+  {
+    "name": "service-template",
+    "role": "Platform Engineer",
+    "description": "Use when new services need a template with good defaults.",
+    "path": "service-template/SKILL.md"
+  },
+  {
+    "name": "shared-build-tooling",
+    "role": "Platform Engineer",
+    "description": "Use when shared build and deploy tooling must be maintained.",
+    "path": "shared-build-tooling/SKILL.md"
+  },
+  {
+    "name": "platform-documentation",
+    "role": "Platform Engineer",
+    "description": "Use when the platform needs docs for its users.",
+    "path": "platform-documentation/SKILL.md"
+  },
+  {
+    "name": "developer-friction-measurement",
+    "role": "Platform Engineer",
+    "description": "Use when time lost by engineers must be measured.",
+    "path": "developer-friction-measurement/SKILL.md"
+  },
+  {
+    "name": "golden-path-design",
+    "role": "Platform Engineer",
+    "description": "Use when a recommended way of doing common tasks must be designed.",
+    "path": "golden-path-design/SKILL.md"
+  },
+  {
+    "name": "local-dev-environment",
+    "role": "Platform Engineer",
+    "description": "Use when engineers need a reliable local environment.",
+    "path": "local-dev-environment/SKILL.md"
+  },
+  {
+    "name": "platform-upgrade-rollout",
+    "role": "Platform Engineer",
+    "description": "Use when a platform component must be upgraded across services.",
+    "path": "platform-upgrade-rollout/SKILL.md"
+  },
+  {
+    "name": "platform-adoption-review",
+    "role": "Platform Engineer",
+    "description": "Use when platform use must be reviewed.",
+    "path": "platform-adoption-review/SKILL.md"
+  },
+  {
+    "name": "maintenance-scripting",
+    "role": "Systems Administrator",
+    "description": "Use when routine maintenance must be scripted.",
+    "path": "maintenance-scripting/SKILL.md"
+  },
+  {
+    "name": "backup-verification",
+    "role": "Systems Administrator",
+    "description": "Use when backups must be checked for existence and restorability.",
+    "path": "backup-verification/SKILL.md"
+  },
+  {
+    "name": "patch-tracking",
+    "role": "Systems Administrator",
+    "description": "Use when patches and end-of-life systems must be tracked.",
+    "path": "patch-tracking/SKILL.md"
+  },
+  {
+    "name": "system-runbook",
+    "role": "Systems Administrator",
+    "description": "Use when a system needs documentation of how it is run.",
+    "path": "system-runbook/SKILL.md"
+  },
+  {
+    "name": "access-review",
+    "role": "Systems Administrator",
+    "description": "Use when access to systems must be reviewed.",
+    "path": "access-review/SKILL.md"
+  },
+  {
+    "name": "monitoring-setup",
+    "role": "Systems Administrator",
+    "description": "Use when internal systems need monitoring.",
+    "path": "monitoring-setup/SKILL.md"
+  },
+  {
+    "name": "server-hardening",
+    "role": "Systems Administrator",
+    "description": "Use when servers must be hardened.",
+    "path": "server-hardening/SKILL.md"
+  },
+  {
+    "name": "disaster-recovery-runbook",
+    "role": "Systems Administrator",
+    "description": "Use when recovery steps for a system must be written.",
+    "path": "disaster-recovery-runbook/SKILL.md"
+  },
+  {
+    "name": "question-framing-for-data",
+    "role": "Data Scientist",
+    "description": "Use when a question must be framed so data can answer it.",
+    "path": "question-framing-for-data/SKILL.md"
+  },
+  {
+    "name": "reproducible-data-exploration",
+    "role": "Data Scientist",
+    "description": "Use when data must be cleaned and explored with reproducible code.",
+    "path": "reproducible-data-exploration/SKILL.md"
+  },
+  {
+    "name": "model-building",
+    "role": "Data Scientist",
+    "description": "Use when a predictive or statistical model must be built.",
+    "path": "model-building/SKILL.md"
+  },
+  {
+    "name": "model-evaluation",
+    "role": "Data Scientist",
+    "description": "Use when a model must be evaluated for accuracy and fairness.",
+    "path": "model-evaluation/SKILL.md"
+  },
+  {
+    "name": "results-explanation",
+    "role": "Data Scientist",
+    "description": "Use when results must be explained in plain words with uncertainty.",
+    "path": "results-explanation/SKILL.md"
+  },
+  {
+    "name": "experiment-design",
+    "role": "Data Scientist",
+    "description": "Use when an experiment must be designed with sound statistics.",
+    "path": "experiment-design/SKILL.md"
+  },
+  {
+    "name": "causal-analysis",
+    "role": "Data Scientist",
+    "description": "Use when cause and effect must be estimated from observational data.",
+    "path": "causal-analysis/SKILL.md"
+  },
+  {
+    "name": "model-monitoring",
+    "role": "Data Scientist",
+    "description": "Use when a deployed model must be monitored for drift and performance.",
+    "path": "model-monitoring/SKILL.md"
+  }
+]
