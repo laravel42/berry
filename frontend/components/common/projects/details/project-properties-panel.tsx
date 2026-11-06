@@ -155,7 +155,7 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                            type="button"
                            variant="ghost"
                            size="sm"
-                           className="w-full min-w-0 justify-start gap-2 px-1.5"
+                           className="w-full min-w-0 justify-start gap-2 px-0"
                            aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
                         >
                            {project.lead ? (
@@ -165,7 +165,9 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                               </>
                            ) : (
                               <>
-                                 <UserIcon className="size-3.5 text-muted-foreground" />
+                                 <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-muted-foreground">
+                                    <UserIcon className="size-4" aria-hidden />
+                                 </span>
                                  <span className="truncate text-muted-foreground">
                                     Project lead
                                  </span>

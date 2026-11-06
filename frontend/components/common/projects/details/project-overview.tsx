@@ -96,12 +96,13 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   <div className="mt-4 [&>*:first-child]:mt-0">
                      <ProjectPlanSection projectId={projectId} />
                      <ProjectGoalsSection projectId={projectId} />
-                     <ProjectActivityFeedList projectId={projectId} />
                   </div>
 
                   <div className="mt-6 border-t border-border/60 pt-4 pb-2">
                      <ProjectTasksSection issues={issues} />
                   </div>
+
+                  <ProjectActivityFeedList projectId={projectId} />
                </div>
             </div>
 

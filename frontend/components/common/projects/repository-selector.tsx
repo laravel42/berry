@@ -1,5 +1,6 @@
 'use client';
 
+import { PickerRowIcon } from '@/components/common/pickers/option-picker';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -82,7 +83,7 @@ export function RepositoryPicker({
    placeholder = 'Link a repository',
    variant = 'ghost',
    size = 'sm',
-   className = 'w-full px-1.5',
+   className = 'w-full px-0',
    side,
 }: {
    value?: string;
@@ -174,20 +175,20 @@ export function RepositoryPicker({
                )}
                disabled={disabled}
             >
-               {pending ? (
-                  <Loader2
-                     className={cn(
-                        'shrink-0 animate-spin',
-                        size === 'xxs' || size === 'xs' ? 'size-3' : 'size-4'
-                     )}
-                  />
+               {size === 'xxs' || size === 'xs' ? (
+                  pending ? (
+                     <Loader2 className="size-3 shrink-0 animate-spin" />
+                  ) : (
+                     <RiGithubFill className="size-3 shrink-0 text-muted-foreground" />
+                  )
                ) : (
-                  <RiGithubFill
-                     className={cn(
-                        'shrink-0 text-muted-foreground',
-                        size === 'xxs' || size === 'xs' ? 'size-3' : 'size-4'
+                  <PickerRowIcon>
+                     {pending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                     ) : (
+                        <RiGithubFill className="size-4 text-muted-foreground" />
                      )}
-                  />
+                  </PickerRowIcon>
                )}
                <span className={value ? 'truncate' : 'truncate text-muted-foreground'}>
                   {value ?? placeholder}

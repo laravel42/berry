@@ -1,5 +1,6 @@
 'use client';
 
+import { PickerRowIcon } from '@/components/common/pickers/option-picker';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -87,7 +88,7 @@ export function HealthPopover({
                <Button
                   id={id}
                   type="button"
-                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+                  className="w-full min-w-0 justify-start gap-2 px-0"
                   size="sm"
                   variant="ghost"
                   role="combobox"
@@ -95,7 +96,9 @@ export function HealthPopover({
                   aria-label={`Health: ${selected.name}`}
                   title={selected.name}
                >
-                  <HealthIcon healthId={selected.id} />
+                  <PickerRowIcon>
+                     <HealthIcon healthId={selected.id} />
+                  </PickerRowIcon>
                   <span className="truncate">{selected.name}</span>
                </Button>
             ) : (
