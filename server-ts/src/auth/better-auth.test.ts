@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { after, afterEach, before, describe, test } from 'node:test';
 
 import pg from 'pg';
 
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { createBerryAuth, devSessionCookies, type BerryAuth } from './better-auth.ts';
+
+/** Same hasher Better Auth's magic-link plugin uses with `storeToken: 'hashed'`. */
+function magicLinkStoredToken(token: string): string {
+   return createHash('sha256').update(token).digest('base64url');
+}
 
 /**
  * Better Auth against the real schema. Gated like every database test: without
@@ -115,6 +120,8 @@ describe('Better Auth on the users table', { skip: !url }, () => {
          github: { clientId: 'test-client', clientSecret: 'test-secret' },
          sessionTtlMs: 60 * 60 * 1000,
          testUtils: true,
+         // Console sink: enables the magic-link plugin without SMTP.
+         mail: { from: 'Berry <noreply@berry.test>', smtp: null },
       });
    });
 
@@ -250,5 +257,56 @@ describe('Better Auth on the users table', { skip: !url }, () => {
       assert.equal(account?.provider_id, 'credential');
       assert.equal(account?.has_password, true);
       assert.match(response.headers.getSetCookie().join('\n'), /berry\.session_token=/);
+   });
+
+   test('a magic-link verify promotes an unverified credential user', async () => {
+      // Email/password sign-up leaves email_verified=false. Better Auth then
+      // runs revokeUnprovenAccountAccess on magic-link verify, which reserves a
+      // non-UUID verification id — auth_verifications.id must accept text.
+      const email = `magic-${randomUUID()}@berry.test`;
+      const signUp = await auth.handler(
+         new Request(`${BASE}/api/auth/sign-up/email`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', origin: BASE },
+            body: JSON.stringify({
+               email,
+               password: 'long-enough-password',
+               name: 'Magic',
+            }),
+         })
+      );
+      assert.equal(signUp.status, 200, await signUp.clone().text());
+      const [user] = await sql`
+         SELECT id, email_verified FROM users WHERE lower(email) = ${email}`;
+      assert.ok(user);
+      created.push(user.id as string);
+      assert.equal(user.email_verified, false);
+
+      const token = `tok_${randomUUID().replaceAll('-', '')}`;
+      const stored = magicLinkStoredToken(token);
+      await sql`
+         INSERT INTO auth_verifications (id, identifier, value, expires_at)
+         VALUES (
+            ${randomUUID()},
+            ${`magic-link:${stored}`},
+            ${JSON.stringify({ type: 'magic-link', email })},
+            now() + interval '15 minutes'
+         )`;
+
+      const verify = await auth.handler(
+         new Request(
+            `${BASE}/api/auth/magic-link/verify?token=${encodeURIComponent(token)}` +
+               `&callbackURL=${encodeURIComponent(`${BASE}/`)}` +
+               `&errorCallbackURL=${encodeURIComponent(`${BASE}/sign-in?error=magic_link`)}`,
+            { headers: { origin: BASE } }
+         )
+      );
+      assert.equal(verify.status, 302, await verify.clone().text());
+      assert.equal(verify.headers.get('location'), `${BASE}/`);
+      assert.match(verify.headers.getSetCookie().join('\n'), /berry\.session_token=/);
+
+      const [promoted] = await sql`
+         SELECT email_verified FROM users WHERE id = ${user.id as string}`;
+      assert.equal(promoted?.email_verified, true);
    });
 });
