@@ -23,7 +23,7 @@ export function AuthFieldGroup({
 }) {
    return (
       <div className={cn('flex flex-col gap-1.5', className)}>
-         <div className="flex text-xs font-medium text-[var(--brand-ash)]">
+         <div className="flex font-medium text-[var(--brand-ash)]">
             <label htmlFor={htmlFor}>{label}</label>
             {trailing ? <span className="ml-auto">{trailing}</span> : null}
          </div>
@@ -136,9 +136,7 @@ export function PasswordStrength({ password }: { password: string }) {
                />
             ))}
          </div>
-         <span className="text-xs" style={{ color }}>
-            {label}
-         </span>
+         <span style={{ color }}>{label}</span>
       </div>
    );
 }

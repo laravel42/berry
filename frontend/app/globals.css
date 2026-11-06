@@ -944,6 +944,19 @@ input[type='search'] {
    animation: ai-border-flow 4s linear infinite;
 }
 
+/* Auth shell: the top-right sign-in/sign-up switch sits one step above the
+   body size so it reads with the wordmark, not as a caption. */
+[data-auth-top] {
+   font-size: 0.9375rem;
+   line-height: 1.45;
+}
+
+/* Auth 2FA code cells: digit-sized without a text-* utility on the span. */
+[data-auth-code-cell] {
+   font-size: 1.25rem;
+   line-height: 1;
+}
+
 /* The Agents launcher is drawn 30% larger than the xxs chip. That scale
    would enlarge the label with the chrome; dividing it back out keeps the
    word at the body size. */

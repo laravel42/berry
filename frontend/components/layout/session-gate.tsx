@@ -10,7 +10,7 @@ import { LocaleSync } from './locale-sync';
 // Routes that must render for an anonymous visitor. `/login` is the legacy
 // entry that forwards to `/sign-in`, the one sign-in page; keep it here so a
 // 'ready' user landing on it is bounced into the app rather than left on a shim.
-const AUTH_ROUTES = new Set(['/sign-in', '/login']);
+const AUTH_ROUTES = new Set(['/sign-in', '/login', '/reset-password']);
 
 function isAuthRoute(pathname: string): boolean {
    return AUTH_ROUTES.has(pathname);

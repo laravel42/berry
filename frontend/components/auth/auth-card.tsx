@@ -55,7 +55,10 @@ export function AuthCard({
             <header className="flex items-center gap-2.5">
                <BerryWordmark size="lg" />
                {topAction ? (
-                  <div className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-[15px] text-[var(--brand-slate)]">
+                  <div
+                     data-auth-top
+                     className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--brand-slate)]"
+                  >
                      {topAction}
                   </div>
                ) : null}
@@ -89,7 +92,10 @@ export function AuthCard({
                            Back
                         </button>
                      ) : null}
-                     <h1 className="m-0 text-[28px] leading-[1.2] font-semibold tracking-[-0.025em] text-pretty">
+                     <h1
+                        data-heading="display"
+                        className="m-0 leading-[1.2] font-semibold tracking-[-0.025em] text-pretty"
+                     >
                         {title}
                      </h1>
                      {description ? (
@@ -143,7 +149,7 @@ export function AuthCard({
                </div>
             </div>
 
-            <footer className="flex gap-5 text-sm text-[var(--brand-slate)]">
+            <footer className="flex gap-5 text-[var(--brand-slate)]">
                <span>© 2026 Laravel42</span>
                <a
                   className="ml-auto text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"

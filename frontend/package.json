@@ -13,6 +13,7 @@
       "build-storybook": "storybook build"
    },
    "dependencies": {
+      "@better-auth/sso": "1.7.7",
       "@codemirror/autocomplete": "^6.20.3",
       "@codemirror/commands": "^6.11.1",
       "@codemirror/lang-css": "^6.3.1",

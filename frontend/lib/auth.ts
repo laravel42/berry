@@ -44,6 +44,11 @@ const configSchema = z.object({
       githubSignIn: z.boolean().optional(),
       passwordlessLogin: z.boolean().optional(),
       emailRegistration: z.boolean().optional(),
+      magicLink: z.boolean().optional(),
+      passwordReset: z.boolean().optional(),
+      twoFactor: z.boolean().optional(),
+      sso: z.boolean().optional(),
+      ssoDomains: z.array(z.string()).optional(),
       /** Models are reached through a gateway with Berry tiers (ADR-0017). */
       modelGateway: z.boolean().optional(),
       /** Members can open a LiveKit voice room with a workspace agent. */
@@ -54,6 +59,18 @@ const configSchema = z.object({
 export type LoginUser = z.infer<typeof userSchema>;
 export type BootstrapWorkspace = z.infer<typeof workspaceSchema>;
 export type BootstrapPayload = z.infer<typeof bootstrapSchema>;
+
+export type SignInOptions = {
+   github: boolean;
+   passwordless: boolean;
+   emailRegistration: boolean;
+   magicLink: boolean;
+   passwordReset: boolean;
+   twoFactor: boolean;
+   sso: boolean;
+   ssoDomains: string[];
+   signInOrigin: string | null;
+};
 
 /**
  * Starts GitHub sign-in. It identifies the person and asks for repository
@@ -113,13 +130,8 @@ export async function fetchGitHubSignInAvailable(): Promise<boolean> {
    return options.github;
 }
 
-/** What the sign-in page can offer. GitHub is shown whenever it is configured. */
-export async function fetchSignInOptions(): Promise<{
-   github: boolean;
-   passwordless: boolean;
-   emailRegistration: boolean;
-   signInOrigin: string | null;
-}> {
+/** What the sign-in page can offer. */
+export async function fetchSignInOptions(): Promise<SignInOptions> {
    const json: unknown = await apiFetch('/api/v1/config');
    const parsed = configSchema.safeParse(json);
    const capabilities = parsed.success ? parsed.data.capabilities : {};
@@ -127,6 +139,13 @@ export async function fetchSignInOptions(): Promise<{
       github: capabilities.githubSignIn === true,
       passwordless: capabilities.passwordlessLogin === true,
       emailRegistration: capabilities.emailRegistration === true,
+      magicLink: capabilities.magicLink === true,
+      passwordReset: capabilities.passwordReset === true,
+      twoFactor: capabilities.twoFactor === true,
+      sso: capabilities.sso === true,
+      ssoDomains: Array.isArray(capabilities.ssoDomains)
+         ? capabilities.ssoDomains.map((domain) => domain.toLowerCase())
+         : [],
       signInOrigin: parsed.success ? (parsed.data.signInOrigin ?? null) : null,
    };
 }
@@ -147,6 +166,10 @@ export async function registerWithEmail(input: {
    }
 }
 
+/**
+ * Email/password sign-in. When 2FA is enabled the client plugin redirects to
+ * `?step=twofa` and this resolves without a session until the code is verified.
+ */
 export async function signInWithEmail(email: string, password: string): Promise<void> {
    const { error } = await authClient().signIn.email({
       email: email.trim(),
@@ -155,6 +178,70 @@ export async function signInWithEmail(email: string, password: string): Promise<
    });
    if (error) {
       throw new Error(error.message || 'Could not sign in');
+   }
+}
+
+export async function requestMagicLink(email: string): Promise<void> {
+   const origin = window.location.origin;
+   const { error } = await authClient().signIn.magicLink({
+      email: email.trim(),
+      callbackURL: `${origin}/`,
+      errorCallbackURL: `${origin}/sign-in?error=magic_link`,
+   });
+   if (error) {
+      throw new Error(error.message || 'Could not send a sign-in link');
+   }
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+   const origin = window.location.origin;
+   const { error } = await authClient().requestPasswordReset({
+      email: email.trim(),
+      redirectTo: `${origin}/reset-password`,
+   });
+   if (error) {
+      throw new Error(error.message || 'Could not send a reset link');
+   }
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+   const { error } = await authClient().resetPassword({
+      token,
+      newPassword,
+   });
+   if (error) {
+      throw new Error(error.message || 'Could not set a new password');
+   }
+}
+
+export async function signInWithSso(email: string): Promise<void> {
+   const origin = window.location.origin;
+   const { error } = await authClient().signIn.sso({
+      email: email.trim(),
+      callbackURL: `${origin}/`,
+      errorCallbackURL: `${origin}/sign-in?error=sso`,
+   });
+   if (error) {
+      throw new Error(error.message || 'Could not start SSO');
+   }
+}
+
+export async function verifyTwoFactorTotp(code: string, trustDevice: boolean): Promise<void> {
+   const { error } = await authClient().twoFactor.verifyTotp({
+      code: code.trim(),
+      trustDevice,
+   });
+   if (error) {
+      throw new Error(error.message || 'That code did not work');
+   }
+}
+
+export async function verifyTwoFactorBackup(code: string): Promise<void> {
+   const { error } = await authClient().twoFactor.verifyBackupCode({
+      code: code.trim(),
+   });
+   if (error) {
+      throw new Error(error.message || 'That backup code did not work');
    }
 }
 
@@ -192,4 +279,21 @@ export async function logoutSession(): Promise<void> {
    if (error && error.status !== 401) {
       throw new Error(error.message || 'Sign-out failed');
    }
+}
+
+/** Domain part of an email, lowercased, or null when the address is not usable. */
+export function emailDomain(email: string): string | null {
+   const at = email.trim().lastIndexOf('@');
+   if (at < 1) return null;
+   const domain = email
+      .trim()
+      .slice(at + 1)
+      .toLowerCase();
+   return domain.includes('.') ? domain : null;
+}
+
+export function ssoDomainMatch(email: string, domains: string[]): string | null {
+   const domain = emailDomain(email);
+   if (!domain) return null;
+   return domains.includes(domain) ? domain : null;
 }
