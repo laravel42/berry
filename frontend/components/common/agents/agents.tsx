@@ -463,7 +463,7 @@ export default function Agents() {
                </span>
                {scope === 'archived' ? (
                   <Button
-                     size="xs"
+                     size="sm"
                      variant="secondary"
                      disabled={busy}
                      onClick={() =>
@@ -478,7 +478,7 @@ export default function Agents() {
                   <>
                      <Popover open={bulkTierOpen} onOpenChange={setBulkTierOpen}>
                         <PopoverTrigger asChild>
-                           <Button size="xs" variant="secondary" disabled={busy}>
+                           <Button size="sm" variant="secondary" disabled={busy}>
                               {t('bulkTier')}
                            </Button>
                         </PopoverTrigger>
@@ -508,7 +508,7 @@ export default function Agents() {
                      </Popover>
                      <Popover open={bulkAccessOpen} onOpenChange={setBulkAccessOpen}>
                         <PopoverTrigger asChild>
-                           <Button size="xs" variant="secondary" disabled={busy}>
+                           <Button size="sm" variant="secondary" disabled={busy}>
                               {t('bulkAccess')}
                            </Button>
                         </PopoverTrigger>
@@ -533,7 +533,7 @@ export default function Agents() {
                         </PopoverContent>
                      </Popover>
                      <Button
-                        size="xs"
+                        size="sm"
                         variant="destructive"
                         disabled={busy}
                         onClick={() =>
@@ -547,7 +547,7 @@ export default function Agents() {
                   </>
                )}
                <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   className="font-bold underline underline-offset-2"
                   onClick={() => clearSelection()}

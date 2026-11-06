@@ -132,7 +132,7 @@ export default function SkillBulkBar({
          ) : (
             <>
                {archived ? (
-                  <Button size="xs" variant="secondary" onClick={restore}>
+                  <Button size="sm" variant="secondary" onClick={restore}>
                      {t('bulk.restore')}
                   </Button>
                ) : (
@@ -146,20 +146,20 @@ export default function SkillBulkBar({
                            if (typeof next === 'string') addToAgent(next);
                         }}
                         trigger={
-                           <Button size="xs" variant="secondary">
+                           <Button size="sm" variant="secondary">
                               {t('bulk.addToAgents')}
                            </Button>
                         }
                      />
 
-                     <Button size="xs" variant="destructive" onClick={() => setConfirming(true)}>
+                     <Button size="sm" variant="destructive" onClick={() => setConfirming(true)}>
                         {t('bulk.delete')}
                      </Button>
                   </>
                )}
 
                <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   className="font-bold underline underline-offset-2"
                   onClick={onClear}
