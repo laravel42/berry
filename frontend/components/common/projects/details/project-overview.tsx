@@ -104,7 +104,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   </div>
 
                   <div className="mt-6 border-t border-border/60 pt-4 pb-2">
-                     <ProjectTasksSection issues={issues} />
+                     <ProjectTasksSection projectId={projectId} issues={issues} />
                   </div>
 
                   <ProjectActivityFeedList projectId={projectId} />

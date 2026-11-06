@@ -35,10 +35,12 @@ import {
    type ProjectDraftFields,
    type ProjectDraftPatch,
 } from '@/lib/editor-ai';
-import { createWorkspaceProject } from '@/lib/projects';
+import { createWorkspaceProject, generateProjectMilestones } from '@/lib/projects';
+import type { Milestone } from '@/lib/milestones';
 import { cn } from '@/lib/utils';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useMembersStore } from '@/store/members-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
@@ -105,6 +107,7 @@ function applyDraftPatch(form: ProjectFormState, patch: ProjectDraftPatch): Proj
 export function CreateProjectDialog() {
    const workspace = useSessionStore((state) => state.workspace);
    const addProject = useProjectsStore((state) => state.addProject);
+   const upsertMilestone = useMilestonesStore((state) => state.upsertMilestone);
    const { isOpen, defaultStatus, closeModal } = useCreateProjectStore();
    const [pending, setPending] = useState(false);
    // Folded away by default: the form is the product, the assistant an offer.
@@ -165,6 +168,41 @@ export function CreateProjectDialog() {
          });
          toast.success('Project created');
          closeModal();
+         const brief = form.description.trim();
+         if (brief) {
+            void generateProjectMilestones(project.id)
+               .then((nodes) => {
+                  for (const node of nodes) {
+                     const milestone: Milestone = {
+                        id: node.id,
+                        workspaceId: node.workspaceId,
+                        projectId: node.projectId,
+                        title: node.title,
+                        description: node.description,
+                        status: 'planned',
+                        targetDate: node.targetDate,
+                        sortOrder: node.sortOrder,
+                        createdAt: node.createdAt,
+                        updatedAt: node.updatedAt,
+                     };
+                     upsertMilestone(milestone);
+                  }
+                  if (nodes.length > 0) {
+                     toast.success(
+                        nodes.length === 1
+                           ? 'Generated 1 milestone'
+                           : `Generated ${nodes.length} milestones`
+                     );
+                  }
+               })
+               .catch((error) => {
+                  toast.error(
+                     error instanceof BerryApiError
+                        ? error.message
+                        : 'Could not generate milestones'
+                  );
+               });
+         }
       } catch (error) {
          toast.error(error instanceof BerryApiError ? error.message : 'Could not create project');
       } finally {

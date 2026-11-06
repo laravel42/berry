@@ -189,6 +189,92 @@ export async function createWorkspaceProject(input: {
    return project;
 }
 
+/**
+ * Ask the Orchestrator to propose milestones from the project brief and file
+ * them. Returns the created milestones; an empty brief yields an empty list.
+ */
+export async function generateProjectMilestones(projectId: string): Promise<
+   {
+      id: string;
+      workspaceId: string;
+      projectId: string | null;
+      title: string;
+      description: string | null;
+      status: string;
+      targetDate: string | null;
+      sortOrder: number;
+      createdAt: string;
+      updatedAt: string;
+   }[]
+> {
+   const json: unknown = await apiFetch(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/generate-milestones`,
+      {
+         method: 'POST',
+      }
+   );
+   const parsed = z
+      .object({
+         nodes: z.array(
+            z.object({
+               id: z.string(),
+               workspaceId: z.string(),
+               projectId: z.string().nullish(),
+               title: z.string(),
+               description: z.string().nullish(),
+               status: z.string(),
+               targetDate: z.string().nullish(),
+               sortOrder: z.number(),
+               createdAt: z.string(),
+               updatedAt: z.string(),
+            })
+         ),
+      })
+      .safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Generate milestones response was not recognized');
+   }
+   return parsed.data.nodes.map((node) => ({
+      id: node.id,
+      workspaceId: node.workspaceId,
+      projectId: node.projectId ?? null,
+      title: node.title,
+      description: node.description ?? null,
+      status: node.status,
+      targetDate: node.targetDate ?? null,
+      sortOrder: node.sortOrder,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+   }));
+}
+
+/**
+ * Ask the Orchestrator to break each project milestone into board tasks and
+ * file them. Returns the created issues; no milestones yields an empty list.
+ */
+export async function generateProjectTasks(
+   projectId: string
+): Promise<{ id: string; title: string }[]> {
+   const json: unknown = await apiFetch(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/generate-tasks`,
+      { method: 'POST' }
+   );
+   const parsed = z
+      .object({
+         nodes: z.array(
+            z.object({
+               id: z.string(),
+               title: z.string(),
+            })
+         ),
+      })
+      .safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Generate tasks response was not recognized');
+   }
+   return parsed.data.nodes.map((node) => ({ id: node.id, title: node.title }));
+}
+
 export async function getWorkspaceProject(projectId: string): Promise<Project | undefined> {
    try {
       const json: unknown = await apiFetch(`/api/v1/projects/${projectId}`);
