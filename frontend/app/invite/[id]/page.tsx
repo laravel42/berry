@@ -1,14 +1,13 @@
 'use client';
 
 import { format, parseISO } from 'date-fns';
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
+import { AuthPrimaryButton, AuthSecondaryButton } from '@/components/auth/auth-fields';
 import { useSignOut } from '@/components/auth/use-sign-out';
-import { Button } from '@/components/ui/button';
 import {
    acceptInvitation,
    listMyInvitations,
@@ -23,6 +22,13 @@ type State =
    | { kind: 'unavailable' }
    | { kind: 'declined' }
    | { kind: 'failed' };
+
+function initials(name: string): string {
+   const parts = name.trim().split(/\s+/).filter(Boolean);
+   if (parts.length === 0) return 'WS';
+   if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+   return `${parts[0]![0] ?? ''}${parts[1]![0] ?? ''}`.toUpperCase();
+}
 
 /**
  * One invitation, opened from its link.
@@ -101,7 +107,7 @@ export default function InvitePage() {
    if (status !== 'ready' || state.kind === 'loading') {
       return (
          <AuthCard title={t('checkingTitle')}>
-            <p className="text-muted-foreground">{t('checking')}</p>
+            <p className="text-[var(--brand-ash)]">{t('checking')}</p>
          </AuthCard>
       );
    }
@@ -109,54 +115,80 @@ export default function InvitePage() {
    if (state.kind === 'declined') {
       return (
          <AuthCard title={t('declinedTitle')} description={t('declinedBody')}>
-            <Button onClick={() => router.replace('/onboarding')}>{t('myWorkspaces')}</Button>
+            <AuthPrimaryButton ready onClick={() => router.replace('/onboarding')}>
+               {t('myWorkspaces')}
+            </AuthPrimaryButton>
          </AuthCard>
       );
    }
 
    if (state.kind === 'ready') {
       const { invitation } = state;
+      const workspace = invitation.workspaceName?.trim() || 'workspace';
+      const roleLabel = roles(roleKey(invitation.role));
+      const expires = format(parseISO(invitation.expiresAt), 'd MMM yyyy');
+      const mark = initials(workspace);
+
       return (
          <AuthCard
-            title={t('readyTitle', { workspace: invitation.workspaceName ?? '' })}
-            description={t('readyBody', {
-               role: roles(roleKey(invitation.role)),
-               when: format(parseISO(invitation.expiresAt), 'd MMM yyyy'),
-            })}
+            title="You’re invited"
+            description={
+               <>
+                  Join the <span className="text-[var(--brand-chalk)]">{workspace}</span> workspace
+                  on Berry.
+               </>
+            }
          >
-            <div className="flex flex-col gap-2">
-               <Button disabled={accepting} onClick={() => void accept()}>
-                  {accepting ? t('accepting') : t('accept')}
-               </Button>
-               <Button
-                  variant="secondary"
+            <div className="flex flex-col gap-3.5">
+               <div className="flex items-center gap-3 rounded-[10px] border border-[#2a2a2f] bg-[#19191c] p-3.5">
+                  <span className="flex h-11 w-10 shrink-0 items-center justify-center rounded-[9px] bg-[#2b2516] font-bold text-[#e8c15c]">
+                     {mark}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                     <span className="truncate font-semibold">{workspace}</span>
+                     <span className="text-[var(--brand-slate)]">
+                        Invited as {roleLabel} · expires {expires}
+                     </span>
+                  </span>
+                  <span className="rounded-[5px] bg-[#242428] px-2 py-0.5 text-[var(--brand-ash)]">
+                     {roleLabel}
+                  </span>
+               </div>
+               <AuthPrimaryButton
+                  ready={!accepting}
+                  onClick={() => void accept()}
+               >{`Join ${workspace}`}</AuthPrimaryButton>
+               <AuthSecondaryButton disabled={accepting} onClick={() => router.push('/onboarding')}>
+                  Create my own workspace instead
+               </AuthSecondaryButton>
+               <button
+                  type="button"
+                  className="text-center text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"
                   disabled={accepting}
                   onClick={() => setState({ kind: 'declined' })}
                >
                   {t('decline')}
-               </Button>
+               </button>
             </div>
          </AuthCard>
       );
    }
 
-   // `unavailable` and `failed` land here. They differ only in cause, and the
-   // way out is the same.
    return (
       <AuthCard
          title={state.kind === 'failed' ? t('failedTitle') : t('unavailableTitle')}
          description={state.kind === 'failed' ? t('failedBody') : t('unavailableBody')}
       >
-         <div className="flex flex-col gap-3">
+         <div className="flex flex-col gap-3.5">
             {me?.email ? (
-               <p className="text-muted-foreground">{t('signedInAs', { email: me.email })}</p>
+               <p className="text-[var(--brand-ash)]">{t('signedInAs', { email: me.email })}</p>
             ) : null}
-            <Button asChild>
-               <Link href="/onboarding">{t('myWorkspaces')}</Link>
-            </Button>
-            <Button variant="secondary" onClick={() => void signOut()}>
+            <AuthPrimaryButton ready onClick={() => router.replace('/onboarding')}>
+               {t('myWorkspaces')}
+            </AuthPrimaryButton>
+            <AuthSecondaryButton onClick={() => void signOut()}>
                {t('signInAsSomeoneElse')}
-            </Button>
+            </AuthSecondaryButton>
          </div>
       </AuthCard>
    );

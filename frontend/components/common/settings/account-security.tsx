@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
 import { describeDevice, loadSessions, revokeSession, type AccountSession } from '@/lib/settings';
 import { Monitor } from 'lucide-react';
@@ -16,11 +17,8 @@ import {
 import { useSettingsResource } from './use-settings-resource';
 
 /**
- * Personal "Security & access": where this account is signed in.
- *
- * The passkey and commit-signing sections this page used to show are gone.
- * Berry has neither, and a button that opens nothing on a security page is
- * worse than an absent one — it suggests a protection that is not there.
+ * Personal"Security & access": where this account is signed in, and optional
+ * authenticator 2FA for email/password accounts.
  *
  * API keys moved to their own page. They had grown a creation form with an
  * expiry, a scope picker and a one-time secret to hand over carefully, which
@@ -51,6 +49,7 @@ export default function AccountSecurity() {
 
    return (
       <SettingsShell title="Security & access" description="Where you are signed in.">
+         <TwoFactorSection />
          <SettingsSection
             title="Sessions"
             description={sessions.error ?? 'Devices signed in to your account.'}
@@ -117,10 +116,173 @@ export default function AccountSecurity() {
    );
 }
 
+function TwoFactorSection() {
+   const [password, setPassword] = useState('');
+   const [pending, setPending] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [enrollment, setEnrollment] = useState<{
+      totpURI: string;
+      backupCodes: string[];
+   } | null>(null);
+   const [verifyCode, setVerifyCode] = useState('');
+   const [enabled, setEnabled] = useState<boolean | null>(null);
+
+   useEffect(() => {
+      let live = true;
+      authClient()
+         .getSession()
+         .then((result) => {
+            const user = result.data?.user as { twoFactorEnabled?: boolean } | undefined;
+            if (live) setEnabled(user?.twoFactorEnabled === true);
+         })
+         .catch(() => undefined);
+      return () => {
+         live = false;
+      };
+   }, []);
+
+   const start = async () => {
+      setPending(true);
+      setError(null);
+      try {
+         const { data, error: failed } = await authClient().twoFactor.enable({
+            password,
+            method: 'totp',
+         });
+         if (failed || !data || data.method !== 'totp') {
+            throw new Error(failed?.message || 'Could not start authenticator setup');
+         }
+         setEnrollment({ totpURI: data.totpURI, backupCodes: data.backupCodes });
+         setPassword('');
+      } catch (caught) {
+         setError(caught instanceof Error ? caught.message : 'Could not start authenticator setup');
+      } finally {
+         setPending(false);
+      }
+   };
+
+   const confirm = async () => {
+      setPending(true);
+      setError(null);
+      try {
+         const { error: failed } = await authClient().twoFactor.verifyTotp({
+            code: verifyCode.trim(),
+         });
+         if (failed) throw new Error(failed.message || 'That code did not work');
+         setEnabled(true);
+         setEnrollment(null);
+         setVerifyCode('');
+      } catch (caught) {
+         setError(caught instanceof Error ? caught.message : 'That code did not work');
+      } finally {
+         setPending(false);
+      }
+   };
+
+   const disable = async () => {
+      setPending(true);
+      setError(null);
+      try {
+         const { error: failed } = await authClient().twoFactor.disable({ password });
+         if (failed) throw new Error(failed.message || 'Could not turn off 2FA');
+         setEnabled(false);
+         setPassword('');
+      } catch (caught) {
+         setError(caught instanceof Error ? caught.message : 'Could not turn off 2FA');
+      } finally {
+         setPending(false);
+      }
+   };
+
+   return (
+      <SettingsSection
+         title="Two-factor authentication"
+         description="An authenticator app code after email and password. GitHub sign-in is not challenged."
+      >
+         <SettingsCard>
+            {enabled === null ? (
+               <SettingsEmpty title="Loading…" />
+            ) : enabled ? (
+               <div className="flex flex-col gap-3 p-3">
+                  <p className="text-muted-foreground">Authenticator 2FA is on for this account.</p>
+                  <Input
+                     type="password"
+                     autoComplete="current-password"
+                     placeholder="Password to turn off"
+                     value={password}
+                     onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <Button
+                     variant="soft-destructive"
+                     disabled={pending || password.length < 12}
+                     onClick={() => void disable()}
+                  >
+                     Turn off 2FA
+                  </Button>
+               </div>
+            ) : enrollment ? (
+               <div className="flex flex-col gap-3 p-3">
+                  <p className="text-muted-foreground">
+                     Add this account in your authenticator app, then enter a code to finish.
+                  </p>
+                  <code className="break-all rounded bg-settings-field-sunken px-2.5 py-2 font-mono">
+                     {enrollment.totpURI}
+                  </code>
+                  <div>
+                     <p className="mb-1 font-medium">Backup codes</p>
+                     <ul className="grid grid-cols-2 gap-1 font-mono">
+                        {enrollment.backupCodes.map((code) => (
+                           <li key={code}>{code}</li>
+                        ))}
+                     </ul>
+                  </div>
+                  <Input
+                     inputMode="numeric"
+                     placeholder="6-digit code"
+                     value={verifyCode}
+                     onChange={(event) =>
+                        setVerifyCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                     }
+                  />
+                  <Button
+                     disabled={pending || verifyCode.length !== 6}
+                     onClick={() => void confirm()}
+                  >
+                     Confirm authenticator
+                  </Button>
+               </div>
+            ) : (
+               <div className="flex flex-col gap-3 p-3">
+                  <p className="text-muted-foreground">
+                     Requires the password for this account. OAuth-only accounts cannot enable 2FA
+                     here.
+                  </p>
+                  <Input
+                     type="password"
+                     autoComplete="current-password"
+                     placeholder="Current password"
+                     value={password}
+                     onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <Button disabled={pending || password.length < 12} onClick={() => void start()}>
+                     Set up authenticator
+                  </Button>
+               </div>
+            )}
+            {error ? (
+               <p role="alert" className="px-3 pb-3 text-status-danger">
+                  {error}
+               </p>
+            ) : null}
+         </SettingsCard>
+      </SettingsSection>
+   );
+}
+
 /**
  * The id of the session this browser is signed in with, from Better Auth's own
  * session endpoint. `/me/sessions` does not mark it, so without this every row
- * would offer "Sign out", including the one that signs this tab out.
+ * would offer"Sign out", including the one that signs this tab out.
  */
 function useCurrentSessionId(): string | null {
    const [id, setId] = useState<string | null>(null);
@@ -139,7 +301,7 @@ function useCurrentSessionId(): string | null {
    return id;
 }
 
-/** "3 days ago", roughly. A security page needs recency, not a timestamp. */
+/**"3 days ago", roughly. A security page needs recency, not a timestamp. */
 function when(iso: string): string {
    const then = Date.parse(iso);
    if (Number.isNaN(then)) return 'unknown';
