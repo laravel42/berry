@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, trackButtonPressedClass } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
@@ -13,9 +13,8 @@ import { usePinsStore } from '@/store/pins-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
-import { BarChart3, Box, LayoutGrid, List } from 'lucide-react';
+import { Box, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
@@ -32,7 +31,6 @@ import { CreateProjectButton } from './create-project-button';
 import { CreateProjectDialog } from './create-project-dialog';
 import { EmptyProjects } from './empty-projects';
 import { ProjectsDisplayOptions } from './projects-display-options';
-import ProjectsInsightsPanel from './projects-insights-panel';
 import ProjectsList from './projects-list';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
@@ -129,13 +127,12 @@ const LAYOUTS: { value: 'list' | 'board'; icon: React.ElementType }[] = [
    { value: 'board', icon: LayoutGrid },
 ];
 
-/** Projects page: search, filters, display options, views and insights. */
+/** Projects page: search, filters, display options and views. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
    const { filters, setFilters, query, setQuery } = useProjectsFilterStore();
    const { viewType, setViewType, grouping, ordering, direction, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
-   const { openPanel, togglePanel } = useRightPanelStore();
    const allProjects = useProjectsStore((state) => state.projects);
    const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
    const issues = useIssuesStore((state) => state.issues);
@@ -325,10 +322,14 @@ export default function Projects() {
             </PageKpiHeader>
          </div>
          <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
+            <div className="flex flex-wrap items-center gap-1">
+               <ListFilterTrigger filter={filter} iconOnly />
+               <ProjectsDisplayOptions iconOnly />
+            </div>
             <div
                role="group"
                aria-label={lists('projects.layout.label')}
-               className="flex items-center rounded-md border p-0.5"
+               className="ml-auto flex items-center rounded-md border p-0.5"
             >
                {LAYOUTS.map((layout) => {
                   const on = viewType === layout.value;
@@ -351,21 +352,6 @@ export default function Projects() {
                      </button>
                   );
                })}
-            </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-               <ListFilterTrigger filter={filter} iconOnly />
-               <Button
-                  size="xs"
-                  variant="track"
-                  aria-label={lists('projects.insights')}
-                  title={lists('projects.insights')}
-                  aria-pressed={openPanel === 'insights'}
-                  className={cn(openPanel === 'insights' && trackButtonPressedClass)}
-                  onClick={() => togglePanel('insights')}
-               >
-                  <BarChart3 className="size-4" aria-hidden="true" />
-               </Button>
-               <ProjectsDisplayOptions iconOnly />
             </div>
          </div>
 
@@ -418,12 +404,6 @@ export default function Projects() {
                   </>
                )}
             </div>
-
-            {openPanel === 'insights' && (
-               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[360px] lg:border-l">
-                  <ProjectsInsightsPanel projects={displayed} />
-               </aside>
-            )}
          </div>
       </div>
    );

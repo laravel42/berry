@@ -145,7 +145,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                )}
             </Button>
          </PopoverTrigger>
-         <PopoverContent className="w-80 p-0" align="end">
+         <PopoverContent className="w-80 p-0" align="start">
             <div className={cn('flex items-center justify-between gap-2 px-3 pt-3 pb-3', touchRow)}>
                <span className="flex items-center gap-1.5 text-muted-foreground">
                   <ArrowUpDown className="size-3.5" aria-hidden="true" />

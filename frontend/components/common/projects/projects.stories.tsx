@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect, within } from 'storybook/test';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import Projects from './projects';
 import {
    apiRepositories,
@@ -52,12 +51,6 @@ export const List: Story = {
 export const Board: Story = {
    beforeEach: () => {
       useProjectsDisplayStore.setState({ viewType: 'board' });
-   },
-};
-
-export const WithInsights: Story = {
-   beforeEach: () => {
-      useRightPanelStore.setState({ openPanel: 'insights' });
    },
 };
 

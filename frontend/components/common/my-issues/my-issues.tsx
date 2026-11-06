@@ -2,7 +2,6 @@
 
 import { BatchToolbar } from '@/components/common/issues/batch-toolbar';
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
-import { InsightsPanel } from '@/components/common/issues/insights-panel';
 import { IssueFilterBar } from '@/components/common/issues/issue-filter-bar';
 import {
    applyIssueFilters,
@@ -16,13 +15,11 @@ import {
 } from '@/components/common/issues/list-states';
 import { SearchIssues } from '@/components/common/issues/search-issues';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
-import { BreakdownPanel } from './breakdown-panel';
 import { displayOrderedStatus } from '@/data/status';
 import { Button } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
 import { useTranslations } from 'next-intl';
@@ -93,8 +90,8 @@ function DiscoveryNotice({ issues }: { issues: Issue[] }) {
 
 /**
  * "My issues" body — the same machinery as the team views (search, filters,
- * every layout, insights), scoped to the tab: everything, what this person is
- * holding, or what they opened.
+ * every layout), scoped to the tab: everything, what this person is holding,
+ * or what they opened.
  */
 export default function MyIssues() {
    const [tab] = useMyIssuesTab();
@@ -103,7 +100,6 @@ export default function MyIssues() {
    const view = useIssueListView();
    const { filters } = useFilterStore();
    const { issues } = useIssuesStore();
-   const { openPanel } = useRightPanelStore();
    const load = useIssueListLoad();
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';
@@ -159,17 +155,6 @@ export default function MyIssues() {
                   />
                )}
             </div>
-
-            {openPanel === 'insights' && (
-               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
-                  <InsightsPanel issues={displayedIssues} />
-               </aside>
-            )}
-            {openPanel === 'breakdown' && (
-               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
-                  <BreakdownPanel issues={displayedIssues} />
-               </aside>
-            )}
          </div>
       </div>
    );

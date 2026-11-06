@@ -5,16 +5,15 @@ import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trig
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
-import { Button, trackButtonPressedClass } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { canEditProduct } from '@/lib/workspace-role';
 import { cn } from '@/lib/utils';
 import { useCreateIssueStore } from '@/store/create-issue-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
 import type { ViewType } from '@/store/view-store';
-import { BarChart3, LayoutGrid, LayoutList, PanelRight, Plus } from 'lucide-react';
+import { LayoutGrid, LayoutList, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DisplayOptions } from '../display-options';
 
@@ -28,7 +27,6 @@ export default function Header() {
    const t = useTranslations('tasks.header');
    const openModal = useCreateIssueStore((state) => state.openModal);
    const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
-   const { openPanel, togglePanel } = useRightPanelStore();
    const { searchQuery, setSearchQuery, openSearch, closeSearch } = useSearchStore();
    const view = useIssueListView();
    const [tab] = useMyIssuesTab();
@@ -55,10 +53,15 @@ export default function Header() {
             ) : null}
          </PageKpiHeader>
          <div className="mb-1 flex h-[44px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 [&_button]:!h-[30px]">
+            <div className="flex flex-wrap items-center gap-1">
+               <IssueFilterTrigger iconOnly />
+               <IssueFilterBarActions />
+               <DisplayOptions iconOnly />
+            </div>
             <div
                role="group"
                aria-label={t('layout.label')}
-               className="flex items-center rounded-md border p-0.5"
+               className="ml-auto flex items-center rounded-md border p-0.5"
             >
                {LAYOUTS.map((layout) => {
                   const on = view.mode === layout.value;
@@ -81,33 +84,6 @@ export default function Header() {
                      </button>
                   );
                })}
-            </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-1">
-               <IssueFilterTrigger iconOnly />
-               <IssueFilterBarActions />
-               <Button
-                  size="xs"
-                  variant="track"
-                  aria-label={t('insights')}
-                  title={t('insights')}
-                  aria-pressed={openPanel === 'insights'}
-                  className={cn(openPanel === 'insights' && trackButtonPressedClass)}
-                  onClick={() => togglePanel('insights')}
-               >
-                  <BarChart3 className="size-4" aria-hidden="true" />
-               </Button>
-               <DisplayOptions iconOnly />
-               <Button
-                  size="xs"
-                  variant="track"
-                  aria-label={t('breakdown')}
-                  title={t('breakdown')}
-                  aria-pressed={openPanel === 'breakdown'}
-                  className={cn(openPanel === 'breakdown' && trackButtonPressedClass)}
-                  onClick={() => togglePanel('breakdown')}
-               >
-                  <PanelRight className="size-4" aria-hidden="true" />
-               </Button>
             </div>
          </div>
       </div>
