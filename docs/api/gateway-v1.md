@@ -1028,6 +1028,33 @@ codes including `AI_RUNTIME_UNAVAILABLE`, `AI_RUNTIME_NOT_CONNECTED`,
 `AI_RUNTIME_AUTH_EXPIRED`, `AI_MODEL_UNAVAILABLE`, and
 `AI_QUOTA_EXHAUSTED`.
 
+### Loops (route table only)
+
+A Loop is an autopilot: storage and routes keep that name ([ADR-0020](../adr/0020-loops.md)). A Loop has an agent, instructions, triggers (`cron`, `webhook`, `event`) and a policy: `accessMode` (`recommend`, the default, or `act`), `concurrencyPolicy` (`skip_if_running`, the default, or `allow`), `maxTurns`, `maxDurationMinutes`, `maxChainDepth` (0–3, default 0), `allowAgentEvents` (default false). Neither access mode adds reach beyond the agent's contract; both are enforced by the agent-tools allowlist. Every list item carries `activity` (`lastRun`, `nextFireAt`, `runsLast7Days`, `failedLast7Days`, `eventTypes`). Workspace-scoped routes take `?workspaceId=`; routes naming a Loop answer `404` for one in another workspace.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/autopilots?workspaceId=&archived=&projectId=` | List Loops |
+| `POST /api/v1/autopilots` | Create (idempotent). `status: "paused"` creates it paused |
+| `GET`, `PATCH`, `DELETE /api/v1/autopilots/{id}` | Read with triggers and members, update, archive |
+| `POST /api/v1/autopilots/{id}/restore` | Restore an archived Loop, paused |
+| `POST /api/v1/autopilots/{id}/duplicate` | Paused copy with its cron and event triggers (idempotent) |
+| `POST /api/v1/autopilots/{id}/run` | Run now (idempotent; `runs.dispatch`) |
+| `POST /api/v1/autopilots/{id}/triggers` | Add `{kind: "cron", expression, timezone}`, `{kind: "webhook", eventFilters}` or `{kind: "event", eventType, conditions}` |
+| `PATCH`, `DELETE /api/v1/autopilots/{id}/triggers/{triggerId}` | Update / remove a trigger |
+| `GET /api/v1/autopilots/{id}/runs?first=&after=` | Runs newest first, cursor-paginated. Each has a derived `state`: `queued`, `running`, `waiting_for_approval`, `succeeded`, `failed`, `canceled`, `timed_out`, `skipped` |
+| `GET /api/v1/autopilots/{id}/runs/{runId}` | One run with trigger payload, failure, usage, model, and the Loop runs it led to |
+| `POST /api/v1/autopilots/{id}/runs/{runId}/retry` | Retry a failed, canceled or timed-out run once, on the same task. `409 RUN_NOT_RETRYABLE`, `409 ALREADY_RETRIED` |
+| `POST /api/v1/autopilots/{id}/runs/{runId}/cancel` | Cancel through the ledger. `409 RUN_TERMINAL` |
+| `GET /api/v1/autopilots/{id}/receipts` | Events the Loop's triggers heard and what became of each (`fired`, `filtered`, `skipped`, `failed`, with a reason code) |
+| `GET /api/v1/autopilots/templates?workspaceId=` | Template catalogue, each with the workspace agent it suggests |
+| `GET /api/v1/autopilots/events` | Event types a trigger may name |
+| `POST /api/v1/autopilots/validate-trigger` | Check a cron (`nextTimes`) or an event type and `conditions` without saving |
+| `POST /api/v1/autopilots/draft` | `{workspaceId, prompt}` → a suggested configuration. Stores nothing; never proposes `act` |
+| `GET /api/v1/autopilots/activity?workspaceId=&attention=` | Recent runs across Loops; `attention=true` lists failures not yet retried |
+
+Event types: `issue.created`, `issue.updated`, `issue.status_changed`, `issue.assigned`, `issue.started`, `issue.completed`, `comment.created`, `project.created`, `project.updated`, `run.completed`, `run.failed`, `approval.requested`, `github.pull_request.updated`. `conditions` is `{match: "all" | "any", rules: [{field, op: "in" | "not_in", values}]}` with at most eight rules; a field the event type cannot state answers `422`. Skip reasons include `PAUSED`, `ALREADY_RUNNING`, `RATE_LIMITED`, `CHAIN_TOO_DEEP`, `LOOP_CYCLE` and `AGENT_EVENT`. The workspace stream carries `autopilot.run.updated` when a Loop's agent run ends.
+
 ### Agent contract: `/api/v1/agent-tools` (route table only)
 
 This prefix is how a running agent acts on Berry — the only path it has, since agents never touch the database directly. It accepts a short-lived, task-scoped bearer token only (minted per run, TTL at most 8 hours); every other credential type is refused here, and a task token is refused everywhere else.
