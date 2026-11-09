@@ -210,7 +210,7 @@ function SkillsScreen() {
          <PageKpiHeader label={t('title')}>
             <Button
                variant="soft"
-               className="shrink-0 !bg-[oklch(70%_0.13_85)] !text-[var(--brand-void)] hover:!bg-[oklch(66%_0.13_85)]"
+               className="shrink-0 border-0 !bg-status-warning/15 !text-status-warning shadow-xs hover:!bg-status-warning/25 hover:!text-status-warning"
                asChild
             >
                <Link href={`/${orgId}/skill-catalog`}>
@@ -219,7 +219,11 @@ function SkillsScreen() {
                </Link>
             </Button>
             {canEdit ? (
-               <Button className="shrink-0" onClick={() => setCreating(true)}>
+               <Button
+                  variant="secondary"
+                  className="shrink-0 border-0 !bg-actor-agent/15 !text-actor-agent shadow-xs hover:!bg-actor-agent/25 hover:!text-actor-agent"
+                  onClick={() => setCreating(true)}
+               >
                   <Plus className="size-4" aria-hidden />
                   {t('create.button')}
                </Button>

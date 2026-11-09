@@ -118,7 +118,7 @@ export default function SkillLabelsSettings() {
    };
 
    return (
-      <SettingsShell compact title={t('title')} description={t('lead')}>
+      <SettingsShell wide compact title={t('title')} description={t('lead')}>
          <div className="flex flex-wrap items-center gap-2.5">
             <SettingsSearch
                className="min-w-[180px]"
@@ -145,86 +145,94 @@ export default function SkillLabelsSettings() {
             </div>
          </div>
 
-         <SettingsCard>
-            {labels.error ? <SettingsEmpty title={labels.error} /> : null}
-            {rows.map((label) => (
-               <div
-                  key={label.id}
-                  className="flex min-h-[42px] min-w-0 items-center gap-3 pr-2 pl-4 transition-colors hover:bg-settings-row-hover"
-               >
-                  <Popover>
-                     <PopoverTrigger
-                        aria-label={t('changeColour', { name: label.name })}
-                        className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
-                        style={{ backgroundColor: label.color }}
-                     />
-                     <PopoverContent align="start" className="w-auto p-3">
-                        <div className="grid grid-cols-4 gap-2">
-                           {PALETTE.map((colour) => (
-                              <button
-                                 key={colour}
-                                 type="button"
-                                 aria-label={colour}
-                                 className="size-6 rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring"
-                                 style={{ backgroundColor: colour }}
-                                 onClick={() => recolour(label, colour)}
+         {labels.error ? (
+            <SettingsCard>
+               <SettingsEmpty title={labels.error} />
+            </SettingsCard>
+         ) : null}
+         {rows.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+               {rows.map((label) => (
+                  <div
+                     key={label.id}
+                     className="flex min-h-[42px] min-w-0 items-center gap-2 rounded-[10px] bg-settings-group pr-1.5 pl-3 transition-colors hover:bg-settings-row-hover"
+                  >
+                     <Popover>
+                        <PopoverTrigger
+                           aria-label={t('changeColour', { name: label.name })}
+                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
+                           style={{ backgroundColor: label.color }}
+                        />
+                        <PopoverContent align="start" className="w-auto p-3">
+                           <div className="grid grid-cols-4 gap-2">
+                              {PALETTE.map((colour) => (
+                                 <button
+                                    key={colour}
+                                    type="button"
+                                    aria-label={colour}
+                                    className="size-6 rounded-full ring-offset-2 ring-offset-popover hover:ring-2 hover:ring-ring"
+                                    style={{ backgroundColor: colour }}
+                                    onClick={() => recolour(label, colour)}
+                                 />
+                              ))}
+                           </div>
+                           {/* Any colour, not only the eight: a team with a
+                               palette of its own should not have to pick the
+                               nearest one Berry happens to ship. */}
+                           <label className="mt-3 flex items-center gap-2">
+                              <input
+                                 type="color"
+                                 value={label.color}
+                                 aria-label={t('customColour')}
+                                 className="size-7 cursor-pointer rounded border bg-transparent"
+                                 onChange={(event) =>
+                                    recolour(label, event.target.value.toLowerCase())
+                                 }
                               />
-                           ))}
-                        </div>
-                        {/* Any colour, not only the eight: a team with a
-                            palette of its own should not have to pick the
-                            nearest one Berry happens to ship. */}
-                        <label className="mt-3 flex items-center gap-2">
-                           <input
-                              type="color"
-                              value={label.color}
-                              aria-label={t('customColour')}
-                              className="size-7 cursor-pointer rounded border bg-transparent"
-                              onChange={(event) =>
-                                 recolour(label, event.target.value.toLowerCase())
-                              }
-                           />
-                           <span className="text-muted-foreground">{t('customColour')}</span>
-                        </label>
-                     </PopoverContent>
-                  </Popover>
-                  {/* The name is the rename field; it reads as plain text until
-                      it is pointed at. */}
-                  <input
-                     defaultValue={label.name}
-                     aria-label={t('rename', { name: label.name })}
-                     className="-ml-1.5 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field"
-                     onBlur={(event) => rename(label, event.target.value)}
-                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
-                        if (event.key === 'Escape') {
-                           event.currentTarget.value = label.name;
-                           event.currentTarget.blur();
-                        }
-                     }}
-                  />
-                  <span
-                     data-settings-type="caption"
-                     className="shrink-0 whitespace-nowrap text-subtle-foreground tabular-nums"
-                  >
-                     {label.usageCount === undefined
-                        ? '—'
-                        : t('usageCount', { count: label.usageCount })}
-                  </span>
-                  <SettingsIconButton
-                     label={t('remove')}
-                     destructive
-                     disabled={labels.saving}
-                     onClick={() => setRemoving(label)}
-                  >
-                     <Trash2 />
-                  </SettingsIconButton>
-               </div>
-            ))}
-            {!labels.loading && rows.length === 0 && !labels.error ? (
+                              <span className="text-muted-foreground">{t('customColour')}</span>
+                           </label>
+                        </PopoverContent>
+                     </Popover>
+                     {/* The name is the rename field; it reads as plain text until
+                         it is pointed at. */}
+                     <input
+                        defaultValue={label.name}
+                        aria-label={t('rename', { name: label.name })}
+                        className="-ml-1 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field"
+                        onBlur={(event) => rename(label, event.target.value)}
+                        onKeyDown={(event) => {
+                           if (event.key === 'Enter') event.currentTarget.blur();
+                           if (event.key === 'Escape') {
+                              event.currentTarget.value = label.name;
+                              event.currentTarget.blur();
+                           }
+                        }}
+                     />
+                     <span
+                        data-settings-type="caption"
+                        className="shrink-0 whitespace-nowrap text-subtle-foreground tabular-nums"
+                     >
+                        {label.usageCount === undefined
+                           ? '—'
+                           : t('usageCount', { count: label.usageCount })}
+                     </span>
+                     <SettingsIconButton
+                        label={t('remove')}
+                        destructive
+                        disabled={labels.saving}
+                        onClick={() => setRemoving(label)}
+                     >
+                        <Trash2 />
+                     </SettingsIconButton>
+                  </div>
+               ))}
+            </div>
+         ) : null}
+         {!labels.loading && rows.length === 0 && !labels.error ? (
+            <SettingsCard>
                <SettingsEmpty title={query.trim() === '' ? t('empty') : t('noMatch')} />
-            ) : null}
-         </SettingsCard>
+            </SettingsCard>
+         ) : null}
 
          <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
             <AlertDialogContent>
