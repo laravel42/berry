@@ -48,6 +48,9 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 
 const DEFAULT_MODEL = '__default__';
+/** Selected runtime / concurrency / access chip — soft agent azure, not primary red. */
+const CHOICE_SELECTED =
+   'border-0 !bg-actor-agent/15 !text-actor-agent shadow-xs hover:!bg-actor-agent/25 hover:!text-actor-agent';
 const NO_RUNTIME = '__none__';
 const DRAFT_KEY = 'berry.new-agent.draft';
 const ALL_LABELS = '__all__';
@@ -390,7 +393,10 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                            <div className="flex flex-wrap gap-2">
                               <Button
                                  type="button"
-                                 variant={draft.runtimeId === NO_RUNTIME ? 'default' : 'secondary'}
+                                 variant="secondary"
+                                 className={
+                                    draft.runtimeId === NO_RUNTIME ? CHOICE_SELECTED : undefined
+                                 }
                                  onClick={() => set({ runtimeId: NO_RUNTIME })}
                               >
                                  {detail('setRuntimeNone')}
@@ -399,8 +405,9 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={runtime.id}
                                     type="button"
-                                    variant={
-                                       draft.runtimeId === runtime.id ? 'default' : 'secondary'
+                                    variant="secondary"
+                                    className={
+                                       draft.runtimeId === runtime.id ? CHOICE_SELECTED : undefined
                                     }
                                     onClick={() => set({ runtimeId: runtime.id })}
                                  >
@@ -421,7 +428,10 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={level}
                                     type="button"
-                                    variant={draft.concurrency === level ? 'default' : 'secondary'}
+                                    variant="secondary"
+                                    className={
+                                       draft.concurrency === level ? CHOICE_SELECTED : undefined
+                                    }
                                     onClick={() => set({ concurrency: level })}
                                  >
                                     {level}
@@ -440,7 +450,8 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={mode}
                                     type="button"
-                                    variant={draft.access === mode ? 'default' : 'secondary'}
+                                    variant="secondary"
+                                    className={draft.access === mode ? CHOICE_SELECTED : undefined}
                                     onClick={() => set({ access: mode })}
                                  >
                                     {label}

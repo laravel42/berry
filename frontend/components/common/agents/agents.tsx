@@ -42,6 +42,7 @@ import {
    type Agent,
    type Tier,
 } from '@/lib/agents';
+import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import {
    useAgentsListStore,
@@ -91,6 +92,7 @@ const reason = (error: unknown, fallback: string) =>
 export default function Agents() {
    const t = useTranslations('agentsChat.list');
    const common = useTranslations('agentsChat.common');
+   const detail = useTranslations('agentsChat.detail');
    const tiers = useTranslations('agentsChat.detail.tiers');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
@@ -133,9 +135,11 @@ export default function Agents() {
    const [loading, setLoading] = useState(!agentsReady);
    const [confirm, setConfirm] = useState<Confirm | null>(null);
    const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+   const [bulkRuntimeOpen, setBulkRuntimeOpen] = useState(false);
    const [bulkTierOpen, setBulkTierOpen] = useState(false);
    const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
    const [busy, setBusy] = useState(false);
+   const [runtimes, setRuntimes] = useState<Runtime[]>([]);
 
    const load = useCallback(
       async (silent = false) => {
@@ -161,6 +165,10 @@ export default function Agents() {
    useEffect(() => {
       void load(useAgentsStore.getState().ready);
    }, [load]);
+
+   useEffect(() => {
+      void listRuntimes().then(setRuntimes, () => setRuntimes([]));
+   }, []);
 
    // The archive is read up front so the Archived tab can show a count, and
    // re-read whenever something in it changes (callers clear it to null).
@@ -295,6 +303,23 @@ export default function Agents() {
             assign: next,
             mention: next,
          });
+      });
+   };
+
+   /**
+    * Puts the selection on one runtime, or clears the binding so each agent
+    * falls back to the workspace default (or has nowhere to run).
+    */
+   const bulkRuntime = (next: string | null) => {
+      setBulkRuntimeOpen(false);
+      void bulk(t('errorTitle'), async (agent) => {
+         const previous = roster.get(agent.id)?.runtimeId ?? null;
+         if (next === previous) return;
+         if (next === null) {
+            if (previous) await unbindAgentRuntime(previous, agent.id);
+         } else {
+            await bindAgentRuntime(next, agent.id);
+         }
       });
    };
 
@@ -525,6 +550,35 @@ export default function Agents() {
                                           {next === 'everyone'
                                              ? t('accessEveryone')
                                              : t('accessAdmins')}
+                                       </CommandItem>
+                                    ))}
+                                 </CommandGroup>
+                              </CommandList>
+                           </Command>
+                        </PopoverContent>
+                     </Popover>
+                     <Popover open={bulkRuntimeOpen} onOpenChange={setBulkRuntimeOpen}>
+                        <PopoverTrigger asChild>
+                           <Button size="sm" variant="secondary" disabled={busy}>
+                              {t('bulkRuntime')}
+                           </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" className="w-72 p-0">
+                           <Command>
+                              <CommandList>
+                                 <CommandGroup>
+                                    <CommandItem disabled={busy} onSelect={() => bulkRuntime(null)}>
+                                       {detail('setRuntimeNone')}
+                                    </CommandItem>
+                                    {runtimes.map((runtime) => (
+                                       <CommandItem
+                                          key={runtime.id}
+                                          disabled={busy}
+                                          onSelect={() => bulkRuntime(runtime.id)}
+                                       >
+                                          {runtime.status === 'active'
+                                             ? runtime.name
+                                             : `${runtime.name} · ${t('runtimeUnreachable')}`}
                                        </CommandItem>
                                     ))}
                                  </CommandGroup>

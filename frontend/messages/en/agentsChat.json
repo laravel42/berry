@@ -79,6 +79,7 @@
       "bulkRestore": "Restore",
       "bulkAccess": "Set access",
       "bulkArchive": "Archive",
+      "bulkRuntime": "Set runtime",
       "bulkTier": "Set tier",
       "bulkTierRole": "Each role's own",
       "bulkTierRoleHint": "The tier its role recommends",

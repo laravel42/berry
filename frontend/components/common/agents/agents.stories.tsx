@@ -66,6 +66,7 @@ export const BulkSelection: Story = {
       await userEvent.click(canvas.getByRole('checkbox', { name: 'Select every agent' }));
       await expect(canvas.getByText('4 selected')).toBeVisible();
       await expect(canvas.getByRole('button', { name: 'Set access' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Set runtime' })).toBeVisible();
    },
 };
 
