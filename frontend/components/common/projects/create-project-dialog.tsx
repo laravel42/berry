@@ -49,7 +49,7 @@ import { useMilestonesStore } from '@/store/milestones-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
-import { ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -64,8 +64,9 @@ interface ProjectFormState {
    members: User[];
    startDate?: Date;
    targetDate?: Date;
-   /** owner/name, or undefined for a project that delivers nowhere yet. */
+   /** owner/name or GitLab path, or undefined for a project that delivers nowhere yet. */
    githubRepo?: string;
+   gitlabRepo?: string;
 }
 
 function toIsoDate(date?: Date): string | undefined {
@@ -166,6 +167,7 @@ export function CreateProjectDialog() {
             startDate: toIsoDate(form.startDate),
             targetDate: toIsoDate(form.targetDate),
             githubRepo: form.githubRepo,
+            gitlabRepo: form.gitlabRepo,
             lead: form.lead ?? null,
          });
          addProject({
@@ -244,12 +246,12 @@ export function CreateProjectDialog() {
                       so the header does not show a second close. */}
                      {assistant ? null : (
                         <div className="flex shrink-0 items-center gap-1">
-                           <span className="ai-animated-border h-6">
+                           <span className="ai-animated-border h-7">
                               <Button
                                  type="button"
                                  variant="outline"
                                  size="xxs"
-                                 className="h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
+                                 className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
                                  onClick={() => setAssistant(true)}
                               >
                                  <Sparkles className="size-3.5" aria-hidden="true" />
@@ -350,13 +352,22 @@ export function CreateProjectDialog() {
                          width cap makes a long repository name truncate instead
                          of wrapping the property row. */}
                         <RepositoryPicker
-                           value={form.githubRepo}
+                           value={form.gitlabRepo ?? form.githubRepo}
+                           valueProvider={
+                              form.gitlabRepo ? 'gitlab' : form.githubRepo ? 'github' : undefined
+                           }
                            placeholder="Repository"
                            variant="secondary"
                            size="xs"
                            className="max-w-56"
-                           onSelect={(githubRepo) =>
-                              setForm({ ...form, githubRepo: githubRepo ?? undefined })
+                           onSelect={(choice) =>
+                              setForm({
+                                 ...form,
+                                 githubRepo:
+                                    choice?.provider === 'github' ? choice.fullName : undefined,
+                                 gitlabRepo:
+                                    choice?.provider === 'gitlab' ? choice.fullName : undefined,
+                              })
                            }
                         />
                      </div>
@@ -377,7 +388,12 @@ export function CreateProjectDialog() {
                   </div>
 
                   <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
-                     <Button type="submit" disabled={pending || !form.name.trim()}>
+                     <Button
+                        type="submit"
+                        className="shrink-0"
+                        disabled={pending || !form.name.trim()}
+                     >
+                        <Check className="size-4" aria-hidden />
                         {pending ? 'Creating…' : 'Create project'}
                      </Button>
                   </DialogFooter>

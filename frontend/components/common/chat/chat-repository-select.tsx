@@ -69,7 +69,7 @@ export function ChatRepositorySelect({
    return (
       <RepositoryPicker
          value={repository ?? undefined}
-         onSelect={setChatRepository}
+         onSelect={(choice) => setChatRepository(choice?.fullName ?? null)}
          placeholder="Repository"
          disabled={disabled}
          size="xs"
