@@ -270,7 +270,7 @@
       "project": "Project",
       "created": "Created",
       "updated": "Updated",
-      "runbook": "Runbook",
+      "runbook": "Instructions",
       "noRuntimeBanner": "{name} has no runtime, so this loop cannot fire.",
       "noRuntimeHint": "Bind it to a runtime, or make one the workspace default.",
       "runtimesLink": "Runtimes",

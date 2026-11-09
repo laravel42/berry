@@ -105,12 +105,13 @@ function ActivityRow({
             href={`/${orgId}/loop/${run.autopilotId}/runs/${run.id}`}
             className="flex min-w-0 flex-1 items-center gap-2 focus-visible:outline-none focus-visible:underline"
          >
-            <span className="truncate font-medium">{run.autopilotName}</span>
+            {/* The name wins the space; the reason takes what is left. */}
+            <span className="max-w-[60%] shrink-0 truncate font-medium">{run.autopilotName}</span>
             {run.issueIdentifier ? (
                <span className="shrink-0 text-muted-foreground">{run.issueIdentifier}</span>
             ) : null}
             {run.reasonCode ? (
-               <span className="hidden truncate text-muted-foreground sm:inline">
+               <span className="hidden min-w-0 truncate text-muted-foreground sm:inline">
                   {run.reasonMessage}
                </span>
             ) : null}
