@@ -882,6 +882,7 @@ export function RunTranscript({
       setBooting(true);
       setRun(null);
       setStatus('');
+      setLastEventAt(null);
       setFollowing(true);
       setHasOlder(false);
       eventsRef.current = [];
@@ -936,11 +937,17 @@ export function RunTranscript({
                if (cancelled) return;
                eventsRef.current = page;
                setSteps(foldEvents(page));
+               // Seed the waiting clock from the last replayed event. Without
+               // this, THINKING stays at "<1 ms" until a new live event arrives
+               // (common while LM Studio is still on its first, non-streamed call).
+               const latest = page.at(-1);
+               if (latest) setLastEventAt(latest.occurredAt);
+               else if (record.startedAt) setLastEventAt(record.startedAt);
                const oldest = page[0]?.sequence;
                setHasOlder(
                   page.length >= RUN_EVENT_PAGE && typeof oldest === 'number' && oldest > 0
                );
-               const last = page.at(-1)?.sequence;
+               const last = latest?.sequence;
                if (typeof last === 'number') after = last;
                setBooting(false);
             } else {
@@ -1178,7 +1185,8 @@ export function RunTranscript({
       const timer = window.setInterval(() => setNow(Date.now()), 1000);
       return () => window.clearInterval(timer);
    }, [waiting]);
-   const waitedMs = lastEventAt ? Math.max(0, now - new Date(lastEventAt).getTime()) : 0;
+   const waitingSince = lastEventAt ?? run?.startedAt ?? null;
+   const waitedMs = waitingSince ? Math.max(0, now - new Date(waitingSince).getTime()) : 0;
    const thinkingRow = waiting ? (
       <li className="flex items-center gap-3 px-4 py-2.5" aria-live="polite">
          <span data-heading="label" className="w-[5.5rem] shrink-0 text-status-info uppercase">
