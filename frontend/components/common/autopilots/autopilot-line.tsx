@@ -14,6 +14,7 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import LoopRunStateBadge from '@/components/common/loops/run-state-badge';
 import type { Autopilot } from '@/lib/autopilots';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,9 @@ import type { AutopilotColumn } from './autopilots-filters';
 /** The widths every cell shares with its header, so the two line up. */
 export const COLUMN_WIDTH: Record<AutopilotColumn, string> = {
    status: 'w-20',
+   trigger: 'w-36',
+   lastRun: 'w-40',
+   nextRun: 'w-28',
    mode: 'w-40',
    quota: 'w-32',
    updated: 'w-28',
@@ -30,6 +34,9 @@ export const COLUMN_WIDTH: Record<AutopilotColumn, string> = {
 
 /** Columns that drop out before the row starts crowding the name. */
 export const COLUMN_BREAKPOINT: Partial<Record<AutopilotColumn, string>> = {
+   trigger: 'hidden md:flex',
+   lastRun: 'hidden sm:flex',
+   nextRun: 'hidden lg:flex',
    mode: 'hidden lg:flex',
    quota: 'hidden xl:flex',
    updated: 'hidden sm:flex',
@@ -45,6 +52,17 @@ interface AutopilotLineProps {
    onPauseOrResume: (autopilot: Autopilot) => void;
    onConfirmDelete: (autopilot: Autopilot) => void;
    onRestore: (autopilot: Autopilot) => void;
+   onDuplicate?: (autopilot: Autopilot) => void;
+}
+
+/** What makes a Loop run, in a few words: the first trigger kind, or by hand. */
+export function triggerSummaryKey(
+   autopilot: Autopilot
+): 'cron' | 'event' | 'webhook' | 'manual' | 'several' {
+   const kinds = autopilot.triggerKinds;
+   if (kinds.length === 0) return 'manual';
+   if (kinds.length > 1) return 'several';
+   return kinds[0] ?? 'manual';
 }
 
 function Cell({
@@ -87,12 +105,15 @@ export default function AutopilotLine({
    onPauseOrResume,
    onConfirmDelete,
    onRestore,
+   onDuplicate,
 }: AutopilotLineProps) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
    const format = useFormatter();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
-   const href = `/${orgId}/autopilot/${autopilot.id}`;
+   const href = `/${orgId}/loop/${autopilot.id}`;
+   const lastRun = autopilot.activity.lastRun;
+   const nextFireAt = autopilot.status === 'active' ? autopilot.activity.nextFireAt : null;
    const paused = autopilot.status === 'paused';
 
    return (
@@ -115,7 +136,11 @@ export default function AutopilotLine({
          <Link href={href} className="flex min-w-0 flex-1 items-center">
             <div className="min-w-0 flex-1 overflow-hidden">
                <span className="block truncate font-medium leading-none">{autopilot.name}</span>
-               <p className="mt-0.5 truncate text-muted-foreground">{assigneeName}</p>
+               <p className="mt-0.5 truncate text-muted-foreground">
+                  {autopilot.description
+                     ? `${assigneeName} · ${autopilot.description}`
+                     : assigneeName}
+               </p>
             </div>
          </Link>
 
@@ -130,6 +155,32 @@ export default function AutopilotLine({
             >
                {t(`status.${autopilot.status}`)}
             </Badge>
+         </Cell>
+
+         <Cell column="trigger" columns={columns}>
+            <span className="truncate">{t(`trigger.${triggerSummaryKey(autopilot)}`)}</span>
+         </Cell>
+
+         <Cell column="lastRun" columns={columns}>
+            {lastRun ? (
+               <Link
+                  href={`/${orgId}/loop/${autopilot.id}/runs/${lastRun.id}`}
+                  className="flex min-w-0 items-center gap-1.5 hover:text-foreground"
+               >
+                  <LoopRunStateBadge state={lastRun.state} compact />
+                  <span className="truncate">
+                     {format.relativeTime(new Date(lastRun.createdAt))}
+                  </span>
+               </Link>
+            ) : (
+               <span className="truncate">{t('row.neverRan')}</span>
+            )}
+         </Cell>
+
+         <Cell column="nextRun" columns={columns}>
+            <span className="truncate">
+               {nextFireAt ? format.relativeTime(new Date(nextFireAt)) : '—'}
+            </span>
          </Cell>
 
          <Cell column="mode" columns={columns}>
@@ -175,6 +226,11 @@ export default function AutopilotLine({
                         <DropdownMenuItem onClick={() => onPauseOrResume(autopilot)}>
                            {paused ? t('row.resume') : t('row.pause')}
                         </DropdownMenuItem>
+                        {onDuplicate ? (
+                           <DropdownMenuItem onClick={() => onDuplicate(autopilot)}>
+                              {t('row.duplicate')}
+                           </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => onConfirmDelete(autopilot)}>
                            {t('row.delete')}

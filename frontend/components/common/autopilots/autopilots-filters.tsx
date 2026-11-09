@@ -23,10 +23,28 @@ import { EXECUTION_MODES, type Autopilot } from '@/lib/autopilots';
 export const AUTOPILOT_SCOPES = ['all', 'archived'] as const;
 export type AutopilotScope = (typeof AUTOPILOT_SCOPES)[number];
 
-export const AUTOPILOT_COLUMNS = ['status', 'mode', 'quota', 'updated'] as const;
+export const AUTOPILOT_COLUMNS = [
+   'status',
+   'trigger',
+   'lastRun',
+   'nextRun',
+   'mode',
+   'quota',
+   'updated',
+] as const;
 export type AutopilotColumn = (typeof AUTOPILOT_COLUMNS)[number];
 
-export const AUTOPILOT_SORTS = ['name', 'status', 'mode', 'quota', 'updated', 'created'] as const;
+export const AUTOPILOT_SORTS = [
+   'name',
+   'status',
+   'trigger',
+   'lastRun',
+   'nextRun',
+   'mode',
+   'quota',
+   'updated',
+   'created',
+] as const;
 export type AutopilotSort = (typeof AUTOPILOT_SORTS)[number];
 
 /** How the list is laid out; what narrows it is the filter's. */
@@ -40,7 +58,7 @@ export interface AutopilotCriteria {
 export const DEFAULT_AUTOPILOT_CRITERIA: AutopilotCriteria = {
    sort: 'name',
    sortDescending: false,
-   columns: ['status', 'mode', 'updated'],
+   columns: ['status', 'trigger', 'lastRun', 'nextRun'],
 };
 
 /** Trigger value for an autopilot that only runs by hand. */
@@ -52,7 +70,7 @@ export function useAutopilotFilterColumns(
    assignees: Array<{ id: string; name: string }>,
    creators: Array<{ id: string; name: string; avatarUrl?: string }>
 ) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
 
    return useMemo(() => {
       const dtf = createColumnConfigHelper<Autopilot>();
@@ -94,6 +112,7 @@ export function useAutopilotFilterColumns(
             .icon(Zap)
             .options([
                { value: 'cron', label: t('filters.trigger_cron') },
+               { value: 'event', label: t('filters.trigger_event') },
                { value: 'webhook', label: t('filters.trigger_webhook') },
                { value: NO_TRIGGER, label: t('filters.trigger_none') },
             ])
@@ -131,7 +150,7 @@ export default function AutopilotsFilters({
    onScopeChange,
    counts = { all: 0, archived: null },
 }: Props) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
    const set = (patch: Partial<AutopilotCriteria>) => onChange({ ...criteria, ...patch });
    const scopeLabel: Record<AutopilotScope, string> = {
       all: t('scopeAll'),

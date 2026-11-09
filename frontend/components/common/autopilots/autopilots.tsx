@@ -4,13 +4,15 @@ import { SettingsTile } from '@/components/common/settings/shared';
 import { useTranslations } from 'next-intl';
 import {
    Activity,
+   Bug,
    CalendarClock,
-   Inbox,
+   GitPullRequest,
    ListFilter,
    Newspaper,
-   Rocket,
+   ShieldCheck,
    type LucideIcon,
 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -37,13 +39,20 @@ import {
 import {
    archiveAutopilot,
    describeAutopilotFailure,
+   duplicateAutopilot,
    restoreAutopilot,
    updateAutopilot,
    type Autopilot,
+   type LoopTemplate,
 } from '@/lib/autopilots';
+import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
 
-import AutopilotLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './autopilot-line';
+import AutopilotLine, {
+   COLUMN_BREAKPOINT,
+   COLUMN_WIDTH,
+   triggerSummaryKey,
+} from './autopilot-line';
 import type { AutopilotColumn, AutopilotCriteria } from './autopilots-filters';
 
 interface Props {
@@ -56,23 +65,24 @@ interface Props {
    canEdit: boolean;
    onChanged: () => void;
    narrowed: boolean;
-   onUseTemplate: (template: { name: string; prompt: string }) => void;
+   /** The server's template catalogue, for the empty state. */
+   templates: LoopTemplate[];
+   onUseTemplate: (template: LoopTemplate) => void;
    /** Updates sort when a sortable column heading is clicked. */
    onCriteriaChange?: (criteria: AutopilotCriteria) => void;
    archived?: boolean;
 }
 
-/** Something to start from, so an empty workspace is not an empty page. */
-const TEMPLATES = ['standup', 'triage', 'sweep', 'digest', 'release', 'watch'] as const;
-
-const TEMPLATE_ICON: Record<(typeof TEMPLATES)[number], LucideIcon> = {
-   standup: CalendarClock,
-   triage: Inbox,
-   sweep: ListFilter,
-   digest: Newspaper,
-   release: Rocket,
-   watch: Activity,
+/** A glyph per template category; the catalogue itself is the server's. */
+export const TEMPLATE_ICON: Record<string, LucideIcon> = {
+   triage: Bug,
+   review: GitPullRequest,
+   health: Activity,
+   reporting: Newspaper,
+   quality: ShieldCheck,
+   schedule: CalendarClock,
 };
+export const FALLBACK_TEMPLATE_ICON: LucideIcon = ListFilter;
 
 /** Same height as the card title (`h1` on the type scale). */
 const titleHeight = 'size-[calc(var(--text-lg)*var(--text-lg--line-height))]';
@@ -87,6 +97,17 @@ function sortAutopilots(
       let cmp = 0;
       if (sort === 'status') {
          cmp = left.status.localeCompare(right.status);
+      } else if (sort === 'trigger') {
+         cmp = triggerSummaryKey(left).localeCompare(triggerSummaryKey(right));
+      } else if (sort === 'lastRun') {
+         cmp = (left.activity.lastRun?.createdAt ?? '').localeCompare(
+            right.activity.lastRun?.createdAt ?? ''
+         );
+      } else if (sort === 'nextRun') {
+         // A Loop with nothing scheduled sorts after every one that has a time.
+         cmp = (left.activity.nextFireAt ?? '9999').localeCompare(
+            right.activity.nextFireAt ?? '9999'
+         );
       } else if (sort === 'mode') {
          cmp = left.executionMode.localeCompare(right.executionMode);
       } else if (sort === 'quota') {
@@ -108,6 +129,9 @@ function sortAutopilots(
 const SORT_FOR_COLUMN: Record<AutopilotColumn | 'autopilot', AutopilotCriteria['sort']> = {
    autopilot: 'name',
    status: 'status',
+   trigger: 'trigger',
+   lastRun: 'lastRun',
+   nextRun: 'nextRun',
    mode: 'mode',
    quota: 'quota',
    updated: 'updated',
@@ -128,11 +152,15 @@ export default function Autopilots({
    canEdit,
    onChanged,
    narrowed,
+   templates,
    onUseTemplate,
    onCriteriaChange,
    archived = false,
 }: Props) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
+   const router = useRouter();
+   const params = useParams<{ orgId?: string }>();
+   const orgId = params?.orgId || WORKSPACE_SLUG;
    const [selection, setSelection] = useState<string[]>([]);
    const [confirming, setConfirming] = useState<Autopilot | null>(null);
    const [confirmingBulk, setConfirmingBulk] = useState(false);
@@ -163,6 +191,18 @@ export default function Autopilots({
          toast.success(t('row.deleted', { name: autopilot.name }));
          setSelection((current) => current.filter((id) => id !== autopilot.id));
          onChanged();
+      } catch (failure) {
+         fail(failure);
+      }
+   };
+
+   /** A paused copy, opened so it can be adjusted before it runs. */
+   const duplicate = async (autopilot: Autopilot) => {
+      try {
+         const copy = await duplicateAutopilot(autopilot.id);
+         toast.success(t('row.duplicated', { name: autopilot.name }));
+         onChanged();
+         router.push(`/${orgId}/loop/${copy.id}`);
       } catch (failure) {
          fail(failure);
       }
@@ -213,7 +253,7 @@ export default function Autopilots({
       onCriteriaChange({
          ...criteria,
          sort,
-         sortDescending: sort === 'updated' || sort === 'created',
+         sortDescending: sort === 'updated' || sort === 'created' || sort === 'lastRun',
       });
    };
 
@@ -287,37 +327,37 @@ export default function Autopilots({
             {canEdit ? (
                <div className="mt-[72px] w-full max-w-5xl">
                   <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                     {TEMPLATES.map((key) => {
-                        const Icon = TEMPLATE_ICON[key];
-                        const name = t(`templates.${key}_name`);
+                     {templates.map((template) => {
+                        const Icon = TEMPLATE_ICON[template.category] ?? FALLBACK_TEMPLATE_ICON;
                         return (
                            <section
-                              key={key}
+                              key={template.key}
                               className="flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group"
-                              aria-label={name}
+                              aria-label={template.name}
                            >
                               <button
                                  type="button"
                                  className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-                                 onClick={() =>
-                                    onUseTemplate({
-                                       name,
-                                       prompt: t(`templates.${key}_prompt`),
-                                    })
-                                 }
+                                 onClick={() => onUseTemplate(template)}
                               >
                                  <SettingsTile size="lg" className={titleHeight}>
                                     <Icon className="size-[55%]" aria-hidden />
                                  </SettingsTile>
                                  <div className="min-w-0 flex-1">
                                     <h3 data-heading="h1" className="m-0 min-w-0 truncate">
-                                       {name}
+                                       {template.name}
                                     </h3>
                                     <p
                                        data-settings-type="caption"
                                        className="mt-1.5 line-clamp-3 min-h-[3lh] leading-[1.55] text-muted-foreground"
                                     >
-                                       {t(`templates.${key}_prompt`)}
+                                       {template.description}
+                                    </p>
+                                    <p
+                                       data-settings-type="caption"
+                                       className="mt-2 truncate text-subtle-foreground"
+                                    >
+                                       {template.trigger.description}
                                     </p>
                                  </div>
                               </button>
@@ -364,6 +404,9 @@ export default function Autopilots({
                   <div className="min-w-0 flex-1">{t('columns.autopilot')}</div>
                )}
                {header('status', t('columns.status'))}
+               {header('trigger', t('columns.trigger'))}
+               {header('lastRun', t('columns.lastRun'))}
+               {header('nextRun', t('columns.nextRun'))}
                {header('mode', t('columns.mode'))}
                {header('quota', t('columns.quota'))}
                {header('updated', t('columns.updated'))}
@@ -384,6 +427,7 @@ export default function Autopilots({
                   }
                   onConfirmDelete={setConfirming}
                   onRestore={restore}
+                  onDuplicate={(row) => void duplicate(row)}
                />
             ))}
          </div>

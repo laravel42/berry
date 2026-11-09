@@ -122,7 +122,7 @@ function sameDays(days: number[], expected: number[]): boolean {
  * quietly change when someone's agent runs.
  */
 export default function ScheduleEditor({ expression, timezone, onChange }: Props) {
-   const t = useTranslations('areas.autopilots.schedule');
+   const t = useTranslations('loops.schedule');
    const locale = useLocale();
    const [raw, setRaw] = useState(false);
    const [preview, setPreview] = useState<string[]>([]);

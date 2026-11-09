@@ -7,13 +7,13 @@ import AutopilotDetail from '@/components/common/autopilots/autopilot-detail';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import AutopilotDetailHeader from '@/components/layout/headers/autopilots/detail-header';
 
-export default function AutopilotDrawerPage() {
-   const { autopilotId } = useParams<{ orgId: string; autopilotId: string }>();
+export default function LoopDrawerPage() {
+   const { loopId } = useParams<{ orgId: string; loopId: string }>();
 
    return (
-      <DetailDrawerShell header={<AutopilotDetailHeader autopilotId={autopilotId} />}>
+      <DetailDrawerShell header={<AutopilotDetailHeader autopilotId={loopId} />}>
          <Suspense fallback={null}>
-            <AutopilotDetail autopilotId={autopilotId} />
+            <AutopilotDetail autopilotId={loopId} />
          </Suspense>
       </DetailDrawerShell>
    );

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, Play } from 'lucide-react';
+import { ChevronLeft, Copy, Play } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -12,6 +12,8 @@ import { EmptyStateLoading } from '@/components/common/empty-state';
 import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
 import { DeliveriesTable, RunsTable } from '@/components/common/autopilots/history-tabs';
 import TriggersTab from '@/components/common/autopilots/triggers-tab';
+import EventReceipts from '@/components/common/loops/event-receipts';
+import LoopRunStateBadge from '@/components/common/loops/run-state-badge';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import {
    AlertDialog,
@@ -30,6 +32,7 @@ import { useAutopilot } from '@/hooks/use-autopilot';
 import {
    archiveAutopilot,
    describeAutopilotFailure,
+   duplicateAutopilot,
    restoreAutopilot,
    runAutopilot,
    updateAutopilot,
@@ -43,7 +46,7 @@ import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 
-const TABS = ['overview', 'triggers', 'runs', 'deliveries'] as const;
+const TABS = ['overview', 'triggers', 'runs', 'events', 'deliveries'] as const;
 type DetailTab = (typeof TABS)[number];
 
 const isTab = (value: string | null): value is DetailTab =>
@@ -58,7 +61,7 @@ const isTab = (value: string | null): value is DetailTab =>
  * this autopilot is.
  */
 export default function AutopilotDetail({ autopilotId }: { autopilotId: string }) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
    const router = useRouter();
    const pathname = usePathname();
    const searchParams = useSearchParams();
@@ -126,7 +129,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                </Button>
             ) : (
                <Button asChild variant="secondary" size="sm">
-                  <Link href={`/${orgId}/autopilots`}>{t('detail.back')}</Link>
+                  <Link href={`/${orgId}/loops`}>{t('detail.back')}</Link>
                </Button>
             )}
          </div>
@@ -180,15 +183,33 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       overview: t('detail.tabOverview'),
       triggers: t('detail.tabTriggers'),
       runs: t('detail.tabRuns'),
+      events: t('detail.tabEvents'),
       deliveries: t('detail.tabDeliveries'),
    };
+   // Tabs that would only ever be empty for this Loop are left out.
+   const tabs = TABS.filter(
+      (tab) =>
+         (tab !== 'events' || autopilot.triggerKinds.includes('event')) &&
+         (tab !== 'deliveries' ||
+            autopilot.triggerKinds.includes('webhook') ||
+            deliveries.length > 0)
+   );
+
+   const duplicate = () =>
+      act(
+         async () => {
+            const copy = await duplicateAutopilot(autopilot.id);
+            router.push(`/${orgId}/loop/${copy.id}`);
+         },
+         t('row.duplicated', { name: autopilot.name })
+      );
 
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
          <div className="border-b px-8 py-6">
             {inDrawer ? null : (
                <Link
-                  href={`/${orgId}/autopilots`}
+                  href={`/${orgId}/loops`}
                   className="mb-4 inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
                >
                   <ChevronLeft className="size-3.5" aria-hidden />
@@ -229,6 +250,8 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                      </div>
                      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
                         <span className="truncate">{assigneeName}</span>
+                        <span aria-hidden>·</span>
+                        <span>{t(`access.${autopilot.accessMode}`)}</span>
                         <span aria-hidden>·</span>
                         <span>{t(`mode.${autopilot.executionMode}`)}</span>
                         <span aria-hidden>·</span>
@@ -279,6 +302,19 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                         {t('detail.edit')}
                      </Button>
                   ) : null}
+                  {canEdit ? (
+                     <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => void duplicate()}
+                        aria-label={t('row.duplicate')}
+                        title={t('row.duplicate')}
+                     >
+                        <Copy className="size-3.5" aria-hidden />
+                     </Button>
+                  ) : null}
                </div>
             </div>
 
@@ -306,7 +342,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          >
             <div className="border-b px-8">
                <TabsList className="h-10 gap-1 rounded-none bg-transparent p-0">
-                  {TABS.map((tab) => (
+                  {tabs.map((tab) => (
                      <TabsTrigger
                         key={tab}
                         value={tab}
@@ -344,6 +380,9 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                   <TriggersTab autopilot={autopilot} canEdit={canEdit} onChanged={reload} />
                ) : null}
                {view === 'runs' ? <RunsTable runs={runs} orgId={orgId} /> : null}
+               {view === 'events' ? (
+                  <EventReceipts autopilotId={autopilot.id} orgId={orgId} refresh={runs.length} />
+               ) : null}
                {view === 'deliveries' ? (
                   <DeliveriesTable
                      autopilotId={autopilot.id}
@@ -380,7 +419,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                            .then(() => {
                               toast.success(t('row.deleted', { name: autopilot.name }));
                               if (closeDrawer) closeDrawer();
-                              else router.push(`/${orgId}/autopilots`);
+                              else router.push(`/${orgId}/loops`);
                            })
                            .catch((failure: unknown) =>
                               toast.error(describeAutopilotFailure(failure))
@@ -415,14 +454,53 @@ function OverviewPanel({
    onArchive: () => void;
    onRestore: () => void;
 }) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
 
    return (
       <div className="mx-auto grid max-w-5xl gap-8 px-8 py-6 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
          <dl className="flex flex-col gap-4">
             <div>
+               <dt className="text-muted-foreground">{t('detail.lastRun')}</dt>
+               <dd className="mt-0.5">
+                  {autopilot.activity.lastRun ? (
+                     <LoopRunStateBadge state={autopilot.activity.lastRun.state} />
+                  ) : (
+                     t('row.neverRan')
+                  )}
+               </dd>
+            </div>
+            <div>
+               <dt className="text-muted-foreground">{t('detail.nextRun')}</dt>
+               <dd className="mt-0.5">
+                  {autopilot.status === 'active' && autopilot.activity.nextFireAt
+                     ? new Date(autopilot.activity.nextFireAt).toLocaleString()
+                     : '—'}
+               </dd>
+            </div>
+            <div>
                <dt className="text-muted-foreground">{t('detail.assignee')}</dt>
                <dd className="mt-0.5 truncate">{assigneeName}</dd>
+            </div>
+            <div>
+               <dt className="text-muted-foreground">{t('detail.accessMode')}</dt>
+               <dd className="mt-0.5">{t(`access.${autopilot.accessMode}`)}</dd>
+            </div>
+            <div>
+               <dt className="text-muted-foreground">{t('detail.limits')}</dt>
+               <dd className="mt-0.5">
+                  {[
+                     t(`limits.${autopilot.concurrencyPolicy}`),
+                     autopilot.maxTurns ? t('limits.turns', { count: autopilot.maxTurns }) : null,
+                     autopilot.maxDurationMinutes
+                        ? t('limits.minutes', { count: autopilot.maxDurationMinutes })
+                        : null,
+                     autopilot.triggerKinds.includes('event')
+                        ? t('limits.chain', { count: autopilot.maxChainDepth })
+                        : null,
+                  ]
+                     .filter(Boolean)
+                     .join(' · ')}
+               </dd>
             </div>
             <div>
                <dt className="text-muted-foreground">{t('columns.mode')}</dt>
@@ -447,6 +525,11 @@ function OverviewPanel({
          </dl>
 
          <div className="flex min-w-0 flex-col gap-8">
+            {autopilot.description ? (
+               <section className="min-w-0">
+                  <p className="text-muted-foreground">{autopilot.description}</p>
+               </section>
+            ) : null}
             <section className="min-w-0">
                <h2 className="font-medium">{t('detail.runbook')}</h2>
                <pre className="mt-3 max-h-[min(28rem,60vh)] overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-muted/20 p-4 leading-relaxed text-muted-foreground">

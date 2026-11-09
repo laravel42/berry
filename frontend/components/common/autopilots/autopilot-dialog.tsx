@@ -37,15 +37,28 @@ import {
    SelectValue,
 } from '@/components/ui/select';
 import type { User } from '@/data/users';
+import EventTriggerEditor, {
+   conditionsComplete,
+} from '@/components/common/loops/event-trigger-editor';
+import LoopPolicyFields, {
+   DEFAULT_LOOP_POLICY,
+   type LoopPolicy,
+} from '@/components/common/loops/loop-policy-fields';
 import {
    addCronTrigger,
+   addEventTrigger,
    addWebhookTrigger,
    createAutopilot,
    describeAutopilotFailure,
+   EMPTY_CONDITIONS,
    setAutopilotMembers,
    updateAutopilot,
+   type AccessMode,
    type Autopilot,
    type AutopilotDraft,
+   type Conditions,
+   type LoopEventType,
+   type TemplateTrigger,
    type WebhookSecrets,
 } from '@/lib/autopilots';
 import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
@@ -62,15 +75,34 @@ import { useSessionStore } from '@/store/session-store';
 import ScheduleEditor from './schedule-editor';
 import { SecretsNotice } from './triggers-tab';
 
+/**
+ * Where a new Loop starts from: a template, a drafted sentence, or nothing.
+ * Every field stays the person's to change before anything is created.
+ */
+export interface LoopSeed {
+   name: string;
+   instructions: string;
+   description?: string | null;
+   trigger: TemplateTrigger | null;
+   assigneeId?: string | null;
+   accessMode?: AccessMode;
+   allowAgentEvents?: boolean;
+   templateKey?: string | null;
+   projectId?: string | null;
+}
+
 interface Props {
    open: boolean;
    onOpenChange: (open: boolean) => void;
    autopilot?: Autopilot;
-   /** A starting point chosen from the empty state. */
-   template?: { name: string; prompt: string } | null;
+   /** A starting point: a template, or a draft from a sentence. */
+   seed?: LoopSeed | null;
    onSaved?: () => void;
-   /** Create from the list opens in the right drawer. Editing stays a dialog. */
-   presentation?: 'dialog' | 'drawer';
+   /**
+    * Editing is a dialog; `inline` is the form on the New loop page, where
+    * the page already names it.
+    */
+   presentation?: 'dialog' | 'drawer' | 'inline';
 }
 
 function AutopilotFrame({
@@ -82,7 +114,7 @@ function AutopilotFrame({
    footer,
    children,
 }: {
-   presentation: 'dialog' | 'drawer';
+   presentation: 'dialog' | 'drawer' | 'inline';
    open: boolean;
    onOpenChange: (open: boolean) => void;
    title: string;
@@ -91,6 +123,16 @@ function AutopilotFrame({
    footer?: ReactNode;
    children: ReactNode;
 }) {
+   if (presentation === 'inline') {
+      return (
+         <div className="flex flex-col gap-5">
+            {children}
+            {footer ? (
+               <div className="sticky bottom-0 -mx-1 border-t bg-container px-1 py-3">{footer}</div>
+            ) : null}
+         </div>
+      );
+   }
    if (presentation === 'drawer') {
       if (!open) return null;
       return (
@@ -125,7 +167,7 @@ function AutopilotFrame({
    );
 }
 
-function initialDraft(autopilot?: Autopilot, template?: { name: string; prompt: string } | null) {
+function initialDraft(autopilot?: Autopilot, seed?: LoopSeed | null): AutopilotDraft {
    if (autopilot) {
       const { name, description, assigneeType, assigneeId, promptTemplate, executionMode } =
          autopilot;
@@ -141,21 +183,49 @@ function initialDraft(autopilot?: Autopilot, template?: { name: string; prompt: 
          issueId: autopilot.issueId,
          quotaPeriod: autopilot.quotaPeriod,
          quotaMax: autopilot.quotaMax,
+         accessMode: autopilot.accessMode,
+         concurrencyPolicy: autopilot.concurrencyPolicy,
+         maxTurns: autopilot.maxTurns,
+         maxDurationMinutes: autopilot.maxDurationMinutes,
+         maxChainDepth: autopilot.maxChainDepth,
+         allowAgentEvents: autopilot.allowAgentEvents,
+         templateKey: autopilot.templateKey,
       } satisfies AutopilotDraft;
    }
    return {
-      name: template?.name ?? '',
-      description: null,
+      name: seed?.name ?? '',
+      description: seed?.description ?? null,
       assigneeType: 'agent',
-      assigneeId: '',
-      promptTemplate: template?.prompt ?? '',
+      assigneeId: seed?.assigneeId ?? '',
+      promptTemplate: seed?.instructions ?? '',
       executionMode: 'create_issue',
       boardId: null,
-      projectId: null,
+      projectId: seed?.projectId ?? null,
       issueId: null,
       quotaPeriod: 'none',
       quotaMax: null,
+      ...DEFAULT_LOOP_POLICY,
+      accessMode: seed?.accessMode ?? DEFAULT_LOOP_POLICY.accessMode,
+      allowAgentEvents: seed?.allowAgentEvents ?? DEFAULT_LOOP_POLICY.allowAgentEvents,
+      templateKey: seed?.templateKey ?? null,
    } satisfies AutopilotDraft;
+}
+
+type FirstTrigger = 'none' | 'cron' | 'event' | 'webhook';
+
+function seedTrigger(seed?: LoopSeed | null): FirstTrigger {
+   return seed?.trigger?.kind ?? (seed ? 'none' : 'cron');
+}
+
+function policyOf(draft: AutopilotDraft): LoopPolicy {
+   return {
+      accessMode: draft.accessMode ?? DEFAULT_LOOP_POLICY.accessMode,
+      concurrencyPolicy: draft.concurrencyPolicy ?? DEFAULT_LOOP_POLICY.concurrencyPolicy,
+      maxTurns: draft.maxTurns ?? null,
+      maxDurationMinutes: draft.maxDurationMinutes ?? null,
+      maxChainDepth: draft.maxChainDepth ?? 0,
+      allowAgentEvents: draft.allowAgentEvents ?? false,
+   };
 }
 
 /**
@@ -169,11 +239,11 @@ export default function AutopilotDialog({
    open,
    onOpenChange,
    autopilot,
-   template,
+   seed,
    onSaved,
    presentation = 'dialog',
 }: Props) {
-   const t = useTranslations('areas.autopilots.dialog');
+   const t = useTranslations('loops.dialog');
    const router = useRouter();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
@@ -185,13 +255,22 @@ export default function AutopilotDialog({
    const [projects, setProjects] = useState<Project[]>([]);
    const [people, setPeople] = useState<User[]>([]);
    const [coverage, setCoverage] = useState<AgentCoverage | null>(null);
-   const [draft, setDraft] = useState<AutopilotDraft>(() => initialDraft(autopilot, template));
+   const [draft, setDraft] = useState<AutopilotDraft>(() => initialDraft(autopilot, seed));
    const [subscribers, setSubscribers] = useState<string[]>([]);
-   const [trigger, setTrigger] = useState<'none' | 'cron' | 'webhook'>('none');
+   const [trigger, setTrigger] = useState<FirstTrigger>(() => seedTrigger(seed));
    const [schedule, setSchedule] = useState({
-      expression: '0 9 * * 1-5',
+      expression: seed?.trigger?.kind === 'cron' ? seed.trigger.expression : '0 9 * * 1-5',
       timezone: localTimezone(),
    });
+   const [eventTrigger, setEventTrigger] = useState<{
+      eventType: LoopEventType;
+      conditions: Conditions;
+   }>(() =>
+      seed?.trigger?.kind === 'event'
+         ? { eventType: seed.trigger.eventType, conditions: seed.trigger.conditions }
+         : { eventType: 'issue.created', conditions: EMPTY_CONDITIONS }
+   );
+   const [createPaused, setCreatePaused] = useState(false);
    const [eventFilters, setEventFilters] = useState('');
    const [secrets, setSecrets] = useState<{ id: string; secrets: WebhookSecrets } | null>(null);
    const [error, setError] = useState<string | null>(null);
@@ -201,11 +280,25 @@ export default function AutopilotDialog({
    // whenever a frame about it arrives, and depending on the object would wipe
    // what someone is typing mid-edit.
    const autopilotKey = autopilot?.id ?? null;
+   const seedKey = seed
+      ? `${seed.templateKey ?? ''}:${seed.name}:${seed.instructions.length}`
+      : null;
    useEffect(() => {
       if (!open) return;
-      setDraft(initialDraft(autopilot, template));
+      setDraft(initialDraft(autopilot, seed));
       setSubscribers([]);
-      setTrigger('none');
+      setTrigger(autopilot ? 'none' : seedTrigger(seed));
+      if (seed?.trigger?.kind === 'cron')
+         setSchedule((current) => ({
+            ...current,
+            expression:
+               seed.trigger?.kind === 'cron' ? seed.trigger.expression : current.expression,
+         }));
+      if (seed?.trigger?.kind === 'event')
+         setEventTrigger({
+            eventType: seed.trigger.eventType,
+            conditions: seed.trigger.conditions,
+         });
       setSecrets(null);
       setError(null);
       void listBoards()
@@ -228,7 +321,18 @@ export default function AutopilotDialog({
             .catch(() => setPeople([]));
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [open, autopilotKey, workspaceId]);
+   }, [open, autopilotKey, seedKey, workspaceId]);
+
+   // A new Loop files its tasks on the workspace's board when there is only
+   // the one to choose — the common case, and one field fewer to fill.
+   useEffect(() => {
+      if (autopilot || boards.length === 0) return;
+      setDraft((current) =>
+         current.executionMode === 'create_issue' && current.boardId === null && boards[0]
+            ? { ...current, boardId: boards[0].id }
+            : current
+      );
+   }, [autopilot, boards]);
 
    const set = <K extends keyof AutopilotDraft>(key: K, value: AutopilotDraft[K]) =>
       setDraft((current) => ({ ...current, [key]: value }));
@@ -246,12 +350,16 @@ export default function AutopilotDialog({
       runnableAgents.find((agent) => agent.id === draft.assigneeId)?.name ??
       agents.find((agent) => agent.id === draft.assigneeId)?.name;
 
+   const listensForEvents = autopilot
+      ? autopilot.triggerKinds.includes('event')
+      : trigger === 'event';
    const ready =
       draft.name.trim() !== '' &&
       draft.assigneeId !== '' &&
       draft.promptTemplate.trim() !== '' &&
       (draft.executionMode === 'create_issue' ? draft.boardId !== null : draft.issueId !== null) &&
-      (draft.quotaPeriod === 'none' || (draft.quotaMax !== null && draft.quotaMax >= 1));
+      (draft.quotaPeriod === 'none' || (draft.quotaMax !== null && draft.quotaMax >= 1)) &&
+      (autopilot || trigger !== 'event' || conditionsComplete(eventTrigger.conditions));
 
    async function submit(event: FormEvent) {
       event.preventDefault();
@@ -272,7 +380,9 @@ export default function AutopilotDialog({
             return;
          }
 
-         const created = await createAutopilot(workspaceId, draft);
+         const created = await createAutopilot(workspaceId, draft, {
+            status: createPaused ? 'paused' : 'active',
+         });
          if (subscribers.length > 0) {
             await setAutopilotMembers(
                created.id,
@@ -281,6 +391,8 @@ export default function AutopilotDialog({
          }
          if (trigger === 'cron') {
             await addCronTrigger(created.id, schedule);
+         } else if (trigger === 'event') {
+            await addEventTrigger(created.id, eventTrigger);
          } else if (trigger === 'webhook') {
             const made = await addWebhookTrigger(
                created.id,
@@ -297,7 +409,7 @@ export default function AutopilotDialog({
          }
          onSaved?.();
          onOpenChange(false);
-         router.push(`/${orgId}/autopilot/${created.id}`);
+         router.push(`/${orgId}/loop/${created.id}`);
       } catch (failure) {
          setError(describeAutopilotFailure(failure));
       } finally {
@@ -319,7 +431,7 @@ export default function AutopilotDialog({
                   const id = secrets.id;
                   setSecrets(null);
                   onOpenChange(false);
-                  router.push(`/${orgId}/autopilot/${id}`);
+                  router.push(`/${orgId}/loop/${id}`);
                }}
             />
          </AutopilotFrame>
@@ -334,7 +446,18 @@ export default function AutopilotDialog({
          title={autopilot ? t('edit') : t('new')}
          description={t('description')}
          footer={
-            <DialogFooter>
+            <DialogFooter className="items-center">
+               {!autopilot ? (
+                  <label className="mr-auto flex items-center gap-2 text-muted-foreground">
+                     <input
+                        type="checkbox"
+                        checked={createPaused}
+                        onChange={(event) => setCreatePaused(event.target.checked)}
+                        className="accent-[var(--primary)]"
+                     />
+                     {t('createPaused')}
+                  </label>
+               ) : null}
                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
                   {t('cancel')}
                </Button>
@@ -391,6 +514,55 @@ export default function AutopilotDialog({
                />
                <p className="text-muted-foreground">{t('runbookHint')}</p>
             </div>
+
+            {!autopilot ? (
+               <div className="grid gap-2">
+                  <Label>{t('firstTrigger')}</Label>
+                  <div className="flex flex-wrap items-center gap-1">
+                     {(['cron', 'event', 'webhook', 'none'] as const).map((kind) => (
+                        <Button
+                           key={kind}
+                           type="button"
+                           size="xs"
+                           variant={trigger === kind ? 'secondary' : 'ghost'}
+                           onClick={() => setTrigger(kind)}
+                        >
+                           {t(`trigger_${kind}`)}
+                        </Button>
+                     ))}
+                  </div>
+                  {trigger === 'cron' ? (
+                     <div className="rounded-md border p-3">
+                        <ScheduleEditor
+                           expression={schedule.expression}
+                           timezone={schedule.timezone}
+                           onChange={setSchedule}
+                        />
+                     </div>
+                  ) : null}
+                  {trigger === 'event' ? (
+                     <div className="rounded-md border p-3">
+                        <EventTriggerEditor
+                           eventType={eventTrigger.eventType}
+                           conditions={eventTrigger.conditions}
+                           projects={projects}
+                           onChange={setEventTrigger}
+                        />
+                     </div>
+                  ) : null}
+                  {trigger === 'webhook' ? (
+                     <div className="grid gap-1.5">
+                        <Label htmlFor="autopilot-events">{t('eventFilters')}</Label>
+                        <Input
+                           id="autopilot-events"
+                           value={eventFilters}
+                           onChange={(event) => setEventFilters(event.target.value)}
+                        />
+                        <p className="text-muted-foreground">{t('eventFiltersHint')}</p>
+                     </div>
+                  ) : null}
+               </div>
+            ) : null}
 
             <div className="grid gap-2">
                <Label>{t('outputMode')}</Label>
@@ -586,44 +758,13 @@ export default function AutopilotDialog({
                <p className="text-muted-foreground">{t('subscribersHint')}</p>
             </div>
 
-            {!autopilot ? (
-               <div className="grid gap-2">
-                  <Label>{t('firstTrigger')}</Label>
-                  <div className="flex flex-wrap items-center gap-1">
-                     {(['none', 'cron', 'webhook'] as const).map((kind) => (
-                        <Button
-                           key={kind}
-                           type="button"
-                           size="xs"
-                           variant={trigger === kind ? 'secondary' : 'ghost'}
-                           onClick={() => setTrigger(kind)}
-                        >
-                           {t(`trigger_${kind}`)}
-                        </Button>
-                     ))}
-                  </div>
-                  {trigger === 'cron' ? (
-                     <div className="rounded-md border p-3">
-                        <ScheduleEditor
-                           expression={schedule.expression}
-                           timezone={schedule.timezone}
-                           onChange={setSchedule}
-                        />
-                     </div>
-                  ) : null}
-                  {trigger === 'webhook' ? (
-                     <div className="grid gap-1.5">
-                        <Label htmlFor="autopilot-events">{t('eventFilters')}</Label>
-                        <Input
-                           id="autopilot-events"
-                           value={eventFilters}
-                           onChange={(event) => setEventFilters(event.target.value)}
-                        />
-                        <p className="text-muted-foreground">{t('eventFiltersHint')}</p>
-                     </div>
-                  ) : null}
-               </div>
-            ) : null}
+            <div className="grid gap-2 border-t pt-4">
+               <LoopPolicyFields
+                  value={policyOf(draft)}
+                  onChange={(next) => setDraft((current) => ({ ...current, ...next }))}
+                  listensForEvents={listensForEvents}
+               />
+            </div>
 
             {error ? (
                <p className="text-destructive" role="alert">

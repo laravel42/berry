@@ -14,7 +14,7 @@ interface AutopilotDetailHeaderProps {
 
 /** Breadcrumb bar for the autopilot detail drawer. */
 export default function AutopilotDetailHeader({ autopilotId }: AutopilotDetailHeaderProps) {
-   const t = useTranslations('areas.autopilots');
+   const t = useTranslations('loops');
    const { orgId } = useParams<{ orgId: string }>();
    const { autopilot } = useAutopilot(autopilotId);
    const name = autopilot?.name ?? t('detail.loading');
@@ -23,7 +23,7 @@ export default function AutopilotDetailHeader({ autopilotId }: AutopilotDetailHe
       <div className="flex h-[52px] w-full items-center gap-2 border-b px-5 py-1.5">
          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
             <Link
-               href={`/${orgId}/autopilots`}
+               href={`/${orgId}/loops`}
                className="text-muted-foreground transition-colors hover:text-foreground"
             >
                {t('title')}

@@ -108,7 +108,8 @@
          "goToViews": "Go to views",
          "goToAgents": "Go to agents",
          "goToRuntimes": "Go to runtimes",
-         "goToSettings": "Go to settings"
+         "goToSettings": "Go to settings",
+         "newLoop": "New loop"
       },
       "fixedActions": {
          "commandPalette": "Open the command palette",
